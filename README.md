@@ -75,7 +75,7 @@ rendering are all queued to the worker, so one long export cannot make the
 application unusable for everyone else.
 
 ```bash
-npm test           # 206 tests, including real renders through real ffmpeg
+npm test           # 262 tests, including real renders through real ffmpeg
 npm run typecheck
 ```
 
@@ -83,7 +83,7 @@ npm run typecheck
 
 ```bash
 npx tsx scripts/make-fixture.ts /tmp/bv          # a source whose frames carry their index
-npx tsx scripts/e2e.mjs /tmp/bv/source.mp4       # 114 checks, driven with the spacebar
+npx tsx scripts/e2e.mjs /tmp/bv/source.mp4       # 126 checks, driven with the spacebar
 ```
 
 Chrome's fake media device stands in for a camera, so this exercises the actual
@@ -122,6 +122,8 @@ assembly, render — not a mock of it.
 | Evidence | archived on attach, located, timed, zoomed to in the render |
 | Article | every conversation also renders as a citable document (U-14) |
 | Publication bundle | description, chapters, titles and thumbnails, written from the document (U-30) |
+| Suggested claims | the source's checkable statements, found locally, ranked, with reasons (§20) |
+| The AI boundary | nothing suggested enters the document without a recorded human acceptance (U-15) |
 | Representations | one registry, regenerated on demand, never stored (D-16) |
 | Worker | durable queue, real progress, resumable via the shot cache |
 
@@ -162,6 +164,46 @@ silently ignore a list that breaks their rules, and a list that is ignored is
 worse than none. Where no acceptable list can be made, the bundle says so in
 words instead of handing over something that will not work.
 
+### The knowledge layer
+
+```
+source transcript -> suggested claim -> the author accepts, edits or rejects
+  -> the bound response -> its evidence -> the Conversation Document
+```
+
+Every arrow but the first is a human decision, and the first produces nothing
+anyone can publish. `U-15` says AI may surface claims and may not put words in
+the author's mouth; `src/domain/suggestions.ts` is that sentence as code.
+
+The enforcement is structural rather than procedural. Suggestions are derived
+from the transcript and **never stored** — only the author's decisions are
+document state (INV-00). So an unaccepted suggestion cannot reach the article,
+the bundle, the manifest or a render, not because every writer remembers to
+filter it, but because it was never in the document to filter. What *is* stored
+carries the four fields `INV-06` requires: the model, its version, the prompt
+hash, and the human who accepted it.
+
+The forbidden list is expressed in the types. The suggestion payload union has
+no variant for recorded speech, none for narration, none for a verdict — U-15's
+"may not" is not a check that can be forgotten but a shape that cannot be
+written. Binding a claim verifies it is still verbatim in the transcript, so an
+author may *narrow* a quote and may not paraphrase one: a sentence the source
+never said misquotes a real person, whoever typed it.
+
+The first detector is local and deterministic — no model, no network, no cloud
+dependency for the thing an author does first. It finds the shapes a checkable
+statement takes (a figure, an absolute, a cause, an appeal to a source) and
+says which one it found, so the author judges the suggestion instead of
+trusting it. It is registered behind `ClaimDetector`, the same way transcribers
+are, so a language model can replace it without the acceptance machinery
+changing. It does not understand the video, it cannot tell you whether a claim
+is true, and it says both in the panel.
+
+```
+GET  /api/conversations/<id>/claims      suggestions + the author's decisions
+POST /api/conversations/<id>/claims      accept · edit · reject  (records who)
+```
+
 ### Verified, not asserted
 
 `test/render/frame-exact.test.ts` renders a real MP4 from a source whose every
@@ -186,8 +228,11 @@ Stated plainly, because a status table that overstates is worse than none.
   have. Other languages mean registering another engine.
 - **No speaker diarisation.** §5 wants speaker segmentation where possible;
   the source is currently treated as one speaker.
-- **Research and claim detection** (§20, §43, §45) are not built. The transcript
-  they need now exists.
+- **Retrieval-grounded research** (§43, §45, U-34) is not built. The boundary it
+  must enter through is: a research result becomes an `evidence` suggestion
+  carrying a fetched source, and U-34's rule that an ungrounded assertion is
+  *not returned at all* is already enforced in `groundedOnly`. Claim detection
+  (§20) is built and local.
 - **Vimeo authoring.** A Vimeo link creates a Class B conversation and the
   manifest drives its embed, but the Studio's one-key loop is wired to
   YouTube's player API only; Vimeo's needs its own adapter.
@@ -226,6 +271,8 @@ src/render/         ffmpeg: ingest, compositor, subtitles — worker only
 src/store/          document, chunks, queue — split so the web tier
                     cannot import anything that reaches ffmpeg
 src/worker/         the only process permitted to run ffmpeg
+src/knowledge/      claim detection, behind a swappable detector interface
+src/publish/        the publication bundle
 app/                Next.js web tier: API routes and the Studio
 test/               domain invariants + a real render, decoded and checked
 scripts/            fixture generation and the browser end-to-end run

@@ -21,6 +21,10 @@ import {
   type EvidenceLocator, type Intervention, type InterventionType, type Point, type Take,
 } from './document.js';
 import { LAYOUTS } from './presentation.js';
+import { normaliseQuote, quoteHash } from './ids.js';
+import {
+  assertAcceptedOrigin, type AiOrigin, type Provenance, type SuggestionDecision,
+} from './suggestions.js';
 import { assertFrames, type Frames } from './time.js';
 
 /** Shortest response worth keeping. Below this it is a slip, not a point. */
@@ -407,4 +411,114 @@ export function annotationsAt(intervention: Intervention, offset: Frames): Annot
 function clampPoint(point: Point): Point {
   const clamp01 = (n: number) => Math.min(Math.max(n, 0), 1);
   return { x: clamp01(point.x), y: clamp01(point.y) };
+}
+
+/* -------------------------------------------------------------------------
+ * Deciding about a suggested claim.  [Doctrine U-15, §20, INV-06]
+ *
+ * These are the ONLY functions in the product that move a machine-produced
+ * proposal towards the document, and none of them does it silently: each one
+ * records who decided, when, and what produced the suggestion. The caller
+ * writes an audit entry as well, so the trail survives even a document
+ * rollback.
+ * ---------------------------------------------------------------------- */
+
+/**
+ * Accept, edit or reject one suggestion.
+ *
+ * Recording a rejection matters as much as recording an acceptance. Without
+ * it, "the author considered this and said no" and "the author has not seen
+ * this yet" are the same state, so a dismissed suggestion returns on the next
+ * detection run and the author dismisses it forever.
+ */
+export function decideClaim(
+  conversation: Conversation,
+  input: {
+    suggestionKey: string;
+    status: SuggestionDecision['status'];
+    by: string;
+    at: string;
+    provenance: Provenance;
+    /** Required for 'edited': the narrowed span, still the source's words. */
+    editedQuote?: string;
+  },
+): SuggestionDecision {
+  if (!input.by.trim()) {
+    // INV-06 is "every AI-derived field has an accepted_by". An anonymous
+    // acceptance is the shape that rule fails in first.
+    throw new EditError('a claim decision must record who made it [INV-06, U-15]');
+  }
+  if (input.status === 'edited' && !input.editedQuote?.trim()) {
+    throw new EditError('an edited claim must carry the edited text');
+  }
+
+  const decision: SuggestionDecision = {
+    suggestionKey: input.suggestionKey,
+    status: input.status,
+    by: input.by,
+    at: input.at,
+    provenance: input.provenance,
+    ...(input.status === 'edited' && input.editedQuote
+      ? { editedQuote: input.editedQuote.trim(), editedQuoteHash: quoteHash(input.editedQuote) }
+      : {}),
+  };
+
+  const decisions = conversation.claimDecisions ?? [];
+  // One decision per suggestion: the latest replaces the earlier, and the
+  // audit log keeps the history. A list that accumulated every change would
+  // make "what does the author currently think" a question with no answer.
+  conversation.claimDecisions = [
+    ...decisions.filter((d) => d.suggestionKey !== input.suggestionKey),
+    decision,
+  ];
+  return decision;
+}
+
+/**
+ * Bind an accepted claim to an intervention.  [U-10, U-15, INV-05, INV-06]
+ *
+ * This is the one door between the knowledge layer and the document, and the
+ * checks at it are the boundary:
+ *
+ *   The text must be verbatim from the source. An author narrowing a claim is
+ *   tightening a quote; an author typing a paraphrase is writing their own
+ *   sentence, and a paraphrase presented as a quote misquotes a real person.
+ *   Their own words are welcome — as a note, not as the source's speech.
+ *
+ *   The origin travels with it. Once bound, the quote carries the model, the
+ *   version, the prompt hash and the accepting human, for as long as it exists.
+ */
+export function bindAcceptedClaim(
+  conversation: Conversation,
+  interventionId: string,
+  input: {
+    quote: string;
+    sourceText: string;
+    startFrame: Frames;
+    origin: AiOrigin;
+    sentenceId?: string;
+    transcriptVersion?: number;
+  },
+): Intervention {
+  const target = intervention(conversation, interventionId);
+  const quote = input.quote.trim();
+  if (!quote) throw new EditError('a bound claim cannot be empty');
+
+  if (!normaliseQuote(input.sourceText).includes(normaliseQuote(quote))) {
+    throw new EditError(
+      'a bound claim must be words the source actually said — this text is not in the '
+      + 'transcript. Your own wording belongs in a note, not in a quote [U-15, INV-05]');
+  }
+
+  assertAcceptedOrigin(input.origin, `the claim bound to ${interventionId}`);
+
+  target.anchor = {
+    ...target.anchor,
+    quote,
+    quoteHash: quoteHash(quote),
+    origin: input.origin,
+    ...(input.sentenceId ? { sentenceId: input.sentenceId } : {}),
+    ...(input.transcriptVersion ? { transcriptVersion: input.transcriptVersion } : {}),
+  };
+  return target;
 }

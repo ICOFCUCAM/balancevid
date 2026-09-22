@@ -133,6 +133,124 @@ const quoted = snapAfter.conversation.interventions.filter((iv) => iv.anchor.quo
 check(quoted.length === 1, 'the claim is bound to the intervention (U-10)',
   quoted[0] ? `"${quoted[0].anchor.quote.slice(0, 48)}…"` : 'none');
 check(quoted.every((iv) => Boolean(iv.anchor.quoteHash)), 'the claim carries its hash (INV-05)');
+// The author highlighted that one themselves, so it carries no AI origin.
+check(quoted.every((iv) => !iv.anchor.origin),
+  'a claim the author found themselves records no model (U-15)');
+
+// --- the knowledge layer (§20, U-15, INV-06) --------------------------------
+log('checking suggested claims…');
+const claimsView = await api(`/api/conversations/${conversationId}/claims`);
+check(Array.isArray(claimsView.claims), 'suggested claims are offered for a Class A source');
+check(claimsView.detector?.id === 'heuristic-claims',
+  'the detector names itself (U-03 applied to U-15)', claimsView.detector?.id);
+check(claimsView.detector?.characteristics?.local === true
+  && claimsView.detector?.characteristics?.semantic === false,
+  'and says plainly that it is local and not a language model');
+check(claimsView.claims.every((c) => c.status === 'suggested'),
+  'nothing is decided until the author decides it');
+/*
+ * The fixture's speech is Hawthorne and Joyce, which contains no checkable
+ * factual claims, so the honest result here is an empty list. That is the
+ * assertion: a detector that fired on literary prose would be worse, not
+ * better. The accept-and-bind path is proven against a seeded transcript in
+ * test/knowledge/api.test.ts, where the source can be made to contain one.
+ */
+check(claimsView.claims.length === 0,
+  'the finder stays quiet on prose that asserts nothing',
+  `${claimsView.claims.length} found in literary narration`);
+
+// Nothing suggested may be in the document before a human says so.
+const beforeDecisions = (await api(`/api/conversations/${conversationId}`))
+  .conversation.claimDecisions;
+check(beforeDecisions === undefined || beforeDecisions.length === 0,
+  'an undecided suggestion is not on the document at all (INV-00, U-15)');
+if (claimsView.claims.length > 0) {
+  const docText = JSON.stringify((await api(`/api/conversations/${conversationId}`)).conversation);
+  check(claimsView.claims.every((c) => !docText.includes(c.suggested.quoteHash)),
+    'no suggested claim hash appears anywhere in the document');
+}
+
+// A decision cannot be anonymous: INV-06 is not satisfiable without a person.
+if (claimsView.claims.length > 0) {
+  const anonymous = await fetch(`${BASE}/api/conversations/${conversationId}/claims`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ key: claimsView.claims[0].key, status: 'accepted', by: '  ' }),
+  });
+  check(anonymous.status === 400, 'an anonymous decision is refused (INV-06)');
+
+  // Rejection is recorded, and survives a fresh detection run.
+  const rejectKey = claimsView.claims.at(-1).key;
+  const rejected = await fetch(`${BASE}/api/conversations/${conversationId}/claims`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ key: rejectKey, status: 'rejected', by: 'E2E Author' }),
+  });
+  check(rejected.ok, 'a suggestion can be turned down');
+  const afterReject = await api(`/api/conversations/${conversationId}/claims`);
+  check(afterReject.claims.find((c) => c.key === rejectKey)?.status === 'rejected',
+    'a rejected suggestion stays rejected when detection runs again');
+
+  // A paraphrase cannot be bound: a quote the source never said misquotes them.
+  const paraphrase = await fetch(`${BASE}/api/conversations/${conversationId}/claims`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      key: claimsView.claims[0].key, status: 'edited', by: 'E2E Author',
+      editedQuote: 'something the source never said at any point whatsoever',
+      interventionId: snapAfter.conversation.interventions[0].id,
+    }),
+  });
+  check(paraphrase.status === 400,
+    'a paraphrase cannot be bound as a source quote (U-15, INV-05)');
+}
+
+// The panel is present and honest about finding nothing.
+// No reload here: it would disarm the camera and every later step depends on
+// the session state this page is holding.
+await page.waitForSelector('[data-testid="claims-panel"]', { timeout: 30_000 })
+  .then(() => check(true, 'the studio shows the claims panel'))
+  .catch(() => check(false, 'the studio shows the claims panel', 'never appeared'));
+// The panel may have mounted before transcription finished; it polls itself
+// out of that state, so wait for the settled answer rather than racing it.
+await page.waitForFunction(() => {
+  const el = document.querySelector('[data-testid="claims-panel"]');
+  return el && !/not been transcribed/i.test(el.textContent || '');
+}, null, { timeout: 60_000 }).catch(() => {});
+const panelClaims = await page.locator('[data-testid="claim"]').count();
+check(panelClaims === claimsView.claims.length,
+  'the panel shows exactly what the finder returned', `${panelClaims} shown`);
+check((await page.locator('[data-testid="claims-panel"]').innerText()).includes('Nothing stood out'),
+  'and says nothing stood out rather than looking broken');
+if (panelClaims > 0) {
+  await page.fill('[data-testid="claims-by"]', 'E2E Author');
+  const before = (await api(`/api/conversations/${conversationId}`))
+    .conversation.interventions.length;
+  await sleep(2500);
+  await page.locator('[data-testid="claim-respond"]').first().click();
+  await page.waitForFunction(
+    () => document.body.innerText.includes('press space to continue'), null, { timeout: 20_000 });
+  await sleep(2400);
+  await page.keyboard.press('Space');
+  await page.waitForFunction(
+    () => document.body.innerText.includes('Press space to interrupt'), null, { timeout: 60_000 });
+
+  snapAfter = await api(`/api/conversations/${conversationId}`);
+  check(snapAfter.conversation.interventions.length === before + 1,
+    'answering a suggested claim opens an intervention');
+  const fromSuggestion = snapAfter.conversation.interventions.filter((iv) => iv.anchor.origin);
+  check(fromSuggestion.length === 1,
+    'and the quote it bound carries its origin (INV-06)',
+    `${fromSuggestion.length} with origin`);
+  const origin = fromSuggestion[0]?.anchor.origin ?? {};
+  check(Boolean(origin.model && origin.version && origin.promptHash
+    && origin.acceptedBy && origin.acceptedAt),
+    'the origin records all four fields INV-06 requires',
+    JSON.stringify(origin));
+  check(origin.acceptedBy === 'E2E Author', 'and names the human who accepted it');
+  check(snapAfter.conversation.claimDecisions?.some((d) => d.status === 'accepted'),
+    'the acceptance is recorded on the document');
+}
 
 // --- wait for takes to assemble --------------------------------------------
 log('waiting for takes to assemble…');
@@ -422,7 +540,10 @@ check(bundle.description.includes('Source:'),
   'the description carries the generated attribution block (INV-07, U-21)');
 check(bundle.suggestedTitles.length > 0, 'the bundle suggests titles from the author\'s claims');
 const boundQuote = quoted[0]?.anchor.quote ?? '';
-check(boundQuote.length > 0 && bundle.suggestedTitles.some((t) => t.includes(boundQuote)),
+// A title truncates a long claim (80 chars), so compare on a prefix: which
+// sentence the run binds depends on ASR segmentation and is not always short.
+const boundPrefix = boundQuote.slice(0, 40);
+check(boundPrefix.length > 0 && bundle.suggestedTitles.some((t) => t.includes(boundPrefix)),
   'a suggested title quotes a claim the author actually bound',
   JSON.stringify(bundle.suggestedTitles));
 check(bundle.chapters.length === 0 || bundle.chapters[0].startFrame === 0,
@@ -598,6 +719,15 @@ check((await refusedComposed.json()).error?.includes('Class B'),
 
 const embeddedManifest = await api(
   `/api/conversations/${embeddedId}/representations?id=manifest.json`);
+// The knowledge layer needs a transcript, and an embedded source is never
+// downloaded (U-35 §6), so it says why rather than showing an empty list.
+const embeddedClaims = await api(`/api/conversations/${embeddedId}/claims`);
+check(embeddedClaims.claims.length === 0 && typeof embeddedClaims.unavailable === 'string',
+  'a Class B source says why it has no claims, rather than showing none (U-01)',
+  embeddedClaims.unavailable);
+check(/never downloaded|embedded/i.test(embeddedClaims.unavailable ?? ''),
+  'and gives the doctrine\'s reason');
+
 check(embeddedManifest.source.embedUrl?.includes('youtube-nocookie.com'),
   'the Class B manifest drives the provider\'s player');
 check(!/\.(mp4|webm|m3u8|mpd)(["\'?]|$)/.test(JSON.stringify(embeddedManifest.source)),

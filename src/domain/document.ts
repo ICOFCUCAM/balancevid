@@ -10,6 +10,7 @@
 
 import type { Frames } from './time.js';
 import type { Id } from './ids.js';
+import type { AiOrigin, SuggestionDecision } from './suggestions.js';
 import type { ProviderId } from './providers.js';
 
 /** Forward-only. Migrations are tested against archived real documents. [U-25] */
@@ -78,6 +79,14 @@ export interface Anchor {
   /** Integrity binding. A quote whose text does not hash to this is a defect. */
   quoteHash?: string;
   transcriptVersion?: number;
+  /**
+   * Set only when this quote reached the document through a suggestion.
+   *
+   * Absent on everything the author found themselves, which is most of them.
+   * When present it names the model, its version, the prompt hash and the
+   * person who accepted it — the four fields INV-06 requires. [U-15]
+   */
+  origin?: AiOrigin;
 }
 
 /**
@@ -306,6 +315,15 @@ export interface Conversation {
   publication?: Publication;
   /** Set when this conversation answers another one. [U-31, §40] */
   lineage?: Lineage;
+  /**
+   * What the author decided about each suggested claim.  [U-15, §20]
+   *
+   * Only the DECISIONS live here. The suggestions themselves are derived from
+   * the transcript and recomputed on demand (INV-00), so an unreviewed
+   * suggestion is not part of the document and cannot reach anything the
+   * document produces.
+   */
+  claimDecisions?: SuggestionDecision[];
   createdAt: string;
   updatedAt: string;
 }

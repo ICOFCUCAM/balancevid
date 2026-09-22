@@ -3368,6 +3368,42 @@ recently spoken words, and the ones the user cared about most. Found only by
 driving the real browser. **An end-to-end test is not a slower unit test; it is
 the only thing that sees the races.**
 
+**The boundary had to be a type, not a check.** U-15 says AI may not generate
+a response the user did not say, may not alter a source quote, may not assert a
+verdict. Written as validation, each of those is a rule someone can forget to
+call. Written as the suggestion payload union — which has no variant for
+recorded speech, none for narration, none for a verdict — they are things that
+cannot be expressed. A contributor who wants to generate the response audio in
+the author's cloned voice has to delete something visibly load-bearing to do
+it, which is exactly the cost U-15 wanted the boundary to have.
+
+The same move settled where suggestions live. They are derived from the
+transcript, so INV-00 says they are a representation and must not be stored —
+and once only the author's DECISIONS are document state, "an unaccepted
+suggestion cannot reach the article, the bundle, the manifest or a render"
+stops being a filter every writer must remember and becomes a fact about the
+shape of the document. **The strongest enforcement of a rule is an architecture
+in which breaking it has nothing to attach to.**
+
+**Recording a rejection is not optional.** The first design stored acceptances
+only. That makes "the author considered this and said no" and "the author has
+not seen this yet" the same state, so every dismissed suggestion returns on the
+next detection run and is dismissed again, forever. A suggestion engine that
+cannot be told no is one nobody opens twice. It also forced the decision key to
+be derived from content rather than from a run, which turned out to be the
+right identity anyway: a re-transcription that changes the WORDS correctly
+produces a new suggestion, and one that only changes timings does not.
+
+**A detector that fires on everything has told you nothing.** The end-to-end
+fixture's speech is literary narration, and the claim finder returns nothing
+for it — correctly, because Hawthorne asserts no checkable facts. The
+temptation to loosen the rules until the browser test found something was
+real, and taking it would have made the product worse in exactly the way that
+matters: an author who cannot trust the list stops reading it. The test now
+asserts the silence, and the accept-and-bind path is proved against a source
+that does assert something. **Tune the test to the product, never the product
+to the test.**
+
 **`-ss` does not land on a frame; it lands after one.** The thumbnail grab
 seeked to the middle of frame N — the obvious reading of "grab frame N" — and
 ffmpeg dutifully returned frame N+1, because a seek yields the first frame at
