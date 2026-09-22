@@ -752,13 +752,16 @@ export default function Studio({ conversationId }: { conversationId: string }) {
                 Read as an article
               </a>
             </div>
-            <div className="small" style={{ marginTop: 8, lineHeight: 2 }}>
+            <div
+              className="small"
+              style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: '4px 12px' }}
+            >
               {['article.md', 'article.json', 'captions.srt', 'captions.vtt', 'timeline.json', 'render-plan.json']
                 .map((id) => (
                   <a
                     key={id}
                     className="small mono"
-                    style={{ marginRight: 10 }}
+                    style={{ whiteSpace: 'nowrap' }}
                     href={`/api/conversations/${conversationId}/representations?id=${id}`}
                     target="_blank"
                     rel="noreferrer"
