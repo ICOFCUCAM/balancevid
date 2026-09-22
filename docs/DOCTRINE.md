@@ -1,0 +1,2908 @@
+# BalanceVid — Product Doctrine
+
+**Status:** Canonical. This document is the constitution of the product.
+**Version:** 1.0 · **Adopted:** 2026-09-22
+
+---
+
+## Status of this document
+
+This is the founding map of the product, preserved **in full and unabridged**.
+Nothing in Part I has been summarised, compressed, reordered, or removed.
+
+Where the map left a decision open, or where implementing it literally would
+produce an amateur result, an **upgrade note** is inserted inline, immediately
+after the section it concerns. Upgrade notes never replace the map — they
+resolve it.
+
+Formatting only: the original text arrived with duplicated empty code fences
+around each diagram. Those have been normalised into single fences. No words
+were changed.
+
+### How to read this document
+
+| Marker | Meaning |
+|---|---|
+| Part I, §1–§52 | The map. Canonical. Verbatim. Binding. |
+| `⬆ UPGRADE U-nn` | A necessary upgrade to the map, applied inline. Binding. |
+| Part II, `D-nn` | Cross-cutting doctrine the map implies but does not house in any one section. Binding. |
+
+### Amendment rule
+
+Part I may only be **extended**, never contradicted. If implementation
+experience proves a section of the map wrong, the correction is written as a
+new upgrade note under that section, stating what it supersedes and why. The
+original text stays. The product must always be able to show its own reasoning
+history — the same principle the product sells to its users.
+
+---
+---
+
+# PART I — THE MAP
+
+## Interactive Video Commentary & Conversation Platform
+
+### Working concept
+
+A video platform that allows a user to watch any supported video, interrupt it at precise moments, respond to specific statements, explain, question, challenge, criticize, teach, or add context, and then continue the original video.
+
+The application records every interruption as a structured timeline event and ultimately combines the original video and the user's interventions into a single polished video that can be exported and published.
+
+The fundamental idea is:
+
+Watch → Interrupt → Respond → Continue → Interrupt → Respond → Continue → Compose → Publish.
+
+This creates a new type of video creation experience: a conversation between the creator and an existing video.
+
+---
+
+## 1. The Problem
+
+Today, someone who wants to make a detailed response to a video generally has to use a conventional video editor.
+
+The workflow is cumbersome:
+
+1. Watch the source video.
+2. Remember where something important happened.
+3. Stop watching.
+4. Open an editor.
+5. Find the timestamp.
+6. Cut the video.
+7. Record commentary.
+8. Insert the commentary.
+9. Find the next point.
+10. Repeat.
+11. Synchronize everything.
+12. Add captions.
+13. Render the final video.
+
+Traditional editors think in terms of:
+
+clips → tracks → cuts → transitions
+
+But the user thinks:
+
+"I want to stop this person here and respond to what they just said."
+
+The proposed application is designed around the second mental model.
+
+---
+
+## 2. The Core Concept
+
+The application treats the source video as a speaker.
+
+The user becomes the responding speaker.
+
+The timeline becomes their conversation.
+
+For example:
+
+```
+SOURCE VIDEO
+00:00 ─────────────── 04:32
+                         │
+                         ▼
+                    INTERRUPT
+                         │
+                         ▼
+USER RESPONSE
+"Let's stop here. There is an important
+problem with what he just said."
+
+                         │
+                         ▼
+SOURCE VIDEO
+04:32 ─────────────── 09:18
+                         │
+                         ▼
+                    INTERRUPT
+                         │
+                         ▼
+USER RESPONSE
+"This statement needs some context..."
+
+                         │
+                         ▼
+SOURCE VIDEO
+09:18 ─────────────── 14:51
+```
+
+The user does not need to manually edit these cuts.
+
+The application understands the conversation structure.
+
+---
+
+## 3. The Product's Central Object: The Conversation
+
+Every project is a Conversation.
+
+For example:
+
+Conversation:
+ My Response to "The History of Europe"
+
+Inside the conversation:
+
+```
+Source Video
+      │
+      ├── Segment 1
+      │
+      ├── Interruption 1
+      │
+      ├── Segment 2
+      │
+      ├── Interruption 2
+      │
+      ├── Segment 3
+      │
+      ├── Interruption 3
+      │
+      └── Segment 4
+```
+
+The user is therefore not editing a conventional video timeline.
+
+They are building a conversation timeline.
+
+---
+
+## 4. Starting a Project
+
+The user selects:
+
+Create New Conversation
+
+Then chooses:
+
+**Option A — YouTube**
+
+Paste:
+
+```
+https://youtube.com/watch?v=XXXXXXXX
+```
+
+The application identifies the video and creates the source.
+
+**Option B — Upload Video**
+
+The user uploads:
+
+```
+MP4
+MOV
+WebM
+etc.
+```
+
+The application processes the file.
+
+**Option C — Other supported sources**
+
+The architecture could later support additional legitimate video sources.
+
+<!-- UPGRADE -->
+### ⬆ UPGRADE U-01 · The Two Source Classes
+
+**Necessity.** §4 offers YouTube and upload as if they were interchangeable. They are not, and treating them as equivalent is the single decision most likely to kill this product — either technically (the render fails) or legally (the platform is liable). §46 raises the concern but does not resolve it. This upgrade resolves it.
+
+An embedded YouTube player does not give the application access to frames or audio samples. It cannot be drawn into a canvas, piped to a render worker, or muxed into an MP4. Extracting the stream anyway violates YouTube's Terms of Service and exposes both the user and the platform. Therefore the product cannot produce a single composed MP4 containing embedded third-party footage. Pretending otherwise produces a product that demos and then fails.
+
+**Doctrine.** Every Source belongs to exactly one class, decided at the moment it is added, and the class determines which export modes are available. The class is never hidden from the user.
+
+```
+CLASS A — GOVERNED SOURCE
+  Origin:   user upload, or a direct file/HLS URL the user has rights to
+  Access:   full frame and sample access
+  Export:   COMPOSED  — one polished MP4 containing source + responses
+            COMPANION — also available
+  This is the product's flagship path.
+
+CLASS B — EMBEDDED SOURCE
+  Origin:   YouTube, Vimeo, or any provider whose official embed we honour
+  Access:   playback only, through the provider's own player
+  Export:   COMPANION ONLY
+            (a) RESPONSE REEL — a composed MP4 of the user's own material,
+                with freeze-frames the user captured, annotations, captions,
+                evidence, and the claim being answered shown as typography.
+                Contains no provider footage.
+            (b) CONVERSATION MANIFEST — a shareable player page that drives
+                the provider's official embed and cuts to the user's
+                responses at the recorded timestamps. The viewer sees the
+                full conversation; the provider serves their own video,
+                keeps their analytics, and their monetisation is intact.
+```
+
+The Conversation document is **identical** in both classes. Only the render target differs. A Class B conversation upgrades to Class A losslessly the day the user supplies a governed copy of the source — the interventions, timestamps, types, annotations, and evidence all carry over untouched, and the composed render simply becomes available.
+
+**This is a feature, not a limitation.** The Conversation Manifest is a format the incumbent editors cannot produce at all: a living response that stays attached to the original, cannot be accused of stealing it, and keeps working when the source is updated. State it in the UI in those terms.
+
+**Enforcement.** The render planner refuses a COMPOSED plan whose source is Class B. This is a hard invariant asserted in code, not a UI convention — see D-09.
+<!-- /UPGRADE -->
+
+---
+
+## 5. Source Processing
+
+Once the source is loaded, the application processes it.
+
+It can generate:
+
+* video metadata
+* duration
+* audio track
+* waveform
+* transcript
+* sentence segmentation
+* timestamps
+* speaker segmentation where possible
+* chapters
+* scene changes
+* key frames
+
+The transcript becomes especially important.
+
+For example:
+
+```
+00:00
+Welcome everyone.
+
+00:04
+Today we're going to discuss...
+
+00:11
+The first thing we need to understand...
+
+00:19
+This happened because...
+```
+
+Each sentence has a timestamp.
+
+<!-- UPGRADE -->
+### ⬆ UPGRADE U-02 · Ingest Normalisation Is Mandatory
+
+**Necessity.** §5 lists what to *extract* from a source but not what to *guarantee* about it. Real-world uploads carry variable frame rate, rotation metadata, non-standard pixel formats, multi-channel or zero-channel audio, and sparse keyframes. Concatenating such material with ffmpeg produces drifting audio, frozen frames, and green flashes at every cut. This is the most common way a video product ships something that looks broken.
+
+**Doctrine.** No asset — source or response — enters the timeline until it has been normalised to the **house format**:
+
+```
+HOUSE FORMAT (mezzanine)
+  container   MP4 (faststart)
+  video       H.264 High, yuv420p, constant frame rate 30 fps
+              closed GOP, keyframe every 1s, rotation baked in
+  audio       AAC-LC, 48 kHz, stereo, 192 kbps
+  duration    probed and stored explicitly, never inferred
+```
+
+Both the original upload and the normalised mezzanine are retained. The original is the user's property and the evidence of authenticity; the mezzanine is what the render engine is permitted to touch. Renders never read originals.
+
+A dense keyframe interval is what makes §9's frame-exact resume cheap. Ingest normalisation is not a cleanup step — it is the precondition for every promise this document makes about precision.
+<!-- /UPGRADE -->
+
+<!-- UPGRADE -->
+### ⬆ UPGRADE U-03 · The Transcript Is a Three-Level Structure
+
+**Necessity.** §5 says "each sentence has a timestamp," and §11–§12 require selecting *part* of a sentence. Sentence-level timing cannot support that. If the transcript is built sentence-only, §12 becomes unimplementable and has to be retrofitted later at the cost of re-transcribing every source in the system.
+
+**Doctrine.** Transcripts are stored at three levels from day one:
+
+```
+word     → text, start, end, confidence, speaker
+sentence → word span, start, end, speaker, chapter
+paragraph→ sentence span, topic label
+```
+
+Word-level timing is what makes §12 (highlight a fragment), §24 (word-synchronised captions), §43 (research search with exact jump points), and §39 (chapters) possible. It costs nothing extra at transcription time — every serious ASR engine emits it — and it is expensive to add afterwards. Capture it now.
+
+Every transcript records `engine`, `model`, `language`, and `confidence`, and is versioned. A re-transcription never destroys the prior version, because interventions are anchored to it (see U-05).
+<!-- /UPGRADE -->
+
+---
+
+## 6. The Main Workspace
+
+The central workspace could have four major areas.
+
+```
+┌────────────────────────────────────────────────────────────┐
+│ PROJECT NAME                         SAVE     EXPORT        │
+├───────────────────────┬────────────────────────────────────┤
+│                       │                                    │
+│ SOURCE TRANSCRIPT     │          VIDEO PLAYER              │
+│                       │                                    │
+│ 00:00 Welcome...      │                                    │
+│ 00:04 Today...        │                                    │
+│ 00:11 First...        │                                    │
+│ 00:19 This happened.. │                                    │
+│                       │                                    │
+│                       │                                    │
+├───────────────────────┴────────────────────────────────────┤
+│                                                            │
+│                CONVERSATION TIMELINE                       │
+│                                                            │
+│ SOURCE ─────────●──────────────●───────────────●────────    │
+│                 │              │               │            │
+│               Reply 1        Reply 2         Reply 3       │
+│                                                            │
+├────────────────────────────────────────────────────────────┤
+│ ▶ Play   ⏸ Pause   ✋ Interrupt   🎙 Record   ↩ Continue   │
+└────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 7. The Interrupt Button
+
+This is the defining feature.
+
+While the source video is playing:
+
+User presses:
+
+INTERRUPT
+
+The application immediately:
+
+1. pauses the source
+2. records the exact timestamp
+3. creates an interruption event
+4. opens the response interface
+5. optionally freezes the source frame
+6. starts recording the user's response
+
+For example:
+
+```
+Source timestamp:
+
+14:32.481
+```
+
+The application records:
+
+```
+INTERVENTION #7
+
+Source start:
+14:32.481
+
+Source resume:
+pending
+
+Response:
+pending
+```
+
+<!-- UPGRADE -->
+### ⬆ UPGRADE U-04 · Pre-Roll — The Interrupt Must Never Clip the First Words
+
+**Necessity.** §7 says recording starts when the button is pressed. In reality the user reacts, *then* presses, and `getUserMedia` plus `MediaRecorder` need 200–900 ms to produce the first usable frame. The opening words of the most important sentence in the response are lost. Every user learns to compensate by pausing awkwardly before speaking, and every response acquires a dead second at the front. That single detail is the difference between a tool that feels professional and one that feels like a prototype.
+
+**Doctrine.**
+
+1. **The capture device is warmed on project open, not on interrupt.** The camera and microphone stream is acquired and held live (preview muted) the moment the workspace loads, with explicit user consent and a permanently visible recording-state indicator.
+2. **A rolling pre-roll buffer is always running.** `MediaRecorder` runs continuously in a discard loop retaining the last **8 seconds**. Pressing INTERRUPT promotes that buffer into the take. The user can therefore press the button *after* they have started reacting and still keep what they said.
+3. **The response's usable start is a trim point, not a hard edge.** The take is stored with its pre-roll intact; `mediaIn` marks where it currently begins. Trimming is non-destructive and reversible — the user can always recover speech from before the press.
+4. **INTERRUPT is bound to a hardware-speed path.** The keyboard binding (Space, plus a configurable global shortcut) pauses the source and stamps the timestamp synchronously, before any React render, any network call, or any UI transition. Nothing may sit between the keypress and the timestamp.
+
+The product's claim is "stop the video at the exact moment." Pre-roll is what makes that claim true rather than aspirational.
+<!-- /UPGRADE -->
+
+<!-- UPGRADE -->
+### ⬆ UPGRADE U-05 · Anchors — Interventions Survive Re-Transcription and Re-Encoding
+
+**Necessity.** §7 stores an intervention at `14:32.481`. §11–§12 additionally bind it to a sentence. But transcripts get re-run with better models, and sources get replaced with higher-quality copies (this is exactly the Class B → Class A upgrade in U-01). A bare timestamp or a bare `sentence_id` breaks: the sentence IDs change, and the user's careful work detaches from what it was answering. Losing that binding destroys the product's core value, which is not the video but the *link between claim and reply*.
+
+**Doctrine.** Every intervention carries a **composite anchor**, and every field in it is independently sufficient for recovery:
+
+```
+anchor {
+  t_source        14:32.481      exact media time, authoritative for render
+  frame           26049          frame index at house fps, authoritative for cuts
+  sentence_id     s_0417         current binding, may be re-mapped
+  word_span       [3112, 3126]   word-level, survives sentence re-segmentation
+  quote           "the policy was clearly successful"
+  quote_hash      sha256(...)    fuzzy re-locate after re-transcription
+  transcript_ver  3              which transcript this anchor was made against
+}
+```
+
+On re-transcription the system re-locates each anchor by quote match within a time window, records a confidence, and **never silently moves an intervention**. Anchors that cannot be re-located with high confidence are surfaced to the user for confirmation. The rule is absolute: the system may lose a *binding*, but it may never fabricate one.
+<!-- /UPGRADE -->
+
+---
+
+## 8. Recording the Response
+
+The user can choose how to respond.
+
+**Camera response**
+
+The user appears on camera.
+
+```
+┌─────────────────────────┐
+│                         │
+│       YOUR CAMERA       │
+│                         │
+│                         │
+└─────────────────────────┘
+```
+
+**Voice response**
+
+Only the user's voice is recorded.
+
+**Picture-in-picture**
+
+The original video remains visible while the user appears in a smaller window.
+
+**Side-by-side**
+
+```
+┌─────────────────┬─────────────────┐
+│                 │                 │
+│ ORIGINAL        │ YOUR RESPONSE   │
+│                 │                 │
+└─────────────────┴─────────────────┘
+```
+
+**Full-screen response**
+
+The source disappears temporarily and the user's response fills the screen.
+
+**Screen response**
+
+The user can display:
+
+* browser
+* document
+* PDF
+* image
+* chart
+* presentation
+* website
+
+while explaining.
+
+<!-- UPGRADE -->
+### ⬆ UPGRADE U-06 · Takes, and Never Losing One
+
+**Necessity.** §8 and §17 assume a response is a single recording that can be re-recorded. But people fumble the first attempt at a difficult argument, and a re-record under §17 destroys the previous try. Worse: if `MediaRecorder` output is only uploaded when recording stops, a tab crash, a browser update, or a closed laptop lid at minute nine of a ten-minute explanation loses all of it. A creative tool that can lose work is not a professional tool.
+
+**Doctrine.**
+
+1. **An intervention holds many takes; one is selected.** Re-recording appends a take and switches the selection. Takes are never deleted implicitly. The user can audition and switch back at any time.
+2. **Recording streams to durable storage while it records.** `MediaRecorder` emits timesliced chunks; each chunk is persisted immediately — to IndexedDB locally and to object storage as a resumable multipart upload. A crash costs at most one timeslice.
+3. **Every take is recoverable after a crash.** On reopening a project, orphaned chunk sets are detected, reassembled, and offered back to the user as recovered takes.
+4. **The local copy is authoritative until the remote copy is verified.** Local chunks are only released after the server confirms the assembled asset's checksum.
+
+§34 already says recordings are stored as independent media assets. This upgrade makes that survivable.
+<!-- /UPGRADE -->
+
+---
+
+## 9. The User Says "Continue"
+
+After finishing the response, the user presses:
+
+CONTINUE SOURCE
+
+The application:
+
+1. stops the user's recording
+2. stores the response
+3. closes the interruption
+4. returns to the exact source timestamp
+5. resumes playback
+
+So:
+
+```
+SOURCE
+12:00 ───────── 15:43
+                   ↓
+                PAUSE
+                   ↓
+USER
+15 seconds
+                   ↓
+              CONTINUE
+                   ↓
+SOURCE
+15:43 ───────── 20:17
+```
+
+This is extremely important:
+
+The original video does not restart.
+
+It continues from precisely where it was interrupted.
+
+<!-- UPGRADE -->
+### ⬆ UPGRADE U-07 · Frame-Exact Resume
+
+**Necessity.** §9's promise — resume from precisely where it was interrupted — is the product's contract with the user. Browser `video.currentTime` is not frame-accurate, and ffmpeg's `-ss` on a stream copy snaps to the nearest keyframe, which can be seconds away. Implemented naively, the rendered cut lands somewhere other than where the user pressed the button, and the resumed segment either repeats a phrase or swallows one. Users notice this immediately and they do not forgive it.
+
+**Doctrine.**
+
+1. The authoritative cut unit is the **frame index at house fps**, not seconds. `frame = round(t_source × fps)`; the timestamp is derived from the frame for display, never the reverse.
+2. Because ingest guarantees a keyframe every second (U-02), a cut is at worst 30 frames from a keyframe. Segments are cut with **accurate seek and re-encode at the boundary**, stream-copying the interior. Precision where it matters, speed everywhere else.
+3. **Cut-out and resume-in are the same frame index.** The outgoing segment ends at frame N−1; the incoming segment begins at frame N. Not one frame of the source is duplicated or dropped. This is asserted by an automated test on every build (see D-10).
+4. Audio is cut on the same boundary with a **2 ms equal-power crossfade** to prevent the click that a hard sample cut produces mid-waveform.
+
+The user's mental model is "I stopped him mid-sentence and he picks up mid-sentence." The render must honour that literally.
+<!-- /UPGRADE -->
+
+---
+
+## 10. Multiple Interruptions
+
+The process can repeat indefinitely.
+
+For example:
+
+```
+SOURCE
+00:00 → 03:18
+
+RESPONSE 1
+03:18 → 03:57
+
+SOURCE
+03:18 → 08:41
+
+RESPONSE 2
+08:41 → 10:12
+
+SOURCE
+08:41 → 13:22
+
+RESPONSE 3
+13:22 → 14:04
+
+SOURCE
+13:22 → 19:51
+```
+
+The application automatically maintains the relationship between all these segments.
+
+<!-- UPGRADE -->
+### ⬆ UPGRADE U-08 · Two Clocks, Never Confused
+
+**Necessity.** The example in §10 is the clearest statement of the product's central structure and also the clearest illustration of its central hazard: `SOURCE 03:18 → 08:41` follows a response that occupied `03:18 → 03:57`. The same number means two different things depending on which clock is meant. Every bug in a product of this shape comes from mixing them up.
+
+**Doctrine.** Two clocks are named, always distinguished in code, in the schema, and in the UI:
+
+```
+SOURCE TIME    t_source   position within the original video
+OUTPUT TIME    t_output   position within the final rendered video
+```
+
+The timeline is the ordered mapping between them. It is derived, never hand-maintained:
+
+```
+t_output = Σ(durations of everything before this item)
+```
+
+Naming rule, enforced in review: any variable, column, or field holding a time
+carries its clock in its name (`t_source`, `t_output`, `source_in`,
+`output_start`). A bare `time`, `start`, or `timestamp` is a defect.
+
+**Derived state is never stored as truth.** `timeline_segments` is a
+materialised projection of the Conversation document, rebuilt from it and
+discardable. The document holds intention; everything else is computed. This
+is §33 applied structurally.
+<!-- /UPGRADE -->
+
+---
+
+## 11. Sentence-Based Interruption
+
+This could be one of the strongest features.
+
+Instead of waiting for the exact moment, the user can click a sentence.
+
+For example:
+
+```
+SOURCE TRANSCRIPT
+
+12:41  The government introduced the policy in 2019.
+
+12:48  This resulted in significant economic growth.
+
+12:55  Therefore, the policy was clearly successful.
+```
+
+The user clicks:
+
+"Therefore, the policy was clearly successful."
+
+The application jumps to that sentence.
+
+Then:
+
+[Interrupt here]
+
+The user responds.
+
+This creates an intervention attached to a specific statement.
+
+<!-- UPGRADE -->
+### ⬆ UPGRADE U-09 · Interrupt After the Sentence, Not On It
+
+**Necessity.** §11 jumps to the sentence and interrupts there. But a user who wants to answer "Therefore, the policy was clearly successful" wants the audience to *hear that sentence first*, then hear the rebuttal. Cutting at the sentence's start removes the claim from the final video and the response answers something the viewer never heard.
+
+**Doctrine.** A sentence-anchored intervention defaults to cutting at the sentence's **end** boundary, and the UI says so plainly: *"They finish the sentence, then you reply."* The word-level transcript (U-03) supplies an exact end. The user may override to cut mid-sentence, which is offered as "cut them off" — a deliberate rhetorical choice, correctly framed as such.
+
+For Class B sources the same rule sets the manifest's cut point.
+<!-- /UPGRADE -->
+
+---
+
+## 12. Highlighting a Statement
+
+The user could select part of a sentence:
+
+"the policy was clearly successful"
+
+Then the application creates:
+
+```
+SOURCE CLAIM
+
+"The policy was clearly successful."
+
+YOUR RESPONSE
+
+"I don't think that conclusion follows from
+the evidence presented..."
+```
+
+This creates a very powerful relationship:
+
+Source statement → response
+
+<!-- UPGRADE -->
+### ⬆ UPGRADE U-10 · The Claim–Response Pair Is the Product's Signature Object
+
+**Necessity.** §12 identifies the relationship but treats it as a UI affordance. It is more than that. The claim→response pair is the smallest unit of value this product creates, and it is the unit that travels: as an on-screen quote card in the render (§24), as a chapter title (§39), as a search result (§43), as the anchor for evidence (§44), as the node in the conversation map (§21), and — critically — as a self-contained shareable clip.
+
+**Doctrine.**
+
+1. The pair is a **first-class, addressable, quotable object** with a stable ID and its own permalink.
+2. Every pair can be exported alone as a short vertical clip: *the claim, then the reply.* This is the product's native distribution unit and its growth mechanism. One conversation yields a dozen shareable artefacts, each linking back to the full exchange.
+3. The quoted claim is rendered as **typography derived from the verified transcript**, never as paraphrase, and always carries its source attribution and timestamp. For Class B sources this is what makes the Response Reel substantive without containing provider footage.
+4. A claim quote in the final render is never editable free text. It is bound to `quote_hash` (U-05). The user may shorten a quote using ellipsis at token boundaries; they may not alter its words. **A product whose purpose is holding people to what they said cannot let its users misquote them.** This is an integrity invariant, not a preference.
+<!-- /UPGRADE -->
+
+---
+
+## 13. Types of Interruption
+
+Every intervention could have a type.
+
+**Explain**
+"Let me explain what he means here."
+
+**Critique**
+"There is a problem with this argument."
+
+**Correct**
+"That information is inaccurate."
+
+**Context**
+"There is additional historical context..."
+
+**Question**
+"But what about this?"
+
+**Agree**
+"I actually agree with this point."
+
+**Expand**
+"There is another important issue..."
+
+**Fact Check**
+"Let's verify this claim."
+
+**Counterargument**
+"Here is the opposing argument."
+
+**Personal Experience**
+"I experienced this differently."
+
+**Teaching**
+"Let me explain this concept."
+
+The type becomes metadata on the intervention.
+
+<!-- UPGRADE -->
+### ⬆ UPGRADE U-11 · Type Drives Presentation
+
+**Necessity.** §13 ends with "the type becomes metadata," which risks the types being decorative. Metadata that changes nothing is abandoned by users within a week.
+
+**Doctrine.** The type is **load-bearing**. Each type carries a presentation profile that the render engine consumes:
+
+| Type | Accent | Default layout | Lower-third | Default transition |
+|---|---|---|---|---|
+| Explain | neutral | full-screen user | "EXPLANATION" | soft cut |
+| Critique | warm | side-by-side | "CRITIQUE" | hard cut |
+| Correct | high-contrast | freeze-frame + user PiP | "CORRECTION" | hard cut |
+| Context | cool | PiP over frozen source | "CONTEXT" | soft cut |
+| Question | cool | full-screen user | "QUESTION" | soft cut |
+| Agree | affirmative | PiP | "AGREED" | soft cut |
+| Expand | neutral | full-screen user | "FURTHER" | soft cut |
+| Fact Check | alert | freeze-frame + evidence panel | "FACT CHECK" | hard cut |
+| Counterargument | warm | side-by-side | "COUNTERARGUMENT" | hard cut |
+| Personal Experience | warm-soft | full-screen user | "MY EXPERIENCE" | soft cut |
+| Teaching | cool | screen share + user PiP | "TEACHING" | soft cut |
+
+Because type drives layout, a user who never opens the layout panel still gets a video that looks deliberately art-directed. **This is the mechanism by which the product produces a polished result from a user who only pressed INTERRUPT and spoke.** That mechanism is the difference between this product and a screen recorder.
+
+Every default remains overridable per intervention (§17) and per project (§23). Types are a closed vocabulary — user-defined types are a v3 concern, because an open vocabulary cannot drive a design system.
+<!-- /UPGRADE -->
+
+---
+
+## 14. Annotation Mode
+
+Sometimes speaking isn't enough.
+
+The user pauses the video and selects:
+
+Annotate
+
+Then they can:
+
+* draw circles
+* underline
+* highlight
+* point
+* add arrows
+* add text
+* blur something
+* zoom into a region
+
+Example:
+
+```
+       ┌───────────────────────┐
+       │      SOURCE VIDEO     │
+       │                       │
+       │      ┌─────────┐      │
+       │      │ CLAIM   │ ←────┤
+       │      └─────────┘      │
+       │                       │
+       └───────────────────────┘
+
+"Look at this statement."
+```
+
+The annotation becomes part of the interruption.
+
+<!-- UPGRADE -->
+### ⬆ UPGRADE U-12 · Annotations Are Vector, Timed, and Resolution-Independent
+
+**Necessity.** §14 describes drawing on the video. If annotations are captured as rasterised pixels from the editing canvas, they are locked to the editor's display size: they blur at 1080p, break entirely at 4K, and cannot be reflowed for the vertical export §29 promises. They also cannot be edited afterwards, contradicting §17.
+
+**Doctrine.**
+
+1. Annotations are stored as **vector primitives in normalised coordinates** (0–1 relative to the source frame), with a type, style, and z-order. They render crisply at any output resolution and reflow correctly under §29 reframing.
+2. Every annotation has its **own timing relative to the intervention** — `appear`, `dwell`, `dismiss` — so a circle can be drawn *as the user says the word*, rather than being present for the whole take. This one detail is the visible difference between a broadcast explainer and a webcam recording.
+3. Drawing is recorded with **stroke timing**, so a hand-drawn circle can animate on at the speed it was drawn. Free, and it reads as production value.
+4. `zoom` and `blur` are annotations too: `zoom` is an animated crop on the source layer; `blur` is a tracked mask. Blur is also a **privacy tool** and must be usable on faces, addresses, and documents.
+5. Annotations remain editable objects forever. They are never baked into a media asset — only into a render (§30).
+<!-- /UPGRADE -->
+
+---
+
+## 15. Freeze Frame
+
+The user can say:
+
+"Stop right here."
+
+The application captures the exact frame.
+
+Then the user can talk over the frozen frame.
+
+This is useful for:
+
+* charts
+* documents
+* screenshots
+* presentations
+* diagrams
+* maps
+* facial expressions
+* visual evidence
+
+<!-- UPGRADE -->
+### ⬆ UPGRADE U-13 · The Freeze Frame Is the Bridge Between Class A and Class B
+
+**Necessity.** §15 presents freeze frame as a convenience. Under U-01 it is structural: a captured still is how a Class B conversation shows what is being discussed without redistributing the provider's video. It is also the only visual the Response Reel has to work with.
+
+**Doctrine.**
+
+1. A freeze frame is captured at the exact frame index of the anchor (U-05, U-07) and stored as a still asset with its provenance: source ID, frame, timestamp, capture time.
+2. Freeze frames are **annotatable** (U-12) and **zoomable** — the Ken Burns move over a frozen chart while the user explains it is the single highest-value visual in an analysis video, and the product should produce it automatically when a freeze frame is held longer than a few seconds.
+3. For Class B sources, a freeze frame is subject to the fair-use/quotation posture recorded in D-08: brief, transformative, attributed, and always accompanied by the user's commentary. The system stamps attribution onto the frame in the Response Reel automatically and does not allow it to be removed.
+<!-- /UPGRADE -->
+
+---
+
+## 16. Transcript Synchronization
+
+The transcript should stay synchronized with playback.
+
+As the source speaks:
+
+```
+00:31
+We need to understand the historical context...
+```
+
+The current sentence is highlighted.
+
+When the user presses Interrupt, the transcript freezes at that location.
+
+The application knows:
+
+```
+Source:
+00:31.84
+
+Sentence:
+"We need to understand the historical context."
+
+Intervention:
+#4
+```
+
+This creates a searchable intellectual record of the conversation.
+
+<!-- UPGRADE -->
+### ⬆ UPGRADE U-14 · The Intellectual Record Is a Product, Not a Byproduct
+
+**Necessity.** §16's closing line — "a searchable intellectual record of the conversation" — is, on reflection, one of the most valuable sentences in this entire map, and the map does not act on it. Everything else here produces a video. This produces a *document*: a structured, timestamped, quotable record of claims and responses.
+
+**Doctrine.** Every conversation renders in **two formats**, always, from the same document:
+
+```
+THE VIDEO       the composed MP4 (§22)
+THE TRANSCRIPT  a structured, citable, linkable article:
+                every source claim, every response, in order,
+                each with its timestamp, its type, its evidence,
+                and a deep link into the video at that moment
+```
+
+The article version is SEO-indexable, screen-reader accessible, quotable in text, readable in two minutes where the video takes forty, and it is what makes the work *citable* by journalists, academics, and teachers. It costs almost nothing to generate because the document already contains every field it needs.
+
+This is the feature that changes the product's category from "reaction video tool" to "instrument of public reasoning." Treat it as a headline feature, not an export option.
+<!-- /UPGRADE -->
+
+---
+
+## 17. Editing an Intervention
+
+After recording, the user should be able to edit each intervention independently.
+
+For example:
+
+```
+INTERVENTION #4
+
+Source timestamp: 00:31.84
+
+Type: Critique
+
+Duration: 01:43
+
+[Edit]
+
+[Trim]
+
+[Re-record]
+
+[Replace]
+
+[Delete]
+
+[Add Caption]
+
+[Change Layout]
+```
+
+The user doesn't have to recreate the entire project.
+
+---
+
+## 18. The Conversation Timeline
+
+The timeline should visually distinguish:
+
+**Source**
+
+```
+████████████████████████
+```
+
+**User**
+
+```
+          ▒▒▒▒▒▒▒
+```
+
+**Annotation**
+
+```
+                  ▲
+```
+
+**Text explanation**
+
+```
+                         T
+```
+
+For example:
+
+```
+SOURCE  ███████████████       ███████████████████       ███████
+                         │
+RESPONSE                 ▒▒▒▒▒▒▒
+                                           │
+RESPONSE                                   ▒▒▒▒▒▒▒▒
+```
+
+The user can drag boundaries if they want to modify timing.
+
+---
+
+## 19. Conversation Logic
+
+Internally, every project could be represented approximately as:
+
+```
+Conversation
+│
+├── Source
+│
+├── Segment 001
+│
+├── Intervention 001
+│   ├── sourceTimestamp
+│   ├── sourceSentence
+│   ├── type
+│   ├── media
+│   ├── duration
+│   └── layout
+│
+├── Segment 002
+│
+├── Intervention 002
+│
+├── Segment 003
+│
+└── ...
+```
+
+This makes the system fundamentally different from a flat video editor.
+
+---
+
+## 20. AI Layer
+
+AI should be useful, but not become the product itself.
+
+The core product should work without AI.
+
+AI can enhance it.
+
+**Automatic transcription**
+
+Convert source speech into timestamped text.
+
+**Sentence detection**
+
+Identify natural interruption points.
+
+**Topic detection**
+
+```
+00:00 Introduction
+03:14 Historical background
+08:22 Main argument
+14:31 Evidence
+21:04 Conclusion
+```
+
+**Claim extraction**
+
+AI could identify statements that may deserve attention:
+
+```
+Potential claim:
+
+"The policy reduced unemployment by 30%."
+
+[Jump to claim]
+```
+
+**Fact-check assistance**
+
+The user can ask:
+
+"Help me examine this claim."
+
+AI provides research/context, which the user can then decide whether to include.
+
+**Response assistance**
+
+The user could say:
+
+"Help me formulate a response to this."
+
+AI can help structure the response.
+
+But the user remains the creator.
+
+<!-- UPGRADE -->
+### ⬆ UPGRADE U-15 · The AI Boundary, Stated as an Enforceable Rule
+
+**Necessity.** §20's "the user remains the creator" is the right principle but it is a sentiment, and sentiments erode under product pressure. Within a year someone will propose generating the response audio in the user's cloned voice, and there will be a good growth argument for it. The boundary has to be written down now, while it costs nothing to hold.
+
+**Doctrine.**
+
+```
+AI MAY          read, transcribe, segment, index, search, summarise,
+                surface claims, retrieve sources, check facts against
+                references, suggest structure, draft text the user then
+                speaks or edits, generate captions, propose chapters,
+                propose layouts.
+
+AI MAY NOT      speak in the user's voice.
+                generate a response the user did not say.
+                alter a source quote.
+                alter what the user recorded themselves saying.
+                assert a fact-check verdict as the product's own.
+```
+
+Every AI output is **labelled, attributed to its model, and requires an explicit human accept** before it enters the document. Every AI-derived field records `model`, `version`, `prompt_hash`, and `accepted_by`. Nothing AI-generated reaches a render without a human acceptance recorded in the audit log.
+
+Fact-checking returns **evidence with sources**, never a verdict. The product's authority rests entirely on the user's willingness to stand behind what they said. An AI that puts words in their mouth destroys the only asset the platform has. This boundary is also the product's marketing: *every word in the response is a human's.*
+<!-- /UPGRADE -->
+
+---
+
+## 21. AI Should Understand the Conversation
+
+Eventually, the AI could understand:
+
+```
+SOURCE CLAIM
+       ↓
+USER RESPONSE
+       ↓
+SOURCE RESPONSE
+       ↓
+USER RESPONSE
+```
+
+It could therefore create a conversation map.
+
+For example:
+
+```
+Topic: Climate policy
+
+SOURCE
+Claim A
+   ↓
+USER
+Challenges Claim A
+   ↓
+SOURCE
+Introduces Claim B
+   ↓
+USER
+Provides counterexample
+```
+
+This becomes almost like an intellectual debate editor.
+
+---
+
+## 22. Final Video Composition
+
+When the user clicks:
+
+Generate Final Video
+
+the application converts the conversation structure into a render plan.
+
+Example:
+
+```
+01 SOURCE
+00:00 → 04:21
+
+02 USER
+04:21 → 05:18
+
+03 SOURCE
+04:21 → 08:32
+
+04 USER
+08:32 → 10:03
+
+05 SOURCE
+08:32 → 12:47
+```
+
+The rendering engine then produces:
+
+```
+FINAL.mp4
+```
+
+<!-- UPGRADE -->
+### ⬆ UPGRADE U-16 · The Render Plan Is an Explicit, Versioned, Deterministic Artefact
+
+**Necessity.** §22 says the structure is converted into a render plan, then produces an MP4. If that conversion lives inside the render worker as imperative code, three things become impossible: reproducing a past render, caching unchanged work, and testing the renderer at all. A forty-minute conversation re-rendered after a one-word caption fix would re-encode from scratch — which, in practice, means users stop iterating, and §30's promise of unlimited revisions is empty.
+
+**Doctrine.**
+
+1. **The render plan is data, not code** — a versioned JSON artefact, persisted with every render, listing each shot with its inputs, in/out points, layout, overlays, transitions, and audio treatment.
+2. **Rendering is a pure function:** `render(plan, assets) → bytes`. Same plan and same assets must produce a **byte-identical** file. No timestamps, no random IDs, no encoder nondeterminism in the container.
+3. **Every shot is content-addressed.** `shot_hash = sha256(inputs ‖ params)`. Shots are rendered individually to the house format and cached by hash. Re-render touches only changed shots and re-concatenates the rest by stream copy.
+
+```
+Conversation Document
+        ↓   plan(document, layout_profile, export_profile)
+Render Plan  (versioned, persisted, diffable)
+        ↓   per-shot, content-addressed, cached
+Shot Cache
+        ↓   concat + master audio + captions
+FINAL.mp4
+```
+
+The practical result: fixing a caption at minute 38 of a 40-minute video re-renders one shot and takes seconds. **That speed is what makes users iterate, and iteration is what makes the output polished.** This is a product feature disguised as an implementation detail.
+
+4. Every render stores its `plan_hash`, `engine_version`, and asset checksums, so any published video can be reproduced exactly — which matters enormously the first time someone disputes what a published response contained.
+<!-- /UPGRADE -->
+
+<!-- UPGRADE -->
+### ⬆ UPGRADE U-17 · Audio Is Half the Video and the Map Does Not Mention It
+
+**Necessity.** §22–§25 describe picture in detail and never once address sound. In a product that alternates between a stranger's recorded audio and a webcam microphone, this is the gap most likely to make professional output impossible. The source is mastered broadcast audio; the user is a laptop mic in a room. Cutting between them untreated produces a video where the audience reaches for the volume control at every transition. Viewers will not articulate why the video feels amateur — they will simply leave.
+
+**Doctrine.** Every render runs a mandatory audio chain:
+
+```
+1  De-click at every cut          2 ms equal-power crossfade (U-07)
+2  Response conditioning          high-pass 80 Hz, de-esser, gentle
+                                  broadband noise reduction, light
+                                  compression (3:1, soft knee)
+3  Per-speaker loudness match     source and user normalised to the
+                                  same integrated loudness before any
+                                  ducking decision
+4  Master loudness (EBU R128)     -14 LUFS / -1 dBTP  YouTube, 16:9
+                                  -14 LUFS / -1 dBTP  square
+                                  -14 LUFS / -1 dBTP  vertical
+                                  true-peak limited, never clipped
+5  Ducking                        where layouts overlap source and
+                                  response, source audio ducks -18 dB
+                                  under the response with 120 ms
+                                  attack / 400 ms release
+6  Silence policy                 200 ms of clean air before and after
+                                  every response; never a hard butt
+                                  against speech
+```
+
+Loudness matching across speakers is the single highest-leverage quality decision in this entire document. It is invisible when right and fatal when wrong.
+<!-- /UPGRADE -->
+
+---
+
+## 23. Multiple Video Layouts
+
+The user should be able to choose a presentation style.
+
+**Full-screen switching**
+
+```
+SOURCE FULL SCREEN
+        ↓
+USER FULL SCREEN
+        ↓
+SOURCE FULL SCREEN
+```
+
+**Picture-in-picture**
+
+```
+┌─────────────────────────────┐
+│                             │
+│        ORIGINAL             │
+│                             │
+│                 ┌─────────┐ │
+│                 │  YOU    │ │
+│                 └─────────┘ │
+└─────────────────────────────┘
+```
+
+**Side-by-side**
+
+```
+┌──────────────────┬──────────────────┐
+│                  │                  │
+│     ORIGINAL     │       YOU        │
+│                  │                  │
+└──────────────────┴──────────────────┘
+```
+
+**Speaker switching**
+
+Camera automatically fills the screen when you speak.
+
+Original video fills the screen when the source speaks.
+
+This could produce a very polished result.
+
+<!-- UPGRADE -->
+### ⬆ UPGRADE U-18 · Layouts Are a Compositor, Not a Set of Presets
+
+**Necessity.** §23 lists four layouts. §29 needs them rearranged for vertical. §13 (U-11) needs them selected per type. §44 needs an evidence panel. Hard-coding four ffmpeg filter graphs means every new layout is new engineering and every aspect ratio doubles the work — the combinatorial trap that stalls video products.
+
+**Doctrine.** A layout is a **declarative scene graph** evaluated by a compositor:
+
+```
+scene {
+  canvas   1920×1080 | 1080×1080 | 1080×1920
+  layers   [ { source: source|user|screen|still|evidence|text,
+               rect: normalised, fit: cover|contain,
+               radius, shadow, border, opacity,
+               enter/exit: animated, z } ]
+  overlays [ lower_third, captions, quote_card, progress, watermark ]
+}
+```
+
+Named layouts (`full_source`, `full_user`, `pip`, `side_by_side`, `freeze_pip`, `screen_pip`, `evidence_split`, `vertical_stack`) are **data**: scene definitions in a layout library, not branches in code. Adding a layout is authoring a file.
+
+`speaker_switching` is a scene *selector* driven by voice activity detection over both audio tracks, with hysteresis (minimum 1.2 s dwell) so the frame does not flicker on interjections. Applied crudely, automatic speaker switching looks worse than a static layout; the hysteresis is what makes it feel edited by a person.
+
+Every layout declares its own behaviour under each aspect ratio, which is how §29 is satisfied without a second rendering path.
+<!-- /UPGRADE -->
+
+---
+
+## 24. Captions
+
+The final video could automatically contain:
+
+**Source captions**
+
+```
+SOURCE SPEAKER:
+"We need to understand..."
+```
+
+**User captions**
+
+```
+YOU:
+"Let's examine that claim."
+```
+
+The application could visually distinguish the two speakers.
+
+<!-- UPGRADE -->
+### ⬆ UPGRADE U-19 · Captions Are Accessibility First, Style Second
+
+**Necessity.** §24 treats captions as a stylistic feature. They are a legal and ethical obligation, they are how the majority of social video is consumed, and they are how this product's content becomes indexable. Implemented as burned-in decoration only, the product ships inaccessible video.
+
+**Doctrine.**
+
+1. Every render emits **both** burned-in captions (styled, speaker-distinguished, optional) **and** a sidecar `.srt` and `.vtt` (always, non-optional) carrying speaker labels.
+2. Caption styling is subject to a **legibility floor** that the user cannot style past: minimum size relative to canvas height, minimum 4.5:1 contrast against a scrim, safe-area margins respected for every platform. A user may choose the look; they may not choose an unreadable one.
+3. Captions are **word-timed** (U-03), enabling per-word emphasis on the active word — the single most effective retention device in short-form video, and free given word-level timing.
+4. Source captions carry the source speaker's label and are bound to `quote_hash` (U-10). Response captions are generated by transcribing the user's own take.
+5. Captions are never auto-published unreviewed for claims. A misheard word in a quoted claim is a misquote, and U-10's integrity rule applies.
+<!-- /UPGRADE -->
+
+---
+
+## 25. Speaker Identity
+
+Instead of simply showing captions, the application could use:
+
+```
+SOURCE
+████████████████
+
+YOU
+▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
+```
+
+Or:
+
+```
+SOURCE SPEAKER
+"That is what happened."
+
+YOU
+"I disagree, because..."
+```
+
+This reinforces the conversational nature of the product.
+
+<!-- UPGRADE -->
+### ⬆ UPGRADE U-20 · One Visual Language, Applied Everywhere
+
+**Necessity.** §18, §24, and §25 each independently propose distinguishing source from user. If these are designed separately, the product ends up with three unrelated conventions and looks incoherent.
+
+**Doctrine.** A **single speaker-identity system** is defined once and applied in every surface: the editor timeline, the transcript panel, burned-in captions, lower-thirds, the conversation map (§21), the article transcript (U-14), and the shareable claim card (U-10).
+
+```
+SOURCE  cool neutral    solid fill     square avatar   attribution + timestamp
+YOU     warm accent     hatched fill   round avatar    your name + type badge
+```
+
+The convention is carried by **shape and position as well as colour**, so it survives greyscale and colour-blindness. In a product about disagreement, "who is speaking" must never be ambiguous for one second of the output.
+<!-- /UPGRADE -->
+
+---
+
+## 26. Project Editing After Recording
+
+The user should be able to return days later.
+
+Their project remains:
+
+Draft — My Response to [Video]
+
+They can:
+
+* continue recording
+* delete interruptions
+* reorder certain commentary
+* re-record
+* trim
+* add evidence
+* add captions
+* change layout
+* change intro/outro
+* render again
+
+---
+
+## 27. Intro and Outro
+
+The final video can optionally have:
+
+**Intro**
+
+```
+MY RESPONSE TO
+
+"The History of Europe"
+
+By Chama Meyembi
+```
+
+Then the conversation begins.
+
+**Outro**
+
+```
+Thank you for watching.
+
+Subscribe for more analysis.
+```
+
+These could be templates.
+
+<!-- UPGRADE -->
+### ⬆ UPGRADE U-21 · Attribution Is Generated, and Is Not a Template Choice
+
+**Necessity.** §27 makes intro and outro optional templates. But §46 requires source attribution, and an attribution that the user can forget to add is an attribution the platform cannot rely on.
+
+**Doctrine.** Every export automatically carries a **generated attribution block** — source title, original creator, canonical URL, and the date accessed — composed from the source record, not typed by the user. Its placement is stylable; its presence is not optional. It also appears in the exported description text and in the article transcript (U-14).
+
+This costs the user nothing, protects them and the platform, and signals seriousness. Creators who respond to others' work are constantly accused of theft; a product that attributes automatically and visibly is defending its users.
+<!-- /UPGRADE -->
+
+---
+
+## 28. Export
+
+The user chooses:
+
+**YouTube**
+16:9
+
+**TikTok / Shorts / Reels**
+9:16
+
+**Square**
+1:1
+
+**Standard video**
+16:9
+
+The application can automatically adapt the composition.
+
+---
+
+## 29. Vertical Reframing
+
+For a vertical video, the application could intelligently arrange:
+
+```
+┌─────────────────┐
+│                 │
+│ ORIGINAL VIDEO  │
+│                 │
+├─────────────────┤
+│                 │
+│ YOUR CAMERA     │
+│                 │
+├─────────────────┤
+│   CAPTIONS      │
+└─────────────────┘
+```
+
+This means one conversation project can produce several formats.
+
+<!-- UPGRADE -->
+### ⬆ UPGRADE U-22 · Vertical Is a Different Edit, Not a Different Crop
+
+**Necessity.** §29 shows a stacked arrangement, which is correct, but the deeper issue is length. A forty-minute conversation has no vertical form. Reframing it produces a forty-minute vertical video nobody watches. The map's own §28 lists Shorts and Reels as export targets without addressing that those formats demand a fundamentally different edit.
+
+**Doctrine.**
+
+1. Vertical export operates on the **claim–response pair** (U-10) as its unit, not on the whole conversation. The default vertical output is a **set of clips**, one per pair, each self-contained: the claim, then the reply, with captions burned in.
+2. Each clip opens on the **quote card** — the claim as typography — which works with sound off, where these formats are actually consumed.
+3. Layout reflow is declarative (U-18): each named layout defines its vertical behaviour. Faces are kept in frame using face-aware safe regions, with the crop animated only on cuts, never drifting during a shot.
+4. The user selects which pairs to publish. The product proposes the strongest candidates but never auto-publishes.
+
+One conversation therefore yields: one long-form video, one article, and a dozen clips. **The composition step is the distribution engine.** That is the product's growth loop, and it belongs in the doctrine, not in a growth plan written later.
+<!-- /UPGRADE -->
+
+---
+
+## 30. Source and Commentary Separation
+
+This is technically very important.
+
+The application should never permanently merge everything immediately.
+
+Instead:
+
+```
+SOURCE ASSET
++
+COMMENTARY ASSETS
++
+TIMELINE
++
+LAYOUT
++
+CAPTIONS
++
+ANNOTATIONS
+```
+
+remain separate.
+
+Then:
+
+```
+TIMELINE
+       ↓
+RENDER ENGINE
+       ↓
+FINAL VIDEO
+```
+
+This allows unlimited revisions without repeatedly processing the original source.
+
+---
+
+## 31. Suggested Technical Architecture
+
+For a modern implementation, I would think about the system roughly like this:
+
+```
+                 ┌─────────────────────┐
+                 │      WEB APP        │
+                 │ Next.js / React     │
+                 └──────────┬──────────┘
+                            │
+                ┌───────────┴───────────┐
+                │                       │
+          Video Player             Timeline
+                │                       │
+                └───────────┬───────────┘
+                            │
+                     Application API
+                            │
+        ┌───────────────────┼────────────────────┐
+        │                   │                    │
+   Transcript          Project DB           Media Storage
+        │                   │                    │
+     AI/STT             PostgreSQL          Object Storage
+        │
+        ▼
+   Sentence timing
+```
+
+And the rendering system:
+
+```
+Timeline JSON
+      ↓
+Render Planner
+      ↓
+FFmpeg / GPU rendering
+      ↓
+MP4
+      ↓
+Object Storage
+      ↓
+Download / Publish
+```
+
+<!-- UPGRADE -->
+### ⬆ UPGRADE U-23 · The Render Tier Is Isolated, Queued, and Interruptible
+
+**Necessity.** §31's diagram puts rendering downstream of the API without saying where it runs. If renders execute in the web tier, one forty-minute export saturates the server and the application becomes unusable for everyone. This is how video products die on their first popular day.
+
+**Doctrine.**
+
+```
+web tier        stateless, never runs ffmpeg, never blocks on a render
+job queue       durable, at-least-once, idempotent by plan_hash
+render workers  isolated processes, horizontally scaled, CPU or GPU,
+                strict CPU/memory/time budgets, hard-killed on overrun
+object storage  single source of truth for all bytes; workers stream,
+                never hold whole files in memory
+```
+
+Every render job is **resumable and observable**: per-shot progress, a live log, cancellable mid-flight, and re-entrant after worker loss (the shot cache from U-16 makes a resumed job cheap). Users watch progress; a render that reports a real percentage and a real remaining time feels professional, and one that shows a spinner for eleven minutes feels broken.
+
+Renders are **cost-metered per minute of output** and attributed to the account. A product that cannot measure its unit economics cannot price itself.
+<!-- /UPGRADE -->
+
+---
+
+## 32. Data Model
+
+A simplified database model could be:
+
+```
+users
+projects
+sources
+source_transcripts
+transcript_segments
+interventions
+intervention_media
+timeline_segments
+annotations
+captions
+renders
+```
+
+An intervention might contain:
+
+```
+id
+project_id
+source_timestamp
+source_sentence_id
+type
+media_id
+duration
+layout
+position
+created_at
+```
+
+The key relationship is:
+
+```
+source_sentence
+       ↓
+intervention
+       ↓
+response_media
+```
+
+<!-- UPGRADE -->
+### ⬆ UPGRADE U-24 · The Model, Completed
+
+**Necessity.** §32's model is sound and incomplete. It has no place for takes (U-06), anchors (U-05), evidence (§44), render plans (U-16), export profiles (§28), rights attestations (§46), or the audit trail (U-15). Adding these later means migrating live user work — and in this product, user work is irreplaceable recorded speech.
+
+**Doctrine.** The canonical model extends §32 as follows. Names are binding.
+
+```
+users
+accounts                     billing, quota, retention policy
+projects                     = Conversation; holds document_version
+sources                      class A|B, provider, rights_attestation_id
+rights_attestations          who asserted what, when, from what IP
+source_assets                original + mezzanine + stills, checksums
+source_transcripts           versioned; engine, model, language
+transcript_words             word-level timing          [U-03]
+transcript_sentences         sentence spans             [U-03]
+transcript_paragraphs        topic/chapter grouping     [U-03]
+interventions                type, anchor, selected_take_id, order
+intervention_anchors         composite anchor           [U-05]
+takes                        many per intervention      [U-06]
+take_chunks                  streamed recording chunks  [U-06]
+intervention_media           normalised mezzanine per take
+annotations                  vector, timed, normalised  [U-12]
+evidence                     attachments + provenance   [§44]
+claims                       claim–response pairs       [U-10]
+captions                     word-timed, per speaker    [U-19]
+layout_profiles              scene graphs               [U-18]
+export_profiles              aspect, platform, loudness [§28, U-17]
+render_plans                 versioned plan artefacts   [U-16]
+render_shots                 content-addressed cache    [U-16]
+renders                      status, cost, output asset
+publications                 destination, URL, published_at
+ai_operations                model, prompt_hash, accepted_by [U-15]
+audit_log                    append-only, user-visible
+timeline_segments            MATERIALISED VIEW, derived  [U-08]
+```
+
+**`timeline_segments` is explicitly demoted to derived state.** §32 lists it alongside the others, which invites treating it as truth. It is a cache of the Conversation document and must be rebuildable from scratch at any moment.
+<!-- /UPGRADE -->
+
+---
+
+## 33. The Most Important Technical Concept
+
+The application should store the user's intention, not merely the final video.
+
+For example:
+
+```
+{
+  "source": {
+    "start": 0,
+    "end": 243
+  },
+  "intervention": {
+    "type": "critique",
+    "sourceTimestamp": 243,
+    "media": "response-001.webm"
+  },
+  "resumeSource": 243
+}
+```
+
+Then the final video is simply a rendered interpretation of the conversation.
+
+That is what makes the product flexible.
+
+<!-- UPGRADE -->
+### ⬆ UPGRADE U-25 · The Conversation Document — Versioned, Append-Only, Portable
+
+**Necessity.** §33 is the correct and most important idea in this map, and it needs three properties it does not yet state, or it will not survive contact with real use.
+
+**Doctrine.**
+
+1. **Versioned schema.** The document carries `schema_version`. Migrations are forward-only, tested against archived real documents, and never destructive. A project recorded in year one must open in year five.
+2. **Append-only history.** Edits are recorded as operations against the document, not overwrites. This gives undo across sessions, a visible revision history, crash recovery, and — when collaboration arrives (§40) — a conflict-resolution substrate that does not require re-architecting. Retrofitting history onto a mutable document is a rewrite; building it in now is a day's work.
+3. **Portable and exportable.** The user can export the complete document plus assets as an open archive. No lock-in. In a product built on the premise that discourse should be open and accountable, holding users' recorded arguments hostage would contradict the product's own thesis.
+
+```
+conversation.json    the document (schema_version, source, interventions,
+                     anchors, annotations, evidence, layouts, captions)
+assets/              originals, mezzanines, stills, evidence
+transcript/          versioned transcripts with word timing
+renders/             past render plans and their outputs
+audit.log            append-only history
+```
+
+**The document is the product. The video is an export of it.** Every architectural decision defers to this sentence.
+<!-- /UPGRADE -->
+
+---
+
+## 34. Browser Recording
+
+The browser can capture:
+
+* microphone
+* webcam
+* screen
+* system audio where supported
+
+The recordings can initially be stored as independent media assets.
+
+For example:
+
+```
+response-001.webm
+response-002.webm
+response-003.webm
+```
+
+Then the rendering system handles final composition.
+
+<!-- UPGRADE -->
+### ⬆ UPGRADE U-26 · Capture Quality Is Decided at Capture Time and Cannot Be Fixed Later
+
+**Necessity.** §34 lists what the browser can capture but sets no standard. Defaults vary wildly by browser and device; a user can unknowingly record an entire project at 480p with automatic gain distortion, and no amount of rendering recovers it. Every one of those projects is a lost user.
+
+**Doctrine.**
+
+1. **Explicit capture constraints**, never browser defaults: 1080p30 preferred with graceful fallback, and audio captured with `echoCancellation: false`, `noiseSuppression: false`, `autoGainControl: false` — the conferencing defaults destroy voice quality for recording and are the reason most webcam commentary sounds thin.
+2. **A pre-flight check before the first recording**, every session: camera resolution and frame rate, microphone level with a live meter, headroom warning, background noise floor measurement, disk and network headroom, and a three-second test recording played back. Thirty seconds spent here prevents the most common catastrophic outcome in the product.
+3. **Live monitoring during recording**: level meter with clip indicator, dropped-frame counter, upload-backlog indicator. Silent failure is never acceptable during an irreplaceable take.
+4. **Device changes mid-project are detected** and the user is warned before recording continues with different hardware.
+5. `PREFERRED` codecs are negotiated at capture; the exact `mimeType` used is recorded on the take, because ingest normalisation (U-02) needs to know what it is reading.
+<!-- /UPGRADE -->
+
+---
+
+## 35. The "Conversation Mode"
+
+I would make this the signature feature.
+
+Instead of traditional controls:
+
+```
+Play
+Pause
+Cut
+Trim
+Split
+```
+
+the primary controls are:
+
+```
+▶ CONTINUE
+
+✋ INTERRUPT
+
+🎙 RESPOND
+
+↩ RESUME
+```
+
+The interface communicates the product concept immediately.
+
+<!-- UPGRADE -->
+### ⬆ UPGRADE U-27 · One Key. The Whole Product.
+
+**Necessity.** §35 is right that the control vocabulary carries the concept, but four on-screen buttons still require the user to look away from the video and aim a mouse — during the exact seconds when they are formulating a thought. The interaction has to disappear.
+
+**Doctrine.**
+
+**The spacebar is the product.**
+
+```
+video playing   →  SPACE  →  pause, stamp, start recording (with pre-roll)
+recording       →  SPACE  →  stop recording, resume source from the same frame
+```
+
+One key, pressed twice, produces a complete intervention. The user never leaves the video, never aims at a control, never breaks their train of thought. Everything else in §35's vocabulary remains available on screen for discoverability and for touch, but the expert path is a single key — and the product should teach it within the first minute.
+
+This is the interaction the entire document is arguing for, reduced to its irreducible form. **If a first-time user can produce a three-intervention conversation without reading anything, the product works. If they cannot, nothing else in this document matters.** That is the acceptance test for the whole application.
+<!-- /UPGRADE -->
+
+---
+
+## 36. Two Modes
+
+The product could have two major modes.
+
+**Live Conversation Mode**
+
+You are watching the video in real time.
+
+You interrupt whenever you want.
+
+```
+PLAY
+   ↓
+INTERRUPT
+   ↓
+RESPOND
+   ↓
+CONTINUE
+```
+
+This is the simplest experience.
+
+**Studio Mode**
+
+Afterwards, you can refine everything.
+
+```
+SOURCE
+├── Intervention 1
+├── Intervention 2
+├── Intervention 3
+├── Intervention 4
+└── Intervention 5
+```
+
+You can edit each one.
+
+<!-- UPGRADE -->
+### ⬆ UPGRADE U-28 · Live Mode Is the Front Door and Must Never Require Studio Mode
+
+**Necessity.** §36 presents the two modes as equal halves. They are not. Live Mode is the product's entire thesis; Studio Mode is a professional affordance. If a user must enter Studio Mode to get a publishable video, the thesis has failed and the product is a video editor with an unusual capture step.
+
+**Doctrine.** A user must be able to go from pasted link to published video **without ever opening Studio Mode.** Live Mode ends with a render button, and the result is good enough to publish — because type-driven layout (U-11), automatic audio mastering (U-17), automatic captions (U-19), and automatic attribution (U-21) have already done the work of an editor.
+
+Studio Mode is for the user who wants more. It is never the price of admission.
+<!-- /UPGRADE -->
+
+---
+
+## 37. "Capture This Moment"
+
+Another useful button:
+
+CAPTURE
+
+Instead of immediately recording, it bookmarks the moment.
+
+For example:
+
+```
+12:42 — Capture
+17:21 — Capture
+21:04 — Capture
+31:18 — Capture
+```
+
+Later you can return and record your responses.
+
+This means the user can simply watch first and mark things they want to discuss.
+
+---
+
+## 38. "Build My Response"
+
+The user could capture several moments:
+
+```
+01 — 03:22
+02 — 08:41
+03 — 14:52
+04 — 21:17
+05 — 33:08
+```
+
+Then enter:
+
+Start Commentary Session
+
+The application walks them through:
+
+"Respond to point 1."
+
+Record.
+
+"Respond to point 2."
+
+Record.
+
+And so forth.
+
+<!-- UPGRADE -->
+### ⬆ UPGRADE U-29 · The Commentary Session Is a Teleprompter Studio
+
+**Necessity.** §38 describes walking the user through their captured points. Implemented literally — a prompt, then a record button — it is merely a list. The user still has to remember what was said at 14:52 and what they intended to say about it.
+
+**Doctrine.** During a commentary session each point presents, on one screen:
+
+```
+the frozen frame at the anchor
+the transcript around it, with the claim highlighted
+the note the user wrote when capturing
+their evidence for this point, if attached
+a countdown, then recording, with the claim still visible
+```
+
+The user is reading their own thinking while looking at the camera. This is a teleprompter built from the document, and it converts the hardest part of making an analysis video — remembering, in front of a camera, exactly what you meant — into something that requires no memory at all.
+
+Captures also accept a note at capture time. A moment marked without a reason is a moment lost; one line of text preserves the entire thought.
+<!-- /UPGRADE -->
+
+---
+
+## 39. Conversation Chapters
+
+Long videos could automatically become chapters:
+
+```
+00:00 Introduction
+
+05:22 Claim #1
+     └── Your response
+
+11:41 Claim #2
+     └── Your response
+
+18:03 Evidence
+     └── Your response
+
+27:19 Conclusion
+     └── Your response
+```
+
+The final YouTube video could potentially use these chapters as well.
+
+<!-- UPGRADE -->
+### ⬆ UPGRADE U-30 · Publish-Ready Metadata Is Part of the Render
+
+**Necessity.** §39 notes chapters "could potentially" be used on YouTube. The document already contains everything a publication needs; making the user retype it is needless friction at the most fatiguing moment of the process — the end.
+
+**Doctrine.** Every export produces a **publication bundle** alongside the video, with chapter markers in output time (U-08), a description containing the generated attribution block (U-21), suggested titles drawn from the claims, the caption sidecars (U-19), a thumbnail candidate set (freeze frames plus quote cards), the article transcript (U-14), and the vertical clip set (U-22).
+
+The user finishes the render and has everything required to publish, already written.
+<!-- /UPGRADE -->
+
+---
+
+## 40. Collaboration
+
+Later, the concept could become collaborative.
+
+For example:
+
+```
+Original Video
+      ↓
+Person A responds
+      ↓
+Person B responds
+      ↓
+Person A responds again
+```
+
+Or:
+
+```
+Source
+  ↓
+Expert 1
+  ↓
+Expert 2
+  ↓
+Expert 3
+```
+
+The platform becomes a structured multi-person video conversation.
+
+<!-- UPGRADE -->
+### ⬆ UPGRADE U-31 · Every Published Conversation Is Itself a Source
+
+**Necessity.** §40 defers collaboration to later, which is right for scope. But one decision must be made now, because it is nearly free today and architecturally expensive later.
+
+**Doctrine.** A published conversation is a **Class A source** (U-01). Anyone can open it and respond to it.
+
+That single property turns the product from a tool into a network. Response chains form without any collaboration feature being built: A responds to a video, B responds to A, A responds to B. §40's multi-person conversation emerges from the existing primitives.
+
+Two rules are set now. **Consent:** the publisher chooses at publish time whether their conversation is respondable. **Lineage:** every conversation records its ancestry, so any exchange can be traced to its origin and displayed as a thread. Neither is buildable cheaply after the fact.
+<!-- /UPGRADE -->
+
+---
+
+## 41. Educational Use
+
+This could be particularly powerful for education.
+
+A lecturer could upload a lecture.
+
+A student could interrupt:
+
+"I don't understand this step."
+
+Or:
+
+"Can you explain this concept?"
+
+A teacher could create:
+
+```
+LECTURE
+↓
+PAUSE
+↓
+EXPLANATION
+↓
+LECTURE
+↓
+QUESTION
+↓
+ANSWER
+```
+
+It could also be used for:
+
+* university lectures
+* tutorials
+* historical analysis
+* journalism
+* documentaries
+* debates
+* interviews
+* religious teaching
+* technical presentations
+* film analysis
+* language learning
+
+<!-- UPGRADE -->
+### ⬆ UPGRADE U-32 · Education Is the Beachhead Market
+
+**Necessity.** §41 lists education among many uses. Strategically it is not one of many — it is the one where the source-rights problem (U-01, §46) disappears entirely, because the institution owns the lecture. Class A is the default there, the flagship composed export works without qualification, and the users have budget, recurring need, and an existing distribution channel.
+
+**Doctrine.** Education is the **first market**. It is where the product is proven, and its requirements — asynchronous question-and-answer over recorded lectures, student privacy, LMS-compatible export, accessible captions as a legal requirement, institutional retention policies — are accepted as first-class requirements rather than enterprise afterthoughts.
+
+The commentary product and the education product are the same product. Only the framing differs.
+<!-- /UPGRADE -->
+
+---
+
+## 42. Debate Mode
+
+A future version could explicitly support debate.
+
+```
+Speaker A
+    ↓
+Speaker B
+    ↓
+Speaker A
+    ↓
+Speaker B
+```
+
+Instead of editing manually, the application understands the exchange.
+
+---
+
+## 43. Research Mode
+
+The transcript could become searchable.
+
+User searches:
+
+"Show me every time the speaker mentions Norway."
+
+The application finds:
+
+```
+04:21
+18:37
+31:02
+42:17
+```
+
+The user can jump directly to each occurrence and create an intervention.
+
+---
+
+## 44. Evidence Mode
+
+A particularly interesting future feature:
+
+When the user interrupts, they can attach evidence.
+
+```
+SOURCE CLAIM
+      ↓
+USER RESPONSE
+      ↓
+ATTACH EVIDENCE
+
+[PDF]
+[Website]
+[Image]
+[Chart]
+[Document]
+```
+
+The final video can display:
+
+```
+SOURCE CLAIM
+
+        ↓
+
+YOUR RESPONSE
+
+        ↓
+
+EVIDENCE
+```
+
+This would make the platform useful for serious analysis rather than only entertainment.
+
+<!-- UPGRADE -->
+### ⬆ UPGRADE U-33 · Evidence Must Be Archived, Cited, and Shown Precisely
+
+**Necessity.** §44 defers evidence to "future," but it is the feature that distinguishes this product from reaction content, and two of its properties are worthless if added late. A linked web page changes or disappears — cited evidence that 404s a year later actively damages the user's credibility, which is the opposite of what the feature is for. And evidence shown as a full-page screenshot proves nothing; the viewer cannot find the relevant line.
+
+**Doctrine.**
+
+1. **Evidence is archived at attach time.** A snapshot is captured and stored with URL, retrieval timestamp, content hash, and title. The citation remains verifiable after the source changes.
+2. **Evidence carries a precise locator** — page and highlighted region for a PDF, text quote and scroll anchor for a page, cell range for a spreadsheet. The render shows the document, then **animates a zoom to the cited region** while the user speaks. That motion is what makes an evidence citation persuasive on video rather than decorative.
+3. **Evidence is a timed layer** within the intervention (U-12), appearing when referenced, not for the whole take.
+4. **Every piece of evidence appears in the publication bundle** (U-30) and the article transcript (U-14) as a formal citation with its retrieval date.
+
+Evidence belongs in **v2, not v3.** It is a low-cost feature with a disproportionate effect on the product's identity, and it is the reason a journalist or an academic would choose this over an editor.
+<!-- /UPGRADE -->
+
+---
+
+## 45. AI Research Assistant
+
+The user could select a statement and ask:
+
+Analyze this claim.
+
+The AI could return:
+
+```
+Claim:
+"The policy began in 2019."
+
+Context:
+...
+
+Supporting evidence:
+...
+
+Contradicting evidence:
+...
+
+Sources:
+...
+
+Possible response:
+...
+```
+
+The user decides what to say.
+
+The AI is therefore an assistant to the commentator, not the commentator.
+
+<!-- UPGRADE -->
+### ⬆ UPGRADE U-34 · Research Output Enters the Document as Evidence, Never as Assertion
+
+**Necessity.** §45's shape is right, but "Supporting evidence: ..." produced by a language model without retrieval is a fabrication risk aimed precisely at the product's most sensitive surface. A single hallucinated citation in a published fact-check destroys the credibility of the platform, not merely the user.
+
+**Doctrine.**
+
+1. Research is **retrieval-grounded**. Every claim in an AI research result carries a real, fetched, archivable source (U-33). Any assertion without a retrievable source is **not returned at all** — not returned with a caveat, not returned greyed out. Not returned.
+2. **"Contradicting evidence" is mandatory and shown with equal weight.** A research tool that returns only support is a confirmation-bias engine, and in this product that is a moral failure as well as a product one.
+3. Accepting a research result creates an **evidence record**, not narration text. The user still says the words (U-15).
+4. Confidence and source quality are shown plainly. The user is told what the tool does not know.
+
+**The product's long-term defensibility is its reputation for accuracy.** Every decision in the research layer is subordinate to protecting it.
+<!-- /UPGRADE -->
+
+---
+
+## 46. Important Rights and Platform Considerations
+
+Because the product can incorporate third-party videos, the system should be designed carefully around:
+
+* copyright
+* licensing
+* platform terms
+* permitted uses
+* user responsibility
+* source attribution
+
+For YouTube specifically, the product architecture should distinguish between playing an authorized/embedded source and creating a downloadable copy of source content.
+
+For uploaded videos, the user should confirm they have the necessary rights or permission.
+
+This needs to be designed into the product rather than treated as an afterthought.
+
+<!-- UPGRADE -->
+### ⬆ UPGRADE U-35 · Rights, Made Structural
+
+**Necessity.** §46 correctly identifies this as design-time work. U-01 resolved the architecture. This upgrade states the operational rules, because a policy that lives only in a terms-of-service document is not "designed into the product."
+
+**Doctrine.**
+
+1. **Class enforcement is code** (U-01). The render planner cannot emit a composed plan for a Class B source. This is an assertion, not a UI rule.
+2. **Rights attestation is a record, not a checkbox.** Adding a Class A source requires selecting a basis — *I own it · Licensed · Public domain · Permission granted · Institutional material · Fair use / fair dealing, transformative commentary* — stored with user, timestamp, and IP, and shown on the project.
+3. **Commentary posture is the default and is supported by design.** Transformative commentary is strongest when source use is proportionate, interleaved with substantial original contribution, and attributed. The product's core loop produces exactly this shape. The **source-to-response ratio is surfaced to the user** while they work, because it is both a legal signal and an editorial one — a response that is 95% someone else's video is a weak response regardless of the law.
+4. **Attribution is automatic and non-removable** (U-21).
+5. **A working takedown and counter-notice path exists before launch**, with the ability to unpublish immediately while preserving the user's document — the user's own recorded speech is never destroyed by a dispute over the source.
+6. **Nothing in the product downloads from a platform that forbids it.** No exceptions, no user-supplied workarounds, no third-party extraction integrations. This rule is not subject to growth arguments.
+
+Framed correctly, this is not a constraint. It is the reason institutions, broadcasters, and publishers can adopt the product — and they are the customers who pay.
+<!-- /UPGRADE -->
+
+---
+
+## 47. The Product's Identity
+
+I would not position this simply as:
+
+"AI video editor"
+
+That is too generic.
+
+The stronger concept is:
+
+"Talk back to any video."
+
+Or:
+
+"Stop the video. Say what you think. Continue the conversation."
+
+Or:
+
+"Turn videos into conversations."
+
+The fundamental product category could become:
+
+**Interactive Video Commentary**
+
+rather than another conventional video editor.
+
+---
+
+## 48. The Core User Journey
+
+The entire product can ultimately be reduced to:
+
+```
+CREATE PROJECT
+      ↓
+ADD VIDEO
+      ↓
+TRANSCRIBE
+      ↓
+WATCH
+      ↓
+INTERRUPT
+      ↓
+RESPOND
+      ↓
+CONTINUE
+      ↓
+INTERRUPT
+      ↓
+RESPOND
+      ↓
+CONTINUE
+      ↓
+...
+      ↓
+EDIT
+      ↓
+STYLE
+      ↓
+GENERATE
+      ↓
+FINAL VIDEO
+      ↓
+PUBLISH
+```
+
+---
+
+## 49. MVP
+
+I would not build everything above initially.
+
+The first version should prove the central interaction.
+
+MVP should contain:
+
+1. Upload video
+2. Video player
+3. Play/pause
+4. Interrupt button
+5. Webcam + microphone recording
+6. Continue button
+7. Automatic interruption timeline
+8. Basic editing of interruptions
+9. Transcript
+10. Timestamped sentences
+11. Final video rendering
+12. MP4 export
+
+That's enough to prove the product.
+
+<!-- UPGRADE -->
+### ⬆ UPGRADE U-36 · Four Additions the MVP Cannot Ship Without
+
+**Necessity.** §49's list is correct and, taken alone, produces something that proves the *interaction* but not the *product* — the export would sound amateur and could lose work. Four items are not polish; without them the MVP cannot be shown to anyone.
+
+**Doctrine.** The MVP is §49's twelve items plus:
+
+```
+13  Pre-roll capture              [U-04]  without it, every response
+                                          clips its own first words
+14  Crash-safe chunked recording  [U-06]  without it, the demo can
+                                          destroy a user's only take
+15  Loudness-matched audio master [U-17]  without it, the export
+                                          sounds amateur and the
+                                          product is not believable
+16  Automatic captions            [U-19]  without them, the export is
+                                          inaccessible and unpublishable
+                                          on the platforms that matter
+```
+
+And the MVP is governed by **one acceptance test**, from U-27:
+
+> A first-time user, given a video file, produces a published three-intervention conversation using only the spacebar, without reading instructions, and the result sounds and looks deliberately made.
+
+Everything else in §49 serves that sentence.
+
+**MVP source scope: Class A only.** YouTube (Class B, §50) arrives with the Conversation Manifest, which is its own significant piece of work and must not be rushed into the first release as a broken composed export.
+<!-- /UPGRADE -->
+
+---
+
+## 50. Version 2
+
+Then add:
+
+* YouTube integration
+* sentence selection
+* captions
+* picture-in-picture
+* side-by-side
+* freeze frame
+* annotations
+* screen recording
+* vertical video
+* automatic reframing
+* project templates
+* intro/outro
+
+<!-- UPGRADE -->
+### ⬆ UPGRADE U-37 · Two Moves from v3 to v2
+
+**Necessity.** Two items scheduled late are cheap now and define the product's identity. Shipping v2 without them means competing on features against established editors, which is a losing position.
+
+**Doctrine.** Promoted into **v2**:
+
+- **Evidence attachments** (U-33) — the feature that makes the product an instrument of analysis rather than reaction. Low cost, disproportionate identity value.
+- **The article transcript** (U-14) — nearly free from the document, and it is what makes this work citable, searchable, and accessible.
+
+Captions move from v2 to **MVP** (U-36). Vertical clip export (U-22) stays in v2 and is the distribution engine.
+<!-- /UPGRADE -->
+
+---
+
+## 51. Version 3
+
+Then:
+
+* AI claim detection
+* AI research
+* AI response assistance
+* fact-check workflow
+* evidence attachments
+* automatic chapters
+* advanced layouts
+* collaboration
+* multi-speaker conversations
+* publishing integrations
+
+---
+
+## 52. The Big Idea
+
+The deepest idea behind the application is not:
+
+"Make reaction videos."
+
+It is:
+
+"Give people a way to have a conversation with recorded media."
+
+Traditional video:
+
+```
+Speaker ─────────────────────────→ Audience
+```
+
+Your product:
+
+```
+Speaker ───────→ Viewer
+                  │
+                  ↓
+                Reply
+                  │
+                  ↓
+Speaker ───────→ Viewer
+                  │
+                  ↓
+                Reply
+                  │
+                  ↓
+               Conversation
+```
+
+And the final product preserves that conversation.
+
+That is what makes the concept interesting: the interruption itself becomes a first-class media object.
+
+<!-- UPGRADE -->
+### ⬆ UPGRADE U-38 · The Consequence of the Big Idea
+
+**Necessity.** §52's closing line — *the interruption itself becomes a first-class media object* — is the thesis. One consequence follows from it that the map does not draw, and it is the one that determines whether this becomes a leading application or a good tool.
+
+**Doctrine.** If the interruption is a first-class object, then it is **addressable, quotable, citable, respondable, and portable** — independently of the video it came from.
+
+```
+addressable   it has a permanent URL
+quotable      it renders as a clip, a card, and a paragraph
+citable       it carries its claim, its source, its timestamp,
+              its evidence, and its author
+respondable   it can itself be interrupted            [U-31]
+portable      it leaves in an open archive            [U-25]
+```
+
+A video editor produces files. This produces **a public, structured, navigable record of people reasoning with each other** — where every assertion is attached to who made it, when, in what context, with what evidence, and what was said back.
+
+That record is the thing that has never existed before. The video is how it travels. The document is what it is.
+
+**Every decision in this doctrine defers to that.**
+<!-- /UPGRADE -->
+
+
+---
+---
+
+# PART II — CROSS-CUTTING DOCTRINE
+
+The map organises the product by feature. Some commitments cut across every
+feature and therefore have no single home in Part I. They are binding on the
+same terms.
+
+---
+
+## D-01 · The Non-Negotiables
+
+Everything else in this document is reasoning. These are the conclusions. If a
+proposed change violates one of these, the change is wrong — not the rule.
+
+```
+1   The document is the product. The video is an export of it.      [U-25]
+2   The user's recorded speech is irreplaceable and is never lost.  [U-06]
+3   A source quote is never altered, by a user or by a model.       [U-10]
+4   AI never speaks as the user.                                    [U-15]
+5   The resume frame equals the interrupt frame. Exactly.           [U-07]
+6   Nothing is downloaded from a platform that forbids it.          [U-35]
+7   Attribution is automatic and cannot be removed.                 [U-21]
+8   Captions ship with every render.                                [U-19]
+9   Every export is loudness-mastered.                              [U-17]
+10  A first-time user can do this with one key.                     [U-27]
+```
+
+---
+
+## D-02 · Ubiquitous Language
+
+One word per concept, in code, in the database, in the UI, and in
+conversation. Synonyms are a defect.
+
+| Term | Means | Never called |
+|---|---|---|
+| **Conversation** | the project; the document | project file, timeline, session |
+| **Source** | the video being responded to | original, input, video |
+| **Intervention** | one stop-and-respond unit | clip, insert, comment, reaction |
+| **Take** | one recording attempt at an intervention | clip, recording, media |
+| **Anchor** | the composite binding to a source moment | timestamp, marker |
+| **Claim** | a quoted source statement being answered | quote, text |
+| **Pair** | a claim and its response | exchange |
+| **Segment** | a run of source between interventions | cut, chunk |
+| **Shot** | one rendered unit in a render plan | clip, scene |
+| **Render plan** | the data describing an export | timeline, EDL, config |
+| **t_source / t_output** | the two clocks, always named | time, start, timestamp |
+
+`interrupt`, `respond`, `continue` are the verbs of the product. The UI uses
+them, the API uses them, and so does the team.
+
+---
+
+## D-03 · Privacy, Consent, and Ownership
+
+The product handles people's faces, voices, homes, and unpublished opinions.
+That is more sensitive than most software ever touches.
+
+- **The camera light is the truth.** A permanently visible, unambiguous
+  recording indicator whenever a device is live — including the warm pre-roll
+  buffer (U-04). Pre-roll is explained plainly at consent time, not buried.
+  Discarded pre-roll is discarded in memory and never persisted.
+- **Unpublished is private by default.** Drafts are never used for training,
+  never surfaced to other users, never indexed.
+- **Recording content is not training data.** Not without separate, specific,
+  revocable, opt-in consent. Never as a condition of using the product.
+- **Delete means delete.** Deleting a conversation removes assets from object
+  storage and from backups within a stated window, and the window is stated.
+- **Export is a right** (U-25). Unconditional, including on a free tier and
+  after cancellation.
+- **Minors and classrooms** (U-32): institutional controls, guardian consent
+  where required, and retention policies set by the institution, not by us.
+- **Blur is a privacy tool** (U-12), reachable in one action, usable on faces,
+  documents, addresses, and screens.
+
+---
+
+## D-04 · Accessibility
+
+Not a compliance exercise. A product about making speech accountable that
+excludes deaf and blind users has refuted itself.
+
+- **WCAG 2.2 AA** across the application, verified, not assumed.
+- **Every interaction reachable by keyboard.** The core loop already is
+  (U-27); the rest must be too.
+- **Captions always ship** (U-19), with a legibility floor the user cannot
+  style past.
+- **The transcript panel is a first-class navigation surface**, correctly
+  announced by screen readers with timestamps and speaker labels.
+- **The article transcript (U-14) is the accessible form of every
+  conversation** — full parity of content, not a summary.
+- **No information carried by colour alone** (U-20).
+- **Respect `prefers-reduced-motion`** in the UI and offer a reduced-motion
+  render profile (no Ken Burns, no animated annotations).
+
+---
+
+## D-05 · Performance Budgets
+
+Numbers, so they can be tested rather than debated.
+
+```
+INTERRUPT keypress → source paused            < 50 ms
+INTERRUPT keypress → recording armed          < 150 ms (pre-roll covers rest)
+CONTINUE  keypress → source resumed           < 120 ms
+Timeline scrub → frame shown                  < 100 ms
+Project open → playable                       < 2.5 s
+Transcript search → results                   < 200 ms
+Preview render of one intervention            < 3 s
+Final render                                  < 0.5× output duration (CPU)
+Re-render after a caption edit                < 10 s for a 40-min output [U-16]
+Recording chunk → durable                     < 5 s behind live          [U-06]
+```
+
+The interrupt path is the product. It is budgeted the way a game budgets a
+frame: nothing is allowed onto it.
+
+---
+
+## D-06 · Security
+
+- **Media URLs are signed and short-lived.** Object storage is never public.
+- **Uploads are untrusted input.** Probed, validated, transcoded in a sandbox
+  with no network egress and hard resource limits. ffmpeg parsing hostile
+  media is a known attack surface and is treated as one.
+- **Render workers are isolated**, run unprivileged, and cannot reach
+  application secrets or the database.
+- **Server-side URL fetching is SSRF-guarded** — evidence archiving (U-33) and
+  direct-URL sources fetch through an allowlisted egress proxy with private
+  address ranges blocked.
+- **Tenant isolation is enforced at the data layer**, not in application code
+  alone. One user reaching another's unpublished recordings is the worst
+  incident this product can have.
+- **The audit log is append-only** and visible to the account owner.
+
+---
+
+## D-07 · Reliability of User Work
+
+Ranked by how unrecoverable the loss is. Engineering effort follows this order.
+
+```
+1  An in-progress take        irreplaceable — the moment is gone     [U-06]
+2  The Conversation document  irreplaceable — hours of reasoning     [U-25]
+3  Evidence archives          re-fetchable only while the source lives
+4  Transcripts                regenerable at cost
+5  Renders                    fully regenerable from the plan        [U-16]
+```
+
+Backup, replication, and recovery-time objectives are set in that order. A
+render can be lost without apology. A take cannot be lost at all.
+
+---
+
+## D-08 · Rights and Fair-Dealing Posture
+
+The operational posture behind U-35. This is engineering guidance for keeping
+the product's use of source material defensible; it is not legal advice, and
+counsel reviews it before launch and per jurisdiction.
+
+- **Transformative commentary is the posture.** The product's loop
+  structurally produces it: source material is interleaved with substantial
+  original analysis, used in proportion, and attributed.
+- **Proportionality is measured and surfaced.** The source-to-response ratio is
+  shown to the user as they work (U-35). It is an editorial signal as much as
+  a legal one.
+- **Freeze frames from Class B sources** (U-13) are brief, always accompanied
+  by commentary, always attributed, and never a substitute for watching the
+  original.
+- **The Conversation Manifest is the preferred Class B form** (U-01): it sends
+  viewers to the provider's own player, preserving the original creator's
+  views, analytics, and revenue. The product's answer to rights concerns is
+  not minimal compliance — it is an architecture that makes responding
+  *beneficial* to the person being responded to.
+- **Jurisdiction differs.** Fair use (US), fair dealing (UK/CA/AU), and
+  quotation exceptions (EU) are not the same. The product does not assume one.
+
+---
+
+## D-09 · Invariants Asserted in Code
+
+Rules that exist only in documentation are rules that will be broken. Each of
+these is an assertion that fails loudly — in CI, at write time, or at plan
+time — not a convention.
+
+```
+INV-01  A COMPOSED render plan requires a Class A source.            [U-01]
+INV-02  cut_out_frame == resume_in_frame for every intervention.     [U-07]
+INV-03  Σ(shot durations) == render duration, to the frame.          [U-08]
+INV-04  Every asset entering a plan is in house format.              [U-02]
+INV-05  A quote's text hashes to its quote_hash.                     [U-10]
+INV-06  Every AI-derived field has an accepted_by.                   [U-15]
+INV-07  Every export carries captions and an attribution block. [U-19, U-21]
+INV-08  Every published render has a reproducible plan_hash.         [U-16]
+INV-09  timeline_segments is rebuildable from the document.          [U-08]
+INV-10  No take chunk is released locally before remote checksum.    [U-06]
+INV-11  Master loudness within ±0.5 LU of the export profile target. [U-17]
+INV-12  No intervention is silently re-anchored.                     [U-05]
+```
+
+---
+
+## D-10 · Testing Doctrine
+
+Video software fails in ways unit tests do not see. A green suite over a
+broken render is worse than no suite.
+
+- **Golden renders.** A fixture set of conversations renders on every build and
+  is compared against stored references by perceptual frame hash at fixed
+  sample points plus audio fingerprint. Any drift fails the build and shows
+  the diff. This is the only way U-16's determinism promise stays true.
+- **Frame-exactness tests** (INV-02). A synthetic source with a burned-in frame
+  counter is interrupted at known frames; the render is decoded and the
+  counter read. No duplicated frame, no dropped frame. This test is the
+  product's core promise expressed as code.
+- **Loudness tests** (INV-11). Every golden render is measured for integrated
+  loudness and true peak against its profile.
+- **A/V sync tests.** A clap-and-flash fixture verifies drift stays under one
+  frame across a forty-minute render — the failure mode that slowly ruins long
+  exports and that nobody notices until a user does.
+- **Capture simulation.** Recorded `MediaRecorder` chunk streams are replayed
+  as fixtures, including truncated and out-of-order ones, so crash recovery
+  (U-06) is tested rather than hoped for.
+- **Hostile media corpus.** Malformed, rotated, VFR, zero-audio, huge, and
+  adversarial files run through ingest on every build (D-06, U-02).
+- **The acceptance test is a person.** U-27's test — a first-time user, one
+  key, no instructions — is run with real people before every release. It
+  cannot be automated and it outranks the suite.
+
+---
+
+## D-11 · Observability, Cost, and Quotas
+
+- **Render cost is measured per minute of output** and attributed to an
+  account (U-23). A video product that cannot state its unit economics cannot
+  price itself and will discover this too late.
+- **Every render job is observable**: queue depth, per-shot progress, cache hit
+  rate, failure class. Cache hit rate is the health metric of U-16 and
+  therefore of the product's iteration speed.
+- **Capture telemetry is aggregate and anonymous** — dropped frames, upload
+  backlog, recovery events. Never content, never faces, never audio (D-03).
+- **Quotas are transparent.** Storage, render minutes, and retention are shown
+  before they are hit, never enforced by silent failure during a recording.
+
+---
+
+## D-12 · Internationalisation
+
+The map's examples are English. The product is not.
+
+- **Transcription, captions, and search are multilingual** from the schema
+  outward; `language` is recorded per transcript and per take (U-03).
+- **Right-to-left layouts** are supported in the UI and in the compositor —
+  U-18's scene graph carries writing direction, so lower-thirds and quote
+  cards mirror correctly rather than breaking.
+- **Caption typography** accounts for scripts with different line heights and
+  for CJK line breaking. The legibility floor (U-19) is defined per script.
+- **Translated captions** are a v2 feature; the word-level schema (U-03)
+  already accommodates them.
+
+---
+
+## D-13 · Design Principles
+
+- **The video is the interface.** Chrome recedes during playback and recording.
+  Nothing competes with the frame while the user is thinking.
+- **One key, then everything else** (U-27). Depth is available; it is never
+  required (U-28).
+- **The document is always visible.** The user can see what the system recorded
+  about their intention — anchors, types, quotes — because the product's claim
+  is accountability and it applies to the product itself.
+- **Never a spinner without a number.** Long operations report real progress
+  and real remaining time (U-23).
+- **Speaker identity is one system** (U-20), everywhere, carried by shape and
+  position as well as colour.
+- **Destructive actions are reversible.** Re-record keeps takes (U-06), delete
+  is undoable, history is append-only (U-25).
+
+---
+
+## D-14 · Technology Decisions
+
+Recorded so they are decisions rather than accidents. Each is revisable; none
+is revisable silently.
+
+```
+Web application      Next.js (App Router) + React + TypeScript
+                     — matches §31; strict TS, no implicit any
+
+Data                 PostgreSQL
+                     — matches §31; the document stored as validated
+                       JSONB with a versioned schema (U-25), relational
+                       tables for everything queried (U-24)
+
+Object storage       S3-compatible, private, signed URLs (D-06)
+
+Job queue            durable, idempotent by plan_hash (U-16, U-23)
+
+Render engine        FFmpeg in isolated workers (D-06), never in the
+                     web tier; GPU encode optional and must produce
+                     output equivalent to CPU within golden tolerance
+
+Capture              MediaRecorder + getUserMedia/getDisplayMedia,
+                     timesliced and streamed (U-06, U-26)
+
+Transcription        pluggable ASR behind one interface; word-level
+                     output mandatory (U-03); no engine lock-in
+
+Preview              client-side low-res preview; server-side final
+                     — both consume the same render plan (U-16), so
+                       they cannot drift apart
+```
+
+**The render plan is the contract between preview and final.** Two renderers
+are acceptable only because they read one plan. If they ever diverge in
+interpretation, that is a defect of the highest severity — the user's preview
+is a promise about the export.
+
+---
+
+## D-15 · Definition of Done
+
+A feature is done when all of the following are true. Not most.
+
+```
+□ It honours the non-negotiables (D-01)
+□ It uses the ubiquitous language (D-02)
+□ Its invariants are asserted in code (D-09)
+□ It is keyboard reachable and screen-reader correct (D-04)
+□ It meets its performance budget (D-05)
+□ It cannot lose user work (D-07)
+□ If it touches a render: golden tests updated and passing (D-10)
+□ If it touches a source: rights class enforced (U-01, U-35)
+□ If it touches AI: labelled, attributed, human-accepted (U-15)
+□ If it touches an export: captions + attribution present (INV-07)
+□ It degrades legibly when it fails — never silently
+```
+
+---
+---
+
+# APPENDIX A — INDEX OF UPGRADES
+
+| ID | Applies to | Upgrade |
+|---|---|---|
+| U-01 | §4 | The Two Source Classes — Governed vs Embedded |
+| U-02 | §5 | Ingest normalisation to house format is mandatory |
+| U-03 | §5 | Transcript is word / sentence / paragraph |
+| U-04 | §7 | Pre-roll — the interrupt never clips the first words |
+| U-05 | §7 | Composite anchors survive re-transcription |
+| U-06 | §8 | Takes, chunked streaming, and never losing one |
+| U-07 | §9 | Frame-exact resume |
+| U-08 | §10 | Two clocks, never confused |
+| U-09 | §11 | Interrupt after the sentence, not on it |
+| U-10 | §12 | The claim–response pair as signature object |
+| U-11 | §13 | Type drives presentation |
+| U-12 | §14 | Annotations are vector, timed, resolution-independent |
+| U-13 | §15 | The freeze frame bridges Class A and Class B |
+| U-14 | §16 | The intellectual record is a product |
+| U-15 | §20 | The AI boundary as an enforceable rule |
+| U-16 | §22 | The render plan is explicit, versioned, deterministic |
+| U-17 | §22 | Audio mastering — the map's largest omission |
+| U-18 | §23 | Layouts are a compositor, not presets |
+| U-19 | §24 | Captions are accessibility first |
+| U-20 | §25 | One visual language for speaker identity |
+| U-21 | §27 | Attribution is generated, not optional |
+| U-22 | §29 | Vertical is a different edit, not a crop |
+| U-23 | §31 | The render tier is isolated and queued |
+| U-24 | §32 | The data model, completed |
+| U-25 | §33 | The document — versioned, append-only, portable |
+| U-26 | §34 | Capture quality is decided at capture time |
+| U-27 | §35 | One key. The whole product. |
+| U-28 | §36 | Live Mode never requires Studio Mode |
+| U-29 | §38 | The commentary session is a teleprompter studio |
+| U-30 | §39 | Publish-ready metadata is part of the render |
+| U-31 | §40 | Every published conversation is itself a source |
+| U-32 | §41 | Education is the beachhead market |
+| U-33 | §44 | Evidence must be archived, cited, shown precisely |
+| U-34 | §45 | Research enters as evidence, never as assertion |
+| U-35 | §46 | Rights, made structural |
+| U-36 | §49 | Four additions the MVP cannot ship without |
+| U-37 | §50 | Evidence and article transcript promoted to v2 |
+| U-38 | §52 | The consequence of the big idea |
+
+---
+
+# APPENDIX B — WHAT CHANGED IN THE PLAN
+
+Scope moves the upgrades make to §49–§51. The map's phasing is otherwise kept.
+
+**Into MVP** (from v2)
+- Captions — inaccessible exports are unpublishable *(U-19, U-36)*
+- Pre-roll capture, crash-safe recording, loudness mastering — not polish;
+  without them the MVP cannot be shown *(U-04, U-06, U-17)*
+
+**Into v2** (from v3)
+- Evidence attachments — the product's identity, cheaply bought *(U-33, U-37)*
+- The article transcript — nearly free from the document *(U-14, U-37)*
+
+**Out of MVP** (to v2)
+- YouTube / Class B sources — arrive with the Conversation Manifest, which is
+  substantial work and must not ship as a broken composed export *(U-01, U-36)*
+
+**New, with no prior home**
+- The Conversation Manifest — the Class B export format *(U-01)*
+- Vertical clip sets per claim–response pair — the distribution engine *(U-22)*
+- The publication bundle *(U-30)*
+- Published conversations as sources — the network, for free *(U-31)*
+
+---
+
+*End of doctrine. Amend by extension only (see "Amendment rule").*
