@@ -360,10 +360,26 @@ export default function Watch({ conversationId }: { conversationId: string }) {
 
       {manifest.source.canonicalUrl && (
         <p className="small muted" style={{ marginTop: 12 }}>
-          Watch the original on{' '}
-          <a href={manifest.source.canonicalUrl} target="_blank" rel="noreferrer">
-            its own platform
-          </a>.
+          {isEmbedded ? (
+            <>
+              Watch the original on{' '}
+              <a href={manifest.source.canonicalUrl} target="_blank" rel="noreferrer">
+                its own platform
+              </a>.
+            </>
+          ) : manifest.lineage?.length ? (
+            <>
+              This answers{' '}
+              <a href={manifest.source.canonicalUrl}>the conversation before it</a>.
+            </>
+          ) : (
+            <>
+              The original:{' '}
+              <a href={manifest.source.canonicalUrl} target="_blank" rel="noreferrer">
+                {manifest.source.title}
+              </a>.
+            </>
+          )}
         </p>
       )}
     </div>
