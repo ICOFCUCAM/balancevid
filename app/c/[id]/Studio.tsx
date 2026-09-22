@@ -97,6 +97,24 @@ export default function Studio({ conversationId }: { conversationId: string }) {
     return () => { cancelled = true; };
   }, [conversationId, transcriptVersion]);
 
+  /**
+   * Deep links back from the article (U-14) land on ?t=<frame>.
+   *
+   * The article cites a moment; following the citation has to arrive at that
+   * exact moment, or the citation is decorative.
+   */
+  const [deepLinked, setDeepLinked] = useState(false);
+  useEffect(() => {
+    if (deepLinked) return;
+    const video = videoRef.current;
+    if (!video || !(snapshot?.conversation?.source?.durationFrames > 0)) return;
+    const frame = Number(new URLSearchParams(window.location.search).get('t'));
+    if (!Number.isFinite(frame) || frame <= 0) { setDeepLinked(true); return; }
+    video.currentTime = frame / HOUSE_FPS;
+    setCurrentFrame(frame);
+    setDeepLinked(true);
+  }, [deepLinked, snapshot?.conversation?.source?.durationFrames]);
+
   // The transcript follows playback (§16): the sentence being spoken is
   // highlighted, and it freezes where the user interrupts.
   useEffect(() => {
@@ -652,6 +670,39 @@ export default function Studio({ conversationId }: { conversationId: string }) {
                 {snapshot.plan.attribution.text}
               </p>
             )}
+          </div>
+
+          {/*
+            Every representation of this conversation, generated on demand.
+            The Conversation is the canonical artifact; these are renderings of
+            it, and none of them is stored. [INV-00, D-16]
+          */}
+          <div className="panel" style={{ marginTop: 12 }}>
+            <strong>Representations</strong>
+            <p className="small muted" style={{ marginTop: 2 }}>
+              The same conversation, rendered other ways. Generated on request,
+              never stored.
+            </p>
+            <div className="row" style={{ gap: 8 }}>
+              <a className="btn small" href={`/c/${conversationId}/article`} target="_blank" rel="noreferrer">
+                Read as an article
+              </a>
+            </div>
+            <div className="small" style={{ marginTop: 8, lineHeight: 2 }}>
+              {['article.md', 'article.json', 'captions.srt', 'captions.vtt', 'timeline.json', 'render-plan.json']
+                .map((id) => (
+                  <a
+                    key={id}
+                    className="small mono"
+                    style={{ marginRight: 10 }}
+                    href={`/api/conversations/${conversationId}/representations?id=${id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {id}
+                  </a>
+                ))}
+            </div>
           </div>
         </aside>
       </div>

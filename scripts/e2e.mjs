@@ -176,6 +176,32 @@ if (job?.state === 'done') {
   }, null, 2));
 }
 
+// --- the article (U-14) -----------------------------------------------------
+log('checking the article…');
+const articleResponse = await fetch(`${BASE}/c/${conversationId}/article`);
+check(articleResponse.ok, 'the conversation renders as an article');
+const articleHtml = await articleResponse.text();
+check(articleHtml.startsWith('<!doctype html>'), 'the article is a standalone document');
+check(articleHtml.includes('Example Channel'), 'the article carries the generated attribution (U-21)');
+if (quoted[0]) {
+  check(articleHtml.includes(quoted[0].anchor.quote),
+    'the article quotes the claim being answered (U-10)');
+}
+check(!articleHtml.includes('<script'), 'the article loads nothing');
+
+const list = await api(`/api/conversations/${conversationId}/representations`);
+const ids = list.representations.filter((r) => r.available).map((r) => r.id);
+check(ids.includes('article.md') && ids.includes('captions.srt'),
+  'the registry lists what this conversation can produce (D-16)', ids.join(', '));
+check(list.representations.every((r) => r.inputs.length > 0),
+  'every representation declares its inputs (D-16)');
+
+const markdown = await (await fetch(
+  `${BASE}/api/conversations/${conversationId}/representations?id=article.md`)).text();
+check(markdown.includes('# '), 'the article downloads as Markdown');
+check(markdown.includes('spoken by the author'),
+  'the article states that every response word is the author\'s (U-15)');
+
 await browser.close();
 console.log(failures === 0 ? '\nALL CHECKS PASSED' : `\n${failures} CHECK(S) FAILED`);
 process.exit(failures === 0 ? 0 : 1);

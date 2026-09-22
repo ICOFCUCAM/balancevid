@@ -1156,6 +1156,42 @@ The article version is SEO-indexable, screen-reader accessible, quotable in text
 This is the feature that changes the product's category from "reaction video tool" to "instrument of public reasoning." Treat it as a headline feature, not an export option.
 <!-- /UPGRADE -->
 
+
+<!-- UPGRADE -->
+### ⬆ UPGRADE U-40 · The Article Quotes; It Does Not Reproduce
+
+**Necessity.** Discovered while building U-14. "A structured, timestamped,
+quotable record of claims and responses" has an obvious naive implementation:
+print the source transcript and interleave the responses. That implementation
+is wrong twice over.
+
+Legally, it turns every conversation into a full textual copy of someone else's
+video — the opposite of the proportionate, transformative use the product's
+whole architecture is arranged to produce (U-35 §3). A response that is 95%
+someone else's words is as weak in text as it is on screen.
+
+Editorially, it buries the argument. A reader who wanted the source's
+transcript would read the source's transcript.
+
+**Doctrine.** The article prints **the author's own words in full** and quotes
+**only the statement being answered** — the bound claim (U-10), or, where the
+author bound none, the single sentence at the anchor.
+
+```
+IN FULL      every response, transcribed from the author's own take,
+             trimmed to what they chose to keep
+QUOTED       the claim being answered, verbatim, with its timestamp
+NEVER        the source's transcript as a body of text
+```
+
+This is the same proportionality the composed video already embodies, applied
+to the written representation. **The article is a document of an argument, not
+a copy of a video with remarks attached.**
+
+The stated source-to-response ratio (U-35) appears in the article's header for
+the same reason it appears in the editor: it is a signal the author should see.
+<!-- /UPGRADE -->
+
 ---
 
 ## 17. Editing an Intervention
@@ -3164,6 +3200,7 @@ A feature is done when all of the following are true. Not most.
 | U-37 | §50 | Evidence and article transcript promoted to v2 |
 | U-38 | §52 | The consequence of the big idea |
 | U-39 | §31 | The editing proxy, and preview/render frame parity |
+| U-40 | §16 | The article quotes; it does not reproduce |
 
 ---
 

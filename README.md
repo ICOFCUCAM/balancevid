@@ -111,7 +111,26 @@ assembly, render — not a mock of it.
 | Transcript panel | follows playback, click to seek, respond to a sentence |
 | Claims | selecting a statement binds it to the intervention, hash-checked |
 | Captions | both speakers, labelled, burned in and as `.srt` / `.vtt` |
+| Article | every conversation also renders as a citable document (U-14) |
+| Representations | one registry, regenerated on demand, never stored (D-16) |
 | Worker | durable queue, real progress, resumable via the shot cache |
+
+### Representations
+
+`INV-00` says the Conversation is canonical and everything else is a rendering
+of it. `src/representations/registry.ts` makes that testable: each
+representation declares a pure generator, the parts of the Conversation it
+reads, and rebuilds from scratch. CI regenerates every one and compares them
+byte for byte — a representation that cannot survive deletion is a fork.
+
+```
+GET /api/conversations/<id>/representations           what this can produce
+GET /api/conversations/<id>/representations?id=…      article.md · article.json
+                                                      article.html · captions.srt
+                                                      captions.vtt · timeline.json
+                                                      render-plan.json
+GET /c/<id>/article                                   the article, as a page
+```
 
 ### Verified, not asserted
 
@@ -144,7 +163,7 @@ Stated plainly, because a status table that overstates is worse than none.
 - **Studio Mode.** The document supports takes, trims and overrides, and the
   delete endpoint exists; the editing UI does not.
 - **Annotations, freeze-frame capture, evidence.** v2.
-- **Vertical clips, the article transcript, publication bundle.** v2.
+- **Vertical clips and the publication bundle.** v2.
 - **Pre-flight capture check** (U-26 §2) and device-change detection.
 - **A/V sync golden test** (D-10) — frame-exactness, loudness and cache are
   covered; the clap-and-flash drift test is not.
