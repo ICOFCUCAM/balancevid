@@ -21,6 +21,7 @@ import { generateArticle } from '../article/generate.js';
 import { renderHtml } from '../article/html.js';
 import { renderMarkdown } from '../article/markdown.js';
 import { buildCues } from '../render/cues.js';
+import { buildManifest } from '../manifest/build.js';
 import { buildSrt, buildVtt } from '../render/subtitles.js';
 import type { Transcript } from '../transcribe/types.js';
 
@@ -107,6 +108,21 @@ export const REPRESENTATIONS: Representation[] = [
     mediaType: 'text/vtt; charset=utf-8',
     inputs: ['source', 'interventions', 'takes', 'transcripts'],
     generate: (c) => buildVtt(cues(c)),
+    available: () => true,
+  },
+  {
+    id: 'manifest.json',
+    label: 'Conversation manifest',
+    mediaType: 'application/json',
+    inputs: ['source', 'interventions', 'anchors', 'takes', 'transcripts'],
+    generate: (c) => JSON.stringify(buildManifest({
+      conversation: c.conversation,
+      sourceTranscript: c.sourceTranscript ?? null,
+      ...(c.takeTranscripts ? { takeTranscripts: c.takeTranscripts } : {}),
+      generatedAt: c.generatedAt,
+    }), null, 2),
+    // Every conversation has one. For Class B it is the export; for Class A it
+    // is the companion experience alongside the composed video. [U-01, D-08]
     available: () => true,
   },
   {

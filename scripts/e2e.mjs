@@ -363,6 +363,95 @@ check(markdown.includes('**Evidence**') && markdown.includes('retrieved '),
   'the article cites the evidence with its retrieval date (U-33 §4)');
 check(markdown.includes('unemployment fell by 3%'), 'the article carries the cited line');
 
+// --- the companion player (U-01, D-08) --------------------------------------
+log('companion player…');
+const manifest = await api(`/api/conversations/${conversationId}/representations?id=manifest.json`);
+check(manifest.segments.length > 0, 'the conversation has a manifest (U-01)',
+  `${manifest.segments.length} segments`);
+const firstResponse = manifest.segments.find((s) => s.kind === 'response');
+const beforeResponse = manifest.segments[manifest.segments.indexOf(firstResponse) - 1];
+check(beforeResponse.sourceOutFrame === firstResponse.anchorFrame,
+  'the manifest resumes the source at exactly the frame it stopped (U-07)');
+
+const watch = await page.context().newPage();
+await watch.goto(`${BASE}/c/${conversationId}/watch`, { waitUntil: 'networkidle' });
+check(await watch.locator('text=The conversation').count() > 0, 'the watch page renders');
+await watch.click('button:has-text("Play the conversation")');
+await watch.waitForFunction(
+  () => document.body.innerText.includes('Response —'), null, { timeout: 40_000 })
+  .then(() => check(true, 'the companion player reaches the first response'))
+  .catch(() => check(false, 'the companion player reaches the first response', 'timed out'));
+await watch.close();
+
+// --- an embedded source (Class B) -------------------------------------------
+log('class B…');
+const embedded = await (await fetch(`${BASE}/api/conversations`, {
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({
+    providerUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+    sourceTitle: 'A video we do not hold',
+    creator: 'Example Channel',
+  }),
+})).json();
+const embeddedId = embedded.conversation?.id;
+check(embedded.conversation?.source?.class === 'B', 'a link creates a Class B conversation (U-01)');
+check(embedded.conversation?.source?.embedUrl?.includes('youtube-nocookie.com'),
+  'it plays through the provider\'s own embed');
+check(!embedded.conversation?.source?.mezzanineAssetId,
+  'nothing was downloaded (U-35 §6)');
+
+const refusedComposed = await fetch(`${BASE}/api/conversations/${embeddedId}/renders`, {
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ kind: 'full' }),
+});
+check(refusedComposed.status === 409, 'a composed export is refused for Class B (INV-01)',
+  `status ${refusedComposed.status}`);
+check((await refusedComposed.json()).error?.includes('Class B'),
+  'and it says why, in the doctrine\'s own terms');
+
+const embeddedManifest = await api(
+  `/api/conversations/${embeddedId}/representations?id=manifest.json`);
+check(embeddedManifest.source.embedUrl?.includes('youtube-nocookie.com'),
+  'the Class B manifest drives the provider\'s player');
+check(!/\.(mp4|webm|m3u8|mpd)(["\'?]|$)/.test(JSON.stringify(embeddedManifest.source)),
+  'the manifest points at no provider media');
+
+const embeddedWatch = await page.context().newPage();
+await embeddedWatch.goto(`${BASE}/c/${embeddedId}/watch`, { waitUntil: 'domcontentloaded' });
+await embeddedWatch.waitForSelector('iframe', { timeout: 20_000 })
+  .then(() => check(true, 'the Class B watch page embeds the provider\'s player'))
+  .catch(() => check(false, 'the Class B watch page embeds the provider\'s player'));
+await embeddedWatch.close();
+
+// --- the response reel (U-01) -----------------------------------------------
+log('response reel…');
+const reelStart = await fetch(`${BASE}/api/conversations/${conversationId}/renders`, {
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ kind: 'reel' }),
+});
+check(reelStart.status === 202, 'a response reel can be requested');
+const reelPlanHash = (await reelStart.json()).planHash;
+
+let reelJob = null;
+for (let i = 0; i < 240; i++) {
+  await sleep(1000);
+  const { jobs } = await api(`/api/conversations/${conversationId}/renders`);
+  reelJob = jobs.find((j) => j.kind === 'render_reel');
+  if (reelJob && (reelJob.state === 'done' || reelJob.state === 'failed')) break;
+}
+check(reelJob?.state === 'done', 'the reel renders', reelJob?.error ?? reelJob?.state ?? 'no job');
+if (reelJob?.state === 'done') {
+  const reelFile = await fetch(
+    `${BASE}/api/conversations/${conversationId}/renders/${reelPlanHash}/file`,
+    { headers: { range: 'bytes=0-1023' } });
+  check(reelFile.status === 206, 'the reel is served');
+  check(reelJob.result.responses > 0, 'the reel holds the author\'s responses',
+    `${reelJob.result.responses} responses`);
+}
+
 await browser.close();
 console.log(failures === 0 ? '\nALL CHECKS PASSED' : `\n${failures} CHECK(S) FAILED`);
 process.exit(failures === 0 ? 0 : 1);

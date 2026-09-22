@@ -3280,6 +3280,16 @@ fail and wrong in how it looked: it now pins the layout it depends on and says
 why, and the composite path has its own test. **When a correct change breaks a
 test, the test was asserting something it was never supposed to be asserting.**
 
+**Build the special case for the ordinary case too, or you cannot test it.**
+The Conversation Manifest exists for Class B, where the provider's player is
+the only way the source can be shown. Built that way it would have been
+untestable here, since this environment cannot reach a provider at all. Giving
+a Class A conversation a manifest as well -- driving our own player instead of
+a provider's -- made the companion experience buildable, testable and, as it
+turns out, genuinely useful: a governed conversation now has a shareable player
+alongside its composed video. **A path that exists only for the case you cannot
+exercise is a path that does not work.**
+
 **A layout that reflows must reflow its typography too.** Captions were sized
 from the canvas height, which is correct on a 16:9 export and doubles the type
 on a 9:16 one — on a canvas half as wide. The subtitle renderer also had word

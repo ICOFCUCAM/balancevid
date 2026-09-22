@@ -112,6 +112,9 @@ assembly, render — not a mock of it.
 | Claims | selecting a statement binds it to the intervention, hash-checked |
 | Captions | both speakers, labelled, burned in and as `.srt` / `.vtt` |
 | Studio Mode | trim, audition takes, re-record, move a point, retype, delete |
+| Embedded sources | YouTube and Vimeo links, played through their own embed |
+| Conversation Manifest | the companion player: drives the source, cuts to you |
+| Response reel | the Class B export — your material, no provider footage |
 | Vertical clips | one per claim-and-response pair, ranked and proposed (U-22) |
 | Evidence | archived on attach, located, timed, zoomed to in the render |
 | Article | every conversation also renders as a citable document (U-14) |
@@ -130,9 +133,10 @@ byte for byte — a representation that cannot survive deletion is a fork.
 GET /api/conversations/<id>/representations           what this can produce
 GET /api/conversations/<id>/representations?id=…      article.md · article.json
                                                       article.html · captions.srt
-                                                      captions.vtt · timeline.json
-                                                      render-plan.json
+                                                      captions.vtt · manifest.json
+                                                      timeline.json · render-plan.json
 GET /c/<id>/article                                   the article, as a page
+GET /c/<id>/watch                                     the companion player
 ```
 
 ### Verified, not asserted
@@ -161,8 +165,11 @@ Stated plainly, because a status table that overstates is worse than none.
   the source is currently treated as one speaker.
 - **Research and claim detection** (§20, §43, §45) are not built. The transcript
   they need now exists.
-- **Class B / YouTube.** Out of MVP scope by U-36. `INV-01` already refuses a
-  composed plan for a Class B source; the Conversation Manifest is not built.
+- **Vimeo authoring.** A Vimeo link creates a Class B conversation and the
+  manifest drives its embed, but the Studio's one-key loop is wired to
+  YouTube's player API only; Vimeo's needs its own adapter.
+- **Publishing.** Nothing is published anywhere. Exports download; the
+  manifest and the watch page are same-origin.
 - **Annotations and freeze-frame capture.** v2.
 - **Paged documents as evidence.** PDFs are stored, hashed and cited, but this
   build has no rasteriser, so they carry no visual capture and the render has

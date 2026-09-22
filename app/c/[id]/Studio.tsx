@@ -58,6 +58,22 @@ export default function Studio({ conversationId }: { conversationId: string }) {
   const [mode, setMode] = useState<'live' | 'studio'>('live');
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const embedRef = useRef<HTMLIFrameElement | null>(null);
+  const ytRef = useRef<any>(null);
+  /**
+   * One interface over both kinds of source.  [Doctrine U-01]
+   *
+   * A governed source is our own <video>; an embedded one is the provider's
+   * player, driven through the provider's API. The one-key loop does not know
+   * or care which — it asks for the current frame, pauses, and resumes.
+   */
+  const sourcePlayerRef = useRef<{
+    currentFrame(): number;
+    pause(): void;
+    play(): void;
+    seek(frame: number): void;
+    durationFrames(): number;
+  } | null>(null);
   const camRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const recRef = useRef<MediaRecorder | null>(null);
@@ -77,6 +93,8 @@ export default function Studio({ conversationId }: { conversationId: string }) {
     phaseRef.current = next;
     setPhase(next);
   }, []);
+
+  const isEmbedded = snapshot?.conversation?.source?.class === 'B';
 
   const refresh = useCallback(async () => {
     const response = await fetch(`/api/conversations/${conversationId}`, { cache: 'no-store' });
@@ -117,6 +135,62 @@ export default function Studio({ conversationId }: { conversationId: string }) {
     setCurrentFrame(frame);
     setDeepLinked(true);
   }, [deepLinked, snapshot?.conversation?.source?.durationFrames]);
+
+  useEffect(() => {
+    if (isEmbedded) return;
+    const video = videoRef.current;
+    if (!video) return;
+    sourcePlayerRef.current = {
+      currentFrame: () => Math.floor(video.currentTime * HOUSE_FPS),
+      pause: () => video.pause(),
+      play: () => { void video.play().catch(() => undefined); },
+      seek: (frame) => { video.currentTime = frame / HOUSE_FPS; },
+      durationFrames: () => Math.floor((video.duration || 0) * HOUSE_FPS),
+    };
+  }, [isEmbedded, snapshot?.conversation?.source?.durationFrames]);
+
+  // The provider's player. We never touch their media; we ask their player to
+  // play, to pause, and where it is. [U-01, U-35 §6]
+  useEffect(() => {
+    if (!isEmbedded || snapshot?.conversation?.source?.provider !== 'youtube') return;
+    const win = window as any;
+    const attach = () => {
+      if (!embedRef.current || ytRef.current) return;
+      ytRef.current = new win.YT.Player(embedRef.current, {
+        events: {
+          onReady: () => {
+            sourcePlayerRef.current = {
+              currentFrame: () => Math.floor((ytRef.current?.getCurrentTime() ?? 0) * HOUSE_FPS),
+              pause: () => ytRef.current?.pauseVideo(),
+              play: () => ytRef.current?.playVideo(),
+              seek: (frame) => ytRef.current?.seekTo(frame / HOUSE_FPS, true),
+              durationFrames: () => Math.floor((ytRef.current?.getDuration() ?? 0) * HOUSE_FPS),
+            };
+            const duration = sourcePlayerRef.current.durationFrames();
+            if (duration > 0 && !(snapshot?.conversation?.source?.durationFrames > 0)) {
+              void fetch(`/api/conversations/${conversationId}/source-meta`, {
+                method: 'PATCH',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ durationFrames: duration }),
+              }).then(() => refresh());
+            }
+          },
+        },
+      });
+    };
+    if (win.YT?.Player) { attach(); return; }
+    const previous = win.onYouTubeIframeAPIReady;
+    win.onYouTubeIframeAPIReady = () => { previous?.(); attach(); };
+    if (!document.querySelector('script[data-yt-api]')) {
+      const script = document.createElement('script');
+      script.src = 'https://www.youtube.com/iframe_api';
+      script.dataset['ytApi'] = '1';
+      script.onerror = () => setError(
+        'the provider\u2019s player could not be loaded from this network');
+      document.head.append(script);
+    }
+  }, [isEmbedded, snapshot?.conversation?.source?.provider,
+      snapshot?.conversation?.source?.durationFrames, conversationId, refresh]);
 
   // The transcript follows playback (§16): the sentence being spoken is
   // highlighted, and it freezes where the user interrupts.
@@ -303,14 +377,14 @@ export default function Studio({ conversationId }: { conversationId: string }) {
   }, [upload, setPhaseBoth]);
 
   const interrupt = useCallback((options: { frame?: Frames; quote?: string } = {}) => {
-    const video = videoRef.current;
-    if (!video) return;
+    const player = sourcePlayerRef.current;
+    if (!player) return;
 
     // Synchronous, before any render or network call. Nothing may sit between
     // the keypress and the timestamp. [Doctrine U-04 §4, D-05]
-    const frame = options.frame ?? Math.floor(video.currentTime * HOUSE_FPS);
-    video.pause();
-    if (options.frame !== undefined) video.currentTime = options.frame / HOUSE_FPS;
+    const frame = options.frame ?? player.currentFrame();
+    player.pause();
+    if (options.frame !== undefined) player.seek(options.frame);
 
     anchorRef.current = frame;
     setStatus(`interrupted at ${formatTimecode(frame)} (frame ${frame})`);
@@ -338,10 +412,10 @@ export default function Studio({ conversationId }: { conversationId: string }) {
    */
   const rerecord = useCallback((interventionId: string) => {
     if (phaseRef.current !== 'armed') return;
-    const video = videoRef.current;
+    const player = sourcePlayerRef.current;
     // Resume lands back exactly here, so re-recording does not move the source.
-    anchorRef.current = video ? Math.floor(video.currentTime * HOUSE_FPS) : anchorRef.current;
-    video?.pause();
+    anchorRef.current = player ? player.currentFrame() : anchorRef.current;
+    player?.pause();
     setStatus('re-recording — press space to finish');
 
     beginTake(fetch(
@@ -372,10 +446,10 @@ export default function Studio({ conversationId }: { conversationId: string }) {
     }
 
     // Resume the source from EXACTLY the frame it stopped on. Not around it.
-    const video = videoRef.current;
-    if (video) {
-      video.currentTime = anchorRef.current / HOUSE_FPS;
-      await video.play().catch(() => { /* autoplay policy */ });
+    const player = sourcePlayerRef.current;
+    if (player) {
+      player.seek(anchorRef.current);
+      player.play();
     }
     setStatus(`resumed at ${formatTimecode(anchorRef.current)} · response saved`);
     setPhaseBoth('armed');
@@ -453,9 +527,7 @@ export default function Studio({ conversationId }: { conversationId: string }) {
   const currentSentence = transcript ? sentenceAtFrame(transcript.sentences, currentFrame) : null;
 
   const seekTo = useCallback((frame: number) => {
-    const video = videoRef.current;
-    if (!video) return;
-    video.currentTime = frame / HOUSE_FPS;
+    sourcePlayerRef.current?.seek(frame);
     setCurrentFrame(frame);
   }, []);
 
@@ -485,7 +557,11 @@ export default function Studio({ conversationId }: { conversationId: string }) {
         <div className="grow">
           <h1 style={{ marginBottom: 2 }}>{conversation?.title ?? 'Conversation'}</h1>
           <div className="small muted">
-            Source: {conversation?.source?.title} · Class {conversation?.source?.class}
+            Source: {conversation?.source?.title}
+            {' · '}
+            {isEmbedded
+              ? `${conversation?.source?.provider ?? 'embedded'} — played on its own platform`
+              : 'your own copy'}
             {ready && <> · {formatTimecode(conversation.source.durationFrames)}</>}
           </div>
         </div>
@@ -527,12 +603,18 @@ export default function Studio({ conversationId }: { conversationId: string }) {
               <span className="small muted mono">{transcript.sentences.length}</span>
             )}
           </div>
-          {!transcriptVersion && (
+          {isEmbedded ? (
+            <div className="small muted">
+              The source plays on its own platform, so we never see its audio
+              and cannot transcribe it. Interrupt with space; you can bind the
+              statement you are answering by typing it on the response.
+            </div>
+          ) : !transcriptVersion ? (
             <div className="small muted">
               Transcribing… this runs after the source is playable, so you can
               start responding without waiting for it.
             </div>
-          )}
+          ) : null}
           {transcript?.sentences.map((sentence) => {
             const active = currentSentence?.id === sentence.id;
             return (
@@ -579,7 +661,18 @@ export default function Studio({ conversationId }: { conversationId: string }) {
 
         <section>
           <div className="panel" style={{ padding: 10 }}>
-            {ready ? (
+            {isEmbedded ? (
+              <div style={{ position: 'relative', aspectRatio: '16 / 9', background: '#000' }}>
+                <iframe
+                  ref={embedRef}
+                  src={snapshot?.conversation?.source?.embedUrl}
+                  title={snapshot?.conversation?.source?.title ?? 'Source'}
+                  allow="accelerometer; encrypted-media; picture-in-picture"
+                  allowFullScreen
+                  style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 0 }}
+                />
+              </div>
+            ) : ready ? (
               <video
                 ref={videoRef}
                 src={`/api/conversations/${conversationId}/source`}
@@ -701,9 +794,19 @@ export default function Studio({ conversationId }: { conversationId: string }) {
                 : snapshot?.planError ?? 'Nothing to render yet.'}
             </div>
             <button className="primary" onClick={() => void startRender()}
-                    disabled={!snapshot?.plan || pending > 0 || recording}>
-              Generate final video
+                    disabled={
+                      (isEmbedded ? interventions.length === 0 : !snapshot?.plan)
+                      || pending > 0 || recording
+                    }>
+              {isEmbedded ? 'Generate response reel' : 'Generate final video'}
             </button>
+            {isEmbedded && (
+              <p className="small muted" style={{ marginTop: 6, marginBottom: 0 }}>
+                The original stays on its own platform, so the reel contains
+                your material only. The conversation itself is published as a
+                player that drives the original.
+              </p>
+            )}
             {pending > 0 && <p className="small muted">Waiting for {pending} response{pending === 1 ? '' : 's'} to finish processing.</p>}
             {(snapshot?.jobs ?? []).filter((j: any) => j.state === 'failed').map((j: any) => (
               <p key={j.id} className="small" style={{ color: 'var(--bad)' }}>
@@ -748,6 +851,9 @@ export default function Studio({ conversationId }: { conversationId: string }) {
               never stored.
             </p>
             <div className="row" style={{ gap: 8 }}>
+              <a className="btn small" href={`/c/${conversationId}/watch`} target="_blank" rel="noreferrer">
+                Watch the conversation
+              </a>
               <a className="btn small" href={`/c/${conversationId}/article`} target="_blank" rel="noreferrer">
                 Read as an article
               </a>
@@ -756,7 +862,7 @@ export default function Studio({ conversationId }: { conversationId: string }) {
               className="small"
               style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: '4px 12px' }}
             >
-              {['article.md', 'article.json', 'captions.srt', 'captions.vtt', 'timeline.json', 'render-plan.json']
+              {['manifest.json', 'article.md', 'article.json', 'captions.srt', 'captions.vtt', 'timeline.json', 'render-plan.json']
                 .map((id) => (
                   <a
                     key={id}

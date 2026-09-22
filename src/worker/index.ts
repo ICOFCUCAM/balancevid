@@ -16,6 +16,7 @@ import { join } from 'node:path';
 import type { AssetId, Take } from '../domain/document.js';
 import { buildRenderPlan, type RenderPlan } from '../domain/plan.js';
 import { buildClipPlan, buildClipTimeline } from '../domain/clips.js';
+import { buildReelPlan, buildReelTimeline } from '../domain/reel.js';
 import { compose } from '../render/compose.js';
 import { ingest, makeProxy } from '../render/ingest.js';
 import { ensureDirs, paths } from '../store/paths.js';
@@ -42,6 +43,7 @@ export async function runJob(job: Job): Promise<Job> {
     case 'archive_evidence': return archiveEvidence(job);
     case 'render': return render(job);
     case 'render_clip': return renderClip(job);
+    case 'render_reel': return renderReel(job);
   }
 }
 
@@ -406,6 +408,53 @@ async function renderClip(job: Job): Promise<Job> {
       outputPath: result.outputPath,
       totalOutputFrames: result.totalOutputFrames,
       seconds: Number((plan.totalOutputFrames / plan.exportProfile.fps).toFixed(1)),
+    },
+  });
+}
+
+/**
+ * Render the response reel.  [Doctrine U-01]
+ *
+ * The author's own material, in order, with the claim each response answers
+ * shown as typography. No provider footage, structurally: the timeline has no
+ * source segment for any to appear in.
+ */
+async function renderReel(job: Job): Promise<Job> {
+  const conversation = await loadConversation(job.conversationId);
+  const plan = buildReelPlan(conversation, { accessedAt: conversation.createdAt });
+
+  const workDir = paths.render(conversation.id, plan.planHash);
+  await mkdir(workDir, { recursive: true });
+  const outputPath = join(workDir, 'FINAL.mp4');
+
+  const cues = buildCues(conversation, buildReelTimeline(conversation), {
+    source: null,
+    takes: await loadAllTakeTranscripts(conversation.id),
+  });
+
+  const result = await compose(plan, {
+    workDir, outputPath, cues,
+    resolveAsset: assetResolver(conversation),
+    resolveEvidence: (assetId: AssetId) => paths.evidenceCapture(conversation.id, assetId),
+    onProgress: progressReporter(job, plan),
+  });
+
+  await audit(conversation.id, {
+    action: 'reel.rendered',
+    detail: {
+      planHash: plan.planHash,
+      responses: plan.shots.length,
+      totalOutputFrames: plan.totalOutputFrames,
+    },
+  });
+
+  return finish(job, 'done', {
+    progress: 100,
+    result: {
+      planHash: plan.planHash,
+      outputPath: result.outputPath,
+      totalOutputFrames: result.totalOutputFrames,
+      responses: plan.shots.length,
     },
   });
 }

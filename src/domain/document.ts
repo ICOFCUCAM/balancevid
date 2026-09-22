@@ -10,6 +10,7 @@
 
 import type { Frames } from './time.js';
 import type { Id } from './ids.js';
+import type { ProviderId } from './providers.js';
 
 /** Forward-only. Migrations are tested against archived real documents. [U-25] */
 export const SCHEMA_VERSION = 1;
@@ -41,6 +42,10 @@ export interface Source {
   id: SourceId;
   class: SourceClass;
   title: string;
+  /** Class B only: whose player we honour, and which video. [U-01] */
+  provider?: ProviderId;
+  providerVideoId?: string;
+  embedUrl?: string;
   /** Shown in the generated, non-removable attribution block. [U-21] */
   creator?: string;
   url?: string;
