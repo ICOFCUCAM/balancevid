@@ -1,0 +1,33 @@
+import { paths } from '../../../../../../../src/store/paths.js';
+import { loadConversation } from '../../../../../../../src/store/repository.js';
+import { fail, serveFile } from '../../../../../../../src/web/http.js';
+
+export const dynamic = 'force-dynamic';
+
+type Params = { params: Promise<{ id: string; takeId: string }> };
+
+/**
+ * A take's own media, for auditioning it in Studio Mode.
+ *
+ * Serves the normalised take, so the frames the user scrubs while trimming are
+ * the frames the renderer will cut — the same parity the source proxy keeps
+ * (U-39). Byte ranges are supported, because trimming without scrubbing is
+ * guesswork.
+ */
+export async function GET(request: Request, { params }: Params): Promise<Response> {
+  const { id, takeId } = await params;
+  let conversation;
+  try {
+    conversation = await loadConversation(id);
+  } catch {
+    return fail(404, 'conversation not found');
+  }
+
+  for (const intervention of conversation.interventions) {
+    const take = intervention.takes.find((t) => t.id === takeId);
+    if (!take) continue;
+    if (take.durationFrames === 0) return fail(409, 'this take is still being assembled');
+    return serveFile(request, paths.takeMezzanine(id, take.assetId), 'video/mp4');
+  }
+  return fail(404, 'no such take');
+}

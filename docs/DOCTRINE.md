@@ -3286,6 +3286,14 @@ right on a segment boundary. The worker treated that 40-byte fragment as a
 corrupt take and failed the whole recording. One unreadable stub must never
 cost a take: it is worth nothing, and the take is worth everything (D-07).
 
+**A control that only commits on mouse-up is broken for half its users.** The
+trim sliders saved on `mouseup`, so a slider adjusted with the arrow keys —
+the only way a keyboard user can adjust it — silently never saved. It looked
+like it worked, because the value moved on screen. D-04 says every interaction
+must be keyboard reachable; reachable is not the same as **usable**, and the
+difference hides in exactly this kind of handler. Commit on pointer-up, key-up
+and blur.
+
 **Finish before you finalise.** The take was finalised while its last segment
 was still uploading, silently discarding the end of every response — the most
 recently spoken words, and the ones the user cared about most. Found only by

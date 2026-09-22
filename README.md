@@ -111,6 +111,7 @@ assembly, render — not a mock of it.
 | Transcript panel | follows playback, click to seek, respond to a sentence |
 | Claims | selecting a statement binds it to the intervention, hash-checked |
 | Captions | both speakers, labelled, burned in and as `.srt` / `.vtt` |
+| Studio Mode | trim, audition takes, re-record, move a point, retype, delete |
 | Article | every conversation also renders as a citable document (U-14) |
 | Representations | one registry, regenerated on demand, never stored (D-16) |
 | Worker | durable queue, real progress, resumable via the shot cache |
@@ -160,9 +161,9 @@ Stated plainly, because a status table that overstates is worse than none.
   they need now exists.
 - **Class B / YouTube.** Out of MVP scope by U-36. `INV-01` already refuses a
   composed plan for a Class B source; the Conversation Manifest is not built.
-- **Studio Mode.** The document supports takes, trims and overrides, and the
-  delete endpoint exists; the editing UI does not.
 - **Annotations, freeze-frame capture, evidence.** v2.
+- **Reordering commentary** (§26) beyond moving an anchor, and dragging
+  timeline boundaries (§18) — the band is read-only.
 - **Vertical clips and the publication bundle.** v2.
 - **Pre-flight capture check** (U-26 §2) and device-change detection.
 - **A/V sync golden test** (D-10) — frame-exactness, loudness and cache are

@@ -18,6 +18,7 @@ import { HOUSE_FPS, formatTimecode, type Frames } from '../../../src/domain/time
 import { TYPE_PRESENTATION } from '../../../src/domain/presentation.js';
 import { forDisplay, type Transcript } from '../../../src/transcribe/types.js';
 import { sentenceAtFrame } from '../../../src/transcribe/segmentation.js';
+import StudioMode from './StudioMode.js';
 
 /** Self-contained segments: the only rolling pre-roll a browser can actually
  *  replay, because MediaRecorder writes its header into the first blob. [U-04] */
@@ -53,6 +54,8 @@ export default function Studio({ conversationId }: { conversationId: string }) {
   const [status, setStatus] = useState<string>('');
   const [transcript, setTranscript] = useState<Transcript | null>(null);
   const [currentFrame, setCurrentFrame] = useState(0);
+  /** Two modes (§36). Live is the front door; Studio is never required (U-28). */
+  const [mode, setMode] = useState<'live' | 'studio'>('live');
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const camRef = useRef<HTMLVideoElement | null>(null);
@@ -270,6 +273,35 @@ export default function Studio({ conversationId }: { conversationId: string }) {
 
   // ---- the one key --------------------------------------------------------
 
+  /**
+   * Everything a take needs to begin, however it was started.
+   *
+   * Shared by INTERRUPT and RE-RECORD so the pre-roll behaves identically in
+   * both: the buffered segments are flushed first, then the segment sealed by
+   * the key press, then whatever is said next.
+   */
+  const beginTake = useCallback((
+    take: Promise<{ interventionId: string; takeId: string }>,
+  ) => {
+    indexRef.current = 0;
+    prerollRef.current = 0;
+    takeRef.current = take;
+    setPhaseBoth('starting');
+
+    chainRef.current = chainRef.current.then(async () => {
+      const resolved = await takeRef.current;
+      if (!resolved) return;
+      for (const buffered of ringRef.current) {
+        await upload(resolved.takeId, indexRef.current++, buffered);
+      }
+      prerollRef.current = ringRef.current.length;
+      ringRef.current = [];
+    }).catch((e) => setError(e instanceof Error ? e.message : String(e)));
+
+    // Seal the in-flight segment: it holds the moments just before the press.
+    if (recRef.current?.state === 'recording') recRef.current.stop();
+  }, [upload, setPhaseBoth]);
+
   const interrupt = useCallback((options: { frame?: Frames; quote?: string } = {}) => {
     const video = videoRef.current;
     if (!video) return;
@@ -281,12 +313,9 @@ export default function Studio({ conversationId }: { conversationId: string }) {
     if (options.frame !== undefined) video.currentTime = options.frame / HOUSE_FPS;
 
     anchorRef.current = frame;
-    indexRef.current = 0;
-    prerollRef.current = 0;
-    setPhaseBoth('starting');
     setStatus(`interrupted at ${formatTimecode(frame)} (frame ${frame})`);
 
-    takeRef.current = fetch(`/api/conversations/${conversationId}/interventions`, {
+    beginTake(fetch(`/api/conversations/${conversationId}/interventions`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
@@ -298,24 +327,32 @@ export default function Studio({ conversationId }: { conversationId: string }) {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? 'could not open the intervention');
       return data as { interventionId: string; takeId: string };
-    });
+    }));
+  }, [beginTake, conversationId]);
 
-    // Flush the buffered pre-roll first, so it lands ahead of everything the
-    // user is about to say. Appended to the chain before the sealed segment,
-    // which keeps segment order on disk equal to capture order.
-    chainRef.current = chainRef.current.then(async () => {
-      const take = await takeRef.current;
-      if (!take) return;
-      for (const buffered of ringRef.current) {
-        await upload(take.takeId, indexRef.current++, buffered);
-      }
-      prerollRef.current = ringRef.current.length;
-      ringRef.current = [];
-    }).catch((e) => setError(e instanceof Error ? e.message : String(e)));
+  /**
+   * Re-record an existing point.  [Doctrine U-06 §1, §17]
+   *
+   * Appends a take; the previous one stays until the new one is assembled, so
+   * an abandoned re-record costs nothing and nothing is ever overwritten.
+   */
+  const rerecord = useCallback((interventionId: string) => {
+    if (phaseRef.current !== 'armed') return;
+    const video = videoRef.current;
+    // Resume lands back exactly here, so re-recording does not move the source.
+    anchorRef.current = video ? Math.floor(video.currentTime * HOUSE_FPS) : anchorRef.current;
+    video?.pause();
+    setStatus('re-recording — press space to finish');
 
-    // Seal the in-flight segment: it holds the moments just before the press.
-    if (recRef.current?.state === 'recording') recRef.current.stop();
-  }, [conversationId, setPhaseBoth, upload]);
+    beginTake(fetch(
+      `/api/conversations/${conversationId}/interventions/${interventionId}/takes`,
+      { method: 'POST', headers: { 'content-type': 'application/json' } },
+    ).then(async (response) => {
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? 'could not open a new take');
+      return data as { interventionId: string; takeId: string };
+    }));
+  }, [beginTake, conversationId]);
 
   const finalizeTake = useCallback(async () => {
     if (finalizeRef.current === null) return;
@@ -415,6 +452,13 @@ export default function Studio({ conversationId }: { conversationId: string }) {
   const recording = phase === 'starting' || phase === 'recording' || phase === 'stopping';
   const currentSentence = transcript ? sentenceAtFrame(transcript.sentences, currentFrame) : null;
 
+  const seekTo = useCallback((frame: number) => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.currentTime = frame / HOUSE_FPS;
+    setCurrentFrame(frame);
+  }, []);
+
   /**
    * Respond to a specific statement.  [Doctrine §11, §12, U-09, U-10]
    *
@@ -444,6 +488,26 @@ export default function Studio({ conversationId }: { conversationId: string }) {
             Source: {conversation?.source?.title} · Class {conversation?.source?.class}
             {ready && <> · {formatTimecode(conversation.source.durationFrames)}</>}
           </div>
+        </div>
+        {/* Two modes (§36). Live is the whole product; Studio is the refinement
+            nobody is required to open (U-28). */}
+        <div className="row" style={{ gap: 0 }} role="tablist" aria-label="Mode">
+          <button
+            role="tab"
+            aria-selected={mode === 'live'}
+            onClick={() => setMode('live')}
+            style={{ borderRadius: '8px 0 0 8px', background: mode === 'live' ? '#2b5f8a' : undefined }}
+          >
+            Live
+          </button>
+          <button
+            role="tab"
+            aria-selected={mode === 'studio'}
+            onClick={() => setMode('studio')}
+            style={{ borderRadius: '0 8px 8px 0', background: mode === 'studio' ? '#2b5f8a' : undefined }}
+          >
+            Studio
+          </button>
         </div>
         <a className="btn" href="/">All conversations</a>
       </div>
@@ -706,6 +770,25 @@ export default function Studio({ conversationId }: { conversationId: string }) {
           </div>
         </aside>
       </div>
+
+      {mode === 'studio' && (
+        <section style={{ marginTop: 20 }}>
+          <h2 style={{ marginBottom: 8 }}>Studio</h2>
+          <p className="small muted" style={{ marginTop: 0 }}>
+            Trim, audition another take, re-record, move a point, or change how
+            it looks. Everything here edits the conversation; the video, the
+            captions and the article are rebuilt from it.
+          </p>
+          <StudioMode
+            conversationId={conversationId}
+            snapshot={snapshot}
+            refresh={refresh}
+            onRerecord={rerecord}
+            canRecord={phase === 'armed'}
+            onSeek={seekTo}
+          />
+        </section>
+      )}
     </div>
   );
 }

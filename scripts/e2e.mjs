@@ -144,6 +144,69 @@ const preroll = snap.conversation.interventions.map((iv) => iv.takes[0].prerollF
 check(preroll.every((p) => p > 0), 'every take kept its pre-roll', `frames: ${preroll.join(', ')}`);
 check(snap.invariantError === null, 'timeline invariants hold', snap.invariantError ?? '');
 
+// --- Studio Mode (§17, §36) -------------------------------------------------
+log('studio mode…');
+page.on('dialog', (dialog) => dialog.accept());
+await page.click('button[role=tab]:has-text("Studio")');
+await page.waitForSelector('text=Conversation timeline', { timeout: 20_000 });
+check(true, 'the conversation timeline renders (§18)');
+
+await page.locator('button:has-text("Edit")').first().click();
+await page.waitForSelector('select[id^="type-"]', { timeout: 10_000 });
+
+// Type drives layout and captions, with no other input (U-11).
+await page.locator('select[id^="type-"]').first().selectOption('fact_check');
+await sleep(900);
+let doc = (await api(`/api/conversations/${conversationId}`)).conversation;
+check(doc.interventions.some((iv) => iv.type === 'fact_check'),
+  'changing the type from Studio rewrites the document (§17, U-11)');
+
+// Trim with the keyboard, which is the path a mouse-only handler would break.
+const beforeTrim = doc.interventions.find((iv) => iv.type === 'fact_check');
+const beforeIn = beforeTrim.takes.find((t) => t.id === beforeTrim.selectedTakeId).mediaInFrame;
+const slider = page.locator('input[aria-label="Trim start"]').first();
+await slider.focus();
+for (let i = 0; i < 5; i++) await slider.press('ArrowRight');
+await sleep(900);
+doc = (await api(`/api/conversations/${conversationId}`)).conversation;
+const afterTrim = doc.interventions.find((iv) => iv.id === beforeTrim.id);
+const afterIn = afterTrim.takes.find((t) => t.id === afterTrim.selectedTakeId).mediaInFrame;
+check(afterIn > beforeIn, 'trimming with the keyboard commits (§17, D-04)',
+  `${beforeIn} → ${afterIn}`);
+check(afterTrim.takes.find((t) => t.id === afterTrim.selectedTakeId).durationFrames
+  === beforeTrim.takes.find((t) => t.id === beforeTrim.selectedTakeId).durationFrames,
+  'trimming does not touch the media (U-06)');
+
+// Re-record appends a take; the first one is kept.
+await page.locator('button:has-text("Re-record")').first().click();
+await page.waitForFunction(
+  () => document.body.innerText.includes('press space to continue'), null, { timeout: 20_000 });
+await sleep(2400);
+await page.keyboard.press('Space');
+await page.waitForFunction(
+  () => document.body.innerText.includes('Press space to interrupt'), null, { timeout: 60_000 });
+for (let i = 0; i < 90; i++) {
+  doc = (await api(`/api/conversations/${conversationId}`)).conversation;
+  const target = doc.interventions.find((iv) => iv.id === beforeTrim.id);
+  if (target.takes.length === 2 && target.takes.every((t) => t.durationFrames > 0)) break;
+  await sleep(1000);
+}
+const retaken = doc.interventions.find((iv) => iv.id === beforeTrim.id);
+check(retaken.takes.length === 2, 're-recording appends a take rather than replacing one (U-06)',
+  `${retaken.takes.length} takes`);
+check(retaken.selectedTakeId === retaken.takes[1].id, 'the new take becomes the selected one');
+check(retaken.takes[0].durationFrames > 0, 'the earlier take is still there to go back to');
+
+// Deleting a point leaves the rest exact.
+const countBefore = doc.interventions.length;
+await page.locator('button:has-text("Delete")').first().click();
+await sleep(1200);
+const snapAfterDelete = await api(`/api/conversations/${conversationId}`);
+check(snapAfterDelete.conversation.interventions.length === countBefore - 1,
+  'deleting a point removes it (§17)');
+check(snapAfterDelete.invariantError === null,
+  'the timeline is still exact after editing (INV-02)');
+
 // --- render -----------------------------------------------------------------
 log('rendering…');
 await page.click('button:has-text("Generate final video")');
