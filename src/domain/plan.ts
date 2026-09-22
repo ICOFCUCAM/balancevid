@@ -46,6 +46,10 @@ export interface ResponseShot extends ShotBase {
   interventionId: InterventionId;
   takeId: TakeId;
   assetId: AssetId;
+  /** The source frame this interrupts. Freeze-frame layouts render it. [U-13] */
+  anchorFrame: Frames;
+  /** The mezzanine the still is cut from; absent for Class B. [U-01] */
+  sourceAssetId?: AssetId;
   mediaInFrame: Frames;
   mediaOutFrame: Frames;
   padHeadFrames: Frames;
@@ -155,6 +159,8 @@ export function buildRenderPlan(conversation: Conversation, options: PlanOptions
       interventionId: ivn.id,
       takeId: take.id,
       assetId: take.assetId,
+      anchorFrame: item.anchorFrame,
+      ...(mezzanine ? { sourceAssetId: mezzanine } : {}),
       mediaInFrame: item.mediaInFrame,
       mediaOutFrame: item.mediaOutFrame,
       padHeadFrames: item.padHeadFrames,
