@@ -9,7 +9,7 @@
  */
 
 import {
-  type AssetId, type Conversation, type InterventionId, type TakeId,
+  type AssetId, type Conversation, type Evidence, type InterventionId, type TakeId,
   orderedInterventions, selectedTake,
 } from './document.js';
 import { sha256 } from './ids.js';
@@ -59,6 +59,24 @@ export interface ResponseShot extends ShotBase {
   transition: Transition;
   /** The claim being answered, rendered as typography. [U-10] */
   quote?: string;
+  /** Archived evidence to show, in this shot's own frames. [U-33 §2, §3] */
+  evidence?: EvidenceCue[];
+}
+
+/**
+ * One document on screen, for a while, zooming to the part that matters.
+ *
+ * Times are SHOT-relative, because the compositor works in shot frames and
+ * should not have to know about media clocks or pre-roll. [U-08]
+ */
+export interface EvidenceCue {
+  evidenceId: string;
+  captureAssetId: AssetId;
+  title: string;
+  startFrame: Frames;
+  endFrame: Frames;
+  /** Normalised region of the capture to zoom into. [U-33 §2] */
+  region?: { x: number; y: number; w: number; h: number };
 }
 
 export type Shot = SourceShot | ResponseShot;
@@ -151,7 +169,11 @@ export function buildRenderPlan(conversation: Conversation, options: PlanOptions
     const take = selectedTake(ivn);
     if (!take) throw new Error(`intervention ${ivn.id} has no selected take`);
     const presentation = TYPE_PRESENTATION[ivn.type];
-    const layout = layoutForType(ivn.type, ivn.layoutId);
+    const cues = evidenceCues(
+      ivn.evidence ?? [], item.mediaInFrame, item.mediaOutFrame, item.padHeadFrames);
+    // Evidence changes the composition: a document needs a panel, not a corner
+    // of a frozen frame. An explicit override still wins. [U-11, U-33]
+    const layout = layoutForType(ivn.type, ivn.layoutId ?? (cues.length > 0 ? 'evidence_split' : undefined));
 
     const shot: Omit<ResponseShot, 'hash'> = {
       id: `shot_res_${ivn.id}_${take.id}`,
@@ -172,6 +194,7 @@ export function buildRenderPlan(conversation: Conversation, options: PlanOptions
       accent: presentation.accent,
       transition: presentation.transition,
       ...(ivn.anchor.quote ? { quote: ivn.anchor.quote } : {}),
+      ...(cues.length > 0 ? { evidence: cues } : {}),
     };
     shots.push({ ...shot, hash: hashShot(shot, exportProfile) });
   }
@@ -215,6 +238,35 @@ export function assertExportInvariants(plan: RenderPlan): void {
   if (!plan.attribution.text.trim()) {
     throw new InvariantViolation('INV-07', 'every export must carry an attribution block [U-21]');
   }
+}
+
+/**
+ * Evidence windows, clipped to what the take actually keeps and shifted onto
+ * the shot's clock.
+ *
+ * Evidence attached to speech the author later trimmed away does not appear:
+ * it was cited in something that is no longer in the video.
+ */
+function evidenceCues(
+  evidence: Evidence[], mediaInFrame: Frames, mediaOutFrame: Frames, padHeadFrames: Frames,
+): EvidenceCue[] {
+  const cues: EvidenceCue[] = [];
+  for (const item of evidence) {
+    // An unarchived citation is not yet verifiable, so it is not yet shown.
+    if (!item.archived || !item.captureAssetId) continue;
+    const appear = Math.max(item.appearFrame ?? mediaInFrame, mediaInFrame);
+    const dismiss = Math.min(item.dismissFrame ?? mediaOutFrame, mediaOutFrame);
+    if (dismiss <= appear) continue;
+    cues.push({
+      evidenceId: item.id,
+      captureAssetId: item.captureAssetId,
+      title: item.title,
+      startFrame: padHeadFrames + (appear - mediaInFrame),
+      endFrame: padHeadFrames + (dismiss - mediaInFrame),
+      ...(item.locator.region ? { region: item.locator.region } : {}),
+    });
+  }
+  return cues;
 }
 
 function buildAttribution(conversation: Conversation, accessedAt?: string): AttributionBlock {

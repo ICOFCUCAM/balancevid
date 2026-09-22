@@ -36,6 +36,27 @@ export interface ArticleClaim {
   timecode: string;
 }
 
+/**
+ * A formal citation.  [Doctrine U-33 §4]
+ *
+ * "Every piece of evidence appears in the publication bundle and the article
+ *  transcript as a formal citation with its retrieval date."
+ *
+ * The retrieval date and content hash are what make it verifiable after the
+ * page has changed — which is the whole reason the archive exists.
+ */
+export interface ArticleCitation {
+  title: string;
+  url?: string;
+  retrievedAt: string;
+  contentHash?: string;
+  /** The cited line, where the author marked one. */
+  quote?: string;
+  page?: number;
+  /** False when the archive failed: stated, never quietly presented as sound. */
+  archived: boolean;
+}
+
 export interface ArticleExchange {
   index: number;
   interventionId: string;
@@ -62,6 +83,8 @@ export interface ArticleExchange {
   /** Where this lands in the rendered video, for a deep link. [U-08] */
   outputStartFrame?: Frames;
   outputTimecode?: string;
+  /** Evidence cited in this response. [U-33 §4] */
+  citations?: ArticleCitation[];
 }
 
 /**

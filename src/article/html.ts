@@ -79,6 +79,24 @@ function exchangeHtml(exchange: ArticleExchange, options: HtmlOptions): string {
         esc(formatTimecode(exchange.response.durationFrames))
       } of spoken response; no transcript available.</p></div>`;
 
+  const citations = exchange.citations?.length
+    ? `<section class="citations"><h3>Evidence</h3><ol>${
+        exchange.citations.map((citation) => {
+          const name = citation.url
+            ? `<a href="${esc(citation.url)}" rel="nofollow noreferrer">${esc(citation.title)}</a>`
+            : esc(citation.title);
+          const meta = [
+            citation.page !== undefined ? `p.&nbsp;${citation.page}` : '',
+            `retrieved <time>${esc(citation.retrievedAt.slice(0, 10))}</time>`,
+            citation.contentHash ? `<code>${esc(citation.contentHash.slice(0, 12))}</code>` : '',
+            citation.archived ? '' : '<strong>not archived</strong>',
+          ].filter(Boolean).join(' · ');
+          const quote = citation.quote ? `<q>${esc(citation.quote)}</q>` : '';
+          return `<li>${name}<div class="meta">${meta}</div>${quote}</li>`;
+        }).join('')
+      }</ol></section>`
+    : '';
+
   const inVideo = exchange.outputTimecode
     ? `<p class="meta">In the finished video at <time>${esc(exchange.outputTimecode)}</time></p>`
     : '';
@@ -87,6 +105,7 @@ function exchangeHtml(exchange: ArticleExchange, options: HtmlOptions): string {
     <h2><span class="kind">${esc(exchange.typeLabel)}</span> ${stamp}</h2>
     ${quoted}
     ${response}
+    ${citations}
     ${inVideo}
   </article>`;
 }
@@ -134,6 +153,12 @@ blockquote cite { display: block; margin-top: .5rem; font-style: normal;
 .response { border-left: 3px solid var(--user); padding-left: 1rem; margin-bottom: .5rem; }
 .response.empty p { color: var(--muted); font-style: italic; }
 article { padding-bottom: 1.5rem; border-bottom: 1px solid var(--line); }
+.citations { margin: .75rem 0 0; }
+.citations h3 { font-family: ui-sans-serif, system-ui, sans-serif; font-size: .78rem;
+  letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 0 0 .35rem; }
+.citations ol { margin: 0; padding-left: 1.2rem; font-size: .92rem; }
+.citations li { margin-bottom: .5rem; }
+.citations q { display: block; margin-top: .2rem; font-style: italic; color: var(--muted); }
 footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--line); }
 footer ul { font-family: ui-sans-serif, system-ui, sans-serif; font-size: .82rem;
   color: var(--muted); padding-left: 1.1rem; }

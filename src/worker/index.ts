@@ -27,6 +27,7 @@ import {
   loadAllTakeTranscripts, loadTranscript, saveTakeTranscript, saveTranscript,
 } from '../store/transcripts.js';
 import { buildCues } from '../render/cues.js';
+import { archiveUpload, archiveWeb, type ArchiveResult } from '../evidence/archive.js';
 import { projectTimeline } from '../domain/timeline.js';
 
 const POLL_MS = 400;
@@ -37,6 +38,7 @@ export async function runJob(job: Job): Promise<Job> {
     case 'transcribe_source': return transcribeSource(job);
     case 'assemble_take': return assembleTakeJob(job);
     case 'transcribe_take': return transcribeTake(job);
+    case 'archive_evidence': return archiveEvidence(job);
     case 'render': return render(job);
   }
 }
@@ -223,6 +225,75 @@ async function transcribeTake(job: Job): Promise<Job> {
   });
 }
 
+/**
+ * Archive a piece of evidence.  [Doctrine U-33 §1]
+ *
+ * Until this succeeds the evidence is attached but not archived, and
+ * `evidenceAt` will not show it: an unarchived citation is not yet verifiable,
+ * so it is not yet put on screen as though it were.
+ *
+ * A failure is recorded ON the evidence rather than failing the job, because
+ * a dead link is the author's problem to see and fix, not a broken project.
+ */
+async function archiveEvidence(job: Job): Promise<Job> {
+  const interventionId = String(job.payload['interventionId']);
+  const evidenceId = String(job.payload['evidenceId']);
+  const assetId = String(job.payload['assetId']);
+  const outDir = paths.evidence(job.conversationId);
+
+  let result: ArchiveResult | null = null;
+  let failure: string | null = null;
+  try {
+    if (job.payload['url']) {
+      result = await archiveWeb(String(job.payload['url']), outDir, assetId);
+    } else {
+      result = await archiveUpload(
+        String(job.payload['uploadPath']),
+        String(job.payload['kind']) as 'image' | 'document',
+        outDir, assetId, String(job.payload['title'] ?? 'Attachment'),
+      );
+    }
+  } catch (error) {
+    failure = error instanceof Error ? error.message : String(error);
+  }
+
+  await mutateConversation(job.conversationId, (conversation) => {
+    const target = conversation.interventions.find((i) => i.id === interventionId);
+    const evidence = target?.evidence?.find((e) => e.id === evidenceId);
+    if (!evidence) return;
+    if (failure || !result) {
+      evidence.archived = false;
+      evidence.archiveError = failure ?? 'archiving produced nothing';
+      return;
+    }
+    evidence.archived = true;
+    delete evidence.archiveError;
+    evidence.contentHash = result.contentHash;
+    evidence.retrievedAt = result.retrievedAt;
+    if (result.title) evidence.title = evidence.title.trim() || result.title;
+    if (result.capturePath) evidence.captureAssetId = assetId as never;
+  });
+
+  await audit(job.conversationId, {
+    action: failure ? 'evidence.archive_failed' : 'evidence.archived',
+    detail: {
+      evidenceId, interventionId,
+      ...(failure ? { error: failure } : {
+        contentHash: result?.contentHash,
+        hasCapture: Boolean(result?.capturePath),
+        note: result?.note,
+      }),
+    },
+  });
+
+  return finish(job, 'done', {
+    progress: 100,
+    result: failure
+      ? { evidenceId, archived: false, error: failure }
+      : { evidenceId, archived: true, hasCapture: Boolean(result?.capturePath), note: result?.note },
+  });
+}
+
 async function render(job: Job): Promise<Job> {
   const conversation = await loadConversation(job.conversationId);
   const exportProfileId = String(job.payload['exportProfileId'] ?? 'youtube_16x9');
@@ -259,6 +330,7 @@ async function render(job: Job): Promise<Job> {
       assetId === conversation.source.mezzanineAssetId
         ? sourceMezz
         : takeMezzaninePath(conversation.id, assetId),
+    resolveEvidence: (assetId: AssetId) => paths.evidenceCapture(conversation.id, assetId),
     onProgress: (info) => {
       const frame = Number(info['frame'] ?? NaN);
       if (!Number.isFinite(frame) || plan.totalOutputFrames === 0) return;

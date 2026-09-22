@@ -110,6 +110,47 @@ describe('the article (U-14)', () => {
   });
 });
 
+describe('citations (U-33 §4)', () => {
+  function withEvidence(archived = true) {
+    const { conversation, sourceTranscript, takeTranscripts } = fixture();
+    conversation.interventions[0]!.evidence = [{
+      id: 'ev_1' as never,
+      kind: 'web',
+      title: 'ONS — unemployment, Q3',
+      url: 'https://example.org/ons',
+      retrievedAt: '2026-09-20T09:30:00.000Z',
+      contentHash: 'a1b2c3d4e5f60718293a',
+      locator: { quote: 'unemployment fell by 3%', page: 4 },
+      archived,
+    }];
+    return {
+      article: generateArticle({ conversation, sourceTranscript, takeTranscripts, generatedAt: AT }),
+    };
+  }
+
+  it('cites evidence with its retrieval date and hash', () => {
+    const { article } = withEvidence();
+    expect(article.exchanges[0]!.citations).toHaveLength(1);
+    const markdown = renderMarkdown(article);
+    expect(markdown).toContain('ONS — unemployment, Q3');
+    expect(markdown).toContain('retrieved 2026-09-20');
+    expect(markdown).toContain('a1b2c3d4e5f6');
+    expect(markdown).toContain('p. 4');
+    expect(markdown).toContain('unemployment fell by 3%');
+  });
+
+  it('says when an archive failed rather than presenting it as sound', () => {
+    const { article } = withEvidence(false);
+    expect(renderMarkdown(article)).toContain('not archived');
+    expect(renderHtml(article)).toContain('not archived');
+  });
+
+  it('links the citation without passing on authority', () => {
+    const { article } = withEvidence();
+    expect(renderHtml(article)).toContain('rel="nofollow noreferrer"');
+  });
+});
+
 describe('the article as a document', () => {
   const { conversation, sourceTranscript, takeTranscripts } = fixture();
 

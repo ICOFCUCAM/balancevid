@@ -33,7 +33,7 @@ export const EXPORT_PROFILES: Record<string, ExportProfile> = {
 /** Normalised rect, 0–1 relative to canvas. Resolution independent. [U-12, U-18] */
 export interface Rect { x: number; y: number; w: number; h: number }
 
-export type LayerSource = 'source' | 'user' | 'still' | 'screen';
+export type LayerSource = 'source' | 'user' | 'still' | 'screen' | 'evidence';
 
 export interface Layer {
   source: LayerSource;
@@ -95,6 +95,17 @@ export const LAYOUTS: Record<string, Layout> = {
     layers: [
       { source: 'still', rect: FULL, fit: 'cover', z: 0 },
       { source: 'user', rect: { x: 0.68, y: 0.66, w: 0.28, h: 0.28 }, fit: 'cover', z: 1 },
+    ],
+    verticalLayoutId: 'vertical_stack',
+  },
+  evidence_split: {
+    id: 'evidence_split', label: 'Evidence and you',
+    // Black, not blurred: this layout shows no frozen source frame to blur,
+    // and a plain ground is the right setting for a document anyway.
+    backdrop: 'black',
+    layers: [
+      { source: 'evidence', rect: { x: 0.02, y: 0.10, w: 0.62, h: 0.80 }, fit: 'contain', z: 0 },
+      { source: 'user', rect: { x: 0.66, y: 0.30, w: 0.32, h: 0.32 }, fit: 'cover', z: 1 },
     ],
     verticalLayoutId: 'vertical_stack',
   },

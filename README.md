@@ -112,6 +112,7 @@ assembly, render — not a mock of it.
 | Claims | selecting a statement binds it to the intervention, hash-checked |
 | Captions | both speakers, labelled, burned in and as `.srt` / `.vtt` |
 | Studio Mode | trim, audition takes, re-record, move a point, retype, delete |
+| Evidence | archived on attach, located, timed, zoomed to in the render |
 | Article | every conversation also renders as a citable document (U-14) |
 | Representations | one registry, regenerated on demand, never stored (D-16) |
 | Worker | durable queue, real progress, resumable via the shot cache |
@@ -161,7 +162,10 @@ Stated plainly, because a status table that overstates is worse than none.
   they need now exists.
 - **Class B / YouTube.** Out of MVP scope by U-36. `INV-01` already refuses a
   composed plan for a Class B source; the Conversation Manifest is not built.
-- **Annotations, freeze-frame capture, evidence.** v2.
+- **Annotations and freeze-frame capture.** v2.
+- **Paged documents as evidence.** PDFs are stored, hashed and cited, but this
+  build has no rasteriser, so they carry no visual capture and the render has
+  nothing to show for them. Images and web pages do.
 - **Reordering commentary** (§26) beyond moving an anchor, and dragging
   timeline boundaries (§18) — the band is read-only.
 - **Vertical clips and the publication bundle.** v2.

@@ -17,6 +17,15 @@ const speechDir = process.argv[3]
   ?? 'var/models/sherpa-onnx-zipformer-en-2023-06-26/test_wavs';
 await mkdir(out, { recursive: true });
 
+// A page-like image to attach as evidence, with a distinct block standing in
+// for the cited line.
+await ffmpeg([
+  '-f', 'lavfi', '-i', 'color=c=white:s=900x1200',
+  '-f', 'lavfi', '-i', 'color=c=#1133aa:s=520x60',
+  '-filter_complex', '[0:v][1:v]overlay=x=140:y=520',
+  '-frames:v', '1', join(out, 'evidence.png'),
+]);
+
 const silent = join(out, 'picture.mp4');
 await makeSyntheticVideo(silent, join(out, 'source.rgb'), {
   frames: 600, width: 640, height: 360, toneHz: 220,

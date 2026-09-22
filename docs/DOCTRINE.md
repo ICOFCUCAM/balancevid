@@ -3280,6 +3280,13 @@ fail and wrong in how it looked: it now pins the layout it depends on and says
 why, and the composite path has its own test. **When a correct change breaks a
 test, the test was asserting something it was never supposed to be asserting.**
 
+**An unconsumed filter output fails the whole graph.** ffmpeg does not warn
+that a `split` output nobody reads is unused — it refuses the entire
+filtergraph with "Error binding filtergraph inputs/outputs", pointing at
+nothing in particular. The blurred backdrop split the frozen frame in two and
+one half went unread whenever the layout did not ask for a blur. **Build the
+graph from what is consumed, not from what might be.**
+
 **A stub is not a failure.** Stopping a recorder milliseconds after it starts
 yields a WebM header with no frames, which happens whenever a user interrupts
 right on a segment boundary. The worker treated that 40-byte fragment as a

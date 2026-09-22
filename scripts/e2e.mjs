@@ -197,9 +197,58 @@ check(retaken.takes.length === 2, 're-recording appends a take rather than repla
 check(retaken.selectedTakeId === retaken.takes[1].id, 'the new take becomes the selected one');
 check(retaken.takes[0].durationFrames > 0, 'the earlier take is still there to go back to');
 
-// Deleting a point leaves the rest exact.
+// --- evidence (§44, U-33) ---------------------------------------------------
+log('attaching evidence…');
+const EVIDENCE = SOURCE.replace(/source\.mp4$/, 'evidence.png');
+await page.locator('input[aria-label="Evidence file"]').first().setInputFiles(EVIDENCE);
+
+let evidence = null;
+for (let i = 0; i < 60; i++) {
+  await sleep(1000);
+  doc = (await api(`/api/conversations/${conversationId}`)).conversation;
+  const target = doc.interventions.find((iv) => iv.id === beforeTrim.id);
+  evidence = target?.evidence?.[0] ?? null;
+  if (evidence?.archived || evidence?.archiveError) break;
+}
+check(Boolean(evidence), 'evidence attaches to the point');
+check(evidence?.archived === true, 'evidence is archived at attach time (U-33 §1)',
+  evidence?.archiveError ?? '');
+check(Boolean(evidence?.contentHash), 'the archive carries a content hash, so the citation verifies');
+check(Boolean(evidence?.captureAssetId), 'the archive has a capture the render can show');
+
+const capture = await fetch(
+  `${BASE}/api/conversations/${conversationId}/evidence/${evidence.id}/capture`);
+check(capture.ok && capture.headers.get('content-type') === 'image/png',
+  'the archived capture is served back');
+
+// Point at the part that matters, from the keyboard-reachable fields.
+await page.locator('button:has-text("Locate")').first().click();
+await page.waitForSelector('input[aria-label="Evidence appears"]', { timeout: 10_000 });
+const locateResponse = await fetch(
+  `${BASE}/api/conversations/${conversationId}/interventions/${beforeTrim.id}/evidence/${evidence.id}`,
+  {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      region: { x: 0.15, y: 0.42, w: 0.58, h: 0.06 },
+      quote: 'unemployment fell by 3%',
+    }),
+  });
+check(locateResponse.ok, 'the cited region is recorded (U-33 §2)');
+
+doc = (await api(`/api/conversations/${conversationId}`)).conversation;
+evidence = doc.interventions.find((iv) => iv.id === beforeTrim.id).evidence[0];
+check(evidence.locator.region.w === 0.58 && evidence.locator.quote === 'unemployment fell by 3%',
+  'the locator survives a round trip');
+
+const planPreview = (await api(`/api/conversations/${conversationId}`)).plan;
+check(planPreview !== null, 'the plan still builds with evidence attached');
+
+// Deleting a point leaves the rest exact. (Use the SECOND point, so the one
+// carrying evidence survives into the render and the article.)
 const countBefore = doc.interventions.length;
-await page.locator('button:has-text("Delete")').first().click();
+await page.locator('button:has-text("Edit")').last().click();
+await page.locator('button:has-text("Delete")').last().click();
 await sleep(1200);
 const snapAfterDelete = await api(`/api/conversations/${conversationId}`);
 check(snapAfterDelete.conversation.interventions.length === countBefore - 1,
@@ -264,6 +313,9 @@ const markdown = await (await fetch(
 check(markdown.includes('# '), 'the article downloads as Markdown');
 check(markdown.includes('spoken by the author'),
   'the article states that every response word is the author\'s (U-15)');
+check(markdown.includes('**Evidence**') && markdown.includes('retrieved '),
+  'the article cites the evidence with its retrieval date (U-33 §4)');
+check(markdown.includes('unemployment fell by 3%'), 'the article carries the cited line');
 
 await browser.close();
 console.log(failures === 0 ? '\nALL CHECKS PASSED' : `\n${failures} CHECK(S) FAILED`);

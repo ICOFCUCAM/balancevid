@@ -21,6 +21,7 @@ import { projectTimeline } from '../../src/domain/timeline.js';
 import { assertTimelineInvariants } from '../../src/domain/invariants.js';
 import { HOUSE_FPS } from '../../src/domain/time.js';
 import { compose } from '../../src/render/compose.js';
+import { ffmpeg } from '../../src/render/ffmpeg.js';
 import { ingest, measureLoudness } from '../../src/render/ingest.js';
 import { probe } from '../../src/render/probe.js';
 import { makeConversation, makeIntervention } from '../domain/fixtures.js';
@@ -162,6 +163,78 @@ describe('composite layouts (U-18)', () => {
     expect(result.totalOutputFrames).toBe(plan.totalOutputFrames);
     expect((await probe(outputPath)).durationFrames).toBe(plan.totalOutputFrames);
   }, 300_000);
+});
+
+describe('evidence (U-33)', () => {
+  it('shows a document and zooms to the cited region, in frame', async () => {
+    const evidencePath = join(dir, 'evidence.png');
+    // A page-like image with a distinct block where the "cited line" sits.
+    await ffmpeg([
+      '-f', 'lavfi', '-i', 'color=c=white:s=900x1200',
+      '-f', 'lavfi', '-i', 'color=c=#1133aa:s=520x60',
+      '-filter_complex', '[0:v][1:v]overlay=x=140:y=520',
+      '-frames:v', '1', evidencePath,
+    ]);
+
+    const conversation = makeConversation(
+      SOURCE_FRAMES,
+      ANCHORS.map((frame) => makeIntervention(frame, RESPONSE_FRAMES, { type: 'fact_check' })),
+    );
+    conversation.source.mezzanineAssetId = 'asset_source' as AssetId;
+    for (const ivn of conversation.interventions) {
+      for (const take of ivn.takes) take.assetId = 'asset_response' as AssetId;
+    }
+
+    const target = conversation.interventions[0]!;
+    const take = target.takes[0]!;
+    target.evidence = [{
+      id: 'ev_test' as never,
+      kind: 'web',
+      title: 'Office for National Statistics — unemployment',
+      url: 'https://example.org/stats',
+      captureAssetId: 'asset_evidence' as AssetId,
+      contentHash: 'deadbeef',
+      retrievedAt: '2026-09-22T12:00:00.000Z',
+      // The cited block sits at y≈0.43 of the page, a fifth of its height.
+      locator: { region: { x: 0.15, y: 0.42, w: 0.58, h: 0.06 }, quote: 'unemployment fell' },
+      appearFrame: take.mediaInFrame + 15,
+      dismissFrame: take.mediaOutFrame,
+      archived: true,
+    }];
+
+    const plan = buildRenderPlan(conversation, { burnInCaptions: true });
+    const shot = plan.shots.find((s) => s.kind === 'response') as { evidence?: unknown[] };
+    expect(shot.evidence, 'the plan carries the evidence cue').toHaveLength(1);
+
+    const workDir = join(dir, 'work', 'evidence');
+    await mkdir(workDir, { recursive: true });
+    const outputPath = join(workDir, 'FINAL.mp4');
+    // compose() checks its own frame count against the plan and throws on a
+    // mismatch, so a zoom that breaks the filter graph cannot pass quietly.
+    const result = await compose(plan, {
+      workDir, outputPath,
+      resolveAsset: (id) => (id === 'asset_source' ? sourceMezz : responseMezz),
+      resolveEvidence: () => evidencePath,
+    });
+    expect(result.totalOutputFrames).toBe(plan.totalOutputFrames);
+    expect((await probe(outputPath)).durationFrames).toBe(plan.totalOutputFrames);
+  }, 300_000);
+
+  it('does not show evidence that has not been archived', () => {
+    const conversation = makeConversation(SOURCE_FRAMES, [makeIntervention(90, RESPONSE_FRAMES)]);
+    conversation.source.mezzanineAssetId = 'asset_source' as AssetId;
+    conversation.interventions[0]!.evidence = [{
+      id: 'ev_pending' as never,
+      kind: 'web',
+      title: 'not yet fetched',
+      retrievedAt: '2026-09-22T12:00:00.000Z',
+      locator: {},
+      archived: false,
+    }];
+    const shot = buildRenderPlan(conversation).shots.find((s) => s.kind === 'response') as
+      { evidence?: unknown[] };
+    expect(shot.evidence).toBeUndefined();
+  });
 });
 
 describe('the shot cache (U-16)', () => {

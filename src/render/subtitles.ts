@@ -61,6 +61,8 @@ export interface AssOptions {
   attributionSeconds?: number;
   /** The quoted claim each response answers, shown as typography. [U-10] */
   claimCards?: boolean;
+  /** What each shown document is, while it is on screen. [U-33 §4] */
+  evidenceLabels?: boolean;
 }
 
 export function buildAss(plan: RenderPlan, options: AssOptions = {}): string {
@@ -89,6 +91,8 @@ export function buildAss(plan: RenderPlan, options: AssOptions = {}): string {
     // The claim being answered, as typography. This is what makes a response
     // legible to someone who did not watch the source. [U-10 §3]
     style('Claim', Math.round(height * 0.040), '#F2F2F2', '#000000', 0, Math.round(height * 0.07), 8),
+    // The citation on screen: what this document is, while it is being shown.
+    style('Evidence', Math.round(height * 0.026), '#E8E8E8', '#000000', 0, Math.round(height * 0.035), 1),
     style('Attribution', attrSize, '#E8E8E8', '#000000', 0, margin, 3),
     '',
     '[Events]',
@@ -122,6 +126,18 @@ export function buildAss(plan: RenderPlan, options: AssOptions = {}): string {
       // Bound to quote_hash upstream (INV-05): what appears here is what the
       // source said, not a paraphrase of it.
       lines.push(event(start, end, 'Claim', `\u201C${escapeAss(shot.quote)}\u201D`, fps, true));
+    }
+  }
+
+  if (options.evidenceLabels !== false) {
+    for (const shot of plan.shots) {
+      if (shot.kind !== 'response') continue;
+      for (const cue of shot.evidence ?? []) {
+        const start = shot.outputStartFrame + cue.startFrame;
+        const end = shot.outputStartFrame + cue.endFrame;
+        if (end <= start) continue;
+        lines.push(event(start, end, 'Evidence', escapeAss(cue.title), fps, true));
+      }
     }
   }
 

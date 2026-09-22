@@ -19,6 +19,7 @@ export type SourceId = Id<'src'>;
 export type InterventionId = Id<'ivn'>;
 export type TakeId = Id<'take'>;
 export type AssetId = Id<'asset'>;
+export type EvidenceId = Id<'ev'>;
 
 /**
  * Source class decides which exports exist. Enforced at plan time (INV-01).
@@ -94,6 +95,56 @@ export interface Take {
   recoveredFromCrash?: boolean;
 }
 
+/**
+ * Attached evidence.  [Doctrine U-33, §44]
+ *
+ * Three properties are what separate a citation from a decoration, and all
+ * three are worthless if added later:
+ *
+ *   ARCHIVED at attach time. A linked page changes or disappears, and cited
+ *   evidence that 404s a year later actively damages the author's credibility
+ *   -- the opposite of what the feature is for.
+ *
+ *   LOCATED precisely. A full-page screenshot proves nothing; the viewer
+ *   cannot find the relevant line. The locator is what the render zooms to.
+ *
+ *   TIMED within the response, so it appears when it is referenced rather
+ *   than hanging there for the whole take.
+ */
+export type EvidenceKind = 'web' | 'image' | 'document';
+
+/** Where in the evidence the claim actually is. Normalised, 0–1. [U-33 §2] */
+export interface EvidenceLocator {
+  /** The region to zoom to while the author speaks. */
+  region?: { x: number; y: number; w: number; h: number };
+  /** The cited line, for the citation and for the reader. */
+  quote?: string;
+  /** 1-based, for paged documents. */
+  page?: number;
+}
+
+export interface Evidence {
+  id: EvidenceId;
+  kind: EvidenceKind;
+  title: string;
+  /** Original location, kept for the citation even though we hold a copy. */
+  url?: string;
+  /** The archived capture: what the render shows and the citation points at. */
+  captureAssetId?: AssetId;
+  /** The original bytes as retrieved, when we hold them. */
+  originalAssetId?: AssetId;
+  /** Content hash of the capture, so a citation is verifiable. [U-33 §1] */
+  contentHash?: string;
+  retrievedAt: string;
+  locator: EvidenceLocator;
+  /** Window within the response's media clock. Absent means the whole take. */
+  appearFrame?: Frames;
+  dismissFrame?: Frames;
+  /** Set once the archive job has run. */
+  archived: boolean;
+  archiveError?: string;
+}
+
 export interface Intervention {
   id: InterventionId;
   anchor: Anchor;
@@ -103,6 +154,8 @@ export interface Intervention {
   /** Overrides the type's default layout. [U-11, U-18] */
   layoutId?: string;
   note?: string;
+  /** [§44] Attached evidence, in the order the author added it. */
+  evidence?: Evidence[];
   createdAt: string;
 }
 

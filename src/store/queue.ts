@@ -25,6 +25,7 @@ export type JobKind =
   | 'transcribe_source'
   | 'assemble_take'
   | 'transcribe_take'
+  | 'archive_evidence'
   | 'render';
 
 export interface Job {

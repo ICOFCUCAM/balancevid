@@ -30,6 +30,8 @@ export interface ComposeOptions extends RunOptions {
   workDir: string;
   outputPath: string;
   resolveAsset: (assetId: AssetId) => string;
+  /** Archived evidence captures live apart from media assets. [U-33] */
+  resolveEvidence?: (assetId: AssetId) => string;
   cues?: Cue[];
 }
 
@@ -185,7 +187,7 @@ async function renderSourceShot(
 
 async function renderResponseShot(
   shot: ResponseShot, plan: RenderPlan, outPath: string, stillsDir: string,
-  resolveAsset: (id: AssetId) => string, gains: Map<AssetId, number>, opts: RunOptions,
+  resolveAsset: (id: AssetId) => string, gains: Map<AssetId, number>, opts: ComposeOptions,
 ): Promise<void> {
   const { width, height, fps } = plan.exportProfile;
   const layout = LAYOUTS[shot.layoutId] ?? LAYOUTS['full_user']!;
@@ -219,16 +221,31 @@ async function renderResponseShot(
     inputs.push('-loop', '1', '-framerate', String(fps), '-i', stillPath);
   }
 
+  // Each cue is a single still image. zoompan turns one frame into the whole
+  // window, which is exactly the Ken Burns move the doctrine asks for.
+  const resolveEvidence = opts.resolveEvidence ?? resolveAsset;
+  const evidenceCues = shot.evidence ?? [];
+  const evidenceIndices: number[] = [];
+  for (const cue of evidenceCues) {
+    evidenceIndices.push(inputs.filter((a) => a === '-i').length);
+    inputs.push('-i', resolveEvidence(cue.captureAssetId));
+  }
+
   // Computed here rather than as an ffmpeg expression: min(h,w) contains a
   // comma, and a comma inside a filter argument ends the filter.
   const blurRadius = Math.max(2, Math.round(Math.min(width, height) / 18));
 
   const chains: string[] = [];
+  const blurBackdrop = layout.backdrop === 'blur' && stillIdx >= 0;
   if (stillIdx >= 0) {
-    // One input, two consumers (backdrop and panel), so it must be split.
-    chains.push(`[${stillIdx}:v]split=2[still_bg][still_src]`);
+    // Split only when the frame is genuinely consumed twice. An unconsumed
+    // filter output does not warn -- it fails the whole graph with
+    // "Error binding filtergraph inputs/outputs".
+    chains.push(blurBackdrop
+      ? `[${stillIdx}:v]split=2[still_bg][still_src]`
+      : `[${stillIdx}:v]null[still_src]`);
   }
-  if (layout.backdrop === 'blur' && stillIdx >= 0) {
+  if (blurBackdrop) {
     // Fill the canvas with an over-scaled, blurred, darkened copy of the frame
     // the layers sit on. Flat black bars read as a mistake; this reads as a
     // decision.
@@ -262,12 +279,59 @@ async function renderResponseShot(
   let current = 'bg0';
   let step = 0;
   for (const layer of [...layout.layers].sort((a, b) => a.z - b.z)) {
+    if (layer.source === 'evidence') continue; // composited below, on its own window
     const label = layer.source === 'user' ? 'user' : stillIdx >= 0 ? 'still' : null;
     if (!label) continue;
     const next = `v${step++}`;
     const { x, y } = pixelRect(layer.rect, width, height);
     chains.push(`[${current}][${label}]overlay=x=${x}:y=${y}:eof_action=pass[${next}]`);
     current = next;
+  }
+
+  /**
+   * Evidence.  [Doctrine U-33 §2]
+   *
+   * "The render shows the document, then animates a zoom to the cited region
+   *  while the user speaks. That motion is what makes an evidence citation
+   *  persuasive on video rather than decorative."
+   */
+  if (evidenceCues.length > 0) {
+    const panelRect = layout.layers.find((l) => l.source === 'evidence')?.rect
+      ?? layout.layers.find((l) => l.source === 'source' || l.source === 'still')?.rect
+      ?? { x: 0.04, y: 0.12, w: 0.58, h: 0.76 };
+    const panel = pixelRect(panelRect, width, height);
+
+    evidenceCues.forEach((cue, i) => {
+      const input = evidenceIndices[i]!;
+      const windowFrames = Math.max(1, cue.endFrame - cue.startFrame);
+      const region = cue.region;
+      // Fill the panel with the cited region, within reason: past about 6x the
+      // capture's own pixels run out and the zoom shows mush.
+      const target = region
+        ? Math.min(6, Math.max(1, 1 / Math.max(region.w, region.h, 0.02)))
+        : 1.12;
+      const centreX = region ? region.x + region.w / 2 : 0.5;
+      const centreY = region ? region.y + region.h / 2 : 0.5;
+      // Reach the region over the first two-thirds, then hold it there.
+      const zoomFrames = Math.max(1, Math.round(windowFrames * 0.66));
+
+      const label = `ev${i}`;
+      chains.push(
+        `[${input}:v]${fitFilter('contain', panel.w, panel.h)},` +
+        `zoompan=` +
+          `z='min(${target.toFixed(4)}\,1+(${(target - 1).toFixed(4)})*on/${zoomFrames})':` +
+          `x='max(0\,min(iw-iw/zoom\,${centreX.toFixed(4)}*iw-(iw/zoom)/2))':` +
+          `y='max(0\,min(ih-ih/zoom\,${centreY.toFixed(4)}*ih-(ih/zoom)/2))':` +
+          `d=${windowFrames}:s=${panel.w}x${panel.h}:fps=${fps},` +
+        `setpts=PTS+${frameSeconds(cue.startFrame, fps)}/TB[${label}]`,
+      );
+      const next = `v${step++}`;
+      chains.push(
+        `[${current}][${label}]overlay=x=${panel.x}:y=${panel.y}:eof_action=pass:` +
+        `enable='between(n\,${cue.startFrame}\,${Math.max(cue.startFrame, cue.endFrame - 1)})'[${next}]`,
+      );
+      current = next;
+    });
   }
 
   const gain = gains.get(shot.assetId) ?? 0;

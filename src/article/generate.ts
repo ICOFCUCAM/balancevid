@@ -20,7 +20,8 @@ import { projectTimeline, sourceRatio, type Timeline } from '../domain/timeline.
 import { forDisplay, type Transcript } from '../transcribe/types.js';
 import { sentenceAtFrame } from '../transcribe/segmentation.js';
 import {
-  ARTICLE_VERSION, type Article, type ArticleExchange, type ArticleProvenance,
+  ARTICLE_VERSION, type Article, type ArticleCitation, type ArticleExchange,
+  type ArticleProvenance,
 } from './types.js';
 
 export interface ArticleInputs {
@@ -62,6 +63,18 @@ export function generateArticle(inputs: ArticleInputs): Article {
       ...(outputStartFrame !== undefined
         ? { outputStartFrame, outputTimecode: formatTimecode(outputStartFrame) }
         : {}),
+      ...(() => {
+        const citations = (ivn.evidence ?? []).map((evidence): ArticleCitation => ({
+          title: evidence.title,
+          ...(evidence.url ? { url: evidence.url } : {}),
+          retrievedAt: evidence.retrievedAt,
+          ...(evidence.contentHash ? { contentHash: evidence.contentHash } : {}),
+          ...(evidence.locator.quote ? { quote: evidence.locator.quote } : {}),
+          ...(evidence.locator.page !== undefined ? { page: evidence.locator.page } : {}),
+          archived: evidence.archived,
+        }));
+        return citations.length > 0 ? { citations } : {};
+      })(),
     };
 
     if (ivn.anchor.quote) {

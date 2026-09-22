@@ -33,6 +33,10 @@ export const paths = {
   chunks: (id: string, takeId: string) => join(paths.assets(id), 'chunks', safe(takeId)),
   renders: (id: string) => join(paths.conversation(id), 'renders'),
   render: (id: string, planHash: string) => join(paths.renders(id), safe(planHash)),
+  /** Archived evidence: captures, originals and their hashes. [U-33] */
+  evidence: (id: string) => join(paths.assets(id), 'evidence'),
+  evidenceCapture: (id: string, assetId: string) =>
+    join(paths.assets(id), 'evidence', `${safe(assetId)}.png`),
   /** The editing proxy: what the player scrubs. Same frames as the mezzanine. */
   sourceProxy: (id: string, assetId: string) =>
     join(paths.assets(id), `${safe(`${assetId}proxy`)}.webm`),

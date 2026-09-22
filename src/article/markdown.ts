@@ -64,6 +64,20 @@ function exchangeMarkdown(exchange: ArticleExchange): string[] {
     );
   }
 
+  if (exchange.citations?.length) {
+    lines.push('**Evidence**', '');
+    for (const citation of exchange.citations) {
+      const parts: string[] = [citation.url ? `[${citation.title}](${citation.url})` : citation.title];
+      if (citation.page !== undefined) parts.push(`p. ${citation.page}`);
+      parts.push(`retrieved ${citation.retrievedAt.slice(0, 10)}`);
+      if (citation.contentHash) parts.push(`sha256 \`${citation.contentHash.slice(0, 12)}\``);
+      if (!citation.archived) parts.push('**not archived**');
+      lines.push(`- ${parts.join(' · ')}`);
+      if (citation.quote) lines.push(`  > ${citation.quote}`);
+    }
+    lines.push('');
+  }
+
   if (exchange.outputTimecode) {
     lines.push(`<small>In the finished video at ${exchange.outputTimecode}</small>`, '');
   }

@@ -17,8 +17,8 @@
  */
 
 import {
-  INTERVENTION_TYPES, type Conversation, type Intervention,
-  type InterventionType, type Take,
+  INTERVENTION_TYPES, type Conversation, type Evidence, type EvidenceLocator,
+  type Intervention, type InterventionType, type Take,
 } from './document.js';
 import { LAYOUTS } from './presentation.js';
 import { assertFrames, type Frames } from './time.js';
@@ -171,4 +171,123 @@ export function setNote(
   const target = intervention(conversation, interventionId);
   if (note === null || note.trim() === '') delete target.note;
   else target.note = note.trim();
+}
+
+// --- evidence ---------------------------------------------------------------
+
+/**
+ * Evidence operations.  [Doctrine U-33, §44]
+ *
+ * Attaching is cheap and reversible; archiving is what makes the citation
+ * durable and happens in the worker. The document records both states, so a
+ * citation whose archive failed is visibly unarchived rather than quietly
+ * presented as verified.
+ */
+
+/** Shortest window worth showing a document for. Below this it is a flash. */
+export const MIN_EVIDENCE_FRAMES: Frames = 15;
+
+function evidenceList(target: Intervention): Evidence[] {
+  target.evidence ??= [];
+  return target.evidence;
+}
+
+function findEvidence(target: Intervention, evidenceId: string): Evidence {
+  const found = (target.evidence ?? []).find((e) => e.id === evidenceId);
+  if (!found) throw new EditError(`no such evidence: ${evidenceId}`);
+  return found;
+}
+
+export function attachEvidence(
+  conversation: Conversation, interventionId: string, evidence: Evidence,
+): void {
+  const target = intervention(conversation, interventionId);
+  if (!evidence.title.trim()) throw new EditError('evidence needs a title');
+  evidenceList(target).push(evidence);
+}
+
+export function detachEvidence(
+  conversation: Conversation, interventionId: string, evidenceId: string,
+): void {
+  const target = intervention(conversation, interventionId);
+  findEvidence(target, evidenceId);
+  target.evidence = (target.evidence ?? []).filter((e) => e.id !== evidenceId);
+}
+
+/**
+ * Point at the part that matters.
+ *
+ * A region outside the capture would zoom to nothing, so it is clamped rather
+ * than rejected: the author is dragging a box, not typing coordinates.
+ */
+export function setEvidenceLocator(
+  conversation: Conversation, interventionId: string, evidenceId: string,
+  locator: EvidenceLocator,
+): void {
+  const found = findEvidence(intervention(conversation, interventionId), evidenceId);
+  const next: EvidenceLocator = {};
+
+  if (locator.region) {
+    const clamp01 = (n: number) => Math.min(Math.max(n, 0), 1);
+    const x = clamp01(locator.region.x);
+    const y = clamp01(locator.region.y);
+    const w = Math.min(Math.max(locator.region.w, 0.02), 1 - x);
+    const h = Math.min(Math.max(locator.region.h, 0.02), 1 - y);
+    next.region = { x, y, w, h };
+  }
+  if (locator.quote?.trim()) next.quote = locator.quote.trim();
+  if (locator.page !== undefined) {
+    if (!Number.isInteger(locator.page) || locator.page < 1) {
+      throw new EditError('page must be a positive whole number');
+    }
+    next.page = locator.page;
+  }
+  found.locator = next;
+}
+
+/**
+ * When the document is on screen, within the response's own media clock.
+ *
+ * Clearing both ends means "for the whole response", which is the right
+ * default for a single piece of evidence and wrong for three.
+ */
+export function setEvidenceWindow(
+  conversation: Conversation, interventionId: string, evidenceId: string,
+  window: { appearFrame?: Frames | null; dismissFrame?: Frames | null },
+): void {
+  const target = intervention(conversation, interventionId);
+  const found = findEvidence(target, evidenceId);
+
+  if (window.appearFrame === null && window.dismissFrame === null) {
+    delete found.appearFrame;
+    delete found.dismissFrame;
+    return;
+  }
+
+  const appear = window.appearFrame ?? found.appearFrame ?? 0;
+  const dismiss = window.dismissFrame ?? found.dismissFrame ?? appear + MIN_EVIDENCE_FRAMES;
+  assertFrames(appear);
+  assertFrames(dismiss);
+  if (dismiss - appear < MIN_EVIDENCE_FRAMES) {
+    throw new EditError(`evidence must stay on screen for at least ${MIN_EVIDENCE_FRAMES} frames`);
+  }
+  found.appearFrame = appear;
+  found.dismissFrame = dismiss;
+}
+
+/**
+ * Evidence showing at a given point in a take's media clock.
+ *
+ * Later attachments win where windows overlap: one document on screen at a
+ * time, and the most recently placed one is the one the author meant.
+ */
+export function evidenceAt(intervention: Intervention, mediaFrame: Frames): Evidence | null {
+  let showing: Evidence | null = null;
+  for (const evidence of intervention.evidence ?? []) {
+    if (!evidence.archived) continue;
+    const appear = evidence.appearFrame ?? Number.NEGATIVE_INFINITY;
+    const dismiss = evidence.dismissFrame ?? Number.POSITIVE_INFINITY;
+    if (mediaFrame >= appear && mediaFrame < dismiss) showing = evidence;
+  }
+  return showing;
 }

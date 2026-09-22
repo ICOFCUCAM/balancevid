@@ -289,6 +289,14 @@ function InterventionCard({
                 onDelete={(takeId) => onCall(`${base}/takes/${takeId}`, { method: 'DELETE' })}
               />
 
+              <EvidencePanel
+                conversationId={conversationId}
+                intervention={intervention}
+                take={take}
+                disabled={disabled}
+                onCall={onCall}
+              />
+
               <div className="row" style={{ marginTop: 10 }}>
                 <button
                   disabled={disabled || !canRecord}
@@ -417,6 +425,274 @@ function TakeList({
           </button>
         </div>
       ))}
+    </div>
+  );
+}
+
+/**
+ * Evidence.  [Doctrine §44, U-33]
+ *
+ * Attach a page or a file, say which part of it matters, and say when it is on
+ * screen. The archive happens in the worker; until it succeeds the citation is
+ * shown as unarchived rather than quietly presented as verified.
+ */
+function EvidencePanel({
+  conversationId, intervention, take, disabled, onCall,
+}: {
+  conversationId: string;
+  intervention: any;
+  take: any;
+  disabled: boolean;
+  onCall: (path: string, init: RequestInit) => Promise<void>;
+}) {
+  const [url, setUrl] = useState('');
+  const base = `/api/conversations/${conversationId}/interventions/${intervention.id}/evidence`;
+  const evidence: any[] = intervention.evidence ?? [];
+
+  const attachUrl = async () => {
+    if (!url.trim()) return;
+    await onCall(base, { method: 'POST', body: JSON.stringify({ url: url.trim() }) });
+    setUrl('');
+  };
+
+  const attachFile = async (file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('title', file.name);
+    // No JSON content-type here: the browser must set the multipart boundary.
+    await onCall(base, { method: 'POST', body: form, headers: {} });
+  };
+
+  return (
+    <div className="field" style={{ borderTop: '1px solid var(--line)', paddingTop: 10 }}>
+      <label>Evidence — archived when attached, so the citation still works later</label>
+
+      {evidence.map((item) => (
+        <EvidenceItem
+          key={item.id}
+          conversationId={conversationId}
+          evidence={item}
+          take={take}
+          disabled={disabled}
+          onCall={onCall}
+          base={base}
+        />
+      ))}
+
+      <div className="row" style={{ gap: 6, marginTop: 8 }}>
+        <input
+          type="url"
+          placeholder="https://… a page to archive"
+          value={url}
+          disabled={disabled}
+          onChange={(e) => setUrl(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void attachUrl(); } }}
+          aria-label="Evidence URL"
+        />
+        <button className="small" disabled={disabled || !url.trim()} onClick={() => void attachUrl()}>
+          Archive
+        </button>
+      </div>
+      <div className="row" style={{ marginTop: 6 }}>
+        <input
+          type="file"
+          className="small"
+          disabled={disabled}
+          aria-label="Evidence file"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) void attachFile(file);
+            e.target.value = '';
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function EvidenceItem({
+  conversationId, evidence, take, disabled, onCall, base,
+}: {
+  conversationId: string;
+  evidence: any;
+  take: any;
+  disabled: boolean;
+  onCall: (path: string, init: RequestInit) => Promise<void>;
+  base: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const boxRef = useRef<HTMLDivElement | null>(null);
+  const region = evidence.locator?.region;
+  const patch = (body: Record<string, unknown>) =>
+    onCall(`${base}/${evidence.id}`, { method: 'PATCH', body: JSON.stringify(body) });
+
+  const status = evidence.archiveError
+    ? { text: 'archive failed', colour: 'var(--bad)' }
+    : evidence.archived
+      ? { text: `archived ${evidence.retrievedAt?.slice(0, 10) ?? ''}`, colour: 'var(--ok)' }
+      : { text: 'archiving…', colour: 'var(--muted)' };
+
+  /** Drag a box over the capture. The numeric fields below are the same thing
+   *  reachable from the keyboard (D-04). */
+  const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    const host = boxRef.current;
+    if (!host || disabled) return;
+    const rect = host.getBoundingClientRect();
+    const startX = (event.clientX - rect.left) / rect.width;
+    const startY = (event.clientY - rect.top) / rect.height;
+
+    const move = (e: PointerEvent) => {
+      const x = (e.clientX - rect.left) / rect.width;
+      const y = (e.clientY - rect.top) / rect.height;
+      host.dataset['draft'] = JSON.stringify({
+        x: Math.min(startX, x), y: Math.min(startY, y),
+        w: Math.abs(x - startX), h: Math.abs(y - startY),
+      });
+      host.style.setProperty('--dx', `${Math.min(startX, x) * 100}%`);
+      host.style.setProperty('--dy', `${Math.min(startY, y) * 100}%`);
+      host.style.setProperty('--dw', `${Math.abs(x - startX) * 100}%`);
+      host.style.setProperty('--dh', `${Math.abs(y - startY) * 100}%`);
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      const draft = host.dataset['draft'];
+      if (draft) void patch({ region: JSON.parse(draft) });
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+
+  return (
+    <div style={{ border: '1px solid var(--line)', borderRadius: 6, padding: 8, marginBottom: 6 }}>
+      <div className="row small">
+        <span className="grow" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {evidence.url
+            ? <a href={evidence.url} target="_blank" rel="noreferrer nofollow">{evidence.title}</a>
+            : evidence.title}
+        </span>
+        <span style={{ color: status.colour }}>{status.text}</span>
+        <button className="small" onClick={() => setOpen(!open)} disabled={disabled}>
+          {open ? 'Close' : 'Locate'}
+        </button>
+        <button
+          className="small"
+          disabled={disabled}
+          onClick={() => onCall(`${base}/${evidence.id}`, { method: 'DELETE' })}
+        >
+          remove
+        </button>
+      </div>
+      {evidence.archiveError && (
+        <div className="small" style={{ color: 'var(--bad)' }}>{evidence.archiveError}</div>
+      )}
+
+      {open && (
+        <div style={{ marginTop: 8 }}>
+          {evidence.captureAssetId ? (
+            <div
+              ref={boxRef}
+              onPointerDown={onPointerDown}
+              style={{ position: 'relative', cursor: 'crosshair', lineHeight: 0 }}
+            >
+              <img
+                src={`/api/conversations/${conversationId}/evidence/${evidence.id}/capture`}
+                alt={`Archived capture of ${evidence.title}`}
+                style={{ width: '100%', borderRadius: 4, border: '1px solid var(--line)' }}
+              />
+              {region && (
+                <div style={{
+                  position: 'absolute',
+                  left: `${region.x * 100}%`, top: `${region.y * 100}%`,
+                  width: `${region.w * 100}%`, height: `${region.h * 100}%`,
+                  border: '2px solid var(--user-accent)',
+                  background: 'rgba(194,121,79,.16)', pointerEvents: 'none',
+                }} />
+              )}
+            </div>
+          ) : (
+            <div className="small muted">
+              No visual capture for this format — it is cited but not shown on screen.
+            </div>
+          )}
+
+          <div className="row small" style={{ gap: 6, marginTop: 8 }}>
+            {(['x', 'y', 'w', 'h'] as const).map((key) => (
+              <label key={key} style={{ flex: 1, margin: 0 }}>
+                {key}
+                <input
+                  type="number" min={0} max={100} step={1}
+                  value={Math.round(((region?.[key] ?? (key === 'w' || key === 'h' ? 1 : 0))) * 100)}
+                  disabled={disabled}
+                  onChange={(e) => {
+                    const next = {
+                      x: region?.x ?? 0, y: region?.y ?? 0, w: region?.w ?? 1, h: region?.h ?? 1,
+                      [key]: Number(e.target.value) / 100,
+                    };
+                    void patch({ region: next });
+                  }}
+                />
+              </label>
+            ))}
+          </div>
+
+          <div className="field" style={{ marginTop: 8 }}>
+            <label htmlFor={`quote-${evidence.id}`}>The line you are citing</label>
+            <input
+              id={`quote-${evidence.id}`}
+              defaultValue={evidence.locator?.quote ?? ''}
+              disabled={disabled}
+              onBlur={(e) => patch({ quote: e.target.value })}
+            />
+          </div>
+
+          {take?.durationFrames > 0 && (
+            <EvidenceWindow take={take} evidence={evidence} disabled={disabled} onPatch={patch} />
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** When the document is on screen, within the response's own clock. [U-33 §3] */
+function EvidenceWindow({
+  take, evidence, disabled, onPatch,
+}: {
+  take: any;
+  evidence: any;
+  disabled: boolean;
+  onPatch: (body: Record<string, unknown>) => Promise<void>;
+}) {
+  const [appear, setAppear] = useState(evidence.appearFrame ?? take.mediaInFrame);
+  const [dismiss, setDismiss] = useState(evidence.dismissFrame ?? take.mediaOutFrame);
+  const commit = () => onPatch({ appearFrame: appear, dismissFrame: dismiss });
+
+  return (
+    <div className="field">
+      <label>
+        On screen from {formatTimecode(appear)} to {formatTimecode(dismiss)} — it appears when you
+        refer to it, not for the whole response
+      </label>
+      <input
+        type="range" min={0} max={take.durationFrames} value={appear} disabled={disabled}
+        onChange={(e) => setAppear(Number(e.target.value))}
+        onPointerUp={commit} onKeyUp={commit} onBlur={commit}
+        aria-label="Evidence appears"
+      />
+      <input
+        type="range" min={0} max={take.durationFrames} value={dismiss} disabled={disabled}
+        onChange={(e) => setDismiss(Number(e.target.value))}
+        onPointerUp={commit} onKeyUp={commit} onBlur={commit}
+        aria-label="Evidence dismisses"
+      />
+      <button
+        className="small"
+        disabled={disabled}
+        onClick={() => onPatch({ appearFrame: null, dismissFrame: null })}
+      >
+        Show for the whole response
+      </button>
     </div>
   );
 }
