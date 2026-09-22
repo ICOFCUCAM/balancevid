@@ -332,6 +332,32 @@ export default function Watch({ conversationId }: { conversationId: string }) {
         ))}
       </div>
 
+      {manifest.lineage?.length > 0 && (
+        <div className="panel" style={{ marginTop: 12 }}>
+          <strong>This is part of an exchange</strong>
+          <div className="small muted" style={{ marginBottom: 6 }}>
+            Oldest first. Every response records what it answered.
+          </div>
+          {manifest.lineage.map((entry: any, i: number) => (
+            <div key={entry.conversationId} className="row small"
+                 style={{ borderTop: '1px solid var(--line)', padding: '5px 0' }}>
+              <span className="mono muted" style={{ minWidth: 28 }}>{i + 1}</span>
+              <a className="grow" href={`/c/${entry.conversationId}/watch`}>{entry.title}</a>
+              <span className="muted">{entry.author ?? ''}</span>
+            </div>
+          ))}
+          <div className="row small" style={{ borderTop: '1px solid var(--line)', padding: '5px 0' }}>
+            <span className="mono muted" style={{ minWidth: 28 }}>
+              {manifest.lineage.length + 1}
+            </span>
+            <span className="grow">{manifest.title}</span>
+            <span className="muted">you are here</span>
+          </div>
+        </div>
+      )}
+
+      {manifest.respondable && <RespondButton conversationId={conversationId} />}
+
       {manifest.source.canonicalUrl && (
         <p className="small muted" style={{ marginTop: 12 }}>
           Watch the original on{' '}
@@ -340,6 +366,56 @@ export default function Watch({ conversationId }: { conversationId: string }) {
           </a>.
         </p>
       )}
+    </div>
+  );
+}
+
+/**
+ * Answer this.  [Doctrine U-31]
+ *
+ * Only shown when the author allowed it. A published conversation is a Class A
+ * source, so responding to one is the ordinary create path with a different
+ * kind of source — no collaboration feature behind it.
+ */
+function RespondButton({ conversationId }: { conversationId: string }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  return (
+    <div className="panel" style={{ marginTop: 12 }}>
+      <div className="row">
+        <div className="grow">
+          <strong>Respond to this</strong>
+          <div className="small muted">
+            Its author allowed responses. You will be answering this exact
+            version, even if they change theirs later.
+          </div>
+        </div>
+        <button
+          className="primary"
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            setError(null);
+            try {
+              const response = await fetch('/api/conversations', {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ respondToConversationId: conversationId }),
+              });
+              const data = await response.json();
+              if (!response.ok) throw new Error(data.error ?? 'could not start a response');
+              window.location.href = `/c/${data.conversation.id}`;
+            } catch (e) {
+              setError(e instanceof Error ? e.message : String(e));
+              setBusy(false);
+            }
+          }}
+        >
+          {busy ? 'Preparing…' : 'Respond'}
+        </button>
+      </div>
+      {error && <p className="small" style={{ color: 'var(--bad)', marginBottom: 0 }}>{error}</p>}
     </div>
   );
 }

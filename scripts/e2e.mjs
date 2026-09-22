@@ -544,6 +544,75 @@ if (reelJob?.state === 'done') {
     `${reelJob.result.responses} responses`);
 }
 
+// --- publishing and responding (U-31, §40) ----------------------------------
+log('publish and respond…');
+const noConsent = await fetch(`${BASE}/api/conversations/${conversationId}/publish`, {
+  method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({}),
+});
+check(noConsent.status === 400, 'publishing asks about responses rather than assuming (U-31)');
+
+const publishNo = await fetch(`${BASE}/api/conversations/${conversationId}/publish`, {
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ respondable: false, author: 'Chama Meyembi' }),
+});
+check(publishNo.ok, 'a finished conversation can be published');
+
+const refused = await fetch(`${BASE}/api/conversations`, {
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ respondToConversationId: conversationId }),
+});
+check(refused.status === 403, 'a response is refused where the author did not allow it (U-31)',
+  `status ${refused.status}`);
+
+await fetch(`${BASE}/api/conversations/${conversationId}/publish`, {
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ respondable: true, author: 'Chama Meyembi' }),
+});
+const listed = await api('/api/published');
+check(listed.published.some((p) => p.id === conversationId && p.respondable),
+  'it appears as something others can answer');
+
+const child = await (await fetch(`${BASE}/api/conversations`, {
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ respondToConversationId: conversationId }),
+})).json();
+const childId = child.conversation?.id;
+check(Boolean(childId), 'a response to a conversation can be started (§40)');
+check(child.conversation?.source?.class === 'A',
+  'a published conversation is a Class A source (U-31)');
+check(child.conversation?.source?.sourceConversationId === conversationId,
+  'it knows which conversation it is answering');
+check(child.conversation?.lineage?.chain?.length === 1,
+  'and records the chain, oldest first');
+
+// The parent may change or be withdrawn; the response must go on answering
+// what it actually answered.
+await fetch(`${BASE}/api/conversations/${conversationId}/publish`, { method: 'DELETE' });
+const stillThere = (await api(`/api/conversations/${childId}`)).conversation;
+check(stillThere.lineage?.chain?.[0]?.title?.length > 0,
+  'withdrawing the parent leaves the response intact');
+
+for (let i = 0; i < 120; i++) {
+  await sleep(1000);
+  const snap = await api(`/api/conversations/${childId}`);
+  if (snap.conversation.source.durationFrames > 0) break;
+}
+const childSnap = await api(`/api/conversations/${childId}`);
+check(childSnap.conversation.source.durationFrames > 0,
+  'the published render becomes the response\'s own source',
+  `${childSnap.conversation.source.durationFrames} frames`);
+
+const childManifest = await api(
+  `/api/conversations/${childId}/representations?id=manifest.json`);
+check(childManifest.attribution?.includes('Responding to'),
+  'the attribution credits what is being answered (U-21, U-31)');
+check(childManifest.attribution?.includes('Original source'),
+  'and the original source at the root of the chain');
+
 await browser.close();
 console.log(failures === 0 ? '\nALL CHECKS PASSED' : `\n${failures} CHECK(S) FAILED`);
 process.exit(failures === 0 ? 0 : 1);

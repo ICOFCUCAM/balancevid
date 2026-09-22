@@ -3280,6 +3280,16 @@ fail and wrong in how it looked: it now pins the layout it depends on and says
 why, and the composite path has its own test. **When a correct change breaks a
 test, the test was asserting something it was never supposed to be asserting.**
 
+**A response must go on answering the thing it answered.** When a published
+conversation becomes the source of a reply, the published render is COPIED into
+the reply rather than referenced. Referencing looks cheaper and is wrong: the
+author of the original can edit it, re-render it, withdraw it or delete it, and
+a reply whose source moves under it is answering something nobody ever said.
+The same reasoning makes lineage a stored chain rather than a lookup, and it is
+why withdrawing a conversation leaves existing replies intact — they answered a
+version that existed and was consented to, and breaking other people's work
+would be the greater harm.
+
 **Timing inside a response belongs to the response, not to the recording.**
 Annotation and evidence windows were stored as positions in the take's media
 clock. A take is one *attempt* at a response; the response is what the author

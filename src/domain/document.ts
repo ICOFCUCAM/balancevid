@@ -43,6 +43,8 @@ export interface Source {
   id: SourceId;
   class: SourceClass;
   title: string;
+  /** Set when this source IS another conversation's published render. [U-31] */
+  sourceConversationId?: string;
   /** Class B only: whose player we honour, and which video. [U-01] */
   provider?: ProviderId;
   providerVideoId?: string;
@@ -242,6 +244,56 @@ export interface Intervention {
   createdAt: string;
 }
 
+/**
+ * Publication.  [Doctrine U-31]
+ *
+ * "A published conversation is a Class A source. Anyone can open it and
+ *  respond to it. That single property turns the product from a tool into a
+ *  network."
+ *
+ * Consent is set here and nowhere else: the publisher decides whether their
+ * conversation can be answered. It is recorded at publish time because it
+ * cannot be added cheaply afterwards -- by then there are responses that were
+ * made under an assumption nobody stated.
+ */
+export interface Publication {
+  publishedAt: string;
+  /** Whether anyone may respond to this. The publisher's decision. [U-31] */
+  respondable: boolean;
+  /** The render that was published; what a responder will be answering. */
+  planHash: string;
+  /** Shown as the author of the response, where one is given. */
+  author?: string;
+  unpublishedAt?: string;
+}
+
+/**
+ * Where this conversation came from.  [Doctrine U-31, §40]
+ *
+ * "Every conversation records its ancestry, so any exchange can be traced to
+ *  its origin and displayed as a thread."
+ *
+ * The chain is stored, not derived, because the parent may later be edited,
+ * re-rendered, unpublished or deleted, and a response must still be able to
+ * say what it was answering.
+ */
+export interface LineageEntry {
+  conversationId: string;
+  title: string;
+  author?: string;
+  publishedAt?: string;
+  /** The original media at the root of the chain. */
+  sourceTitle: string;
+  sourceUrl?: string;
+}
+
+export interface Lineage {
+  /** The conversation this one answers, if any. */
+  parentConversationId: string;
+  /** Oldest first. The root's own source is the first entry's sourceTitle. */
+  chain: LineageEntry[];
+}
+
 export interface Conversation {
   schemaVersion: number;
   id: ConversationId;
@@ -250,8 +302,23 @@ export interface Conversation {
   /** Order is derived from anchors, never stored. [U-08] */
   interventions: Intervention[];
   layoutProfileId: string;
+  /** Set once the author publishes. [U-31] */
+  publication?: Publication;
+  /** Set when this conversation answers another one. [U-31, §40] */
+  lineage?: Lineage;
   createdAt: string;
   updatedAt: string;
+}
+
+/** How deep in a response chain this sits. The root is 0. */
+export function lineageDepth(conversation: Conversation): number {
+  return conversation.lineage?.chain.length ?? 0;
+}
+
+/** Whether anyone may answer this conversation right now. [U-31 consent] */
+export function isRespondable(conversation: Conversation): boolean {
+  const publication = conversation.publication;
+  return Boolean(publication && !publication.unpublishedAt && publication.respondable);
 }
 
 export function selectedTake(intervention: Intervention): Take | null {

@@ -16,6 +16,7 @@ import type { Conversation, Take } from '../domain/document.js';
 import { orderedInterventions, selectedTake } from '../domain/document.js';
 import { TYPE_PRESENTATION } from '../domain/presentation.js';
 import { formatTimecode, type Frames } from '../domain/time.js';
+import { chainAttribution } from '../domain/publish.js';
 import { projectTimeline, sourceRatio, type Timeline } from '../domain/timeline.js';
 import { forDisplay, type Transcript } from '../transcribe/types.js';
 import { sentenceAtFrame } from '../transcribe/segmentation.js';
@@ -139,6 +140,7 @@ function responseText(take: Take, transcript?: Transcript): string | null {
 }
 
 function attributionLine(conversation: Conversation): string {
+  if (conversation.lineage) return chainAttribution(conversation, conversation.createdAt);
   const { title, creator, url } = conversation.source;
   const parts = [`Source: "${title}"`];
   if (creator) parts.push(`by ${creator}`);

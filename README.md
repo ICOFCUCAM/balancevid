@@ -113,6 +113,8 @@ assembly, render — not a mock of it.
 | Captions | both speakers, labelled, burned in and as `.srt` / `.vtt` |
 | Studio Mode | trim, audition takes, re-record, move a point, retype, delete |
 | Embedded sources | YouTube and Vimeo links, played through their own embed |
+| Publishing | with consent: the author decides if it may be answered (U-31) |
+| Response chains | a published conversation is itself a source; lineage kept |
 | Conversation Manifest | the companion player: drives the source, cuts to you |
 | Response reel | the Class B export — your material, no provider footage |
 | Vertical clips | one per claim-and-response pair, ranked and proposed (U-22) |
@@ -169,8 +171,10 @@ Stated plainly, because a status table that overstates is worse than none.
 - **Vimeo authoring.** A Vimeo link creates a Class B conversation and the
   manifest drives its embed, but the Studio's one-key loop is wired to
   YouTube's player API only; Vimeo's needs its own adapter.
-- **Publishing.** Nothing is published anywhere. Exports download; the
-  manifest and the watch page are same-origin.
+- **Publishing is local.** A conversation can be published *within this
+  instance* — which is what makes it answerable — but nothing is pushed to any
+  external platform. Exports download; the manifest and the watch page are
+  same-origin.
 - **Paged documents as evidence.** PDFs are stored, hashed and cited, but this
   build has no rasteriser, so they carry no visual capture and the render has
   nothing to show for them. Images and web pages do.

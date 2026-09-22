@@ -17,9 +17,10 @@
  */
 
 import type { Conversation } from '../domain/document.js';
-import { orderedInterventions, selectedTake } from '../domain/document.js';
+import { isRespondable, orderedInterventions, selectedTake } from '../domain/document.js';
 import { TYPE_PRESENTATION } from '../domain/presentation.js';
 import type { ProviderId } from '../domain/providers.js';
+import { chainAttribution } from '../domain/publish.js';
 import { HOUSE_FPS, formatTimecode, type Frames } from '../domain/time.js';
 import { projectTimeline, type Timeline } from '../domain/timeline.js';
 import type { Cue } from '../render/subtitles.js';
@@ -79,6 +80,12 @@ export interface ConversationManifest {
     /** Class A: our own playback URL. */
     playbackUrl?: string;
   };
+  /** What this conversation answers, oldest first. [U-31] */
+  lineage?: Array<{
+    conversationId: string; title: string; author?: string; publishedAt?: string;
+  }>;
+  /** Whether this may itself be answered. The publisher's decision. */
+  respondable?: boolean;
   segments: ManifestSegment[];
   captions: Cue[];
   totalOutputFrames: Frames;
@@ -147,6 +154,15 @@ export function buildManifest(inputs: ManifestInputs): ConversationManifest {
         ? { playbackUrl: `/api/conversations/${conversation.id}/source` }
         : {}),
     },
+    ...(conversation.lineage ? {
+      lineage: conversation.lineage.chain.map((entry) => ({
+        conversationId: entry.conversationId,
+        title: entry.title,
+        ...(entry.author ? { author: entry.author } : {}),
+        ...(entry.publishedAt ? { publishedAt: entry.publishedAt } : {}),
+      })),
+    } : {}),
+    ...(conversation.publication ? { respondable: isRespondable(conversation) } : {}),
     segments,
     captions: buildCues(conversation, timeline, {
       source: inputs.sourceTranscript ?? null,
@@ -158,6 +174,7 @@ export function buildManifest(inputs: ManifestInputs): ConversationManifest {
 }
 
 function attributionLine(conversation: Conversation): string {
+  if (conversation.lineage) return chainAttribution(conversation, conversation.createdAt);
   const { title, creator, url } = conversation.source;
   const parts = [`Source: "${title}"`];
   if (creator) parts.push(`by ${creator}`);

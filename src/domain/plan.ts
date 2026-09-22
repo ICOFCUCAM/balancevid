@@ -18,6 +18,7 @@ import { InvariantViolation } from './invariants.js';
 import {
   type ExportProfile, EXPORT_PROFILES, TYPE_PRESENTATION, type Transition, layoutForType,
 } from './presentation.js';
+import { chainAttribution } from './publish.js';
 import { type Timeline, projectTimeline, sourceRatio } from './timeline.js';
 import type { Frames } from './time.js';
 
@@ -387,6 +388,20 @@ function clampOffset(offset: Frames, kept: Frames): Frames {
 function buildAttribution(conversation: Conversation, accessedAt?: string): AttributionBlock {
   const { title, creator, url } = conversation.source;
   const when = accessedAt ?? conversation.createdAt;
+
+  // A response to a response is still using the original creator's work, so
+  // the attribution credits the whole chain rather than only the last link.
+  if (conversation.lineage) {
+    const root = conversation.lineage.chain[0];
+    return {
+      sourceTitle: root?.sourceTitle ?? title,
+      ...(creator ? { creator } : {}),
+      ...(root?.sourceUrl ? { url: root.sourceUrl } : url ? { url } : {}),
+      accessedAt: when,
+      text: chainAttribution(conversation, when),
+    };
+  }
+
   const parts = [`Source: "${title}"`];
   if (creator) parts.push(`by ${creator}`);
   if (url) parts.push(url);

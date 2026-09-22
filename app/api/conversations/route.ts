@@ -1,10 +1,12 @@
-import { mkdir, writeFile } from 'node:fs/promises';
+import { access, copyFile, mkdir, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { SCHEMA_VERSION, type Conversation, type ConversationId, type SourceId } from '../../../src/domain/document.js';
 import { PROVIDER_LABELS, parseProviderUrl } from '../../../src/domain/providers.js';
 import { newId } from '../../../src/domain/ids.js';
 import { ensureDirs, paths } from '../../../src/store/paths.js';
 import { enqueue } from '../../../src/store/queue.js';
-import { audit, listConversations, saveConversation } from '../../../src/store/repository.js';
+import { ConsentError, assertRespondable, lineageFor } from '../../../src/domain/publish.js';
+import { audit, listConversations, loadConversation, saveConversation } from '../../../src/store/repository.js';
 import { fail, json } from '../../../src/web/http.js';
 
 export const dynamic = 'force-dynamic';
@@ -37,7 +39,11 @@ export async function GET(): Promise<Response> {
 export async function POST(request: Request): Promise<Response> {
   await ensureDirs();
   if ((request.headers.get('content-type') ?? '').includes('application/json')) {
-    return createEmbedded(request);
+    const body = await request.json().catch(() => ({})) as Record<string, unknown>;
+    if (typeof body['respondToConversationId'] === 'string') {
+      return respondToConversation(body as { respondToConversationId: string; title?: string });
+    }
+    return createEmbedded(body as never);
   }
   const form = await request.formData();
   const file = form.get('file');
@@ -106,11 +112,10 @@ export async function POST(request: Request): Promise<Response> {
  * The duration is not known yet — only the provider's player can say — so it
  * is reported back by the player once it loads, rather than guessed.
  */
-async function createEmbedded(request: Request): Promise<Response> {
-  const body = await request.json().catch(() => ({})) as {
-    providerUrl?: string; title?: string; sourceTitle?: string;
-    creator?: string; rightsBasis?: string;
-  };
+async function createEmbedded(body: {
+  providerUrl?: string; title?: string; sourceTitle?: string;
+  creator?: string; rightsBasis?: string;
+}): Promise<Response> {
 
   const embedded = parseProviderUrl(body.providerUrl ?? '');
   if (!embedded) {
@@ -156,4 +161,87 @@ async function createEmbedded(request: Request): Promise<Response> {
     },
   });
   return json({ conversation }, { status: 201 });
+}
+
+/**
+ * Answer a published conversation.  [Doctrine U-31, §40]
+ *
+ * "Response chains form without any collaboration feature being built: A
+ *  responds to a video, B responds to A, A responds to B."
+ *
+ * The published render is copied into the new conversation as its own source
+ * rather than referenced. That is not waste: the parent can be edited,
+ * re-rendered, withdrawn or deleted, and a response must go on answering the
+ * thing it actually answered.
+ */
+async function respondToConversation(
+  body: { respondToConversationId: string; title?: string },
+): Promise<Response> {
+  let parent;
+  try {
+    parent = await loadConversation(body.respondToConversationId);
+  } catch {
+    return fail(404, 'that conversation does not exist');
+  }
+
+  try {
+    assertRespondable(parent);
+  } catch (error) {
+    if (error instanceof ConsentError) return fail(403, error.message);
+    throw error;
+  }
+
+  const publishedRender = join(
+    paths.render(parent.id, parent.publication!.planHash), 'FINAL.mp4');
+  try {
+    await access(publishedRender);
+  } catch {
+    return fail(409, 'the published version of that conversation is no longer on disk');
+  }
+
+  const id = newId('conv');
+  const assetId = newId('asset');
+  await mkdir(paths.assets(id), { recursive: true });
+  const originalPath = paths.asset(id, assetId, 'mp4');
+  await copyFile(publishedRender, originalPath);
+
+  const now = new Date().toISOString();
+  const conversation: Conversation = {
+    schemaVersion: SCHEMA_VERSION,
+    id: id as ConversationId,
+    title: (body.title ?? '').trim() || `My Response to "${parent.title}"`,
+    source: {
+      id: newId('src') as SourceId,
+      class: 'A',
+      title: parent.title,
+      ...(parent.publication?.author ? { creator: parent.publication.author } : {}),
+      url: `/c/${parent.id}/watch`,
+      sourceConversationId: parent.id,
+      originalAssetId: assetId,
+      durationFrames: 0,
+      rightsAttestationId: `rights_${Date.now()}`,
+    },
+    interventions: [],
+    layoutProfileId: 'default',
+    lineage: lineageFor(parent),
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  await saveConversation(conversation);
+  await audit(id, {
+    action: 'source.added',
+    detail: {
+      class: 'A', respondingTo: parent.id,
+      chainDepth: conversation.lineage!.chain.length,
+      // Consent given by the author of what is being answered. [U-31]
+      rightsBasis: 'Permission granted — the author allowed responses',
+    },
+  });
+  const job = await enqueue({
+    kind: 'ingest_source',
+    conversationId: id,
+    payload: { originalPath, assetId },
+  });
+  return json({ conversation, job }, { status: 201 });
 }
