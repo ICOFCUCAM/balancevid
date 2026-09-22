@@ -23,6 +23,7 @@ were changed.
 
 | Marker | Meaning |
 |---|---|
+| Part 0 | The charter. Outranks everything below it. Binding. |
 | Part I, §1–§52 | The map. Canonical. Verbatim. Binding. |
 | `⬆ UPGRADE U-nn` | A necessary upgrade to the map, applied inline. Binding. |
 | Part II, `D-nn` | Cross-cutting doctrine the map implies but does not house in any one section. Binding. |
@@ -35,8 +36,255 @@ new upgrade note under that section, stating what it supersedes and why. The
 original text stays. The product must always be able to show its own reasoning
 history — the same principle the product sells to its users.
 
+Part 0 was adopted after the map was reviewed. It does not contradict the
+map; it states what the map turned out to be about. Where the two appear to
+conflict, Part 0 decides and the conflict is recorded as a new upgrade note.
+
 ---
 ---
+
+# PART 0 — THE CHARTER
+
+*Adopted 2026-09-22, after review of the map and its upgrades. The charter sits
+above the map. Where anything in this document is unclear, the charter decides.*
+
+---
+
+## The product, in one sentence
+
+> **A conversation editor for recorded media: interrupt a video at any moment,
+> respond, resume exactly where it stopped, repeat throughout the source, and
+> publish the resulting conversation as video, article, or interactive
+> manifest.**
+
+This sentence is binding. It is the test for whether a proposed feature belongs
+in the product: if it does not serve this sentence, it is someone else's
+product.
+
+## What this product is
+
+Not a tool for making reaction videos.
+
+> **A system for creating, editing, publishing, and preserving structured
+> conversations around video.**
+
+---
+
+## INV-00 · The Representation Rule
+
+**The Conversation is the canonical artifact. Every video, article, manifest,
+caption track, clip, chapter list, and export is a representation of the
+Conversation.**
+
+This is the master invariant. It outranks every other rule in this document,
+including the ten non-negotiables in D-01, which it heads.
+
+Its purpose is structural: it is what prevents the product from decaying into a
+pile of disconnected features. Without it, the video pipeline and the article
+pipeline drift apart, the manifest grows its own data model, captions become a
+separate asset with a separate truth, and within two years there are four
+products sharing a logo.
+
+**Operationally this means:**
+
+```
+No feature may introduce a second source of truth.
+No representation may hold data the Conversation does not.
+No representation may be editable except through the Conversation.
+Every representation must be regenerable, from scratch, at any time.
+Deleting every representation must lose nothing.
+```
+
+A representation that cannot be thrown away and rebuilt is not a
+representation — it is a fork, and it is a defect.
+
+---
+
+## The canonical architecture
+
+```
+                 CONVERSATION
+                      │
+          ┌───────────┴───────────┐
+          │                       │
+     MEDIA TIMELINE          KNOWLEDGE LAYER
+          │                       │
+          │              transcript / claims
+          │              responses / evidence
+          │              citations / chapters
+          │                       │
+          ▼                       ▼
+     VIDEO RENDER             ARTICLE
+          │                       │
+          ▼                       ▼
+       MP4 / WEB              HTML / PDF / etc.
+```
+
+The Conversation has two faces. The **media timeline** is what it sounds and
+looks like. The **knowledge layer** is what it means. Both are projections of
+one document; neither is authored directly.
+
+Do not build the video and the article as separate products. **Build the
+Conversation once, then render representations of it.**
+
+The Conversation Manifest (U-01) is a third representation on the same footing,
+not a special case. The vertical clip set (U-22), the publication bundle
+(U-30), the caption sidecars (U-19), and the chapter list (U-39) are all
+representations. This list will grow. The rule does not change.
+
+---
+
+## The five locked principles
+
+These were locked following review. They are not proposals.
+
+### 1. The interruption is the fundamental unit
+
+Not a clip. Not a reaction. An **Interruption**.
+
+Every interruption has:
+
+```
+source frame
+source timestamp
+source sentence
+response media
+response duration
+response type
+layout
+captions
+annotations
+evidence
+```
+
+That is the fundamental data object. Everything else in the system is
+composition, projection, or presentation of it.
+
+### 2. Frame-exact continuity is non-negotiable
+
+```
+cut_out_frame == resume_in_frame
+```
+
+The product promise is: **when you interrupt the speaker, you return to exactly
+where the speaker stopped.** Not approximately. Not "around 14:32." Exactly.
+
+This is an invariant (INV-02), not an aspiration. The burned-in frame-counter
+test (D-10) turns a subjective editing requirement into something CI verifies
+on every build. A build that cannot prove frame-exactness does not ship.
+
+### 3. Audio is part of the product, not post-production polish
+
+A technically perfect visual edit still feels terrible if the source is loud
+and the commentary is quiet, if microphone noise appears without warning, if
+room tone changes, if cuts click, if voices jump in volume.
+
+Audio is a first-class render layer:
+
+```
+SOURCE AUDIO
+      ↓
+speaker normalization
+      ↓
+COMMENTARY AUDIO
+      ↓
+speaker normalization
+      ↓
+ducking
+      ↓
+de-click
+      ↓
+master
+      ↓
+−14 LUFS
+```
+
+The user should never need to understand any of this. They should simply get:
+
+> *"It sounds like one professionally produced conversation."*
+
+### 4. The one-key interaction defines the MVP
+
+The user is thinking while watching. The interface must not ask them to stop
+thinking in order to operate it.
+
+Not: move mouse → find button → click → select mode → start recording.
+
+Instead:
+
+```
+SOURCE PLAYING
+       ↓
+SPACE
+       ↓
+SOURCE PAUSES
+TIMESTAMP CAPTURED
+RECORDING STARTS
+       ↓
+USER SPEAKS
+       ↓
+SPACE
+       ↓
+RECORDING STOPS
+SOURCE RESUMES
+```
+
+**The MVP acceptance test:** *Can someone watch a video without taking their
+attention away from it and create an interruption using one key?*
+
+If yes, the core interaction works. If no, nothing else in this document
+matters.
+
+### 5. The pre-roll is invisible and non-negotiable
+
+The application continuously maintains:
+
+```
+          rolling buffer
+<------------------------>
+         8 seconds
+              ↓
+         INTERRUPT
+```
+
+So when the user starts speaking —
+
+> *"Wait, wait, wait — this is important..."*
+
+— the recording does not begin eight seconds too late. The system preserves the
+preceding buffer and trims it intelligently during editing.
+
+Users will not know this feature exists. They will notice immediately when it
+does not.
+
+---
+
+## The roadmap, stated as questions
+
+```
+MVP   Can I have the conversation?
+V2    Can I preserve and publish the conversation?
+V3    Can the system help me understand and develop the conversation?
+```
+
+**MVP — the core conversation engine.** Class A source, upload, playback,
+frame-indexed interruption, 8-second pre-roll, one-key interaction,
+webcam/microphone, crash-safe recording, captions, frame-exact resume, audio
+normalization and mastering, conversation timeline, server-side FFmpeg, final
+MP4.
+
+**V2 — analysis and distribution.** YouTube Class B, Conversation Manifest,
+evidence attachments, article transcript, searchable conversation, richer
+transcript interaction, annotations, claim/statement linking, publishing
+formats.
+
+**V3 — intelligence and collaboration.** AI claim detection, research
+assistance, fact-checking assistance, AI-assisted response drafting,
+collaborative conversations, multiple commentators, advanced evidence graph,
+deeper publishing ecosystem.
+
+This supersedes the phasing in §49–§51 and in Appendix B, which remain on
+record as the reasoning that produced it.
 
 # PART I — THE MAP
 
@@ -2509,6 +2757,8 @@ Everything else in this document is reasoning. These are the conclusions. If a
 proposed change violates one of these, the change is wrong — not the rule.
 
 ```
+0   The Conversation is the canonical artifact; everything else
+    is a representation of it.                                    [INV-00]
 1   The document is the product. The video is an export of it.      [U-25]
 2   The user's recorded speech is irreplaceable and is never lost.  [U-06]
 3   A source quote is never altered, by a user or by a model.       [U-10]
@@ -2680,6 +2930,8 @@ these is an assertion that fails loudly — in CI, at write time, or at plan
 time — not a convention.
 
 ```
+INV-00  No representation holds data the Conversation does not, and
+        every representation is regenerable from it.       [Part 0, D-16]
 INV-01  A COMPOSED render plan requires a Class A source.            [U-01]
 INV-02  cut_out_frame == resume_in_frame for every intervention.     [U-07]
 INV-03  Σ(shot durations) == render duration, to the frame.          [U-08]
@@ -2906,3 +3158,53 @@ Scope moves the upgrades make to §49–§51. The map's phasing is otherwise kep
 ---
 
 *End of doctrine. Amend by extension only (see "Amendment rule").*
+
+---
+
+## D-16 · The Representation Rule, Applied
+
+`INV-00` (Part 0) is the master invariant. This section is how it is enforced
+in day-to-day engineering, because a principle with no enforcement procedure is
+a slogan.
+
+**Every representation declares itself.** A representation is any artefact
+generated from the Conversation: the composed MP4, the Conversation Manifest,
+the article transcript, caption sidecars, vertical clips, the publication
+bundle, chapter lists, thumbnails, the timeline projection, search indices.
+
+Each one registers three things:
+
+```
+generator   pure function: (conversation, profile) → representation
+inputs      exactly which fields of the Conversation it reads
+rebuild     a command that regenerates it from scratch
+```
+
+**The rebuild test runs in CI.** For every fixture conversation, every
+registered representation is deleted and regenerated, and the result must match
+byte-for-byte or within its declared tolerance (U-16, D-10). A representation
+that cannot survive deletion is a fork and fails the build.
+
+**Reviewer's question.** Any change that adds a field asks: *does this belong to
+the Conversation, or to a representation?* If the answer is "the representation,
+because the Conversation does not have a place for it" — the Conversation gains
+the place. That is the whole discipline.
+
+**The forbidden shapes**, named so they are recognisable in review:
+
+```
+✗  the article stores an edited paragraph the video does not have
+✗  the manifest stores its own cut points
+✗  captions are corrected in the caption file, not the transcript
+✗  a clip has a title that exists nowhere else
+✗  a render is patched rather than re-planned
+✗  the timeline projection is written to directly
+```
+
+Each of these is the same mistake: **editing the shadow instead of the object.**
+
+**The knowledge layer is not an exception.** Transcripts, claims, evidence,
+citations, and chapters live *in* the Conversation, not in the article. The
+article is a rendering of them, exactly as the MP4 is a rendering of the media
+timeline. The two faces of the Conversation in Part 0's diagram are projections,
+not stores.
