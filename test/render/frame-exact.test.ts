@@ -146,11 +146,12 @@ describe('the shot cache (U-16)', () => {
 describe('audio mastering (INV-11, U-17)', () => {
   it('masters the export to its loudness target', async () => {
     const { outputPath, plan } = await render('exact');
-    const { inputI } = await measureLoudness(outputPath);
-    // ±1.0 LU: loudnorm's single-pass mode is not as tight as the ±0.5 the
-    // doctrine sets for a two-pass master, and this test guards the mechanism.
-    expect(inputI).toBeGreaterThan(plan.audio.loudnessLufs - 1.0);
-    expect(inputI).toBeLessThan(plan.audio.loudnessLufs + 1.0);
+    const { inputI, inputTp } = await measureLoudness(outputPath);
+    // The doctrine's tolerance, not a convenient one: ±0.5 LU of the target
+    // and never above the true-peak ceiling. [INV-11, U-17 §4]
+    expect(inputI).toBeGreaterThan(plan.audio.loudnessLufs - 0.5);
+    expect(inputI).toBeLessThan(plan.audio.loudnessLufs + 0.5);
+    expect(inputTp).toBeLessThanOrEqual(plan.audio.truePeakDb);
   }, 300_000);
 });
 

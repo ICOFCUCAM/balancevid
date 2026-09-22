@@ -1,0 +1,48 @@
+/* One visual language for speaker identity, applied everywhere. [Doctrine U-20]
+   Carried by shape and position as well as colour, so it survives greyscale
+   and colour-blindness. */
+:root {
+  --bg: #0e0f11;
+  --panel: #17191c;
+  --panel-2: #1e2125;
+  --line: #2a2e33;
+  --text: #e8eaed;
+  --muted: #9aa1aa;
+  --source-accent: #7f9bb5;
+  --user-accent: #c2794f;
+  --ok: #5c9c6b;
+  --warn: #c99a2e;
+  --bad: #d05a48;
+  --radius: 10px;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+a { color: var(--source-accent); }
+h1, h2, h3 { font-weight: 620; letter-spacing: -0.01em; margin: 0 0 .5rem; }
+.wrap { max-width: 1240px; margin: 0 auto; padding: 24px 20px 64px; }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
+.row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.grow { flex: 1 1 auto; }
+button, .btn {
+  font: inherit; font-weight: 560; color: var(--text); background: var(--panel-2);
+  border: 1px solid var(--line); border-radius: 8px; padding: 9px 14px; cursor: pointer;
+}
+button:hover:not(:disabled) { border-color: #3a4048; }
+button:disabled { opacity: .45; cursor: not-allowed; }
+button.primary { background: #2b5f8a; border-color: #35719f; }
+button.danger { background: #6d3229; border-color: #8c4033; }
+input, select, textarea {
+  font: inherit; color: var(--text); background: var(--panel-2);
+  border: 1px solid var(--line); border-radius: 8px; padding: 9px 11px; width: 100%;
+}
+label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+.field { margin-bottom: 12px; }
+video { width: 100%; background: #000; border-radius: 8px; display: block; }
+/* Respect reduced motion in the UI, per D-04. */
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }

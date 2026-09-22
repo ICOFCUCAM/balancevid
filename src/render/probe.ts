@@ -88,3 +88,24 @@ export async function probeFrameCount(path: string): Promise<number> {
   const n = Number(json.streams?.[0]?.nb_frames ?? NaN);
   return Number.isFinite(n) ? n : NaN;
 }
+
+/**
+ * Duration by decoding.  [Doctrine U-02]
+ *
+ * MediaRecorder's WebM carries no reliable duration in its header, and its
+ * frame rate is variable, so neither the container's claim nor a frame count
+ * divided by a nominal rate can be trusted. Decoding to null and reading how
+ * far ffmpeg actually got is the only honest measurement for a captured
+ * segment -- and getting it wrong misplaces the pre-roll trim, which would
+ * cut into the user's first words.
+ */
+export async function measureDurationSeconds(path: string): Promise<number> {
+  const { ffmpegCapture } = await import('./ffmpeg.js');
+  const { stderr } = await ffmpegCapture(['-i', path, '-f', 'null', '-']);
+  let best = 0;
+  for (const match of stderr.matchAll(/time=(\d+):(\d\d):(\d\d(?:\.\d+)?)/g)) {
+    const seconds = Number(match[1]) * 3600 + Number(match[2]) * 60 + Number(match[3]);
+    if (Number.isFinite(seconds)) best = Math.max(best, seconds);
+  }
+  return best;
+}

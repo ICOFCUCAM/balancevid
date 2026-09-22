@@ -20,7 +20,7 @@ import type { RenderPlan, ResponseShot, Shot, SourceShot } from '../domain/plan.
 import { LAYOUTS, type Rect } from '../domain/presentation.js';
 import type { Frames } from '../domain/time.js';
 import { ffmpeg, type RunOptions } from './ffmpeg.js';
-import { HOUSE, matchGainDb, measureLoudness } from './ingest.js';
+import { HOUSE, matchGainDb, measureLoudness, measureLoudnorm } from './ingest.js';
 import { buildAss, buildSrt, buildVtt, type Cue } from './subtitles.js';
 import { probeFrameCount } from './probe.js';
 import { InvariantViolation } from '../domain/invariants.js';
@@ -86,6 +86,23 @@ export async function compose(plan: RenderPlan, options: ComposeOptions): Promis
   const assPath = join(workDir, `${plan.planHash}.ass`);
   await writeFile(assPath, buildAss(plan, { cues: options.cues ?? [] }));
 
+  // Pass 3a: measure, so pass 3b can hit the target rather than approach it.
+  //
+  // loudnorm's limiter treats its TP argument as a goal, not a wall, and lands
+  // a few hundredths above it. The doctrine's -1 dBTP is a ceiling the
+  // delivered file must be under, so we ask for headroom below it. This is
+  // what a mastering engineer does with a limiter, and for the same reason.
+  const TP_HEADROOM_DB = 0.3;
+  const askTruePeak = plan.audio.truePeakDb - TP_HEADROOM_DB;
+  const measurement = await measureLoudnorm(
+    bodyPath, plan.audio.loudnessLufs, askTruePeak);
+  const loudnorm = measurement
+    ? `loudnorm=I=${plan.audio.loudnessLufs}:TP=${askTruePeak}:LRA=11` +
+      `:measured_I=${measurement.measuredI}:measured_TP=${measurement.measuredTp}` +
+      `:measured_LRA=${measurement.measuredLra}:measured_thresh=${measurement.measuredThresh}` +
+      `:offset=${measurement.offset}:linear=true:print_format=summary`
+    : `loudnorm=I=${plan.audio.loudnessLufs}:TP=${askTruePeak}:LRA=11`;
+
   const master: string[] = ['-i', bodyPath];
   if (plan.captions.burnIn) {
     master.push(
@@ -106,8 +123,8 @@ export async function compose(plan: RenderPlan, options: ComposeOptions): Promis
     master.push('-c:v', 'copy');
   }
   master.push(
-    // EBU R128 master. INV-11 checks the result. [U-17 §4]
-    '-af', `loudnorm=I=${plan.audio.loudnessLufs}:TP=${plan.audio.truePeakDb}:LRA=11`,
+    // EBU R128 master, two-pass. INV-11 checks the result. [U-17 §4]
+    '-af', loudnorm,
     '-c:a', HOUSE.audioCodec, '-ar', String(HOUSE.audioSampleRate),
     '-ac', String(HOUSE.audioChannels), '-b:a', HOUSE.audioBitrate,
     '-movflags', '+faststart',

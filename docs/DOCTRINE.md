@@ -1850,6 +1850,38 @@ Every render job is **resumable and observable**: per-shot progress, a live log,
 Renders are **cost-metered per minute of output** and attributed to the account. A product that cannot measure its unit economics cannot price itself.
 <!-- /UPGRADE -->
 
+
+<!-- UPGRADE -->
+### ⬆ UPGRADE U-39 · The Editing Proxy, and Preview/Render Frame Parity
+
+**Necessity.** Discovered in implementation, recorded here per the amendment
+rule. §31 and D-14 call for "client-side preview, server-side final" without
+saying what the editor actually plays. If it plays the mezzanine, three things
+go wrong: the editor ships a 1080p H.264 stream for every scrub; seeking is
+slow enough to discourage the browsing that finding a moment requires; and
+whether it plays at all depends on the browser's codec licensing, which the
+product does not control.
+
+The deeper issue is subtler and matters more. The user chooses their interrupt
+frame by looking at the player. The renderer cuts the mezzanine. **If those two
+disagree about which frame is frame N, frame-exactness is true of the file and
+false of the experience** — and the experience is the promise.
+
+**Doctrine.**
+
+1. Ingest produces a third artefact beside the original and the mezzanine: an
+   **editing proxy** — small, widely decodable (VP8/Opus), and cheap to seek.
+   The editor plays the proxy; the renderer never touches it.
+2. **The proxy and the mezzanine must agree on frame count and frame rate.**
+   This is asserted at ingest (INV-13) and the ingest fails rather than
+   producing a project whose editor and renderer disagree.
+3. The proxy is a representation (INV-00): regenerable, discardable, holding
+   nothing the Conversation does not.
+
+The frame a user sees when they press the key is the contract. Everything
+downstream is bookkeeping in service of it.
+<!-- /UPGRADE -->
+
 ---
 
 ## 32. Data Model
@@ -2944,6 +2976,8 @@ INV-09  timeline_segments is rebuildable from the document.          [U-08]
 INV-10  No take chunk is released locally before remote checksum.    [U-06]
 INV-11  Master loudness within ±0.5 LU of the export profile target. [U-17]
 INV-12  No intervention is silently re-anchored.                     [U-05]
+INV-13  The editing proxy and the mezzanine agree on frame count
+        and frame rate.                                              [U-39]
 ```
 
 ---
@@ -3129,6 +3163,7 @@ A feature is done when all of the following are true. Not most.
 | U-36 | §49 | Four additions the MVP cannot ship without |
 | U-37 | §50 | Evidence and article transcript promoted to v2 |
 | U-38 | §52 | The consequence of the big idea |
+| U-39 | §31 | The editing proxy, and preview/render frame parity |
 
 ---
 
@@ -3154,6 +3189,54 @@ Scope moves the upgrades make to §49–§51. The map's phasing is otherwise kep
 - Vertical clip sets per claim–response pair — the distribution engine *(U-22)*
 - The publication bundle *(U-30)*
 - Published conversations as sources — the network, for free *(U-31)*
+
+---
+
+---
+
+# APPENDIX C — WHAT IMPLEMENTATION TAUGHT THE DOCTRINE
+
+Recorded because the amendment rule requires it, and because a doctrine that
+never learns anything from being built is decoration.
+
+**U-39 — the editing proxy.** The doctrine described a preview path without
+saying what the editor plays. Building it exposed the real requirement, which
+is not performance but *agreement*: the player and the renderer must share a
+definition of frame N. Now INV-13.
+
+**The frame the master pass invents.** Constant-frame-rate conversion emits an
+extra frame wherever a concat boundary leaves a ragged timestamp — and AAC
+frames quantise to 1024 samples, so boundaries are always slightly ragged.
+Pinning the frame count instead truncates the last real frame. Neither is
+acceptable under INV-02. The fix is to regenerate each timestamp from its own
+frame index and pass frames through one-for-one. **A cut is exact only if
+nothing downstream is permitted to resample it.**
+
+**Concatenating captured segments.** A rolling pre-roll buffer cannot be a ring
+of bytes: MediaRecorder writes its header into the first blob only. Nor can the
+segments be joined with ffmpeg's concat *demuxer*, which trusts container
+timestamps that browser-captured WebM does not carry — it silently keeps the
+first segment and drops the rest, losing everything the user said after their
+first few seconds. Only the concat *filter*, which decodes and rejoins frames,
+is safe for captured media. **Anything that "silently keeps the first part" is
+a data-loss bug wearing the costume of a formatting bug.**
+
+**Measuring, not assuming.** Every duration in this system that came from a
+container header was wrong at least once. Pre-roll length, take length, source
+length: all are now measured by decoding. U-02 said this about sources; it is
+true of everything the browser produces.
+
+**Two passes for loudness.** Single-pass `loudnorm` lands about a decibel off
+and can overshoot true peak. It passed a ±1.0 LU test and failed the doctrine's
+own ±0.5. The tolerance in the document was right and the convenient test was
+wrong. **When an implementation cannot meet the doctrine, fix the
+implementation, not the doctrine.**
+
+**Finish before you finalise.** The take was finalised while its last segment
+was still uploading, silently discarding the end of every response — the most
+recently spoken words, and the ones the user cared about most. Found only by
+driving the real browser. **An end-to-end test is not a slower unit test; it is
+the only thing that sees the races.**
 
 ---
 
