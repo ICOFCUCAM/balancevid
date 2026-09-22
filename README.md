@@ -79,6 +79,18 @@ npm test           # 262 tests, including real renders through real ffmpeg
 npm run typecheck
 ```
 
+### Deploying it
+
+```bash
+docker build -t balancevid .
+docker run -p 3000:3000 -v balancevid-data:/data balancevid
+```
+
+One image, two processes: the web tier and the worker, sharing a volume.
+`fly.toml` is in the repository; `docs/DEPLOYMENT.md` covers the rest —
+including why this cannot run on Vercel or any serverless host, which is
+structural rather than a matter of configuration.
+
 ### End-to-end, in a real browser
 
 ```bash
@@ -257,8 +269,15 @@ Stated plainly, because a status table that overstates is worse than none.
 - **Speaker-switching layout** (U-18) — the scene graph supports it; the voice
   activity detection is not written.
 - **Not production infrastructure.** Single machine, filesystem storage, no
-  authentication, no tenancy, no quotas. The storage layer is a filesystem
-  adapter behind one module so object storage can replace it.
+  authentication, no tenancy, no quotas, no render-cost metering (D-11).
+  Anyone who can reach an instance can read and modify every conversation on
+  it. It containerises and deploys to any Docker host with a volume
+  (`docs/DEPLOYMENT.md`), and that is as far as it goes.
+- **Storage is not yet swappable.** `src/store/` is where everything lives,
+  but four API routes still reach for `node:fs` directly, so replacing the
+  filesystem with object storage means routing those through the store
+  first — a prerequisite for running the web tier and the worker on
+  separate machines.
 
 ---
 

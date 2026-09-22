@@ -1,0 +1,20 @@
+# Local state. 'var' holds every recording, render and model on this machine —
+# it is the deployment's DATA, and it belongs on a volume, never in an image.
+var/
+.venv/
+
+node_modules/
+.next/
+dist/
+*.tsbuildinfo
+
+.git/
+.github/
+test/
+*.log
+.DS_Store
+
+# Local captures and scratch output.
+sample-*.mp4
+*.png
+conversation-article.html

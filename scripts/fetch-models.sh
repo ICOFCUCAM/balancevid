@@ -11,6 +11,10 @@
 # consumes a transcript changes.
 #
 #   ./scripts/fetch-models.sh        ~320 MB, once
+#
+# BALANCEVID_SKIP_PYTHON=1 fetches the model files only. The container build
+# uses that to download models in a layer of their own, so a code change does
+# not re-download 320 MB.
 
 set -euo pipefail
 
@@ -35,6 +39,11 @@ if [ -f "$MODELS/silero_vad.onnx" ]; then
 else
   echo "fetching silero_vad.onnx…"
   curl -fL --retry 3 -o "$MODELS/silero_vad.onnx" "$BASE/silero_vad.onnx"
+fi
+
+if [ "${BALANCEVID_SKIP_PYTHON:-0}" = "1" ]; then
+  echo "models fetched; skipping the python environment as asked"
+  exit 0
 fi
 
 if [ ! -x "$ROOT/.venv/bin/python" ]; then

@@ -1,0 +1,64 @@
+# BalanceVid on Fly.io.
+#
+#   fly launch --no-deploy --copy-config    # once, to name the app
+#   fly volumes create balancevid_data --size 50
+#   fly deploy
+#
+# Two settings here are load-bearing and easy to get wrong; both have comments
+# where they are set. Read those before changing anything.
+
+app = "balancevid"
+primary_region = "lhr"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "3000"
+  ROLE = "all"
+  BALANCEVID_VAR = "/data"
+  BALANCEVID_MODELS = "/models"
+
+# Everything a user made. Conversations, sources, takes, renders, transcripts,
+# evidence captures. Size it for real media: an hour of 1080p mezzanine plus
+# its proxies and renders runs to a few GB per conversation.
+[[mounts]]
+  source = "balancevid_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+
+  # LOAD-BEARING. Scale-to-zero is the default and it is wrong for this app:
+  # the worker is a queue poller, not a request handler, so a machine stopped
+  # for having no HTTP traffic stops rendering too. An export queued just
+  # before the machine idles out would sit there until someone loaded a page.
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    # Checks that storage is writable and reports queue depth — not merely
+    # that a process is listening. See app/api/health/route.ts.
+    path = "/api/health"
+    interval = "30s"
+    timeout = "10s"
+    grace_period = "60s"
+
+[[vm]]
+  # Rendering is the whole workload and it is CPU-bound. One shared CPU will
+  # work and will feel slow; a 40-minute source takes what it takes.
+  size = "performance-2x"
+  memory = "4gb"
+
+# LOAD-BEARING. A render can run for many minutes and a stop signal must not
+# cut it off mid-export: the worker finishes the ffmpeg pass it is in, and an
+# unfinished job is re-claimable anyway (U-16's shot cache makes the re-run
+# resume rather than restart).
+kill_signal = "SIGTERM"
+kill_timeout = "300s"
+
+# Scaling the worker apart from the web tier later is a ROLE change, not a
+# code change: run one process group with ROLE=web and another with
+# ROLE=worker, both against the same volume.
