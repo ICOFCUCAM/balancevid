@@ -48,7 +48,8 @@ export function assTime(frames: Frames, fps: number = HOUSE_FPS): string {
   return `${h}:${p(m)}:${p(s)}.${p(cs)}`;
 }
 
-function escapeAss(text: string): string {
+/** Exported so every burned-in text in the product escapes identically. */
+export function escapeAss(text: string): string {
   return text.replace(/\\/g, '\\\\').replace(/\{/g, '\\{').replace(/\}/g, '\\}')
     .replace(/\r?\n/g, '\\N');
 }

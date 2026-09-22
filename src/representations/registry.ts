@@ -15,13 +15,14 @@
  */
 
 import type { Conversation } from '../domain/document.js';
-import { buildRenderPlan, canonicalJson } from '../domain/plan.js';
+import { buildAttribution, buildRenderPlan, canonicalJson } from '../domain/plan.js';
 import { projectTimeline } from '../domain/timeline.js';
 import { generateArticle } from '../article/generate.js';
 import { renderHtml } from '../article/html.js';
 import { renderMarkdown } from '../article/markdown.js';
 import { buildCues } from '../render/cues.js';
 import { buildManifest } from '../manifest/build.js';
+import { buildBundle } from '../publish/bundle.js';
 import { buildSrt, buildVtt } from '../render/subtitles.js';
 import type { Transcript } from '../transcribe/types.js';
 
@@ -68,6 +69,13 @@ const cues = (context: RepresentationContext) => buildCues(
     ...(context.takeTranscripts ? { takes: context.takeTranscripts } : {}),
   },
 );
+
+const bundle = (context: RepresentationContext) => buildBundle({
+  conversation: context.conversation,
+  sourceTranscript: context.sourceTranscript ?? null,
+  generatedAt: context.generatedAt,
+  attribution: buildAttribution(context.conversation, context.generatedAt).text,
+});
 
 export const REPRESENTATIONS: Representation[] = [
   {
@@ -143,6 +151,39 @@ export const REPRESENTATIONS: Representation[] = [
     // being normalised has no mezzanine (INV-04). Neither is an error here.
     available: (c) =>
       c.conversation.source.class === 'A' && Boolean(c.conversation.source.mezzanineAssetId),
+  },
+  {
+    id: 'bundle.json',
+    label: 'Publication bundle',
+    mediaType: 'application/json',
+    inputs: ['source', 'interventions', 'anchors', 'takes', 'transcripts', 'lineage'],
+    generate: (c) => JSON.stringify(bundle(c), null, 2),
+    // A Class B conversation publishes too, and its author needs a
+    // description and an attribution block as much as anyone. [U-01, INV-07]
+    available: () => true,
+  },
+  {
+    id: 'description.txt',
+    label: 'Video description',
+    mediaType: 'text/plain; charset=utf-8',
+    inputs: ['source', 'interventions', 'anchors', 'takes', 'transcripts', 'lineage'],
+    generate: (c) => bundle(c).description,
+    available: () => true,
+  },
+  {
+    id: 'chapters.txt',
+    label: 'Chapter markers',
+    mediaType: 'text/plain; charset=utf-8',
+    inputs: ['source', 'interventions', 'anchors', 'takes', 'transcripts'],
+    // Exactly the lines a platform accepts, and nothing else: the author
+    // pastes this whole file without editing it.
+    generate: (c) => {
+      const b = bundle(c);
+      return b.chapters.map((ch) => `${ch.timecode.slice(0, 8)} ${ch.title}`).join('\n');
+    },
+    // An ignored chapter list is worse than none, so this one is honestly
+    // unavailable when the conversation cannot make a list platforms accept.
+    available: (c) => bundle(c).chapters.length > 0,
   },
 ];
 

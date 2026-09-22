@@ -54,6 +54,10 @@ export const paths = {
    *  without importing anything that can run ffmpeg. */
   takeMezzanine: (id: string, assetId: string) =>
     join(paths.assets(id), `${safe(`${assetId}mezz`)}.mp4`),
+  /** Rendered thumbnail candidates. [U-30] */
+  thumbnails: (id: string) => join(paths.conversation(id), 'thumbnails'),
+  thumbnail: (id: string, candidateId: string) =>
+    join(paths.thumbnails(id), `${safe(candidateId)}.png`),
   queue: () => join(VAR_ROOT, 'queue'),
   queueState: (state: QueueState) => join(VAR_ROOT, 'queue', state),
 };

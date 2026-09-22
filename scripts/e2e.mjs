@@ -11,11 +11,14 @@ import { chromium } from 'playwright';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { execFileSync } from 'node:child_process';
 import ffprobe from 'ffprobe-static';
+import ffmpegStatic from 'ffmpeg-static';
+import { writeFile } from 'node:fs/promises';
+import { decodeIndex } from '../test/render/synthetic.ts';
 
 const BASE = process.env.BASE ?? 'http://localhost:3000';
 const SOURCE = process.argv[2];
 const CHROME = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
-if (!SOURCE) { console.error('usage: node scripts/e2e.mjs <source.mp4>'); process.exit(1); }
+if (!SOURCE) { console.error('usage: npx tsx scripts/e2e.mjs <source.mp4>'); process.exit(1); }
 
 const log = (...a) => console.log('·', ...a);
 
@@ -411,6 +414,96 @@ if (job?.state === 'done') {
     anchors: ANCHORS,
   }, null, 2));
 }
+
+// --- the publication bundle (U-30) ------------------------------------------
+log('checking the publication bundle…');
+const { bundle, renderedThumbnails } = await api(`/api/conversations/${conversationId}/bundle`);
+check(bundle.description.includes('Source:'),
+  'the description carries the generated attribution block (INV-07, U-21)');
+check(bundle.suggestedTitles.length > 0, 'the bundle suggests titles from the author\'s claims');
+const boundQuote = quoted[0]?.anchor.quote ?? '';
+check(boundQuote.length > 0 && bundle.suggestedTitles.some((t) => t.includes(boundQuote)),
+  'a suggested title quotes a claim the author actually bound',
+  JSON.stringify(bundle.suggestedTitles));
+check(bundle.chapters.length === 0 || bundle.chapters[0].startFrame === 0,
+  'a chapter list that exists starts at 00:00, as platforms require');
+if (bundle.chapters.length === 0) {
+  check(typeof bundle.chaptersNote === 'string' && bundle.chaptersNote.length > 0,
+    'when there are no chapters the bundle says why');
+} else {
+  const shortest = Math.min(...bundle.chapters.slice(1)
+    .map((c, i) => c.startFrame - bundle.chapters[i].startFrame));
+  check(shortest >= 10 * 30, 'no chapter is shorter than the ten seconds platforms accept',
+    `${shortest} frames`);
+}
+check(bundle.totalOutputFrames === job?.result?.totalOutputFrames,
+  'the bundle describes the video that was actually rendered',
+  `${bundle.totalOutputFrames} vs ${job?.result?.totalOutputFrames}`);
+
+// The export queues them; nobody has to ask.
+let afterThumbs = null;
+for (let i = 0; i < 120; i++) {
+  afterThumbs = await api(`/api/conversations/${conversationId}/bundle`);
+  const job = afterThumbs.thumbnailJob;
+  if (job && (job.state === 'done' || job.state === 'failed')) break;
+  await sleep(1000);
+}
+check(afterThumbs?.thumbnailJob?.state === 'done',
+  'the export renders thumbnail candidates unasked (U-30)',
+  afterThumbs?.thumbnailJob?.error ?? afterThumbs?.thumbnailJob?.state ?? 'no job');
+check(!afterThumbs?.thumbnailJob?.failed, 'every thumbnail candidate rendered',
+  JSON.stringify(afterThumbs?.thumbnailJob?.failed ?? []));
+check(afterThumbs.renderedThumbnails.length === bundle.thumbnails.length,
+  'every candidate the bundle names exists as an image',
+  `${afterThumbs.renderedThumbnails.length}/${bundle.thumbnails.length}`);
+const kinds = new Set(bundle.thumbnails
+  .filter((t) => afterThumbs.renderedThumbnails.includes(t.id)).map((t) => t.kind));
+check(kinds.has('frame'), 'a thumbnail of the moment stopped at was rendered');
+check(kinds.has('take'), 'a thumbnail of the author answering was rendered');
+check(kinds.has('quote'), 'the claim was rendered as a quote card');
+for (const kind of ['frame', 'take', 'quote']) {
+  const candidate = bundle.thumbnails.find((t) => t.kind === kind
+    && afterThumbs.renderedThumbnails.includes(t.id));
+  if (!candidate) continue;
+  const png = await fetch(
+    `${BASE}/api/conversations/${conversationId}/bundle?thumbnail=${candidate.id}`);
+  const bytes = Buffer.from(await png.arrayBuffer());
+  check(png.ok && bytes.length > 5000 && bytes.subarray(1, 4).toString() === 'PNG',
+    `the ${kind} thumbnail serves as a real image`, `${bytes.length} bytes`);
+}
+check((await fetch(
+  `${BASE}/api/conversations/${conversationId}/bundle?thumbnail=../../etc/passwd`)).status === 400,
+  'a thumbnail id cannot escape the conversation (D-06)');
+
+// The fixture's frames carry their own index as a colour, so the thumbnail of
+// "the moment you stopped at" can be checked against the frame you stopped at.
+// A thumbnail one frame off is a promise about a moment nobody chose. [INV-02]
+for (const intervention of snapAfter.conversation.interventions) {
+  const id = `frame_${intervention.id}`;
+  if (!afterThumbs.renderedThumbnails.includes(id)) continue;
+  const png = Buffer.from(await (await fetch(
+    `${BASE}/api/conversations/${conversationId}/bundle?thumbnail=${id}`)).arrayBuffer());
+  const pngPath = `/tmp/bv-thumb-${id}.png`;
+  await writeFile(pngPath, png);
+  const raw = execFileSync(ffmpegStatic, ['-v', 'error', '-i', pngPath,
+    '-vf', 'crop=2:2:960:540,scale=1:1', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-']);
+  const decoded = decodeIndex(raw[0], raw[1], raw[2]);
+  check(decoded === intervention.anchor.tSourceFrame,
+    'the thumbnail is the exact frame the author stopped at (U-30, INV-02)',
+    `asked ${intervention.anchor.tSourceFrame}, got ${decoded}`);
+}
+
+// The panel the author actually uses.
+await page.reload();
+await page.waitForSelector('[data-testid="bundle-panel"]', { timeout: 20000 })
+  .then(() => check(true, 'the studio shows the publication bundle'))
+  .catch(() => check(false, 'the studio shows the publication bundle', 'panel never appeared'));
+const shownDescription = await page.inputValue('[data-testid="bundle-description"]')
+  .catch(() => '');
+check(shownDescription === bundle.description,
+  'the panel shows the same description the bundle generated');
+check(await page.locator('[data-testid="bundle-thumbnails"] img').count() > 0,
+  'the panel shows rendered thumbnails, not placeholders');
 
 // --- the article (U-14) -----------------------------------------------------
 log('checking the article…');

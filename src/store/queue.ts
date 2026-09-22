@@ -28,7 +28,8 @@ export type JobKind =
   | 'archive_evidence'
   | 'render'
   | 'render_clip'
-  | 'render_reel';
+  | 'render_reel'
+  | 'render_thumbnails';
 
 export interface Job {
   id: string;

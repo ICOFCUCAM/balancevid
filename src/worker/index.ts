@@ -14,11 +14,12 @@
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { AssetId, Take } from '../domain/document.js';
-import { buildRenderPlan, type RenderPlan } from '../domain/plan.js';
+import { buildAttribution, buildRenderPlan, type RenderPlan } from '../domain/plan.js';
 import { buildClipPlan, buildClipTimeline } from '../domain/clips.js';
 import { buildReelPlan, buildReelTimeline } from '../domain/reel.js';
 import { compose } from '../render/compose.js';
 import { ingest, makeProxy } from '../render/ingest.js';
+import { renderThumbnail } from '../render/thumbnails.js';
 import { ensureDirs, paths } from '../store/paths.js';
 import { claim, finish, update, type Job } from '../store/queue.js';
 import { audit, loadConversation, mutateConversation } from '../store/repository.js';
@@ -31,6 +32,8 @@ import {
 import { buildCues } from '../render/cues.js';
 import { archiveUpload, archiveWeb, type ArchiveResult } from '../evidence/archive.js';
 import { projectTimeline } from '../domain/timeline.js';
+import { buildBundle } from '../publish/bundle.js';
+import { EXPORT_PROFILES } from '../domain/presentation.js';
 
 const POLL_MS = 400;
 
@@ -44,6 +47,7 @@ export async function runJob(job: Job): Promise<Job> {
     case 'render': return render(job);
     case 'render_clip': return renderClip(job);
     case 'render_reel': return renderReel(job);
+    case 'render_thumbnails': return renderThumbnails(job);
   }
 }
 
@@ -342,6 +346,15 @@ async function render(job: Job): Promise<Job> {
     },
   });
 
+  // "The user finishes the render and has everything required to publish,
+  // already written." Thumbnails are the one part of the bundle that needs a
+  // decoder, so the export queues them rather than making the author ask. [U-30]
+  await enqueue({
+    kind: 'render_thumbnails',
+    conversationId: conversation.id,
+    payload: { exportProfileId },
+  });
+
   return finish(job, 'done', {
     progress: 100,
     result: {
@@ -456,6 +469,75 @@ async function renderReel(job: Job): Promise<Job> {
       totalOutputFrames: result.totalOutputFrames,
       responses: plan.shots.length,
     },
+  });
+}
+
+/**
+ * Thumbnail candidates, rendered.  [Doctrine U-30]
+ *
+ * One failed candidate does not fail the set: an author with five usable
+ * thumbnails and one missing is in a better position than an author with a
+ * failed job and none.
+ */
+async function renderThumbnails(job: Job): Promise<Job> {
+  const conversation = await loadConversation(job.conversationId);
+  const profile = EXPORT_PROFILES[String(job.payload['exportProfileId'] ?? 'youtube_16x9')]
+    ?? EXPORT_PROFILES['youtube_16x9']!;
+  const sourceTranscript = await loadTranscript(conversation.id);
+  const attribution = buildAttribution(conversation, conversation.createdAt).text;
+
+  const bundle = buildBundle({
+    conversation,
+    sourceTranscript: sourceTranscript?.transcript ?? null,
+    generatedAt: new Date().toISOString(),
+    attribution,
+  });
+
+  const outDir = paths.thumbnails(conversation.id);
+  await mkdir(outDir, { recursive: true });
+  const resolve = assetResolver(conversation);
+  const rendered: string[] = [];
+  const failed: string[] = [];
+  let done = 0;
+
+  for (const candidate of bundle.thumbnails) {
+    const outPath = paths.thumbnail(conversation.id, candidate.id);
+    try {
+      let mediaPath: string | undefined;
+      if (candidate.kind === 'frame') {
+        if (!conversation.source.mezzanineAssetId) throw new Error('source not yet normalised');
+        mediaPath = resolve(conversation.source.mezzanineAssetId);
+      } else if (candidate.kind === 'take') {
+        const take = conversation.interventions
+          .flatMap((i) => i.takes).find((t) => t.id === candidate.takeId);
+        if (!take) throw new Error('take no longer in the document');
+        mediaPath = takeMezzaninePath(conversation.id, take.assetId);
+      }
+      await renderThumbnail({
+        candidate,
+        profile,
+        ...(mediaPath ? { mediaPath } : {}),
+        outPath,
+        scratchDir: outDir,
+        attribution,
+      });
+      rendered.push(candidate.id);
+    } catch (error) {
+      failed.push(`${candidate.id}: ${(error as Error).message}`);
+    }
+    done += 1;
+    job.progress = Math.round((done / bundle.thumbnails.length) * 100);
+    await update(job);
+  }
+
+  await audit(conversation.id, {
+    action: 'thumbnails.rendered',
+    detail: { rendered: rendered.length, failed: failed.length, profile: profile.id },
+  });
+
+  return finish(job, 'done', {
+    progress: 100,
+    result: { rendered, ...(failed.length > 0 ? { failed } : {}) },
   });
 }
 

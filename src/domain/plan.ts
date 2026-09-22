@@ -385,7 +385,15 @@ function clampOffset(offset: Frames, kept: Frames): Frames {
   return Math.min(Math.max(offset, 0), kept);
 }
 
-function buildAttribution(conversation: Conversation, accessedAt?: string): AttributionBlock {
+/**
+ * Exported because a render plan is not the only export that must carry
+ * attribution. A Class B conversation never reaches buildRenderPlan (INV-01)
+ * and still publishes — as a manifest, an article, a description — and INV-07
+ * does not soften for it.
+ */
+export function buildAttribution(
+  conversation: Conversation, accessedAt?: string,
+): AttributionBlock {
   const { title, creator, url } = conversation.source;
   const when = accessedAt ?? conversation.createdAt;
 

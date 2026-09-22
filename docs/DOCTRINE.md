@@ -3368,6 +3368,26 @@ recently spoken words, and the ones the user cared about most. Found only by
 driving the real browser. **An end-to-end test is not a slower unit test; it is
 the only thing that sees the races.**
 
+**`-ss` does not land on a frame; it lands after one.** The thumbnail grab
+seeked to the middle of frame N — the obvious reading of "grab frame N" — and
+ffmpeg dutifully returned frame N+1, because a seek yields the first frame at
+or *after* its target. Every test passed: each one asserted that a PNG existed
+and was large enough to be an image. The bug was visible only by decoding the
+pixel and reading back the index the fixture had encoded into it.
+
+Two things follow. First, **INV-02 is not only about cuts.** A thumbnail is a
+promise about which moment the author chose, and one frame off is a promise
+about a moment nobody chose — smaller in consequence than a mis-timed resume,
+identical in kind. Every frame this product selects on the user's behalf is
+governed by frame-exactness, not only the ones that end up in the timeline.
+
+Second, **"the file exists" is not an assertion.** It is the shape a test takes
+when nobody has decided what the output should contain. Four of the defects in
+this appendix were caught by looking at rendered output rather than by the
+tests that covered the same code. Where a fixture can carry its own ground
+truth — an index encoded as a colour, a counter burned into the picture — the
+test reads it back, or it is not testing the thing it claims to test.
+
 ---
 
 *End of doctrine. Amend by extension only (see "Amendment rule").*

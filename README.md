@@ -75,7 +75,7 @@ rendering are all queued to the worker, so one long export cannot make the
 application unusable for everyone else.
 
 ```bash
-npm test           # 32 tests, including a real render through real ffmpeg
+npm test           # 206 tests, including real renders through real ffmpeg
 npm run typecheck
 ```
 
@@ -83,7 +83,7 @@ npm run typecheck
 
 ```bash
 npx tsx scripts/make-fixture.ts /tmp/bv          # a source whose frames carry their index
-node scripts/e2e.mjs /tmp/bv/source.mp4          # drives the product with only the spacebar
+npx tsx scripts/e2e.mjs /tmp/bv/source.mp4       # 114 checks, driven with the spacebar
 ```
 
 Chrome's fake media device stands in for a camera, so this exercises the actual
@@ -121,6 +121,7 @@ assembly, render — not a mock of it.
 | Annotations | vector, timed, drawn at render resolution; blur as a privacy tool |
 | Evidence | archived on attach, located, timed, zoomed to in the render |
 | Article | every conversation also renders as a citable document (U-14) |
+| Publication bundle | description, chapters, titles and thumbnails, written from the document (U-30) |
 | Representations | one registry, regenerated on demand, never stored (D-16) |
 | Worker | durable queue, real progress, resumable via the shot cache |
 
@@ -138,9 +139,28 @@ GET /api/conversations/<id>/representations?id=…      article.md · article.js
                                                       article.html · captions.srt
                                                       captions.vtt · manifest.json
                                                       timeline.json · render-plan.json
+                                                      bundle.json · description.txt
+                                                      chapters.txt
 GET /c/<id>/article                                   the article, as a page
 GET /c/<id>/watch                                     the companion player
+GET /api/conversations/<id>/bundle                    everything needed to publish
+GET /api/conversations/<id>/bundle?thumbnail=…        one rendered candidate
 ```
+
+### Nothing to retype at the end
+
+The export queues its own thumbnail candidates and the bundle is written from
+the document: the chapters are the author's own cuts on the output clock, the
+suggested titles are claims they bound, the description carries the generated
+attribution block (INV-07). Nothing is invented — a thumbnail may only promise
+what the video contains, so a frame candidate is an unretouched frame of the
+video, grabbed on **exactly** the frame the author stopped at, and a quote card
+sets a sentence that was actually said.
+
+Chapters shorter than ten seconds are merged rather than emitted: platforms
+silently ignore a list that breaks their rules, and a list that is ignored is
+worse than none. Where no acceptable list can be made, the bundle says so in
+words instead of handing over something that will not work.
 
 ### Verified, not asserted
 
