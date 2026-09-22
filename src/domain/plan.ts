@@ -112,6 +112,14 @@ export interface RenderPlan {
   attribution: AttributionBlock;
   /** INV-07: every export carries captions. Not a user preference. [U-19] */
   captions: { burnIn: boolean; sidecars: ReadonlyArray<'srt' | 'vtt'> };
+  /**
+   * A claim shown as typography over the opening seconds.
+   *
+   * A vertical clip has to work with the sound off, which is how these formats
+   * are actually consumed, so it opens on the statement being answered rather
+   * than on someone mid-sentence. [U-22 §2]
+   */
+  openingClaim?: { text: string; seconds: number };
   audio: AudioMaster;
 }
 
@@ -120,9 +128,27 @@ export interface PlanOptions {
   exportProfileId?: string;
   burnInCaptions?: boolean;
   accessedAt?: string;
+  /** Overrides, used by vertical clips where the canvas is a different shape. */
+  sourceLayoutId?: string;
+  responseLayoutId?: string;
+  openingClaim?: { text: string; seconds: number };
 }
 
 export function buildRenderPlan(conversation: Conversation, options: PlanOptions = {}): RenderPlan {
+  return planFromTimeline(conversation, projectTimeline(conversation), options);
+}
+
+/**
+ * Build a plan from any timeline.
+ *
+ * The whole conversation is one timeline; a single claim-and-response clip is
+ * another (U-22). Both produce the same kind of plan and are rendered by the
+ * same compositor, which is why a clip needs no second renderer to drift from
+ * the first.
+ */
+export function planFromTimeline(
+  conversation: Conversation, timeline: Timeline, options: PlanOptions = {},
+): RenderPlan {
   const mode: RenderMode = options.mode ?? 'composed';
   const profileId = options.exportProfileId ?? 'youtube_16x9';
   const exportProfile = EXPORT_PROFILES[profileId];
@@ -144,7 +170,6 @@ export function buildRenderPlan(conversation: Conversation, options: PlanOptions
       'composed render requires a normalised mezzanine asset — renders never read originals [U-02]');
   }
 
-  const timeline = projectTimeline(conversation);
   const byId = new Map(orderedInterventions(conversation).map((i) => [i.id, i]));
   const shots: Shot[] = [];
 
@@ -158,7 +183,7 @@ export function buildRenderPlan(conversation: Conversation, options: PlanOptions
         sourceOutFrame: item.sourceOutFrame,
         outputStartFrame: item.outputStartFrame,
         durationFrames: item.durationFrames,
-        layoutId: 'full_source',
+        layoutId: options.sourceLayoutId ?? 'full_source',
       };
       shots.push({ ...shot, hash: hashShot(shot, exportProfile) });
       continue;
@@ -173,7 +198,10 @@ export function buildRenderPlan(conversation: Conversation, options: PlanOptions
       ivn.evidence ?? [], item.mediaInFrame, item.mediaOutFrame, item.padHeadFrames);
     // Evidence changes the composition: a document needs a panel, not a corner
     // of a frozen frame. An explicit override still wins. [U-11, U-33]
-    const layout = layoutForType(ivn.type, ivn.layoutId ?? (cues.length > 0 ? 'evidence_split' : undefined));
+    const layout = layoutForType(
+      ivn.type,
+      options.responseLayoutId ?? ivn.layoutId ?? (cues.length > 0 ? 'evidence_split' : undefined),
+    );
 
     const shot: Omit<ResponseShot, 'hash'> = {
       id: `shot_res_${ivn.id}_${take.id}`,
@@ -212,6 +240,7 @@ export function buildRenderPlan(conversation: Conversation, options: PlanOptions
     sourceRatio: sourceRatio(timeline),
     attribution,
     captions: { burnIn: options.burnInCaptions ?? true, sidecars: ['srt', 'vtt'] },
+    ...(options.openingClaim ? { openingClaim: options.openingClaim } : {}),
     audio: {
       loudnessLufs: exportProfile.loudnessLufs,
       truePeakDb: exportProfile.truePeakDb,

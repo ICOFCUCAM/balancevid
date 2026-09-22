@@ -113,8 +113,30 @@ export const LAYOUTS: Record<string, Layout> = {
     id: 'vertical_stack', label: 'Stacked (vertical)',
     backdrop: 'blur',
     layers: [
-      { source: 'source', rect: { x: 0, y: 0.06, w: 1, h: 0.36 }, fit: 'cover', z: 0, duckDb: -18 },
-      { source: 'user', rect: { x: 0, y: 0.44, w: 1, h: 0.36 }, fit: 'cover', z: 1 },
+      { source: 'source', rect: { x: 0, y: 0.08, w: 1, h: 0.30 }, fit: 'contain', z: 0, duckDb: -18 },
+      { source: 'user', rect: { x: 0, y: 0.40, w: 1, h: 0.34 }, fit: 'cover', z: 1 },
+    ],
+  },
+  /**
+   * The source alone on a tall canvas.  [Doctrine U-22 §3]
+   *
+   * Contained rather than cropped: a 16:9 frame cropped to 9:16 loses most of
+   * what is in it, and the lower third of a vertical clip belongs to the
+   * captions anyway.
+   */
+  vertical_source: {
+    id: 'vertical_source', label: 'Source (vertical)',
+    backdrop: 'blur',
+    layers: [
+      { source: 'source', rect: { x: 0, y: 0.20, w: 1, h: 0.36 }, fit: 'contain', z: 0 },
+    ],
+  },
+  /** The response alone on a tall canvas: a face reads best large. */
+  vertical_user: {
+    id: 'vertical_user', label: 'You (vertical)',
+    backdrop: 'black',
+    layers: [
+      { source: 'user', rect: { x: 0, y: 0.12, w: 1, h: 0.56 }, fit: 'cover', z: 0 },
     ],
   },
 };

@@ -17,6 +17,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import type { AssetId } from '../../src/domain/document.js';
 import { buildRenderPlan } from '../../src/domain/plan.js';
+import { buildClipPlan } from '../../src/domain/clips.js';
 import { projectTimeline } from '../../src/domain/timeline.js';
 import { assertTimelineInvariants } from '../../src/domain/invariants.js';
 import { HOUSE_FPS } from '../../src/domain/time.js';
@@ -235,6 +236,42 @@ describe('evidence (U-33)', () => {
       { evidence?: unknown[] };
     expect(shot.evidence).toBeUndefined();
   });
+});
+
+describe('vertical clips (U-22)', () => {
+  it('renders one pair as a self-contained vertical clip', async () => {
+    const conversation = makeConversation(
+      SOURCE_FRAMES,
+      ANCHORS.map((frame) => makeIntervention(frame, RESPONSE_FRAMES, {
+        type: 'critique', quote: 'The policy was clearly successful.',
+      })),
+    );
+    conversation.source.mezzanineAssetId = 'asset_source' as AssetId;
+    for (const ivn of conversation.interventions) {
+      for (const take of ivn.takes) take.assetId = 'asset_response' as AssetId;
+    }
+
+    const plan = buildClipPlan(conversation, conversation.interventions[1]!.id);
+    expect(plan.exportProfile.height).toBe(1920);
+    expect(plan.shots).toHaveLength(2);
+    expect(plan.openingClaim?.text).toBe('The policy was clearly successful.');
+
+    const workDir = join(dir, 'work', 'clip');
+    await mkdir(workDir, { recursive: true });
+    const outputPath = join(workDir, 'CLIP.mp4');
+    const result = await compose(plan, {
+      workDir, outputPath,
+      resolveAsset: (id) => (id === 'asset_source' ? sourceMezz : responseMezz),
+    });
+
+    const info = await probe(outputPath);
+    expect(result.totalOutputFrames).toBe(plan.totalOutputFrames);
+    expect(info.durationFrames).toBe(plan.totalOutputFrames);
+    expect(info.width).toBe(1080);
+    expect(info.height).toBe(1920);
+    // Short enough for the formats it is made for.
+    expect(info.durationSeconds).toBeLessThan(90);
+  }, 300_000);
 });
 
 describe('the shot cache (U-16)', () => {

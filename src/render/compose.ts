@@ -166,21 +166,68 @@ async function renderSourceShot(
   shot: SourceShot, plan: RenderPlan, outPath: string,
   resolveAsset: (id: AssetId) => string, gains: Map<AssetId, number>, opts: RunOptions,
 ): Promise<void> {
-  const { fps } = plan.exportProfile;
+  const { width, height, fps } = plan.exportProfile;
   const input = resolveAsset(shot.assetId);
   const n = shot.durationFrames;
+  const layout = LAYOUTS[shot.layoutId] ?? LAYOUTS['full_source']!;
+  const sourceLayer = layout.layers.find((l) => l.source === 'source');
+  const fillsCanvas = !sourceLayer
+    || (sourceLayer.fit === 'cover' && sourceLayer.rect.x === 0 && sourceLayer.rect.y === 0
+        && sourceLayer.rect.w === 1 && sourceLayer.rect.h === 1);
 
-  await ffmpeg([
-    // Accurate seek: decode from the preceding keyframe and discard, so the
-    // first frame out is exactly the frame asked for. [U-07 §2]
+  // Accurate seek: decode from the preceding keyframe and discard, so the
+  // first frame out is exactly the frame asked for. [U-07 §2]
+  const seek = [
     '-accurate_seek', '-ss', frameSeconds(shot.sourceInFrame, fps),
     '-i', input,
-    '-vf', `${fitFilter('cover', plan.exportProfile.width, plan.exportProfile.height)},fps=${fps}`,
+  ];
+  const tail = [
     '-af', audioFilter(gains.get(shot.assetId) ?? 0, n, fps),
     // -frames:v is what makes the shot exactly N frames long, which is what
     // makes Σ(shots) == the planned duration (INV-03).
     '-frames:v', String(n),
     ...encodeArgs(),
+  ];
+
+  if (fillsCanvas && layout.backdrop !== 'blur') {
+    await ffmpeg([
+      ...seek,
+      '-vf', `${fitFilter('cover', width, height)},fps=${fps}`,
+      ...tail,
+      outPath,
+    ], opts);
+    return;
+  }
+
+  // A source panel on a canvas it does not fill -- a 16:9 frame on a 9:16
+  // clip (U-22 §3). Contained rather than cropped, over a blurred ground,
+  // because cropping 16:9 to 9:16 throws away most of what is in the frame.
+  const panel = pixelRect(sourceLayer?.rect ?? FULL_RECT, width, height);
+  const blurRadius = Math.max(2, Math.round(Math.min(width, height) / 18));
+  const chains: string[] = [
+    layout.backdrop === 'blur'
+      ? `[0:v]split=2[bg_src][panel_src]`
+      : `[0:v]null[panel_src]`,
+  ];
+  if (layout.backdrop === 'blur') {
+    chains.push(
+      `[bg_src]scale=${width}:${height}:force_original_aspect_ratio=increase,` +
+      `crop=${width}:${height},boxblur=luma_radius=${blurRadius}:luma_power=1,` +
+      `eq=brightness=-0.16:saturation=0.7,setsar=1,fps=${fps}[bg0]`,
+    );
+  } else {
+    chains.push(`color=c=black:s=${width}x${height}:r=${fps}:d=${frameSeconds(n, fps)}[bg0]`);
+  }
+  chains.push(
+    `[panel_src]${fitFilter(sourceLayer?.fit ?? 'contain', panel.w, panel.h)},fps=${fps}[panel]`,
+    `[bg0][panel]overlay=x=${panel.x}:y=${panel.y}:eof_action=pass[vout]`,
+  );
+
+  await ffmpeg([
+    ...seek,
+    '-filter_complex', chains.join(';'),
+    '-map', '[vout]', '-map', '0:a',
+    ...tail,
     outPath,
   ], opts);
 }

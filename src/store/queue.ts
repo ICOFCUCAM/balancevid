@@ -26,7 +26,8 @@ export type JobKind =
   | 'assemble_take'
   | 'transcribe_take'
   | 'archive_evidence'
-  | 'render';
+  | 'render'
+  | 'render_clip';
 
 export interface Job {
   id: string;

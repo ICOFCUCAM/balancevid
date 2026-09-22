@@ -9,6 +9,8 @@
  */
 import { chromium } from 'playwright';
 import { setTimeout as sleep } from 'node:timers/promises';
+import { execFileSync } from 'node:child_process';
+import ffprobe from 'ffprobe-static';
 
 const BASE = process.env.BASE ?? 'http://localhost:3000';
 const SOURCE = process.argv[2];
@@ -243,6 +245,50 @@ check(evidence.locator.region.w === 0.58 && evidence.locator.quote === 'unemploy
 
 const planPreview = (await api(`/api/conversations/${conversationId}`)).plan;
 check(planPreview !== null, 'the plan still builds with evidence attached');
+
+// --- vertical clips (U-22) --------------------------------------------------
+log('clips…');
+const clipList = await api(`/api/conversations/${conversationId}/clips`);
+check(clipList.candidates.length > 0, 'the product proposes clip candidates (U-22 §4)',
+  `${clipList.candidates.length} candidates`);
+check(clipList.candidates.every((c) => c.reasons.length > 0),
+  'each candidate says why it was ranked where it is');
+check(clipList.candidates[0].score >= clipList.candidates.at(-1).score,
+  'candidates come back ranked');
+
+const clipTarget = clipList.candidates.find((c) => c.interventionId === beforeTrim.id)
+  ?? clipList.candidates[0];
+const clipStart = await fetch(`${BASE}/api/conversations/${conversationId}/clips`, {
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ interventionId: clipTarget.interventionId }),
+});
+check(clipStart.status === 202, 'a clip can be requested for one pair');
+
+let clipJob = null;
+for (let i = 0; i < 240; i++) {
+  await sleep(1000);
+  const { jobs } = await api(`/api/conversations/${conversationId}/clips`);
+  clipJob = jobs.find((j) => j.payload?.interventionId === clipTarget.interventionId);
+  if (clipJob && (clipJob.state === 'done' || clipJob.state === 'failed')) break;
+}
+check(clipJob?.state === 'done', 'the clip renders', clipJob?.error ?? clipJob?.state ?? 'no job');
+
+if (clipJob?.state === 'done') {
+  const clipUrl =
+    `${BASE}/api/conversations/${conversationId}/renders/${clipJob.result.planHash}/file`;
+  const head = await fetch(clipUrl, { headers: { range: 'bytes=0-1023' } });
+  check(head.status === 206, 'the clip is served and seekable');
+
+  const dims = execFileSync(ffprobe.path, [
+    '-v', 'error', '-select_streams', 'v:0',
+    '-show_entries', 'stream=width,height', '-of', 'csv=p=0',
+    clipJob.result.outputPath,
+  ]).toString().trim();
+  check(dims === '1080,1920', 'the clip is vertical (U-22)', dims);
+  check(clipJob.result.seconds < 90, 'the clip is short enough for the format',
+    `${clipJob.result.seconds}s`);
+}
 
 // Deleting a point leaves the rest exact. (Use the SECOND point, so the one
 // carrying evidence survives into the render and the article.)

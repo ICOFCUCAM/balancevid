@@ -3280,6 +3280,15 @@ fail and wrong in how it looked: it now pins the layout it depends on and says
 why, and the composite path has its own test. **When a correct change breaks a
 test, the test was asserting something it was never supposed to be asserting.**
 
+**A layout that reflows must reflow its typography too.** Captions were sized
+from the canvas height, which is correct on a 16:9 export and doubles the type
+on a 9:16 one — on a canvas half as wide. The subtitle renderer also had word
+wrapping switched off, so instead of breaking, a caption simply ran off the
+side of the picture. Both were invisible until a vertical clip was actually
+looked at. Type is sized from the **narrower** dimension, because legibility is
+about how much of the frame's width a line occupies. **U-18 says layouts are
+data; the type is part of the layout.**
+
 **An unconsumed filter output fails the whole graph.** ffmpeg does not warn
 that a `split` output nobody reads is unused — it refuses the entire
 filtergraph with "Error binding filtergraph inputs/outputs", pointing at

@@ -67,9 +67,18 @@ export interface AssOptions {
 
 export function buildAss(plan: RenderPlan, options: AssOptions = {}): string {
   const { width, height, fps } = plan.exportProfile;
-  const captionSize = Math.round(height * CAPTION_FONT_FRACTION);
-  const lowerSize = Math.round(height * 0.032);
-  const attrSize = Math.round(height * 0.026);
+  /**
+   * Type is sized from the NARROWER dimension, not the height.
+   *
+   * Legibility is about how much of the frame's width a line occupies. Sizing
+   * from height gives a 9:16 clip type twice as large as the same caption on a
+   * 16:9 export, on a canvas half as wide — which is how a caption ends up
+   * wider than the picture. [U-19 §2]
+   */
+  const base = Math.min(width, height);
+  const captionSize = Math.round(base * CAPTION_FONT_FRACTION);
+  const lowerSize = Math.round(base * 0.032);
+  const attrSize = Math.round(base * 0.026);
   const margin = Math.round(height * 0.06);
 
   const lines: string[] = [
@@ -77,7 +86,9 @@ export function buildAss(plan: RenderPlan, options: AssOptions = {}): string {
     'ScriptType: v4.00+',
     `PlayResX: ${width}`,
     `PlayResY: ${height}`,
-    'WrapStyle: 2',
+    // 0 is smart wrapping. 2 means "only break where I put \\N", which on a
+    // narrow canvas means a long caption simply runs off the side.
+    'WrapStyle: 0',
     'ScaledBorderAndShadow: yes',
     'YCbCr Matrix: TV.709',
     '',
@@ -90,9 +101,9 @@ export function buildAss(plan: RenderPlan, options: AssOptions = {}): string {
     style('Lower', lowerSize, '#FFFFFF', '#000000', 1, Math.round(height * 0.14), 1),
     // The claim being answered, as typography. This is what makes a response
     // legible to someone who did not watch the source. [U-10 §3]
-    style('Claim', Math.round(height * 0.040), '#F2F2F2', '#000000', 0, Math.round(height * 0.07), 8),
+    style('Claim', Math.round(base * 0.040), '#F2F2F2', '#000000', 0, Math.round(height * 0.07), 8),
     // The citation on screen: what this document is, while it is being shown.
-    style('Evidence', Math.round(height * 0.026), '#E8E8E8', '#000000', 0, Math.round(height * 0.035), 1),
+    style('Evidence', Math.round(base * 0.026), '#E8E8E8', '#000000', 0, Math.round(height * 0.035), 1),
     style('Attribution', attrSize, '#E8E8E8', '#000000', 0, margin, 3),
     '',
     '[Events]',
@@ -116,9 +127,18 @@ export function buildAss(plan: RenderPlan, options: AssOptions = {}): string {
     }
   }
 
+  // The opening card: the statement the clip answers, held before anything
+  // moves, so the clip reads with the sound off. [U-22 §2]
+  if (plan.openingClaim && options.claimCards !== false) {
+    const hold = Math.max(1, Math.round(plan.openingClaim.seconds * fps));
+    lines.push(event(0, hold, 'Claim', `\u201C${escapeAss(plan.openingClaim.text)}\u201D`, fps, true));
+  }
+
   if (options.claimCards !== false) {
     for (const shot of plan.shots) {
       if (shot.kind !== 'response' || !shot.quote) continue;
+      // Already shown as the opening card; showing it again would be noise.
+      if (plan.openingClaim?.text === shot.quote) continue;
       const start = shot.outputStartFrame;
       const end = Math.min(
         start + Math.round(4 * fps), shot.outputStartFrame + shot.durationFrames);

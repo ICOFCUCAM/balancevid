@@ -13,7 +13,7 @@
  * is no second place for an edit to be applied — or forgotten.
  */
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { INTERVENTION_TYPES, type InterventionType } from '../../../src/domain/document.js';
 import { LAYOUTS, TYPE_PRESENTATION } from '../../../src/domain/presentation.js';
 import { HOUSE_FPS, formatTimecode } from '../../../src/domain/time.js';
@@ -67,6 +67,8 @@ export default function StudioMode({
       )}
 
       <TimelineBand timeline={timeline} onSeek={onSeek} />
+
+      <ClipsPanel conversationId={conversationId} />
 
       {interventions.length === 0 && (
         <div className="panel muted">
@@ -693,6 +695,131 @@ function EvidenceWindow({
       >
         Show for the whole response
       </button>
+    </div>
+  );
+}
+
+/**
+ * Vertical clips.  [Doctrine U-22, U-10 §2]
+ *
+ * "One conversation therefore yields: one long-form video, one article, and a
+ *  dozen clips. The composition step is the distribution engine."
+ *
+ * The product proposes; it never publishes. Each candidate says why it was
+ * ranked where it was, so a creator can disagree with the ranking instead of
+ * being told what is good.
+ */
+function ClipsPanel({ conversationId }: { conversationId: string }) {
+  const [candidates, setCandidates] = useState<any[]>([]);
+  const [jobs, setJobs] = useState<any[]>([]);
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    const response = await fetch(`/api/conversations/${conversationId}/clips`, { cache: 'no-store' });
+    if (!response.ok) return;
+    const data = await response.json();
+    setCandidates(data.candidates ?? []);
+    setJobs(data.jobs ?? []);
+  }, [conversationId]);
+
+  useEffect(() => { if (open) void load(); }, [open, load]);
+
+  const working = jobs.some((job) => job.state === 'pending' || job.state === 'running');
+  useEffect(() => {
+    if (!open || !working) return;
+    const timer = setInterval(() => { void load(); }, 1500);
+    return () => clearInterval(timer);
+  }, [open, working, load]);
+
+  const make = async (interventionId: string) => {
+    setBusy(interventionId);
+    try {
+      await fetch(`/api/conversations/${conversationId}/clips`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ interventionId }),
+      });
+      await load();
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const jobFor = (interventionId: string) =>
+    jobs.find((job) => job.payload?.interventionId === interventionId);
+
+  return (
+    <div className="panel" style={{ marginBottom: 12 }}>
+      <div className="row">
+        <strong className="grow">Clips</strong>
+        <span className="small muted">
+          Each point, on its own, vertical — the claim then your reply
+        </span>
+        <button className="small" onClick={() => setOpen(!open)}>
+          {open ? 'Close' : 'Show'}
+        </button>
+      </div>
+
+      {open && (
+        <div style={{ marginTop: 10 }}>
+          {candidates.length === 0 && (
+            <div className="small muted">No response is finished enough to clip yet.</div>
+          )}
+          {candidates.map((candidate) => {
+            const job = jobFor(candidate.interventionId);
+            const done = job?.state === 'done' && job.result?.planHash;
+            return (
+              <div
+                key={candidate.interventionId}
+                className="row small"
+                style={{ borderTop: '1px solid var(--line)', padding: '8px 0', gap: 10 }}
+              >
+                <span className="mono" style={{ color: 'var(--source-accent)', minWidth: 92 }}>
+                  {formatTimecode(candidate.tSourceFrame)}
+                </span>
+                <span style={{ color: 'var(--user-accent)', minWidth: 118 }}>
+                  {candidate.typeLabel}
+                </span>
+                <span className="grow" style={{ fontStyle: candidate.claim ? 'italic' : 'normal' }}>
+                  {candidate.claim ? `“${candidate.claim}”` : 'no statement captured'}
+                  <div className="muted" style={{ fontStyle: 'normal' }}>
+                    {candidate.reasons.join(' · ')}
+                  </div>
+                </span>
+                <span
+                  className="mono muted"
+                  style={{ color: candidate.tooLong ? 'var(--warn)' : undefined }}
+                  title={candidate.tooLong ? 'Longer than these formats reward' : ''}
+                >
+                  {formatTimecode(candidate.totalFrames)}
+                </span>
+                {done ? (
+                  <a
+                    className="btn small"
+                    href={`/api/conversations/${conversationId}/renders/${job.result.planHash}/file`}
+                  >
+                    Download
+                  </a>
+                ) : job && job.state !== 'failed' ? (
+                  <span className="mono muted">{job.progress ?? 0}%</span>
+                ) : (
+                  <button
+                    className="small"
+                    disabled={busy !== null}
+                    onClick={() => void make(candidate.interventionId)}
+                  >
+                    Make clip
+                  </button>
+                )}
+                {job?.state === 'failed' && (
+                  <span className="small" style={{ color: 'var(--bad)' }}>{job.error}</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

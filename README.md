@@ -112,6 +112,7 @@ assembly, render — not a mock of it.
 | Claims | selecting a statement binds it to the intervention, hash-checked |
 | Captions | both speakers, labelled, burned in and as `.srt` / `.vtt` |
 | Studio Mode | trim, audition takes, re-record, move a point, retype, delete |
+| Vertical clips | one per claim-and-response pair, ranked and proposed (U-22) |
 | Evidence | archived on attach, located, timed, zoomed to in the render |
 | Article | every conversation also renders as a citable document (U-14) |
 | Representations | one registry, regenerated on demand, never stored (D-16) |
@@ -168,7 +169,9 @@ Stated plainly, because a status table that overstates is worse than none.
   nothing to show for them. Images and web pages do.
 - **Reordering commentary** (§26) beyond moving an anchor, and dragging
   timeline boundaries (§18) — the band is read-only.
-- **Vertical clips and the publication bundle.** v2.
+- **Face-aware vertical framing** (U-22 §3) — clips reflow by layout, but the
+  crop is not face-tracked.
+- **The publication bundle** (U-30) — chapters, thumbnails, suggested titles.
 - **Pre-flight capture check** (U-26 §2) and device-change detection.
 - **A/V sync golden test** (D-10) — frame-exactness, loudness and cache are
   covered; the clap-and-flash drift test is not.

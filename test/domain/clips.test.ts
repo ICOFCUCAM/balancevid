@@ -1,0 +1,146 @@
+import { describe, expect, it } from 'vitest';
+import {
+  DEFAULT_LEAD_IN, LONG_CLIP_FRAMES, MAX_LEAD_IN,
+  buildClipPlan, buildClipTimeline, clipCandidates,
+} from '../../src/domain/clips.js';
+import { buildRenderPlan } from '../../src/domain/plan.js';
+import { RESPONSE_PAD_FRAMES, HOUSE_FPS } from '../../src/domain/time.js';
+import { segment } from '../../src/transcribe/segmentation.js';
+import { TRANSCRIPT_VERSION, type Transcript } from '../../src/transcribe/types.js';
+import { S, makeConversation, makeIntervention } from './fixtures.js';
+
+const F = (seconds: number) => Math.round(seconds * HOUSE_FPS);
+
+function transcript(spec: Array<[string, number, number]>): Transcript {
+  const words = spec.map(([text, start, end]) => ({
+    text, startFrame: F(start), endFrame: F(end), segment: 0,
+  }));
+  const { sentences, paragraphs } = segment(words);
+  return {
+    version: TRANSCRIPT_VERSION, engine: 'test', model: 'test', language: 'en',
+    characteristics: { punctuation: false, casing: 'upper', speakerLabels: false },
+    createdAt: '2026-09-22T00:00:00.000Z', assetId: 'asset_x',
+    durationFrames: F(600), words, sentences, paragraphs,
+  };
+}
+
+/**
+ * "A forty-minute conversation has no vertical form. Reframing it produces a
+ *  forty-minute vertical video nobody watches." [U-22]
+ */
+describe('the clip is the pair, not the conversation (U-22)', () => {
+  const conversation = makeConversation(S(600), [
+    makeIntervention(S(100), S(20), { type: 'critique', quote: 'The policy worked.' }),
+    makeIntervention(S(300), S(15), { type: 'explain' }),
+  ]);
+
+  it('plays the claim, then the reply, and nothing else', () => {
+    const first = conversation.interventions[0]!;
+    const timeline = buildClipTimeline(conversation, first.id);
+    expect(timeline.items.map((i) => i.kind)).toEqual(['source', 'response']);
+    const [source, response] = timeline.items as [any, any];
+    expect(source.sourceOutFrame).toBe(S(100));            // ends where the cut is
+    expect(source.sourceInFrame).toBe(S(100) - DEFAULT_LEAD_IN);
+    expect(response.outputStartFrame).toBe(source.durationFrames);
+    expect(timeline.totalOutputFrames).toBe(
+      source.durationFrames + S(20) + 2 * RESPONSE_PAD_FRAMES);
+  });
+
+  it('starts the lead-in where the sentence starts, not an arbitrary number of seconds back', () => {
+    const first = conversation.interventions[0]!;
+    // A sentence running 97s–100s, i.e. three seconds before the cut.
+    const timeline = buildClipTimeline(conversation, first.id, transcript([
+      ['THE', 97, 97.4], ['POLICY', 97.4, 98.2], ['WORKED', 98.2, 100],
+    ]));
+    const source = timeline.items[0] as any;
+    expect(source.sourceInFrame).toBe(F(97));
+  });
+
+  it('never quotes more of the source than a quotation', () => {
+    const late = makeConversation(S(3600), [makeIntervention(S(1800), S(10))]);
+    const timeline = buildClipTimeline(late, late.interventions[0]!.id, transcript([
+      // A sentence that somehow runs for two minutes.
+      ['ONE', 1680, 1799.5],
+    ]));
+    const source = timeline.items[0] as any;
+    expect(source.durationFrames).toBeLessThanOrEqual(MAX_LEAD_IN);
+  });
+
+  it('clamps the lead-in at the start of the source', () => {
+    const early = makeConversation(S(600), [makeIntervention(S(2), S(10))]);
+    const source = buildClipTimeline(early, early.interventions[0]!.id).items[0] as any;
+    expect(source.sourceInFrame).toBe(0);
+    expect(source.sourceOutFrame).toBe(S(2));
+  });
+
+  it('refuses to clip a response with nothing in it', () => {
+    const empty = makeConversation(S(600), [makeIntervention(S(100), S(10))]);
+    empty.interventions[0]!.selectedTakeId = null;
+    expect(() => buildClipTimeline(empty, empty.interventions[0]!.id))
+      .toThrow(/no usable take/);
+  });
+});
+
+describe('the clip plan', () => {
+  const conversation = makeConversation(S(600), [
+    makeIntervention(S(100), S(20), { type: 'critique', quote: 'The policy worked.' }),
+  ]);
+  const plan = buildClipPlan(conversation, conversation.interventions[0]!.id);
+
+  it('is vertical, and reflows rather than cropping (U-22 §3)', () => {
+    expect(plan.exportProfile.id).toBe('vertical_9x16');
+    expect(plan.exportProfile.width).toBe(1080);
+    expect(plan.exportProfile.height).toBe(1920);
+    expect(plan.shots.find((s) => s.kind === 'source')!.layoutId).toBe('vertical_source');
+    expect(plan.shots.find((s) => s.kind === 'response')!.layoutId).toBe('vertical_stack');
+  });
+
+  it('opens on the claim, so it reads with the sound off (U-22 §2)', () => {
+    expect(plan.openingClaim?.text).toBe('The policy worked.');
+    expect(plan.openingClaim?.seconds).toBeGreaterThan(0);
+  });
+
+  it('carries captions and attribution like any other export (INV-07)', () => {
+    expect(plan.captions.burnIn).toBe(true);
+    expect(plan.captions.sidecars).toEqual(['srt', 'vtt']);
+    expect(plan.attribution.text).toContain('The History of Europe');
+  });
+
+  it('is a different render from the long-form one', () => {
+    expect(plan.planHash).not.toBe(buildRenderPlan(conversation).planHash);
+  });
+});
+
+describe('proposing candidates, never publishing them (U-22 §4)', () => {
+  it('ranks a quoted disagreement above an aside', () => {
+    const conversation = makeConversation(S(600), [
+      makeIntervention(S(100), S(12), { type: 'critique', quote: 'The policy worked.' }),
+      makeIntervention(S(300), S(2), { type: 'agree' }),
+    ]);
+    const candidates = clipCandidates(conversation);
+    expect(candidates[0]!.type).toBe('critique');
+    expect(candidates[0]!.claimIsBound).toBe(true);
+    expect(candidates[0]!.reasons).toContain('answers a statement you quoted');
+    expect(candidates[0]!.score).toBeGreaterThan(candidates[1]!.score);
+  });
+
+  it('says why, so a creator can disagree with the ranking', () => {
+    const conversation = makeConversation(S(600), [
+      makeIntervention(S(100), S(12), { type: 'fact_check' }),
+    ]);
+    expect(clipCandidates(conversation)[0]!.reasons.length).toBeGreaterThan(0);
+  });
+
+  it('flags a clip too long for the formats it is made for', () => {
+    const conversation = makeConversation(S(3600), [makeIntervention(S(600), S(120))]);
+    const candidate = clipCandidates(conversation)[0]!;
+    expect(candidate.totalFrames).toBeGreaterThan(LONG_CLIP_FRAMES);
+    expect(candidate.tooLong).toBe(true);
+  });
+
+  it('offers nothing for a response that was never recorded', () => {
+    const conversation = makeConversation(S(600), [makeIntervention(S(100), S(10))]);
+    conversation.interventions[0]!.selectedTakeId = null;
+    expect(clipCandidates(conversation)).toHaveLength(0);
+  });
+});

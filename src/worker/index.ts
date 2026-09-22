@@ -14,7 +14,8 @@
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { AssetId, Take } from '../domain/document.js';
-import { buildRenderPlan } from '../domain/plan.js';
+import { buildRenderPlan, type RenderPlan } from '../domain/plan.js';
+import { buildClipPlan, buildClipTimeline } from '../domain/clips.js';
 import { compose } from '../render/compose.js';
 import { ingest, makeProxy } from '../render/ingest.js';
 import { ensureDirs, paths } from '../store/paths.js';
@@ -40,6 +41,7 @@ export async function runJob(job: Job): Promise<Job> {
     case 'transcribe_take': return transcribeTake(job);
     case 'archive_evidence': return archiveEvidence(job);
     case 'render': return render(job);
+    case 'render_clip': return renderClip(job);
   }
 }
 
@@ -308,9 +310,6 @@ async function render(job: Job): Promise<Job> {
   const workDir = paths.render(conversation.id, plan.planHash);
   await mkdir(workDir, { recursive: true });
   const outputPath = join(workDir, 'FINAL.mp4');
-  const sourceMezz = paths.asset(
-    conversation.id, `${conversation.source.mezzanineAssetId}mezz`, 'mp4',
-  );
 
   // Captions are assembled here, from the transcripts, and mapped onto the
   // output clock. Every export ships them (INV-07).
@@ -321,25 +320,13 @@ async function render(job: Job): Promise<Job> {
     takes: takeTranscripts,
   });
 
-  let lastReported = -1;
   const result = await compose(plan, {
     workDir,
     outputPath,
     cues,
-    resolveAsset: (assetId: AssetId) =>
-      assetId === conversation.source.mezzanineAssetId
-        ? sourceMezz
-        : takeMezzaninePath(conversation.id, assetId),
+    resolveAsset: assetResolver(conversation),
     resolveEvidence: (assetId: AssetId) => paths.evidenceCapture(conversation.id, assetId),
-    onProgress: (info) => {
-      const frame = Number(info['frame'] ?? NaN);
-      if (!Number.isFinite(frame) || plan.totalOutputFrames === 0) return;
-      const pct = Math.min(99, Math.round((frame / plan.totalOutputFrames) * 100));
-      if (pct !== lastReported) {
-        lastReported = pct;
-        void update({ ...job, progress: pct });
-      }
-    },
+    onProgress: progressReporter(job, plan),
   });
 
   await audit(conversation.id, {
@@ -366,6 +353,83 @@ async function render(job: Job): Promise<Job> {
       cues: cues.length,
     },
   });
+}
+
+/**
+ * Render one claim-and-response pair as a vertical clip.  [Doctrine U-22]
+ *
+ * Same planner, same compositor, different timeline. A clip is not a second
+ * rendering path -- if it were, it would drift from the first.
+ */
+async function renderClip(job: Job): Promise<Job> {
+  const conversation = await loadConversation(job.conversationId);
+  const interventionId = String(job.payload['interventionId']);
+  const sourceTranscript = await loadTranscript(job.conversationId);
+
+  const plan = buildClipPlan(conversation, interventionId, {
+    transcript: sourceTranscript?.transcript ?? null,
+    accessedAt: conversation.createdAt,
+  });
+
+  const workDir = paths.render(conversation.id, plan.planHash);
+  await mkdir(workDir, { recursive: true });
+  const outputPath = join(workDir, 'FINAL.mp4');
+
+  const timeline = buildClipTimeline(
+    conversation, interventionId, sourceTranscript?.transcript ?? null);
+  const cues = buildCues(conversation, timeline, {
+    source: sourceTranscript?.transcript ?? null,
+    takes: await loadAllTakeTranscripts(conversation.id),
+  });
+
+  const result = await compose(plan, {
+    workDir, outputPath, cues,
+    resolveAsset: assetResolver(conversation),
+    resolveEvidence: (assetId: AssetId) => paths.evidenceCapture(conversation.id, assetId),
+    onProgress: progressReporter(job, plan),
+  });
+
+  await audit(conversation.id, {
+    action: 'clip.rendered',
+    detail: {
+      interventionId, planHash: plan.planHash,
+      totalOutputFrames: plan.totalOutputFrames,
+      seconds: Number((plan.totalOutputFrames / plan.exportProfile.fps).toFixed(1)),
+    },
+  });
+
+  return finish(job, 'done', {
+    progress: 100,
+    result: {
+      interventionId,
+      planHash: plan.planHash,
+      outputPath: result.outputPath,
+      totalOutputFrames: result.totalOutputFrames,
+      seconds: Number((plan.totalOutputFrames / plan.exportProfile.fps).toFixed(1)),
+    },
+  });
+}
+
+/** One resolver, so both render paths read assets the same way. */
+function assetResolver(conversation: { id: string; source: { mezzanineAssetId?: string } }) {
+  return (assetId: AssetId): string =>
+    assetId === conversation.source.mezzanineAssetId
+      ? paths.asset(conversation.id, `${conversation.source.mezzanineAssetId}mezz`, 'mp4')
+      : takeMezzaninePath(conversation.id, assetId);
+}
+
+/** Real progress, never a spinner without a number (D-13). */
+function progressReporter(job: Job, plan: RenderPlan) {
+  let last = -1;
+  return (info: Record<string, string>): void => {
+    const frame = Number(info['frame'] ?? NaN);
+    if (!Number.isFinite(frame) || plan.totalOutputFrames === 0) return;
+    const pct = Math.min(99, Math.round((frame / plan.totalOutputFrames) * 100));
+    if (pct !== last) {
+      last = pct;
+      void update({ ...job, progress: pct });
+    }
+  };
 }
 
 async function main(): Promise<void> {
