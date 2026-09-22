@@ -47,6 +47,8 @@ export interface ManifestResponseSegment {
   claim?: string;
   /** Same-origin URL for the response media. */
   mediaUrl: string;
+  /** The same take in a widely decodable form; the player picks. [U-39] */
+  mediaUrlWebm: string;
   mediaInFrame: Frames;
   mediaOutFrame: Frames;
   durationFrames: Frames;
@@ -116,6 +118,7 @@ export function buildManifest(inputs: ManifestInputs): ConversationManifest {
       typeLabel: intervention ? TYPE_PRESENTATION[intervention.type].lowerThird : 'RESPONSE',
       ...(intervention?.anchor.quote ? { claim: intervention.anchor.quote } : {}),
       mediaUrl: `/api/conversations/${conversation.id}/takes/${item.takeId}/media`,
+      mediaUrlWebm: `/api/conversations/${conversation.id}/takes/${item.takeId}/media?kind=proxy`,
       mediaInFrame: item.mediaInFrame,
       mediaOutFrame: item.mediaOutFrame,
       durationFrames: item.durationFrames,

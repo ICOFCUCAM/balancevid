@@ -20,7 +20,7 @@ import { join } from 'node:path';
 import type { AssetId, Take, TakeId } from '../domain/document.js';
 import { newId } from '../domain/ids.js';
 import { secondsToFrames, type Frames } from '../domain/time.js';
-import { ingestSegments } from '../render/ingest.js';
+import { ingestSegments, makeProxy } from '../render/ingest.js';
 import { measureDurationSeconds } from '../render/probe.js';
 import { probe } from '../render/probe.js';
 import { paths, safe } from './paths.js';
@@ -87,6 +87,14 @@ export async function assembleTake(
   await mkdir(paths.assets(conversationId), { recursive: true });
   const mezzaninePath = paths.takeMezzanine(conversationId, assetId);
   const result = await ingestSegments(segmentPaths, mezzaninePath);
+
+  // A widely decodable copy for playback. The renderer still cuts the
+  // mezzanine; this is only ever played. [U-39]
+  try {
+    await makeProxy(mezzaninePath, paths.takeProxy(conversationId, assetId));
+  } catch {
+    // A missing proxy costs playback in some browsers, never the take.
+  }
 
   const durationFrames = result.info.durationFrames;
   const prerollFrames: Frames = Math.min(secondsToFrames(prerollSeconds), durationFrames);

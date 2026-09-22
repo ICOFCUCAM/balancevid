@@ -40,6 +40,16 @@ export const paths = {
   /** The editing proxy: what the player scrubs. Same frames as the mezzanine. */
   sourceProxy: (id: string, assetId: string) =>
     join(paths.assets(id), `${safe(`${assetId}proxy`)}.webm`),
+  /**
+   * A take's playback proxy.  [Doctrine U-39]
+   *
+   * The companion player is a published artefact, and whether a viewer's
+   * browser can decode H.264 is a licensing question we do not control. The
+   * proxy is offered alongside the mezzanine so the player picks what it can
+   * actually play.
+   */
+  takeProxy: (id: string, assetId: string) =>
+    join(paths.assets(id), `${safe(`${assetId}proxy`)}.webm`),
   /** A take's normalised media. Named here so the web tier can serve it
    *  without importing anything that can run ffmpeg. */
   takeMezzanine: (id: string, assetId: string) =>

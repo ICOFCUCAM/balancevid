@@ -381,6 +381,20 @@ await watch.waitForFunction(
   () => document.body.innerText.includes('Response —'), null, { timeout: 40_000 })
   .then(() => check(true, 'the companion player reaches the first response'))
   .catch(() => check(false, 'the companion player reaches the first response', 'timed out'));
+
+// Reaching the response is a label changing. Playing it is the product.
+const played = await watch.evaluate(async () => {
+  const video = document.querySelectorAll('video')[1];
+  if (!video) return { ok: false, why: 'no response element' };
+  const first = video.currentTime;
+  await new Promise((r) => setTimeout(r, 1500));
+  return {
+    ok: video.readyState >= 2 && video.currentTime > first,
+    why: `readyState=${video.readyState} error=${video.error?.code ?? 'none'} ` +
+         `t=${first.toFixed(2)}→${video.currentTime.toFixed(2)}`,
+  };
+});
+check(played.ok, 'the response actually plays, not just the label', played.why);
 await watch.close();
 
 // --- an embedded source (Class B) -------------------------------------------

@@ -27,6 +27,9 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
     const take = intervention.takes.find((t) => t.id === takeId);
     if (!take) continue;
     if (take.durationFrames === 0) return fail(409, 'this take is still being assembled');
+    if (new URL(request.url).searchParams.get('kind') === 'proxy') {
+      return serveFile(request, paths.takeProxy(id, take.assetId), 'video/webm');
+    }
     return serveFile(request, paths.takeMezzanine(id, take.assetId), 'video/mp4');
   }
   return fail(404, 'no such take');

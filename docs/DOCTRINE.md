@@ -3280,6 +3280,21 @@ fail and wrong in how it looked: it now pins the layout it depends on and says
 why, and the composite path has its own test. **When a correct change breaks a
 test, the test was asserting something it was never supposed to be asserting.**
 
+**An assertion about the interface is not an assertion about the behaviour.**
+The companion player's test waited for the words "Response —" to appear and
+called that passing. They appeared. The response did not play: the browser
+could not decode it, the element sat at `readyState 0`, and the state machine
+advanced past a video nobody could see. The check was measuring the label. A
+test that watches the UI must assert the thing the UI is claiming — here, that
+the element has media and its clock is moving.
+
+**A published artefact cannot assume the viewer's codecs.** That failure was
+real, not an artefact of the test environment: whether a browser can decode
+H.264 is a licensing question, and the Conversation Manifest is something other
+people open. Response media is now offered as both the mezzanine and a widely
+decodable proxy, and the player takes what it can actually play — the same
+reasoning as U-39, applied to the exported experience rather than the editor.
+
 **Build the special case for the ordinary case too, or you cannot test it.**
 The Conversation Manifest exists for Class B, where the provider's player is
 the only way the source can be shown. Built that way it would have been

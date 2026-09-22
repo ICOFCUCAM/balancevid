@@ -152,9 +152,16 @@ export default function Watch({ conversationId }: { conversationId: string }) {
     playerRef.current?.pause();
     const video = responseRef.current;
     if (!video) return;
-    video.src = `${segment.mediaUrl}#t=${(segment.mediaInFrame / HOUSE_FPS).toFixed(3)}`;
-    video.currentTime = segment.mediaInFrame / HOUSE_FPS;
-    void video.play().catch(() => undefined);
+    // Pick what this browser can actually decode. H.264 is the better choice
+    // where it exists; a browser without it still plays the conversation.
+    const canMp4 = video.canPlayType('video/mp4; codecs="avc1.640028, mp4a.40.2"') !== '';
+    video.src = canMp4 ? segment.mediaUrl : segment.mediaUrlWebm;
+    const start = () => {
+      video.currentTime = segment.mediaInFrame / HOUSE_FPS;
+      void video.play().catch(() => undefined);
+    };
+    if (video.readyState >= 1) start();
+    else video.addEventListener('loadedmetadata', start, { once: true });
   }, [segments]);
 
   // Watch the source's position and hand over at the cut. The next source

@@ -201,11 +201,20 @@ function InterventionCard({
                 <>
                   <video
                     ref={videoRef}
-                    src={`/api/conversations/${conversationId}/takes/${take.id}/media`}
                     controls
                     preload="metadata"
                     style={{ aspectRatio: '16/9', objectFit: 'cover' }}
-                  />
+                  >
+                    {/* The browser takes the first it can decode. [U-39] */}
+                    <source
+                      src={`/api/conversations/${conversationId}/takes/${take.id}/media`}
+                      type="video/mp4"
+                    />
+                    <source
+                      src={`/api/conversations/${conversationId}/takes/${take.id}/media?kind=proxy`}
+                      type="video/webm"
+                    />
+                  </video>
                   <TrimControls
                     take={take}
                     disabled={disabled}
