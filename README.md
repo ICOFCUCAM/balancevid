@@ -206,7 +206,6 @@ Stated plainly, because a status table that overstates is worse than none.
   frame and a document at once, so where both exist the evidence takes the
   panel and the marks are not drawn. The Studio says so rather than dropping
   them silently.
-- **The publication bundle** (U-30) — chapters, thumbnails, suggested titles.
 - **Pre-flight capture check** (U-26 §2) and device-change detection.
 - **A/V sync golden test** (D-10) — frame-exactness, loudness and cache are
   covered; the clap-and-flash drift test is not.
