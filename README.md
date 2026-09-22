@@ -58,10 +58,17 @@ Requires Node 22+. ffmpeg ships with the dependencies — nothing to install.
 
 ```bash
 npm install
+./scripts/fetch-models.sh   # local speech recognition, ~320 MB, once
 npm run build
-npm start          # web tier        → http://localhost:3000
-npm run worker     # render worker   (separate process — see U-23)
+npm start                   # web tier      → http://localhost:3000
+npm run worker              # worker        (separate process — see U-23)
 ```
+
+Transcription runs locally. A product whose users record unpublished opinions
+should not have to ship every take to a third party to get a transcript (D-03),
+and the engine sits behind one interface (D-14) so a cloud service can replace
+it without anything upstream changing. Skip the model fetch and everything
+still works — sources simply arrive without a transcript.
 
 The web tier never invokes ffmpeg. Source normalisation, take assembly and
 rendering are all queued to the worker, so one long export cannot make the
@@ -100,6 +107,10 @@ assembly, render — not a mock of it.
 | Compositor | type-driven layouts, freeze-frame, lower-thirds, attribution |
 | Audio | per-speaker loudness match, de-click, two-pass EBU R128 master |
 | Export | 1920×1080 H.264/AAC MP4, byte-range seekable, caption sidecars |
+| Transcription | local, word-level timing, VAD-segmented; source and takes |
+| Transcript panel | follows playback, click to seek, respond to a sentence |
+| Claims | selecting a statement binds it to the intervention, hash-checked |
+| Captions | both speakers, labelled, burned in and as `.srt` / `.vtt` |
 | Worker | durable queue, real progress, resumable via the shot cache |
 
 ### Verified, not asserted
@@ -118,12 +129,16 @@ Cut out and resume on the same frame. Measured, every build.
 
 Stated plainly, because a status table that overstates is worse than none.
 
-- **No transcription.** No ASR is wired, so there are no caption cues. The
-  caption pipeline exists and ships `.srt`/`.vtt` sidecars with every export
-  (INV-07), but they are currently empty. Lower-thirds and the attribution
-  block do render. Everything the map builds on the transcript — sentence
-  selection (§11), claim highlighting (§12), transcript sync (§16), research
-  (§43) — waits on this.
+- **Transcription is English-only and unpunctuated.** The local zipformer
+  emits upper-case words with no punctuation, so sentence boundaries are
+  inferred from silence rather than read off the text, and captions are
+  presented in sentence case. The engine is recorded on every transcript
+  (`characteristics`) so nothing downstream pretends to a precision it does not
+  have. Other languages mean registering another engine.
+- **No speaker diarisation.** §5 wants speaker segmentation where possible;
+  the source is currently treated as one speaker.
+- **Research and claim detection** (§20, §43, §45) are not built. The transcript
+  they need now exists.
 - **Class B / YouTube.** Out of MVP scope by U-36. `INV-01` already refuses a
   composed plan for a Class B source; the Conversation Manifest is not built.
 - **Studio Mode.** The document supports takes, trims and overrides, and the

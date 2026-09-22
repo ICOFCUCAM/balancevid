@@ -219,9 +219,29 @@ async function renderResponseShot(
     inputs.push('-loop', '1', '-framerate', String(fps), '-i', stillPath);
   }
 
-  const chains: string[] = [
-    `color=c=black:s=${width}x${height}:r=${fps}:d=${frameSeconds(total, fps)}[bg0]`,
-  ];
+  // Computed here rather than as an ffmpeg expression: min(h,w) contains a
+  // comma, and a comma inside a filter argument ends the filter.
+  const blurRadius = Math.max(2, Math.round(Math.min(width, height) / 18));
+
+  const chains: string[] = [];
+  if (stillIdx >= 0) {
+    // One input, two consumers (backdrop and panel), so it must be split.
+    chains.push(`[${stillIdx}:v]split=2[still_bg][still_src]`);
+  }
+  if (layout.backdrop === 'blur' && stillIdx >= 0) {
+    // Fill the canvas with an over-scaled, blurred, darkened copy of the frame
+    // the layers sit on. Flat black bars read as a mistake; this reads as a
+    // decision.
+    chains.push(
+      `[still_bg]scale=${width}:${height}:force_original_aspect_ratio=increase,` +
+      `crop=${width}:${height},boxblur=luma_radius=${blurRadius}:luma_power=1,` +
+      `eq=brightness=-0.16:saturation=0.7,setsar=1[bg0]`,
+    );
+  } else {
+    chains.push(
+      `color=c=black:s=${width}x${height}:r=${fps}:d=${frameSeconds(total, fps)}[bg0]`,
+    );
+  }
 
   // Clean air at the head and tail: the first and last frames are held, so a
   // response never butts straight against a cut. [U-17 §6]
@@ -236,7 +256,7 @@ async function renderResponseShot(
   if (stillIdx >= 0) {
     const rect = layout.layers.find((l) => l.source === 'source' || l.source === 'still')?.rect ?? FULL_RECT;
     const px = pixelRect(rect, width, height);
-    chains.push(`[${stillIdx}:v]${fitFilter('cover', px.w, px.h)}[still]`);
+    chains.push(`[still_src]${fitFilter('cover', px.w, px.h)}[still]`);
   }
 
   let current = 'bg0';

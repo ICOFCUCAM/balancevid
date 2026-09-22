@@ -14,13 +14,22 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { INTERVENTION_TYPES, type InterventionType } from '../../../src/domain/document.js';
-import { HOUSE_FPS, formatTimecode } from '../../../src/domain/time.js';
+import { HOUSE_FPS, formatTimecode, type Frames } from '../../../src/domain/time.js';
 import { TYPE_PRESENTATION } from '../../../src/domain/presentation.js';
+import { forDisplay, type Transcript } from '../../../src/transcribe/types.js';
+import { sentenceAtFrame } from '../../../src/transcribe/segmentation.js';
 
 /** Self-contained segments: the only rolling pre-roll a browser can actually
  *  replay, because MediaRecorder writes its header into the first blob. [U-04] */
 const SEGMENT_MS = 4000;
 const PREROLL_SEGMENTS = 2; // ~8 seconds
+/**
+ * Below this, a segment is a bare WebM header with no frames in it -- what you
+ * get when a recorder is stopped milliseconds after starting, which happens
+ * whenever the user interrupts right on a segment boundary. Uploading it would
+ * only hand the worker a stub to throw away.
+ */
+const MIN_SEGMENT_BYTES = 1024;
 
 type Phase = 'cold' | 'arming' | 'armed' | 'starting' | 'recording' | 'stopping' | 'denied';
 
@@ -42,6 +51,8 @@ export default function Studio({ conversationId }: { conversationId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [renderJobId, setRenderJobId] = useState<string | null>(null);
   const [status, setStatus] = useState<string>('');
+  const [transcript, setTranscript] = useState<Transcript | null>(null);
+  const [currentFrame, setCurrentFrame] = useState(0);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const camRef = useRef<HTMLVideoElement | null>(null);
@@ -70,6 +81,35 @@ export default function Studio({ conversationId }: { conversationId: string }) {
   }, [conversationId]);
 
   useEffect(() => { void refresh(); }, [refresh]);
+
+  // The transcript arrives after the source is playable, in its own job, so it
+  // is fetched when the document says a version exists.
+  const transcriptVersion = snapshot?.conversation?.source?.transcriptVersion ?? null;
+  useEffect(() => {
+    if (!transcriptVersion) return;
+    let cancelled = false;
+    void (async () => {
+      const response = await fetch(`/api/conversations/${conversationId}/transcript`, { cache: 'no-store' });
+      if (!response.ok || cancelled) return;
+      const data = await response.json();
+      if (!cancelled) setTranscript(data.transcript ?? null);
+    })();
+    return () => { cancelled = true; };
+  }, [conversationId, transcriptVersion]);
+
+  // The transcript follows playback (§16): the sentence being spoken is
+  // highlighted, and it freezes where the user interrupts.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    const onTime = () => setCurrentFrame(Math.floor(video.currentTime * HOUSE_FPS));
+    video.addEventListener('timeupdate', onTime);
+    video.addEventListener('seeked', onTime);
+    return () => {
+      video.removeEventListener('timeupdate', onTime);
+      video.removeEventListener('seeked', onTime);
+    };
+  }, [snapshot?.conversation?.source?.durationFrames]);
 
   /**
    * Poll while anything is still being processed.
@@ -126,11 +166,12 @@ export default function Studio({ conversationId }: { conversationId: string }) {
 
   const handleSegment = useCallback((blob: Blob) => {
     const current = phaseRef.current;
-    if (blob.size === 0) return;
 
     if (current !== 'starting' && current !== 'recording' && current !== 'stopping') {
       // Rolling pre-roll: hold the last few seconds, discard the rest.
-      ringRef.current = [...ringRef.current, blob].slice(-PREROLL_SEGMENTS);
+      if (blob.size >= MIN_SEGMENT_BYTES) {
+        ringRef.current = [...ringRef.current, blob].slice(-PREROLL_SEGMENTS);
+      }
       return;
     }
 
@@ -138,24 +179,19 @@ export default function Studio({ conversationId }: { conversationId: string }) {
     chainRef.current = chainRef.current.then(async () => {
       const take = await takeRef.current;
       if (!take) return;
-      if (prerollRef.current === 0) {
-        // This is the first segment after the key press. Everything buffered
-        // before it, plus this one, is pre-roll -- the words the user said
-        // before deciding to speak. [U-04]
-        for (const buffered of ringRef.current) {
-          await upload(take.takeId, indexRef.current++, buffered);
-        }
-        prerollRef.current = ringRef.current.length + 1;
-        ringRef.current = [];
+
+      if (blob.size >= MIN_SEGMENT_BYTES) {
         await upload(take.takeId, indexRef.current++, blob);
-        setPhaseBoth('recording');
-      } else {
-        await upload(take.takeId, indexRef.current++, blob);
+        // The segment sealed by the key press ends AT the press, so it is
+        // pre-roll too -- the words said before deciding to speak. [U-04]
+        if (phaseRef.current === 'starting') prerollRef.current += 1;
       }
+
+      if (phaseRef.current === 'starting') setPhaseBoth('recording');
       // Finalising before the last segment reached disk would silently discard
       // the end of the response -- the most recently spoken words, and the ones
       // the user is most likely to have cared about.
-      if (phaseRef.current === 'stopping') await finalizeRef.current?.();
+      else if (phaseRef.current === 'stopping') await finalizeRef.current?.();
     }).catch((e) => setError(e instanceof Error ? e.message : String(e)));
   }, [upload, setPhaseBoth]);
 
@@ -216,14 +252,15 @@ export default function Studio({ conversationId }: { conversationId: string }) {
 
   // ---- the one key --------------------------------------------------------
 
-  const interrupt = useCallback(() => {
+  const interrupt = useCallback((options: { frame?: Frames; quote?: string } = {}) => {
     const video = videoRef.current;
     if (!video) return;
 
     // Synchronous, before any render or network call. Nothing may sit between
     // the keypress and the timestamp. [Doctrine U-04 §4, D-05]
-    const frame = Math.floor(video.currentTime * HOUSE_FPS);
+    const frame = options.frame ?? Math.floor(video.currentTime * HOUSE_FPS);
     video.pause();
+    if (options.frame !== undefined) video.currentTime = options.frame / HOUSE_FPS;
 
     anchorRef.current = frame;
     indexRef.current = 0;
@@ -234,16 +271,33 @@ export default function Studio({ conversationId }: { conversationId: string }) {
     takeRef.current = fetch(`/api/conversations/${conversationId}/interventions`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ tSourceFrame: frame, type: typeRef.current }),
+      body: JSON.stringify({
+        tSourceFrame: frame,
+        type: typeRef.current,
+        ...(options.quote ? { quote: options.quote } : {}),
+      }),
     }).then(async (response) => {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? 'could not open the intervention');
       return data as { interventionId: string; takeId: string };
     });
 
+    // Flush the buffered pre-roll first, so it lands ahead of everything the
+    // user is about to say. Appended to the chain before the sealed segment,
+    // which keeps segment order on disk equal to capture order.
+    chainRef.current = chainRef.current.then(async () => {
+      const take = await takeRef.current;
+      if (!take) return;
+      for (const buffered of ringRef.current) {
+        await upload(take.takeId, indexRef.current++, buffered);
+      }
+      prerollRef.current = ringRef.current.length;
+      ringRef.current = [];
+    }).catch((e) => setError(e instanceof Error ? e.message : String(e)));
+
     // Seal the in-flight segment: it holds the moments just before the press.
     if (recRef.current?.state === 'recording') recRef.current.stop();
-  }, [conversationId, setPhaseBoth]);
+  }, [conversationId, setPhaseBoth, upload]);
 
   const finalizeTake = useCallback(async () => {
     if (finalizeRef.current === null) return;
@@ -341,6 +395,27 @@ export default function Studio({ conversationId }: { conversationId: string }) {
   const pending = interventions.filter((i: any) =>
     (i.takes ?? []).every((t: any) => t.durationFrames === 0)).length;
   const recording = phase === 'starting' || phase === 'recording' || phase === 'stopping';
+  const currentSentence = transcript ? sentenceAtFrame(transcript.sentences, currentFrame) : null;
+
+  /**
+   * Respond to a specific statement.  [Doctrine §11, §12, U-09, U-10]
+   *
+   * The cut defaults to the END of the sentence: someone answering a claim
+   * wants the audience to hear the claim first. Cutting at its start would
+   * remove it from the final video and the response would answer something
+   * nobody heard.
+   *
+   * If the user has selected part of the sentence, that selection is the
+   * claim -- bound to its hash server-side, so what appears on the quote card
+   * is what the source actually said.
+   */
+  const respondToSentence = useCallback((sentence: any) => {
+    if (!transcript) return;
+    const selected = typeof window !== 'undefined' ? String(window.getSelection() ?? '').trim() : '';
+    const full = forDisplay(sentence.text, transcript.characteristics);
+    const quote = selected && full.toLowerCase().includes(selected.toLowerCase()) ? selected : full;
+    interrupt({ frame: sentence.endFrame, quote });
+  }, [transcript, interrupt]);
 
   return (
     <div className="wrap">
@@ -362,7 +437,64 @@ export default function Studio({ conversationId }: { conversationId: string }) {
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,2fr) minmax(0,1fr)', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,0.85fr) minmax(0,1.6fr) minmax(0,1fr)', gap: 16 }}>
+        <section className="panel" style={{ maxHeight: '78vh', overflow: 'auto', padding: 12 }}>
+          <div className="row" style={{ marginBottom: 8 }}>
+            <strong className="grow">Source transcript</strong>
+            {transcript && (
+              <span className="small muted mono">{transcript.sentences.length}</span>
+            )}
+          </div>
+          {!transcriptVersion && (
+            <div className="small muted">
+              Transcribing… this runs after the source is playable, so you can
+              start responding without waiting for it.
+            </div>
+          )}
+          {transcript?.sentences.map((sentence) => {
+            const active = currentSentence?.id === sentence.id;
+            return (
+              <div
+                key={sentence.id}
+                style={{
+                  borderLeft: `2px solid ${active ? 'var(--source-accent)' : 'transparent'}`,
+                  background: active ? 'var(--panel-2)' : 'transparent',
+                  padding: '6px 8px', marginBottom: 2, borderRadius: 4,
+                }}
+              >
+                <div className="row" style={{ gap: 8 }}>
+                  <button
+                    className="small mono"
+                    style={{ padding: '1px 6px', background: 'transparent', border: 'none', color: 'var(--source-accent)' }}
+                    onClick={() => {
+                      const video = videoRef.current;
+                      if (video) video.currentTime = sentence.startFrame / HOUSE_FPS;
+                    }}
+                    title="Jump here"
+                  >
+                    {formatTimecode(sentence.startFrame)}
+                  </button>
+                  <button
+                    className="small grow"
+                    style={{ padding: '1px 6px', textAlign: 'right', background: 'transparent', border: 'none', color: 'var(--user-accent)' }}
+                    onClick={() => respondToSentence(sentence)}
+                    disabled={phase !== 'armed'}
+                    title="They finish the sentence, then you reply"
+                  >
+                    respond ↵
+                  </button>
+                </div>
+                <div className="small" style={{ padding: '0 6px' }}>
+                  {forDisplay(sentence.text, transcript.characteristics)}
+                </div>
+              </div>
+            );
+          })}
+          {transcript && transcript.sentences.length === 0 && (
+            <div className="small muted">No speech was detected in this source.</div>
+          )}
+        </section>
+
         <section>
           <div className="panel" style={{ padding: 10 }}>
             {ready ? (
@@ -469,6 +601,11 @@ export default function Studio({ conversationId }: { conversationId: string }) {
                     <span className="mono muted">
                       {usable > 0 ? formatTimecode(usable) : '…'}
                     </span>
+                    {ivn.anchor?.quote && (
+                      <div className="small muted" style={{ flexBasis: '100%', fontStyle: 'italic' }}>
+                        “{ivn.anchor.quote}”
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -486,6 +623,11 @@ export default function Studio({ conversationId }: { conversationId: string }) {
               Generate final video
             </button>
             {pending > 0 && <p className="small muted">Waiting for {pending} response{pending === 1 ? '' : 's'} to finish processing.</p>}
+            {(snapshot?.jobs ?? []).filter((j: any) => j.state === 'failed').map((j: any) => (
+              <p key={j.id} className="small" style={{ color: 'var(--bad)' }}>
+                {j.kind} failed: {j.error}
+              </p>
+            ))}
             {renderJob && (
               <div className="small" style={{ marginTop: 10 }}>
                 <div className="mono">{renderJob.state} {renderJob.progress != null && `· ${renderJob.progress}%`}</div>

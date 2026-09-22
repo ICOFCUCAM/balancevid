@@ -133,6 +133,37 @@ describe('end-to-end frame exactness (INV-02)', () => {
   }, 300_000);
 });
 
+describe('composite layouts (U-18)', () => {
+  it('renders a side-by-side response to the planned frame count', async () => {
+    // 'critique' is side-by-side over a blurred backdrop, so this exercises the
+    // split/overlay graph and the backdrop that replaces flat black bars.
+    const conversation = makeConversation(
+      SOURCE_FRAMES,
+      ANCHORS.map((frame) => makeIntervention(frame, RESPONSE_FRAMES, { type: 'critique' })),
+    );
+    conversation.source.mezzanineAssetId = 'asset_source' as AssetId;
+    for (const ivn of conversation.interventions) {
+      for (const take of ivn.takes) take.assetId = 'asset_response' as AssetId;
+    }
+
+    const plan = buildRenderPlan(conversation, { burnInCaptions: true });
+    expect(plan.shots.filter((s) => s.kind === 'response')
+      .every((s) => s.layoutId === 'side_by_side')).toBe(true);
+
+    const workDir = join(dir, 'work', 'composite');
+    await mkdir(workDir, { recursive: true });
+    const outputPath = join(workDir, 'FINAL.mp4');
+    // compose() asserts INV-03 against the plan itself and throws if the
+    // rendered file disagrees, so reaching this line is the assertion.
+    const result = await compose(plan, {
+      workDir, outputPath,
+      resolveAsset: (id) => (id === 'asset_source' ? sourceMezz : responseMezz),
+    });
+    expect(result.totalOutputFrames).toBe(plan.totalOutputFrames);
+    expect((await probe(outputPath)).durationFrames).toBe(plan.totalOutputFrames);
+  }, 300_000);
+});
+
 describe('the shot cache (U-16)', () => {
   it('renders nothing the second time an unchanged plan is composed', async () => {
     const first = await render('cache');
@@ -169,9 +200,15 @@ function buildConversation() {
 }
 
 function buildConversationFresh() {
+  // 'explain' renders full-screen user (U-11), so a response frame contains no
+  // source pixels anywhere. That is what lets the decoder below tell the two
+  // apart. A composite layout such as 'critique' fills the canvas behind the
+  // panels with a blurred copy of the frozen source frame, which is correct for
+  // the product and useless as a discriminator -- the composite path is covered
+  // by its own test below.
   const conversation = makeConversation(
     SOURCE_FRAMES,
-    ANCHORS.map((frame) => makeIntervention(frame, RESPONSE_FRAMES, { type: 'critique' })),
+    ANCHORS.map((frame) => makeIntervention(frame, RESPONSE_FRAMES, { type: 'explain' })),
   );
   // Point every asset id at the two mezzanines we actually built.
   conversation.source.mezzanineAssetId = 'asset_source' as AssetId;

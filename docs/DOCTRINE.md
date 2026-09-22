@@ -3232,6 +3232,23 @@ own ±0.5. The tolerance in the document was right and the convenient test was
 wrong. **When an implementation cannot meet the doctrine, fix the
 implementation, not the doctrine.**
 
+**A golden test must test the property, not an accident of the output.** The
+frame-exactness test told source frames from response frames by sampling a
+pixel — which worked only because responses happened to be rendered
+full-screen. The moment the compositor filled the empty canvas behind a
+side-by-side layout with a blurred copy of the frozen source frame (a plainly
+correct improvement: flat black bars read as a mistake), every output frame
+started decoding as a source frame and the test failed. The test was right to
+fail and wrong in how it looked: it now pins the layout it depends on and says
+why, and the composite path has its own test. **When a correct change breaks a
+test, the test was asserting something it was never supposed to be asserting.**
+
+**A stub is not a failure.** Stopping a recorder milliseconds after it starts
+yields a WebM header with no frames, which happens whenever a user interrupts
+right on a segment boundary. The worker treated that 40-byte fragment as a
+corrupt take and failed the whole recording. One unreadable stub must never
+cost a take: it is worth nothing, and the take is worth everything (D-07).
+
 **Finish before you finalise.** The take was finalised while its last segment
 was still uploading, silently discarding the end of every response — the most
 recently spoken words, and the ones the user cared about most. Found only by

@@ -21,13 +21,22 @@ import { ensureDirs, paths } from '../store/paths.js';
 import { claim, finish, update, type Job } from '../store/queue.js';
 import { audit, loadConversation, mutateConversation } from '../store/repository.js';
 import { assembleTake, takeMezzaninePath } from '../store/takes.js';
+import { enqueue } from '../store/queue.js';
+import { resolveTranscriber } from '../transcribe/index.js';
+import {
+  loadAllTakeTranscripts, loadTranscript, saveTakeTranscript, saveTranscript,
+} from '../store/transcripts.js';
+import { buildCues } from '../render/cues.js';
+import { projectTimeline } from '../domain/timeline.js';
 
 const POLL_MS = 400;
 
 export async function runJob(job: Job): Promise<Job> {
   switch (job.kind) {
     case 'ingest_source': return ingestSource(job);
+    case 'transcribe_source': return transcribeSource(job);
     case 'assemble_take': return assembleTakeJob(job);
+    case 'transcribe_take': return transcribeTake(job);
     case 'render': return render(job);
   }
 }
@@ -70,9 +79,68 @@ async function ingestSource(job: Job): Promise<Job> {
     },
   });
 
+  // Transcription is its own job. It is much slower than normalisation, and
+  // the user can already watch, interrupt and respond without it -- so it must
+  // not hold the source hostage.
+  await enqueue({
+    kind: 'transcribe_source',
+    conversationId: job.conversationId,
+    payload: { assetId },
+  });
+
   return finish(job, 'done', {
     progress: 100,
     result: { assetId, durationFrames: result.info.durationFrames },
+  });
+}
+
+/**
+ * Transcribe the source.  [Doctrine U-03, D-14]
+ *
+ * A source with no transcript is a degraded conversation, not a broken one:
+ * everything the transcript unlocks is additive, and the core loop works
+ * without it. So a missing engine finishes the job with a reason rather than
+ * failing it and leaving the project looking damaged.
+ */
+async function transcribeSource(job: Job): Promise<Job> {
+  const assetId = String(job.payload['assetId']);
+  const transcriber = await resolveTranscriber(
+    typeof job.payload['engineId'] === 'string' ? String(job.payload['engineId']) : undefined,
+  );
+  if (!transcriber) {
+    await audit(job.conversationId, {
+      action: 'transcript.skipped',
+      detail: { reason: 'no transcription engine is available on this host' },
+    });
+    return finish(job, 'done', {
+      progress: 100,
+      result: { skipped: true, reason: 'no transcription engine available' },
+    });
+  }
+
+  const mezzaninePath = paths.asset(job.conversationId, `${assetId}mezz`, 'mp4');
+  const transcript = await transcriber.transcribe(mezzaninePath, assetId);
+  const version = await saveTranscript(job.conversationId, transcript);
+
+  await mutateConversation(job.conversationId, (conversation) => {
+    conversation.source.transcriptVersion = version;
+  });
+  await audit(job.conversationId, {
+    action: 'transcript.created',
+    detail: {
+      version, engine: transcript.engine, model: transcript.model,
+      words: transcript.words.length,
+      sentences: transcript.sentences.length,
+      paragraphs: transcript.paragraphs.length,
+    },
+  });
+
+  return finish(job, 'done', {
+    progress: 100,
+    result: {
+      version, engine: transcript.engine,
+      words: transcript.words.length, sentences: transcript.sentences.length,
+    },
   });
 }
 
@@ -109,7 +177,16 @@ async function assembleTakeJob(job: Job): Promise<Job> {
       durationFrames: assembled.take.durationFrames,
       prerollFrames: assembled.take.prerollFrames,
       segments: assembled.segments,
+      skippedSegments: assembled.skippedSegments,
     },
+  });
+
+  // Caption the response in its own job, for the same reason the source is
+  // captioned in its own: the user can carry on recording while it runs.
+  await enqueue({
+    kind: 'transcribe_take',
+    conversationId: job.conversationId,
+    payload: { takeId, assetId: assembled.take.assetId },
   });
 
   return finish(job, 'done', {
@@ -120,6 +197,29 @@ async function assembleTakeJob(job: Job): Promise<Job> {
       prerollFrames: assembled.take.prerollFrames,
       segments: assembled.segments,
     },
+  });
+}
+
+/** Transcribe one take, so the response side of the export is captioned too. */
+async function transcribeTake(job: Job): Promise<Job> {
+  const takeId = String(job.payload['takeId']);
+  const assetId = String(job.payload['assetId']);
+  const transcriber = await resolveTranscriber();
+  if (!transcriber) {
+    return finish(job, 'done', { progress: 100, result: { skipped: true } });
+  }
+
+  const mediaPath = takeMezzaninePath(job.conversationId, assetId);
+  const transcript = await transcriber.transcribe(mediaPath, assetId);
+  await saveTakeTranscript(job.conversationId, takeId, transcript);
+  await audit(job.conversationId, {
+    action: 'transcript.take',
+    detail: { takeId, words: transcript.words.length, sentences: transcript.sentences.length },
+  });
+
+  return finish(job, 'done', {
+    progress: 100,
+    result: { takeId, words: transcript.words.length },
   });
 }
 
@@ -141,10 +241,20 @@ async function render(job: Job): Promise<Job> {
     conversation.id, `${conversation.source.mezzanineAssetId}mezz`, 'mp4',
   );
 
+  // Captions are assembled here, from the transcripts, and mapped onto the
+  // output clock. Every export ships them (INV-07).
+  const sourceTranscript = await loadTranscript(conversation.id);
+  const takeTranscripts = await loadAllTakeTranscripts(conversation.id);
+  const cues = buildCues(conversation, projectTimeline(conversation), {
+    source: sourceTranscript?.transcript ?? null,
+    takes: takeTranscripts,
+  });
+
   let lastReported = -1;
   const result = await compose(plan, {
     workDir,
     outputPath,
+    cues,
     resolveAsset: (assetId: AssetId) =>
       assetId === conversation.source.mezzanineAssetId
         ? sourceMezz
@@ -167,6 +277,7 @@ async function render(job: Job): Promise<Job> {
       totalOutputFrames: plan.totalOutputFrames,
       shotsRendered: result.shotsRendered, shotsCached: result.shotsCached,
       sourceRatio: Number(plan.sourceRatio.toFixed(3)),
+      cues: cues.length,
     },
   });
 
@@ -180,6 +291,7 @@ async function render(job: Job): Promise<Job> {
       totalOutputFrames: result.totalOutputFrames,
       shotsRendered: result.shotsRendered,
       shotsCached: result.shotsCached,
+      cues: cues.length,
     },
   });
 }

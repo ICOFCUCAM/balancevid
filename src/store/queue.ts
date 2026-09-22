@@ -20,7 +20,12 @@ import { ensureDirs, paths, safe, type QueueState } from './paths.js';
  * web tier, so source ingest and take assembly are queued exactly like a
  * render is.
  */
-export type JobKind = 'ingest_source' | 'assemble_take' | 'render';
+export type JobKind =
+  | 'ingest_source'
+  | 'transcribe_source'
+  | 'assemble_take'
+  | 'transcribe_take'
+  | 'render';
 
 export interface Job {
   id: string;

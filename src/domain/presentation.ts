@@ -48,6 +48,15 @@ export interface Layout {
   id: string;
   label: string;
   layers: Layer[];
+  /**
+   * What fills the canvas behind the layers.
+   *
+   * Two 16:9 panels side by side inside a 16:9 frame cannot fill it, and flat
+   * black bars are the difference between a video that looks composed and one
+   * that looks cropped. A blurred, over-scaled source fills the space the way
+   * an editor would.
+   */
+  backdrop?: 'black' | 'blur';
   /** Each layout declares its own behaviour per aspect ratio. [U-18, U-22] */
   verticalLayoutId?: string;
 }
@@ -74,6 +83,7 @@ export const LAYOUTS: Record<string, Layout> = {
   },
   side_by_side: {
     id: 'side_by_side', label: 'Side by side',
+    backdrop: 'blur',
     layers: [
       { source: 'source', rect: { x: 0, y: 0.25, w: 0.5, h: 0.5 }, fit: 'cover', z: 0, duckDb: -18 },
       { source: 'user', rect: { x: 0.5, y: 0.25, w: 0.5, h: 0.5 }, fit: 'cover', z: 1 },
@@ -90,6 +100,7 @@ export const LAYOUTS: Record<string, Layout> = {
   },
   vertical_stack: {
     id: 'vertical_stack', label: 'Stacked (vertical)',
+    backdrop: 'blur',
     layers: [
       { source: 'source', rect: { x: 0, y: 0.06, w: 1, h: 0.36 }, fit: 'cover', z: 0, duckDb: -18 },
       { source: 'user', rect: { x: 0, y: 0.44, w: 1, h: 0.36 }, fit: 'cover', z: 1 },

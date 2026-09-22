@@ -5,3 +5,4 @@ dist/
 /var/
 /tmp/
 .DS_Store
+.venv/

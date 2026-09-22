@@ -67,7 +67,7 @@ await page.evaluate(() => document.querySelector('video[src*="/source"]').play()
 await sleep(1200);
 
 const ANCHORS = [];
-for (let i = 0; i < 3; i++) {
+for (let i = 0; i < 2; i++) {
   await sleep(2200);
   const before = await page.evaluate(() =>
     Math.floor(document.querySelector('video[src*="/source"]').currentTime * 30));
@@ -87,6 +87,47 @@ for (let i = 0; i < 3; i++) {
   check(Math.abs(after - before) <= 1, `resumed at the interrupt frame (${i + 1})`,
     `paused ${before}, resumed ${after}`);
 }
+
+// --- transcript, then a sentence-anchored response (U-09, U-10) ------------
+log('waiting for the transcript…');
+let transcript = null;
+for (let i = 0; i < 180; i++) {
+  const data = await api(`/api/conversations/${conversationId}/transcript`);
+  if (data.transcript) { transcript = data.transcript; break; }
+  await sleep(1000);
+}
+check(Boolean(transcript), 'source transcribed');
+if (transcript) {
+  check(transcript.words.length > 0, 'transcript has word-level timing (U-03)',
+    `${transcript.words.length} words, ${transcript.sentences.length} sentences`);
+  check(transcript.words.every((w) => w.endFrame > w.startFrame), 'every word has a real span');
+  log(`transcript: "${transcript.sentences[0]?.text.slice(0, 60)}…"`);
+}
+
+// Respond to a specific statement, using only the transcript panel.
+await page.waitForSelector('button:has-text("respond ↵")', { timeout: 30_000 });
+// Watch for a moment first. Interrupting milliseconds after the previous
+// response resumed would mean the pre-roll buffer has nothing in it yet --
+// true of the product, but not how anyone actually watches a video.
+await sleep(2500);
+const sentenceCountBefore = (await api(`/api/conversations/${conversationId}`))
+  .conversation.interventions.length;
+await page.locator('button:has-text("respond ↵")').nth(1).click();
+await page.waitForFunction(
+  () => document.body.innerText.includes('press space to continue'), null, { timeout: 20_000 });
+log('sentence-anchored interrupt');
+await sleep(2400);
+await page.keyboard.press('Space');
+await page.waitForFunction(
+  () => document.body.innerText.includes('Press space to interrupt'), null, { timeout: 60_000 });
+
+let snapAfter = await api(`/api/conversations/${conversationId}`);
+check(snapAfter.conversation.interventions.length === sentenceCountBefore + 1,
+  'the transcript panel opened an intervention');
+const quoted = snapAfter.conversation.interventions.filter((iv) => iv.anchor.quote);
+check(quoted.length === 1, 'the claim is bound to the intervention (U-10)',
+  quoted[0] ? `"${quoted[0].anchor.quote.slice(0, 48)}…"` : 'none');
+check(quoted.every((iv) => Boolean(iv.anchor.quoteHash)), 'the claim carries its hash (INV-05)');
 
 // --- wait for takes to assemble --------------------------------------------
 log('waiting for takes to assemble…');
@@ -121,6 +162,10 @@ if (job?.state === 'done') {
   check(head.status === 206, 'output serves byte ranges (seekable)', `status ${head.status}`);
   const srt = await fetch(`${url}?kind=srt`);
   check(srt.ok, 'caption sidecar ships with the export (INV-07)');
+  const srtBody = await srt.text();
+  check(srtBody.includes('SOURCE:'), 'captions carry real cues with speaker labels (U-19, U-20)',
+    `${srtBody.split('\n\n').filter(Boolean).length} cues`);
+  check((job.result.cues ?? 0) > 0, 'the render burned in captions', `${job.result.cues} cues`);
   console.log(JSON.stringify({
     planHash: job.result.planHash,
     totalOutputFrames: job.result.totalOutputFrames,

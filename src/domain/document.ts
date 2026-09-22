@@ -48,6 +48,9 @@ export interface Source {
   originalAssetId?: AssetId;
   durationFrames: Frames;
   rightsAttestationId?: string;
+  /** Which transcript version the source currently has. Versioned, never
+   *  overwritten, because anchors are bound to it (U-05). */
+  transcriptVersion?: number;
 }
 
 /**
