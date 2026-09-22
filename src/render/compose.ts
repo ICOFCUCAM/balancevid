@@ -381,6 +381,33 @@ async function renderResponseShot(
     });
   }
 
+  /**
+   * Blur is pixels, not a drawing, so it cannot be an ASS event. [U-12 §4]
+   *
+   * It is also a privacy tool — a face, an address, a document — which is why
+   * it blurs the frame itself rather than covering it with a shape that could
+   * be removed from the render plan later.
+   */
+  for (const [i, mark] of (shot.annotations ?? []).entries()) {
+    if (mark.kind !== 'blur' || mark.points.length < 2) continue;
+    const a = mark.points[0]!;
+    const b = mark.points[1]!;
+    const x = Math.round(Math.min(a.x, b.x) * width / 2) * 2;
+    const y = Math.round(Math.min(a.y, b.y) * height / 2) * 2;
+    const w = Math.max(2, Math.round(Math.abs(b.x - a.x) * width / 2) * 2);
+    const h = Math.max(2, Math.round(Math.abs(b.y - a.y) * height / 2) * 2);
+    const radius = Math.max(2, Math.round(Math.min(w, h) / 6));
+    const region = `blur${i}`;
+    const next = `v${step++}`;
+    chains.push(
+      `[${current}]split=2[blur_base${i}][blur_src${i}]`,
+      `[blur_src${i}]crop=${w}:${h}:${x}:${y},boxblur=luma_radius=${radius}:luma_power=2[${region}]`,
+      `[blur_base${i}][${region}]overlay=x=${x}:y=${y}:` +
+      `enable='between(n\,${mark.startFrame}\,${Math.max(mark.startFrame, mark.endFrame - 1)})'[${next}]`,
+    );
+    current = next;
+  }
+
   const gain = gains.get(shot.assetId) ?? 0;
   const totalSeconds = total / fps;
   chains.push(

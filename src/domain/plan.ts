@@ -9,7 +9,8 @@
  */
 
 import {
-  type AssetId, type Conversation, type Evidence, type InterventionId, type TakeId,
+  type Annotation, type AssetId, type Conversation, type Evidence,
+  type InterventionId, type Point, type TakeId,
   orderedInterventions, selectedTake,
 } from './document.js';
 import { sha256 } from './ids.js';
@@ -61,6 +62,28 @@ export interface ResponseShot extends ShotBase {
   quote?: string;
   /** Archived evidence to show, in this shot's own frames. [U-33 §2, §3] */
   evidence?: EvidenceCue[];
+  /** Marks over the frozen source frame, in this shot's own frames. [U-12] */
+  annotations?: AnnotationCue[];
+}
+
+/**
+ * One mark, already placed on the canvas.
+ *
+ * The compositor works in canvas coordinates and should not have to know which
+ * panel the source occupies in which layout, so the points are mapped through
+ * the layout here, once. [U-18]
+ */
+export interface AnnotationCue {
+  annotationId: string;
+  kind: Annotation['kind'];
+  /** Normalised to the CANVAS, not the source frame. */
+  points: Point[];
+  text?: string;
+  style: Annotation['style'];
+  z: number;
+  startFrame: Frames;
+  endFrame: Frames;
+  drawFrames: Frames;
 }
 
 /**
@@ -198,9 +221,13 @@ export function planFromTimeline(
       ivn.evidence ?? [], item.mediaInFrame, item.mediaOutFrame, item.padHeadFrames);
     // Evidence changes the composition: a document needs a panel, not a corner
     // of a frozen frame. An explicit override still wins. [U-11, U-33]
+    // Evidence needs a panel; a mark needs the frame it points at. Either
+    // changes the composition, and an explicit override still wins. [U-11]
+    const implied = cues.length > 0
+      ? 'evidence_split'
+      : (ivn.annotations?.length ?? 0) > 0 ? 'freeze_pip' : undefined;
     const layout = layoutForType(
-      ivn.type,
-      options.responseLayoutId ?? ivn.layoutId ?? (cues.length > 0 ? 'evidence_split' : undefined),
+      ivn.type, options.responseLayoutId ?? ivn.layoutId ?? implied,
     );
 
     const shot: Omit<ResponseShot, 'hash'> = {
@@ -223,6 +250,12 @@ export function planFromTimeline(
       transition: presentation.transition,
       ...(ivn.anchor.quote ? { quote: ivn.anchor.quote } : {}),
       ...(cues.length > 0 ? { evidence: cues } : {}),
+      ...(() => {
+        const marks = annotationCues(
+          ivn.annotations ?? [], layout, item.mediaInFrame, item.mediaOutFrame,
+          item.padHeadFrames, presentation.accent);
+        return marks.length > 0 ? { annotations: marks } : {};
+      })(),
     };
     shots.push({ ...shot, hash: hashShot(shot, exportProfile) });
   }
@@ -279,23 +312,76 @@ export function assertExportInvariants(plan: RenderPlan): void {
 function evidenceCues(
   evidence: Evidence[], mediaInFrame: Frames, mediaOutFrame: Frames, padHeadFrames: Frames,
 ): EvidenceCue[] {
+  const kept = Math.max(0, mediaOutFrame - mediaInFrame);
   const cues: EvidenceCue[] = [];
   for (const item of evidence) {
     // An unarchived citation is not yet verifiable, so it is not yet shown.
     if (!item.archived || !item.captureAssetId) continue;
-    const appear = Math.max(item.appearFrame ?? mediaInFrame, mediaInFrame);
-    const dismiss = Math.min(item.dismissFrame ?? mediaOutFrame, mediaOutFrame);
+    // Offsets into what the author kept, so a re-record or a trim does not
+    // orphan the citation.
+    const appear = clampOffset(item.appearOffset ?? 0, kept);
+    const dismiss = clampOffset(item.dismissOffset ?? kept, kept);
     if (dismiss <= appear) continue;
     cues.push({
       evidenceId: item.id,
       captureAssetId: item.captureAssetId,
       title: item.title,
-      startFrame: padHeadFrames + (appear - mediaInFrame),
-      endFrame: padHeadFrames + (dismiss - mediaInFrame),
+      startFrame: padHeadFrames + appear,
+      endFrame: padHeadFrames + dismiss,
       ...(item.locator.region ? { region: item.locator.region } : {}),
     });
   }
   return cues;
+}
+
+/**
+ * Place the marks on the canvas and clip them to what the take keeps.
+ *
+ * A mark made over speech the author later trimmed away does not appear: it
+ * pointed at something that is no longer in the video.
+ */
+function annotationCues(
+  annotations: Annotation[], layout: { layers: Array<{ source: string; rect: { x: number; y: number; w: number; h: number } }> },
+  mediaInFrame: Frames, mediaOutFrame: Frames, padHeadFrames: Frames, accent: string,
+): AnnotationCue[] {
+  if (annotations.length === 0) return [];
+  /**
+   * A mark is a statement about the source frame, so it can only be drawn
+   * where that frame is. A layout that shows no frame -- an evidence panel
+   * filling the picture, a full-screen response -- has nothing for a mark to
+   * point at, and drawing it over the canvas anyway would land it on something
+   * the author never marked. [U-12 §1]
+   */
+  const panel = layout.layers.find((l) => l.source === 'source' || l.source === 'still')?.rect;
+  if (!panel) return [];
+
+  const kept = Math.max(0, mediaOutFrame - mediaInFrame);
+  const cues: AnnotationCue[] = [];
+  for (const annotation of [...annotations].sort((a, b) => a.z - b.z)) {
+    const appear = clampOffset(annotation.appearOffset ?? 0, kept);
+    const dismiss = clampOffset(annotation.dismissOffset ?? kept, kept);
+    if (dismiss <= appear) continue;
+    cues.push({
+      annotationId: annotation.id,
+      kind: annotation.kind,
+      points: annotation.points.map((point) => ({
+        x: panel.x + point.x * panel.w,
+        y: panel.y + point.y * panel.h,
+      })),
+      ...(annotation.text ? { text: annotation.text } : {}),
+      style: { color: accent, ...annotation.style },
+      z: annotation.z,
+      startFrame: padHeadFrames + appear,
+      endFrame: padHeadFrames + dismiss,
+      drawFrames: annotation.drawFrames ?? 0,
+    });
+  }
+  return cues;
+}
+
+/** An offset can only point inside what was kept. */
+function clampOffset(offset: Frames, kept: Frames): Frames {
+  return Math.min(Math.max(offset, 0), kept);
 }
 
 function buildAttribution(conversation: Conversation, accessedAt?: string): AttributionBlock {

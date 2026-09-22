@@ -300,6 +300,14 @@ function InterventionCard({
                 onDelete={(takeId) => onCall(`${base}/takes/${takeId}`, { method: 'DELETE' })}
               />
 
+              <AnnotationPanel
+                conversationId={conversationId}
+                intervention={intervention}
+                take={take}
+                disabled={disabled}
+                onCall={onCall}
+              />
+
               <EvidencePanel
                 conversationId={conversationId}
                 intervention={intervention}
@@ -675,9 +683,11 @@ function EvidenceWindow({
   disabled: boolean;
   onPatch: (body: Record<string, unknown>) => Promise<void>;
 }) {
-  const [appear, setAppear] = useState(evidence.appearFrame ?? take.mediaInFrame);
-  const [dismiss, setDismiss] = useState(evidence.dismissFrame ?? take.mediaOutFrame);
-  const commit = () => onPatch({ appearFrame: appear, dismissFrame: dismiss });
+  // Offsets into what the author kept, so the window survives a re-record.
+  const kept = Math.max(0, take.mediaOutFrame - take.mediaInFrame);
+  const [appear, setAppear] = useState(evidence.appearOffset ?? 0);
+  const [dismiss, setDismiss] = useState(evidence.dismissOffset ?? kept);
+  const commit = () => onPatch({ appearOffset: appear, dismissOffset: dismiss });
 
   return (
     <div className="field">
@@ -686,13 +696,13 @@ function EvidenceWindow({
         refer to it, not for the whole response
       </label>
       <input
-        type="range" min={0} max={take.durationFrames} value={appear} disabled={disabled}
+        type="range" min={0} max={kept} value={appear} disabled={disabled}
         onChange={(e) => setAppear(Number(e.target.value))}
         onPointerUp={commit} onKeyUp={commit} onBlur={commit}
         aria-label="Evidence appears"
       />
       <input
-        type="range" min={0} max={take.durationFrames} value={dismiss} disabled={disabled}
+        type="range" min={0} max={kept} value={dismiss} disabled={disabled}
         onChange={(e) => setDismiss(Number(e.target.value))}
         onPointerUp={commit} onKeyUp={commit} onBlur={commit}
         aria-label="Evidence dismisses"
@@ -700,7 +710,7 @@ function EvidenceWindow({
       <button
         className="small"
         disabled={disabled}
-        onClick={() => onPatch({ appearFrame: null, dismissFrame: null })}
+        onClick={() => onPatch({ appearOffset: null, dismissOffset: null })}
       >
         Show for the whole response
       </button>
@@ -831,4 +841,259 @@ function ClipsPanel({ conversationId }: { conversationId: string }) {
       )}
     </div>
   );
+}
+
+const TOOLS = [
+  { kind: 'ellipse', label: 'circle' },
+  { kind: 'box', label: 'box' },
+  { kind: 'arrow', label: 'arrow' },
+  { kind: 'underline', label: 'underline' },
+  { kind: 'freehand', label: 'draw' },
+  { kind: 'text', label: 'text' },
+  { kind: 'blur', label: 'blur' },
+] as const;
+
+/**
+ * Drawing over the frozen frame.  [Doctrine §14, §15, U-12]
+ *
+ * The frame is the one the author was looking at when they pressed the key,
+ * played from the editing proxy — the same frame the renderer will cut (U-39),
+ * so a mark placed here lands where it was put.
+ *
+ * Nothing is drawn into a picture. Every mark is points in the Conversation,
+ * so it can be moved, retimed or removed years later.
+ */
+function AnnotationPanel({
+  conversationId, intervention, take, disabled, onCall,
+}: {
+  conversationId: string;
+  intervention: any;
+  take: any;
+  disabled: boolean;
+  onCall: (path: string, init: RequestInit) => Promise<void>;
+}) {
+  const [tool, setTool] = useState<(typeof TOOLS)[number]['kind']>('ellipse');
+  const [draft, setDraft] = useState<any>(null);
+  const frameRef = useRef<HTMLDivElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const base = `/api/conversations/${conversationId}/interventions/${intervention.id}/annotations`;
+  const annotations: any[] = intervention.annotations ?? [];
+
+  // Show the anchor frame, and nothing else: this is a still to draw on.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    const seek = () => { video.currentTime = intervention.anchor.tSourceFrame / HOUSE_FPS; };
+    if (video.readyState >= 1) seek();
+    else video.addEventListener('loadedmetadata', seek, { once: true });
+  }, [intervention.anchor.tSourceFrame]);
+
+  const relative = (event: { clientX: number; clientY: number }) => {
+    const host = frameRef.current!;
+    const rect = host.getBoundingClientRect();
+    return {
+      x: Math.min(Math.max((event.clientX - rect.left) / rect.width, 0), 1),
+      y: Math.min(Math.max((event.clientY - rect.top) / rect.height, 0), 1),
+    };
+  };
+
+  const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (disabled) return;
+    const from = relative(event);
+    const startedAt = performance.now();
+
+    if (tool === 'text') {
+      const text = prompt('Label');
+      if (text?.trim()) {
+        void onCall(base, {
+          method: 'POST',
+          body: JSON.stringify({ kind: 'text', points: [from], text: text.trim(), style: {} }),
+        });
+      }
+      return;
+    }
+
+    const path = [from];
+    setDraft({ kind: tool, points: [from, from] });
+
+    const move = (e: PointerEvent) => {
+      const to = relative(e);
+      if (tool === 'freehand') {
+        path.push(to);
+        setDraft({ kind: tool, points: [...path] });
+      } else {
+        setDraft({ kind: tool, points: [from, to] });
+      }
+    };
+    const up = (e: PointerEvent) => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      const to = relative(e);
+      const points = tool === 'freehand' ? [...path, to] : [from, to];
+      setDraft(null);
+      const span = Math.hypot(points.at(-1)!.x - points[0]!.x, points.at(-1)!.y - points[0]!.y);
+      if (span < 0.02 && tool !== 'freehand') return; // a tap, not a mark
+      void onCall(base, {
+        method: 'POST',
+        body: JSON.stringify({
+          kind: tool,
+          points,
+          style: {},
+          // How fast it was actually drawn, so it can animate on at hand
+          // speed rather than appearing. [U-12 §3]
+          drawFrames: Math.min(45, Math.round(((performance.now() - startedAt) / 1000) * HOUSE_FPS)),
+        }),
+      });
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+
+  return (
+    <div className="field" style={{ borderTop: '1px solid var(--line)', paddingTop: 10 }}>
+      <label>Marks on the frame — each appears when you refer to it</label>
+      {(intervention.evidence ?? []).some((e: any) => e.archived) && (
+        <p className="small" style={{ color: 'var(--warn)', marginTop: 0 }}>
+          Evidence takes the panel on this point, so the frame is not on screen
+          and these marks will not be drawn. Remove the evidence, or set the
+          layout to one that shows the frame.
+        </p>
+      )}
+
+      <div className="row small" style={{ gap: 4, marginBottom: 6 }}>
+        {TOOLS.map((option) => (
+          <button
+            key={option.kind}
+            className="small"
+            disabled={disabled}
+            onClick={() => setTool(option.kind)}
+            style={{ background: tool === option.kind ? '#2b5f8a' : undefined }}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+
+      <div
+        ref={frameRef}
+        onPointerDown={onPointerDown}
+        style={{ position: 'relative', lineHeight: 0, cursor: disabled ? 'default' : 'crosshair' }}
+      >
+        <video
+          ref={videoRef}
+          src={`/api/conversations/${conversationId}/source`}
+          preload="metadata"
+          muted
+          playsInline
+          style={{ width: '100%', borderRadius: 4, border: '1px solid var(--line)' }}
+        />
+        <svg
+          viewBox="0 0 1000 563"
+          preserveAspectRatio="none"
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
+        >
+          {[...annotations, ...(draft ? [draft] : [])].map((mark: any, i: number) => (
+            <Mark key={mark.id ?? `draft-${i}`} mark={mark} />
+          ))}
+        </svg>
+      </div>
+
+      {annotations.map((mark) => (
+        <div key={mark.id} className="row small" style={{ gap: 8, padding: '4px 0' }}>
+          <span className="grow">
+            {mark.kind}{mark.text ? ` — “${mark.text}”` : ''}
+            {mark.appearOffset !== undefined
+              ? ` · ${formatTimecode(mark.appearOffset)}–${formatTimecode(mark.dismissOffset)} into your response`
+              : ' · whole response'}
+          </span>
+          {take?.durationFrames > 0 && (
+            <button
+              className="small"
+              disabled={disabled}
+              title="Show this mark only from here to the end"
+              onClick={() => {
+                const video = videoRef.current;
+                void onCall(`${base}/${mark.id}`, {
+                  method: 'PATCH',
+                  body: JSON.stringify({
+                    appearOffset: Math.max(0,
+                      Math.round((video?.currentTime ?? 0) * HOUSE_FPS) - take.mediaInFrame),
+                    dismissOffset: take.mediaOutFrame - take.mediaInFrame,
+                  }),
+                });
+              }}
+            >
+              time it
+            </button>
+          )}
+          <button
+            className="small"
+            disabled={disabled}
+            onClick={() => onCall(`${base}/${mark.id}`, { method: 'DELETE' })}
+          >
+            remove
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** The same shapes the renderer draws, so what is placed is what is rendered. */
+function Mark({ mark }: { mark: any }) {
+  const W = 1000;
+  const H = 563;
+  const colour = mark.style?.color ?? '#ffcc00';
+  const width = Math.max(2, (mark.style?.width ?? 0.005) * H);
+  const points = (mark.points ?? []).map((p: any) => ({ x: p.x * W, y: p.y * H }));
+  if (points.length === 0) return null;
+  const [a, b] = [points[0], points[1] ?? points[0]];
+
+  switch (mark.kind) {
+    case 'box':
+    case 'blur':
+      return (
+        <rect
+          x={Math.min(a.x, b.x)} y={Math.min(a.y, b.y)}
+          width={Math.abs(b.x - a.x)} height={Math.abs(b.y - a.y)}
+          fill={mark.kind === 'blur' ? 'rgba(255,255,255,.35)' : 'none'}
+          stroke={mark.kind === 'blur' ? '#ffffff' : colour}
+          strokeDasharray={mark.kind === 'blur' ? '6 4' : undefined}
+          strokeWidth={width}
+        />
+      );
+    case 'ellipse':
+      return (
+        <ellipse
+          cx={(a.x + b.x) / 2} cy={(a.y + b.y) / 2}
+          rx={Math.abs(b.x - a.x) / 2} ry={Math.abs(b.y - a.y) / 2}
+          fill="none" stroke={colour} strokeWidth={width}
+        />
+      );
+    case 'underline':
+      return <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={colour} strokeWidth={width * 1.6} />;
+    case 'arrow':
+      return (
+        <g stroke={colour} strokeWidth={width} fill={colour}>
+          <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} />
+          <circle cx={b.x} cy={b.y} r={width * 2} />
+        </g>
+      );
+    case 'freehand':
+      return (
+        <polyline
+          points={points.map((p: any) => `${p.x},${p.y}`).join(' ')}
+          fill="none" stroke={colour} strokeWidth={width}
+          strokeLinejoin="round" strokeLinecap="round"
+        />
+      );
+    case 'text':
+      return (
+        <text x={a.x} y={a.y} fill={colour} fontSize={H * 0.05} stroke="#000" strokeWidth={1}>
+          {mark.text}
+        </text>
+      );
+    default:
+      return null;
+  }
 }

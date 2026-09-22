@@ -3280,6 +3280,23 @@ fail and wrong in how it looked: it now pins the layout it depends on and says
 why, and the composite path has its own test. **When a correct change breaks a
 test, the test was asserting something it was never supposed to be asserting.**
 
+**Timing inside a response belongs to the response, not to the recording.**
+Annotation and evidence windows were stored as positions in the take's media
+clock. A take is one *attempt* at a response; the response is what the author
+means. So trimming the head, or switching to a re-record with a different
+amount of pre-roll, silently moved every mark and every citation somewhere
+else — or out of the video entirely. The marks stayed in the document and
+simply stopped appearing, which is the worst way for work to go missing (D-07):
+nothing errors, nothing is reported, and the author finds out by watching the
+export. Windows are now offsets into what the author kept, so they survive both.
+
+**A mark can only be drawn where the thing it marks is.** Annotations are
+statements about the source frame. When the layout showed no source frame — an
+evidence panel filling the picture, a full-screen response — the renderer fell
+back to the whole canvas and drew the mark on whatever happened to be there. A
+circle meant for a chart landed on a document the author never marked. Where
+there is no frame, there is no mark.
+
 **An assertion about the interface is not an assertion about the behaviour.**
 The companion player's test waited for the words "Response —" to appear and
 called that passing. They appeared. The response did not play: the browser

@@ -11,6 +11,7 @@
  */
 
 import type { RenderPlan } from '../domain/plan.js';
+import { annotationEvents } from './annotations.js';
 import { HOUSE_FPS, type Frames } from '../domain/time.js';
 
 export type Speaker = 'source' | 'user';
@@ -63,6 +64,8 @@ export interface AssOptions {
   claimCards?: boolean;
   /** What each shown document is, while it is on screen. [U-33 §4] */
   evidenceLabels?: boolean;
+  /** Marks over the frozen source frame. [U-12] */
+  annotations?: boolean;
 }
 
 export function buildAss(plan: RenderPlan, options: AssOptions = {}): string {
@@ -104,6 +107,9 @@ export function buildAss(plan: RenderPlan, options: AssOptions = {}): string {
     style('Claim', Math.round(base * 0.040), '#F2F2F2', '#000000', 0, Math.round(height * 0.07), 8),
     // The citation on screen: what this document is, while it is being shown.
     style('Evidence', Math.round(base * 0.026), '#E8E8E8', '#000000', 0, Math.round(height * 0.035), 1),
+    // Drawing events carry all their own styling; this style only has to be
+    // positionless and unmargined so \pos and \p1 behave.
+    `Style: Annotation,${FONT},${Math.round(base * 0.035)},&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1`,
     style('Attribution', attrSize, '#E8E8E8', '#000000', 0, margin, 3),
     '',
     '[Events]',
@@ -158,6 +164,14 @@ export function buildAss(plan: RenderPlan, options: AssOptions = {}): string {
         if (end <= start) continue;
         lines.push(event(start, end, 'Evidence', escapeAss(cue.title), fps, true));
       }
+    }
+  }
+
+  if (options.annotations !== false) {
+    for (const shot of plan.shots) {
+      if (shot.kind !== 'response' || !shot.annotations?.length) continue;
+      lines.push(...annotationEvents(
+        shot.annotations, plan.exportProfile, shot.outputStartFrame, assTime));
     }
   }
 

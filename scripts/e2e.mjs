@@ -246,6 +246,84 @@ check(evidence.locator.region.w === 0.58 && evidence.locator.quote === 'unemploy
 const planPreview = (await api(`/api/conversations/${conversationId}`)).plan;
 check(planPreview !== null, 'the plan still builds with evidence attached');
 
+// --- annotations (§14, U-12) ------------------------------------------------
+log('annotations…');
+const annBase =
+  `${BASE}/api/conversations/${conversationId}/interventions/${beforeTrim.id}/annotations`;
+const circle = await (await fetch(annBase, {
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({
+    kind: 'ellipse',
+    points: [{ x: 0.18, y: 0.22 }, { x: 0.62, y: 0.68 }],
+    style: { color: '#ffcc00', width: 0.006 },
+    drawFrames: 14,
+  }),
+})).json();
+check(Boolean(circle.annotation?.id), 'a mark can be placed on the frame (§14)');
+check(circle.annotation?.points[0]?.x === 0.18, 'it is stored in the frame, not in pixels (U-12 §1)');
+
+await fetch(annBase, {
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({
+    kind: 'blur', points: [{ x: 0.7, y: 0.06 }, { x: 0.96, y: 0.3 }], style: {},
+  }),
+});
+
+const timed = await fetch(`${annBase}/${circle.annotation.id}`, {
+  method: 'PATCH',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({
+    appearFrame: beforeTrim.takes.find((t) => t.id === beforeTrim.selectedTakeId).mediaInFrame + 12,
+    dismissFrame: beforeTrim.takes.find((t) => t.id === beforeTrim.selectedTakeId).mediaOutFrame,
+  }),
+});
+check(timed.ok, 'a mark has its own window (U-12 §2)');
+
+const withMarks = (await api(`/api/conversations/${conversationId}`)).conversation
+  .interventions.find((iv) => iv.id === beforeTrim.id);
+check(withMarks.annotations?.length === 2, 'both marks are on the point',
+  `${withMarks.annotations?.length ?? 0}`);
+check(withMarks.annotations[0].drawFrames === 14,
+  'how fast the stroke was drawn is kept (U-12 §3)');
+
+const markPlan = (await api(
+  `/api/conversations/${conversationId}/representations?id=render-plan.json`));
+const markShot = markPlan.shots.find(
+  (s) => s.kind === 'response' && s.interventionId === beforeTrim.id);
+const secondPoint = (await api(`/api/conversations/${conversationId}`)).conversation
+  .interventions.find((iv) => iv.id !== beforeTrim.id);
+if (secondPoint) {
+  await fetch(
+    `${BASE}/api/conversations/${conversationId}/interventions/${secondPoint.id}/annotations`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        kind: 'arrow', points: [{ x: 0.8, y: 0.2 }, { x: 0.5, y: 0.5 }], style: {},
+      }),
+    });
+  const plan2 = await api(`/api/conversations/${conversationId}/representations?id=render-plan.json`);
+  const shot2 = plan2.shots.find(
+    (s) => s.kind === 'response' && s.interventionId === secondPoint.id);
+  check(shot2?.annotations?.length === 1, 'the plan carries a mark on a point that shows the frame');
+  check(shot2?.layoutId === 'freeze_pip',
+    'the layout changes to show the frame the mark points at (U-11)', shot2?.layoutId);
+}
+// This point carries evidence as well, and evidence takes the panel — so
+// there is no frame on screen for the marks to sit on, and they are not
+// drawn rather than landing on the document instead.
+check(markShot?.layoutId === 'evidence_split',
+  'evidence keeps the panel where both are present (U-11)', markShot?.layoutId);
+check(markShot?.annotations === undefined,
+  'a mark is not drawn where the frame it marks is not shown (U-12 §1)');
+
+await page.locator('button:has-text("Edit")').first().click();
+await page.waitForSelector('button:has-text("circle")', { timeout: 10_000 })
+  .then(() => check(true, 'the drawing tools are on the point'))
+  .catch(() => check(false, 'the drawing tools are on the point'));
+
 // --- vertical clips (U-22) --------------------------------------------------
 log('clips…');
 const clipList = await api(`/api/conversations/${conversationId}/clips`);

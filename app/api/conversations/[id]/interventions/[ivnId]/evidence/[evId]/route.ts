@@ -18,8 +18,8 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
     region?: { x: number; y: number; w: number; h: number };
     quote?: string;
     page?: number;
-    appearFrame?: number | null;
-    dismissFrame?: number | null;
+    appearOffset?: number | null;
+    dismissOffset?: number | null;
   };
 
   try {
@@ -31,10 +31,10 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
           ...(body.page !== undefined ? { page: body.page } : {}),
         });
       }
-      if (body.appearFrame !== undefined || body.dismissFrame !== undefined) {
+      if (body.appearOffset !== undefined || body.dismissOffset !== undefined) {
         setEvidenceWindow(draft, ivnId, evId, {
-          ...(body.appearFrame !== undefined ? { appearFrame: body.appearFrame } : {}),
-          ...(body.dismissFrame !== undefined ? { dismissFrame: body.dismissFrame } : {}),
+          ...(body.appearOffset !== undefined ? { appearOffset: body.appearOffset } : {}),
+          ...(body.dismissOffset !== undefined ? { dismissOffset: body.dismissOffset } : {}),
         });
       }
     });

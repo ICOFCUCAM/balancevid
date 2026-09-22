@@ -116,6 +116,7 @@ assembly, render — not a mock of it.
 | Conversation Manifest | the companion player: drives the source, cuts to you |
 | Response reel | the Class B export — your material, no provider footage |
 | Vertical clips | one per claim-and-response pair, ranked and proposed (U-22) |
+| Annotations | vector, timed, drawn at render resolution; blur as a privacy tool |
 | Evidence | archived on attach, located, timed, zoomed to in the render |
 | Article | every conversation also renders as a citable document (U-14) |
 | Representations | one registry, regenerated on demand, never stored (D-16) |
@@ -170,7 +171,6 @@ Stated plainly, because a status table that overstates is worse than none.
   YouTube's player API only; Vimeo's needs its own adapter.
 - **Publishing.** Nothing is published anywhere. Exports download; the
   manifest and the watch page are same-origin.
-- **Annotations and freeze-frame capture.** v2.
 - **Paged documents as evidence.** PDFs are stored, hashed and cited, but this
   build has no rasteriser, so they carry no visual capture and the render has
   nothing to show for them. Images and web pages do.
@@ -178,6 +178,10 @@ Stated plainly, because a status table that overstates is worse than none.
   timeline boundaries (§18) — the band is read-only.
 - **Face-aware vertical framing** (U-22 §3) — clips reflow by layout, but the
   crop is not face-tracked.
+- **Marks alongside evidence.** A point can carry both, but no layout shows a
+  frame and a document at once, so where both exist the evidence takes the
+  panel and the marks are not drawn. The Studio says so rather than dropping
+  them silently.
 - **The publication bundle** (U-30) — chapters, thumbnails, suggested titles.
 - **Pre-flight capture check** (U-26 §2) and device-change detection.
 - **A/V sync golden test** (D-10) — frame-exactness, loudness and cache are

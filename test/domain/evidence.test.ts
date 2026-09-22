@@ -105,7 +105,7 @@ describe('when the document is on screen (U-33 §3)', () => {
     const item = evidence();
     attachEvidence(conversation, intervention.id, item);
     setEvidenceWindow(conversation, intervention.id, item.id, {
-      appearFrame: S(2), dismissFrame: S(6),
+      appearOffset: S(2), dismissOffset: S(6),
     });
     expect(evidenceAt(intervention, S(1))).toBeNull();
     expect(evidenceAt(intervention, S(3))).toBe(item);
@@ -117,7 +117,7 @@ describe('when the document is on screen (U-33 §3)', () => {
     const item = evidence();
     attachEvidence(conversation, intervention.id, item);
     expect(() => setEvidenceWindow(conversation, intervention.id, item.id, {
-      appearFrame: 10, dismissFrame: 10 + MIN_EVIDENCE_FRAMES - 1,
+      appearOffset: 10, dismissOffset: 10 + MIN_EVIDENCE_FRAMES - 1,
     })).toThrow(/at least/);
   });
 
@@ -125,9 +125,9 @@ describe('when the document is on screen (U-33 §3)', () => {
     const { conversation, intervention } = fixture();
     const item = evidence();
     attachEvidence(conversation, intervention.id, item);
-    setEvidenceWindow(conversation, intervention.id, item.id, { appearFrame: S(2), dismissFrame: S(6) });
-    setEvidenceWindow(conversation, intervention.id, item.id, { appearFrame: null, dismissFrame: null });
-    expect(item.appearFrame).toBeUndefined();
+    setEvidenceWindow(conversation, intervention.id, item.id, { appearOffset: S(2), dismissOffset: S(6) });
+    setEvidenceWindow(conversation, intervention.id, item.id, { appearOffset: null, dismissOffset: null });
+    expect(item.appearOffset).toBeUndefined();
     expect(evidenceAt(intervention, 0)).toBe(item);
   });
 
@@ -139,7 +139,7 @@ describe('when the document is on screen (U-33 §3)', () => {
     attachEvidence(conversation, intervention.id, second);
     for (const item of [first, second]) {
       setEvidenceWindow(conversation, intervention.id, item.id, {
-        appearFrame: S(1), dismissFrame: S(5),
+        appearOffset: S(1), dismissOffset: S(5),
       });
     }
     expect(evidenceAt(intervention, S(2))?.title).toBe('second');

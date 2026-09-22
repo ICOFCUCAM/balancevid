@@ -198,8 +198,9 @@ describe('evidence (U-33)', () => {
       retrievedAt: '2026-09-22T12:00:00.000Z',
       // The cited block sits at y≈0.43 of the page, a fifth of its height.
       locator: { region: { x: 0.15, y: 0.42, w: 0.58, h: 0.06 }, quote: 'unemployment fell' },
-      appearFrame: take.mediaInFrame + 15,
-      dismissFrame: take.mediaOutFrame,
+      // Offsets into what the author kept, not positions in the recording.
+      appearOffset: 15,
+      dismissOffset: take.mediaOutFrame - take.mediaInFrame,
       archived: true,
     }];
 
@@ -236,6 +237,65 @@ describe('evidence (U-33)', () => {
       { evidence?: unknown[] };
     expect(shot.evidence).toBeUndefined();
   });
+});
+
+describe('annotations (§14, U-12)', () => {
+  it('draws vector marks and blurs a region, in frame', async () => {
+    const conversation = makeConversation(
+      SOURCE_FRAMES,
+      ANCHORS.map((frame) => makeIntervention(frame, RESPONSE_FRAMES, { type: 'context' })),
+    );
+    conversation.source.mezzanineAssetId = 'asset_source' as AssetId;
+    for (const ivn of conversation.interventions) {
+      for (const take of ivn.takes) take.assetId = 'asset_response' as AssetId;
+    }
+
+    const target = conversation.interventions[0]!;
+    const take = target.takes[0]!;
+    target.annotations = [
+      {
+        id: 'ann_circle' as never, kind: 'ellipse',
+        points: [{ x: 0.2, y: 0.25 }, { x: 0.6, y: 0.65 }],
+        style: { color: '#ffcc00', width: 0.006 }, z: 0,
+        appearOffset: 10, dismissOffset: take.mediaOutFrame - take.mediaInFrame,
+        drawFrames: 12,
+      },
+      {
+        id: 'ann_arrow' as never, kind: 'arrow',
+        points: [{ x: 0.8, y: 0.2 }, { x: 0.62, y: 0.42 }],
+        style: { color: '#ff5533', width: 0.005 }, z: 1,
+      },
+      {
+        id: 'ann_text' as never, kind: 'text',
+        points: [{ x: 0.1, y: 0.8 }], text: 'look at this',
+        style: { color: '#ffffff' }, z: 2,
+      },
+      {
+        // A privacy blur, which is pixels rather than a drawing. [U-12 §4]
+        id: 'ann_blur' as never, kind: 'blur',
+        points: [{ x: 0.05, y: 0.05 }, { x: 0.25, y: 0.2 }],
+        style: {}, z: 3,
+      },
+    ];
+
+    const plan = buildRenderPlan(conversation, { burnInCaptions: true });
+    const shot = plan.shots.find((s) => s.kind === 'response') as
+      { annotations?: unknown[]; layoutId: string };
+    expect(shot.annotations).toHaveLength(4);
+    expect(shot.layoutId).toBe('freeze_pip');
+
+    const workDir = join(dir, 'work', 'annotations');
+    await mkdir(workDir, { recursive: true });
+    const outputPath = join(workDir, 'FINAL.mp4');
+    // compose() checks its own frame count against the plan, so a drawing that
+    // breaks the subtitle file or a blur that breaks the filter graph fails here.
+    const result = await compose(plan, {
+      workDir, outputPath,
+      resolveAsset: (id) => (id === 'asset_source' ? sourceMezz : responseMezz),
+    });
+    expect(result.totalOutputFrames).toBe(plan.totalOutputFrames);
+    expect((await probe(outputPath)).durationFrames).toBe(plan.totalOutputFrames);
+  }, 300_000);
 });
 
 describe('vertical clips (U-22)', () => {

@@ -21,6 +21,7 @@ export type InterventionId = Id<'ivn'>;
 export type TakeId = Id<'take'>;
 export type AssetId = Id<'asset'>;
 export type EvidenceId = Id<'ev'>;
+export type AnnotationId = Id<'ann'>;
 
 /**
  * Source class decides which exports exist. Enforced at plan time (INV-01).
@@ -142,12 +143,78 @@ export interface Evidence {
   contentHash?: string;
   retrievedAt: string;
   locator: EvidenceLocator;
-  /** Window within the response's media clock. Absent means the whole take. */
-  appearFrame?: Frames;
-  dismissFrame?: Frames;
+  /** On screen from here to here, as offsets into what the author kept. */
+  appearOffset?: Frames;
+  dismissOffset?: Frames;
   /** Set once the archive job has run. */
   archived: boolean;
   archiveError?: string;
+}
+
+/**
+ * Annotations.  [Doctrine §14, U-12]
+ *
+ * Vector primitives in normalised coordinates, with their own timing. Three
+ * properties, all of which are lost if annotations are captured as pixels
+ * from the editing canvas:
+ *
+ *   RESOLUTION-INDEPENDENT. Rasterised at editor size they blur at 1080p,
+ *   break at 4K, and cannot reflow for a vertical export (§29).
+ *
+ *   TIMED. A circle drawn AS the author says the word is the difference
+ *   between a broadcast explainer and a webcam recording. One that sits there
+ *   for the whole take is neither.
+ *
+ *   EDITABLE FOREVER. They are never baked into a media asset — only into a
+ *   render (§30).
+ */
+export type AnnotationKind =
+  | 'box' | 'ellipse' | 'arrow' | 'underline' | 'freehand' | 'text' | 'blur';
+
+export interface Point { x: number; y: number }
+
+export interface AnnotationStyle {
+  /** #rrggbb. The type's accent when the author does not choose. */
+  color?: string;
+  /** Stroke width as a fraction of the canvas height, so it scales. */
+  width?: number;
+  opacity?: number;
+  filled?: boolean;
+}
+
+export interface Annotation {
+  id: AnnotationId;
+  kind: AnnotationKind;
+  /**
+   * Normalised to the frame, 0–1.
+   *   box · ellipse · blur   two corners
+   *   arrow · underline      from, to
+   *   freehand               the path as drawn
+   *   text                   one anchor point
+   */
+  points: Point[];
+  text?: string;
+  style: AnnotationStyle;
+  z: number;
+  /**
+   * When the mark is on screen, as an offset into WHAT THE AUTHOR KEPT.
+   *
+   * Not a position in the recording. A take is one attempt at a response; the
+   * response is what the author means. Storing media frames ties a mark to one
+   * recording, so re-recording or trimming silently orphans every mark on the
+   * point — the marks are still in the document and simply stop appearing,
+   * which is the worst way for work to go missing (D-07).
+   *
+   * Absent means the whole response.
+   */
+  appearOffset?: Frames;
+  dismissOffset?: Frames;
+  /**
+   * How long the stroke takes to appear, recorded from how fast it was drawn.
+   * A hand-drawn circle that animates on at hand speed reads as production
+   * value, and it costs nothing. [U-12 §3]
+   */
+  drawFrames?: Frames;
 }
 
 export interface Intervention {
@@ -161,6 +228,17 @@ export interface Intervention {
   note?: string;
   /** [§44] Attached evidence, in the order the author added it. */
   evidence?: Evidence[];
+  /**
+   * Marks over the frozen source frame, in draw order.  [Doctrine §14, §15]
+   *
+   * The frame they sit on is the anchor frame — the one the author was looking
+   * at when they pressed the key — extracted from the mezzanine at render time
+   * (U-13). There is no separate freeze-frame asset because there is nothing a
+   * separate one could say that the anchor does not.
+   *
+   * An embedded source has no frames, so it has nothing to annotate.
+   */
+  annotations?: Annotation[];
   createdAt: string;
 }
 

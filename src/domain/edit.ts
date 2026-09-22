@@ -17,8 +17,8 @@
  */
 
 import {
-  INTERVENTION_TYPES, type Conversation, type Evidence, type EvidenceLocator,
-  type Intervention, type InterventionType, type Take,
+  INTERVENTION_TYPES, type Annotation, type Conversation, type Evidence,
+  type EvidenceLocator, type Intervention, type InterventionType, type Point, type Take,
 } from './document.js';
 import { LAYOUTS } from './presentation.js';
 import { assertFrames, type Frames } from './time.js';
@@ -253,26 +253,26 @@ export function setEvidenceLocator(
  */
 export function setEvidenceWindow(
   conversation: Conversation, interventionId: string, evidenceId: string,
-  window: { appearFrame?: Frames | null; dismissFrame?: Frames | null },
+  window: { appearOffset?: Frames | null; dismissOffset?: Frames | null },
 ): void {
   const target = intervention(conversation, interventionId);
   const found = findEvidence(target, evidenceId);
 
-  if (window.appearFrame === null && window.dismissFrame === null) {
-    delete found.appearFrame;
-    delete found.dismissFrame;
+  if (window.appearOffset === null && window.dismissOffset === null) {
+    delete found.appearOffset;
+    delete found.dismissOffset;
     return;
   }
 
-  const appear = window.appearFrame ?? found.appearFrame ?? 0;
-  const dismiss = window.dismissFrame ?? found.dismissFrame ?? appear + MIN_EVIDENCE_FRAMES;
+  const appear = window.appearOffset ?? found.appearOffset ?? 0;
+  const dismiss = window.dismissOffset ?? found.dismissOffset ?? appear + MIN_EVIDENCE_FRAMES;
   assertFrames(appear);
   assertFrames(dismiss);
   if (dismiss - appear < MIN_EVIDENCE_FRAMES) {
     throw new EditError(`evidence must stay on screen for at least ${MIN_EVIDENCE_FRAMES} frames`);
   }
-  found.appearFrame = appear;
-  found.dismissFrame = dismiss;
+  found.appearOffset = appear;
+  found.dismissOffset = dismiss;
 }
 
 /**
@@ -281,13 +281,130 @@ export function setEvidenceWindow(
  * Later attachments win where windows overlap: one document on screen at a
  * time, and the most recently placed one is the one the author meant.
  */
-export function evidenceAt(intervention: Intervention, mediaFrame: Frames): Evidence | null {
+export function evidenceAt(intervention: Intervention, offset: Frames): Evidence | null {
   let showing: Evidence | null = null;
   for (const evidence of intervention.evidence ?? []) {
     if (!evidence.archived) continue;
-    const appear = evidence.appearFrame ?? Number.NEGATIVE_INFINITY;
-    const dismiss = evidence.dismissFrame ?? Number.POSITIVE_INFINITY;
-    if (mediaFrame >= appear && mediaFrame < dismiss) showing = evidence;
+    const appear = evidence.appearOffset ?? Number.NEGATIVE_INFINITY;
+    const dismiss = evidence.dismissOffset ?? Number.POSITIVE_INFINITY;
+    if (offset >= appear && offset < dismiss) showing = evidence;
   }
   return showing;
+}
+
+// --- annotations ------------------------------------------------------------
+
+/**
+ * Annotation operations.  [Doctrine §14, U-12]
+ *
+ * Everything here moves numbers in the document. Nothing is ever drawn into a
+ * media file, so an annotation can be moved, retimed, restyled or removed
+ * years later and the render simply comes out different.
+ */
+
+/** Shorter than this and a mark flashes rather than points at anything. */
+export const MIN_ANNOTATION_FRAMES: Frames = 9;
+
+function annotationList(target: Intervention): Annotation[] {
+  target.annotations ??= [];
+  return target.annotations;
+}
+
+function findAnnotation(target: Intervention, annotationId: string): Annotation {
+  const found = (target.annotations ?? []).find((a) => a.id === annotationId);
+  if (!found) throw new EditError(`no such annotation: ${annotationId}`);
+  return found;
+}
+
+/** How many points each kind means. Anything else is a malformed mark. */
+const REQUIRED_POINTS: Record<Annotation['kind'], number> = {
+  box: 2, ellipse: 2, blur: 2, arrow: 2, underline: 2, text: 1, freehand: 2,
+};
+
+export function addAnnotation(
+  conversation: Conversation, interventionId: string, annotation: Annotation,
+): void {
+  const target = intervention(conversation, interventionId);
+  const required = REQUIRED_POINTS[annotation.kind];
+  if (required === undefined) throw new EditError(`unknown annotation: ${annotation.kind}`);
+  if (annotation.points.length < required) {
+    throw new EditError(`a ${annotation.kind} needs at least ${required} point(s)`);
+  }
+  if (annotation.kind === 'text' && !annotation.text?.trim()) {
+    throw new EditError('a text annotation needs some text');
+  }
+  annotation.points = annotation.points.map(clampPoint);
+  annotationList(target).push(annotation);
+}
+
+export function removeAnnotation(
+  conversation: Conversation, interventionId: string, annotationId: string,
+): void {
+  const target = intervention(conversation, interventionId);
+  findAnnotation(target, annotationId);
+  target.annotations = (target.annotations ?? []).filter((a) => a.id !== annotationId);
+}
+
+export function updateAnnotation(
+  conversation: Conversation, interventionId: string, annotationId: string,
+  patch: Partial<Pick<Annotation, 'points' | 'text' | 'style' | 'z' | 'drawFrames'>>,
+): void {
+  const found = findAnnotation(intervention(conversation, interventionId), annotationId);
+  if (patch.points) {
+    if (patch.points.length < REQUIRED_POINTS[found.kind]) {
+      throw new EditError(`a ${found.kind} needs at least ${REQUIRED_POINTS[found.kind]} point(s)`);
+    }
+    found.points = patch.points.map(clampPoint);
+  }
+  if (patch.text !== undefined) {
+    if (found.kind === 'text' && !patch.text.trim()) {
+      throw new EditError('a text annotation needs some text');
+    }
+    found.text = patch.text;
+  }
+  if (patch.style) found.style = { ...found.style, ...patch.style };
+  if (patch.z !== undefined) found.z = patch.z;
+  if (patch.drawFrames !== undefined) {
+    if (patch.drawFrames < 0) throw new EditError('a stroke cannot take negative time to draw');
+    found.drawFrames = patch.drawFrames;
+  }
+}
+
+/** When the mark is on screen, in the response's own media clock. [U-12 §2] */
+export function setAnnotationWindow(
+  conversation: Conversation, interventionId: string, annotationId: string,
+  window: { appearOffset?: Frames | null; dismissOffset?: Frames | null },
+): void {
+  const found = findAnnotation(intervention(conversation, interventionId), annotationId);
+
+  if (window.appearOffset === null && window.dismissOffset === null) {
+    delete found.appearOffset;
+    delete found.dismissOffset;
+    return;
+  }
+  const appear = window.appearOffset ?? found.appearOffset ?? 0;
+  const dismiss = window.dismissOffset ?? found.dismissOffset ?? appear + MIN_ANNOTATION_FRAMES;
+  assertFrames(appear);
+  assertFrames(dismiss);
+  if (dismiss - appear < MIN_ANNOTATION_FRAMES) {
+    throw new EditError(`a mark must stay up for at least ${MIN_ANNOTATION_FRAMES} frames`);
+  }
+  found.appearOffset = appear;
+  found.dismissOffset = dismiss;
+}
+
+/** Marks showing at a point in a take's media clock, in draw order. */
+export function annotationsAt(intervention: Intervention, offset: Frames): Annotation[] {
+  return (intervention.annotations ?? [])
+    .filter((annotation) => {
+      const appear = annotation.appearOffset ?? Number.NEGATIVE_INFINITY;
+      const dismiss = annotation.dismissOffset ?? Number.POSITIVE_INFINITY;
+      return offset >= appear && offset < dismiss;
+    })
+    .sort((a, b) => a.z - b.z);
+}
+
+function clampPoint(point: Point): Point {
+  const clamp01 = (n: number) => Math.min(Math.max(n, 0), 1);
+  return { x: clamp01(point.x), y: clamp01(point.y) };
 }
