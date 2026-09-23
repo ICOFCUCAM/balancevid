@@ -1,3 +1,4 @@
+import { accessTo } from '../../../../../../../src/auth/request.js';
 import { paths } from '../../../../../../../src/store/paths.js';
 import { loadConversation } from '../../../../../../../src/store/repository.js';
 import { fail, serveFile } from '../../../../../../../src/web/http.js';
@@ -16,10 +17,18 @@ type Params = { params: Promise<{ id: string; takeId: string }> };
  */
 export async function GET(request: Request, { params }: Params): Promise<Response> {
   const { id, takeId } = await params;
+  /*
+   * Media of a published conversation is public; media of a draft is not.
+   * 404 rather than 403 for a stranger: 403 confirms the draft exists, and
+   * that a draft exists is itself private (D-03).
+   */
   let conversation;
   try {
     conversation = await loadConversation(id);
   } catch {
+    return fail(404, 'conversation not found');
+  }
+  if (await accessTo(request, conversation) === 'denied') {
     return fail(404, 'conversation not found');
   }
 

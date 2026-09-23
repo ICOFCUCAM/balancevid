@@ -75,9 +75,33 @@ rendering are all queued to the worker, so one long export cannot make the
 application unusable for everyone else.
 
 ```bash
-npm test           # 262 tests, including real renders through real ffmpeg
+npm test           # 287 tests, including real renders through real ffmpeg
 npm run typecheck
 ```
+
+### Signing in
+
+One owner, one password. Generate a hash and set it in the environment:
+
+```bash
+npm run passwd                    # prompts, hidden; prints the hash
+```
+
+```
+BALANCEVID_PASSWORD_HASH='scrypt$16384$8$1$…'
+```
+
+**With nothing set, the instance serves nothing** — not even published
+conversations, because an instance with no owner has not published anything on
+purpose. Failing closed means the worst case is an outage.
+
+What stays public is exactly what was published: a published conversation's
+watch page, its article, its manifest and the media those need. Its render
+plan, timeline and publication bundle do not — a publication grants access to
+the artefact, not to the workshop. Withdrawing it closes the door again.
+
+Changing the password re-derives the session key and signs every session out,
+which is what to do if a session cookie leaks.
 
 ### Deploying it
 
@@ -95,7 +119,7 @@ structural rather than a matter of configuration.
 
 ```bash
 npx tsx scripts/make-fixture.ts /tmp/bv          # a source whose frames carry their index
-npx tsx scripts/e2e.mjs /tmp/bv/source.mp4       # 126 checks, driven with the spacebar
+npx tsx scripts/e2e.mjs /tmp/bv/source.mp4       # 146 checks, driven with the spacebar
 ```
 
 Chrome's fake media device stands in for a camera, so this exercises the actual
@@ -136,6 +160,7 @@ assembly, render — not a mock of it.
 | Publication bundle | description, chapters, titles and thumbnails, written from the document (U-30) |
 | Suggested claims | the source's checkable statements, found locally, ranked, with reasons (§20) |
 | The AI boundary | nothing suggested enters the document without a recorded human acceptance (U-15) |
+| Authentication | one owner; published conversations stay readable by anyone (D-06, U-31) |
 | Representations | one registry, regenerated on demand, never stored (D-16) |
 | Worker | durable queue, real progress, resumable via the shot cache |
 
@@ -268,11 +293,18 @@ Stated plainly, because a status table that overstates is worse than none.
   covered; the clap-and-flash drift test is not.
 - **Speaker-switching layout** (U-18) — the scene graph supports it; the voice
   activity detection is not written.
+- **One owner, not tenancy.** There is a password, not accounts. D-06 wants
+  tenant isolation enforced at the data layer; this is a door on the building,
+  which is the difference between a private instance and a public one and not
+  the same thing as separating two users' recordings.
+- **Responding requires signing in.** U-31 says anyone can open a published
+  conversation *and respond to it*. The first half holds. The second waits for
+  accounts, because an anonymous response is an anonymous write — recorded in
+  Appendix B.
 - **Not production infrastructure.** Single machine, filesystem storage, no
-  authentication, no tenancy, no quotas, no render-cost metering (D-11).
-  Anyone who can reach an instance can read and modify every conversation on
-  it. It containerises and deploys to any Docker host with a volume
-  (`docs/DEPLOYMENT.md`), and that is as far as it goes.
+  quotas, no render-cost metering (D-11). It containerises and deploys to any
+  Docker host with a volume (`docs/DEPLOYMENT.md`), and that is as far as it
+  goes.
 - **Storage is not yet swappable.** `src/store/` is where everything lives,
   but four API routes still reach for `node:fs` directly, so replacing the
   filesystem with object storage means routing those through the store

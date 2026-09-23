@@ -1,3 +1,4 @@
+import { accessTo } from '../../../../../src/auth/request.js';
 import { loadConversation } from '../../../../../src/store/repository.js';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { newId } from '../../../../../src/domain/ids.js';
@@ -28,6 +29,12 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
   } catch {
     return fail(404, 'conversation not found');
   }
+  // The source of a published conversation plays in the companion player
+  // (U-31). The source of a draft does not leave the instance.
+  if (await accessTo(request, conversation) === 'denied') {
+    return fail(404, 'conversation not found');
+  }
+
   const assetId = conversation.source.mezzanineAssetId;
   if (!assetId) return fail(409, 'source is still being normalised');
 

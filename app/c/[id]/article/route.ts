@@ -1,5 +1,6 @@
 import { generateArticle } from '../../../../src/article/generate.js';
 import { renderHtml } from '../../../../src/article/html.js';
+import { accessTo } from '../../../../src/auth/request.js';
 import { loadRepresentationContext } from '../../../../src/web/context.js';
 import { fail } from '../../../../src/web/http.js';
 
@@ -15,12 +16,18 @@ type Params = { params: Promise<{ id: string }> };
  * printable. Served as its own HTML rather than wrapped in application chrome,
  * because what it is for is being read and cited elsewhere.
  */
-export async function GET(_request: Request, { params }: Params): Promise<Response> {
+export async function GET(request: Request, { params }: Params): Promise<Response> {
   const { id } = await params;
   let context;
   try {
     context = await loadRepresentationContext(id);
   } catch {
+    return fail(404, 'conversation not found');
+  }
+
+  // The article of a published conversation is meant to be read and cited
+  // elsewhere (U-14). The article of a draft is the draft, in prose.
+  if (await accessTo(request, context.conversation) === 'denied') {
     return fail(404, 'conversation not found');
   }
 

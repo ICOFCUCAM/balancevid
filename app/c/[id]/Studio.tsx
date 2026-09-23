@@ -13,6 +13,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import SignOut from '../../SignOut.js';
 import { INTERVENTION_TYPES, type InterventionType } from '../../../src/domain/document.js';
 import { HOUSE_FPS, formatTimecode, type Frames } from '../../../src/domain/time.js';
 import { TYPE_PRESENTATION } from '../../../src/domain/presentation.js';
@@ -607,6 +608,7 @@ export default function Studio({ conversationId }: { conversationId: string }) {
           </button>
         </div>
         <a className="btn" href="/">All conversations</a>
+        <SignOut />
       </div>
 
       {error && <div className="panel" style={{ borderColor: 'var(--bad)', marginBottom: 12 }}>{error}</div>}

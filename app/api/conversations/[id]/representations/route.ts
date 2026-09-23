@@ -1,3 +1,5 @@
+import { accessTo } from '../../../../../src/auth/request.js';
+import { isPublicRepresentation } from '../../../../../src/auth/policy.js';
 import { REPRESENTATIONS, findRepresentation } from '../../../../../src/representations/registry.js';
 import { loadRepresentationContext } from '../../../../../src/web/context.js';
 import { fail, json } from '../../../../../src/web/http.js';
@@ -26,10 +28,23 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
     return fail(404, 'conversation not found');
   }
 
+  /*
+   * A published conversation is readable by anyone (U-31) — but only the
+   * artefact, not the working material. The render plan and the timeline
+   * describe how it was made; the bundle is the author's own admin.
+   */
+  const access = await accessTo(request, context.conversation);
+  if (access === 'denied') return fail(404, 'conversation not found');
+
   const wanted = new URL(request.url).searchParams.get('id');
+  if (access === 'public' && wanted !== null && !isPublicRepresentation(wanted)) {
+    return fail(404, `unknown representation: ${wanted}`);
+  }
   if (!wanted) {
     return json({
-      representations: REPRESENTATIONS.map((representation) => ({
+      representations: REPRESENTATIONS
+        .filter((r) => access === 'owner' || isPublicRepresentation(r.id))
+        .map((representation) => ({
         id: representation.id,
         label: representation.label,
         mediaType: representation.mediaType,

@@ -64,6 +64,9 @@ transcript is a degraded conversation, not a broken one.
 | `BALANCEVID_MODELS` | `/models` | Baked into the image, not the volume: models are versioned with the code, conversations are not. |
 | `BALANCEVID_PYTHON` | `/opt/venv/bin/python` | The offline transcriber. |
 | `BALANCEVID_CHROMIUM` | *(unset)* | Only needed if Playwright's own resolution fails. |
+| `BALANCEVID_PASSWORD_HASH` | *(unset)* | **Required.** The owner's password, hashed by `npm run passwd`. With nothing set the instance serves nothing. |
+| `BALANCEVID_PASSWORD` | *(unset)* | Plaintext alternative, hashed at boot. For a first run; prefer the hash. |
+| `BALANCEVID_SESSION_HOURS` | `336` | How long a session lasts. |
 
 ## Fly.io
 
@@ -112,16 +115,31 @@ several GB per hour-long conversation, and note that **render-cost metering
 (D-11) is not built** — nothing currently meters or caps what a user can
 consume.
 
-## What is not addressed here
+## Before it is reachable from the internet
 
-The README's "not built yet" list applies to deployment too, and two entries
-matter before this is exposed to people who are not you:
+**Set `BALANCEVID_PASSWORD_HASH`.** Without it the instance is locked and
+serves nothing but its health check and a page explaining what to set. That is
+deliberate — an auth system whose misconfiguration state is "everyone gets in"
+is not one — but it does mean a deploy without the variable is a deploy that
+answers nothing.
 
-- **No authentication, no tenancy, no quotas.** Anyone who can reach the
-  instance can read and modify every conversation on it. Put it behind your
-  own access control, or keep it private.
+```bash
+npm run passwd        # prints the line to set
+```
+
+Published conversations stay readable without signing in, which is what
+publishing is for. Everything else — drafts, takes, unpublished renders, and
+the list that would reveal they exist — needs the session.
+
+Still not addressed:
+
+- **One owner, not tenancy.** D-06 wants tenant isolation at the data layer.
+  This is a door on the building. Two people sharing an instance share
+  everything on it.
 - **No object storage.** One machine holds everything, so the volume is the
   single point of failure. Back it up.
+- **No quotas or render-cost metering** (D-11). Nothing caps what a signed-in
+  user can consume.
 
 ## Splitting the tiers
 

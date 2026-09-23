@@ -3,6 +3,7 @@ import { join } from 'node:path';
 
 import { VAR_ROOT, ensureDirs } from '../../../src/store/paths.js';
 import { listJobs } from '../../../src/store/queue.js';
+import { isOwner } from '../../../src/auth/request.js';
 import { json } from '../../../src/web/http.js';
 
 export const dynamic = 'force-dynamic';
@@ -17,7 +18,14 @@ export const dynamic = 'force-dynamic';
  * render. So this checks that storage is writable and reports whether
  * anything is draining the queue.
  */
-export async function GET(): Promise<Response> {
+export async function GET(request: Request): Promise<Response> {
+  /*
+   * Public, because the platform's health check has no session — but a
+   * stranger gets liveness only. Queue depth and the storage path are
+   * operational detail, and detail is how someone learns whether an instance
+   * is worth attacking.
+   */
+  const owner = await isOwner(request);
   const checks: Record<string, unknown> = {};
   let ok = true;
 
@@ -66,5 +74,6 @@ export async function GET(): Promise<Response> {
     checks['transcription'] = { available: false, note: 'sources will not be transcribed' };
   }
 
+  if (!owner) return json({ ok }, { status: ok ? 200 : 503 });
   return json({ ok, checks }, { status: ok ? 200 : 503 });
 }

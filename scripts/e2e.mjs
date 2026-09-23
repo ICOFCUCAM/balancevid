@@ -18,6 +18,8 @@ import { forDisplay } from '../src/transcribe/types.ts';
 
 const BASE = process.env.BASE ?? 'http://localhost:3000';
 const SOURCE = process.argv[2];
+// The server under test must be started with this password.
+const PASSWORD = process.env.BALANCEVID_E2E_PASSWORD ?? 'e2e-development-password';
 const CHROME = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
 if (!SOURCE) { console.error('usage: npx tsx scripts/e2e.mjs <source.mp4>'); process.exit(1); }
 
@@ -37,11 +39,65 @@ const page = await context.newPage();
 page.on('pageerror', (e) => console.error('  [page error]', e.message));
 page.on('console', (m) => { if (m.type() === 'error') console.error('  [console]', m.text()); });
 
+/**
+ * fetch, signed in.
+ *
+ * Node has no cookie jar, so the session travels by hand on every call the
+ * test makes outside the browser. `raw` is the deliberate opposite, used only
+ * to prove what a stranger cannot reach.
+ */
+let SESSION = '';
+const sfetch = (url, init = {}) => fetch(url, {
+  ...init, headers: { ...(init.headers ?? {}), cookie: SESSION },
+});
+
 let failures = 0;
 const check = (ok, label, extra = '') => {
   console.log(`  ${ok ? 'PASS' : 'FAIL'}  ${label}${extra ? ` — ${extra}` : ''}`);
   if (!ok) failures++;
 };
+
+/*
+ * --- the wall (D-03, D-06, U-31) -------------------------------------------
+ *
+ * Checked BEFORE signing in, because afterwards everything looks correct
+ * whether or not the wall exists. This instance is reachable from the
+ * internet; a stranger must see nothing except what was published.
+ */
+log('checking the wall before signing in…');
+const raw = (path, init) => fetch(`${BASE}${path}`, { redirect: 'manual', ...init });
+
+check((await raw('/')).status === 307, 'a stranger is sent to sign in');
+check((await raw('/api/conversations')).status === 401,
+  'a stranger cannot list the conversations on this instance (D-03)');
+check((await raw('/api/conversations/conv_guess/bundle')).status === 401,
+  'and cannot reach a conversation route by guessing an id');
+check((await raw('/api/conversations', {
+  method: 'POST', headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ title: 'intruder' }),
+})).status === 401, 'a stranger cannot create anything');
+check((await raw('/api/health')).status === 200, 'but the health check still answers');
+check(!JSON.stringify(await (await raw('/api/health')).json()).includes('queue'),
+  'and tells a stranger only that it is alive, not how busy it is');
+check((await raw('/api/auth/signin', {
+  method: 'POST', headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ password: 'not-the-password' }),
+})).status === 401, 'the wrong password is refused');
+
+// --- sign in ----------------------------------------------------------------
+log('signing in…');
+await page.goto(`${BASE}/signin`, { waitUntil: 'networkidle' });
+await page.fill('[data-testid="signin-password"]', PASSWORD);
+await page.click('[data-testid="signin-submit"]');
+await page.waitForURL((url) => !url.pathname.startsWith('/signin'), { timeout: 20_000 });
+check(true, 'the owner can sign in');
+
+const cookies = await context.cookies();
+const sessionEntry = cookies.find((c) => c.name === 'balancevid_session');
+SESSION = sessionEntry ? `${sessionEntry.name}=${sessionEntry.value}` : '';
+check(SESSION.length > 0, 'the session is a cookie the browser holds');
+check(sessionEntry?.httpOnly === true, 'that a script on the page cannot read');
+check(sessionEntry?.sameSite === 'Lax', 'and a cross-site form cannot post with');
 
 // --- create the conversation ------------------------------------------------
 log('opening', BASE);
@@ -58,7 +114,7 @@ log('conversation', conversationId);
 // --- wait for ingest --------------------------------------------------------
 log('waiting for the source to be normalised…');
 await page.waitForSelector('video[src*="/source"]', { timeout: 120_000 });
-const api = async (path) => (await fetch(`${BASE}${path}`)).json();
+const api = async (path) => (await sfetch(`${BASE}${path}`)).json();
 let snap = await api(`/api/conversations/${conversationId}`);
 check(snap.conversation.source.durationFrames === 600, 'source normalised to 600 frames',
   `got ${snap.conversation.source.durationFrames}`);
@@ -173,7 +229,7 @@ if (claimsView.claims.length > 0) {
 
 // A decision cannot be anonymous: INV-06 is not satisfiable without a person.
 if (claimsView.claims.length > 0) {
-  const anonymous = await fetch(`${BASE}/api/conversations/${conversationId}/claims`, {
+  const anonymous = await sfetch(`${BASE}/api/conversations/${conversationId}/claims`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ key: claimsView.claims[0].key, status: 'accepted', by: '  ' }),
@@ -182,7 +238,7 @@ if (claimsView.claims.length > 0) {
 
   // Rejection is recorded, and survives a fresh detection run.
   const rejectKey = claimsView.claims.at(-1).key;
-  const rejected = await fetch(`${BASE}/api/conversations/${conversationId}/claims`, {
+  const rejected = await sfetch(`${BASE}/api/conversations/${conversationId}/claims`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ key: rejectKey, status: 'rejected', by: 'E2E Author' }),
@@ -193,7 +249,7 @@ if (claimsView.claims.length > 0) {
     'a rejected suggestion stays rejected when detection runs again');
 
   // A paraphrase cannot be bound: a quote the source never said misquotes them.
-  const paraphrase = await fetch(`${BASE}/api/conversations/${conversationId}/claims`, {
+  const paraphrase = await sfetch(`${BASE}/api/conversations/${conversationId}/claims`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
@@ -340,7 +396,7 @@ check(evidence?.archived === true, 'evidence is archived at attach time (U-33 §
 check(Boolean(evidence?.contentHash), 'the archive carries a content hash, so the citation verifies');
 check(Boolean(evidence?.captureAssetId), 'the archive has a capture the render can show');
 
-const capture = await fetch(
+const capture = await sfetch(
   `${BASE}/api/conversations/${conversationId}/evidence/${evidence.id}/capture`);
 check(capture.ok && capture.headers.get('content-type') === 'image/png',
   'the archived capture is served back');
@@ -348,7 +404,7 @@ check(capture.ok && capture.headers.get('content-type') === 'image/png',
 // Point at the part that matters, from the keyboard-reachable fields.
 await page.locator('button:has-text("Locate")').first().click();
 await page.waitForSelector('input[aria-label="Evidence appears"]', { timeout: 10_000 });
-const locateResponse = await fetch(
+const locateResponse = await sfetch(
   `${BASE}/api/conversations/${conversationId}/interventions/${beforeTrim.id}/evidence/${evidence.id}`,
   {
     method: 'PATCH',
@@ -372,7 +428,7 @@ check(planPreview !== null, 'the plan still builds with evidence attached');
 log('annotations…');
 const annBase =
   `${BASE}/api/conversations/${conversationId}/interventions/${beforeTrim.id}/annotations`;
-const circle = await (await fetch(annBase, {
+const circle = await (await sfetch(annBase, {
   method: 'POST',
   headers: { 'content-type': 'application/json' },
   body: JSON.stringify({
@@ -385,7 +441,7 @@ const circle = await (await fetch(annBase, {
 check(Boolean(circle.annotation?.id), 'a mark can be placed on the frame (§14)');
 check(circle.annotation?.points[0]?.x === 0.18, 'it is stored in the frame, not in pixels (U-12 §1)');
 
-await fetch(annBase, {
+await sfetch(annBase, {
   method: 'POST',
   headers: { 'content-type': 'application/json' },
   body: JSON.stringify({
@@ -393,7 +449,7 @@ await fetch(annBase, {
   }),
 });
 
-const timed = await fetch(`${annBase}/${circle.annotation.id}`, {
+const timed = await sfetch(`${annBase}/${circle.annotation.id}`, {
   method: 'PATCH',
   headers: { 'content-type': 'application/json' },
   body: JSON.stringify({
@@ -417,7 +473,7 @@ const markShot = markPlan.shots.find(
 const secondPoint = (await api(`/api/conversations/${conversationId}`)).conversation
   .interventions.find((iv) => iv.id !== beforeTrim.id);
 if (secondPoint) {
-  await fetch(
+  await sfetch(
     `${BASE}/api/conversations/${conversationId}/interventions/${secondPoint.id}/annotations`,
     {
       method: 'POST',
@@ -458,7 +514,7 @@ check(clipList.candidates[0].score >= clipList.candidates.at(-1).score,
 
 const clipTarget = clipList.candidates.find((c) => c.interventionId === beforeTrim.id)
   ?? clipList.candidates[0];
-const clipStart = await fetch(`${BASE}/api/conversations/${conversationId}/clips`, {
+const clipStart = await sfetch(`${BASE}/api/conversations/${conversationId}/clips`, {
   method: 'POST',
   headers: { 'content-type': 'application/json' },
   body: JSON.stringify({ interventionId: clipTarget.interventionId }),
@@ -477,7 +533,7 @@ check(clipJob?.state === 'done', 'the clip renders', clipJob?.error ?? clipJob?.
 if (clipJob?.state === 'done') {
   const clipUrl =
     `${BASE}/api/conversations/${conversationId}/renders/${clipJob.result.planHash}/file`;
-  const head = await fetch(clipUrl, { headers: { range: 'bytes=0-1023' } });
+  const head = await sfetch(clipUrl, { headers: { range: 'bytes=0-1023' } });
   check(head.status === 206, 'the clip is served and seekable');
 
   const dims = execFileSync(ffprobe.path, [
@@ -516,9 +572,9 @@ check(job?.state === 'done', 'render completed', job?.error ?? job?.state ?? 'no
 
 if (job?.state === 'done') {
   const url = `${BASE}/api/conversations/${conversationId}/renders/${job.result.planHash}/file`;
-  const head = await fetch(url, { headers: { range: 'bytes=0-1023' } });
+  const head = await sfetch(url, { headers: { range: 'bytes=0-1023' } });
   check(head.status === 206, 'output serves byte ranges (seekable)', `status ${head.status}`);
-  const srt = await fetch(`${url}?kind=srt`);
+  const srt = await sfetch(`${url}?kind=srt`);
   check(srt.ok, 'caption sidecar ships with the export (INV-07)');
   const srtBody = await srt.text();
   check(srtBody.includes('SOURCE:'), 'captions carry real cues with speaker labels (U-19, U-20)',
@@ -610,13 +666,13 @@ for (const kind of ['frame', 'take', 'quote']) {
   const candidate = bundle.thumbnails.find((t) => t.kind === kind
     && afterThumbs.renderedThumbnails.includes(t.id));
   if (!candidate) continue;
-  const png = await fetch(
+  const png = await sfetch(
     `${BASE}/api/conversations/${conversationId}/bundle?thumbnail=${candidate.id}`);
   const bytes = Buffer.from(await png.arrayBuffer());
   check(png.ok && bytes.length > 5000 && bytes.subarray(1, 4).toString() === 'PNG',
     `the ${kind} thumbnail serves as a real image`, `${bytes.length} bytes`);
 }
-check((await fetch(
+check((await sfetch(
   `${BASE}/api/conversations/${conversationId}/bundle?thumbnail=../../etc/passwd`)).status === 400,
   'a thumbnail id cannot escape the conversation (D-06)');
 
@@ -626,7 +682,7 @@ check((await fetch(
 for (const intervention of snapAfter.conversation.interventions) {
   const id = `frame_${intervention.id}`;
   if (!afterThumbs.renderedThumbnails.includes(id)) continue;
-  const png = Buffer.from(await (await fetch(
+  const png = Buffer.from(await (await sfetch(
     `${BASE}/api/conversations/${conversationId}/bundle?thumbnail=${id}`)).arrayBuffer());
   const pngPath = `/tmp/bv-thumb-${id}.png`;
   await writeFile(pngPath, png);
@@ -652,7 +708,7 @@ check(await page.locator('[data-testid="bundle-thumbnails"] img').count() > 0,
 
 // --- the article (U-14) -----------------------------------------------------
 log('checking the article…');
-const articleResponse = await fetch(`${BASE}/c/${conversationId}/article`);
+const articleResponse = await sfetch(`${BASE}/c/${conversationId}/article`);
 check(articleResponse.ok, 'the conversation renders as an article');
 const articleHtml = await articleResponse.text();
 check(articleHtml.startsWith('<!doctype html>'), 'the article is a standalone document');
@@ -676,7 +732,7 @@ check(ids.includes('article.md') && ids.includes('captions.srt'),
 check(list.representations.every((r) => r.inputs.length > 0),
   'every representation declares its inputs (D-16)');
 
-const markdown = await (await fetch(
+const markdown = await (await sfetch(
   `${BASE}/api/conversations/${conversationId}/representations?id=article.md`)).text();
 check(markdown.includes('# '), 'the article downloads as Markdown');
 check(markdown.includes('spoken by the author'),
@@ -721,7 +777,7 @@ await watch.close();
 
 // --- an embedded source (Class B) -------------------------------------------
 log('class B…');
-const embedded = await (await fetch(`${BASE}/api/conversations`, {
+const embedded = await (await sfetch(`${BASE}/api/conversations`, {
   method: 'POST',
   headers: { 'content-type': 'application/json' },
   body: JSON.stringify({
@@ -737,7 +793,7 @@ check(embedded.conversation?.source?.embedUrl?.includes('youtube-nocookie.com'),
 check(!embedded.conversation?.source?.mezzanineAssetId,
   'nothing was downloaded (U-35 §6)');
 
-const refusedComposed = await fetch(`${BASE}/api/conversations/${embeddedId}/renders`, {
+const refusedComposed = await sfetch(`${BASE}/api/conversations/${embeddedId}/renders`, {
   method: 'POST',
   headers: { 'content-type': 'application/json' },
   body: JSON.stringify({ kind: 'full' }),
@@ -772,7 +828,7 @@ await embeddedWatch.close();
 
 // --- the response reel (U-01) -----------------------------------------------
 log('response reel…');
-const reelStart = await fetch(`${BASE}/api/conversations/${conversationId}/renders`, {
+const reelStart = await sfetch(`${BASE}/api/conversations/${conversationId}/renders`, {
   method: 'POST',
   headers: { 'content-type': 'application/json' },
   body: JSON.stringify({ kind: 'reel' }),
@@ -789,7 +845,7 @@ for (let i = 0; i < 240; i++) {
 }
 check(reelJob?.state === 'done', 'the reel renders', reelJob?.error ?? reelJob?.state ?? 'no job');
 if (reelJob?.state === 'done') {
-  const reelFile = await fetch(
+  const reelFile = await sfetch(
     `${BASE}/api/conversations/${conversationId}/renders/${reelPlanHash}/file`,
     { headers: { range: 'bytes=0-1023' } });
   check(reelFile.status === 206, 'the reel is served');
@@ -799,19 +855,19 @@ if (reelJob?.state === 'done') {
 
 // --- publishing and responding (U-31, §40) ----------------------------------
 log('publish and respond…');
-const noConsent = await fetch(`${BASE}/api/conversations/${conversationId}/publish`, {
+const noConsent = await sfetch(`${BASE}/api/conversations/${conversationId}/publish`, {
   method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({}),
 });
 check(noConsent.status === 400, 'publishing asks about responses rather than assuming (U-31)');
 
-const publishNo = await fetch(`${BASE}/api/conversations/${conversationId}/publish`, {
+const publishNo = await sfetch(`${BASE}/api/conversations/${conversationId}/publish`, {
   method: 'POST',
   headers: { 'content-type': 'application/json' },
   body: JSON.stringify({ respondable: false, author: 'Chama Meyembi' }),
 });
 check(publishNo.ok, 'a finished conversation can be published');
 
-const refused = await fetch(`${BASE}/api/conversations`, {
+const refused = await sfetch(`${BASE}/api/conversations`, {
   method: 'POST',
   headers: { 'content-type': 'application/json' },
   body: JSON.stringify({ respondToConversationId: conversationId }),
@@ -819,7 +875,7 @@ const refused = await fetch(`${BASE}/api/conversations`, {
 check(refused.status === 403, 'a response is refused where the author did not allow it (U-31)',
   `status ${refused.status}`);
 
-await fetch(`${BASE}/api/conversations/${conversationId}/publish`, {
+await sfetch(`${BASE}/api/conversations/${conversationId}/publish`, {
   method: 'POST',
   headers: { 'content-type': 'application/json' },
   body: JSON.stringify({ respondable: true, author: 'Chama Meyembi' }),
@@ -828,7 +884,7 @@ const listed = await api('/api/published');
 check(listed.published.some((p) => p.id === conversationId && p.respondable),
   'it appears as something others can answer');
 
-const child = await (await fetch(`${BASE}/api/conversations`, {
+const child = await (await sfetch(`${BASE}/api/conversations`, {
   method: 'POST',
   headers: { 'content-type': 'application/json' },
   body: JSON.stringify({ respondToConversationId: conversationId }),
@@ -844,7 +900,7 @@ check(child.conversation?.lineage?.chain?.length === 1,
 
 // The parent may change or be withdrawn; the response must go on answering
 // what it actually answered.
-await fetch(`${BASE}/api/conversations/${conversationId}/publish`, { method: 'DELETE' });
+await sfetch(`${BASE}/api/conversations/${conversationId}/publish`, { method: 'DELETE' });
 const stillThere = (await api(`/api/conversations/${childId}`)).conversation;
 check(stillThere.lineage?.chain?.[0]?.title?.length > 0,
   'withdrawing the parent leaves the response intact');
@@ -858,6 +914,45 @@ const childSnap = await api(`/api/conversations/${childId}`);
 check(childSnap.conversation.source.durationFrames > 0,
   'the published render becomes the response\'s own source',
   `${childSnap.conversation.source.durationFrames} frames`);
+
+/*
+ * --- what publishing actually opens (U-31) ---------------------------------
+ *
+ * The wall is only correct if it has a door. "A published conversation is a
+ * Class A source. Anyone can open it and respond to it" — so a stranger must
+ * be able to read a published one, while a draft stays invisible to them.
+ */
+log('checking that publishing opens a door…');
+await sfetch(`${BASE}/api/conversations/${conversationId}/publish`, {
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ respondable: true, author: 'E2E Author' }),
+});
+
+check((await raw(`/c/${conversationId}/watch`)).status === 200,
+  'a stranger can watch a published conversation (U-31)');
+check((await raw(`/c/${conversationId}/article`)).status === 200,
+  'and read it as an article (U-14)');
+check((await raw(
+  `/api/conversations/${conversationId}/representations?id=manifest.json`)).status === 200,
+  'and its companion player gets its manifest');
+// The artefact, not the working material.
+for (const id of ['render-plan.json', 'timeline.json', 'bundle.json']) {
+  check((await raw(
+    `/api/conversations/${conversationId}/representations?id=${id}`)).status === 404,
+    `but not ${id} — that is the author's working material`);
+}
+check((await raw(`/c/${conversationId}`)).status === 307,
+  'and not the studio, which is where the drafts are');
+check((await raw(`/api/conversations/${conversationId}/interventions`, {
+  method: 'POST', headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ tSourceFrame: 1, type: 'critique' }),
+})).status === 401, 'a stranger still cannot change what was published');
+
+// Withdrawing closes it again.
+await sfetch(`${BASE}/api/conversations/${conversationId}/publish`, { method: 'DELETE' });
+check((await raw(`/c/${conversationId}/watch`)).status === 404,
+  'withdrawing puts it out of a stranger\'s reach again');
 
 const childManifest = await api(
   `/api/conversations/${childId}/representations?id=manifest.json`);

@@ -3217,6 +3217,24 @@ Scope moves the upgrades make to §49–§51. The map's phasing is otherwise kep
 - Evidence attachments — the product's identity, cheaply bought *(U-33, U-37)*
 - The article transcript — nearly free from the document *(U-14, U-37)*
 
+**Narrowed, until accounts exist** *(U-31 §40)*
+
+U-31 says a published conversation is a Class A source and **"anyone can open
+it and respond to it."** On a deployed instance the first half holds exactly:
+a published conversation, its article, its manifest and its media are readable
+by anyone, with no sign-in.
+
+The second half does not, yet. Responding creates a conversation and uploads a
+recording, and this build has one owner and no accounts to attribute either
+to — so an anonymous response is an anonymous write to a public instance,
+which is the thing authentication exists to stop. Responding therefore
+requires the owner's session.
+
+This is a narrowing of the clause, not a reinterpretation of it. When accounts
+exist, "anyone" means "any signed-in person", the write is attributable, and
+U-31 is satisfied as written. Until then the gap is stated here rather than
+quietly left in the code.
+
 **Out of MVP** (to v2)
 - YouTube / Class B sources — arrive with the Conversation Manifest, which is
   substantial work and must not ship as a broken composed export *(U-01, U-36)*
@@ -3367,6 +3385,31 @@ was still uploading, silently discarding the end of every response — the most
 recently spoken words, and the ones the user cared about most. Found only by
 driving the real browser. **An end-to-end test is not a slower unit test; it is
 the only thing that sees the races.**
+
+**A default-open gate is not a gate.** The first sketch of authentication was
+a list of routes to protect. That is the shape which fails silently: every
+route added afterwards is public until someone remembers, and nobody
+remembers. Inverting it — everything needs a session, a short allowlist names
+what may be reached without one — turns the same forgetfulness into a locked
+door instead of an open one. The test that matters is not "is /api/conversations
+protected" but **"is a route nobody has thought about protected"**, and only
+one of the two designs can pass it.
+
+The same reasoning decides what an unconfigured instance does. With no password
+set, this one serves nothing at all — not even published conversations, since
+an instance with no owner has not published anything on purpose. An auth system
+whose misconfiguration state is "everyone gets in" is not an auth system, and
+the worst case of failing closed is an outage, which is recoverable.
+
+**Authentication had to leave the door open.** U-31 says a published
+conversation is a Class A source that anyone can open, so a wall around the
+whole application would have made publishing meaningless. The wall goes around
+everything the author has NOT published — and around the working material of
+the things they have. A reader of a published conversation gets its manifest,
+its article and its captions; they do not get the render plan, the timeline or
+the publication bundle, because those describe how the thing was made rather
+than what was published. **What a publication grants is access to the artefact,
+never to the workshop.**
 
 **The boundary had to be a type, not a check.** U-15 says AI may not generate
 a response the user did not say, may not alter a source quote, may not assert a

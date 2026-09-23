@@ -12,7 +12,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "start:worker": "tsx src/worker/index.ts"
+    "start:worker": "tsx src/worker/index.ts",
+    "passwd": "tsx scripts/passwd.ts"
   },
   "dependencies": {
     "ffmpeg-static": "^5.3.0",

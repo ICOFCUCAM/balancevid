@@ -3,6 +3,7 @@ import { isRespondable } from '../src/domain/document.js';
 import { listConversations } from '../src/store/repository.js';
 import { formatTimecode } from '../src/domain/time.js';
 import NewConversation from './NewConversation.js';
+import SignOut from './SignOut.js';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,7 +15,10 @@ export default async function Home() {
 
   return (
     <div className="wrap">
-      <h1>BalanceVid</h1>
+      <div className="row">
+        <h1 className="grow">BalanceVid</h1>
+        <SignOut />
+      </div>
       <p className="muted" style={{ maxWidth: 680, marginTop: 0 }}>
         Interrupt a video at any moment, respond, resume exactly where it stopped,
         repeat throughout the source, and publish the resulting conversation.
