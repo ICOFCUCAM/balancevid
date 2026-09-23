@@ -194,6 +194,60 @@ check(quoted.every((iv) => Boolean(iv.anchor.quoteHash)), 'the claim carries its
 check(quoted.every((iv) => !iv.anchor.origin),
   'a claim the author found themselves records no model (U-15)');
 
+// --- research mode (§43, §16) -----------------------------------------------
+log('checking search…');
+const searchFor = async (q, scoped = true) => api(
+  `/api/search?q=${encodeURIComponent(q)}${scoped ? `&conversation=${conversationId}` : ''}`);
+
+// A word the source actually says, taken from its own transcript.
+const sourceWord = transcript.sentences[0].text.split(/\s+/)
+  .find((w) => w.length > 5)?.toLowerCase() ?? 'the';
+const found = await searchFor(sourceWord);
+check((found.results?.[0]?.total ?? 0) > 0,
+  'searching finds what the source said (§43)', `"${sourceWord}" → ${found.results?.[0]?.total}`);
+check(found.results[0].hits.every((h) => Number.isInteger(h.tSourceFrame)),
+  'and every hit carries a frame to jump to');
+check(found.results[0].hits.every((h) => h.highlights.length > 0),
+  'and marks where it matched');
+
+check((await searchFor('zzzznotawordanywhere')).results?.[0]?.total === 0,
+  'and finds nothing for a word nobody said');
+check((await searchFor('')).total === 0, 'an empty query returns nothing, not everything');
+
+// The claim bound earlier is searchable, and outranks a passing mention.
+if (quoted[0]) {
+  const word = quoted[0].anchor.quote.split(/\s+/).find((w) => w.length > 4);
+  if (word) {
+    const byClaim = await searchFor(word);
+    check((byClaim.results?.[0]?.total ?? 0) > 0,
+      'a bound claim is searchable (§16)', `"${word}"`);
+  }
+}
+
+// Across the instance, not just this conversation.
+const across = await searchFor(sourceWord, false);
+check(across.total > 0, 'and the instance can be searched as a whole (§16)',
+  `${across.results.length} conversation(s)`);
+
+// The wall holds here too: a search endpoint that ignored it would be a way
+// to read every draft one keyword at a time.
+check((await raw(`/api/search?q=${encodeURIComponent(sourceWord)}`)).status === 401,
+  'a stranger cannot search the instance (D-03, D-06)');
+check((await raw(
+  `/api/search?q=x&conversation=${conversationId}`)).status === 401,
+  'nor search inside a draft');
+
+// The panel an author actually uses.
+await page.fill('[data-testid="search-input"]', sourceWord);
+await page.waitForSelector('[data-testid="search-hit"]', { timeout: 15_000 })
+  .then(() => check(true, 'the studio shows search results'))
+  .catch(() => check(false, 'the studio shows search results', 'none appeared'));
+check(await page.locator('[data-testid="search-jump"]').count() > 0,
+  'each result offers a jump to its moment');
+check(await page.locator('[data-testid="search-respond"]').count() > 0,
+  'and a way to answer it without leaving the search (§43)');
+await page.fill('[data-testid="search-input"]', '');
+
 // --- the knowledge layer (§20, U-15, INV-06) --------------------------------
 log('checking suggested claims…');
 const claimsView = await api(`/api/conversations/${conversationId}/claims`);

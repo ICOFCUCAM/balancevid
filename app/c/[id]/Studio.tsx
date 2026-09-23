@@ -14,6 +14,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import SignOut from '../../SignOut.js';
+import SearchPanel from './SearchPanel.js';
 import { INTERVENTION_TYPES, type InterventionType } from '../../../src/domain/document.js';
 import { HOUSE_FPS, formatTimecode, type Frames } from '../../../src/domain/time.js';
 import { TYPE_PRESENTATION } from '../../../src/domain/presentation.js';
@@ -620,6 +621,13 @@ export default function Studio({ conversationId }: { conversationId: string }) {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,0.85fr) minmax(0,1.6fr) minmax(0,1fr)', gap: 16 }}>
         <section className="panel" style={{ maxHeight: '78vh', overflow: 'auto', padding: 12 }}>
+          <SearchPanel
+            conversationId={conversationId}
+            canRecord={phase === 'armed'}
+            onSeek={seekTo}
+            onRespond={(frame, quote) => interrupt({ frame, ...(quote ? { quote } : {}) })}
+          />
+
           <div className="row" style={{ marginBottom: 8 }}>
             <strong className="grow">Source transcript</strong>
             {transcript && (

@@ -3386,6 +3386,25 @@ recently spoken words, and the ones the user cared about most. Found only by
 driving the real browser. **An end-to-end test is not a slower unit test; it is
 the only thing that sees the races.**
 
+**A search result you cannot answer is a worse transcript.** §43 describes
+search as finding every mention and jumping to it, and the jump is what makes
+it more than a text box — but the version worth building goes one step
+further. Every result carries the frame it was said at, so the button next to
+it can be *Respond here*: searching and interrupting become one motion instead
+of two. The same reasoning ranks a claim the author bound above a passing
+mention in the source's narration. They already decided that one mattered, and
+a result list that ignores their own decisions is asking them to make them
+twice.
+
+Two details that only showed up in use. Bare terms must match on word
+boundaries, or searching "art" lights up "start", "particular" and "heart",
+and a list where most rows are noise is one nobody reads to the bottom of.
+And diacritics fold, so "cafe" finds "café" — which is slightly wrong for
+Swedish, where å and a are different letters, and still right overall: a
+search box that misses the thing visible on screen is the one nobody opens
+twice. Exact matches rank above folded ones so the distinction survives where
+it matters (D-12).
+
 **A default-open gate is not a gate.** The first sketch of authentication was
 a list of routes to protect. That is the shape which fails silently: every
 route added afterwards is public until someone remembers, and nobody

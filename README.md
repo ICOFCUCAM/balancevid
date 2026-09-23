@@ -75,7 +75,7 @@ rendering are all queued to the worker, so one long export cannot make the
 application unusable for everyone else.
 
 ```bash
-npm test           # 287 tests, including real renders through real ffmpeg
+npm test           # 308 tests, including real renders through real ffmpeg
 npm run typecheck
 ```
 
@@ -119,7 +119,7 @@ structural rather than a matter of configuration.
 
 ```bash
 npx tsx scripts/make-fixture.ts /tmp/bv          # a source whose frames carry their index
-npx tsx scripts/e2e.mjs /tmp/bv/source.mp4       # 146 checks, driven with the spacebar
+npx tsx scripts/e2e.mjs /tmp/bv/source.mp4       # 158 checks, driven with the spacebar
 ```
 
 Chrome's fake media device stands in for a camera, so this exercises the actual
@@ -161,6 +161,7 @@ assembly, render — not a mock of it.
 | Suggested claims | the source's checkable statements, found locally, ranked, with reasons (§20) |
 | The AI boundary | nothing suggested enters the document without a recorded human acceptance (U-15) |
 | Authentication | one owner; published conversations stay readable by anyone (D-06, U-31) |
+| Search | every mention, with a frame to jump to and answer from (§43, §16) |
 | Representations | one registry, regenerated on demand, never stored (D-16) |
 | Worker | durable queue, real progress, resumable via the shot cache |
 
@@ -323,6 +324,8 @@ src/store/          document, chunks, queue — split so the web tier
                     cannot import anything that reaches ffmpeg
 src/worker/         the only process permitted to run ffmpeg
 src/knowledge/      claim detection, behind a swappable detector interface
+src/search/         research mode: find a moment, jump to it, answer it
+src/auth/           one owner; the wall around what is not published
 src/publish/        the publication bundle
 app/                Next.js web tier: API routes and the Studio
 test/               domain invariants + a real render, decoded and checked
