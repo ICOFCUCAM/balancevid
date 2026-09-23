@@ -276,12 +276,27 @@ describe('annotations (§14, U-12)', () => {
         points: [{ x: 0.05, y: 0.05 }, { x: 0.25, y: 0.2 }],
         style: {}, z: 3,
       },
+      {
+        /*
+         * Point: one click, a ring around the thing being discussed.
+         *
+         * Its own case because it is the only mark defined by a single
+         * coordinate — every other drawing derives its extent from two, and
+         * the draw-on wipe has to be told the ring's size rather than
+         * measuring the points.
+         */
+        id: 'ann_point' as never, kind: 'point',
+        points: [{ x: 0.72, y: 0.7 }],
+        style: { color: '#6fb3e0', width: 0.005 }, z: 4,
+        appearOffset: 6, dismissOffset: take.mediaOutFrame - take.mediaInFrame,
+        drawFrames: 8,
+      },
     ];
 
     const plan = buildRenderPlan(conversation, { burnInCaptions: true });
     const shot = plan.shots.find((s) => s.kind === 'response') as
       { annotations?: unknown[]; layoutId: string };
-    expect(shot.annotations).toHaveLength(4);
+    expect(shot.annotations).toHaveLength(5);
     expect(shot.layoutId).toBe('freeze_pip');
 
     const workDir = join(dir, 'work', 'annotations');

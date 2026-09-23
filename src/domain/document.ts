@@ -180,7 +180,7 @@ export interface Evidence {
  *   render (§30).
  */
 export type AnnotationKind =
-  | 'box' | 'ellipse' | 'arrow' | 'underline' | 'freehand' | 'text' | 'blur';
+  | 'box' | 'ellipse' | 'arrow' | 'underline' | 'freehand' | 'text' | 'blur' | 'point';
 
 export interface Point { x: number; y: number }
 
@@ -201,7 +201,7 @@ export interface Annotation {
    *   box · ellipse · blur   two corners
    *   arrow · underline      from, to
    *   freehand               the path as drawn
-   *   text                   one anchor point
+   *   text · point           one anchor point
    */
   points: Point[];
   text?: string;

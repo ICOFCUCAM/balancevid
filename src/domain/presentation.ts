@@ -109,6 +109,39 @@ export const LAYOUTS: Record<string, Layout> = {
     ],
     verticalLayoutId: 'vertical_stack',
   },
+  /**
+   * The author is the speaker; the source is kept in view.  [U-18]
+   *
+   * The inverse of picture-in-picture, and a different rhetorical move: in
+   * `pip` the source is still talking and the author is commenting over it;
+   * here the author has the floor and the source is the thing being held up.
+   */
+  presenter_focus: {
+    id: 'presenter_focus', label: 'You speaking, source alongside',
+    backdrop: 'blur',
+    layers: [
+      { source: 'user', rect: { x: 0.02, y: 0.14, w: 0.62, h: 0.72 }, fit: 'cover', z: 1 },
+      { source: 'source', rect: { x: 0.66, y: 0.32, w: 0.32, h: 0.36 }, fit: 'contain', z: 0, duckDb: -18 },
+    ],
+    verticalLayoutId: 'vertical_stack',
+  },
+  /**
+   * Three panels: the moment, the moment frozen, and the author.  [U-18]
+   *
+   * For the response whose whole point is "look at this, while I tell you
+   * what is in it" — the source carries on in the first panel while the
+   * second holds the frame being discussed.
+   */
+  triptych: {
+    id: 'triptych', label: 'Source, detail, and you',
+    backdrop: 'blur',
+    layers: [
+      { source: 'source', rect: { x: 0.005, y: 0.31, w: 0.33, h: 0.38 }, fit: 'contain', z: 0, duckDb: -18 },
+      { source: 'still', rect: { x: 0.335, y: 0.31, w: 0.33, h: 0.38 }, fit: 'contain', z: 1 },
+      { source: 'user', rect: { x: 0.665, y: 0.31, w: 0.33, h: 0.38 }, fit: 'cover', z: 2 },
+    ],
+    verticalLayoutId: 'vertical_stack',
+  },
   vertical_stack: {
     id: 'vertical_stack', label: 'Stacked (vertical)',
     backdrop: 'blur',

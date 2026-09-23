@@ -3505,6 +3505,59 @@ this, can THIS browser decode it, and is the fallback honest when it cannot.
 The end-to-end run asserts the third, because the test browser ships without
 H.264 and so always exercises it.
 
+**Three rails, and each answers one question.** The Studio was a stage with an
+accordion of panels underneath it, and the black space either side of the
+video was doing nothing. What it wanted was a shape: LEFT what did I say,
+CENTRE what will they see, RIGHT how do I express it, BOTTOM when does it
+happen. Nothing in the engine changed to make that possible — the layout was
+already `intervention.layoutId`, the marks were already
+`intervention.annotations`, and the render was already regenerated from them
+(INV-00). **Most of what looked like a missing feature was a missing place to
+put the feature.**
+
+**A composition is not a second data model.** The rails describe one
+intervention and write to its own fields; there is no editor document, no
+project file, no parallel notion of a clip. That is what makes every choice on
+the right rail changeable long after the recording, and it is the same
+property INV-00 gives the article and the manifest: presentation is a
+representation of the Conversation, and the Conversation is the thing.
+
+**Marks belong on the composition, not on the source frame.** Annotations are
+canvas coordinates (U-12) — the renderer draws them over the whole composed
+frame. So a circle placed on a full-bleed source still and then exported side
+by side appears somewhere the author never put it, because the source has
+moved into half the frame and the mark has not. The marking surface therefore
+shows the composition, and the author marks that. Found by building the
+preview, not by reading the renderer: the geometry only becomes obvious when
+the two are on screen together. **Whenever an editor and a renderer both
+decide where something is, they must be reading the same numbers.**
+
+**A layout diagram should be drawn from the layout.** The six composition
+choices render their own layers' rectangles rather than six hand-drawn
+thumbnails, so a layout whose geometry changes gets a picture that changes
+with it, and a layout added to the data appears here correctly without anyone
+remembering to draw it (U-18).
+
+**Point is the only mark defined by one coordinate.** Every other drawing
+derives its extent from two, which is why adding it needed its own case in
+three places — the required-points table, the ASS path, and the draw-on wipe,
+which measures the points and therefore had nothing to measure. It is drawn as
+a ring rather than a dot on purpose: a filled dot covers exactly the pixels
+being discussed, which is the one place on the frame a mark must not be.
+
+**An explicit choice is stored explicitly.** Clicking a layout that happens to
+match the type's default first stored nothing, on the reasoning that the
+default already produced it. But then changing the type later silently moved a
+composition the author had already decided. **A default is what happens when
+nobody chose; it is not a place to record that somebody did.**
+
+**A test that edits shared state and does not undo it breaks other tests.**
+The new rail checks set a layout override and left a mark on an intervention
+three later sections read, and all three failed describing symptoms that had
+nothing to do with them. The same run also had a check go green without
+anything happening, because it asserted a layout the response was already in.
+**Assert a change, and put the state back.**
+
 **A claim card must not look like a verdict.** Selecting a sentence is the
 author saying "this is what I am answering", and the interface should change
 shape to say it back — the statement lifted out of the running text, given its

@@ -16,6 +16,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import SignOut from '../../SignOut.js';
 import SearchPanel from './SearchPanel.js';
 import Stage, { StageStatus, type Stance } from './Stage.js';
+import ClipRail, { type ClipRailItem } from './ClipRail.js';
+import CompositionRail, { type ExplainTool } from './CompositionRail.js';
+import ExplainSurface from './ExplainSurface.js';
+import CompositionStage from './CompositionStage.js';
 import Timeline from './Timeline.js';
 import SidePanel from './SidePanel.js';
 import ClaimCard from './ClaimCard.js';
@@ -60,6 +64,16 @@ export default function Studio({ conversationId }: { conversationId: string }) {
     { text: string; startFrame: number; endFrame: number } | null>(null);
   /** Which response is highlighted on the timeline. */
   const [selectedResponse, setSelectedResponse] = useState<string | null>(null);
+  /*
+   * The tool in the author's hand, if any.
+   *
+   * Lives here rather than in the rail because it changes what the STAGE is:
+   * armed, the middle of the screen stops being a player and becomes the
+   * frame being marked. A mode that changes another panel belongs to neither.
+   */
+  const [explainTool, setExplainTool] = useState<ExplainTool | null>(null);
+  /** The shape under the pointer, drawn on the composition as it forms. */
+  const [markDraft, setMarkDraft] = useState<any>(null);
   /** What this response is answering, shown over the frozen frame while it is. */
   const [answering, setAnswering] = useState<string | null>(null);
   /**
@@ -660,6 +674,49 @@ export default function Studio({ conversationId }: { conversationId: string }) {
     selected: iv.id === selectedResponse,
   }));
 
+  /*
+   * The left rail: what I said.
+   *
+   * Ordered by the moment answered, because that is the only order the
+   * conversation has — order is derived from the anchor and never stored
+   * (U-08), so this list and the timeline cannot disagree.
+   */
+  const clips: ClipRailItem[] = [...interventions]
+    .sort((a: any, b: any) => a.anchor.tSourceFrame - b.anchor.tSourceFrame)
+    .map((iv: any, index: number) => {
+      const take = (iv.takes ?? []).find((t: any) => t.id === iv.selectedTakeId);
+      const presentation = TYPE_PRESENTATION[iv.type as InterventionType];
+      return {
+        id: iv.id,
+        index,
+        tSourceFrame: iv.anchor.tSourceFrame,
+        durationFrames: take?.durationFrames ?? 0,
+        label: presentation?.lowerThird ?? iv.type,
+        accent: presentation?.accent ?? '#8A8F98',
+        ...(take && take.durationFrames > 0
+          ? { posterUrl: `/api/conversations/${conversationId}/takes/${take.id}/media?kind=poster` }
+          : {}),
+        ...(iv.anchor.quote ? { quote: iv.anchor.quote } : {}),
+        preparing: !take || take.durationFrames === 0,
+      };
+    });
+  const composing = interventions.find((iv: any) => iv.id === selectedResponse) ?? null;
+
+  const annotationBase = composing
+    ? `/api/conversations/${conversationId}/interventions/${composing.id}/annotations`
+    : '';
+  const call = async (path: string, init: RequestInit) => {
+    const response = await fetch(path, {
+      headers: { 'content-type': 'application/json' }, ...init,
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      setError(body.error ?? 'that change did not save');
+      return;
+    }
+    await refresh();
+  };
+
   const evidenceList = interventions.flatMap((iv: any) =>
     (iv.evidence ?? []).map((e: any) => ({
       id: e.id, title: e.title, tSourceFrame: iv.anchor.tSourceFrame,
@@ -725,14 +782,35 @@ export default function Studio({ conversationId }: { conversationId: string }) {
         sentence they want to answer. Studio is where the same conversation is
         taken apart.
       */}
+      {/*
+        Studio is three rails and a bar, and each answers one question:
+          LEFT    what did I say          the responses that exist
+          CENTRE  what will they see      the composition, and the timeline
+          RIGHT   how do I express it     the layout and the marks
+          BOTTOM  when does it happen     the one key, and the statement
+        Live is none of that: it is the picture and one key.
+      */}
       <div className="shell-body" style={{
         display: 'grid',
         gridTemplateColumns: mode === 'live'
           ? 'minmax(0, 1fr)'
-          : 'minmax(0, 1.65fr) minmax(380px, 1fr)',
+          : '168px minmax(0, 1.55fr) minmax(320px, 0.92fr)',
         gap: mode === 'live' ? 0 : 14,
         ...(mode === 'live' ? {} : { padding: '14px 20px' }),
       }}>
+        {mode === 'studio' && (
+          <ClipRail
+            items={clips}
+            selectedId={selectedResponse}
+            onSelect={(id) => {
+              setSelectedResponse(id);
+              const chosen = interventions.find((iv: any) => iv.id === id);
+              if (chosen) seekTo(chosen.anchor.tSourceFrame);
+            }}
+            onAdd={() => interrupt()}
+            canAdd={phase === 'armed'}
+          />
+        )}
         <div className={mode === 'live' ? undefined : 'shell-scroll'}
              style={mode === 'live'
                ? { minHeight: 0, display: 'grid' }
@@ -760,7 +838,37 @@ export default function Studio({ conversationId }: { conversationId: string }) {
             cameraOn={phase !== 'cold' && phase !== 'denied'}
             claim={answering}
           >
-            {isEmbedded ? (
+            {/*
+              With a response chosen, the middle of the screen shows the
+              COMPOSITION — the two of you in the layout that will be
+              exported — rather than the source alone. Armed with a tool, the
+              author marks that composition directly, which is both how a
+              person explains something and the only placement that means the
+              same thing in the export. [U-12, U-18, §15]
+            */}
+            {composing && !isEmbedded ? (
+              <CompositionStage
+                conversationId={conversationId}
+                intervention={composing}
+                drafts={markDraft ? [markDraft] : []}
+              >
+                {explainTool && (
+                  <ExplainSurface
+                    intervention={composing}
+                    tool={explainTool}
+                    onDraft={setMarkDraft}
+                    onDone={() => { setExplainTool(null); setMarkDraft(null); }}
+                    onPlace={(mark) => {
+                      setMarkDraft(null);
+                      void call(annotationBase, {
+                        method: 'POST',
+                        body: JSON.stringify({ ...mark, style: {} }),
+                      });
+                    }}
+                  />
+                )}
+              </CompositionStage>
+            ) : isEmbedded ? (
               <div style={{
                 position: 'absolute', inset: 0, background: '#000',
               }}>
@@ -892,7 +1000,43 @@ export default function Studio({ conversationId }: { conversationId: string }) {
           )}
         </div>
 
-        {mode === 'studio' && (
+        {/*
+          The right rail describes whatever the author has in hand. With a
+          response chosen that is the response — its layout and its marks;
+          with nothing chosen it is the conversation itself. One rail, two
+          subjects, rather than two rails competing for the same edge.
+        */}
+        {mode === 'studio' && composing && (
+        <CompositionRail
+          intervention={composing}
+          tool={explainTool}
+          disabled={recording}
+          onTool={setExplainTool}
+          onLayout={(layoutId) => {
+            void call(`/api/conversations/${conversationId}/interventions/${composing.id}`, {
+              method: 'PATCH', body: JSON.stringify({ layoutId }),
+            });
+          }}
+          onRemoveMark={(id) => {
+            void call(`${annotationBase}/${id}`, { method: 'DELETE' });
+          }}
+          onTimeMark={(id) => {
+            const take = (composing.takes ?? [])
+              .find((t: any) => t.id === composing.selectedTakeId);
+            if (!take) return;
+            void call(`${annotationBase}/${id}`, {
+              method: 'PATCH',
+              body: JSON.stringify({
+                appearOffset: 0,
+                dismissOffset: take.mediaOutFrame - take.mediaInFrame,
+              }),
+            });
+          }}
+          onBack={() => { setExplainTool(null); setSelectedResponse(null); }}
+        />
+        )}
+
+        {mode === 'studio' && !composing && (
         <SidePanel
           height="100%"
           transcript={transcript}

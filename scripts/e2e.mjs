@@ -374,10 +374,147 @@ log('checking that a response can be moved…');
  * and moment, and that it ends up bound to the response rather than being a
  * second, parallel idea of the same thing.
  */
+log('checking the composition rails…');
+{
+  /*
+   * Studio is three rails and a bar:
+   *   LEFT    what did I say        the responses that exist
+   *   CENTRE  what will they see    the composition
+   *   RIGHT   how do I express it   the layout and the marks
+   *   BOTTOM  when does it happen
+   */
+  const clips = page.locator('[data-testid="clip-card"]');
+  const count = await clips.count();
+  check(count > 0, 'every response is a card in the clip rail', `${count} clips`);
+  check(await page.locator('[data-testid="clip-poster"]').count() > 0,
+    'showing the author\'s own face rather than a row of text');
+
+  // Choosing one makes it the thing being composed.
+  await clips.first().click();
+  await page.waitForSelector('[data-testid="composition-rail"]', { timeout: 10_000 });
+  check(true, 'choosing a clip turns the right rail into its composition');
+  check(await page.locator('[data-testid="tab-transcript"]').count() === 0,
+    'and the rail describes one response rather than competing with the conversation');
+
+  // The centre shows the relationship, not the source alone.
+  await page.waitForSelector('[data-testid="composition-stage"]', { timeout: 10_000 });
+  const before = await page.locator('[data-testid="composition-stage"]')
+    .getAttribute('data-layout');
+  check(typeof before === 'string' && before.length > 0,
+    'the stage shows the composition this response will be exported in', `${before}`);
+
+  /*
+   * Choosing a layout changes the stage at once, because both read the same
+   * LAYOUTS data the renderer reads.
+   *
+   * Deliberately a layout this response is NOT already in: picking the one it
+   * happens to start in makes the assertion pass without anything happening,
+   * which is how this check first went green while the save was still in
+   * flight.
+   */
+  const want = before === 'pip' ? 'side_by_side' : 'pip';
+  await page.click(`[data-testid="layout-option"][data-layout-id="${want}"]`);
+  await page.waitForFunction(
+    (id) => document.querySelector('[data-testid="composition-stage"]')
+      ?.getAttribute('data-layout') === id,
+    want, { timeout: 10_000 })
+    .then(() => check(true, 'choosing a layout changes the stage immediately'))
+    .catch(() => check(false, 'choosing a layout changes the stage immediately'));
+
+  const clipId = await clips.first().getAttribute('data-clip-id');
+  let doc = (await api(`/api/conversations/${conversationId}`)).conversation;
+  check(doc.interventions.find((iv) => iv.id === clipId)?.layoutId === want,
+    'and the choice is a field of the response, not editor state',
+    `${doc.interventions.find((iv) => iv.id === clipId)?.layoutId}`);
+
+  /*
+   * Point: one click on the picture.
+   *
+   * Marks are canvas coordinates (U-12) — the renderer draws them over the
+   * whole composed frame. So the author marks the COMPOSITION, and what they
+   * see is where it lands. Marking a bare source frame and exporting side by
+   * side would put the ring somewhere they never put it.
+   */
+  await page.click('[data-testid="explain-tool"][data-tool="point"]');
+  await page.waitForSelector('[data-testid="explain-surface"]', { timeout: 10_000 });
+  check(await page.locator('[data-testid="composition-stage"]').count() === 1,
+    'a tool in hand marks the composition, not a separate panel');
+
+  const surface = await page.locator('[data-testid="explain-surface"]').boundingBox();
+  await page.mouse.click(surface.x + surface.width * 0.66, surface.y + surface.height * 0.42);
+  await page.waitForSelector('[data-testid="composition-mark"]', { timeout: 10_000 })
+    .then(() => check(true, 'pointing at the picture puts a mark on it'))
+    .catch(() => check(false, 'pointing at the picture puts a mark on it'));
+
+  doc = (await api(`/api/conversations/${conversationId}`)).conversation;
+  const placed = (doc.interventions.find((iv) => iv.id === clipId)?.annotations ?? [])
+    .find((a) => a.kind === 'point');
+  check(Boolean(placed), 'the mark is in the document, on the response');
+  check(placed && Math.abs(placed.points[0].x - 0.66) < 0.03
+    && Math.abs(placed.points[0].y - 0.42) < 0.03,
+    'at the coordinates the author pointed at, normalised to the frame',
+    placed ? `${placed.points[0].x.toFixed(3)}, ${placed.points[0].y.toFixed(3)}` : 'none');
+  check(placed && placed.points.length === 1,
+    'a point is one coordinate — no shape to drag, no corners to get right');
+
+  // Escape puts the tool down. A mode with no way out is a trap.
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
+  check(await page.locator('[data-testid="explain-surface"]').count() === 0,
+    'escape puts the tool down');
+
+  // And the composition survives a reload, because it is document state.
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.click('button[role=tab]:has-text("Studio")');
+  await page.waitForSelector('[data-testid="clip-card"]', { timeout: 20_000 });
+  await page.locator(`[data-testid="clip-card"][data-clip-id="${clipId}"]`).click();
+  await page.waitForSelector('[data-testid="composition-stage"]', { timeout: 10_000 });
+  check(await page.locator('[data-testid="composition-stage"]').getAttribute('data-layout')
+    === want,
+    'and it is all still there after a reload — presentation outlives the session');
+
+  /*
+   * Put the response back as it was.
+   *
+   * Every later section reads this same conversation, and a layout override
+   * and a stray mark left behind here are indistinguishable to them from the
+   * thing they are testing. A test that edits shared state and does not undo
+   * it is a test that breaks other tests.
+   */
+  await sfetch(`${BASE}/api/conversations/${conversationId}/interventions/${clipId}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ layoutId: null }),
+  });
+  if (placed) {
+    await sfetch(
+      `${BASE}/api/conversations/${conversationId}/interventions/${clipId}` +
+      `/annotations/${placed.id}`, { method: 'DELETE' });
+  }
+  doc = (await api(`/api/conversations/${conversationId}`)).conversation;
+  const restored = doc.interventions.find((iv) => iv.id === clipId);
+  check(!restored?.layoutId && !(restored?.annotations ?? []).some((a) => a.kind === 'point'),
+    'and the run leaves the response as it found it');
+
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.click('button[role=tab]:has-text("Studio")');
+  await page.waitForSelector('[data-testid="clip-card"]', { timeout: 20_000 });
+  await page.click('[data-testid="composition-back"]').catch(() => {});
+  await page.waitForSelector('[data-testid="tab-transcript"]', { timeout: 10_000 });
+  check(true, 'and Done returns the rail to the conversation');
+
+  // The reload above dropped the camera, and the rest of the run needs it.
+  await page.click('[data-testid="enable-camera"]');
+  await page.waitForFunction(
+    () => document.querySelector('[data-testid="stance"]')?.textContent === 'Listening',
+    null, { timeout: 30_000 });
+}
+
 log('checking the claim card…');
 {
   // Start from ordinary transcript browsing: the section before this one
   // leaves a statement bound, which is the correct end state for it.
+  await page.click('[data-testid="composition-back"]').catch(() => {});
   await page.click('[data-testid="claim-card-clear"]').catch(() => {});
   await page.waitForTimeout(200);
 

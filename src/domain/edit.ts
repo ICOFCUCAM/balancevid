@@ -322,7 +322,7 @@ function findAnnotation(target: Intervention, annotationId: string): Annotation 
 
 /** How many points each kind means. Anything else is a malformed mark. */
 const REQUIRED_POINTS: Record<Annotation['kind'], number> = {
-  box: 2, ellipse: 2, blur: 2, arrow: 2, underline: 2, text: 1, freehand: 2,
+  box: 2, ellipse: 2, blur: 2, arrow: 2, underline: 2, text: 1, freehand: 2, point: 1,
 };
 
 export function addAnnotation(

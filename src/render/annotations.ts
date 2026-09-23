@@ -74,7 +74,10 @@ function drawingEvent(cue: AnnotationCue, canvas: Canvas): string | null {
 function wipe(cue: AnnotationCue, canvas: Canvas): string {
   const xs = cue.points.map((p) => p.x * canvas.width);
   const ys = cue.points.map((p) => p.y * canvas.height);
-  const pad = Math.round(canvas.height * 0.02);
+  // A point has no extent of its own, so the wipe has to know the ring's.
+  const pad = cue.kind === 'point'
+    ? Math.round(canvas.height * 0.065)
+    : Math.round(canvas.height * 0.02);
   const x1 = Math.round(Math.min(...xs)) - pad;
   const x2 = Math.round(Math.max(...xs)) + pad;
   const y1 = Math.round(Math.min(...ys)) - pad;
@@ -136,6 +139,32 @@ function pathFor(cue: AnnotationCue, canvas: Canvas): string | null {
       if (points.length < 2) return null;
       const [first, ...rest] = points;
       return `m ${first!.x} ${first!.y} l ${rest.map((p) => `${p.x} ${p.y}`).join(' ')}`;
+    }
+    /*
+     * Point: a ring around the thing, not a dot on it.  [U-12, §14]
+     *
+     * The author says "this area of the map" and the mark has to say which
+     * area without hiding it. A filled dot covers exactly the pixels being
+     * discussed, which is the one place on the frame a mark must not be. A
+     * ring leaves the subject visible and still reads instantly as *there*.
+     *
+     * One point in, one radius out: the ring is a fixed fraction of the
+     * canvas, so it is the same size on a phone and on a 4K export, and the
+     * author places it with a single click rather than dragging a shape they
+     * then have to get right.
+     */
+    case 'point': {
+      const at = points[0]!;
+      const r = Math.max(10, Math.round(canvas.height * 0.045));
+      const k = 0.5523;
+      const o = Math.round(r * k);
+      const x = at.x;
+      const y = at.y;
+      return `m ${x - r} ${y} ` +
+        `b ${x - r} ${y - o} ${x - o} ${y - r} ${x} ${y - r} ` +
+        `b ${x + o} ${y - r} ${x + r} ${y - o} ${x + r} ${y} ` +
+        `b ${x + r} ${y + o} ${x + o} ${y + r} ${x} ${y + r} ` +
+        `b ${x - o} ${y + r} ${x - r} ${y + o} ${x - r} ${y}`;
     }
     default:
       return null;
