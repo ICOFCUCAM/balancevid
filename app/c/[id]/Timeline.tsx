@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { formatTimecode } from '../../../src/domain/time.js';
 
 /**
@@ -14,6 +14,13 @@ import { formatTimecode } from '../../../src/domain/time.js';
  * from the source's point of view nothing was removed. Responses hang beneath
  * the moments they answer, because that is what they are. The eye should read
  * it as "here, and here, and here, I had something to say".
+ *
+ * Dragging a response moves WHEN IT ANSWERS, and that is the only kind of
+ * reordering this product has. Order is derived from the anchor and never
+ * stored (U-08), so there is no sequence to rearrange independently — a
+ * response that could sit somewhere other than the moment it answers would
+ * break the one thing the product promises. Moving it on the timeline and
+ * moving it in the conversation are therefore the same act.
  */
 export interface TimelineResponse {
   id: string;
@@ -25,8 +32,10 @@ export interface TimelineResponse {
 }
 
 export default function Timeline({
-  durationFrames, currentFrame, responses, pendingClaim, onSeek, onSelect,
+  durationFrames, currentFrame, responses, pendingClaim, onSeek, onSelect, onMove,
 }: {
+  /** Move a response to a different moment. Absent where editing is not offered. */
+  onMove?: (id: string, frame: number) => void;
   durationFrames: number;
   currentFrame: number;
   responses: TimelineResponse[];
@@ -36,7 +45,17 @@ export default function Timeline({
   onSelect?: (id: string) => void;
 }) {
   const [failed, setFailed] = useState<Set<string>>(new Set());
+  const [dragging, setDragging] = useState<{ id: string; frame: number } | null>(null);
+  const laneRef = useRef<HTMLDivElement | null>(null);
   const span = Math.max(1, durationFrames);
+
+  /** Where on the source clock a pointer at this x is. */
+  const frameAtX = (clientX: number): number => {
+    const box = laneRef.current?.getBoundingClientRect();
+    if (!box || box.width === 0) return 0;
+    const ratio = (clientX - box.left) / box.width;
+    return Math.round(Math.min(1, Math.max(0, ratio)) * span);
+  };
   const at = (frame: number) => `${Math.min(100, Math.max(0, (frame / span) * 100))}%`;
   /**
    * Keep a response card on screen when it sits at either end.
@@ -68,6 +87,7 @@ export default function Timeline({
         aria-valuemin={0}
         aria-valuemax={span}
         aria-valuenow={currentFrame}
+        ref={laneRef}
         data-testid="timeline-source"
         onClick={(e) => {
           const box = e.currentTarget.getBoundingClientRect();
@@ -110,6 +130,12 @@ export default function Timeline({
             border: '1px solid var(--source-accent, #6fb3e0)', borderRadius: 3,
           }} />
         )}
+        {dragging && (
+          <div data-testid="timeline-drop" style={{
+            position: 'absolute', left: at(dragging.frame), top: -5, bottom: -5, width: 2,
+            background: '#e0b24f', boxShadow: '0 0 8px rgba(224,178,79,0.8)',
+          }} />
+        )}
         <div data-testid="timeline-playhead" style={{
           position: 'absolute', left: at(currentFrame), top: -4, bottom: -4, width: 2,
           background: '#fff', boxShadow: '0 0 6px rgba(255,255,255,0.6)',
@@ -122,11 +148,52 @@ export default function Timeline({
           <button
             key={r.id}
             data-testid="timeline-response"
-            title={`${r.type} at ${formatTimecode(r.tSourceFrame)}`}
+            data-response-id={r.id}
+            data-frame={r.tSourceFrame}
+            title={onMove
+              ? `${r.type} at ${formatTimecode(r.tSourceFrame)} — drag to move it`
+              : `${r.type} at ${formatTimecode(r.tSourceFrame)}`}
             onClick={() => { onSelect?.(r.id); onSeek(r.tSourceFrame); }}
+            onPointerDown={(e) => {
+              if (!onMove) return;
+              e.currentTarget.setPointerCapture(e.pointerId);
+              setDragging({ id: r.id, frame: r.tSourceFrame });
+            }}
+            onPointerMove={(e) => {
+              if (!onMove || dragging?.id !== r.id) return;
+              setDragging({ id: r.id, frame: frameAtX(e.clientX) });
+            }}
+            onPointerUp={(e) => {
+              if (!onMove || dragging?.id !== r.id) return;
+              e.currentTarget.releasePointerCapture(e.pointerId);
+              const frame = dragging.frame;
+              setDragging(null);
+              if (frame !== r.tSourceFrame) onMove(r.id, frame);
+            }}
+            /*
+             * Arrow keys move it too. A control that only works with a
+             * pointer is one half the people cannot use, and this project
+             * has already shipped that bug once with the trim sliders (D-04).
+             */
+            onKeyDown={(e) => {
+              if (!onMove) return;
+              const step = e.shiftKey ? Math.round(span / 50) : 30;
+              if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                onMove(r.id, Math.max(0, r.tSourceFrame - step));
+              }
+              if (e.key === 'ArrowRight') {
+                e.preventDefault();
+                onMove(r.id, Math.min(span, r.tSourceFrame + step));
+              }
+            }}
             style={{
-              position: 'absolute', top: 0, ...card(r.tSourceFrame), padding: 0, width: 62,
-              background: 'transparent', border: 'none', cursor: 'pointer',
+              position: 'absolute', top: 0,
+              ...card(dragging?.id === r.id ? dragging.frame : r.tSourceFrame),
+              padding: 0, width: 62, background: 'transparent', border: 'none',
+              cursor: onMove ? (dragging?.id === r.id ? 'grabbing' : 'grab') : 'pointer',
+              touchAction: 'none',
+              zIndex: dragging?.id === r.id ? 2 : 1,
             }}
           >
             {/* The line back to the moment, so the pairing is visible rather
@@ -155,6 +222,13 @@ export default function Timeline({
                 </span>
               )}
             </div>
+            {dragging?.id === r.id && (
+              <div className="small mono" data-testid="timeline-drop-time" style={{
+                marginTop: 2, color: '#e0b24f', fontSize: 10,
+              }}>
+                {formatTimecode(dragging.frame).slice(0, 8)}
+              </div>
+            )}
           </button>
         ))}
       </div>

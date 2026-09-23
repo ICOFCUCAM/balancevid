@@ -119,7 +119,7 @@ structural rather than a matter of configuration.
 
 ```bash
 npx tsx scripts/make-fixture.ts /tmp/bv          # a source whose frames carry their index
-npx tsx scripts/e2e.mjs /tmp/bv/source.mp4       # 184 checks, driven with the spacebar
+npx tsx scripts/e2e.mjs /tmp/bv/source.mp4       # 187 checks, driven with the spacebar
 ```
 
 Chrome's fake media device stands in for a camera, so this exercises the actual
@@ -165,6 +165,7 @@ assembly, render — not a mock of it.
 | Two modes | Live is the loop and nothing else; Studio is where it is taken apart |
 | The claim card | choosing a sentence becomes SOURCE STATEMENT → YOUR RESPONSE |
 | Conversation timeline | each response shows a still of itself, hung from the moment it answers |
+| Moving a response | drag it along the timeline; a quoted statement is dropped, not mis-cited |
 | Representations | one registry, regenerated on demand, never stored (D-16) |
 | Worker | durable queue, real progress, resumable via the shot cache |
 
@@ -284,8 +285,9 @@ Stated plainly, because a status table that overstates is worse than none.
 - **Paged documents as evidence.** PDFs are stored, hashed and cited, but this
   build has no rasteriser, so they carry no visual capture and the render has
   nothing to show for them. Images and web pages do.
-- **Reordering commentary** (§26) beyond moving an anchor, and dragging
-  timeline boundaries (§18) — the band is read-only.
+- **Dragging timeline boundaries** (§18) — the output band is read-only.
+  Responses can be moved along the source timeline; the finished-video band
+  cannot be edited directly.
 - **Face-aware vertical framing** (U-22 §3) — clips reflow by layout, but the
   crop is not face-tracked.
 - **Marks alongside evidence.** A point can carry both, but no layout shows a

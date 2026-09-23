@@ -2,7 +2,9 @@ import type { InterventionType } from '../../../../../../src/domain/document.js'
 import {
   EditError, deleteIntervention, moveAnchor, setLayout, setNote, setType,
 } from '../../../../../../src/domain/edit.js';
-import { audit, mutateConversation } from '../../../../../../src/store/repository.js';
+import { rm } from 'node:fs/promises';
+import { paths } from '../../../../../../src/store/paths.js';
+import { audit, loadConversation, mutateConversation } from '../../../../../../src/store/repository.js';
 import { fail, json } from '../../../../../../src/web/http.js';
 
 export const dynamic = 'force-dynamic';
@@ -25,6 +27,9 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
     note?: string | null;
   };
 
+  const before = await loadConversation(id).catch(() => null);
+  const movedFrom = before?.interventions.find((i) => i.id === ivnId)?.anchor.tSourceFrame;
+
   try {
     const conversation = await mutateConversation(id, (draft) => {
       if (body.type !== undefined) setType(draft, ivnId, body.type);
@@ -32,6 +37,20 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
       if (body.tSourceFrame !== undefined) moveAnchor(draft, ivnId, body.tSourceFrame);
       if (body.note !== undefined) setNote(draft, ivnId, body.note);
     });
+    /*
+     * A thumbnail of "the moment you stopped at" is wrong the instant the
+     * anchor moves, and it is stored under a name that does not change — so
+     * a stale file would be served as a current one. Removing it is enough:
+     * the next export regenerates the set (U-30), and until then the bundle
+     * simply reports one fewer candidate rather than a misleading picture.
+     */
+    const movedTo = conversation.interventions.find((i) => i.id === ivnId)?.anchor.tSourceFrame;
+    if (movedFrom !== undefined && movedTo !== undefined && movedFrom !== movedTo) {
+      for (const stale of [`frame_${ivnId}`, `quote_${ivnId}`]) {
+        await rm(paths.thumbnail(id, stale), { force: true }).catch(() => undefined);
+      }
+    }
+
     await audit(id, { action: 'intervention.edited', detail: { interventionId: ivnId, ...body } });
     return json({ intervention: conversation.interventions.find((i) => i.id === ivnId) });
   } catch (error) {

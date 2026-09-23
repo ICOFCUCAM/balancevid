@@ -70,6 +70,9 @@ export default function Studio({ conversationId }: { conversationId: string }) {
    * ratio from the media means the frame is whatever shape the video is.
    */
   const [sourceAspect, setSourceAspect] = useState<number | null>(null);
+  /** A move that would cost a bound statement, waiting to be confirmed. */
+  const [pendingMove, setPendingMove] = useState<
+    { id: string; frame: number; quote: string } | null>(null);
   const [type, setType] = useState<InterventionType>('critique');
   const [level, setLevel] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -562,6 +565,35 @@ export default function Studio({ conversationId }: { conversationId: string }) {
   const recording = phase === 'starting' || phase === 'recording' || phase === 'stopping';
   const currentSentence = transcript ? sentenceAtFrame(transcript.sentences, currentFrame) : null;
 
+  /**
+   * Move a response to a different moment.
+   *
+   * This is the only reordering the product has: order is derived from the
+   * anchor and never stored (U-08), so moving when a response answers IS
+   * moving where it sits in the conversation.
+   *
+   * A response carrying a quoted statement loses it, because a quote that
+   * travels to a moment it no longer describes misquotes a real person
+   * (U-05). That is correct, and it is also destructive, so it is said
+   * BEFORE it happens rather than discovered afterwards.
+   */
+  const moveResponse = useCallback(async (id: string, frame: number, confirmed = false) => {
+    const target = (snapshot?.conversation?.interventions ?? [])
+      .find((iv: any) => iv.id === id);
+    if (!target) return;
+    if (!confirmed && target.anchor?.quote) {
+      setPendingMove({ id, frame, quote: target.anchor.quote });
+      return;
+    }
+    setPendingMove(null);
+    await fetch(`/api/conversations/${conversationId}/interventions/${id}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ tSourceFrame: frame }),
+    });
+    await refresh();
+  }, [conversationId, refresh, snapshot]);
+
   const seekTo = useCallback((frame: number) => {
     sourcePlayerRef.current?.seek(frame);
     setCurrentFrame(frame);
@@ -844,12 +876,40 @@ export default function Studio({ conversationId }: { conversationId: string }) {
               durationFrames={conversation?.source?.durationFrames ?? 0}
               currentFrame={currentFrame}
               responses={timelineResponses}
+              onMove={(id, frame) => { void moveResponse(id, frame); }}
               pendingClaim={picked && !boundResponse
                 ? { startFrame: picked.startFrame, anchorFrame: picked.endFrame }
                 : null}
               onSeek={seekTo}
               onSelect={setSelectedResponse}
             />
+            {pendingMove && (
+              <div data-testid="move-confirm" style={{
+                marginTop: 10, padding: '10px 12px', borderRadius: 6,
+                border: '1px solid #e0b24f', background: 'rgba(224,178,79,0.10)',
+              }}>
+                <div className="small" style={{ marginBottom: 8 }}>
+                  This response quotes “{pendingMove.quote.slice(0, 80)}
+                  {pendingMove.quote.length > 80 ? '…' : ''}”. Moving it to{' '}
+                  {formatTimecode(pendingMove.frame).slice(0, 8)} means it no longer
+                  answers that sentence, so the quote is removed rather than
+                  left pointing at the wrong moment. The recording is untouched.
+                </div>
+                <div className="row" style={{ gap: 8 }}>
+                  <button className="small" data-testid="move-cancel"
+                          onClick={() => setPendingMove(null)}>
+                    Leave it where it is
+                  </button>
+                  <button className="small" data-testid="move-confirm-go"
+                          onClick={() => {
+                            void moveResponse(pendingMove.id, pendingMove.frame, true);
+                          }}>
+                    Move it and drop the quote
+                  </button>
+                </div>
+              </div>
+            )}
+
             {working > 0 && (
               <p className="small muted" style={{ margin: '8px 0 0' }}>
                 Preparing {working} {working === 1 ? 'response' : 'responses'}…

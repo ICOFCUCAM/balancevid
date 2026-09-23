@@ -3386,6 +3386,29 @@ recently spoken words, and the ones the user cared about most. Found only by
 driving the real browser. **An end-to-end test is not a slower unit test; it is
 the only thing that sees the races.**
 
+**There is no sequence to rearrange.** "Let the author reorder responses" is
+the obvious editing feature and this product cannot have it, because order is
+derived from the anchor and never stored (U-08). A stored order would let a
+response sit somewhere other than the moment it answers, which is precisely
+the thing the product exists to make impossible. So reordering IS moving when
+a response answers, and the timeline says so by making the response itself the
+handle: drag it along the source and it moves in the conversation, because
+those are one act.
+
+Moving is destructive in one specific way, and the interface says so before
+it happens rather than after: a response carrying a quoted statement loses
+the quote, because a quote that travels to a moment it no longer describes
+misquotes a real person (U-05). The recording is untouched, and the warning
+says that too — most of the fear in a destructive confirmation is not knowing
+what survives.
+
+A consequence that only appeared once it was built: a move invalidates the
+publication thumbnail of "the moment you stopped at", which is stored under a
+name that does not change. A stale file would be served as a current one, so
+the move removes it and the next export regenerates the set. **Derived things
+must be invalidated by the thing they derive from, and a filename that does
+not change when its contents should is a trap.**
+
 **The frame is the shape of the picture.** Capping the player's height while
 its box stayed full width made a frame wider than the video, so the player
 filled the difference with black — bars inside a border, which looks like a

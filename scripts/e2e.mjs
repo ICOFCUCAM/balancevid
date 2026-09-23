@@ -251,6 +251,73 @@ log('checking the conversation timeline…');
   check(await first.count() === 1, 'each response is a place on the timeline you can go to');
 }
 
+// --- moving a response (U-05, U-08, INV-12) ---------------------------------
+/*
+ * The only reordering this product has. Order is derived from the anchor and
+ * never stored, so moving WHEN a response answers is moving where it sits —
+ * and a response carrying a quote loses it rather than travelling to a
+ * moment the quote no longer describes.
+ */
+log('checking that a response can be moved…');
+{
+  const chip = page.locator('[data-testid="timeline-response"]').first();
+  const before = Number(await chip.getAttribute('data-frame'));
+  const id = await chip.getAttribute('data-response-id');
+  const doc = (await api(`/api/conversations/${conversationId}`)).conversation;
+  const carried = doc.interventions.find((iv) => iv.id === id)?.anchor.quote;
+
+  // Keyboard first: a control only a pointer can use is one half the people
+  // cannot use, and this project has shipped that bug before (D-04).
+  await chip.focus();
+  await page.keyboard.press('ArrowRight');
+  await page.waitForTimeout(600);
+
+  if (carried) {
+    // It quotes something, so it must say what moving costs before moving.
+    await page.waitForSelector('[data-testid="move-confirm"]', { timeout: 10_000 })
+      .then(() => check(true, 'moving a response that quotes a statement asks first'))
+      .catch(() => check(false, 'moving a response that quotes a statement asks first'));
+    const warning = await page.locator('[data-testid="move-confirm"]').innerText();
+    check(/quote/i.test(warning) && /recording is untouched/i.test(warning),
+      'and says exactly what is lost and what is not');
+
+    await page.click('[data-testid="move-cancel"]');
+    await page.waitForTimeout(400);
+    const unchanged = (await api(`/api/conversations/${conversationId}`))
+      .conversation.interventions.find((iv) => iv.id === id);
+    check(unchanged?.anchor.tSourceFrame === before,
+      'declining leaves it exactly where it was', `${unchanged?.anchor.tSourceFrame} vs ${before}`);
+    check(unchanged?.anchor.quote === carried, 'and keeps its quote');
+
+    await chip.focus();
+    await page.keyboard.press('ArrowRight');
+    await page.waitForSelector('[data-testid="move-confirm-go"]', { timeout: 10_000 });
+    await page.click('[data-testid="move-confirm-go"]');
+  }
+
+  await page.waitForFunction((was) => {
+    const el = document.querySelector('[data-testid="timeline-response"]');
+    return el && Number(el.getAttribute('data-frame')) !== was;
+  }, before, { timeout: 15_000 }).catch(() => {});
+
+  const moved = (await api(`/api/conversations/${conversationId}`))
+    .conversation.interventions.find((iv) => iv.id === id);
+  check(moved?.anchor.tSourceFrame !== before,
+    'a response can be moved to a different moment (§26)',
+    `${before} → ${moved?.anchor.tSourceFrame}`);
+  if (carried) {
+    check(!moved?.anchor.quote,
+      'and its quote is dropped rather than left pointing at the wrong sentence (U-05)');
+  }
+
+  // Moving must not break the cuts.
+  const snapMoved = await api(`/api/conversations/${conversationId}`);
+  check(snapMoved.invariantError === null,
+    'and the timeline is still frame-exact afterwards (INV-02)', snapMoved.invariantError ?? '');
+  check(await page.locator('[data-testid="move-confirm"]').count() === 0,
+    'the warning clears once the decision is made');
+}
+
 // --- the claim card (§12, U-10) ---------------------------------------------
 /*
  * Selecting a sentence is the author saying "this is what I am answering",
@@ -916,7 +983,11 @@ check((await sfetch(
 // The fixture's frames carry their own index as a colour, so the thumbnail of
 // "the moment you stopped at" can be checked against the frame you stopped at.
 // A thumbnail one frame off is a promise about a moment nobody chose. [INV-02]
-for (const intervention of snapAfter.conversation.interventions) {
+//
+// Re-read: a response may have been MOVED since the last snapshot, and the
+// third stale-snapshot bug in this file is enough to stop taking one on trust.
+const atThumbnailTime = (await api(`/api/conversations/${conversationId}`)).conversation;
+for (const intervention of atThumbnailTime.interventions) {
   const id = `frame_${intervention.id}`;
   if (!afterThumbs.renderedThumbnails.includes(id)) continue;
   const png = Buffer.from(await (await sfetch(
