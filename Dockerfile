@@ -81,8 +81,12 @@ RUN python3 -m venv /opt/venv \
     && /opt/venv/bin/pip install --no-cache-dir --quiet sherpa-onnx numpy
 
 # Chromium, for archiving a cited page at the moment it is attached (U-33).
+# The INSTALLED playwright, not a pinned copy of it. package.json allows a
+# range, so a hard-pinned `npx playwright@x.y.z` here would eventually fetch a
+# browser build the installed library does not look for — and evidence
+# archiving would fail at runtime with the browser sitting right there.
 RUN if [ "$WITH_BROWSER" = "1" ]; then \
-      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=0 npx --yes playwright@1.63.0 install --with-deps chromium \
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=0 ./node_modules/.bin/playwright install --with-deps chromium \
       && rm -rf /var/lib/apt/lists/*; \
     else \
       echo "browser skipped: web-page evidence will record an archive error"; \
