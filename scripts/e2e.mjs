@@ -102,11 +102,30 @@ check(sessionEntry?.sameSite === 'Lax', 'and a cross-site form cannot post with'
 // --- create the conversation ------------------------------------------------
 log('opening', BASE);
 await page.goto(BASE, { waitUntil: 'networkidle' });
+// The way in is a short journey now, not a form: choose something, see what
+// you are about to answer, then enter. [§40 intake]
+await page.waitForSelector('[data-testid="start-choose"]');
+check(await page.locator('[data-testid="start-ready"]').count() === 0,
+  'the first screen asks for a video, not for rights and attribution');
+const upfront = await page.evaluate(() => document.body.innerText);
+check(!/Class A|Class B|Rights basis|rightsAttestation/i.test(upfront),
+  'and it does not open with source classification or rights language');
+
 await page.setInputFiles('#file', SOURCE);
-await page.fill('#sourceTitle', 'The History of Europe');
-await page.fill('#creator', 'Example Channel');
-await page.fill('#url', 'https://example.org/video');
-await page.click('button[type=submit]');
+await page.waitForSelector('[data-testid="start-ready"]', { timeout: 20_000 });
+check(true, 'choosing a video moves to the preparation screen');
+
+// Provenance is still asked for — behind a disclosure, after the video has
+// been seen, rather than as the first thing anyone meets. [U-21, INV-07]
+await page.click('[data-testid="toggle-source-details"]');
+await page.fill('[data-testid="source-title"]', 'The History of Europe');
+await page.fill('[data-testid="creator"]', 'Example Channel');
+check((await page.locator('[data-testid="preview-title"]').textContent())
+  ?.includes('The History of Europe'),
+  'the preview shows what the source is called, as it is named');
+
+await page.fill('[data-testid="conversation-title"]', 'My response to The History of Europe');
+await page.click('[data-testid="enter-conversation"]');
 await page.waitForURL(/\/c\//, { timeout: 60_000 });
 const conversationId = page.url().split('/c/')[1];
 log('conversation', conversationId);

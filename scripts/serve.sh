@@ -24,6 +24,27 @@ PORT="${PORT:-3000}"
 
 pids=()
 
+# ---------------------------------------------------------------- models
+# The speech models live on the DATA volume, not in the image. They are
+# identical in every deployment and ~600 MB unpacked, so baking them in means
+# a host that keeps images for rollback stores the same 600 MB once per
+# deploy — which is how a disk fills up without anyone doing anything wrong.
+#
+# Fetched once, on first boot, into the volume. Absent models are a degraded
+# conversation, never a broken one, so a failure here logs and carries on.
+ensure_models() {
+  local root="${BALANCEVID_MODELS:-/data/models}"
+  if [ -f "$root/silero_vad.onnx" ]; then return 0; fi
+  if [ -d /models ] && [ -f /models/silero_vad.onnx ]; then
+    echo "serve: copying the speech models onto the volume"
+    mkdir -p "$root" && cp -r /models/. "$root/" && return 0
+  fi
+  echo "serve: fetching the speech models (once, onto the volume)"
+  BALANCEVID_MODELS="$root" BALANCEVID_SKIP_PYTHON=1 \
+    bash "$(dirname "${BASH_SOURCE[0]}")/fetch-models.sh" \
+    || echo "serve: could not fetch the models — sources will not be transcribed"
+}
+
 # Pass the platform's stop signal on rather than dying and orphaning an ffmpeg
 # that is halfway through someone's export (D-07).
 shutdown() {
@@ -64,10 +85,11 @@ stop_all() {
   done
 }
 
+# Only the worker transcribes, so only the worker waits for models.
 case "$ROLE" in
   web)    start_web ;;
-  worker) start_worker ;;
-  all)    start_worker; start_web ;;
+  worker) ensure_models; start_worker ;;
+  all)    ensure_models; start_worker; start_web ;;
   *) echo "serve: unknown ROLE '$ROLE' (want web, worker or all)" >&2; exit 64 ;;
 esac
 

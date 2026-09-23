@@ -15,7 +15,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import SignOut from '../../SignOut.js';
 import SearchPanel from './SearchPanel.js';
-import Stage, { type Stance } from './Stage.js';
+import Stage, { StageStatus, type Stance } from './Stage.js';
 import Timeline from './Timeline.js';
 import SidePanel from './SidePanel.js';
 import ClaimCard from './ClaimCard.js';
@@ -669,15 +669,24 @@ export default function Studio({ conversationId }: { conversationId: string }) {
     .map((iv: any) => ({ id: iv.id, text: iv.note, tSourceFrame: iv.anchor.tSourceFrame }));
 
   return (
-    <div className="wrap full">
+    /*
+     * The workspace is the window, not a document inside it. [§40]
+     *
+     * A bar, then a stage that takes every pixel the bars do not, then the
+     * controls. The page never scrolls; in Studio the two columns scroll
+     * inside themselves. This is what makes the picture fill the screen
+     * instead of floating in a band of empty page.
+     */
+    <div className="shell">
       {/* ---- header: the conversation, and the two things you do with it ---- */}
-      <div className="row" style={{ marginBottom: 14, gap: 12 }}>
+      <header className="shell-bar">
         <div className="grow" style={{ minWidth: 0 }}>
-          <h1 style={{ marginBottom: 2, fontSize: 22, whiteSpace: 'nowrap',
+          <h1 style={{ marginBottom: 0, fontSize: 17, whiteSpace: 'nowrap',
             overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {conversation?.title ?? 'Conversation'}
           </h1>
-          <div className="small muted">
+          <div className="small muted" style={{ whiteSpace: 'nowrap',
+            overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {conversation?.source?.title}
             {ready && <> · {formatTimecode(conversation.source.durationFrames).slice(0, 8)}</>}
             {isEmbedded && ' · plays on its own platform'}
@@ -692,29 +701,23 @@ export default function Studio({ conversationId }: { conversationId: string }) {
           )}
         </div>
 
-        <div className="row" style={{ gap: 0 }} role="tablist" aria-label="Mode">
-          <button role="tab" aria-selected={mode === 'live'} onClick={() => setMode('live')}
-                  style={{ borderRadius: '8px 0 0 8px',
+        <div className="row" style={{ gap: 0, flexWrap: 'nowrap' }} role="tablist" aria-label="Mode">
+          <button role="tab" data-testid="mode-live"
+                  aria-selected={mode === 'live'} onClick={() => setMode('live')}
+                  style={{ borderRadius: '8px 0 0 8px', padding: '7px 14px',
                     background: mode === 'live' ? '#2b5f8a' : undefined }}>
             Live
           </button>
-          <button role="tab" aria-selected={mode === 'studio'} onClick={() => setMode('studio')}
-                  style={{ borderRadius: '0 8px 8px 0',
+          <button role="tab" data-testid="mode-studio"
+                  aria-selected={mode === 'studio'} onClick={() => setMode('studio')}
+                  style={{ borderRadius: '0 8px 8px 0', padding: '7px 14px',
                     background: mode === 'studio' ? '#2b5f8a' : undefined }}>
             Studio
           </button>
         </div>
-        <a className="btn" href="/">All conversations</a>
+        <a className="btn" href="/" style={{ padding: '7px 14px' }}>All conversations</a>
         <SignOut />
-      </div>
-
-      {error && <div className="panel" style={{ borderColor: 'var(--bad)', marginBottom: 12 }}>{error}</div>}
-      {phase === 'denied' && (
-        <div className="panel" style={{ borderColor: 'var(--bad)', marginBottom: 12 }}>
-          We could not reach your camera or microphone. Check the permissions
-          for this site in your browser, then press space again.
-        </div>
-      )}
+      </header>
 
       {/*
         Live is watch → interrupt → respond → continue and nothing else. Every
@@ -722,33 +725,44 @@ export default function Studio({ conversationId }: { conversationId: string }) {
         sentence they want to answer. Studio is where the same conversation is
         taken apart.
       */}
-      <div style={{
+      <div className="shell-body" style={{
         display: 'grid',
         gridTemplateColumns: mode === 'live'
           ? 'minmax(0, 1fr)'
-          : 'minmax(0, 2.2fr) minmax(360px, 0.9fr)',
-        gap: 16, alignItems: 'start',
-        // Live is one object and reads better centred; Studio is a workspace
-        // and uses the whole width.
-        ...(mode === 'live' ? { maxWidth: 1400, margin: '0 auto' } : {}),
+          : 'minmax(0, 1.65fr) minmax(380px, 1fr)',
+        gap: mode === 'live' ? 0 : 14,
+        ...(mode === 'live' ? {} : { padding: '14px 20px' }),
       }}>
-        <div>
+        <div className={mode === 'live' ? undefined : 'shell-scroll'}
+             style={mode === 'live'
+               ? { minHeight: 0, display: 'grid' }
+               : { paddingRight: 4 }}>
+          {/*
+            In Live the stage IS the body and takes all of it. In Studio it is
+            the first thing in a column that scrolls, so it is given a share of
+            the window rather than all of it.
+          */}
+          {/*
+            In Studio the stage is given a share of the window rather than all
+            of it, so the conversation timeline sits under it without anyone
+            having to scroll to find it. The column is sized so that share is
+            close to the width a 16:9 picture wants — the two agree, and the
+            picture very nearly fills the column.
+          */}
+          <div style={mode === 'live'
+            ? { minHeight: 0 }
+            : { height: '48vh', minHeight: 240, marginBottom: 12 }}>
           <Stage
-            tall={mode === 'live'}
+            fit="height"
             aspect={isEmbedded ? 16 / 9 : sourceAspect}
             stance={stance}
-            currentFrame={currentFrame}
-            durationFrames={conversation?.source?.durationFrames ?? 0}
             cameraStream={camRef}
             cameraOn={phase !== 'cold' && phase !== 'denied'}
             claim={answering}
           >
             {isEmbedded ? (
               <div style={{
-                position: 'relative', aspectRatio: '16 / 9', background: '#000',
-                width: mode === 'live'
-                  ? 'min(100%, calc(66vh * 16 / 9))'
-                  : 'min(100%, calc(54vh * 16 / 9))',
+                position: 'absolute', inset: 0, background: '#000',
               }}>
                 <iframe
                   ref={embedRef}
@@ -770,14 +784,10 @@ export default function Studio({ conversationId }: { conversationId: string }) {
                   if (v.videoWidth && v.videoHeight) setSourceAspect(v.videoWidth / v.videoHeight);
                 }}
                 style={{
-                  display: 'block', background: '#000',
-                  width: '100%', height: 'auto',
-                  // Grows to the available width, stops at the height cap,
-                  // and letterboxes at neither end because the frame around
-                  // it carries the same ratio.
-                  maxWidth: sourceAspect
-                    ? `calc(${mode === 'live' ? '66vh' : '54vh'} * ${sourceAspect})`
-                    : '100%',
+                  display: 'block', background: '#000', borderRadius: 0,
+                  // The frame already carries the source's ratio, so filling
+                  // it edge to edge letterboxes at neither end.
+                  width: '100%', height: '100%', objectFit: 'contain',
                 }}
               />
             ) : (
@@ -787,9 +797,9 @@ export default function Studio({ conversationId }: { conversationId: string }) {
                * player is worse than an honest wait.
                */
               <div data-testid="source-preparing" style={{
-                aspectRatio: '16 / 9',
-                width: 'min(100%, calc(54vh * 16 / 9))',
+                position: 'absolute', inset: 0,
                 display: 'grid', placeItems: 'center', color: 'var(--muted)',
+                lineHeight: 1.5,
               }}>
                 <div style={{ textAlign: 'center' }}>
                   <div style={{ fontSize: 15, marginBottom: 4 }}>Preparing your video</div>
@@ -800,74 +810,8 @@ export default function Studio({ conversationId }: { conversationId: string }) {
               </div>
             )}
           </Stage>
-
-          {/* ---- the statement being answered, when one is chosen ------ */}
-          {picked && (
-            <ClaimCard
-              quote={picked.text}
-              startFrame={picked.startFrame}
-              anchorFrame={picked.endFrame}
-              boundTo={boundResponse}
-              canRecord={phase === 'armed'}
-              onWatch={() => seekTo(picked.startFrame)}
-              onClear={() => setPicked(null)}
-              /*
-               * The selection is NOT cleared here. Once the response exists
-               * the card flips to its bound state, which is the confirmation
-               * that the statement is attached — clearing it would make the
-               * most important moment of the interaction look like a dismissal.
-               */
-              onRespond={() => interrupt({ frame: picked.endFrame, quote: picked.text })}
-            />
-          )}
-
-          {/* ---- the one key, said plainly ----------------------------- */}
-          <div className="panel" style={{ marginTop: 12, padding: '12px 16px',
-            display: picked && !boundResponse ? 'none' : undefined }}>
-            <div className="row" style={{ gap: 14 }}>
-              <kbd style={{
-                padding: '8px 18px', borderRadius: 6, border: '1px solid var(--line)',
-                background: 'rgba(255,255,255,0.06)', fontSize: 14, letterSpacing: 1,
-              }}>SPACE</kbd>
-              <span className="grow small">
-                {stance === 'yours' ? 'to continue the video' : 'to interrupt and respond'}
-              </span>
-
-              <select
-                aria-label="Kind of response"
-                value={type}
-                onChange={(e) => setType(e.target.value as InterventionType)}
-                style={{ width: 'auto' }}
-              >
-                {INTERVENTION_TYPES.map((t) => (
-                  <option key={t} value={t}>{TYPE_PRESENTATION[t].lowerThird}</option>
-                ))}
-              </select>
-
-              {phase === 'cold' && (
-                <button className="primary" data-testid="enable-camera" onClick={() => void arm()}>
-                  Enable camera
-                </button>
-              )}
-              {recording && (
-                <button className="primary" data-testid="continue-button" onClick={() => resume()}>
-                  Continue
-                </button>
-              )}
-              {phase === 'armed' && (
-                <button data-testid="interrupt-button" onClick={() => interrupt()}>
-                  Interrupt
-                </button>
-              )}
-            </div>
-            {phase === 'cold' && (
-              <p className="small muted" style={{ margin: '8px 0 0' }}>
-                Your camera runs a rolling eight-second buffer while you watch, so
-                pressing space late never clips the first words of your answer.
-                Nothing is kept unless you respond.
-              </p>
-            )}
           </div>
+
 
           {/* ---- the conversation itself, in Studio ------------------- */}
           {mode === 'studio' && (
@@ -918,6 +862,27 @@ export default function Studio({ conversationId }: { conversationId: string }) {
           </div>
           )}
 
+          {/* ---- everything after the conversation is made ------------ */}
+          {mode === 'studio' && (
+            <div style={{ marginTop: 12 }}>
+              <StudioMode
+                conversationId={conversationId}
+                snapshot={snapshot}
+                refresh={refresh}
+                onRerecord={rerecord}
+                canRecord={phase === 'armed'}
+                onSeek={seekTo}
+              />
+
+              <ExportPanel
+                conversationId={conversationId}
+                conversation={conversation}
+                snapshot={snapshot}
+                refresh={refresh}
+              />
+            </div>
+          )}
+
           {/* In Live the only progress worth showing is that something is
               still being prepared — said once, quietly. */}
           {mode === 'live' && working > 0 && (
@@ -929,7 +894,7 @@ export default function Studio({ conversationId }: { conversationId: string }) {
 
         {mode === 'studio' && (
         <SidePanel
-          height="calc(54vh + 152px)"
+          height="100%"
           transcript={transcript}
           transcriptReady={Boolean(transcriptVersion && transcript?.sentences?.length)}
           currentFrame={currentFrame}
@@ -964,26 +929,92 @@ export default function Studio({ conversationId }: { conversationId: string }) {
         )}
       </div>
 
-      {/* ---- everything after the conversation is made ------------------ */}
-      {mode === 'studio' && (
-        <section style={{ marginTop: 20 }}>
-          <StudioMode
-            conversationId={conversationId}
-            snapshot={snapshot}
-            refresh={refresh}
-            onRerecord={rerecord}
-            canRecord={phase === 'armed'}
-            onSeek={seekTo}
-          />
 
-          <ExportPanel
-            conversationId={conversationId}
-            conversation={conversation}
-            snapshot={snapshot}
-            refresh={refresh}
+      {/* ---- the controls, along the bottom edge ------------------------ */}
+      <footer className="shell-foot">
+        {error && (
+          <div className="small" style={{ color: 'var(--bad)', marginBottom: 8 }}>{error}</div>
+        )}
+        {phase === 'denied' && (
+          <div className="small" style={{ color: 'var(--bad)', marginBottom: 8 }}>
+            We could not reach your camera or microphone. Check the permissions
+            for this site in your browser, then press space again.
+          </div>
+        )}
+        {/* ---- the statement being answered, when one is chosen ------ */}
+        {picked && (
+          <ClaimCard
+            quote={picked.text}
+            startFrame={picked.startFrame}
+            anchorFrame={picked.endFrame}
+            boundTo={boundResponse}
+            canRecord={phase === 'armed'}
+            onWatch={() => seekTo(picked.startFrame)}
+            onClear={() => setPicked(null)}
+            /*
+             * The selection is NOT cleared here. Once the response exists
+             * the card flips to its bound state, which is the confirmation
+             * that the statement is attached — clearing it would make the
+             * most important moment of the interaction look like a dismissal.
+             */
+            onRespond={() => interrupt({ frame: picked.endFrame, quote: picked.text })}
           />
-        </section>
-      )}
+        )}
+
+        {/* ---- the one key, said plainly ----------------------------- */}
+        <div style={{ display: picked && !boundResponse ? 'none' : undefined }}>
+          <div className="row" style={{ gap: 14 }}>
+            <StageStatus
+              stance={stance}
+              currentFrame={currentFrame}
+              durationFrames={conversation?.source?.durationFrames ?? 0}
+            />
+            <span aria-hidden style={{ width: 1, alignSelf: 'stretch',
+              background: 'var(--line)', margin: '0 2px' }} />
+            <kbd style={{
+              padding: '8px 18px', borderRadius: 6, border: '1px solid var(--line)',
+              background: 'rgba(255,255,255,0.06)', fontSize: 14, letterSpacing: 1,
+            }}>SPACE</kbd>
+            <span className="grow small">
+              {stance === 'yours' ? 'to continue the video' : 'to interrupt and respond'}
+            </span>
+
+            <select
+              aria-label="Kind of response"
+              value={type}
+              onChange={(e) => setType(e.target.value as InterventionType)}
+              style={{ width: 'auto' }}
+            >
+              {INTERVENTION_TYPES.map((t) => (
+                <option key={t} value={t}>{TYPE_PRESENTATION[t].lowerThird}</option>
+              ))}
+            </select>
+
+            {phase === 'cold' && (
+              <button className="primary" data-testid="enable-camera" onClick={() => void arm()}>
+                Enable camera
+              </button>
+            )}
+            {recording && (
+              <button className="primary" data-testid="continue-button" onClick={() => resume()}>
+                Continue
+              </button>
+            )}
+            {phase === 'armed' && (
+              <button data-testid="interrupt-button" onClick={() => interrupt()}>
+                Interrupt
+              </button>
+            )}
+          </div>
+          {phase === 'cold' && (
+            <p className="small muted" style={{ margin: '8px 0 0' }}>
+              Your camera runs a rolling eight-second buffer while you watch, so
+              pressing space late never clips the first words of your answer.
+              Nothing is kept unless you respond.
+            </p>
+          )}
+        </div>
+      </footer>
     </div>
   );
 }

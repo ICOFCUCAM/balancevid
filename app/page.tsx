@@ -1,83 +1,124 @@
 import Link from 'next/link';
-import { isRespondable } from '../src/domain/document.js';
-import { listConversations } from '../src/store/repository.js';
+import { isRespondable, orderedInterventions } from '../src/domain/document.js';
+import { listConversations, loadConversation } from '../src/store/repository.js';
 import { formatTimecode } from '../src/domain/time.js';
-import NewConversation from './NewConversation.js';
+import StartConversation from './StartConversation.js';
 import SignOut from './SignOut.js';
 
 export const dynamic = 'force-dynamic';
 
+/**
+ * The library, and the way in.
+ *
+ * Two things a person arrives wanting: to carry on with something, or to
+ * start something. The old page put a creation FORM beside a list, so the
+ * first thing anyone met was a set of fields about rights and attribution.
+ * Now the list is a library — each conversation showing the face of a
+ * response in it — and starting one is its own short journey.
+ */
 export default async function Home() {
-  const conversations = await listConversations();
-  // A published conversation is a Class A source, so this list is somewhere a
-  // new conversation can begin. [U-31]
-  const respondable = conversations.filter(isRespondable);
+  const summaries = await listConversations();
+  const respondable = summaries.filter(isRespondable);
+
+  // One still per conversation, so the library is recognisable rather than
+  // a column of titles. Read from the document; absent ones simply have none.
+  const cards = await Promise.all(summaries.map(async (summary) => {
+    const conversation = await loadConversation(summary.id).catch(() => null);
+    const first = conversation ? orderedInterventions(conversation)[0] : undefined;
+    const take = first?.takes.find((t) => t.id === first.selectedTakeId);
+    return {
+      summary,
+      responses: conversation?.interventions.length ?? 0,
+      poster: take && take.durationFrames > 0
+        ? `/api/conversations/${summary.id}/takes/${take.id}/media?kind=poster`
+        : null,
+    };
+  }));
 
   return (
-    <div className="wrap">
-      <div className="row">
-        <h1 className="grow">BalanceVid</h1>
+    <div className="shell">
+      <header className="shell-bar">
+        <h1 className="grow" style={{ fontSize: 17, margin: 0 }}>BalanceVid</h1>
         <SignOut />
-      </div>
-      <p className="muted" style={{ maxWidth: 680, marginTop: 0 }}>
-        Interrupt a video at any moment, respond, resume exactly where it stopped,
-        repeat throughout the source, and publish the resulting conversation.
-      </p>
+      </header>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,420px)', gap: 20, marginTop: 24 }}>
-        <section>
-          <h2>Conversations</h2>
-          {conversations.length === 0 && (
-            <div className="panel muted">Nothing yet. Add a source to begin.</div>
+      <div className="shell-body" style={{
+        display: 'grid', gridTemplateColumns: 'minmax(300px, 0.75fr) minmax(0, 1.45fr)',
+        gap: 28, padding: '20px 24px',
+      }}>
+        {/* ---- carry on with something -------------------------------- */}
+        <section className="shell-scroll" style={{ paddingRight: 6 }}>
+          <div className="row" style={{ marginBottom: 2 }}>
+            <strong className="grow">Conversations</strong>
+            <span className="small muted">{summaries.length}</span>
+          </div>
+          <p className="small muted" style={{ marginTop: 0 }}>Continue where you left off</p>
+
+          {cards.length === 0 && (
+            <div className="panel muted small">
+              Nothing yet. Bring a video in and start responding to it.
+            </div>
           )}
-          {conversations.map((c) => (
-            <Link key={c.id} href={`/c/${c.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
-              <div className="panel" style={{ marginBottom: 10 }}>
-                <div className="row">
-                  <strong className="grow">{c.title}</strong>
-                  <span className="small muted mono">
-                    {c.source.durationFrames > 0 ? formatTimecode(c.source.durationFrames) : 'normalising…'}
-                  </span>
+
+          {cards.map(({ summary, responses, poster }) => (
+            <Link key={summary.id} href={`/c/${summary.id}`}
+                  style={{ textDecoration: 'none', color: 'inherit' }}>
+              <div className="panel" data-testid="library-card"
+                   style={{ marginBottom: 8, padding: 10, display: 'flex', gap: 12 }}>
+                <div style={{
+                  width: 76, height: 44, borderRadius: 5, overflow: 'hidden', flex: '0 0 auto',
+                  background: '#0d1319', border: '1px solid var(--line)',
+                  display: 'grid', placeItems: 'center',
+                }}>
+                  {poster
+                    ? <img alt="" src={poster}
+                           style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    : <span className="small muted" style={{ fontSize: 10 }}>—</span>}
                 </div>
-                <div className="small muted">
-                  {c.interventions.length} intervention{c.interventions.length === 1 ? '' : 's'}
-                  {' · '}source: {c.source.title}
-                  {' · '}class {c.source.class}
+                <div className="grow" style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden',
+                    textOverflow: 'ellipsis' }}>
+                    {summary.title}
+                  </div>
+                  <div className="small muted">
+                    {responses} {responses === 1 ? 'response' : 'responses'}
+                    {summary.source.durationFrames > 0
+                      ? ` · ${formatTimecode(summary.source.durationFrames).slice(0, 8)}`
+                      : ' · preparing'}
+                    {summary.publication && !summary.publication.unpublishedAt && ' · published'}
+                  </div>
                 </div>
               </div>
             </Link>
           ))}
         </section>
 
-        <section>
-          <h2>New conversation</h2>
-          <NewConversation />
+        {/* ---- or start something ------------------------------------- */}
+        <section className="shell-scroll" style={{ display: 'grid', alignContent: 'center' }}>
+          <div className="panel" style={{ padding: 28 }}>
+            <StartConversation />
+          </div>
 
+          {/* A published conversation is itself a source, so answering one is
+              a way to begin. [U-31, §40] */}
           {respondable.length > 0 && (
-            <>
-              <h2 style={{ marginTop: 24 }}>Answer someone</h2>
-              <p className="small muted" style={{ marginTop: 0 }}>
-                Published conversations whose authors allowed responses.
-              </p>
-              {respondable.map((c) => (
-                <div key={c.id} className="panel" style={{ marginBottom: 8 }}>
-                  <div className="row">
-                    <a className="grow" href={`/c/${c.id}/watch`}>{c.title}</a>
-                    <span className="small muted">
-                      {c.publication?.author ?? 'anonymous'}
-                    </span>
-                  </div>
-                  <div className="small muted">
-                    {c.interventions.length} intervention{c.interventions.length === 1 ? '' : 's'}
-                    {(c.lineage?.chain.length ?? 0) > 0
-                      && ` · ${c.lineage!.chain.length} responses deep`}
-                  </div>
-                </div>
-              ))}
-            </>
+            <div style={{ marginTop: 22 }}>
+              <div className="small muted" style={{ textTransform: 'uppercase',
+                letterSpacing: 0.8, fontSize: 11, marginBottom: 8 }}>
+                Published — anyone can answer these
+              </div>
+              <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+                {respondable.map((c) => (
+                  <a key={c.id} className="btn small" href={`/c/${c.id}/watch`}>
+                    {c.title}
+                  </a>
+                ))}
+              </div>
+            </div>
           )}
         </section>
       </div>
+
     </div>
   );
 }

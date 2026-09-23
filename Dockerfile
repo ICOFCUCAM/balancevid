@@ -11,7 +11,10 @@
 #   docker run -p 3000:3000 -v balancevid-data:/data balancevid
 #
 # Build arguments:
-#   WITH_MODELS=0   skip the 320 MB speech models (no transcription)
+#   WITH_MODELS=1   bake the speech models into the image instead of fetching
+#                   them onto the volume on first boot. Off by default: the
+#                   models are identical in every deployment and a host that
+#                   keeps images for rollback would store them once per deploy
 #   WITH_BROWSER=0  skip Chromium (no web-page evidence archiving)
 
 ARG NODE=node:22-bookworm-slim
@@ -34,7 +37,7 @@ RUN npm run build
 # the code does. Fetched by the same script a developer runs, so the URLs have
 # one home (D-14).
 FROM debian:bookworm-slim AS models
-ARG WITH_MODELS=1
+ARG WITH_MODELS=0
 RUN apt-get update && apt-get install -y --no-install-recommends \
       curl ca-certificates bzip2 \
     && rm -rf /var/lib/apt/lists/*
@@ -61,7 +64,7 @@ ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     PORT=3000 \
     BALANCEVID_VAR=/data \
-    BALANCEVID_MODELS=/models \
+    BALANCEVID_MODELS=/data/models \
     BALANCEVID_PYTHON=/opt/venv/bin/python \
     PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers \
     PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
@@ -92,6 +95,8 @@ RUN if [ "$WITH_BROWSER" = "1" ]; then \
       echo "browser skipped: web-page evidence will record an archive error"; \
     fi
 
+# Empty unless WITH_MODELS=1. Otherwise serve.sh fetches them onto the volume
+# on first boot, where they are stored once rather than once per deployment.
 COPY --from=models /models /models
 COPY --from=build /app/.next ./.next
 COPY --from=build /app/public ./public

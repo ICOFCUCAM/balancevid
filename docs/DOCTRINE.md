@@ -3244,6 +3244,7 @@ quietly left in the code.
 - Vertical clip sets per claim–response pair — the distribution engine *(U-22)*
 - The publication bundle *(U-30)*
 - Published conversations as sources — the network, for free *(U-31)*
+- The source intake journey — choose, prepare, enter *(§40)*
 
 ---
 
@@ -3417,6 +3418,59 @@ source's own dimensions when it loads, and let the frame be that shape. A 4:3
 source gets a 4:3 frame, a vertical one gets a vertical frame, and nothing is
 ever letterboxed inside its own container. **A container that imposes a shape
 on its contents will eventually be given contents of another shape.**
+
+**A workspace is not a document.** The studio was laid out the way a page is:
+content from the top, running as far down as it happened to run, the rest of
+the window empty below it. That is correct for an article and wrong for an
+editor, where the window IS the instrument. The shape the product wanted is a
+bar, a stage that takes every pixel the bars do not, and the controls along
+the bottom edge — the page itself never scrolling, and the parts with more
+than fits scrolling inside themselves. Two habits caused the original: sizing
+the picture in `vh` (a guess about the window, wrong on every window that is
+not the one it was guessed for) and letting the height of the content decide
+the height of the screen. **In an application the window decides; in a
+document the content decides. Knowing which one is being built is the whole
+question.**
+
+**Sizing by height and sizing by width are different decisions.** The same
+stage appears in Live, where it owns the window, and in Studio, where it
+shares a column with a timeline and a set of panels. Filling the height is
+right in the first and produces gutters either side in the second; filling
+the width is right in the second and would push the timeline off the screen
+in the first. Dead space moved is not dead space removed, so the stage takes
+which way round it is being sized as an argument rather than guessing from
+its own dimensions.
+
+**The way in sets the tone for everything after.** Creating a conversation
+was a form: title, creator, source URL and rights basis, all asked before the
+person had seen anything. It was a database record being filled in, and it
+told everyone what kind of product this was before the product had said a
+word. The same fields, asked in the same session, read completely differently
+once they come after a picture of the video — so the intake became a journey
+(choose, prepare, enter) with provenance under a disclosure on the second
+step. Nothing was removed: the creator, the link and the rights basis still
+reach the attribution block on every export (U-21, INV-07). **What a product
+asks first is a statement about what it is for.**
+
+**We had the title all along and never asked for it.** Class B conversations
+were called "YouTube video Jt_snoCkMas" because `oembedUrl` was computed in
+the provider module and then never fetched. An identifier is not a title, and
+the preparation screen cannot show someone what they are about to answer
+without one. Reading the provider's own oEmbed endpoint — through the SSRF
+guard (D-06), and treating a provider that does not answer as a conversation
+that still works — was a few lines. **A field that is derived but never read
+is a feature that was designed and not finished.**
+
+**An unmounted file input releases the file it is holding.** The preparation
+screen draws its own poster by decoding one frame of the chosen file in a
+canvas, which needs nothing to leave the machine. It showed black instead,
+because moving to the second step unmounted the hidden `<input type="file">`
+that held the `File`, and the object URL made from that `File` stopped
+resolving. The picker now lives outside the steps. Worth recording because
+the symptom — a black rectangle — looks like a decoding problem and is
+a lifetime problem. (The same screen shows black in the end-to-end run for an
+unrelated and legitimate reason: the test browser ships without H.264, and
+the fixture is H.264. A real browser decodes it.)
 
 **A claim card must not look like a verdict.** Selecting a sentence is the
 author saying "this is what I am answering", and the interface should change

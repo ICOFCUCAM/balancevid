@@ -59,7 +59,7 @@ export default function SidePanel({
   return (
     <section className="panel" style={{
       padding: 12, display: 'flex', flexDirection: 'column',
-      minHeight: 0, height, maxHeight: '86vh',
+      minHeight: 0, height, maxHeight: '100%',
     }}>
       <div role="tablist" aria-label="Conversation details"
            style={{ borderBottom: '1px solid var(--line)', marginBottom: 10 }}>
