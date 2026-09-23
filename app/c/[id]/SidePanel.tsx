@@ -14,22 +14,20 @@ import { forDisplay, type Transcript } from '../../../src/transcribe/types.js';
 type Tab = 'transcript' | 'statements' | 'evidence' | 'notes';
 
 export default function SidePanel({
-  transcript, transcriptReady, currentFrame, selected, onSelect, onRespond,
-  statements, evidence, notes, onSeek, canRecord, search, height,
+  transcript, transcriptReady, currentFrame, selected, onSelect,
+  statements, evidence, notes, onSeek, search, height,
 }: {
   height?: string;
   transcript: Transcript | null;
   transcriptReady: boolean;
   currentFrame: number;
   /** The sentence the author has picked to answer, if any. */
-  selected: { text: string; endFrame: number } | null;
-  onSelect: (sentence: { text: string; endFrame: number } | null) => void;
-  onRespond: (frame: number, quote: string) => void;
+  selected: { text: string; startFrame: number; endFrame: number } | null;
+  onSelect: (sentence: { text: string; startFrame: number; endFrame: number } | null) => void;
   statements: ReactNode;
   evidence: { id: string; title: string; tSourceFrame: number }[];
   notes: { id: string; text: string; tSourceFrame: number }[];
   onSeek: (frame: number) => void;
-  canRecord: boolean;
   search: ReactNode;
 }) {
   const [tab, setTab] = useState<Tab>('transcript');
@@ -101,20 +99,26 @@ export default function SidePanel({
                   <button
                     key={sentence.id}
                     data-testid="transcript-line"
+                    data-selected={picked ? 'true' : 'false'}
                     /*
                      * Jumps to the END of the sentence, which is where a
                      * response is anchored: someone answering a claim wants
                      * the audience to have heard it first (U-09).
                      */
                     onClick={() => {
-                      onSelect({ text, endFrame: sentence.endFrame });
+                      onSelect({
+                        text,
+                        startFrame: sentence.startFrame,
+                        endFrame: sentence.endFrame,
+                      });
                       onSeek(sentence.endFrame);
                     }}
                     style={{
                       display: 'block', width: '100%', textAlign: 'left', cursor: 'pointer',
-                      background: picked ? 'rgba(111,179,224,0.18)' : live ? 'rgba(255,255,255,0.05)' : 'transparent',
+                      background: picked ? 'rgba(111,179,224,0.16)' : live ? 'rgba(255,255,255,0.05)' : 'transparent',
                       border: 'none', borderRadius: 6, padding: '6px 8px', marginBottom: 2,
                       color: 'inherit',
+                      borderLeft: `3px solid ${picked ? 'var(--source-accent, #6fb3e0)' : 'transparent'}`,
                     }}
                   >
                     <span className="small mono muted" style={{ marginRight: 8 }}>
@@ -164,34 +168,6 @@ export default function SidePanel({
         )}
       </div>
 
-      {/*
-        The statement being answered, at the moment it matters.
-        Picking a sentence and then finding the record button somewhere else
-        makes the author hold the connection in their head. Here the sentence
-        and the way to answer it are the same object.
-      */}
-      {selected && (
-        <div data-testid="selected-statement" style={{
-          borderTop: '1px solid var(--line)', marginTop: 10, paddingTop: 10,
-        }}>
-          <div className="small muted" style={{ marginBottom: 4 }}>Selected statement</div>
-          <div style={{ fontSize: 15, lineHeight: 1.35, marginBottom: 8 }}>“{selected.text}”</div>
-          <div className="row" style={{ gap: 8 }}>
-            <span className="mono small muted grow">
-              {formatTimecode(selected.endFrame).slice(0, 8)}
-            </span>
-            <button className="small" onClick={() => onSelect(null)}>Clear</button>
-            <button
-              className="primary"
-              data-testid="respond-to-statement"
-              disabled={!canRecord}
-              onClick={() => onRespond(selected.endFrame, selected.text)}
-            >
-              Respond to this
-            </button>
-          </div>
-        </div>
-      )}
     </section>
   );
 }

@@ -119,7 +119,7 @@ structural rather than a matter of configuration.
 
 ```bash
 npx tsx scripts/make-fixture.ts /tmp/bv          # a source whose frames carry their index
-npx tsx scripts/e2e.mjs /tmp/bv/source.mp4       # 163 checks, driven with the spacebar
+npx tsx scripts/e2e.mjs /tmp/bv/source.mp4       # 181 checks, driven with the spacebar
 ```
 
 Chrome's fake media device stands in for a camera, so this exercises the actual
@@ -163,6 +163,7 @@ assembly, render — not a mock of it.
 | Authentication | one owner; published conversations stay readable by anyone (D-06, U-31) |
 | Search | every mention, with a frame to jump to and answer from (§43, §16) |
 | Two modes | Live is the loop and nothing else; Studio is where it is taken apart |
+| The claim card | choosing a sentence becomes SOURCE STATEMENT → YOUR RESPONSE |
 | Representations | one registry, regenerated on demand, never stored (D-16) |
 | Worker | durable queue, real progress, resumable via the shot cache |
 

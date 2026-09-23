@@ -18,6 +18,7 @@ import SearchPanel from './SearchPanel.js';
 import Stage, { type Stance } from './Stage.js';
 import Timeline from './Timeline.js';
 import SidePanel from './SidePanel.js';
+import ClaimCard from './ClaimCard.js';
 import ClaimsPanel from './ClaimsPanel.js';
 import ExportPanel from './ExportPanel.js';
 import { INTERVENTION_TYPES, type InterventionType } from '../../../src/domain/document.js';
@@ -55,7 +56,8 @@ export default function Studio({ conversationId }: { conversationId: string }) {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [phase, setPhase] = useState<Phase>('cold');
   /** The sentence the author picked to answer, shown beside the way to answer it. */
-  const [picked, setPicked] = useState<{ text: string; endFrame: number } | null>(null);
+  const [picked, setPicked] = useState<
+    { text: string; startFrame: number; endFrame: number } | null>(null);
   /** Which response is highlighted on the timeline. */
   const [selectedResponse, setSelectedResponse] = useState<string | null>(null);
   /** What this response is answering, shown over the frozen frame while it is. */
@@ -585,6 +587,25 @@ export default function Studio({ conversationId }: { conversationId: string }) {
           : phase === 'denied' ? 'blocked'
             : 'idle';
 
+  /**
+   * Has a response already been given to the chosen statement?
+   *
+   * Read from the document rather than tracked separately: the binding that
+   * matters is the one the render, the article and the captions use, and a
+   * second copy of it in component state would eventually disagree.
+   */
+  const boundIntervention = picked
+    ? interventions.find((iv: any) => iv.anchor.quote
+      && iv.anchor.quote.trim().toLowerCase() === picked.text.trim().toLowerCase())
+    : undefined;
+  const boundResponse = boundIntervention
+    ? {
+      interventionId: boundIntervention.id,
+      label: TYPE_PRESENTATION[boundIntervention.type as InterventionType]?.lowerThird
+        ?? boundIntervention.type,
+    }
+    : null;
+
   const timelineResponses = interventions.map((iv: any) => ({
     id: iv.id,
     tSourceFrame: iv.anchor.tSourceFrame,
@@ -602,7 +623,7 @@ export default function Studio({ conversationId }: { conversationId: string }) {
     .map((iv: any) => ({ id: iv.id, text: iv.note, tSourceFrame: iv.anchor.tSourceFrame }));
 
   return (
-    <div className="wrap" style={{ maxWidth: 1560 }}>
+    <div className="wrap full">
       {/* ---- header: the conversation, and the two things you do with it ---- */}
       <div className="row" style={{ marginBottom: 14, gap: 12 }}>
         <div className="grow" style={{ minWidth: 0 }}>
@@ -659,9 +680,11 @@ export default function Studio({ conversationId }: { conversationId: string }) {
         display: 'grid',
         gridTemplateColumns: mode === 'live'
           ? 'minmax(0, 1fr)'
-          : 'minmax(0, 2.2fr) minmax(320px, 1fr)',
+          : 'minmax(0, 2.2fr) minmax(360px, 0.9fr)',
         gap: 16, alignItems: 'start',
-        ...(mode === 'live' ? { maxWidth: 1180, margin: '0 auto' } : {}),
+        // Live is one object and reads better centred; Studio is a workspace
+        // and uses the whole width.
+        ...(mode === 'live' ? { maxWidth: 1400, margin: '0 auto' } : {}),
       }}>
         <div>
           <Stage
@@ -714,8 +737,29 @@ export default function Studio({ conversationId }: { conversationId: string }) {
             )}
           </Stage>
 
+          {/* ---- the statement being answered, when one is chosen ------ */}
+          {picked && (
+            <ClaimCard
+              quote={picked.text}
+              startFrame={picked.startFrame}
+              anchorFrame={picked.endFrame}
+              boundTo={boundResponse}
+              canRecord={phase === 'armed'}
+              onWatch={() => seekTo(picked.startFrame)}
+              onClear={() => setPicked(null)}
+              /*
+               * The selection is NOT cleared here. Once the response exists
+               * the card flips to its bound state, which is the confirmation
+               * that the statement is attached — clearing it would make the
+               * most important moment of the interaction look like a dismissal.
+               */
+              onRespond={() => interrupt({ frame: picked.endFrame, quote: picked.text })}
+            />
+          )}
+
           {/* ---- the one key, said plainly ----------------------------- */}
-          <div className="panel" style={{ marginTop: 12, padding: '12px 16px' }}>
+          <div className="panel" style={{ marginTop: 12, padding: '12px 16px',
+            display: picked && !boundResponse ? 'none' : undefined }}>
             <div className="row" style={{ gap: 14 }}>
               <kbd style={{
                 padding: '8px 18px', borderRadius: 6, border: '1px solid var(--line)',
@@ -768,6 +812,9 @@ export default function Studio({ conversationId }: { conversationId: string }) {
               durationFrames={conversation?.source?.durationFrames ?? 0}
               currentFrame={currentFrame}
               responses={timelineResponses}
+              pendingClaim={picked && !boundResponse
+                ? { startFrame: picked.startFrame, anchorFrame: picked.endFrame }
+                : null}
               onSeek={seekTo}
               onSelect={setSelectedResponse}
             />
@@ -796,9 +843,7 @@ export default function Studio({ conversationId }: { conversationId: string }) {
           currentFrame={currentFrame}
           selected={picked}
           onSelect={setPicked}
-          onRespond={(frame, quote) => { setPicked(null); interrupt({ frame, quote }); }}
           onSeek={seekTo}
-          canRecord={phase === 'armed'}
           evidence={evidenceList}
           notes={noteList}
           search={(

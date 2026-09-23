@@ -24,11 +24,13 @@ export interface TimelineResponse {
 }
 
 export default function Timeline({
-  durationFrames, currentFrame, responses, onSeek, onSelect,
+  durationFrames, currentFrame, responses, pendingClaim, onSeek, onSelect,
 }: {
   durationFrames: number;
   currentFrame: number;
   responses: TimelineResponse[];
+  /** A statement chosen but not yet answered. */
+  pendingClaim?: { startFrame: number; anchorFrame: number } | null;
   onSeek: (frame: number) => void;
   onSelect?: (id: string) => void;
 }) {
@@ -94,6 +96,18 @@ export default function Timeline({
             opacity: r.selected ? 1 : 0.65,
           }} />
         ))}
+        {/* The statement waiting for an answer, so the timeline says what
+            the rest of the screen is saying. */}
+        {pendingClaim && (
+          <div data-testid="timeline-pending" style={{
+            position: 'absolute', top: -3, bottom: -3,
+            left: at(pendingClaim.startFrame),
+            width: `calc(${at(pendingClaim.anchorFrame)} - ${at(pendingClaim.startFrame)})`,
+            minWidth: 3,
+            background: 'rgba(111,179,224,0.45)',
+            border: '1px solid var(--source-accent, #6fb3e0)', borderRadius: 3,
+          }} />
+        )}
         <div data-testid="timeline-playhead" style={{
           position: 'absolute', left: at(currentFrame), top: -4, bottom: -4, width: 2,
           background: '#fff', boxShadow: '0 0 6px rgba(255,255,255,0.6)',

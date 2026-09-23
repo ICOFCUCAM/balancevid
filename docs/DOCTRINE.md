@@ -3386,6 +3386,27 @@ recently spoken words, and the ones the user cared about most. Found only by
 driving the real browser. **An end-to-end test is not a slower unit test; it is
 the only thing that sees the races.**
 
+**A claim card must not look like a verdict.** Selecting a sentence is the
+author saying "this is what I am answering", and the interface should change
+shape to say it back — the statement lifted out of the running text, given its
+own moment and its own card, with the answer beneath it. That much is obvious
+once seen.
+
+What is not obvious is how easily that card becomes something else. A border
+that reads as a warning, a word like "flagged", a score, a confidence bar —
+any of them turns "you chose to answer this" into "the product has judged
+this", and the product has no business judging it. The whole asset here is
+that every word of the response is a human's and every statement answered was
+one a human picked. So the card carries the source's own words, when they were
+said, and a way to answer them, and nothing that grades them. **The product
+establishes the subject of a response; it never establishes a verdict.**
+
+The card is also not a second claim. It shows the text, the frame and the hash
+the document already stores against the response — the same binding the render
+burns on screen, the article quotes and the captions carry. A card with its own
+copy of the claim would be two answers to "what is being answered", and the
+one on screen would be the one nobody could trust.
+
 **The doctrine is not the product.** Every identifier in this document — the
 INV numbers, the U numbers, the section marks, "Class A" and "Class B" — was
 leaking onto the creator's screen, because the code that enforces a rule is

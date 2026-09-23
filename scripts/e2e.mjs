@@ -203,7 +203,8 @@ await sleep(2500);
 const sentenceCountBefore = (await api(`/api/conversations/${conversationId}`))
   .conversation.interventions.length;
 await page.locator('[data-testid="transcript-line"]').nth(1).click();
-await page.click('[data-testid="respond-to-statement"]');
+await page.waitForSelector('[data-testid="claim-card-respond"]', { timeout: 10_000 });
+await page.click('[data-testid="claim-card-respond"]');
 await page.waitForFunction(
   () => document.querySelector('[data-testid="stance"]')?.textContent === 'Your turn',
   null, { timeout: 20_000 });
@@ -224,6 +225,113 @@ check(quoted.every((iv) => Boolean(iv.anchor.quoteHash)), 'the claim carries its
 // The author highlighted that one themselves, so it carries no AI origin.
 check(quoted.every((iv) => !iv.anchor.origin),
   'a claim the author found themselves records no model (U-15)');
+
+// --- the claim card (§12, U-10) ---------------------------------------------
+/*
+ * Selecting a sentence is the author saying "this is what I am answering",
+ * and the interface changes shape to say it back. What is checked here is
+ * that the transformation is real, that it carries the SOURCE's exact words
+ * and moment, and that it ends up bound to the response rather than being a
+ * second, parallel idea of the same thing.
+ */
+log('checking the claim card…');
+{
+  // Start from ordinary transcript browsing: the section before this one
+  // leaves a statement bound, which is the correct end state for it.
+  await page.click('[data-testid="claim-card-clear"]').catch(() => {});
+  await page.waitForTimeout(200);
+
+  const line = page.locator('[data-testid="transcript-line"]').nth(3);
+  const lineText = (await line.innerText()).replace(/^\d\d:\d\d\s*/, '').trim();
+
+  check(await page.locator('[data-testid="claim-card"]').count() === 0,
+    'browsing the transcript shows no claim card');
+
+  // 1 — selecting a sentence creates the claim-response state
+  await line.click();
+  await page.waitForSelector('[data-testid="claim-card"]', { timeout: 10_000 });
+  check(true, 'selecting a sentence turns the transcript into a response in progress');
+
+  // 2 — the exact selected text appears in the card
+  const quoted = (await page.locator('[data-testid="claim-card-quote"]').innerText())
+    .replace(/^[“"]|[”"]$/g, '').trim();
+  check(quoted === lineText, 'the card carries the source\'s exact words',
+    `card "${quoted.slice(0, 40)}…" vs line "${lineText.slice(0, 40)}…"`);
+
+  // 3 — the source timestamp is the sentence's own, not the playhead's
+  const shown = await page.locator('[data-testid="claim-card-time"]').innerText();
+  const inLine = (await line.innerText()).slice(0, 5);
+  check(shown.includes(inLine), 'and the moment it was said', `${shown} vs ${inLine}`);
+
+  // the selected sentence stays findable in the running text
+  check(await page.locator('[data-testid="transcript-line"][data-selected="true"]').count() === 1,
+    'the chosen sentence stays marked in the transcript');
+
+  // it reads as a subject, not a verdict
+  const cardText = await page.locator('[data-testid="claim-card"]').innerText();
+  check(/source statement/i.test(cardText) && /your response/i.test(cardText),
+    'and the card reads SOURCE STATEMENT → YOUR RESPONSE');
+  check(!/false|wrong|misleading|debunk|fact.?check verdict/i.test(cardText),
+    'without judging the statement — the author decides, the product does not');
+
+  // reviewing the exact source moment
+  check(await page.locator('[data-testid="claim-card-watch"]').count() === 1,
+    'there is a way to watch the moment again');
+
+  // 6 — selecting another sentence replaces the pending selection
+  const other = page.locator('[data-testid="transcript-line"]').nth(1);
+  const otherText = (await other.innerText()).replace(/^\d\d:\d\d\s*/, '').trim();
+  await other.click();
+  await page.waitForTimeout(300);
+  const replaced = (await page.locator('[data-testid="claim-card-quote"]').innerText())
+    .replace(/^[“"]|[”"]$/g, '').trim();
+  check(replaced === otherText, 'choosing another sentence replaces the pending one');
+  check(await page.locator('[data-testid="transcript-line"][data-selected="true"]').count() === 1,
+    'and only one sentence is marked at a time');
+
+  // 5 — cancel returns to ordinary transcript browsing
+  await page.click('[data-testid="claim-card-clear"]');
+  await page.waitForTimeout(300);
+  check(await page.locator('[data-testid="claim-card"]').count() === 0,
+    'removing the statement returns to ordinary transcript browsing');
+  check(await page.locator('[data-testid="transcript-line"][data-selected="true"]').count() === 0,
+    'and nothing stays marked');
+
+  // 4 + 7 — answer it, and the card becomes the binding
+  await line.click();
+  await page.waitForSelector('[data-testid="claim-card-respond"]', { timeout: 10_000 });
+  const anchorFrame = Number(await page.locator('[data-testid="claim-card"]')
+    .getAttribute('data-anchor-frame'));
+  await sleep(2400);
+  await page.click('[data-testid="claim-card-respond"]');
+  await page.waitForFunction(
+    () => document.querySelector('[data-testid="stance"]')?.textContent === 'Your turn',
+    null, { timeout: 20_000 });
+
+  check(await page.locator('[data-testid="claim-card"]').count() === 1,
+    'the card survives into the recording state rather than vanishing');
+  await page.waitForSelector('[data-testid="claim-card-bound"]', { timeout: 15_000 })
+    .then(() => check(true, 'and says the statement is now attached to the response'))
+    .catch(() => check(false, 'and says the statement is now attached to the response'));
+
+  await sleep(2400);
+  await page.keyboard.press('Space');
+  await page.waitForFunction(
+    () => document.querySelector('[data-testid="stance"]')?.textContent === 'Listening',
+    null, { timeout: 60_000 });
+
+  // The binding is the document's, not the component's.
+  const doc = (await api(`/api/conversations/${conversationId}`)).conversation;
+  const bound = doc.interventions.find((iv) => iv.anchor.tSourceFrame === anchorFrame);
+  check(Boolean(bound?.anchor.quote), 'the response carries the statement in the document');
+  check(bound?.anchor.quote?.trim() === lineText,
+    'and it is the source\'s exact words, not a paraphrase',
+    `${bound?.anchor.quote?.slice(0, 40)}…`);
+  check(Boolean(bound?.anchor.quoteHash), 'hashed to what was said, as before');
+  check(bound?.anchor.tSourceFrame === anchorFrame,
+    'anchored at the frame the card named', `${bound?.anchor.tSourceFrame} vs ${anchorFrame}`);
+  await page.click('[data-testid="claim-card-clear"]').catch(() => {});
+}
 
 // --- the creator's language, not the engineer's -----------------------------
 /*
@@ -416,10 +524,10 @@ for (let i = 0; i < 120; i++) {
   snap = await api(`/api/conversations/${conversationId}`);
   const pending = snap.conversation.interventions.filter(
     (iv) => iv.takes.every((t) => t.durationFrames === 0)).length;
-  if (snap.conversation.interventions.length === 3 && pending === 0) break;
+  if (snap.conversation.interventions.length === 4 && pending === 0) break;
   await sleep(1000);
 }
-check(snap.conversation.interventions.length === 3, 'three interventions recorded',
+check(snap.conversation.interventions.length === 4, 'four interventions recorded',
   `got ${snap.conversation.interventions.length}`);
 const preroll = snap.conversation.interventions.map((iv) => iv.takes[0].prerollFrames);
 check(preroll.every((p) => p > 0), 'every take kept its pre-roll', `frames: ${preroll.join(', ')}`);
