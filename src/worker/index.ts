@@ -19,7 +19,7 @@ import { buildClipPlan, buildClipTimeline } from '../domain/clips.js';
 import { buildReelPlan, buildReelTimeline } from '../domain/reel.js';
 import { compose } from '../render/compose.js';
 import { ingest, makeProxy } from '../render/ingest.js';
-import { renderThumbnail } from '../render/thumbnails.js';
+import { renderThumbnail, renderTakePoster } from '../render/thumbnails.js';
 import { ensureDirs, paths } from '../store/paths.js';
 import { claim, finish, update, type Job } from '../store/queue.js';
 import { audit, loadConversation, mutateConversation } from '../store/repository.js';
@@ -33,6 +33,7 @@ import { buildCues } from '../render/cues.js';
 import { archiveUpload, archiveWeb, type ArchiveResult } from '../evidence/archive.js';
 import { projectTimeline } from '../domain/timeline.js';
 import { buildBundle } from '../publish/bundle.js';
+import { HOUSE_FPS } from '../domain/time.js';
 import { EXPORT_PROFILES } from '../domain/presentation.js';
 
 const POLL_MS = 400;
@@ -190,6 +191,25 @@ async function assembleTakeJob(job: Job): Promise<Job> {
       skippedSegments: assembled.skippedSegments,
     },
   });
+
+  /*
+   * The still for the timeline, taken here because ffmpeg has just finished
+   * with this file. A failure costs a chip on a timeline, never the take, so
+   * it is caught and recorded rather than allowed to fail the job (D-07).
+   */
+  try {
+    const take = assembled.take;
+    await renderTakePoster(
+      takeMezzaninePath(job.conversationId, take.assetId),
+      paths.takePoster(job.conversationId, take.assetId),
+      take.mediaInFrame + HOUSE_FPS,
+    );
+  } catch (error) {
+    await audit(job.conversationId, {
+      action: 'take.poster_failed',
+      detail: { takeId, reason: error instanceof Error ? error.message : String(error) },
+    });
+  }
 
   // Caption the response in its own job, for the same reason the source is
   // captioned in its own: the user can carry on recording while it runs.

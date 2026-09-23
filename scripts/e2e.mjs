@@ -226,6 +226,31 @@ check(quoted.every((iv) => Boolean(iv.anchor.quoteHash)), 'the claim carries its
 check(quoted.every((iv) => !iv.anchor.origin),
   'a claim the author found themselves records no model (U-15)');
 
+// --- the conversation timeline ----------------------------------------------
+/*
+ * A timeline of durations is a progress bar with notches. A timeline of
+ * faces is a conversation you can read at a glance — each response showing
+ * the moment you spoke into.
+ */
+log('checking the conversation timeline…');
+{
+  const posters = page.locator('[data-testid="timeline-poster"]');
+  await posters.first().waitFor({ timeout: 30_000 }).catch(() => {});
+  const count = await posters.count();
+  check(count > 0, 'each response shows a still of itself on the timeline', `${count} shown`);
+
+  // The picture must be a real one, not a broken image the browser hides.
+  const loaded = await page.evaluate(() => {
+    const images = [...document.querySelectorAll('[data-testid="timeline-poster"]')];
+    return images.map((i) => i.naturalWidth > 0 && i.naturalHeight > 0);
+  });
+  check(loaded.length > 0 && loaded.every(Boolean),
+    'and the stills are real images, not broken ones', JSON.stringify(loaded));
+
+  const first = await page.locator('[data-testid="timeline-response"]').first();
+  check(await first.count() === 1, 'each response is a place on the timeline you can go to');
+}
+
 // --- the claim card (§12, U-10) ---------------------------------------------
 /*
  * Selecting a sentence is the author saying "this is what I am answering",

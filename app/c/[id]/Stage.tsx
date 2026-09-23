@@ -26,8 +26,10 @@ const STANCE: Record<Stance, { dot: string; title: string; hint: string }> = {
 };
 
 export default function Stage({
-  children, stance, currentFrame, durationFrames, cameraStream, cameraOn, claim, tall,
+  children, stance, currentFrame, durationFrames, cameraStream, cameraOn, claim, tall, aspect,
 }: {
+  /** The source's own ratio, so the frame is the shape of the picture. */
+  aspect?: number | null;
   /** Live has nothing else on the page, so the stage takes the room. */
   tall?: boolean;
   children: ReactNode;
@@ -45,14 +47,25 @@ export default function Stage({
   return (
     <div>
       {/*
-        Capped, deliberately. The video is the hero, but the loop is
-        watch → interrupt → respond → continue, and a hero so tall that the
-        timeline falls below the fold breaks the loop to look impressive.
+        The frame shrink-wraps the picture.
+        Capping the height while the box stays full width makes a frame wider
+        than the video, and the player fills the difference with black — bars
+        inside a border, which looks like a bug and is one. So the box takes
+        its size FROM the media: whatever shape the source is, the frame is
+        that shape.
+
+        Still capped in height, because the loop is watch → interrupt →
+        respond → continue and a hero so tall that the rest falls below the
+        fold breaks the loop to look impressive.
       */}
       <div style={{
         position: 'relative', background: '#000', borderRadius: 10, overflow: 'hidden',
-        border: '1px solid var(--line)', maxHeight: tall ? '66vh' : '54vh',
-        display: 'flex', justifyContent: 'center',
+        border: '1px solid var(--line)',
+        width: aspect
+          ? `min(100%, calc(${tall ? '66vh' : '54vh'} * ${aspect}))`
+          : 'fit-content',
+        maxWidth: '100%', margin: '0 auto', lineHeight: 0,
+        ...(aspect ? { aspectRatio: String(aspect) } : {}),
       }}>
         {children}
 

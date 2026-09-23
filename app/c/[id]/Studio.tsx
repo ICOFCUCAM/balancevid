@@ -62,6 +62,14 @@ export default function Studio({ conversationId }: { conversationId: string }) {
   const [selectedResponse, setSelectedResponse] = useState<string | null>(null);
   /** What this response is answering, shown over the frozen frame while it is. */
   const [answering, setAnswering] = useState<string | null>(null);
+  /**
+   * The source's own shape, read from the file rather than assumed.
+   *
+   * A frame that assumes 16:9 puts black bars around anything else, and a
+   * frame sized only by a height cap puts them around everything. Taking the
+   * ratio from the media means the frame is whatever shape the video is.
+   */
+  const [sourceAspect, setSourceAspect] = useState<number | null>(null);
   const [type, setType] = useState<InterventionType>('critique');
   const [level, setLevel] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -610,6 +618,12 @@ export default function Studio({ conversationId }: { conversationId: string }) {
     id: iv.id,
     tSourceFrame: iv.anchor.tSourceFrame,
     durationFrames: (iv.takes ?? []).find((t: any) => t.id === iv.selectedTakeId)?.durationFrames ?? 0,
+    // A face rather than a duration: the timeline should be recognisable at
+    // a glance as a sequence of moments you spoke into.
+    thumbnailUrl: iv.selectedTakeId
+      && (iv.takes ?? []).find((t: any) => t.id === iv.selectedTakeId)?.durationFrames > 0
+      ? `/api/conversations/${conversationId}/takes/${iv.selectedTakeId}/media?kind=poster`
+      : undefined,
     type: TYPE_PRESENTATION[iv.type as InterventionType]?.lowerThird ?? iv.type,
     selected: iv.id === selectedResponse,
   }));
@@ -689,6 +703,7 @@ export default function Studio({ conversationId }: { conversationId: string }) {
         <div>
           <Stage
             tall={mode === 'live'}
+            aspect={isEmbedded ? 16 / 9 : sourceAspect}
             stance={stance}
             currentFrame={currentFrame}
             durationFrames={conversation?.source?.durationFrames ?? 0}
@@ -697,8 +712,12 @@ export default function Studio({ conversationId }: { conversationId: string }) {
             claim={answering}
           >
             {isEmbedded ? (
-              <div style={{ position: 'relative', width: '100%', aspectRatio: '16 / 9',
-                maxHeight: '54vh', background: '#000' }}>
+              <div style={{
+                position: 'relative', aspectRatio: '16 / 9', background: '#000',
+                width: mode === 'live'
+                  ? 'min(100%, calc(66vh * 16 / 9))'
+                  : 'min(100%, calc(54vh * 16 / 9))',
+              }}>
                 <iframe
                   ref={embedRef}
                   src={snapshot?.conversation?.source?.embedUrl}
@@ -714,8 +733,20 @@ export default function Studio({ conversationId }: { conversationId: string }) {
                 src={`/api/conversations/${conversationId}/source`}
                 controls
                 playsInline
-                style={{ width: '100%', maxHeight: mode === 'live' ? '66vh' : '54vh', display: 'block',
-                  objectFit: 'contain', background: '#000' }}
+                onLoadedMetadata={(e) => {
+                  const v = e.currentTarget;
+                  if (v.videoWidth && v.videoHeight) setSourceAspect(v.videoWidth / v.videoHeight);
+                }}
+                style={{
+                  display: 'block', background: '#000',
+                  width: '100%', height: 'auto',
+                  // Grows to the available width, stops at the height cap,
+                  // and letterboxes at neither end because the frame around
+                  // it carries the same ratio.
+                  maxWidth: sourceAspect
+                    ? `calc(${mode === 'live' ? '66vh' : '54vh'} * ${sourceAspect})`
+                    : '100%',
+                }}
               />
             ) : (
               /*
@@ -724,7 +755,8 @@ export default function Studio({ conversationId }: { conversationId: string }) {
                * player is worse than an honest wait.
                */
               <div data-testid="source-preparing" style={{
-                width: '100%', aspectRatio: '16 / 9', maxHeight: '54vh',
+                aspectRatio: '16 / 9',
+                width: 'min(100%, calc(54vh * 16 / 9))',
                 display: 'grid', placeItems: 'center', color: 'var(--muted)',
               }}>
                 <div style={{ textAlign: 'center' }}>

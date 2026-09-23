@@ -54,6 +54,15 @@ export const paths = {
    *  without importing anything that can run ffmpeg. */
   takeMezzanine: (id: string, assetId: string) =>
     join(paths.assets(id), `${safe(`${assetId}mezz`)}.mp4`),
+  /**
+   * One still of a response, for the conversation timeline.
+   *
+   * Taken when the take is assembled rather than on demand: ffmpeg already
+   * has the file open at that moment, so the frame costs almost nothing —
+   * and a timeline that fills in later is a timeline that looks broken first.
+   */
+  takePoster: (id: string, assetId: string) =>
+    join(paths.assets(id), `${safe(`${assetId}poster`)}.jpg`),
   /** Rendered thumbnail candidates. [U-30] */
   thumbnails: (id: string) => join(paths.conversation(id), 'thumbnails'),
   thumbnail: (id: string, candidateId: string) =>

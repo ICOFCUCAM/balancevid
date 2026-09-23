@@ -112,6 +112,28 @@ async function renderQuoteCard(inputs: ThumbnailRenderInputs): Promise<void> {
   ], run);
 }
 
+/**
+ * A response's own still, for the conversation timeline.
+ *
+ * Small and cheap: this is a 160-wide chip on a timeline, not a thumbnail
+ * anyone will publish. Grabbed a second past the trim-in for the same reason
+ * the publication thumbnails are — the first kept frame is reliably the worst
+ * one in the take.
+ */
+export async function renderTakePoster(
+  mediaPath: string, outPath: string, atFrame: Frames, run?: RunOptions,
+): Promise<void> {
+  await mkdir(dirname(outPath), { recursive: true });
+  const seconds = (Math.max(0, atFrame - 0.5) / HOUSE_FPS).toFixed(6);
+  await ffmpeg([
+    '-y', '-ss', seconds, '-i', mediaPath,
+    '-frames:v', '1',
+    '-vf', 'scale=160:-2',
+    '-q:v', '5',
+    outPath,
+  ], run);
+}
+
 export function quoteCardAss(
   text: string, profile: ExportProfile, attribution?: string,
 ): string {

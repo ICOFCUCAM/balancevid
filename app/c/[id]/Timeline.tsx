@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { formatTimecode } from '../../../src/domain/time.js';
 
 /**
@@ -34,6 +35,7 @@ export default function Timeline({
   onSeek: (frame: number) => void;
   onSelect?: (id: string) => void;
 }) {
+  const [failed, setFailed] = useState<Set<string>>(new Set());
   const span = Math.max(1, durationFrames);
   const at = (frame: number) => `${Math.min(100, Math.max(0, (frame / span) * 100))}%`;
   /**
@@ -139,9 +141,14 @@ export default function Timeline({
               background: '#0d1319',
               display: 'grid', placeItems: 'center',
             }}>
-              {r.thumbnailUrl ? (
-                <img alt="" src={r.thumbnailUrl}
-                     style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              {r.thumbnailUrl && !failed.has(r.id) ? (
+                <img
+                  alt="" src={r.thumbnailUrl} data-testid="timeline-poster"
+                  // A still that is not there yet falls back to the duration
+                  // rather than to a broken-image icon.
+                  onError={() => setFailed((was) => new Set(was).add(r.id))}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
               ) : (
                 <span className="small muted" style={{ fontSize: 10 }}>
                   {formatTimecode(r.durationFrames).slice(3, 8)}

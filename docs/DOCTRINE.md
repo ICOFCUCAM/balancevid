@@ -3386,6 +3386,15 @@ recently spoken words, and the ones the user cared about most. Found only by
 driving the real browser. **An end-to-end test is not a slower unit test; it is
 the only thing that sees the races.**
 
+**The frame is the shape of the picture.** Capping the player's height while
+its box stayed full width made a frame wider than the video, so the player
+filled the difference with black — bars inside a border, which looks like a
+bug because it is one. The fix is to take the ratio FROM the media: read the
+source's own dimensions when it loads, and let the frame be that shape. A 4:3
+source gets a 4:3 frame, a vertical one gets a vertical frame, and nothing is
+ever letterboxed inside its own container. **A container that imposes a shape
+on its contents will eventually be given contents of another shape.**
+
 **A claim card must not look like a verdict.** Selecting a sentence is the
 author saying "this is what I am answering", and the interface should change
 shape to say it back — the statement lifted out of the running text, given its
