@@ -3386,6 +3386,40 @@ recently spoken words, and the ones the user cared about most. Found only by
 driving the real browser. **An end-to-end test is not a slower unit test; it is
 the only thing that sees the races.**
 
+**The doctrine is not the product.** Every identifier in this document — the
+INV numbers, the U numbers, the section marks, "Class A" and "Class B" — was
+leaking onto the creator's screen, because the code that enforces a rule is
+also the code that reports it failing. "INV-01: cannot build a COMPOSED plan
+for a Class B source" tells an engineer exactly what happened; it tells a
+creator that they have done something wrong, which is false, and gives them
+nothing to do about it. The same fact in product language is: this video stays
+on YouTube, so your responses publish alongside it.
+
+Both survive, written separately for different readers. The rule keeps its
+code for the log, the audit trail and the tests; the person gets a sentence.
+A test now asserts that no identifier from this document appears anywhere in
+the studio, because the leak happened by accident and would happen again.
+
+**Four panels of equal weight is an admin dashboard.** The first studio put
+the transcript, the video, the camera and the export machinery side by side,
+and the result read as "I am managing a video-processing project" rather than
+"I am having a conversation with this video". Every element was defensible on
+its own; the arrangement was not.
+
+What fixed it was deciding what the screen is FOR at each moment. Live is
+watch → interrupt → respond → continue, so Live is the video, a floating
+camera, one line of state and one key — and everything else was removed from
+it. Studio is where the same conversation is taken apart, so the transcript,
+the statements, the evidence and the publishing live there. **A mode that
+shows everything is not a mode.**
+
+Two smaller things fell out of that. An empty black rectangle held open for a
+camera nobody has enabled makes an application look broken before it has done
+anything, so the camera appears only when it is live. And "arm the camera" was
+never a thing the author should have to think about: the rolling pre-roll does
+need the camera running first (U-04), so the consent moment stays — but the
+ongoing state is "Listening", not "armed", because that is what it is.
+
 **A search result you cannot answer is a worse transcript.** §43 describes
 search as finding every mention and jumping to it, and the jump is what makes
 it more than a text box — but the version worth building goes one step

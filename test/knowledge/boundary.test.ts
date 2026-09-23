@@ -348,12 +348,22 @@ describe('source class', () => {
     });
     const result = await claimsFor(embedded, null);
     expect(result.claims).toEqual([]);
-    expect(result.unavailable).toMatch(/never downloaded|embedded/i);
+    expect(result.unavailable).toMatch(/own platform/i);
+    // Said for the creator. The rule is in the code and in these tests; the
+    // person reading it is trying to answer a video. [D-13]
+    expect(result.unavailable).not.toMatch(/U-\d|INV-\d|Class [AB]|§/);
   });
 
   it('distinguishes "not transcribed yet" from "cannot be transcribed"', async () => {
     const { conversation } = setup();
     const result = await claimsFor(conversation, null);
-    expect(result.unavailable).toMatch(/not been transcribed/i);
+    expect(result.unavailable).toMatch(/still listening/i);
+    // Still coming and never coming are different answers, and the author
+    // needs to know which one they are looking at.
+    const embedded = makeConversation(S(300), [], {
+      class: 'B', embedUrl: 'https://www.youtube-nocookie.com/embed/x',
+    });
+    expect((await claimsFor(embedded, null)).unavailable)
+      .not.toBe(result.unavailable);
   });
 });

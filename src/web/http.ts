@@ -17,8 +17,8 @@ export function json(data: unknown, init: ResponseInit = {}): Response {
   });
 }
 
-export function fail(status: number, message: string): Response {
-  return json({ error: message }, { status });
+export function fail(status: number, message: string, code?: string): Response {
+  return json({ error: message, ...(code ? { code } : {}) }, { status });
 }
 
 /**

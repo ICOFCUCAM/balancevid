@@ -59,7 +59,7 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
           accessedAt: conversation.createdAt,
         });
   } catch (error) {
-    if (error instanceof InvariantViolation) return fail(409, error.message);
+    if (error instanceof InvariantViolation) return fail(409, error.message, error.invariant);
     if (error instanceof EmptyReelError) return fail(409, error.message);
     return fail(400, error instanceof Error ? error.message : 'could not plan this render');
   }

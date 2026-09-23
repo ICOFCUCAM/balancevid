@@ -99,6 +99,11 @@ export default function StudioMode({
  *
  * Source and response are distinguished by fill and position, not colour
  * alone, so the band survives greyscale and colour-blindness (U-20).
+ *
+ * This is the OUTPUT clock — how the export will play, end to end. The band
+ * above it on the same screen is the SOURCE clock: where in the original you
+ * interrupted. Two different questions, so two different pictures, and each
+ * is named for the question it answers rather than both being "the timeline".
  */
 function TimelineBand({ timeline, onSeek }: { timeline: any; onSeek: (frame: number) => void }) {
   if (!timeline?.items?.length) return null;
@@ -107,7 +112,7 @@ function TimelineBand({ timeline, onSeek }: { timeline: any; onSeek: (frame: num
   return (
     <div className="panel" style={{ marginBottom: 12 }}>
       <div className="row" style={{ marginBottom: 6 }}>
-        <strong className="grow">Conversation timeline</strong>
+        <strong className="grow">The finished video</strong>
         <span className="small muted mono">{formatTimecode(timeline.totalOutputFrames)}</span>
       </div>
       <div style={{ display: 'flex', height: 26, borderRadius: 4, overflow: 'hidden' }}>

@@ -120,10 +120,28 @@ check(snap.conversation.source.durationFrames === 600, 'source normalised to 600
   `got ${snap.conversation.source.durationFrames}`);
 
 // --- arm and run the one-key loop ------------------------------------------
-await page.click('button:has-text("Arm camera")');
+await page.click('[data-testid="enable-camera"]');
 await page.waitForFunction(
-  () => document.body.innerText.includes('Press space to interrupt'), null, { timeout: 30_000 });
+  () => document.querySelector('[data-testid="stance"]')?.textContent === 'Listening',
+  null, { timeout: 30_000 });
 log('camera armed');
+
+// Live is the whole product and it is one thing. Anything else on this
+// screen is something between a person and the sentence they want to answer.
+{
+  const inLive = await page.evaluate(() => ({
+    transcript: !!document.querySelector('[data-testid="tab-transcript"]'),
+    timeline: !!document.querySelector('[data-testid="conversation-timeline"]'),
+    publish: !!document.querySelector('[data-testid="toggle-export"]'),
+    stance: document.querySelector('[data-testid="stance"]')?.textContent,
+    camera: !!document.querySelector('[data-testid="camera-pip"]'),
+  }));
+  check(!inLive.transcript && !inLive.timeline && !inLive.publish,
+    'live mode shows the video, the camera, the state and the key — nothing else',
+    JSON.stringify(inLive));
+  check(inLive.stance === 'Listening' && inLive.camera,
+    'with the camera floating over the source and the state said plainly');
+}
 
 await page.evaluate(() => document.querySelector('video[src*="/source"]').play());
 await sleep(1200);
@@ -135,20 +153,30 @@ for (let i = 0; i < 2; i++) {
     Math.floor(document.querySelector('video[src*="/source"]').currentTime * 30));
   await page.keyboard.press('Space');               // INTERRUPT
   await page.waitForFunction(
-    () => document.body.innerText.includes('press space to continue'), null, { timeout: 20_000 });
+    () => document.querySelector('[data-testid="stance"]')?.textContent === 'Your turn', null, { timeout: 20_000 });
   ANCHORS.push(before);
   log(`interrupt ${i + 1} at frame ~${before}`);
 
   await sleep(2600);                                 // speak
   await page.keyboard.press('Space');               // CONTINUE
   await page.waitForFunction(
-    () => document.body.innerText.includes('Press space to interrupt'), null, { timeout: 60_000 });
+    () => document.querySelector('[data-testid="stance"]')?.textContent === 'Listening', null, { timeout: 60_000 });
 
   const after = await page.evaluate(() =>
     Math.floor(document.querySelector('video[src*="/source"]').currentTime * 30));
   check(Math.abs(after - before) <= 1, `resumed at the interrupt frame (${i + 1})`,
     `paused ${before}, resumed ${after}`);
 }
+
+// --- into Studio for everything that analyses the conversation ------------
+/*
+ * Live is watch → interrupt → respond → continue and nothing else. The
+ * transcript, the statements and the search are Studio's, so the test goes
+ * where the author would.
+ */
+await page.click('button[role=tab]:has-text("Studio")');
+check(await page.locator('[data-testid="tab-transcript"]').count() === 1,
+  'the transcript lives in Studio, not in the middle of the live loop');
 
 // --- transcript, then a sentence-anchored response (U-09, U-10) ------------
 log('waiting for the transcript…');
@@ -167,21 +195,24 @@ if (transcript) {
 }
 
 // Respond to a specific statement, using only the transcript panel.
-await page.waitForSelector('button:has-text("respond ↵")', { timeout: 30_000 });
+await page.waitForSelector('[data-testid="transcript-line"]', { timeout: 30_000 });
 // Watch for a moment first. Interrupting milliseconds after the previous
 // response resumed would mean the pre-roll buffer has nothing in it yet --
 // true of the product, but not how anyone actually watches a video.
 await sleep(2500);
 const sentenceCountBefore = (await api(`/api/conversations/${conversationId}`))
   .conversation.interventions.length;
-await page.locator('button:has-text("respond ↵")').nth(1).click();
+await page.locator('[data-testid="transcript-line"]').nth(1).click();
+await page.click('[data-testid="respond-to-statement"]');
 await page.waitForFunction(
-  () => document.body.innerText.includes('press space to continue'), null, { timeout: 20_000 });
+  () => document.querySelector('[data-testid="stance"]')?.textContent === 'Your turn',
+  null, { timeout: 20_000 });
 log('sentence-anchored interrupt');
 await sleep(2400);
 await page.keyboard.press('Space');
 await page.waitForFunction(
-  () => document.body.innerText.includes('Press space to interrupt'), null, { timeout: 60_000 });
+  () => document.querySelector('[data-testid="stance"]')?.textContent === 'Listening',
+  null, { timeout: 60_000 });
 
 let snapAfter = await api(`/api/conversations/${conversationId}`);
 check(snapAfter.conversation.interventions.length === sentenceCountBefore + 1,
@@ -193,6 +224,21 @@ check(quoted.every((iv) => Boolean(iv.anchor.quoteHash)), 'the claim carries its
 // The author highlighted that one themselves, so it carries no AI origin.
 check(quoted.every((iv) => !iv.anchor.origin),
   'a claim the author found themselves records no model (U-15)');
+
+// --- the creator's language, not the engineer's -----------------------------
+/*
+ * The doctrine's identifiers are precise and they belong in the code, the
+ * audit log and these tests. On the screen of someone trying to answer a
+ * video they are noise that reads like an error.
+ */
+{
+  const onScreen = await page.evaluate(() => document.body.innerText);
+  const leaks = onScreen.match(/\b(?:INV|U|D)-\d+\b|§\d+|\bClass [AB]\b|Doctrine/g) ?? [];
+  check(leaks.length === 0, 'no doctrine identifiers appear in the studio',
+    leaks.slice(0, 6).join(', ') || 'none');
+  check(!/arm the camera/i.test(onScreen),
+    'and the camera is never something the author has to "arm"');
+}
 
 // --- research mode (§43, §16) -----------------------------------------------
 log('checking search…');
@@ -319,6 +365,7 @@ if (claimsView.claims.length > 0) {
 // The panel is present and honest about finding nothing.
 // No reload here: it would disarm the camera and every later step depends on
 // the session state this page is holding.
+await page.click('[data-testid="tab-statements"]');
 await page.waitForSelector('[data-testid="claims-panel"]', { timeout: 30_000 })
   .then(() => check(true, 'the studio shows the claims panel'))
   .catch(() => check(false, 'the studio shows the claims panel', 'never appeared'));
@@ -340,11 +387,11 @@ if (panelClaims > 0) {
   await sleep(2500);
   await page.locator('[data-testid="claim-respond"]').first().click();
   await page.waitForFunction(
-    () => document.body.innerText.includes('press space to continue'), null, { timeout: 20_000 });
+    () => document.querySelector('[data-testid="stance"]')?.textContent === 'Your turn', null, { timeout: 20_000 });
   await sleep(2400);
   await page.keyboard.press('Space');
   await page.waitForFunction(
-    () => document.body.innerText.includes('Press space to interrupt'), null, { timeout: 60_000 });
+    () => document.querySelector('[data-testid="stance"]')?.textContent === 'Listening', null, { timeout: 60_000 });
 
   snapAfter = await api(`/api/conversations/${conversationId}`);
   check(snapAfter.conversation.interventions.length === before + 1,
@@ -382,7 +429,7 @@ check(snap.invariantError === null, 'timeline invariants hold', snap.invariantEr
 log('studio mode…');
 page.on('dialog', (dialog) => dialog.accept());
 await page.click('button[role=tab]:has-text("Studio")');
-await page.waitForSelector('text=Conversation timeline', { timeout: 20_000 });
+await page.waitForSelector('text=The finished video', { timeout: 20_000 });
 check(true, 'the conversation timeline renders (§18)');
 
 await page.locator('button:has-text("Edit")').first().click();
@@ -414,11 +461,13 @@ check(afterTrim.takes.find((t) => t.id === afterTrim.selectedTakeId).durationFra
 // Re-record appends a take; the first one is kept.
 await page.locator('button:has-text("Re-record")').first().click();
 await page.waitForFunction(
-  () => document.body.innerText.includes('press space to continue'), null, { timeout: 20_000 });
+  () => document.querySelector('[data-testid="stance"]')?.textContent === 'Your turn',
+  null, { timeout: 20_000 });
 await sleep(2400);
 await page.keyboard.press('Space');
 await page.waitForFunction(
-  () => document.body.innerText.includes('Press space to interrupt'), null, { timeout: 60_000 });
+  () => document.querySelector('[data-testid="stance"]')?.textContent === 'Listening',
+  null, { timeout: 60_000 });
 for (let i = 0; i < 90; i++) {
   doc = (await api(`/api/conversations/${conversationId}`)).conversation;
   const target = doc.interventions.find((iv) => iv.id === beforeTrim.id);
@@ -614,7 +663,8 @@ check(snapAfterDelete.invariantError === null,
 
 // --- render -----------------------------------------------------------------
 log('rendering…');
-await page.click('button:has-text("Generate final video")');
+await page.click('[data-testid="toggle-export"]');
+await page.click('[data-testid="start-export"]');
 let job = null;
 for (let i = 0; i < 300; i++) {
   const jobs = (await api(`/api/conversations/${conversationId}/renders`)).jobs;
@@ -750,6 +800,8 @@ for (const intervention of snapAfter.conversation.interventions) {
 
 // The panel the author actually uses.
 await page.reload();
+await page.click('button[role=tab]:has-text("Studio")');
+await page.click('[data-testid="toggle-export"]');
 await page.waitForSelector('[data-testid="bundle-panel"]', { timeout: 20000 })
   .then(() => check(true, 'the studio shows the publication bundle'))
   .catch(() => check(false, 'the studio shows the publication bundle', 'panel never appeared'));
@@ -865,8 +917,10 @@ const embeddedClaims = await api(`/api/conversations/${embeddedId}/claims`);
 check(embeddedClaims.claims.length === 0 && typeof embeddedClaims.unavailable === 'string',
   'a Class B source says why it has no claims, rather than showing none (U-01)',
   embeddedClaims.unavailable);
-check(/never downloaded|embedded/i.test(embeddedClaims.unavailable ?? ''),
-  'and gives the doctrine\'s reason');
+check(/own platform/i.test(embeddedClaims.unavailable ?? '')
+  && !/U-\d|INV-\d|Class B|§/.test(embeddedClaims.unavailable ?? ''),
+  'and says why in the creator\'s language, not the doctrine\'s',
+  embeddedClaims.unavailable);
 
 check(embeddedManifest.source.embedUrl?.includes('youtube-nocookie.com'),
   'the Class B manifest drives the provider\'s player');

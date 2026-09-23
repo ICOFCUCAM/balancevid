@@ -123,15 +123,22 @@ export async function claimsFor(
     return {
       claims: [],
       detector: null,
-      unavailable: 'an embedded source is never downloaded, so it has no transcript '
-        + 'to read claims from [U-01, U-35 §6]',
+      // Said for the creator, not the engineer: the rule is in the comment
+      // above and in the tests; this is what a person reads. [D-13]
+      unavailable: 'This video plays on its own platform, so we never see its '
+        + 'audio and cannot read its statements.',
     };
   }
   if (!transcript) {
-    return { claims: [], detector: null, unavailable: 'this source has not been transcribed yet' };
+    return {
+      claims: [], detector: null,
+      unavailable: 'Still listening to the source — statements will appear here shortly.',
+    };
   }
   const detector = await resolveDetector(options.detectorId);
-  if (!detector) return { claims: [], detector: null, unavailable: 'no claim detector is available' };
+  if (!detector) {
+    return { claims: [], detector: null, unavailable: 'Statement finding is unavailable on this instance.' };
+  }
 
   const suggestions = await detector.detect(transcript, options);
   return { claims: reviewClaims(suggestions, conversation.claimDecisions ?? []), detector };
