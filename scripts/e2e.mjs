@@ -14,6 +14,7 @@ import ffprobe from 'ffprobe-static';
 import ffmpegStatic from 'ffmpeg-static';
 import { writeFile } from 'node:fs/promises';
 import { decodeIndex } from '../test/render/synthetic.ts';
+import { forDisplay } from '../src/transcribe/types.ts';
 
 const BASE = process.env.BASE ?? 'http://localhost:3000';
 const SOURCE = process.argv[2];
@@ -539,13 +540,36 @@ const { bundle, renderedThumbnails } = await api(`/api/conversations/${conversat
 check(bundle.description.includes('Source:'),
   'the description carries the generated attribution block (INV-07, U-21)');
 check(bundle.suggestedTitles.length > 0, 'the bundle suggests titles from the author\'s claims');
-const boundQuote = quoted[0]?.anchor.quote ?? '';
+// Re-read: `quoted` was captured before Studio Mode, which deletes an
+// intervention and may move an anchor. Both legitimately drop a bound claim
+// (U-05/INV-12: a claim must not drift to a cut point it no longer
+// describes), so asserting against the stale snapshot tests nothing real.
+const boundNow = (await api(`/api/conversations/${conversationId}`))
+  .conversation.interventions.filter((iv) => iv.anchor.quote);
+const boundQuote = boundNow[0]?.anchor.quote ?? '';
 // A title truncates a long claim (80 chars), so compare on a prefix: which
 // sentence the run binds depends on ASR segmentation and is not always short.
 const boundPrefix = boundQuote.slice(0, 40);
-check(boundPrefix.length > 0 && bundle.suggestedTitles.some((t) => t.includes(boundPrefix)),
-  'a suggested title quotes a claim the author actually bound',
-  JSON.stringify(bundle.suggestedTitles));
+if (boundPrefix) {
+  check(bundle.suggestedTitles.some((t) => t.includes(boundPrefix)),
+    'a suggested title quotes a claim the author actually bound',
+    JSON.stringify(bundle.suggestedTitles));
+} else {
+  // Nothing is bound any more. Titles then come from the source sentence at
+  // each anchor — the author's own stopping points, still verbatim — and
+  // never from invented prose.
+  const sentences = transcript.sentences.map((s) => forDisplay(s.text, transcript.characteristics));
+  // A title reads: "<quote, truncated to 80 with an ellipsis>" — a <label>.
+  // Take only what is between the quotation marks.
+  const quoted_ = bundle.suggestedTitles
+    .map((t) => t.match(/^"([^"]*)"/)?.[1])
+    .filter(Boolean)
+    .map((q) => q.replace(/…$/, ''));
+  check(quoted_.length > 0 && quoted_.every((q) =>
+    sentences.some((sentence) => sentence.startsWith(q))),
+    'with nothing bound, titles fall back to the source\'s own sentences',
+    JSON.stringify(quoted_));
+}
 check(bundle.chapters.length === 0 || bundle.chapters[0].startFrame === 0,
   'a chapter list that exists starts at 00:00, as platforms require');
 if (bundle.chapters.length === 0) {
@@ -633,9 +657,15 @@ check(articleResponse.ok, 'the conversation renders as an article');
 const articleHtml = await articleResponse.text();
 check(articleHtml.startsWith('<!doctype html>'), 'the article is a standalone document');
 check(articleHtml.includes('Example Channel'), 'the article carries the generated attribution (U-21)');
-if (quoted[0]) {
-  check(articleHtml.includes(quoted[0].anchor.quote),
+if (boundNow[0]) {
+  check(articleHtml.includes(boundNow[0].anchor.quote),
     'the article quotes the claim being answered (U-10)');
+} else {
+  // No claim bound: the article shows what the source was saying at that
+  // moment instead, bounded to the anchored sentence, rather than silently
+  // presenting nothing.
+  check(/was saying|at that moment|<blockquote/i.test(articleHtml),
+    'with no claim bound, the article still shows what was being answered');
 }
 check(!articleHtml.includes('<script'), 'the article loads nothing');
 
