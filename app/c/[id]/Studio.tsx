@@ -943,12 +943,16 @@ export default function Studio({ conversationId }: { conversationId: string }) {
         )}
         {/* ---- the statement being answered, when one is chosen ------ */}
         {picked && (
+          <div style={{ marginBottom: 10 }}>
           <ClaimCard
             quote={picked.text}
             startFrame={picked.startFrame}
             anchorFrame={picked.endFrame}
             boundTo={boundResponse}
             canRecord={phase === 'armed'}
+            /* The floor passes when the recording starts, and the card
+               should say so rather than keep offering to begin. */
+            speaking={stance === 'yours'}
             onWatch={() => seekTo(picked.startFrame)}
             onClear={() => setPicked(null)}
             /*
@@ -959,10 +963,18 @@ export default function Studio({ conversationId }: { conversationId: string }) {
              */
             onRespond={() => interrupt({ frame: picked.endFrame, quote: picked.text })}
           />
+          </div>
         )}
 
         {/* ---- the one key, said plainly ----------------------------- */}
-        <div style={{ display: picked && !boundResponse ? 'none' : undefined }}>
+        {/*
+          With a statement chosen, the claim card is already saying what space
+          does, so this bar does not say it twice — but it keeps everything
+          else. Hiding the whole bar hid the camera button with it, which left
+          the card telling someone to enable a camera they could no longer
+          reach.
+        */}
+        <div>
           <div className="row" style={{ gap: 14 }}>
             <StageStatus
               stance={stance}
@@ -971,13 +983,19 @@ export default function Studio({ conversationId }: { conversationId: string }) {
             />
             <span aria-hidden style={{ width: 1, alignSelf: 'stretch',
               background: 'var(--line)', margin: '0 2px' }} />
-            <kbd style={{
-              padding: '8px 18px', borderRadius: 6, border: '1px solid var(--line)',
-              background: 'rgba(255,255,255,0.06)', fontSize: 14, letterSpacing: 1,
-            }}>SPACE</kbd>
-            <span className="grow small">
-              {stance === 'yours' ? 'to continue the video' : 'to interrupt and respond'}
-            </span>
+            {picked && !boundResponse ? (
+              <span className="grow" />
+            ) : (
+              <>
+                <kbd style={{
+                  padding: '8px 18px', borderRadius: 6, border: '1px solid var(--line)',
+                  background: 'rgba(255,255,255,0.06)', fontSize: 14, letterSpacing: 1,
+                }}>SPACE</kbd>
+                <span className="grow small">
+                  {stance === 'yours' ? 'to continue the video' : 'to interrupt and respond'}
+                </span>
+              </>
+            )}
 
             <select
               aria-label="Kind of response"

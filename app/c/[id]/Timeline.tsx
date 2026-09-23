@@ -118,17 +118,33 @@ export default function Timeline({
             opacity: r.selected ? 1 : 0.65,
           }} />
         ))}
-        {/* The statement waiting for an answer, so the timeline says what
-            the rest of the screen is saying. */}
+        {/*
+          The statement waiting for an answer.
+
+          Two marks, because they say different things: the band is how long
+          the sentence runs, and the diamond at its end is the moment the
+          answer cuts in. Reading the lane should give the shape of the
+          exchange — the source ran to HERE, and at HERE someone had
+          something to say.
+        */}
         {pendingClaim && (
-          <div data-testid="timeline-pending" style={{
-            position: 'absolute', top: -3, bottom: -3,
-            left: at(pendingClaim.startFrame),
-            width: `calc(${at(pendingClaim.anchorFrame)} - ${at(pendingClaim.startFrame)})`,
-            minWidth: 3,
-            background: 'rgba(111,179,224,0.45)',
-            border: '1px solid var(--source-accent, #6fb3e0)', borderRadius: 3,
-          }} />
+          <>
+            <div data-testid="timeline-pending" style={{
+              position: 'absolute', top: -3, bottom: -3,
+              left: at(pendingClaim.startFrame),
+              width: `calc(${at(pendingClaim.anchorFrame)} - ${at(pendingClaim.startFrame)})`,
+              minWidth: 3,
+              background: 'rgba(111,179,224,0.45)',
+              border: '1px solid var(--source-accent, #6fb3e0)', borderRadius: 3,
+            }} />
+            <div aria-hidden data-testid="timeline-claim-marker" style={{
+              position: 'absolute', left: at(pendingClaim.anchorFrame), top: '50%',
+              width: 11, height: 11, marginLeft: -5.5, marginTop: -5.5,
+              background: 'var(--source-accent, #6fb3e0)',
+              transform: 'rotate(45deg)', borderRadius: 2,
+              boxShadow: '0 0 8px rgba(111,179,224,0.9)', zIndex: 3,
+            }} />
+          </>
         )}
         {dragging && (
           <div data-testid="timeline-drop" style={{
@@ -143,7 +159,39 @@ export default function Timeline({
       </div>
 
       {/* The response lane. Each one hangs from the moment it answers. */}
-      <div style={{ position: 'relative', height: responses.length ? 54 : 18, marginTop: 4 }}>
+      <div style={{
+        position: 'relative',
+        height: responses.length || pendingClaim ? 54 : 18, marginTop: 4,
+      }}>
+        {/*
+          The branch. Before a response exists there is still a relationship
+          to show: this statement, and the answer about to hang from it. The
+          slot is drawn where the answer will go, so pressing space fills a
+          space the author has already seen.
+        */}
+        {pendingClaim && (
+          <div data-testid="timeline-pending-slot" style={{
+            position: 'absolute', top: 0, ...card(pendingClaim.anchorFrame),
+            width: 62, pointerEvents: 'none',
+          }}>
+            <div style={{
+              width: 2, height: 8, margin: '0 auto',
+              background: 'var(--user-accent, #c2794f)',
+            }} />
+            <div style={{
+              width: 62, height: 34, borderRadius: 5,
+              border: '1px dashed var(--user-accent, #c2794f)',
+              display: 'grid', placeItems: 'center',
+              color: 'var(--user-accent, #c2794f)',
+            }}>
+              <span style={{ fontSize: 9, letterSpacing: 0.4, textAlign: 'center',
+                lineHeight: 1.15, padding: '0 2px' }}>
+                YOUR<br />RESPONSE
+              </span>
+            </div>
+          </div>
+        )}
+
         {responses.map((r) => (
           <button
             key={r.id}

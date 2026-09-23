@@ -3472,6 +3472,39 @@ a lifetime problem. (The same screen shows black in the end-to-end run for an
 unrelated and legitimate reason: the test browser ships without H.264, and
 the fixture is H.264. A real browser decodes it.)
 
+**The floor is a state, and the interface should show it changing.** The claim
+card began as one shape with a bound/unbound variant. What it actually has is
+a sequence — the source has the floor, then the author does, then the exchange
+exists — and the card now says which. The ordering matters more than it looks:
+the response exists in the document the instant recording starts, because that
+is what makes it crash-safe (U-06), so a card driven by "is there a response
+yet" flips to *answered by your critique* while the author is still
+mid-sentence. **Who has the floor decides what the card says, not what the
+document already contains.**
+
+**The timeline should say what the card says.** A statement chosen but not yet
+answered is a relationship with one end missing, and drawing only the chosen
+end leaves the author to infer the other. The source lane now carries the
+sentence as a band and the cut-in as a diamond, and the response lane carries
+a dashed slot where the answer will hang — so pressing space fills a space
+that was already visible.
+
+**Hiding a bar hides what was in it.** With a statement chosen, the control bar
+stopped repeating what space does, because the card was saying it. It was hidden
+wholesale, which took the camera button with it — leaving the card telling
+someone to enable a camera they could no longer reach. **Hide the duplicated
+sentence, never the container it happens to sit in.**
+
+**A missing picture must not look like a broken file.** The preparation screen
+decodes one frame of the chosen video in a canvas. It can fail for reasons that
+say nothing about the file — a provider that did not answer, or a browser
+without a decoder for that codec — and a black rectangle in the place reserved
+for the video reads as *your upload is broken*. There are three separate
+questions here and only the third is the product's: can a real browser play
+this, can THIS browser decode it, and is the fallback honest when it cannot.
+The end-to-end run asserts the third, because the test browser ships without
+H.264 and so always exercises it.
+
 **A claim card must not look like a verdict.** Selecting a sentence is the
 author saying "this is what I am answering", and the interface should change
 shape to say it back — the statement lifted out of the running text, given its

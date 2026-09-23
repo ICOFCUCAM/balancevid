@@ -124,6 +124,35 @@ check((await page.locator('[data-testid="preview-title"]').textContent())
   ?.includes('The History of Europe'),
   'the preview shows what the source is called, as it is named');
 
+/*
+ * The preparation screen always shows SOMETHING, and never a black void.
+ *
+ * Three separate things decide whether a poster appears, and only the third
+ * is the product's: whether a real browser can play the format, whether THIS
+ * browser can decode it, and whether the fallback is honest when it cannot.
+ * Playwright's Chromium ships without H.264 and the fixture is H.264, so the
+ * decode is expected to fail here — which makes this the right place to
+ * assert the fallback rather than the poster. The check is that the person is
+ * never told their upload is broken when it is not.
+ */
+{
+  const media = page.locator('[data-testid="preview-media"]');
+  const kind = await media.getAttribute('data-kind');
+  check(kind === 'poster' || kind === 'placeholder',
+    'the preparation screen shows a picture of the source, or says why not', `kind=${kind}`);
+  if (kind === 'placeholder') {
+    const text = await media.innerText();
+    check(text.trim().length > 0 && !/error|fail|invalid|unsupported/i.test(text),
+      'a source this browser cannot decode still reads as a video, not a fault',
+      text.replace(/\n/g, ' ').slice(0, 60));
+    log('no poster here: this browser has no H.264 decoder, which is not a product limit');
+  } else {
+    check((await page.locator('[data-testid="preview-thumb"]').getAttribute('src'))
+      ?.startsWith('data:image/') === true,
+      'the poster is decoded from the file in the browser, not uploaded to get one');
+  }
+}
+
 await page.fill('[data-testid="conversation-title"]', 'My response to The History of Europe');
 await page.click('[data-testid="enter-conversation"]');
 await page.waitForURL(/\/c\//, { timeout: 60_000 });
@@ -378,6 +407,32 @@ log('checking the claim card…');
   check(await page.locator('[data-testid="transcript-line"][data-selected="true"]').count() === 1,
     'the chosen sentence stays marked in the transcript');
 
+  /*
+   * The timeline says the same thing the card says.
+   *
+   *   SOURCE ────────────────◆ CLAIM
+   *                            │
+   *                            └──── YOUR RESPONSE
+   *
+   * The band is how long the sentence runs, the diamond is where the answer
+   * cuts in, and the slot beneath it is the answer that does not exist yet.
+   */
+  check(await page.locator('[data-testid="timeline-pending"]').count() === 1,
+    'the timeline shows the chosen statement on the source lane');
+  check(await page.locator('[data-testid="timeline-claim-marker"]').count() === 1,
+    'marks the moment the answer will cut in');
+  check(await page.locator('[data-testid="timeline-pending-slot"]').count() === 1,
+    'and shows the answer branching from it before it exists');
+
+  /*
+   * The camera stays reachable. The bar under the stage stops repeating what
+   * space does, because the card is saying it — but it kept the camera button
+   * with it once, which left the card telling someone to enable a camera they
+   * could no longer get to.
+   */
+  check(await page.locator('[data-testid="stance"]').count() === 1,
+    'the controls stay on screen with a statement chosen');
+
   // it reads as a subject, not a verdict
   const cardText = await page.locator('[data-testid="claim-card"]').innerText();
   check(/source statement/i.test(cardText) && /your response/i.test(cardText),
@@ -399,6 +454,15 @@ log('checking the claim card…');
   check(replaced === otherText, 'choosing another sentence replaces the pending one');
   check(await page.locator('[data-testid="transcript-line"][data-selected="true"]').count() === 1,
     'and only one sentence is marked at a time');
+  /*
+   * This one was answered earlier in the run, so the card opens on the
+   * exchange rather than offering to start it, and the timeline shows no
+   * slot — the answer it would promise already exists further along the lane.
+   */
+  check(await page.locator('[data-testid="claim-card"]').getAttribute('data-state') === 'answered',
+    'a sentence that already has an answer opens on the exchange, not on an invitation');
+  check(await page.locator('[data-testid="timeline-pending-slot"]').count() === 0,
+    'and the timeline promises no second response to it');
 
   // 5 — cancel returns to ordinary transcript browsing
   await page.click('[data-testid="claim-card-clear"]');
@@ -407,6 +471,8 @@ log('checking the claim card…');
     'removing the statement returns to ordinary transcript browsing');
   check(await page.locator('[data-testid="transcript-line"][data-selected="true"]').count() === 0,
     'and nothing stays marked');
+  check(await page.locator('[data-testid="timeline-pending-slot"]').count() === 0,
+    'and the timeline stops promising a response that is not coming');
 
   // 4 + 7 — answer it, and the card becomes the binding
   await line.click();
@@ -421,15 +487,40 @@ log('checking the claim card…');
 
   check(await page.locator('[data-testid="claim-card"]').count() === 1,
     'the card survives into the recording state rather than vanishing');
-  await page.waitForSelector('[data-testid="claim-card-bound"]', { timeout: 15_000 })
-    .then(() => check(true, 'and says the statement is now attached to the response'))
-    .catch(() => check(false, 'and says the statement is now attached to the response'));
+
+  /*
+   * The floor has passed, and the card should say so.
+   *
+   * The response exists in the document the instant recording starts, which
+   * is what makes it crash-safe — but the author is still talking, and a
+   * card reading "answered by your critique" mid-sentence describes a
+   * conversation that has not finished happening.
+   */
+  const speakingState = await page.locator('[data-testid="claim-card"]')
+    .getAttribute('data-state');
+  check(speakingState === 'speaking',
+    'while the author is answering, the card gives them the floor', `state=${speakingState}`);
+  check(await page.locator('[data-testid="claim-card-bound"]').count() === 0,
+    'and does not yet call the answer finished');
+  const speakingQuote = (await page.locator('[data-testid="claim-card-quote"]').innerText())
+    .replace(/^[“"]|[”"]$/g, '').replace(/…$/, '').trim();
+  check(lineText.startsWith(speakingQuote) || speakingQuote === lineText,
+    'the statement is still the source\'s own words while they answer it',
+    `"${speakingQuote.slice(0, 40)}…"`);
+  check((await page.locator('[data-testid="claim-card-time"]').innerText()).includes(inLine),
+    'and still carries the moment it was said');
 
   await sleep(2400);
   await page.keyboard.press('Space');
   await page.waitForFunction(
     () => document.querySelector('[data-testid="stance"]')?.textContent === 'Listening',
     null, { timeout: 60_000 });
+
+  await page.waitForSelector('[data-testid="claim-card-bound"]', { timeout: 15_000 })
+    .then(() => check(true, 'once they finish, the card says the statement is attached'))
+    .catch(() => check(false, 'once they finish, the card says the statement is attached'));
+  check(await page.locator('[data-testid="claim-card"]').getAttribute('data-state') === 'answered',
+    'and the exchange reads as made');
 
   // The binding is the document's, not the component's.
   const doc = (await api(`/api/conversations/${conversationId}`)).conversation;

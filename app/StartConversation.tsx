@@ -287,15 +287,42 @@ export default function StartConversation() {
         <h2 style={{ fontSize: 26, margin: '2px 0 16px' }}>Start a conversation</h2>
 
         <div className="row" style={{ gap: 16, alignItems: 'flex-start', marginBottom: 18 }}>
-          <div style={{
-            width: 280, aspectRatio: '16 / 9', borderRadius: 10, overflow: 'hidden',
-            background: '#000', border: '1px solid var(--line)', flex: '0 0 auto',
-            display: 'grid', placeItems: 'center',
-          }}>
-            {preview?.thumbnailUrl
-              ? <img alt="" src={preview.thumbnailUrl} data-testid="preview-thumb"
-                     style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              : <span className="small muted">{preview?.fileName ?? 'No preview'}</span>}
+          {/*
+            A picture, or an honest stand-in — never a black rectangle.
+            A poster can be missing for reasons that say nothing about the
+            file: a provider that did not answer, or a browser that cannot
+            decode this codec. A black box reads as "your upload is broken",
+            which is a lie the product tells about the person's own video. So
+            when there is no frame to show, the card says what it has: the
+            name, and the fact that the picture arrives once it plays.
+          */}
+          <div
+            data-testid="preview-media"
+            data-kind={preview?.thumbnailUrl ? 'poster' : 'placeholder'}
+            style={{
+              width: 280, aspectRatio: '16 / 9', borderRadius: 10, overflow: 'hidden',
+              border: '1px solid var(--line)', flex: '0 0 auto',
+              display: 'grid', placeItems: 'center',
+              background: preview?.thumbnailUrl
+                ? '#000'
+                : 'linear-gradient(145deg, #1b2129, #12171d)',
+            }}
+          >
+            {preview?.thumbnailUrl ? (
+              <img alt="" src={preview.thumbnailUrl} data-testid="preview-thumb"
+                   style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+              <div data-testid="preview-placeholder"
+                   style={{ textAlign: 'center', padding: 16, lineHeight: 1.4 }}>
+                <div aria-hidden style={{ fontSize: 26, opacity: 0.5 }}>▸</div>
+                <div className="small" style={{ marginTop: 4, wordBreak: 'break-word' }}>
+                  {preview?.fileName ?? preview?.title ?? 'Your video'}
+                </div>
+                <div className="small muted" style={{ fontSize: 11, marginTop: 2 }}>
+                  The picture appears once it plays
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="grow" style={{ minWidth: 0 }}>

@@ -99,8 +99,11 @@ export default function Stage({
         {/* What you are answering, over the frozen frame, while you answer it. */}
         {claim && stance === 'yours' && (
           <div data-testid="stage-claim" style={{
-            position: 'absolute', left: 0, right: 0, bottom: 0,
-            padding: '32px 24px 20px',
+            // Clear of the player's own control bar. Sitting at bottom: 0 put
+            // the statement underneath the scrubber, where it read as a
+            // rendering fault rather than as the thing being answered.
+            position: 'absolute', left: 0, right: 0, bottom: 48,
+            padding: '32px 24px 16px',
             background: 'linear-gradient(transparent, rgba(0,0,0,0.88))',
             lineHeight: 1.35,
           }}>
