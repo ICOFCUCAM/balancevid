@@ -3558,6 +3558,40 @@ nothing to do with them. The same run also had a check go green without
 anything happening, because it asserted a layout the response was already in.
 **Assert a change, and put the state back.**
 
+**Announce nothing until everything it promises exists.** A take's duration
+going above zero is what tells every surface its still exists, and the worker
+was writing the duration first and the still a moment later. Every poll landing
+in that window got a 404 — and a client that drops a broken image never asks
+again, so the still was missing for the rest of the session although the file
+arrived a second afterwards. It looked like flakiness and was an ordering bug.
+The poster is written before the duration now, and the timeline retries a
+still rather than giving up on it forever. **A record that says a file exists
+must be written after the file.**
+
+**"Preparing", forever, is the same screen as "failed".** A take whose
+assembly threw looked exactly like one still in the queue: the word preparing,
+no reason, nothing to do. The job record had the state and the error all
+along — the interface simply never read it. It now distinguishes waiting,
+preparing and failed, says what happened to the recording, and offers to try
+again, which works because the chunks the author spoke are still on disk
+(U-06). **Work a person did is not allowed to disappear into a spinner (D-07).**
+
+**Say what cannot be done, where the doing would be.** An embedded source is
+played by its owner and never downloaded (U-35 §6), so there are no frames of
+it to place a response beside, to mark, or to cut into one file. The Studio
+offered all three anyway: a composition rail whose layouts changed nothing
+visible, and a "finished video" bar reading *100% source material* over a
+runtime taken from someone else's player — describing a file INV-01 forbids
+ever producing. Both now say what publishes instead. **A control that cannot
+work is worse than an absent one, because the person will spend their time
+deciding it is broken rather than learning what the product does.**
+
+**A flag answered the wrong question.** "Preparing responses…" showed on a
+conversation with no responses, because a source whose duration was not yet
+known counted as work in progress. The video getting ready and the author's
+recordings being assembled are two different things, and one boolean was
+standing for both. Counting the second, and polling on either, separated them.
+
 **A claim card must not look like a verdict.** Selecting a sentence is the
 author saying "this is what I am answering", and the interface should change
 shape to say it back — the statement lifted out of the running text, given its

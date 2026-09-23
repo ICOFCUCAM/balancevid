@@ -259,9 +259,22 @@ export default function Timeline({
               {r.thumbnailUrl && !failed.has(r.id) ? (
                 <img
                   alt="" src={r.thumbnailUrl} data-testid="timeline-poster"
-                  // A still that is not there yet falls back to the duration
-                  // rather than to a broken-image icon.
-                  onError={() => setFailed((was) => new Set(was).add(r.id))}
+                  /*
+                   * A still that is not there falls back to the duration
+                   * rather than to a broken-image icon — but only for now.
+                   * Giving up permanently on the first 404 meant a still that
+                   * arrived a second later never appeared at all, so the
+                   * failure is forgotten after a moment and the image tries
+                   * again.
+                   */
+                  onError={() => {
+                    setFailed((was) => new Set(was).add(r.id));
+                    window.setTimeout(() => setFailed((was) => {
+                      const next = new Set(was);
+                      next.delete(r.id);
+                      return next;
+                    }), 2000);
+                  }}
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                 />
               ) : (

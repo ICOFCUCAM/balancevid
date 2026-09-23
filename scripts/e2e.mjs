@@ -672,6 +672,96 @@ log('checking the claim card…');
   await page.click('[data-testid="claim-card-clear"]').catch(() => {});
 }
 
+// --- a recording that did not come back (D-07) ------------------------------
+/*
+ * "Preparing", forever, is the same screen as "failed" — and until now that
+ * is what a take whose assembly threw looked like, with nothing the author
+ * could do about it. The words they spoke are still on disk, so assembling
+ * them again is the whole recovery.
+ *
+ * The failure is real, not simulated: a corrupt recording is exactly how this
+ * happens in the field, so the test uploads one and lets ffmpeg reject it.
+ */
+log('checking a recording that did not save…');
+{
+  const made = await (await sfetch(`${BASE}/api/conversations/${conversationId}/interventions`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ tSourceFrame: 480, type: 'explain' }),
+  })).json();
+  const brokenId = made.interventionId;
+  const takeId = made.takeId;
+  check(Boolean(brokenId && takeId), 'a response can be created for this test',
+    JSON.stringify(made).slice(0, 80));
+
+  await sfetch(
+    `${BASE}/api/conversations/${conversationId}/takes/${takeId}/chunks?index=0`,
+    { method: 'POST', headers: { 'content-type': 'application/octet-stream' },
+      body: Buffer.from('this is not a video') });
+  const finalized = await (await sfetch(
+    `${BASE}/api/conversations/${conversationId}/takes/${takeId}/finalize`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ interventionId: brokenId, prerollSegments: 0 }),
+    })).json();
+
+  /*
+   * Let the worker try it and fail. Generously: this job joins the back of a
+   * queue that may still be assembling the run's real takes, and a timeout
+   * here would report "never failed" about a job that simply had not started.
+   */
+  let failed = null;
+  for (let i = 0; i < 240; i++) {
+    const job = (await api(`/api/jobs/${finalized.job.id}`)).job;
+    if (job.state === 'failed') { failed = job; break; }
+    if (job.state === 'done') break;
+    await sleep(1000);
+  }
+  check(Boolean(failed), 'a corrupt recording fails its assembly rather than hanging',
+    failed ? String(failed.error).slice(0, 70) : 'never failed');
+  check(failed && /did not produce usable media|could be read/i.test(String(failed.error)),
+    'and says what went wrong in terms of the recording', String(failed?.error).slice(0, 70));
+
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.click('button[role=tab]:has-text("Studio")');
+  await page.waitForSelector('[data-testid="clip-card"]', { timeout: 20_000 });
+  const card = page.locator(`[data-testid="clip-card"][data-clip-id="${brokenId}"]`);
+  await card.waitFor({ timeout: 10_000 });
+  check(await card.locator('[data-testid="clip-failed"]').count() === 1,
+    'and the clip says so rather than saying "preparing" forever');
+  const said = await card.innerText();
+  check(/did not finish saving/i.test(said),
+    'in words that describe what happened to their recording', said.replace(/\n/g, ' ').slice(0, 70));
+  check(await card.locator('[data-testid="clip-retry"]').count() === 1,
+    'and offers to try again, because the chunks are still on disk');
+
+  // The retry is a new attempt, and the failure stays in the record.
+  const again = await sfetch(`${BASE}/api/jobs/${finalized.job.id}`, { method: 'POST' });
+  check(again.status === 202, 'trying again queues a fresh attempt',
+    `status ${again.status}`);
+  const still = (await api(`/api/jobs/${finalized.job.id}`)).job;
+  check(still.state === 'failed',
+    'and the attempt that failed stays in the record');
+
+  const notFailed = await sfetch(`${BASE}/api/jobs/${(await again.json()).job.id}`,
+    { method: 'POST' });
+  check([409, 202].includes(notFailed.status),
+    'a job that has not failed is not something to retry', `status ${notFailed.status}`);
+
+  // Leave the conversation as it was found.
+  await sfetch(
+    `${BASE}/api/conversations/${conversationId}/interventions` +
+    `?interventionId=${brokenId}`, { method: 'DELETE' });
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.click('button[role=tab]:has-text("Studio")');
+  await page.waitForSelector('[data-testid="clip-card"]', { timeout: 20_000 });
+  check(await page.locator(`[data-testid="clip-card"][data-clip-id="${brokenId}"]`)
+    .count() === 0, 'and the run leaves the conversation as it found it');
+
+  await page.click('[data-testid="enable-camera"]');
+  await page.waitForFunction(
+    () => document.querySelector('[data-testid="stance"]')?.textContent === 'Listening',
+    null, { timeout: 30_000 });
+}
+
 // --- the creator's language, not the engineer's -----------------------------
 /*
  * The doctrine's identifiers are precise and they belong in the code, the
@@ -1377,6 +1467,36 @@ check(embeddedManifest.source.embedUrl?.includes('youtube-nocookie.com'),
   'the Class B manifest drives the provider\'s player');
 check(!/\.(mp4|webm|m3u8|mpd)(["\'?]|$)/.test(JSON.stringify(embeddedManifest.source)),
   'the manifest points at no provider media');
+
+/*
+ * What a Class B conversation must NOT claim.
+ *
+ * The source plays on its own platform and is never downloaded (U-35 §6), so
+ * there are no frames of it to place a response beside, to draw on, or to cut
+ * into a single file. Offering any of that is offering something the export
+ * cannot produce.
+ */
+{
+  const bPage = await page.context().newPage();
+  await bPage.goto(`${BASE}/c/${embeddedId}`, { waitUntil: 'networkidle' });
+  await bPage.click('button[role=tab]:has-text("Studio")');
+  await bPage.waitForTimeout(1200);
+
+  check(await bPage.locator('[data-testid="no-composed-export"]').count() === 1,
+    'a Class B conversation says what publishes instead of a finished file');
+  const bText = await bPage.evaluate(() => document.body.innerText);
+  check(!/The finished video/i.test(bText),
+    'and never shows a finished-video bar it cannot produce (INV-01)');
+  check(!/% source material/i.test(bText),
+    'nor a proportion of a file that does not exist');
+  check(!/U-\d|INV-\d|Class [AB]|§/.test(bText),
+    'and explains it in the creator\'s language');
+
+  // Nothing is preparing, because nothing has been recorded.
+  check(!/Preparing \d+ response/i.test(bText),
+    'a conversation with no responses is not "preparing responses"');
+  await bPage.close();
+}
 
 const embeddedWatch = await page.context().newPage();
 await embeddedWatch.goto(`${BASE}/c/${embeddedId}/watch`, { waitUntil: 'domcontentloaded' });

@@ -172,6 +172,35 @@ async function assembleTakeJob(job: Job): Promise<Job> {
       ? String(job.payload['captureMimeType']) : undefined,
   });
 
+  /*
+   * The still, BEFORE the duration is recorded.
+   *
+   * The order matters and used to be the other way round. A take's duration
+   * going above zero is what tells every surface the still exists, so writing
+   * the duration first opens a window — short, but every poll lands in it —
+   * where the document advertises a picture that is not on disk yet. The
+   * image 404s, and a client that drops a broken image never asks again: the
+   * still is simply missing for the rest of the session even though the file
+   * arrived a moment later. Nothing announces the take until everything it
+   * promises is there.
+   *
+   * A failure still costs a chip on a timeline and never the take, so it is
+   * caught and recorded rather than allowed to fail the job (D-07).
+   */
+  try {
+    const take = assembled.take;
+    await renderTakePoster(
+      takeMezzaninePath(job.conversationId, take.assetId),
+      paths.takePoster(job.conversationId, take.assetId),
+      take.mediaInFrame + HOUSE_FPS,
+    );
+  } catch (error) {
+    await audit(job.conversationId, {
+      action: 'take.poster_failed',
+      detail: { takeId, reason: error instanceof Error ? error.message : String(error) },
+    });
+  }
+
   await mutateConversation(job.conversationId, (conversation) => {
     const intervention = conversation.interventions.find((i) => i.id === interventionId);
     if (!intervention) throw new Error(`intervention ${interventionId} vanished`);
@@ -191,25 +220,6 @@ async function assembleTakeJob(job: Job): Promise<Job> {
       skippedSegments: assembled.skippedSegments,
     },
   });
-
-  /*
-   * The still for the timeline, taken here because ffmpeg has just finished
-   * with this file. A failure costs a chip on a timeline, never the take, so
-   * it is caught and recorded rather than allowed to fail the job (D-07).
-   */
-  try {
-    const take = assembled.take;
-    await renderTakePoster(
-      takeMezzaninePath(job.conversationId, take.assetId),
-      paths.takePoster(job.conversationId, take.assetId),
-      take.mediaInFrame + HOUSE_FPS,
-    );
-  } catch (error) {
-    await audit(job.conversationId, {
-      action: 'take.poster_failed',
-      detail: { takeId, reason: error instanceof Error ? error.message : String(error) },
-    });
-  }
 
   // Caption the response in its own job, for the same reason the source is
   // captioned in its own: the user can carry on recording while it runs.

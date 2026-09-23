@@ -32,17 +32,32 @@ export interface ClipRailItem {
   posterUrl?: string;
   /** The source sentence this answers, when one is bound. */
   quote?: string;
-  /** Still assembling: it has no picture and no length yet. */
-  preparing?: boolean;
+  /**
+   * Where the recording has got to.
+   *
+   *   ready      assembled, with frames and a length
+   *   preparing  the worker has it
+   *   waiting    queued, and nothing has picked it up yet
+   *   failed     it fell over, and says why
+   *
+   * "preparing" forever is the same screen as "failed", and the author has no
+   * way to tell which they are looking at or anything to do about it (D-07).
+   */
+  state: 'ready' | 'preparing' | 'waiting' | 'failed';
+  /** Why it failed, in whatever the job recorded. */
+  error?: string;
+  /** The job to try again. */
+  jobId?: string;
 }
 
 export default function ClipRail({
-  items, selectedId, onSelect, onAdd, canAdd,
+  items, selectedId, onSelect, onAdd, onRetry, canAdd,
 }: {
   items: ClipRailItem[];
   selectedId: string | null;
   onSelect: (id: string) => void;
   onAdd: () => void;
+  onRetry: (jobId: string) => void;
   canAdd: boolean;
 }) {
   return (
@@ -89,8 +104,13 @@ export default function ClipRail({
                 <img alt="" src={item.posterUrl} data-testid="clip-poster"
                      style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               ) : (
-                <span className="small muted" style={{ fontSize: 10 }}>
-                  {item.preparing ? 'preparing' : '—'}
+                <span className="small" style={{
+                  fontSize: 10, textAlign: 'center', padding: '0 4px', lineHeight: 1.25,
+                  color: item.state === 'failed' ? 'var(--bad)' : 'var(--muted)',
+                }}>
+                  {item.state === 'failed' ? 'did not save'
+                    : item.state === 'waiting' ? 'waiting'
+                    : 'preparing'}
                 </span>
               )}
               {/* The kind of move, in its own colour, over its own frame. */}
@@ -133,6 +153,49 @@ export default function ClipRail({
                 overflow: 'hidden',
               }}>
                 “{item.quote}”
+              </div>
+            )}
+
+            {/*
+              A recording that is not coming back says so, and says what to do.
+              The words the author spoke are still on disk — assembling them is
+              the whole recovery (D-07).
+            */}
+            {item.state === 'failed' && (
+              <div data-testid="clip-failed" style={{ marginTop: 5 }}>
+                <div className="small" style={{ color: 'var(--bad)', fontSize: 11,
+                  lineHeight: 1.3 }}>
+                  This recording did not finish saving.
+                  {item.error ? ` ${item.error}` : ''}
+                </div>
+                {item.jobId && (
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    data-testid="clip-retry"
+                    onClick={(e) => { e.stopPropagation(); onRetry(item.jobId!); }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault(); e.stopPropagation(); onRetry(item.jobId!);
+                      }
+                    }}
+                    className="small"
+                    style={{
+                      display: 'inline-block', marginTop: 4, padding: '3px 8px',
+                      borderRadius: 5, border: '1px solid var(--line)',
+                      background: 'var(--panel-2)', cursor: 'pointer', fontSize: 11,
+                    }}
+                  >
+                    Try again
+                  </span>
+                )}
+              </div>
+            )}
+
+            {item.state === 'waiting' && (
+              <div className="small muted" data-testid="clip-waiting"
+                   style={{ marginTop: 4, fontSize: 11, lineHeight: 1.3 }}>
+                Waiting to be prepared.
               </div>
             )}
           </button>

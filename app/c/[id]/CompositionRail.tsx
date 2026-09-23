@@ -56,8 +56,11 @@ export type ExplainTool = (typeof EXPLAIN_TOOLS)[number]['kind'];
 
 export default function CompositionRail({
   intervention, tool, onTool, onLayout, onRemoveMark, onTimeMark, onBack, disabled,
+  embedded,
 }: {
   intervention: any;
+  /** The source plays on its own platform, so there are no frames to compose. */
+  embedded?: boolean;
   tool: ExplainTool | null;
   onTool: (tool: ExplainTool | null) => void;
   onLayout: (layoutId: string | null) => void;
@@ -90,7 +93,34 @@ export default function CompositionRail({
         Nothing here changes the recording — you can set it now or long after.
       </div>
 
+      {/*
+        An embedded source is played by its owner's player and never
+        downloaded (U-35 §6), so there are no frames of it to place your
+        response beside or to mark. Offering a layout here would be offering
+        something the export cannot produce. [U-01, INV-01]
+      */}
+      {embedded && (
+        <div data-testid="composition-embedded" className="panel" style={{
+          padding: 12, lineHeight: 1.45, borderColor: 'var(--line)',
+        }}>
+          <div className="small" style={{ fontWeight: 600, marginBottom: 4 }}>
+            This video plays on its own platform
+          </div>
+          <p className="small muted" style={{ margin: 0 }}>
+            We never hold its picture, so your response cannot be placed beside
+            it or drawn on. What publishes instead is a player that runs the
+            original and cuts to you at each of your moments — your recording,
+            your words and the statement you answered all travel with it.
+          </p>
+          <p className="small muted" style={{ marginTop: 8, marginBottom: 0 }}>
+            Upload a video instead to compose the two into one finished film.
+          </p>
+        </div>
+      )}
+
       {/* ---- where the two of you are on screen ------------------------- */}
+      {!embedded && (
+      <>
       <div className="small" style={{ fontWeight: 600, marginBottom: 6 }}>Layout</div>
       <div style={{
         display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 16,
@@ -201,7 +231,10 @@ export default function CompositionRail({
         </div>
       )}
 
-      {(intervention.evidence ?? []).length > 0 && (
+      </>
+      )}
+
+      {!embedded && (intervention.evidence ?? []).length > 0 && (
         <p className="small muted" style={{ marginTop: 14, lineHeight: 1.35 }}>
           Evidence takes the panel on this response, so the frame is not on
           screen and marks on it will not be drawn. Choose a layout that shows

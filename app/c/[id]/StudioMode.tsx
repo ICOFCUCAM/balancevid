@@ -67,7 +67,27 @@ export default function StudioMode({
         <div className="panel" style={{ borderColor: 'var(--bad)', marginBottom: 12 }}>{error}</div>
       )}
 
-      <TimelineBand timeline={timeline} onSeek={onSeek} />
+      {/*
+        The finished video is the composed export, and a Class B conversation
+        has none: the source plays on its own platform and is never downloaded
+        (U-35 §6), so there is nothing to cut it into. Showing a bar reading
+        "100% source material" over a runtime taken from someone else's player
+        describes a file that cannot exist. [U-01, INV-01]
+      */}
+      {conversation.source?.class === 'B' ? (
+        <div className="panel" data-testid="no-composed-export"
+             style={{ marginBottom: 12, lineHeight: 1.45 }}>
+          <strong>What publishes</strong>
+          <p className="small muted" style={{ margin: '4px 0 0' }}>
+            A player that runs the original and cuts to you at each of your
+            moments, with your recordings, the statements you answered and the
+            attribution travelling alongside it. There is no single file to
+            assemble, because we never hold the other video.
+          </p>
+        </div>
+      ) : (
+        <TimelineBand timeline={timeline} onSeek={onSeek} />
+      )}
 
       <ClipsPanel conversationId={conversationId} />
 

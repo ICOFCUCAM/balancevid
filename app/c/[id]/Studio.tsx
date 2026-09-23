@@ -255,21 +255,37 @@ export default function Studio({ conversationId }: { conversationId: string }) {
    * saved -- and the export button stays disabled after the work that would
    * enable it has already finished.
    */
+  /*
+   * How many responses are still being put together.
+   *
+   * A count, not a flag: "Preparing responses…" appeared on a conversation
+   * with no responses at all, because a source whose duration was not yet
+   * known counted as work in progress. Those are two different things — one
+   * is the video getting ready, the other is the author's recordings — and
+   * saying the second when only the first is true is simply wrong.
+   */
   const working = (() => {
-    if (!snapshot) return true;
-    if (!(snapshot.conversation?.source?.durationFrames > 0)) return true;
-    const assembling = (snapshot.conversation?.interventions ?? []).some(
-      (iv: any) => (iv.takes ?? []).every((t: any) => t.durationFrames === 0));
-    const queued = (snapshot.jobs ?? []).some(
-      (job: any) => job.state === 'pending' || job.state === 'running');
-    return assembling || queued;
+    if (!snapshot) return 0;
+    const interventionsNow = (snapshot.conversation?.interventions ?? []) as any[];
+    return interventionsNow.filter(
+      (iv) => (iv.takes ?? []).every((t: any) => t.durationFrames === 0)).length;
   })();
 
+  /*
+   * Poll while anything is still becoming ready: the source being normalised
+   * counts as well as the responses being assembled, even though only the
+   * second is what "Preparing responses" means.
+   */
+  const settling = working > 0
+    || !(snapshot?.conversation?.source?.durationFrames > 0)
+    || ((snapshot?.jobs ?? []) as any[]).some(
+      (job) => job.state === 'pending' || job.state === 'running');
+
   useEffect(() => {
-    if (!working) return;
+    if (!settling) return;
     const timer = setInterval(() => { void refresh(); }, 1200);
     return () => clearInterval(timer);
-  }, [working, refresh]);
+  }, [settling, refresh]);
 
   // ---- capture ------------------------------------------------------------
 
@@ -681,11 +697,34 @@ export default function Studio({ conversationId }: { conversationId: string }) {
    * conversation has — order is derived from the anchor and never stored
    * (U-08), so this list and the timeline cannot disagree.
    */
+  /*
+   * The assembly job for each intervention, so a recording that is not coming
+   * back can say so. Without this, a queue that nothing is draining and a job
+   * that threw look identical to the author — both are the word "preparing",
+   * forever, with nothing to do about it (D-07).
+   */
+  const assemblyJobs = new Map<string, any>();
+  for (const job of (snapshot?.jobs ?? []) as any[]) {
+    if (job.kind !== 'assemble_take') continue;
+    const forId = String(job.payload?.interventionId ?? '');
+    if (!forId) continue;
+    const held = assemblyJobs.get(forId);
+    // The latest attempt is the one that describes where things stand.
+    if (!held || job.createdAt > held.createdAt) assemblyJobs.set(forId, job);
+  }
+
   const clips: ClipRailItem[] = [...interventions]
     .sort((a: any, b: any) => a.anchor.tSourceFrame - b.anchor.tSourceFrame)
     .map((iv: any, index: number) => {
       const take = (iv.takes ?? []).find((t: any) => t.id === iv.selectedTakeId);
       const presentation = TYPE_PRESENTATION[iv.type as InterventionType];
+      const job = assemblyJobs.get(iv.id);
+      const ready = Boolean(take && take.durationFrames > 0);
+      const state: ClipRailItem['state'] = ready ? 'ready'
+        : job?.state === 'failed' ? 'failed'
+        : job?.state === 'running' ? 'preparing'
+        : job?.state === 'pending' ? 'waiting'
+        : 'preparing';
       return {
         id: iv.id,
         index,
@@ -693,11 +732,13 @@ export default function Studio({ conversationId }: { conversationId: string }) {
         durationFrames: take?.durationFrames ?? 0,
         label: presentation?.lowerThird ?? iv.type,
         accent: presentation?.accent ?? '#8A8F98',
-        ...(take && take.durationFrames > 0
+        ...(ready
           ? { posterUrl: `/api/conversations/${conversationId}/takes/${take.id}/media?kind=poster` }
           : {}),
         ...(iv.anchor.quote ? { quote: iv.anchor.quote } : {}),
-        preparing: !take || take.durationFrames === 0,
+        state,
+        ...(state === 'failed' && job?.error ? { error: String(job.error) } : {}),
+        ...(state === 'failed' && job?.id ? { jobId: String(job.id) } : {}),
       };
     });
   const composing = interventions.find((iv: any) => iv.id === selectedResponse) ?? null;
@@ -808,6 +849,7 @@ export default function Studio({ conversationId }: { conversationId: string }) {
               if (chosen) seekTo(chosen.anchor.tSourceFrame);
             }}
             onAdd={() => interrupt()}
+            onRetry={(jobId) => { void call(`/api/jobs/${jobId}`, { method: 'POST' }); }}
             canAdd={phase === 'armed'}
           />
         )}
@@ -1009,6 +1051,7 @@ export default function Studio({ conversationId }: { conversationId: string }) {
         {mode === 'studio' && composing && (
         <CompositionRail
           intervention={composing}
+          embedded={isEmbedded}
           tool={explainTool}
           disabled={recording}
           onTool={setExplainTool}
