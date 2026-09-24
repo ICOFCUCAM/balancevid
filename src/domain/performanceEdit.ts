@@ -25,10 +25,36 @@ import { LAYOUTS } from './presentation.js';
 import { newId } from './ids.js';
 import type { TakeId } from './document.js';
 import {
-  type AudioMode, type Performance, type PerformanceTake, type Scene,
-  AUDIO_MODES, coverage, orderedScenes, takeById,
+  type AudioMode, type MasterTrack, type Performance, type PerformanceTake, type Scene,
+  AUDIO_MODES, MASTER_CLASSES, PERFORMANCE_SCHEMA_VERSION,
+  coverage, orderedScenes, takeById,
 } from './performance.js';
 import { type Samples, assertSamples } from './time.js';
+
+/**
+ * A new Performance.
+ *
+ * Here rather than beside the type, because it is the one thing in that file
+ * that needs an id generator and `newId` reaches `node:crypto` — which puts
+ * the whole document module out of reach of the browser, and Studio Two's
+ * interface needs its vocabulary.
+ */
+export function newPerformance(
+  title: string, master: MasterTrack, at: string,
+): Performance {
+  return {
+    schemaVersion: PERFORMANCE_SCHEMA_VERSION,
+    id: newId('perf'),
+    title,
+    master,
+    takes: [],
+    scenes: [],
+    audio: { mode: 'music_and_mic' },
+    layoutProfileId: 'default',
+    createdAt: at,
+    updatedAt: at,
+  };
+}
 
 export class PerformanceEditError extends Error {
   constructor(message: string) {
@@ -283,6 +309,15 @@ export function classifyMaster(
   performance: Performance,
   update: { class: Performance['master']['class']; licence?: string | null },
 ): void {
+  /*
+   * Checked at runtime, not only in the types. This is reached from an HTTP
+   * body, where the type is a description of what was hoped for — and an
+   * unrecognised class written into the document is a rights answer nobody
+   * gave. [INV-15]
+   */
+  if (!MASTER_CLASSES.includes(update.class)) {
+    fail(`unknown class of music: ${String(update.class)}`);
+  }
   performance.master.class = update.class;
   if (update.licence === null || update.licence === undefined) {
     if (update.class === 'own' || update.class === 'third_party') {

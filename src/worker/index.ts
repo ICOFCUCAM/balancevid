@@ -23,7 +23,9 @@ import { renderShareCard, renderThumbnail, renderTakePoster } from '../render/th
 import { ensureDirs, paths } from '../store/paths.js';
 import { claim, finish, update, type Job } from '../store/queue.js';
 import { audit, loadConversation, mutateConversation } from '../store/repository.js';
-import { assembleTake, takeMezzaninePath } from '../store/takes.js';
+import {
+  assembleTake, joinPerformanceSegments, takeMezzaninePath,
+} from '../store/takes.js';
 import { enqueue } from '../store/queue.js';
 import { resolveTranscriber } from '../transcribe/index.js';
 import {
@@ -34,7 +36,12 @@ import { archiveUpload, archiveWeb, type ArchiveResult } from '../evidence/archi
 import { projectTimeline } from '../domain/timeline.js';
 import { buildBundle } from '../publish/bundle.js';
 import { buildShareCard } from '../publish/card.js';
-import { HOUSE_FPS } from '../domain/time.js';
+import { HOUSE_FPS, HOUSE_SAMPLE_RATE, samplesToSeconds } from '../domain/time.js';
+import { measureAlignment } from '../domain/align.js';
+import { decodeToAnalysis, normaliseMaster, readAnalysis } from '../render/audio.js';
+import {
+  auditPerformance, loadPerformance, mutatePerformance,
+} from '../store/performances.js';
 import { EXPORT_PROFILES } from '../domain/presentation.js';
 
 const POLL_MS = 400;
@@ -51,8 +58,134 @@ export async function runJob(job: Job): Promise<Job> {
     case 'render_reel': return renderReel(job);
     case 'render_thumbnails': return renderThumbnails(job);
     case 'render_card': return renderCard(job);
+    case 'ingest_master': return ingestMaster(job);
+    case 'assemble_performance_take': return assemblePerformanceTake(job);
   }
 }
+
+/* ------------------------------------------------------------------------ *
+ *  Studio Two.  [Doctrine STUDIO-TWO §3, §10, S-3]
+ * ------------------------------------------------------------------------ */
+
+/**
+ * Step 1 — the music arrives.  [§3]
+ *
+ * Normalised to the house rate, decoded to an analysis copy, and MEASURED —
+ * the length every scene boundary in the performance will be placed against,
+ * counted rather than believed (U-02).
+ */
+async function ingestMaster(job: Job): Promise<Job> {
+  const originalPath = String(job.payload['originalPath']);
+  const id = job.conversationId;
+
+  const normalised = paths.performanceAsset(id, `${job.payload['assetId']}mezz`, 'webm');
+  await normaliseMaster(originalPath, normalised);
+  job.progress = 50;
+  await update(job);
+
+  /*
+   * The analysis copy: mono floats at the house rate, which is the only form
+   * alignment wants and the cheapest thing to read. Decoded from the
+   * NORMALISED master rather than the original, so that what alignment reads
+   * and what the render plays are the same audio. [S-3]
+   */
+  const durationSamples = await decodeToAnalysis(normalised, paths.masterAnalysis(id));
+
+  await mutatePerformance(id, (draft) => { draft.master.durationSamples = durationSamples; });
+  await auditPerformance(id, {
+    action: 'master.ingested',
+    detail: { durationSamples, seconds: Number(samplesToSeconds(durationSamples).toFixed(3)) },
+  });
+
+  return finish(job, 'done', { progress: 100, result: { durationSamples } });
+}
+
+/**
+ * A take lands, and is placed on the song.  [§10, S-3, INV-14]
+ *
+ * The chunks are joined the way every recording in this product is joined —
+ * the concat FILTER, never the demuxer, because browser-captured media does
+ * not carry the timestamps the demuxer trusts and it silently keeps only the
+ * first segment.
+ *
+ * Then the offset the browser measured at capture is CHECKED. If the master is
+ * audible in the take the correlation is precise and replaces it — and the
+ * author is told, because the master is coming out of speakers into their
+ * microphone. If it is not audible, which is the normal outcome of following
+ * §10 and wearing headphones, the browser's measurement stands.
+ */
+async function assemblePerformanceTake(job: Job): Promise<Job> {
+  const id = job.conversationId;
+  const takeId = String(job.payload['takeId']);
+  const assetId = String(job.payload['assetId']);
+  const hintSamples = Number(job.payload['hintSamples'] ?? 0);
+
+  const chunkDir = paths.performanceChunks(id, takeId);
+  const mezzanine = paths.performanceAsset(id, `${assetId}mezz`, 'mp4');
+  const joined = await joinPerformanceSegments(chunkDir, takeId, mezzanine);
+  job.progress = 40;
+  await update(job);
+
+  const analysisPath = paths.takeAnalysis(id, assetId);
+  const durationSamples = await decodeToAnalysis(mezzanine, analysisPath);
+  job.progress = 70;
+  await update(job);
+
+  /*
+   * Only the first stretch of each is read. Correlating four minutes against
+   * four minutes is work nobody needs: the offset is a single number and the
+   * opening of the take settles it.
+   */
+  const performance = await loadPerformance(id);
+  const master = await readAnalysis(
+    paths.masterAnalysis(id), 0,
+    Math.min(performance.master.durationSamples, hintSamples + ALIGN_WINDOW));
+  const take = await readAnalysis(analysisPath, 0, Math.min(durationSamples, ALIGN_WINDOW));
+  const found = measureAlignment(master, take, hintSamples);
+
+  await mutatePerformance(id, (draft) => {
+    const target = draft.takes.find((t) => t.id === takeId);
+    if (!target) return;
+    target.durationSamples = durationSamples;
+    if (found.masterAudible) {
+      target.alignment = {
+        ...target.alignment,
+        offsetSamples: found.offsetSamples,
+        method: 'calibrated',
+      };
+    }
+  });
+
+  await auditPerformance(id, {
+    action: 'take.aligned',
+    detail: {
+      takeId, durationSamples,
+      hintSamples, offsetSamples: found.offsetSamples,
+      correlation: Number(found.correlation.toFixed(3)),
+      masterAudible: found.masterAudible,
+      segments: joined.segments,
+      skippedSegments: joined.skipped,
+    },
+  });
+
+  return finish(job, 'done', {
+    progress: 100,
+    result: {
+      durationSamples,
+      offsetSamples: found.offsetSamples,
+      correlation: Number(found.correlation.toFixed(3)),
+      /*
+       * Reported out of the job so the studio can say it while the author is
+       * still in the room to do something about it. A phasing artefact from
+       * speaker leakage cannot be removed afterwards. [§10]
+       */
+      masterAudible: found.masterAudible,
+    },
+  });
+}
+
+/** Enough of each to settle an offset: thirty seconds. */
+const ALIGN_WINDOW = 30 * HOUSE_SAMPLE_RATE;
 
 /** Normalise an uploaded source and record its measured duration. [U-02] */
 async function ingestSource(job: Job): Promise<Job> {

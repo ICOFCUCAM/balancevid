@@ -15,10 +15,10 @@ import { describe, expect, it } from 'vitest';
 import {
   type MasterTrack, type Performance, type PerformanceTake,
   coverage, covered, covers, effectiveOffset, masterToTake, mayPublish,
-  newPerformance, orderedScenes, projectPerformance, sceneAt, takeToMaster,
+  orderedScenes, projectPerformance, sceneAt, takeToMaster,
 } from '../../src/domain/performance.js';
 import {
-  addTake, classifyMaster, clearScenes, moveScene, nudgeTake, realign,
+  addTake, classifyMaster, clearScenes, moveScene, newPerformance, nudgeTake, realign,
   removeScene, removeTake, setAudioMode, setEnvironment, setScene, trimTake,
 } from '../../src/domain/performanceEdit.js';
 import {
@@ -505,6 +505,23 @@ describe('what may leave the building (S-9, INV-15)', () => {
       .toThrow(/Name the licence/);
     expect(() => assertPublishable(performance({ class: 'open', licence: 'CC BY 4.0' })))
       .not.toThrow();
+  });
+
+  it('an unrecognised class is refused, and is not publishable (INV-15)', () => {
+    /*
+     * `mayPublish` used to read `class !== 'third_party'`, so every value that
+     * was not that one could be published — including one nobody defined. A
+     * request carrying `class: "neon"` got past it and past INV-15 with it.
+     * An allowlist is the only safe default for a question about somebody
+     * else's rights.
+     */
+    const p = performance();
+    expect(() => classifyMaster(p, { class: 'neon' as never }))
+      .toThrow(/unknown class of music/);
+    expect(mayPublish({ ...master(), class: 'neon' as never })).toBe(false);
+    expect(() => assertPublishable({
+      ...performance(), master: { ...master(), class: 'neon' as never },
+    })).toThrow(InvariantViolation);
   });
 
   it('and the classification can change, because a licence can be bought', () => {

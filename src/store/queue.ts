@@ -30,11 +30,25 @@ export type JobKind =
   | 'render_clip'
   | 'render_reel'
   | 'render_thumbnails'
-  | 'render_card';
+  | 'render_card'
+  /* Studio Two. The conversationId field carries a performance id for these —
+   * see the note on `Job` for why that is a rename waiting to happen rather
+   * than a second queue. [STUDIO-TWO S-1] */
+  | 'ingest_master'
+  | 'assemble_performance_take';
 
 export interface Job {
   id: string;
   kind: JobKind;
+  /**
+   * Which document this job is about.
+   *
+   * A Performance id goes here too, and the field keeps the old name on
+   * purpose for now: renaming it to `documentId` touches every job, every
+   * route that lists them and every stored job on disk, which is a migration
+   * rather than a rename. It is named here as a debt so it is not mistaken
+   * for a design. [STUDIO-TWO S-1]
+   */
   conversationId: string;
   createdAt: string;
   state: QueueState;

@@ -1,0 +1,334 @@
+'use client';
+
+import { useCallback, useEffect, useState } from 'react';
+import type { Performance } from '../../../src/domain/performance.js';
+import { MASTER_CLASSES, SPACES, mayPublish } from '../../../src/domain/performance.js';
+import { HOUSE_SAMPLE_RATE, formatMasterPosition } from '../../../src/domain/time.js';
+import { useMasterRecording } from './useMasterRecording.js';
+
+/**
+ * The Performance Studio.  [Doctrine STUDIO-TWO §1, §3, §4, §10, §13]
+ *
+ * One song. One master timeline. Many performances.
+ *
+ * This is the first stage of it: choose the music, then record against it,
+ * again and again, each take landing on the same clock. Switching, scenes,
+ * environments and the master render come later — what has to be right first
+ * is that a take recorded here actually sits where the document says it does,
+ * because everything above it is built on that being true.
+ */
+
+/** A musical lead-in, so nobody sings from a standing start. [S-10] */
+const COUNT_IN_SECONDS = 4;
+
+const CLASS_LABELS: Record<string, { label: string; hint: string }> = {
+  own: { label: 'I made this', hint: 'Your own recording or composition' },
+  licensed: { label: 'I have a licence', hint: 'A sync licence, or a licensed library track' },
+  open: { label: 'Openly licensed', hint: 'Public domain, or a licence that permits this' },
+  third_party: {
+    label: "Somebody else's",
+    hint: 'Perform and export privately. Publishing needs rights you have.',
+  },
+};
+
+export default function PerformanceStudio({ initial }: { initial: Performance }) {
+  const [performance, setPerformance] = useState(initial);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
+  const [label, setLabel] = useState('');
+  const [environment, setEnvironment] = useState('original');
+  const [busy, setBusy] = useState(false);
+
+  const id = performance.id;
+  const ready = performance.master.durationSamples > 0;
+
+  const refresh = useCallback(async () => {
+    const response = await fetch(`/api/performances/${id}`, { cache: 'no-store' });
+    if (response.ok) setPerformance((await response.json()).performance);
+  }, [id]);
+
+  /* The song is still being decoded when the studio first opens. */
+  useEffect(() => {
+    if (ready) return;
+    const timer = setInterval(() => { void refresh(); }, 1500);
+    return () => clearInterval(timer);
+  }, [ready, refresh]);
+
+  /**
+   * What the worker found once the take landed.
+   *
+   * The leakage warning is the important one and it is shown while the author
+   * is still in the room to do something about it: a finished video carrying
+   * the backing track twice has a phasing artefact that cannot be removed
+   * afterwards, and the answer is headphones. [§10, S-3]
+   */
+  const watchJob = useCallback(async (jobId: string) => {
+    for (let i = 0; i < 120; i += 1) {
+      await new Promise((r) => setTimeout(r, 1000));
+      const response = await fetch(`/api/performances/${id}`, { cache: 'no-store' });
+      if (!response.ok) continue;
+      const data = await response.json();
+      setPerformance(data.performance);
+      const job = (data.jobs ?? []).find((j: any) => j.id === jobId);
+      if (!job || job.state === 'pending' || job.state === 'running') continue;
+      if (job.state === 'failed') { setWarning(job.error ?? 'that take could not be assembled'); return; }
+      if (job.result?.masterAudible) {
+        setWarning(
+          'The song is coming out of your speakers and into your microphone. '
+          + 'The take is aligned precisely — but the finished video will carry '
+          + 'the backing track twice, slightly apart, and that cannot be removed '
+          + 'later. Use headphones for the next one.');
+      } else {
+        setNotice(`Take placed at ${formatMasterPosition(
+          Number(job.result?.offsetSamples ?? 0))} on the song.`);
+      }
+      return;
+    }
+  }, [id]);
+
+  const recording = useMasterRecording({
+    performanceId: id,
+    masterUrl: `/api/performances/${id}/master`,
+    sampleRate: HOUSE_SAMPLE_RATE,
+    countInSeconds: COUNT_IN_SECONDS,
+    // Stage two records the device latency as zero until the calibration the
+    // appendix describes is built. Stated here rather than hidden, because a
+    // zero that looks like a measurement is the thing S-3 warns about.
+    latencySamples: 0,
+    onFinished: (jobId) => { void watchJob(jobId); },
+  });
+
+  const act = async (body: Record<string, unknown>) => {
+    setBusy(true);
+    try {
+      const response = await fetch(`/api/performances/${id}`, {
+        method: 'PATCH', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error ?? 'that did not work');
+      setPerformance(data.performance);
+      setWarning(null);
+    } catch (e) {
+      setWarning(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const songLength = formatMasterPosition(performance.master.durationSamples);
+
+  return (
+    <div className="shell">
+      <header className="shell-bar">
+        <div className="grow" style={{ minWidth: 0 }}>
+          <h1 style={{ fontSize: 17, margin: 0, whiteSpace: 'nowrap',
+            overflow: 'hidden', textOverflow: 'ellipsis' }}>{performance.title}</h1>
+          <div className="small muted" data-testid="master-summary">
+            {performance.master.title}
+            {performance.master.artist ? ` · ${performance.master.artist}` : ''}
+            {ready ? ` · ${songLength}` : ' · preparing…'}
+            {` · ${performance.takes.length} `}
+            {performance.takes.length === 1 ? 'take' : 'takes'}
+          </div>
+        </div>
+        <a className="btn" href="/" style={{ padding: '7px 14px' }}>Leave</a>
+      </header>
+
+      <div className="shell-body shell-scroll" style={{ padding: '16px 20px' }}>
+        {/* ---- what may be done with this music ---------------------- */}
+        <section className="panel" data-testid="master-rights" style={{ padding: 12 }}>
+          <div className="small muted" style={{ textTransform: 'uppercase',
+            letterSpacing: 0.8, fontSize: 11, marginBottom: 6 }}>
+            This music
+          </div>
+          <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+            {MASTER_CLASSES.map((cls) => (
+              <button
+                key={cls}
+                className="small"
+                data-testid="master-class"
+                data-class={cls}
+                data-chosen={performance.master.class === cls ? 'true' : 'false'}
+                disabled={busy}
+                title={CLASS_LABELS[cls]!.hint}
+                onClick={() => void act({
+                  action: 'classify-master', class: cls,
+                  licence: performance.master.licence ?? null,
+                })}
+                style={{
+                  padding: '5px 10px', fontSize: 12,
+                  background: performance.master.class === cls
+                    ? 'rgba(43,95,138,0.30)' : undefined,
+                  borderColor: performance.master.class === cls ? '#6fb3e0' : undefined,
+                }}
+              >
+                {CLASS_LABELS[cls]!.label}
+              </button>
+            ))}
+          </div>
+          <p className="small muted" data-testid="publish-posture"
+             style={{ marginTop: 6, marginBottom: 0, maxWidth: 640 }}>
+            {mayPublish(performance.master)
+              ? CLASS_LABELS[performance.master.class]!.hint
+              : 'You can perform, export and keep this privately. Publishing it from '
+                + 'here needs music you own, hold a licence for, or that is openly '
+                + 'licensed — performing over a commercial recording is not something '
+                + 'this product can put your name to.'}
+          </p>
+        </section>
+
+        {/* ---- record against it ------------------------------------- */}
+        <section style={{ marginTop: 16 }} data-testid="record">
+          <h2 style={{ fontSize: 15, marginBottom: 2 }}>Perform</h2>
+          <p className="small muted" style={{ marginTop: 0, maxWidth: 640 }}>
+            Wear headphones. If the song plays out loud it goes into your
+            microphone as well as your voice, and the finished video carries
+            it twice.
+          </p>
+
+          <div className="row" style={{ gap: 14, alignItems: 'flex-start', marginTop: 10 }}>
+            <video
+              ref={recording.videoRef} autoPlay muted playsInline
+              data-testid="performer-camera"
+              style={{
+                width: 260, aspectRatio: '16 / 9', objectFit: 'cover', borderRadius: 8,
+                border: `2px solid ${recording.phase === 'recording' ? '#e0674f' : 'var(--line)'}`,
+                background: '#0d1319',
+                display: recording.stream ? 'block' : 'none',
+              }}
+            />
+            <div className="grow" style={{ minWidth: 220 }}>
+              {recording.phase === 'idle' && (
+                <button className="primary" data-testid="arm" disabled={!ready}
+                        onClick={() => void recording.arm()}>
+                  {ready ? 'Turn on camera and load the song' : 'Preparing the song…'}
+                </button>
+              )}
+              {recording.phase === 'arming' && <div className="small muted">Loading…</div>}
+
+              {(recording.phase === 'ready' || recording.phase === 'finishing') && (
+                <>
+                  <div className="field" style={{ maxWidth: 280 }}>
+                    <label htmlFor="take-label">Call this take</label>
+                    <input id="take-label" data-testid="take-label" value={label}
+                           placeholder={`Take ${performance.takes.length + 1}`}
+                           onChange={(e) => setLabel(e.target.value)} />
+                  </div>
+                  <div className="field" style={{ maxWidth: 280 }}>
+                    <label htmlFor="take-space">Where it should look like</label>
+                    <select id="take-space" data-testid="take-environment" value={environment}
+                            onChange={(e) => setEnvironment(e.target.value)}>
+                      <option value="original">The room you are in</option>
+                      <option value="blur">The room you are in, softened</option>
+                      {SPACES.map((s) => (
+                        <option key={s.id} value={s.id}>{s.label}</option>
+                      ))}
+                    </select>
+                    <span className="small muted" style={{ fontSize: 11 }}>
+                      {/* The recording is kept whatever this says. [§4, S-6] */}
+                      Stored with the take, not burned into it — you can change
+                      it afterwards without singing the song again.
+                    </span>
+                  </div>
+                  <button
+                    className="primary" data-testid="start-take"
+                    disabled={recording.phase === 'finishing'}
+                    onClick={() => void recording.start(label, environment === 'original'
+                      ? { kind: 'original' }
+                      : environment === 'blur'
+                        ? { kind: 'blur' }
+                        : { kind: 'space', spaceId: environment })}
+                  >
+                    {recording.phase === 'finishing' ? 'Saving…' : 'Record a take'}
+                  </button>
+                  <button className="small" data-testid="disarm"
+                          onClick={recording.disarm} style={{ marginLeft: 8 }}>
+                    Turn off
+                  </button>
+                </>
+              )}
+
+              {recording.phase === 'counting' && (
+                <div data-testid="count-in" style={{ fontWeight: 600, fontSize: 18 }}>
+                  Get ready…
+                </div>
+              )}
+
+              {recording.phase === 'recording' && (
+                <>
+                  <div data-testid="recording-now"
+                       style={{ fontWeight: 600, color: '#e0674f', fontSize: 16 }}>
+                    Recording · {formatMasterPosition(
+                      Math.round(recording.position * HOUSE_SAMPLE_RATE))} of {songLength}
+                  </div>
+                  <button className="primary" data-testid="stop-take"
+                          onClick={recording.stop} style={{ marginTop: 8 }}>
+                    Stop
+                  </button>
+                </>
+              )}
+
+              {recording.error && (
+                <p className="small" style={{ color: 'var(--bad)' }}>{recording.error}</p>
+              )}
+            </div>
+          </div>
+        </section>
+
+        {warning && (
+          <p className="panel small" data-testid="leakage-warning"
+             style={{ padding: 10, marginTop: 12, borderColor: 'var(--warn)' }}>
+            {warning}
+          </p>
+        )}
+        {notice && !warning && (
+          <p className="small muted" data-testid="take-notice" style={{ marginTop: 12 }}>
+            {notice}
+          </p>
+        )}
+
+        {/* ---- the takes, all on one clock --------------------------- */}
+        <section style={{ marginTop: 20 }} data-testid="takes">
+          <h2 style={{ fontSize: 15, marginBottom: 2 }}>Takes</h2>
+          {performance.takes.length === 0 ? (
+            <p className="small muted">
+              None yet. Every take you record is placed on the same song, so you
+              can cut between them later.
+            </p>
+          ) : (
+            performance.takes.map((take) => (
+              <div key={take.id} className="panel" data-testid="take-row"
+                   data-take-id={take.id}
+                   data-offset={take.alignment.offsetSamples}
+                   style={{ padding: 9, marginBottom: 7 }}>
+                <div className="row" style={{ gap: 8, flexWrap: 'nowrap' }}>
+                  <span className="grow" style={{ fontWeight: 600, minWidth: 0 }}>
+                    {take.label}
+                  </span>
+                  <span className="small muted" style={{ flex: '0 0 auto' }}>
+                    {take.durationSamples > 0
+                      ? `starts at ${formatMasterPosition(take.alignment.offsetSamples)} · `
+                        + `${formatMasterPosition(take.durationSamples)} long`
+                      : 'saving…'}
+                  </span>
+                </div>
+                <div className="small muted" style={{ marginTop: 3, fontSize: 11 }}>
+                  {/* How it was placed, said plainly: a measurement and a
+                      guess are different things. [S-3] */}
+                  {take.alignment.method === 'calibrated'
+                    ? 'placed by listening to the song in the recording'
+                    : take.alignment.method === 'manual'
+                      ? 'placed by you'
+                      : 'placed from your browser’s audio clock'}
+                  {take.environment.kind !== 'original'
+                    && ` · ${take.environment.spaceId ?? take.environment.kind}`}
+                </div>
+              </div>
+            ))
+          )}
+        </section>
+      </div>
+    </div>
+  );
+}

@@ -16,7 +16,7 @@
  */
 
 import { mkdir, readdir, stat } from 'node:fs/promises';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import type { AssetId, Take, TakeId } from '../domain/document.js';
 import { newId } from '../domain/ids.js';
 import { secondsToFrames, type Frames } from '../domain/time.js';
@@ -45,25 +45,11 @@ export async function assembleTake(
   } = {},
 ): Promise<AssembledTake> {
   const dir = paths.chunks(conversationId, takeId);
-  const names = (await readdir(dir)).filter((n) => n.endsWith('.part')).sort();
-  if (names.length === 0) throw new Error(`take ${takeId} has no segments`);
-
   // A segment can be a stub: stopping the recorder milliseconds after it
   // started yields a bare WebM header with no frames in it. One unreadable
   // stub must never cost the take -- an in-progress take is first on the
   // irreplaceability ranking (D-07), and a 40-byte fragment is worth nothing.
-  const all = names.map((n) => join(dir, n));
-  const segmentPaths: string[] = [];
-  const skipped: string[] = [];
-  for (const path of all) {
-    if (await isUsableSegment(path)) segmentPaths.push(path);
-    else skipped.push(path);
-  }
-  if (segmentPaths.length === 0) {
-    throw new Error(
-      `take ${takeId} has ${all.length} segment(s) but none could be read — the recording did not produce usable media`,
-    );
-  }
+  const { all, segmentPaths, skipped } = await usableSegments(dir, takeId);
 
   // The pre-roll length is MEASURED from the segments, never assumed from a
   // nominal segment duration -- MediaRecorder's segments are not exactly the
@@ -131,3 +117,51 @@ async function isUsableSegment(path: string): Promise<boolean> {
 }
 
 export const takeMezzaninePath = paths.takeMezzanine;
+
+
+/**
+ * The readable segments of a recording, in order.  [U-06, D-07]
+ *
+ * Extracted so Studio Two's takes are joined by the same code Studio One's
+ * are, rather than by a copy of it. The rule this encodes is the expensive one
+ * this codebase already learned: a segment can be a bare WebM header with no
+ * frames in it, and one unreadable stub must never cost the take.
+ */
+export async function usableSegments(
+  dir: string, takeId: string,
+): Promise<{ all: string[]; segmentPaths: string[]; skipped: string[] }> {
+  const names = (await readdir(dir)).filter((n) => n.endsWith('.part')).sort();
+  if (names.length === 0) throw new Error(`take ${takeId} has no segments`);
+
+  const all = names.map((n) => join(dir, n));
+  const segmentPaths: string[] = [];
+  const skipped: string[] = [];
+  for (const path of all) {
+    if (await isUsableSegment(path)) segmentPaths.push(path);
+    else skipped.push(path);
+  }
+  if (segmentPaths.length === 0) {
+    throw new Error(
+      `take ${takeId} has ${all.length} segment(s) but none could be read — `
+      + 'the recording did not produce usable media',
+    );
+  }
+  return { all, segmentPaths, skipped };
+}
+
+/**
+ * Join a Performance take's segments into one file.  [STUDIO-TWO §10]
+ *
+ * No pre-roll arithmetic, and that is the difference from a Conversation take
+ * rather than an omission. A response is trimmed to where the author started
+ * speaking; a performance take is placed on the song by its offset, and every
+ * frame of it is wanted — the count-in belongs to the master, not to the take.
+ */
+export async function joinPerformanceSegments(
+  chunkDir: string, takeId: string, outPath: string,
+): Promise<{ segments: number; skipped: number }> {
+  const { segmentPaths, skipped } = await usableSegments(chunkDir, takeId);
+  await mkdir(dirname(outPath), { recursive: true });
+  await ingestSegments(segmentPaths, outPath);
+  return { segments: segmentPaths.length, skipped: skipped.length };
+}

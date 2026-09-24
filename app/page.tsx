@@ -3,6 +3,7 @@ import { isRespondable, orderedInterventions } from '../src/domain/document.js';
 import { listConversations, loadConversation } from '../src/store/repository.js';
 import { formatTimecode } from '../src/domain/time.js';
 import StartConversation from './StartConversation.js';
+import StartPerformance from './StartPerformance.js';
 import SignOut from './SignOut.js';
 
 export const dynamic = 'force-dynamic';
@@ -97,6 +98,12 @@ export default async function Home() {
         <section className="shell-scroll" style={{ display: 'grid', alignContent: 'center' }}>
           <div className="panel" style={{ padding: 28 }}>
             <StartConversation />
+          </div>
+
+          {/* The second studio. A different door, because it is a different
+              job: one answers media, the other makes it. [STUDIO-TWO §13] */}
+          <div className="panel" style={{ padding: 28, marginTop: 16 }}>
+            <StartPerformance />
           </div>
 
           {/* A published conversation is itself a source, so answering one is

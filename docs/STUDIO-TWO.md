@@ -865,9 +865,74 @@ the backing track twice.
    a test that used the house rate throughout would never discover whether
    normalisation happens.
 
-**Still to come in stage 2:** the browser surface that plays the master and
-records against it, the calibration the author actually runs, and the worker
-job that refines a take's alignment once it has landed.
+---
+
+## S-15 — Stage 2, part two: a song, and a take recorded against it
+
+**The studio opens.** Choose the music, and record against it — as many times
+as you like, each take landing on the same clock. §1 and §3, end to end, in a
+browser.
+
+| Built | Where |
+|---|---|
+| Its own door, and the rights question at it | `app/StartPerformance.tsx` |
+| The studio | `app/p/[id]/` |
+| Playing the master and recording to it | `app/p/[id]/useMasterRecording.ts` |
+| Ingesting a song; placing a take on it | `src/worker/index.ts` |
+| The routes | `app/api/performances/` |
+
+**Where the offset comes from.** The master is played through Web Audio,
+scheduled at a moment chosen in advance — `AudioBufferSourceNode.start(when)`
+rather than "start now" — because that is the only way to know afterwards
+where it began. Asking later gives the page's idea of now, which is not the
+audio clock. The offset is read from that clock when the recorder starts, and
+the worker then checks it against the song itself.
+
+**What this part taught.**
+
+1. **A denylist answering a question about somebody else's rights.**
+   `mayPublish` read `class !== 'third_party'` — so every value that was not
+   that one could be published, including one nobody defined. A request
+   carrying `class: "neon"` was written straight into the document and passed
+   INV-15. It is an allowlist now, and `classifyMaster` validates at runtime as
+   well as in the types, because the types describe what was hoped for and the
+   body is whatever arrived. **When the safe answer is "no", the code must have
+   to say "yes" explicitly.**
+
+2. **AAC is a licensing question, not a format choice.** The normalised master
+   was AAC in MP4, and a Chromium without proprietary codecs cannot decode it
+   at all — the song simply never loaded. This codebase already met the same
+   wall with H.264 and answered it the same way. The master is Opus in WebM
+   now: royalty-free, decodable everywhere that matters, and natively 48 kHz,
+   so the container and the house clock agree for free. It also removed a real
+   hazard — AAC's encoder priming meant the decoded analysis copy and the
+   browser's decoded buffer could disagree by around a thousand samples, which
+   is the whole sync tolerance.
+
+3. **The browser bundle, again.** A client component imported the vocabulary it
+   needed from `performance.ts`, which imported `newId`, which reaches
+   `node:crypto`, which fails the build. The same lesson the render planner's
+   geometry taught. `newPerformance` moved to the edit module and the document
+   module is browser-safe by rule now, with the reason written at the top of
+   it so the next person does not re-import it.
+
+4. **Echo cancellation is wrong here, and it is right in the other studio.**
+   The Conversation Room turns it on: that is speech, and the room's own sound
+   is noise. A performance take turns it off, because the room's sound is the
+   performance and cancellation would duck the singing every time the backing
+   track moved. The same API, the opposite answer, decided by what the audio
+   is FOR.
+
+**Measured, not claimed:** a twenty-second song at 44.1 kHz arrives as exactly
+960,000 samples at the house rate; a take recorded on fake devices with
+headphones scores 0.13 correlation against the master and is therefore
+correctly reported as *not* audible, leaving the browser's own measurement
+standing — which is the honest outcome S-14 described.
+
+**Still to come:** the latency calibration the author runs (the studio passes
+zero for it today, and says so in a comment rather than pretending the number
+is a measurement), the leakage warning's own end-to-end test, and stage 3's
+switching.
 
 ---
 

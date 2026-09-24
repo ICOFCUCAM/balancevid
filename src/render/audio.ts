@@ -77,6 +77,18 @@ export async function readAnalysis(
  *
  * The original is kept for the same reason the raw recording is (D-13): it is
  * what the author gave us, and every other form is regenerable from it.
+ *
+ * OPUS IN WEBM, NOT AAC, and the reason is the one this codebase already met
+ * with H.264: whether a browser can decode a patent-encumbered codec is a
+ * licensing question we do not control. A Chromium without proprietary codecs
+ * cannot decode AAC at all, and a performer whose song will not load is not
+ * going to debug our container choice. Opus is royalty-free, decodes
+ * everywhere that matters, and is natively 48 kHz — which is the house rate,
+ * so the format and the clock agree for free.
+ *
+ * The dynamics pass through untouched. Speech mastering compresses; music
+ * mastered like speech is ruined, and INV-11's loudness target is reached by
+ * gain at the master stage, not here. [S-2]
  */
 export async function normaliseMaster(
   originalPath: string, outPath: string, run?: RunOptions,
@@ -87,10 +99,8 @@ export async function normaliseMaster(
     '-vn',
     '-ar', String(HOUSE_SAMPLE_RATE),
     '-ac', '2',
-    // Copy the dynamics through untouched. Speech mastering compresses;
-    // music mastered like speech is ruined, and the loudness target is
-    // reached by gain at the master stage, not here. [S-2, INV-11]
-    '-c:a', 'aac', '-b:a', '256k',
+    '-c:a', 'libopus', '-b:a', '160k',
+    '-f', 'webm',
     outPath,
   ], run);
 }

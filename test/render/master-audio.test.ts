@@ -79,7 +79,7 @@ describe('a master track arrives and is normalised (U-02)', () => {
 
   it('and the normalised master is playable media, not raw floats', async () => {
     const source = join(dir, 'song.mp3');
-    const master = join(dir, 'master.m4a');
+    const master = join(dir, 'master.webm');
     await normaliseMaster(source, master);
     expect((await stat(master)).size).toBeGreaterThan(1024);
   }, 60_000);

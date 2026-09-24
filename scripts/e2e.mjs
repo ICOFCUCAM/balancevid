@@ -2696,6 +2696,148 @@ check(childManifest.attribution?.includes('Responding to'),
 check(childManifest.attribution?.includes('Original source'),
   'and the original source at the root of the chain');
 
+/*
+ * --- Studio Two: the Performance Studio (STUDIO-TWO §1, §3, §4, §10, §13) ---
+ *
+ * A second studio over a second document, reached by its own door. What is
+ * checked here is stage two's whole claim: a song arrives, is measured by
+ * decoding rather than believed, and a take recorded against it lands on that
+ * song at a place the document can state.
+ */
+log('checking the Performance Studio…');
+{
+  // A click track at 44.1 kHz — the WRONG rate on purpose, because a take at
+  // 48 against a master at 44.1 drifts seven percent and a fixture at the
+  // house rate would never find out whether normalisation happens.
+  const songPath = `${process.env['TMPDIR'] ?? '/tmp'}/balancevid-e2e-song.mp3`;
+  execFileSync(ffmpegStatic, [
+    '-y',
+    '-f', 'lavfi', '-i', 'sine=frequency=440:duration=20:sample_rate=44100',
+    '-f', 'lavfi', '-i', 'sine=frequency=110:duration=20:sample_rate=44100',
+    '-filter_complex',
+    '[0:a]tremolo=f=2:d=1,volume=0.8[c];[1:a]volume=0.15[b];'
+    + '[c][b]amix=inputs=2:duration=first[o]',
+    '-map', '[o]', '-ar', '44100', songPath,
+  ], { stdio: 'ignore' });
+
+  await page.goto(BASE, { waitUntil: 'networkidle' });
+  await page.waitForSelector('[data-testid="start-performance"]', { timeout: 15_000 });
+  check(true, 'the Performance Studio has a door of its own (§13)');
+
+  await page.setInputFiles('[data-testid="master-file"]', songPath);
+  await page.waitForSelector('[data-testid="master-class-choice"]', { timeout: 10_000 });
+  check(true, 'and asks what the music is before anything is recorded');
+
+  /*
+   * The rights question, asked at the door. Studio One's posture is
+   * transformative commentary; performing over a commercial recording is not
+   * commentary, and somebody should learn what that costs before they record
+   * five takes rather than after. [S-9, INV-15]
+   */
+  await page.locator('[data-testid="master-class-choice"][data-class="third_party"]').click();
+  check(/publishing/i.test(
+    await page.locator('[data-testid="master-class-hint"]').innerText()),
+    'and says plainly what "somebody else\'s" costs');
+
+  await page.locator('[data-testid="master-class-choice"][data-class="own"]').click();
+  await page.click('[data-testid="start-performance-go"]');
+  await page.waitForURL(/\/p\/perf_/, { timeout: 30_000 });
+  const perfId = page.url().split('/p/')[1];
+  check(Boolean(perfId), 'choosing a song opens a performance', perfId);
+
+  let doc = null;
+  for (let i = 0; i < 90; i++) {
+    doc = await api(`/api/performances/${perfId}`);
+    if (doc.performance?.master?.durationSamples > 0) break;
+    await sleep(1000);
+  }
+  const samples = doc?.performance?.master?.durationSamples ?? 0;
+  // Twenty seconds at the HOUSE rate, from a 44.1 kHz file.
+  check(Math.abs(samples - 20 * 48000) < 48000 * 0.05,
+    'the song is measured by decoding, at the house rate (U-02)', `${samples} samples`);
+
+  // ---- record against it -----------------------------------------------
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForSelector('[data-testid="arm"]:not([disabled])', { timeout: 40_000 });
+  await page.click('[data-testid="arm"]');
+  await page.waitForSelector('[data-testid="start-take"]', { timeout: 40_000 });
+  check(true, 'the camera and the song load together');
+
+  await page.fill('[data-testid="take-label"]', 'Living room');
+  await page.selectOption('[data-testid="take-environment"]', 'concert_stage');
+  await page.click('[data-testid="start-take"]');
+  await page.waitForSelector('[data-testid="recording-now"]', { timeout: 25_000 });
+  check(true, 'a count-in runs first, so nobody sings from a standing start (S-10)');
+
+  await sleep(7000);
+  await page.click('[data-testid="stop-take"]');
+
+  let landed = null;
+  for (let i = 0; i < 120; i++) {
+    await sleep(1000);
+    const d = await api(`/api/performances/${perfId}`);
+    if (d.performance?.takes?.[0]?.durationSamples > 0) { landed = d; break; }
+  }
+  check(Boolean(landed), 'the take is assembled and placed on the song');
+
+  if (landed) {
+    const take = landed.performance.takes[0];
+    check(take.durationSamples > 3 * 48000,
+      'with a length counted from the media rather than guessed',
+      `${(take.durationSamples / 48000).toFixed(2)}s`);
+    check(take.label === 'Living room', 'under the name its author gave it');
+    /*
+     * The environment is a FIELD. "I would not permanently bake the background
+     * into the raw recording" — so bedroom to concert stage is a re-plan, not
+     * another four minutes of singing. [§4, S-6]
+     */
+    check(take.environment?.spaceId === 'concert_stage',
+      'and the environment stored beside the recording, not burned into it',
+      JSON.stringify(take.environment));
+    check(Number.isInteger(take.alignment?.offsetSamples),
+      'placed on the song in whole samples (INV-14)', `${take.alignment?.offsetSamples}`);
+    check(take.alignment?.rateRatio === 1, 'claiming no drift that was not measured');
+    check(!landed.alignmentError, 'and the alignment invariants hold',
+      landed.alignmentError ?? '');
+
+    const job = (landed.jobs ?? []).find((j) => j.kind === 'assemble_performance_take');
+    check(job?.state === 'done', 'the assembly finished', job?.error ?? job?.state);
+    /*
+     * How well the song was heard in the take — which is the honest answer to
+     * "did the correlation work", and on headphones the answer is no. [S-3]
+     */
+    check(typeof job?.result?.correlation === 'number',
+      'and reports how audible the song was in the take',
+      `corr=${job?.result?.correlation} audible=${job?.result?.masterAudible}`);
+  }
+
+  // ---- the rights class governs what the studio will do ----------------
+  const classify = (cls) => sfetch(`${BASE}/api/performances/${perfId}`, {
+    method: 'PATCH', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ action: 'classify-master', class: cls, licence: 'Sync 2026-1' }),
+  });
+  check((await classify('licensed')).status === 200,
+    'a licence can be declared later, because one can be bought');
+  /*
+   * An invented class used to be written straight into the document — and
+   * `mayPublish` read "not third_party", so an unrecognised value was
+   * publishable. An allowlist is the only safe default for a question about
+   * somebody else's rights.
+   */
+  check((await classify('neon')).status === 400,
+    'but a class nobody defined is refused as a bad request');
+  check((await api(`/api/performances/${perfId}`)).performance.master.class === 'licensed',
+    'and the document is left as it was');
+
+  // ---- and none of it is a stranger's -----------------------------------
+  for (const path of [`/p/${perfId}`, `/api/performances/${perfId}`,
+    `/api/performances/${perfId}/master`, '/api/performances']) {
+    const refused = await raw(path);
+    check(refused.status >= 300 && refused.status !== 200,
+      `a stranger cannot reach ${path.replace(perfId, '…')}`, `status ${refused.status}`);
+  }
+}
+
 await browser.close();
 console.log(failures === 0 ? '\nALL CHECKS PASSED' : `\n${failures} CHECK(S) FAILED`);
 process.exit(failures === 0 ? 0 : 1);

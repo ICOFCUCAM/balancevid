@@ -1,6 +1,14 @@
 /**
  * The Performance.  [Doctrine STUDIO-TWO §1–§15, S-1, INV-00]
  *
+ * BROWSER-SAFE, and kept that way on purpose. Studio Two's interface needs the
+ * vocabulary in this file — the classes of master, the list of spaces, whether
+ * a track may be published — and a single import of `newId` drags `node:crypto`
+ * into the client bundle and breaks the build. This codebase has learned that
+ * once already, with the render planner's geometry. So the constructor lives
+ * with the edit operations, which are server-side, and everything here is
+ * types, tables and arithmetic.
+ *
  * One song. One master timeline. Many performances.
  *
  * This is the root document of Studio Two, and it is a SECOND ROOT rather than
@@ -30,7 +38,7 @@
  */
 
 import type { AssetId, Publication, TakeId } from './document.js';
-import { type Id, newId } from './ids.js';
+import type { Id } from './ids.js';
 import {
   type Frames, type Samples, HOUSE_SAMPLE_RATE, assertSamples, samplesToFrames,
 } from './time.js';
@@ -81,9 +89,16 @@ export const MASTER_CLASSES: readonly MasterClass[] =
  *
  * The one question INV-15 asks. A `third_party` master performs, rehearses,
  * previews and exports privately — everything except leaving the building.
+ *
+ * AN ALLOWLIST, NOT A DENYLIST, and the difference is not stylistic. The first
+ * version read `class !== 'third_party'`, which means every value that is not
+ * that one may be published — including a value nobody defined. A request
+ * carrying `class: "neon"` got past it, and past INV-15 with it. Written this
+ * way round, an unrecognised class is refused, which is the only safe default
+ * for a question about somebody else's rights.
  */
 export function mayPublish(master: MasterTrack): boolean {
-  return master.class !== 'third_party';
+  return master.class === 'own' || master.class === 'licensed' || master.class === 'open';
 }
 
 /** Which classes have to say what permits them. */
@@ -395,23 +410,6 @@ export interface Performance {
   publication?: Publication;
   createdAt: string;
   updatedAt: string;
-}
-
-export function newPerformance(
-  title: string, master: MasterTrack, at: string,
-): Performance {
-  return {
-    schemaVersion: PERFORMANCE_SCHEMA_VERSION,
-    id: newId('perf'),
-    title,
-    master,
-    takes: [],
-    scenes: [],
-    audio: { mode: 'music_and_mic' },
-    layoutProfileId: 'default',
-    createdAt: at,
-    updatedAt: at,
-  };
 }
 
 /* ------------------------------------------------------------------------ *
