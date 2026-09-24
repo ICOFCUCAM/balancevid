@@ -11,6 +11,7 @@
  */
 
 import type { RenderPlan } from '../domain/plan.js';
+import { CAPTION_FLOOR_FRACTION } from '../domain/presentation.js';
 import { annotationEvents } from './annotations.js';
 import { HOUSE_FPS, type Frames } from '../domain/time.js';
 
@@ -24,8 +25,6 @@ export interface Cue {
   text: string;
 }
 
-/** The legibility floor. A user may choose the look; not an unreadable one. [U-19 §2] */
-const CAPTION_FONT_FRACTION = 0.05;
 const FONT = 'DejaVu Sans';
 
 /** ASS colours are &HAABBGGRR — alpha first, then blue, green, red. */
@@ -80,7 +79,20 @@ export function buildAss(plan: RenderPlan, options: AssOptions = {}): string {
    * wider than the picture. [U-19 §2]
    */
   const base = Math.min(width, height);
-  const captionSize = Math.round(base * CAPTION_FONT_FRACTION);
+  /*
+   * The look the PLAN chose. Not decided here: a renderer that picked its own
+   * caption size would be a second opinion about the export, and the point of
+   * the plan is that there is only one. [U-18]
+   *
+   * The floor is applied anyway, and that is deliberate belt-and-braces: it
+   * is the one property captions must have, and the cost of asserting it
+   * twice is nothing next to shipping an export nobody can read. [D-04]
+   */
+  const captionStyle = plan.captions.style;
+  const captionSize = Math.round(
+    base * Math.max(captionStyle.fontFraction, CAPTION_FLOOR_FRACTION));
+  const captionMargin = Math.round(height * captionStyle.marginFraction);
+  const boxed = captionStyle.scrim === 'box';
   const lowerSize = Math.round(base * 0.032);
   const attrSize = Math.round(base * 0.026);
   const margin = Math.round(height * 0.06);
@@ -100,8 +112,8 @@ export function buildAss(plan: RenderPlan, options: AssOptions = {}): string {
     'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding',
     // Speaker identity carried by more than colour, so it survives greyscale
     // and colour-blindness (U-20): the source is plain, the responder is bold.
-    style('SourceCap', captionSize, '#FFFFFF', '#000000', 0, margin),
-    style('UserCap', captionSize, '#FFFFFF', '#000000', 1, margin),
+    style('SourceCap', captionSize, '#FFFFFF', '#000000', 0, captionMargin, 2, boxed),
+    style('UserCap', captionSize, '#FFFFFF', '#000000', 1, captionMargin, 2, boxed),
     style('Lower', lowerSize, '#FFFFFF', '#000000', 1, Math.round(height * 0.14), 1),
     // The claim being answered, as typography. This is what makes a response
     // legible to someone who did not watch the source. [U-10 §3]
@@ -200,16 +212,22 @@ export function buildAss(plan: RenderPlan, options: AssOptions = {}): string {
 
 function style(
   name: string, size: number, primary: string, outline: string,
-  bold: 0 | 1, marginV: number, alignment = 2,
+  bold: 0 | 1, marginV: number, alignment = 2, boxed?: boolean,
 ): string {
+  /*
+   * BorderStyle 3 = an opaque box behind the text, which guarantees the 4.5:1
+   * contrast floor whatever is behind it; 1 = an outline, which depends on
+   * the picture. Lower-thirds (alignment 1) are always boxed because they sit
+   * over whatever the layout put in that corner; captions follow the look the
+   * author chose. [U-19 §2, D-04]
+   */
+  const box = boxed ?? alignment === 1;
   return [
     `Style: ${name}`, FONT, String(size),
     assColor(primary), assColor(primary), assColor(outline), assColor('#000000', 0x80),
     String(bold), '0', '0', '0', '100', '100', '0', '0',
-    // BorderStyle 3 = opaque box behind the text: the scrim that guarantees
-    // the 4.5:1 contrast floor regardless of what is behind it. [U-19 §2]
-    alignment === 1 ? '3' : '1',
-    alignment === 1 ? '6' : '3', '0',
+    box ? '3' : '1',
+    box ? '6' : '3', '0',
     String(alignment),
     String(Math.round(size * 1.6)), String(Math.round(size * 1.6)), String(marginV), '1',
   ].join(',');

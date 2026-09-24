@@ -3242,6 +3242,7 @@ quietly left in the code.
 **New, with no prior home**
 - The share card — what a published link says about itself *(U-31, §52)*
 - The opening of a clip, chosen by the author *(U-22 §2)*
+- Caption looks, as a checked list rather than a styling panel *(U-19 §2)*
 - The Conversation Manifest — the Class B export format *(U-01)*
 - Vertical clip sets per claim–response pair — the distribution engine *(U-22)*
 - The publication bundle *(U-30)*
@@ -3954,6 +3955,44 @@ a rule rather than an anecdote: **a check written to tolerate its subject being
 absent will eventually be the only thing standing between you and a feature
 that is entirely absent.** If a precondition is required, assert it; if it is
 genuinely optional, the test is measuring something else.
+
+**A caption style is a choice among legible looks, not a styling surface.**
+U-19 §2 says "a user may choose the look; not an unreadable one", and that
+sentence sat as a comment in the caption renderer for as long as there was no
+choice to make. Building the choice is what made it a rule. The obvious
+implementation — a size, a colour, a position — is the wrong one: captions are
+the accessible form of what was said (INV-07, D-04), so a product that insists
+on them and then hands over a colour picker has shipped a way to produce
+captions nobody can read. What is offered instead is a short list of named
+looks, each checked against a floor, and the floor is asserted over the TABLE
+rather than over the entries that exist today, so a look added later cannot
+quietly drop under it. There is deliberately no colour field at all: white on
+a dark scrim is the one combination that holds over arbitrary footage, and the
+alternatives are all worse.
+
+**One of the three looks is about somebody else's product, and it earns its
+place.** The bottom fifth of a vertical frame is where the app showing it puts
+its own caption, handle and buttons. Captions placed there are covered — which
+is a legibility problem, not a fashion, and it is why a tall export raises them
+by default while a wide one does not. This is the line §52 draws in practice:
+the platforms do not get to shape the product, but where their pixels land is
+a fact about the world, and a product that ignores facts about the world is
+not being principled.
+
+**The renderer stopped choosing.** The caption size and position used to be
+constants in the subtitle builder. They are resolved into the RenderPlan now,
+like layouts (U-18), so the plan is a complete description of the export and
+there is no second opinion at the point of drawing. The floor is still applied
+in the renderer as well, and that duplication is deliberate: it is the one
+property captions must have, and asserting it twice costs nothing next to
+shipping an export nobody can read.
+
+**A test that passed by comparing the wrong two numbers.** The check that a
+lifted caption sits higher up the frame read the ASS style field at index 20 —
+which is the horizontal margin, not the vertical one — and passed, because the
+lifted look also has larger type and the horizontal margin is derived from the
+size. It was counting commas. The fields are named now and looked up by name.
+**Two wrong things agreeing is the most convincing kind of green.**
 
 ---
 

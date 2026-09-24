@@ -50,6 +50,106 @@ export function aspectFamily(profile: ExportProfile): AspectFamily {
   return 'tall';
 }
 
+/**
+ * How captions look.  [Doctrine U-19 §2, D-04, U-18]
+ *
+ * "A user may choose the look; not an unreadable one." That sentence has been
+ * in the caption renderer since it was written, and this is it enforced rather
+ * than intended.
+ *
+ * NAMED LOOKS, NOT A STYLING PANEL. Captions are the accessible form of what
+ * was said (INV-07, D-04), so they are not a surface for taste to operate on
+ * freely: a colour picker and a size slider is a way to produce captions
+ * nobody can read, offered by the product that insisted on them. What varies
+ * here are three things that change legibility in different CONDITIONS, and
+ * every combination on offer has been checked against the floor below.
+ *
+ * Data rather than branches, for the same reason layouts are (U-18): adding a
+ * look is a row, and the renderer never learns a style's name.
+ */
+export interface CaptionStyle {
+  id: string;
+  label: string;
+  /** What it is for, in the author's language rather than the engineer's. */
+  hint: string;
+  /**
+   * Type size as a fraction of the NARROWER dimension.
+   *
+   * Narrower, not height: legibility is how much of the frame's width a line
+   * occupies, and sizing from height gives a 9:16 clip type twice as large on
+   * a canvas half as wide.
+   */
+  fontFraction: number;
+  /**
+   * `box` puts an opaque panel behind the words; `outline` draws them over
+   * the picture with a contrasting edge.
+   *
+   * The box is the only one that GUARANTEES the contrast floor, because it
+   * does not depend on what is behind it. The outline is offered because over
+   * calm footage it is less obtrusive, and an author who can see their own
+   * footage is better placed than a rule to decide which they have.
+   */
+  scrim: 'box' | 'outline';
+  /** How far off the bottom the line sits, as a fraction of height. */
+  marginFraction: number;
+}
+
+/**
+ * The floor.  [D-04, U-19 §2]
+ *
+ * Below this a caption is decoration. It is asserted over the table rather
+ * than trusted, so a look added later cannot quietly drop under it.
+ */
+export const CAPTION_FLOOR_FRACTION = 0.042;
+
+/**
+ * How much of the bottom of a vertical frame the PLATFORM covers with its own
+ * interface — the caption, the handle, the buttons down the right.
+ *
+ * Captions sitting in that band are not captions anybody reads. This is the
+ * one number here that is about somebody else's product, and it earns its
+ * place by being a fact about where the pixels go rather than a fashion.
+ */
+export const PLATFORM_CHROME_FRACTION = 0.18;
+
+export const CAPTION_STYLES: Record<string, CaptionStyle> = {
+  clean: {
+    id: 'clean', label: 'Clean',
+    hint: 'Outlined, low on the frame. Best over calm footage.',
+    fontFraction: 0.05, scrim: 'outline', marginFraction: 0.06,
+  },
+  solid: {
+    id: 'solid', label: 'Solid',
+    hint: 'A panel behind the words. Readable over anything.',
+    fontFraction: 0.05, scrim: 'box', marginFraction: 0.06,
+  },
+  lifted: {
+    id: 'lifted', label: 'Lifted',
+    hint: 'Larger, and raised clear of where apps put their own buttons.',
+    fontFraction: 0.058, scrim: 'box', marginFraction: 0.24,
+  },
+};
+
+/**
+ * Which look this export gets.
+ *
+ * The author's choice, or the one the shape of the canvas calls for. A tall
+ * clip defaults to `lifted` because the bottom of a vertical frame belongs to
+ * whichever app it is being watched in — captions put there are covered by
+ * somebody else's buttons, which is a legibility problem rather than a
+ * stylistic one.
+ */
+export function captionStyleFor(
+  profile: ExportProfile, chosenId?: string,
+): CaptionStyle {
+  if (chosenId) {
+    const chosen = CAPTION_STYLES[chosenId];
+    if (!chosen) throw new Error(`unknown caption style: ${chosenId}`);
+    return chosen;
+  }
+  return aspectFamily(profile) === 'tall' ? CAPTION_STYLES['lifted']! : CAPTION_STYLES['clean']!;
+}
+
 /** Normalised rect, 0–1 relative to canvas. Resolution independent. [U-12, U-18] */
 export interface Rect { x: number; y: number; w: number; h: number }
 

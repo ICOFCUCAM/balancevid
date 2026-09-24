@@ -1,8 +1,9 @@
+import { EditError, setCaptionStyle } from '../../../../src/domain/edit.js';
 import { buildRenderPlan } from '../../../../src/domain/plan.js';
 import { projectTimeline, sourceRatio } from '../../../../src/domain/timeline.js';
 import { assertTimelineInvariants } from '../../../../src/domain/invariants.js';
 import { listJobs } from '../../../../src/store/queue.js';
-import { loadConversation } from '../../../../src/store/repository.js';
+import { audit, loadConversation, mutateConversation } from '../../../../src/store/repository.js';
 import { fail, json } from '../../../../src/web/http.js';
 
 export const dynamic = 'force-dynamic';
@@ -56,4 +57,28 @@ export async function GET(_request: Request, { params }: Params): Promise<Respon
     } : null,
     jobs: await listJobs(id),
   });
+}
+
+/**
+ * Decisions that belong to the whole conversation rather than to one response.
+ *
+ * Captions are the first: how they look is one answer about one piece of work,
+ * not a different one per export. [U-19 §2]
+ */
+export async function PATCH(request: Request, { params }: Params): Promise<Response> {
+  const { id } = await params;
+  const body = await request.json().catch(() => ({})) as {
+    captionStyleId?: string | null;
+  };
+
+  try {
+    const conversation = await mutateConversation(id, (draft) => {
+      if (body.captionStyleId !== undefined) setCaptionStyle(draft, body.captionStyleId);
+    });
+    await audit(id, { action: 'conversation.edited', detail: { ...body } });
+    return json({ captionStyleId: conversation.captionStyleId ?? null });
+  } catch (error) {
+    if (error instanceof EditError) return fail(400, error.message);
+    return fail(404, 'conversation not found');
+  }
 }

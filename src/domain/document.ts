@@ -412,6 +412,15 @@ export interface Conversation {
   /** Order is derived from anchors, never stored. [U-08] */
   interventions: Intervention[];
   layoutProfileId: string;
+  /**
+   * How captions look on this conversation's exports.  [U-19 §2, D-04]
+   *
+   * Absent means the shape of the canvas decides — a tall clip wants its
+   * captions clear of where apps put their own buttons, a wide one does not.
+   * Here rather than on each export because it is one decision about one
+   * conversation, not a different answer per format.
+   */
+  captionStyleId?: string;
   /** Set once the author publishes. [U-31] */
   publication?: Publication;
   /** Set when this conversation answers another one. [U-31, §40] */

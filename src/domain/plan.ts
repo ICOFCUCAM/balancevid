@@ -16,8 +16,8 @@ import {
 import { sha256 } from './ids.js';
 import { InvariantViolation } from './invariants.js';
 import {
-  type ExportProfile, type Rect, EXPORT_PROFILES, TYPE_PRESENTATION, type Transition,
-  layoutForProfile, layoutForType,
+  type CaptionStyle, type ExportProfile, type Rect, EXPORT_PROFILES, TYPE_PRESENTATION,
+  type Transition, captionStyleFor, layoutForProfile, layoutForType,
 } from './presentation.js';
 import { focusRegion } from './focus.js';
 import { chainAttribution } from './publish.js';
@@ -163,8 +163,19 @@ export interface RenderPlan {
   totalOutputFrames: Frames;
   sourceRatio: number;
   attribution: AttributionBlock;
-  /** INV-07: every export carries captions. Not a user preference. [U-19] */
-  captions: { burnIn: boolean; sidecars: ReadonlyArray<'srt' | 'vtt'> };
+  /**
+   * INV-07: every export carries captions. Not a user preference. [U-19]
+   *
+   * THAT they are there is not a choice. How they LOOK is, within a floor —
+   * and the choice is resolved here rather than at the point of drawing, so
+   * that the plan is a complete description of the export and the renderer
+   * has nothing left to decide. [U-18]
+   */
+  captions: {
+    burnIn: boolean;
+    sidecars: ReadonlyArray<'srt' | 'vtt'>;
+    style: CaptionStyle;
+  };
   /**
    * What is shown as typography over the opening seconds.
    *
@@ -191,6 +202,8 @@ export interface PlanOptions {
   sourceLayoutId?: string;
   responseLayoutId?: string;
   openingClaim?: { text: string; seconds: number; quoted: boolean };
+  /** Overrides the conversation's own choice, for a preview of another look. */
+  captionStyleId?: string;
 }
 
 export function buildRenderPlan(conversation: Conversation, options: PlanOptions = {}): RenderPlan {
@@ -343,7 +356,11 @@ export function planFromTimeline(
     totalOutputFrames: timeline.totalOutputFrames,
     sourceRatio: sourceRatio(timeline),
     attribution,
-    captions: { burnIn: options.burnInCaptions ?? true, sidecars: ['srt', 'vtt'] },
+    captions: {
+      burnIn: options.burnInCaptions ?? true,
+      sidecars: ['srt', 'vtt'],
+      style: captionStyleFor(exportProfile, options.captionStyleId ?? conversation.captionStyleId),
+    },
     ...(options.openingClaim ? { openingClaim: options.openingClaim } : {}),
     audio: {
       loudnessLufs: exportProfile.loudnessLufs,

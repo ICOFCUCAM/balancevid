@@ -22,7 +22,7 @@ import {
   type EvidenceLocator, type Intervention, type InterventionType, type Opening,
   type Point, type Take,
 } from './document.js';
-import { LAYOUTS } from './presentation.js';
+import { CAPTION_STYLES, LAYOUTS } from './presentation.js';
 import { normaliseQuote, quoteHash } from './ids.js';
 import {
   assertAcceptedOrigin, type AiOrigin, type Provenance, type SuggestionDecision,
@@ -57,6 +57,24 @@ export function setType(
 ): void {
   if (!INTERVENTION_TYPES.includes(type)) throw new EditError(`unknown type: ${type}`);
   intervention(conversation, interventionId).type = type;
+}
+
+/**
+ * [U-19 §2] Choose how captions look. null lets the canvas decide.
+ *
+ * A conversation-wide decision rather than a per-export one, because it is
+ * one answer about one piece of work: an author does not want their captions
+ * to look like a different product's in the vertical cut.
+ */
+export function setCaptionStyle(
+  conversation: Conversation, styleId: string | null,
+): void {
+  if (styleId === null) {
+    delete conversation.captionStyleId;
+    return;
+  }
+  if (!CAPTION_STYLES[styleId]) throw new EditError(`unknown caption style: ${styleId}`);
+  conversation.captionStyleId = styleId;
 }
 
 /** [§17] Override the layout the type would have chosen. null restores it. */

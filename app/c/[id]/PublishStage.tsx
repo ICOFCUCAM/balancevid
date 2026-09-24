@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { EXPORT_PROFILES } from '../../../src/domain/presentation.js';
+import { CAPTION_STYLES, EXPORT_PROFILES } from '../../../src/domain/presentation.js';
 import { HOUSE_FPS, formatTimecode } from '../../../src/domain/time.js';
 import { MAX_HOOK_LENGTH } from '../../../src/domain/document.js';
 import { forCreator } from '../../../src/web/language.js';
@@ -238,6 +238,12 @@ export default function PublishStage({
             </span>
           </div>
         )}
+
+        <CaptionLook
+          conversationId={conversationId}
+          chosen={conversation?.captionStyleId ?? null}
+          onChanged={refresh}
+        />
 
         <RenderList jobs={jobs} conversationId={conversationId} />
 
@@ -549,4 +555,97 @@ function OpeningEditor({ conversationId, candidate, onChanged }: {
 function cardBody(mode: 'statement' | 'text' | 'none', draft: string) {
   if (mode === 'text') return { kind: 'text' as const, text: draft };
   return { kind: mode };
+}
+
+/**
+ * How the captions look.  [Doctrine U-19 §2, D-04]
+ *
+ * A short list, not a styling panel. Captions are the accessible form of what
+ * was said, so what is on offer here are looks that have each been checked
+ * against the legibility floor — a size slider and a colour picker would be a
+ * way to produce captions nobody can read, offered by the product that
+ * insisted on having them.
+ *
+ * "Let the video decide" is the default and stays a real option, because the
+ * right answer genuinely differs by shape: the bottom of a vertical frame is
+ * where the app puts its own buttons, so captions there are covered.
+ */
+function CaptionLook({ conversationId, chosen, onChanged }: {
+  conversationId: string;
+  chosen: string | null;
+  onChanged: () => Promise<void>;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const choose = async (captionStyleId: string | null) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/conversations/${conversationId}`, {
+        method: 'PATCH', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ captionStyleId }),
+      });
+      if (!response.ok) {
+        throw new Error((await response.json().catch(() => ({}))).error ?? 'could not save that');
+      }
+      await onChanged();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section data-testid="caption-look" style={{ marginTop: 18 }}>
+      <div className="small muted" style={{ textTransform: 'uppercase',
+        letterSpacing: 0.8, fontSize: 11, marginBottom: 6 }}>
+        Caption look
+      </div>
+      <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+        <button
+          className="small"
+          data-testid="caption-style"
+          data-style="auto"
+          data-chosen={chosen === null ? 'true' : 'false'}
+          disabled={busy}
+          onClick={() => void choose(null)}
+          style={{
+            padding: '5px 10px', fontSize: 12,
+            background: chosen === null ? 'rgba(43,95,138,0.30)' : undefined,
+            borderColor: chosen === null ? '#6fb3e0' : undefined,
+          }}
+          title="A tall clip gets larger captions, raised clear of the app's own buttons"
+        >
+          Let the format decide
+        </button>
+        {Object.values(CAPTION_STYLES).map((style) => (
+          <button
+            key={style.id}
+            className="small"
+            data-testid="caption-style"
+            data-style={style.id}
+            data-chosen={chosen === style.id ? 'true' : 'false'}
+            disabled={busy}
+            onClick={() => void choose(style.id)}
+            title={style.hint}
+            style={{
+              padding: '5px 10px', fontSize: 12,
+              background: chosen === style.id ? 'rgba(43,95,138,0.30)' : undefined,
+              borderColor: chosen === style.id ? '#6fb3e0' : undefined,
+            }}
+          >
+            {style.label}
+          </button>
+        ))}
+      </div>
+      <p className="small muted" style={{ marginTop: 6, marginBottom: 0, maxWidth: 620 }}>
+        {chosen ? CAPTION_STYLES[chosen]?.hint : 'A tall clip gets larger captions, '
+          + 'raised clear of where apps put their own buttons; a wide one keeps them low.'}
+        {' '}Every look here stays above the size captions have to be to be read.
+      </p>
+      {error && <p className="small" style={{ color: 'var(--bad)' }}>{error}</p>}
+    </section>
+  );
 }

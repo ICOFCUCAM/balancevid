@@ -910,6 +910,69 @@ log('checking the publication formats…');
     .getAttribute('aria-selected') === 'true',
     'and pressing space here does not start a recording');
 
+  /*
+   * --- how captions look (U-19 §2, D-04) --------------------------------
+   *
+   * "A user may choose the look; not an unreadable one." A short list of
+   * checked looks, not a size slider and a colour picker — which is how a
+   * product that insists on captions ends up shipping ones nobody can read.
+   */
+  {
+    await page.waitForSelector('[data-testid="caption-look"]', { timeout: 10_000 });
+    const offered = await page.locator('[data-testid="caption-style"]').count();
+    check(offered >= 3, 'the author can choose how captions look', `${offered} looks`);
+    check(await page.locator('[data-testid="caption-style"][data-style="auto"]')
+      .getAttribute('data-chosen') === 'true',
+      'and by default the shape of the video decides');
+
+    /*
+     * No colour, no size: nothing here can make captions unreadable. Asserted
+     * over the CONTROLS rather than over the prose — the first version of
+     * this searched the panel's text for the word "size" and failed on the
+     * sentence explaining that every look stays above the size captions have
+     * to be, which is the opposite of the thing it was looking for.
+     */
+    const freeform = await page.locator(
+      '[data-testid="caption-look"] input, [data-testid="caption-look"] select').count();
+    check(freeform === 0,
+      'and there is no size or colour to get wrong — only looks that were checked',
+      `${freeform} free-form control(s)`);
+
+    await page.locator('[data-testid="caption-style"][data-style="solid"]').click();
+    await page.waitForTimeout(900);
+    const doc = (await api(`/api/conversations/${conversationId}`)).conversation;
+    check(doc.captionStyleId === 'solid',
+      'the choice lands on the conversation, not on one export', `${doc.captionStyleId}`);
+
+    // And it reaches what would actually be rendered — including the clip,
+    // which is a different plan from the long-form one.
+    const clip = await api(`/api/conversations/${conversationId}/clips`);
+    const planned = await api(`/api/conversations/${conversationId}` +
+      `/clips?interventionId=${clip.candidates[0].interventionId}&plan=1`);
+    check(planned.plan?.captions?.style?.id === 'solid',
+      'and the clip is planned with it too', `${planned.plan?.captions?.style?.id}`);
+    check(planned.plan?.captions?.sidecars?.length === 2,
+      'while the caption files ship regardless of the look (INV-07)');
+
+    // A look nobody defined is refused rather than quietly ignored.
+    const bogus = await sfetch(`${BASE}/api/conversations/${conversationId}`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ captionStyleId: 'neon' }),
+    });
+    check(bogus.status === 400, 'a look that does not exist is refused',
+      `status ${bogus.status}`);
+
+    // Back to letting the format decide, so the later sections see the
+    // default — a tall clip lifts its captions clear of the app's buttons.
+    await page.locator('[data-testid="caption-style"][data-style="auto"]').click();
+    await page.waitForTimeout(900);
+    const lifted = await api(`/api/conversations/${conversationId}` +
+      `/clips?interventionId=${clip.candidates[0].interventionId}&plan=1`);
+    check(lifted.plan?.captions?.style?.id === 'lifted',
+      'and left alone, a vertical clip lifts them clear of the app\'s own buttons',
+      `${lifted.plan?.captions?.style?.id}`);
+  }
+
   // The moments worth posting, proposed and never published for you (U-22 §4).
   const candidates = await page.locator('[data-testid="clip-candidate"]').count();
   check(candidates > 0, 'each exchange is offered as a clip of its own', `${candidates}`);
