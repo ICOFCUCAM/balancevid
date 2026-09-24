@@ -35,7 +35,8 @@ export type JobKind =
    * see the note on `Job` for why that is a rename waiting to happen rather
    * than a second queue. [STUDIO-TWO S-1] */
   | 'ingest_master'
-  | 'assemble_performance_take';
+  | 'assemble_performance_take'
+  | 'render_performance';
 
 export interface Job {
   id: string;

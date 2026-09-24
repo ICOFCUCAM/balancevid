@@ -3288,6 +3288,20 @@ first few seconds. Only the concat *filter*, which decodes and rejoins frames,
 is safe for captured media. **Anything that "silently keeps the first part" is
 a data-loss bug wearing the costume of a formatting bug.**
 
+**The segment that closes after the take is over.** Both recorders in this
+product uploaded a segment from the MediaRecorder's `onstop`, and both read the
+current take out of a ref to find out where to send it — and both cleared that
+ref *before* stopping the recorder, because stopping is how a take ends. So the
+final segment of every take, up to four seconds of somebody talking or singing,
+was recorded, closed, and thrown away. Nothing failed: the take assembled
+cleanly from the segments that survived, with a duration that looked plausible,
+and the only test watching asked whether a seven-second take was longer than
+three seconds. The upload now happens unconditionally, the segment's number is
+reserved when it OPENS rather than when it closes, and the take is finalised
+only once that last upload has landed rather than after a guessed wait.
+**U-06 says a take is never lost; the way a take is actually lost is one
+segment at a time, at the end, in a branch that looked like a guard.**
+
 **Measuring, not assuming.** Every duration in this system that came from a
 container header was wrong at least once. Pre-roll length, take length, source
 length: all are now measured by decoding. U-02 said this about sources; it is

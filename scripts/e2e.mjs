@@ -2710,10 +2710,11 @@ log('checking the Performance Studio…');
   // 48 against a master at 44.1 drifts seven percent and a fixture at the
   // house rate would never find out whether normalisation happens.
   const songPath = `${process.env['TMPDIR'] ?? '/tmp'}/balancevid-e2e-song.mp3`;
+  const SONG_SECONDS = 5;
   execFileSync(ffmpegStatic, [
     '-y',
-    '-f', 'lavfi', '-i', 'sine=frequency=440:duration=20:sample_rate=44100',
-    '-f', 'lavfi', '-i', 'sine=frequency=110:duration=20:sample_rate=44100',
+    '-f', 'lavfi', '-i', `sine=frequency=440:duration=${SONG_SECONDS}:sample_rate=44100`,
+    '-f', 'lavfi', '-i', `sine=frequency=110:duration=${SONG_SECONDS}:sample_rate=44100`,
     '-filter_complex',
     '[0:a]tremolo=f=2:d=1,volume=0.8[c];[1:a]volume=0.15[b];'
     + '[c][b]amix=inputs=2:duration=first[o]',
@@ -2752,8 +2753,9 @@ log('checking the Performance Studio…');
     await sleep(1000);
   }
   const samples = doc?.performance?.master?.durationSamples ?? 0;
-  // Twenty seconds at the HOUSE rate, from a 44.1 kHz file.
-  check(Math.abs(samples - 20 * 48000) < 48000 * 0.05,
+  // Five seconds at the HOUSE rate, from a 44.1 kHz file. Short on purpose:
+  // a take can then cover the whole song, which is what §14 needs to render.
+  check(Math.abs(samples - SONG_SECONDS * 48000) < 48000 * 0.05,
     'the song is measured by decoding, at the house rate (U-02)', `${samples} samples`);
 
   // ---- record against it -----------------------------------------------
@@ -2782,8 +2784,15 @@ log('checking the Performance Studio…');
 
   if (landed) {
     const take = landed.performance.takes[0];
-    check(take.durationSamples > 3 * 48000,
-      'with a length counted from the media rather than guessed',
+    /*
+     * Long enough to be ALL of what was recorded. This check used to ask for
+     * three seconds of a seven-second take and passed for years of runs while
+     * every take silently lost its final segment — the recorder's `onstop`
+     * read a ref that stopping had already cleared. A duration check that
+     * cannot fail is not a duration check. [U-06]
+     */
+    check(take.durationSamples > 6 * 48000,
+      'with a length counted from the media — and all of it, last segment included',
       `${(take.durationSamples / 48000).toFixed(2)}s`);
     check(take.label === 'Living room', 'under the name its author gave it');
     /*
@@ -2944,6 +2953,172 @@ log('checking the Performance Studio…');
     check(cleared.scenes.length === 0, 'the edit can be thrown away and done again');
     check(cleared.takes.length === 2,
       'and the recordings survive it — they are what cost something to make');
+  }
+
+  /*
+   * --- §14: one video, at the end of it --------------------------------
+   *
+   * "Never merge the individual takes into one irreversible video until the
+   *  final master render." Everything above this point is reversible; this is
+   *  the one place the takes stop being separate files.
+   *
+   * What is checked is the whole claim: that the render is REFUSED for
+   * reasons the author can act on, that it produces a file as long as the
+   * song with the song on it, and that pressing it again costs nothing
+   * because the plan is derived and the shots are cached (INV-00, U-16).
+   */
+  {
+    const perf = (await api(`/api/performances/${perfId}`)).performance;
+    const usable = perf.takes.filter((t) => t.durationSamples > 0);
+    const render = (body) => sfetch(`${BASE}/api/performances/${perfId}/renders`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body ?? {}),
+    });
+    const scene = (at, layoutId, takeIds) => sfetch(`${BASE}/api/performances/${perfId}`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'set-scene', at, layoutId, takeIds }),
+    });
+
+    // Nothing on screen. Scenes were just cleared, so this is the real state.
+    const empty = await render();
+    check(empty.status === 409, 'a performance with nothing on screen will not render');
+
+    /*
+     * A scene whose take runs out part way through it. The take is real and
+     * the scene is legal — what is wrong is that one does not reach the end
+     * of the other, and the message has to say which take and where, because
+     * "no performance" would be accurate and useless.
+     */
+    await sfetch(`${BASE}/api/performances/${perfId}`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'trim-take', takeId: usable[0].id,
+        useFromSample: 0, useToSample: Math.round(samples / 2) }),
+    });
+    await scene(0, 'performance_full', [usable[0].id]);
+    const short = await render();
+    const shortBody = await short.json().catch(() => ({}));
+    check(short.status === 409 && /do not reach/.test(shortBody.error ?? ''),
+      'a take that runs out mid-scene is named, not silently rendered black',
+      shortBody.error ?? `status ${short.status}`);
+
+    // Untrimmed, and cut in two so the render has something to prove.
+    await sfetch(`${BASE}/api/performances/${perfId}`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'trim-take', takeId: usable[0].id,
+        useFromSample: null, useToSample: null }),
+    });
+    await scene(Math.round(samples / 2), 'performance_full', [usable[1].id]);
+
+    /*
+     * The rights gate, at the place the file is made rather than only at the
+     * place the music was classified. A check in an interface is one refactor
+     * away from not being in the path. [INV-15, S-9]
+     */
+    await sfetch(`${BASE}/api/performances/${perfId}`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'classify-master', class: 'third_party' }),
+    });
+    const refusedRights = await render();
+    const rightsBody = await refusedRights.json().catch(() => ({}));
+    check(refusedRights.status === 409 && /publish/i.test(rightsBody.error ?? ''),
+      "somebody else's music will not render a publishable master (INV-15)",
+      rightsBody.error ?? `status ${refusedRights.status}`);
+    const privately = await render({ allowUnpublishable: true });
+    check(privately.status === 202,
+      'but the author may still export a private copy of their own performance');
+
+    await sfetch(`${BASE}/api/performances/${perfId}`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'classify-master', class: 'own' }),
+    });
+
+    // ---- and now the video itself --------------------------------------
+    const queued = await render({ exportProfileId: 'vertical_9x16' });
+    const queuedBody = await queued.json().catch(() => ({}));
+    check(queued.status === 202, 'a covered performance can be made into a video (§14)',
+      queuedBody.error ?? `status ${queued.status}`);
+    check(Math.abs((queuedBody.totalOutputFrames ?? 0) - SONG_SECONDS * 30) <= 2,
+      'as long as the song and no longer (INV-03)',
+      `${queuedBody.totalOutputFrames} frames`);
+
+    let done = null;
+    for (let i = 0; i < 240; i++) {
+      await sleep(1000);
+      const jobs = (await api(`/api/performances/${perfId}/renders`)).jobs ?? [];
+      const job = jobs.find((j) => j.id === queuedBody.job?.id);
+      if (job && (job.state === 'done' || job.state === 'failed')) { done = job; break; }
+    }
+    check(done?.state === 'done', 'and the render finishes',
+      done?.error ?? done?.state ?? 'never finished');
+
+    if (done?.state === 'done') {
+      const hash = done.result?.planHash;
+      check(hash === queuedBody.planHash,
+        'the worker rebuilt the identical plan from the same document (INV-00)',
+        `${queuedBody.planHash} vs ${hash}`);
+
+      const file = await sfetch(
+        `${BASE}/api/performances/${perfId}/renders/${hash}/file`);
+      check(file.status === 200 && file.headers.get('content-type') === 'video/mp4',
+        'and the video is there to download', `status ${file.status}`);
+
+      const outPath = `${process.env['TMPDIR'] ?? '/tmp'}/balancevid-e2e-master.mp4`;
+      await writeFile(outPath, Buffer.from(await file.arrayBuffer()));
+      /*
+       * Probed, not read out of ffmpeg's prose. Parsing the log is how a
+       * duration check once read a units suffix and believed it: the
+       * structured answer is the only one worth asserting on. [U-02]
+       */
+      const probe = JSON.parse(execFileSync(ffprobe.path, [
+        '-v', 'error', '-show_streams', '-show_format',
+        '-of', 'json', outPath,
+      ]).toString());
+      const video = probe.streams.filter((st) => st.codec_type === 'video');
+      const audio = probe.streams.filter((st) => st.codec_type === 'audio');
+      check(video.length === 1 && video[0].width === 1080 && video[0].height === 1920,
+        'in the shape that was asked for (§14: four shapes, one performance)',
+        `${video[0]?.width}x${video[0]?.height}`);
+      /*
+       * The song, over the whole thing, as ONE stream. Slicing the music at
+       * the video cuts is how you get a click at every one of them, so the
+       * picture is concatenated first and the master laid over it in one
+       * pass. [S-7]
+       */
+      check(audio.length === 1,
+        'with the song running underneath, unbroken across the cut (S-7)',
+        `${audio.length} audio stream(s)`);
+      const seconds = Number(probe.format.duration ?? 0);
+      check(Math.abs(seconds - SONG_SECONDS) < 0.3,
+        'and it lasts exactly as long as the song', `${seconds}s`);
+
+      /*
+       * Pressing it again. Nothing about the document changed, so every shot
+       * is already on disk under its content hash and the second render is
+       * the concatenation alone. [U-16]
+       */
+      const again = await render({ exportProfileId: 'vertical_9x16' });
+      const againBody = await again.json().catch(() => ({}));
+      check(againBody.planHash === hash,
+        'asking again describes the same video, byte for byte (INV-00, U-16)');
+      let second = null;
+      for (let i = 0; i < 240; i++) {
+        await sleep(1000);
+        const jobs = (await api(`/api/performances/${perfId}/renders`)).jobs ?? [];
+        const job = jobs.find((j) => j.id === againBody.job?.id);
+        if (job && (job.state === 'done' || job.state === 'failed')) { second = job; break; }
+      }
+      check(second?.state === 'done' && second.result?.shotsRendered === 0,
+        'and re-renders none of it',
+        `rendered=${second?.result?.shotsRendered} cached=${second?.result?.shotsCached}`);
+    }
+
+    // The studio offers it, and says what is missing when it cannot.
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.waitForSelector('[data-testid="master-render"]', { timeout: 30_000 });
+    check(await page.locator('[data-testid="render-master"]').count() === 1,
+      'and the studio has one button for it, once the song is covered');
+    check(await page.locator('[data-testid="render-download"]').count() >= 1,
+      'with the finished video beside it');
   }
 
   // ---- and none of it is a stranger's -----------------------------------

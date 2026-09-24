@@ -6,17 +6,18 @@ import { MASTER_CLASSES, SPACES, mayPublish } from '../../../src/domain/performa
 import { HOUSE_SAMPLE_RATE, formatMasterPosition } from '../../../src/domain/time.js';
 import { useMasterRecording } from './useMasterRecording.js';
 import SwitchingStage from './SwitchingStage.js';
+import MasterRender from './MasterRender.js';
 
 /**
  * The Performance Studio.  [Doctrine STUDIO-TWO §1, §3, §4, §10, §13]
  *
  * One song. One master timeline. Many performances.
  *
- * This is the first stage of it: choose the music, then record against it,
- * again and again, each take landing on the same clock. Switching, scenes,
- * environments and the master render come later — what has to be right first
- * is that a take recorded here actually sits where the document says it does,
- * because everything above it is built on that being true.
+ * Choose the music, record against it again and again, direct which take is
+ * on screen at each moment, then make one video out of the lot. Each of those
+ * rests on the one before it, and all of them rest on a take landing exactly
+ * where the document says it does — which is why alignment was built first and
+ * why nothing here ever moves the song.
  */
 
 /** A musical lead-in, so nobody sings from a standing start. [S-10] */
@@ -301,6 +302,10 @@ export default function PerformanceStudio({ initial }: { initial: Performance })
             <SwitchingStage performance={performance} onChanged={setPerformance} />
           </section>
         )}
+
+        {/* ---- one video, when they are ready (§14) ------------------ */}
+        {performance.takes.some((t) => t.durationSamples > 0)
+          && <MasterRender performance={performance} />}
 
         {/* ---- the takes, all on one clock --------------------------- */}
         <section style={{ marginTop: 20 }} data-testid="takes">

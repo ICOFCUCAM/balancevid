@@ -71,7 +71,14 @@ export function useMasterRecording({
   const bufferRef = useRef<AudioBuffer | null>(null);
   const sourceRef = useRef<AudioBufferSourceNode | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
-  const takeRef = useRef<{ takeId: string; index: number } | null>(null);
+  const takeRef = useRef<{ takeId: string } | null>(null);
+  /**
+   * Which segment number the NEXT one opening will be.
+   *
+   * Reserved when a segment opens rather than when it closes, because the
+   * number is the take's running order and closing is when things go wrong.
+   */
+  const indexRef = useRef(0);
   const startedAtRef = useRef(0);
   const offsetRef = useRef(0);
 
@@ -122,30 +129,61 @@ export function useMasterRecording({
   }, []);
 
   /* ---- a take ---------------------------------------------------------- */
+
+  /**
+   * The take is over: ask for it to be joined and placed on the song.
+   *
+   * Called ONLY once the last segment has finished uploading. The first
+   * version waited a fixed 600ms instead and hoped — and hoping is what the
+   * rest of this file exists not to do.
+   */
+  const finishTake = useCallback(async (takeId: string) => {
+    try {
+      const response = await fetch(`/api/performances/${performanceId}/takes/${takeId}`, {
+        method: 'PUT', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ hintSamples: offsetRef.current }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (data.job?.id) onFinished(data.job.id);
+    } catch {
+      /* The chunks are on disk under their numbers; it can be retried. */
+    } finally {
+      setPhase('ready');
+    }
+  }, [onFinished, performanceId]);
+
   const segment = useCallback((takeId: string) => {
     const media = streamRef.current;
     if (!media) return;
     const recorder = new MediaRecorder(media);
     const parts: Blob[] = [];
+    const index = indexRef.current;
+    indexRef.current += 1;
     recorder.ondataavailable = (event) => { if (event.data.size > 0) parts.push(event.data); };
     recorder.onstop = () => {
-      const current = takeRef.current;
-      if (!current) return;
-      const index = current.index;
-      current.index += 1;
-      void fetch(
+      /*
+       * UPLOADED WHATEVER ELSE IS TRUE. The first version read the take out of
+       * a ref and returned early when it was gone — and the take being gone is
+       * exactly the state the LAST segment closes in, because `stop` clears it
+       * before stopping the recorder. So every take lost its final segment: up
+       * to four seconds of somebody's performance, silently, with a duration
+       * that looked plausible. [U-06]
+       */
+      const upload = fetch(
         `/api/performances/${performanceId}/takes/${takeId}?index=${index}`,
         { method: 'POST', body: new Blob(parts),
           headers: { 'content-type': 'application/octet-stream' } },
       ).catch(() => { /* the next segment carries on; U-06's whole point. */ });
+
       if (takeRef.current && recorderRef.current === recorder) segment(takeId);
+      else void upload.then(() => finishTake(takeId));
     };
     recorder.start();
     recorderRef.current = recorder;
     window.setTimeout(() => {
       if (recorderRef.current === recorder && recorder.state === 'recording') recorder.stop();
     }, SEGMENT_MS);
-  }, [performanceId]);
+  }, [finishTake, performanceId]);
 
   const start = useCallback(async (
     label: string, environment: { kind: string; spaceId?: string },
@@ -183,7 +221,8 @@ export function useMasterRecording({
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error ?? 'could not begin the take');
 
-      takeRef.current = { takeId: data.takeId, index: 0 };
+      takeRef.current = { takeId: data.takeId };
+      indexRef.current = 0;
 
       // Wait out the count-in, then record. The music has already been placed
       // on the audio clock, so this only decides when the camera joins it.
@@ -214,25 +253,18 @@ export function useMasterRecording({
     if (!take) return;
     setPhase('finishing');
     takeRef.current = null;
-    recorderRef.current?.stop();
     sourceRef.current?.stop();
 
-    /*
-     * A moment for the last segment to close and upload before the worker is
-     * asked to join them. Without it the take is assembled one segment short,
-     * which is the end of the performance missing.
-     */
-    window.setTimeout(() => {
-      void fetch(`/api/performances/${performanceId}/takes/${take.takeId}`, {
-        method: 'PUT', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ hintSamples: offsetRef.current }),
-      })
-        .then((r) => r.json())
-        .then((data) => { if (data.job?.id) onFinished(data.job.id); })
-        .catch(() => { /* the chunks are on disk; it can be retried. */ })
-        .finally(() => setPhase('ready'));
-    }, 600);
-  }, [onFinished, performanceId]);
+    const recorder = recorderRef.current;
+    if (recorder && recorder.state === 'recording') {
+      // Its `onstop` uploads the last segment and then finalises the take, in
+      // that order, so the worker never joins a take that is still arriving.
+      recorder.stop();
+    } else {
+      // Between segments: nothing is in flight and no `onstop` is coming.
+      void finishTake(take.takeId);
+    }
+  }, [finishTake]);
 
   /* ---- the playhead ---------------------------------------------------- */
   useEffect(() => {

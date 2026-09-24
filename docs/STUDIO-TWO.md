@@ -999,4 +999,103 @@ against the rest of the brief, not from §12.
 
 ---
 
+## S-17 — Stage 4: the master render
+
+**"Never merge the individual takes into one irreversible video until the final
+master render."** This is that render — §14's export, and the first point at
+which a Performance becomes a file.
+
+| Built | Where |
+|---|---|
+| A Performance as a render plan | `src/domain/performancePlan.ts` |
+| A third kind of shot | `src/domain/plan.ts` (`PerformanceShot`) |
+| Picture-only shots, one audio pass | `src/render/compose.ts` |
+| The job | `src/worker/index.ts` (`render_performance`) |
+| Asking for it, and getting it back | `app/api/performances/[id]/renders/…` |
+| The button, and what is missing | `app/p/[id]/MasterRender.tsx` |
+
+**The stages were reordered to put this before §4's environments, and the
+reason is worth recording:** nothing above it can be seen. An environment matte,
+an audio mode and a transition are all claims about what the finished video
+looks like, and until there is a finished video they are claims nobody can
+check. §14 is also the only stage that turns the whole of Studio Two into
+something an author can take away.
+
+**What this stage taught.**
+
+1. **The compositor did not need to learn about performances.** It needed one
+   more kind of shot. `buildPerformancePlan` produces the same `RenderPlan` the
+   Conversation produces, so the export profiles, §14's four shapes, the shot
+   cache (U-16), the loudness discipline and the concatenation all came across
+   unchanged, and there is no second renderer to drift from the first. **A
+   second document does not imply a second engine; it implies one more case in
+   the engine's vocabulary.**
+
+2. **A Performance's shots carry no audio at all, and that is the design.** A
+   Conversation's shots each carry their own sound because the sound IS the
+   cut — the source speaks, then the author does. A Performance cuts picture
+   over sound that never stops. Slicing the song at the video cuts and
+   re-joining it would put a click at every one of them, so the picture is
+   concatenated first and the master is laid over the whole thing in one pass
+   (`-map 0:v:0 -map 1:a:0`). Declick is zero and ducking is zero for the same
+   reason: there is no seam to hide and nothing is under anything. **Two
+   timelines that are independent should be rendered independently; the point
+   where they meet should be one place, not one per cut.**
+
+3. **The master the render plays is the master alignment measured.** Not the
+   author's upload — the normalised copy. If the renderer muxed the original
+   and alignment had measured the normalised decode, every take would be out by
+   whatever the two decoders disagreed about, which is a small number that
+   nobody would think to look for.
+
+4. **The planner asks the invariant rather than keeping its own copy of the
+   rules.** The first version of `buildPerformancePlan` re-implemented "no
+   scenes" and "no gaps" and produced worse messages than INV-03 already had:
+   it would say a scene had zero performances when the truth was that the take
+   the author named runs out halfway through it. **Two copies of one rule are
+   two rules, and the copy in the newer file is always the one with the worse
+   error message.**
+
+5. **The rights gate lives where the artefact is described, not where the
+   button is drawn.** `buildPerformancePlan` refuses to describe a publishable
+   export of a master the author has not claimed (INV-15) and takes
+   `allowUnpublishable` explicitly, so a private copy is something asked for in
+   words. A check in the interface is one refactor away from not being in the
+   path.
+
+6. **The fixture song was twenty seconds and every take was seven.** The
+   browser run had therefore never once been in a state that could render, and
+   nobody had noticed, because every check it made was about refusals and
+   documents. Shortening the song to five seconds made the fixture coherent and
+   the render checkable end to end. **A test fixture that cannot reach the
+   state under test passes for the wrong reason.**
+
+7. **Every take was losing its last four seconds, and only §14 could see it.**
+   Making the fixture coherent (6) meant a take had to cover the song — and it
+   never did. The recorder uploaded each segment from `onstop` and read the
+   take out of a ref to address it, but `stop` clears that ref before stopping
+   the recorder, so the final segment was always uploaded by a branch that had
+   already returned. Seven seconds of singing arrived as 3.9. The same defect
+   was in the Room's capture hook, where it had been eating the end of every
+   answer. Both now upload unconditionally, reserve the segment's number when
+   it opens, and finalise only after the last upload lands. It is recorded in
+   the main doctrine's Appendix C as well, because it is a U-06 lesson and not
+   a Studio Two one. **Nothing above the capture layer can tell you that the
+   capture layer is dropping the end — you need something that has to consume
+   all of it.**
+
+8. **`ffprobe`, not the log.** The finished video is asserted on through
+   structured output — one video stream at the requested 1080×1920, exactly one
+   audio stream, and a duration within a frame of the song. An earlier
+   duration check in this codebase read ffmpeg's prose and believed a units
+   suffix; the structured answer is the only one worth asserting on (U-02).
+
+**Still not built:** the environment matte (§4); the audio modes (§9), which
+are declared on scenes and stored but do not yet change the mix; transitions
+and beat detection (§11); publication of a performance as clips or a share card
+(§14's second half); and the device calibration from S-3, which still passes
+zero. §12's interface remains an open item.
+
+---
+
 *Appendix S ends. The brief above it is unedited.*

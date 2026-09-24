@@ -16,7 +16,9 @@
 import { mkdir, writeFile, access } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { AssetId } from '../domain/document.js';
-import type { RenderPlan, ResponseShot, Shot, SourceShot } from '../domain/plan.js';
+import type {
+  PerformanceShot, RenderPlan, ResponseShot, Shot, SourceShot,
+} from '../domain/plan.js';
 import { LAYOUTS, type Rect } from '../domain/presentation.js';
 import type { Frames } from '../domain/time.js';
 import { ffmpeg, type RunOptions } from './ffmpeg.js';
@@ -33,6 +35,16 @@ export interface ComposeOptions extends RunOptions {
   /** Archived evidence captures live apart from media assets. [U-33] */
   resolveEvidence?: (assetId: AssetId) => string;
   cues?: Cue[];
+  /**
+   * The song, for a Performance.  [Doctrine STUDIO-TWO §9, S-7]
+   *
+   * Laid over the finished picture in ONE pass rather than sliced into the
+   * shots. Scenes cut the picture; the song runs underneath them unbroken —
+   * and slicing audio at video-frame boundaries is how you get a click at
+   * every cut, which this codebase has already learned once about concat
+   * boundaries and AAC's 1024-sample frames.
+   */
+  masterAudioPath?: string;
 }
 
 export interface ComposeResult {
@@ -56,9 +68,11 @@ export async function compose(plan: RenderPlan, options: ComposeOptions): Promis
   // --- Pass 0: per-speaker loudness -----------------------------------------
   // Measured once per asset, before any ducking decision. [U-17 §3]
   const gains = new Map<AssetId, number>();
-  for (const assetId of distinctAssets(plan.shots)) {
-    const { inputI } = await measureLoudness(resolveAsset(assetId));
-    gains.set(assetId, matchGainDb(inputI));
+  if (plan.audio.matchSpeakers) {
+    for (const assetId of distinctAssets(plan.shots)) {
+      const { inputI } = await measureLoudness(resolveAsset(assetId));
+      gains.set(assetId, matchGainDb(inputI));
+    }
   }
 
   // --- Pass 1: shots --------------------------------------------------------
@@ -72,6 +86,8 @@ export async function compose(plan: RenderPlan, options: ComposeOptions): Promis
     if (await exists(path)) { shotsCached++; continue; }
     if (shot.kind === 'source') {
       await renderSourceShot(shot, plan, path, resolveAsset, gains, options);
+    } else if (shot.kind === 'performance') {
+      await renderPerformanceShot(shot, plan, path, resolveAsset, options);
     } else {
       await renderResponseShot(shot, plan, path, stillsDir, resolveAsset, gains, options);
     }
@@ -105,7 +121,19 @@ export async function compose(plan: RenderPlan, options: ComposeOptions): Promis
       `:offset=${measurement.offset}:linear=true:print_format=summary`
     : `loudnorm=I=${plan.audio.loudnessLufs}:TP=${askTruePeak}:LRA=11`;
 
+  /*
+   * A Performance's picture carries no sound, so the song is brought in here
+   * as a second input and mapped over the whole thing — one continuous piece
+   * of audio under however many cuts. [S-7]
+   */
+  const performance = plan.shots.some((shot) => shot.kind === 'performance');
   const master: string[] = ['-i', bodyPath];
+  if (performance) {
+    if (!options.masterAudioPath) {
+      throw new Error('a performance render needs its master track');
+    }
+    master.push('-i', options.masterAudioPath, '-map', '0:v:0', '-map', '1:a:0');
+  }
   if (plan.captions.burnIn) {
     master.push(
       // setpts rewrites each frame's timestamp from its own index, producing
@@ -161,6 +189,80 @@ export async function compose(plan: RenderPlan, options: ComposeOptions): Promis
 }
 
 // ---------------------------------------------------------------------------
+
+/**
+ * A stretch of a song, with performances on it.
+ * [Doctrine STUDIO-TWO §2, §5, §6, §7, U-18]
+ *
+ * PICTURE ONLY. The song is laid over the finished concatenation in one pass,
+ * so nothing here emits audio — see `masterAudioPath` above for why slicing
+ * the music at video-frame boundaries is the wrong shape.
+ *
+ * Otherwise this is the same job the other two shots do: a canvas, and a
+ * layout's rects filled with media. The only new thing is that there are
+ * several pieces of media rather than one, and which one goes in which panel
+ * is a SLOT rather than a role — the scene said who, the layout says where.
+ */
+async function renderPerformanceShot(
+  shot: PerformanceShot, plan: RenderPlan, outPath: string,
+  resolveAsset: (id: AssetId) => string, opts: ComposeOptions,
+): Promise<void> {
+  const { width, height, fps } = plan.exportProfile;
+  const layout = LAYOUTS[shot.layoutId] ?? LAYOUTS['performance_full']!;
+  const total = shot.durationFrames;
+  const panels = layout.layers.filter((layer) => layer.source === 'take');
+
+  const inputs: string[] = [];
+  for (const take of shot.takes) {
+    inputs.push(
+      '-accurate_seek', '-ss', frameSeconds(take.mediaInFrame, fps),
+      '-t', frameSeconds(total, fps),
+      '-i', resolveAsset(take.assetId),
+    );
+  }
+
+  const filters: string[] = [];
+  /*
+   * The canvas. Black rather than a blurred fill for now: a backdrop made
+   * from "the source" has no meaning here, and inventing one from an
+   * arbitrary take would be the product choosing a performance the author did
+   * not.
+   */
+  filters.push(`color=c=black:s=${width}x${height}:r=${fps}:d=${frameSeconds(total, fps)}[bg]`);
+
+  let last = 'bg';
+  panels.forEach((layer, index) => {
+    const take = shot.takes[index];
+    if (!take) return;
+    const box = pixelRect(layer.rect, width, height);
+    filters.push(
+      `[${index}:v]${fitFilter(layer.fit, box.w, box.h)},`
+      + `setsar=1,fps=${fps},trim=end=${frameSeconds(total, fps)},setpts=PTS-STARTPTS[p${index}]`,
+    );
+    const next = index === panels.length - 1 ? 'vout' : `s${index}`;
+    filters.push(`[${last}][p${index}]overlay=${box.x}:${box.y}:shortest=0[${next}]`);
+    last = next;
+  });
+
+  /*
+   * A take that ran out mid-shot would leave its panel showing its last frame
+   * for the rest of the scene. The document refuses to plan that — a scene's
+   * takes must cover all of it — so reaching that state here is a bug
+   * upstream rather than something to paper over.
+   */
+  if (panels.length === 0) filters.push('[bg]copy[vout]');
+
+  await ffmpeg([
+    '-y', ...inputs,
+    '-filter_complex', filters.join(';'),
+    '-map', '[vout]',
+    // No audio at all, deliberately: the song arrives at the master pass.
+    '-an',
+    '-frames:v', String(total),
+    ...encodeArgs(),
+    outPath,
+  ], opts);
+}
 
 async function renderSourceShot(
   shot: SourceShot, plan: RenderPlan, outPath: string,
@@ -506,7 +608,10 @@ function escapeFilterPath(path: string): string {
 }
 
 function distinctAssets(shots: Shot[]): AssetId[] {
-  return [...new Set(shots.map((s) => s.assetId))];
+  // A performance shot carries several assets and contributes no audio, so it
+  // has nothing to measure. Speakers are matched; a mastered song is not.
+  return [...new Set(shots.flatMap(
+    (s) => (s.kind === 'performance' ? [] : [s.assetId])))];
 }
 
 async function exists(path: string): Promise<boolean> {

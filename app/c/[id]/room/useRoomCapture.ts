@@ -73,7 +73,9 @@ export function useRoomCapture({
   const previousRef = useRef<Float32Array | null>(null);
   const floorRef = useRef(0);
   const recorderRef = useRef<MediaRecorder | null>(null);
-  const takeRef = useRef<{ interventionId: string; takeId: string; index: number } | null>(null);
+  const takeRef = useRef<{ interventionId: string; takeId: string } | null>(null);
+  /** The number the NEXT segment to open will carry. See `startSegment`. */
+  const indexRef = useRef(0);
   const stagedRef = useRef(staged);
   useEffect(() => { stagedRef.current = staged; }, [staged]);
 
@@ -119,32 +121,56 @@ export function useRoomCapture({
   }, [armed, conversationId]);
 
   /* ---- recording, while and only while staged ------------------------ */
+
+  /**
+   * The turn is over: ask for the segments to be joined.
+   *
+   * Called only once the LAST segment has been uploaded, because a take
+   * finalised while its final chunk is still in flight is assembled short.
+   */
+  const finalizeTake = useCallback(async (
+    take: { interventionId: string; takeId: string },
+  ) => {
+    await fetch(`/api/conversations/${conversationId}/takes/${take.takeId}/finalize`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ interventionId: take.interventionId, prerollSegments: 0 }),
+    }).catch(() => { /* the chunks are on disk; it can be retried. */ });
+  }, [conversationId]);
+
   const startSegment = useCallback(() => {
     const stream = streamRef.current;
     const take = takeRef.current;
     if (!stream || !take) return;
+    const { interventionId, takeId } = take;
     const recorder = new MediaRecorder(stream);
     const parts: Blob[] = [];
+    const index = indexRef.current;
+    indexRef.current += 1;
     recorder.ondataavailable = (event) => { if (event.data.size > 0) parts.push(event.data); };
     recorder.onstop = () => {
-      const current = takeRef.current;
-      if (current) {
-        const index = current.index;
-        current.index += 1;
-        void fetch(
-          `/api/conversations/${conversationId}/takes/${current.takeId}/chunks?index=${index}`,
-          { method: 'POST', body: new Blob(parts),
-            headers: { 'content-type': 'application/octet-stream' } },
-        ).catch(() => { /* the next segment carries on regardless. */ });
-      }
+      /*
+       * UPLOADED WHATEVER ELSE IS TRUE. Reading the take out of the ref and
+       * skipping the upload when it is gone loses the last segment of every
+       * turn — because being taken off stage clears the ref and THEN stops the
+       * recorder, so the final chunk always closes after the take is gone.
+       * That is the end of somebody's answer, missing, with nothing to show
+       * for it but a duration that looks plausible. [U-06]
+       */
+      const upload = fetch(
+        `/api/conversations/${conversationId}/takes/${takeId}/chunks?index=${index}`,
+        { method: 'POST', body: new Blob(parts),
+          headers: { 'content-type': 'application/octet-stream' } },
+      ).catch(() => { /* the next segment carries on regardless. */ });
+
       if (stagedRef.current && takeRef.current) startSegment();
+      else void upload.then(() => finalizeTake({ interventionId, takeId }));
     };
     recorder.start();
     recorderRef.current = recorder;
     window.setTimeout(() => {
       if (recorderRef.current === recorder && recorder.state === 'recording') recorder.stop();
     }, SEGMENT_MS);
-  }, [conversationId]);
+  }, [conversationId, finalizeTake]);
 
   useEffect(() => {
     if (!armed) return;
@@ -164,8 +190,9 @@ export function useRoomCapture({
           const data = await response.json().catch(() => ({}));
           if (!response.ok) throw new Error(data.error ?? 'could not start recording');
           takeRef.current = {
-            interventionId: data.interventionId, takeId: data.takeId, index: 0,
+            interventionId: data.interventionId, takeId: data.takeId,
           };
+          indexRef.current = 0;
           setRecording(true);
           startSegment();
         } catch (e) {
@@ -179,13 +206,16 @@ export function useRoomCapture({
       const take = takeRef.current;
       takeRef.current = null;
       setRecording(false);
-      recorderRef.current?.stop();
-      void fetch(`/api/conversations/${conversationId}/takes/${take.takeId}/finalize`, {
-        method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ interventionId: take.interventionId, prerollSegments: 0 }),
-      }).catch(() => { /* the chunks are on disk; it can be retried. */ });
+      const recorder = recorderRef.current;
+      if (recorder && recorder.state === 'recording') {
+        // Its `onstop` uploads the last segment and finalises after it.
+        recorder.stop();
+      } else {
+        // Between segments: nothing in flight, and no `onstop` is coming.
+        void finalizeTake(take);
+      }
     }
-  }, [armed, staged, conversationId, sourceFrame, startSegment]);
+  }, [armed, staged, conversationId, sourceFrame, startSegment, finalizeTake]);
 
   const arm = useCallback(async () => {
     setError(null);

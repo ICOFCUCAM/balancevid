@@ -132,7 +132,39 @@ export interface EvidenceCue {
   page?: number;
 }
 
-export type Shot = SourceShot | ResponseShot;
+/**
+ * A stretch of a song, with performances on it.  [Doctrine STUDIO-TWO §2, §7]
+ *
+ * A third kind beside `source` and `response`, and it is a third kind rather
+ * than a variation because it is the only one that carries SEVERAL pieces of
+ * media at once. A source shot shows the source; a response shot shows the
+ * responder, possibly beside a still. A performance shot shows however many
+ * takes the arrangement has panels for, and they are all playing.
+ *
+ * NO AUDIO. The video timeline and the audio timeline are independent in
+ * Studio Two (S-7): scenes cut the picture, and the song runs underneath them
+ * unbroken. So these shots are rendered as picture only and the master is laid
+ * over the finished concatenation in one pass — which is also the only way to
+ * keep the music sample-continuous, since slicing audio at video-frame
+ * boundaries is how you get a click at every cut.
+ */
+export interface PerformanceShot extends ShotBase {
+  kind: 'performance';
+  /** Where this stretch begins on the music clock. [S-2] */
+  fromSample: number;
+  /** The takes, in the order the layout's slots expect them. */
+  takes: {
+    takeId: TakeId;
+    assetId: AssetId;
+    /** Where in this take's own media the stretch begins, in FRAMES. */
+    mediaInFrame: Frames;
+    label: string;
+  }[];
+  /** The author's name for this stretch — "Chorus". [§15] */
+  label?: string;
+}
+
+export type Shot = SourceShot | ResponseShot | PerformanceShot;
 
 /** Generated from the source record, never typed by the user. [U-21, INV-07] */
 export interface AttributionBlock {

@@ -20,7 +20,7 @@ import { buildReelPlan, buildReelTimeline } from '../domain/reel.js';
 import { compose } from '../render/compose.js';
 import { ingest, makeProxy } from '../render/ingest.js';
 import { renderShareCard, renderThumbnail, renderTakePoster } from '../render/thumbnails.js';
-import { ensureDirs, paths } from '../store/paths.js';
+import { ensureDirs, paths, safe } from '../store/paths.js';
 import { claim, finish, update, type Job } from '../store/queue.js';
 import { audit, loadConversation, mutateConversation } from '../store/repository.js';
 import {
@@ -42,6 +42,7 @@ import { decodeToAnalysis, normaliseMaster, readAnalysis } from '../render/audio
 import {
   auditPerformance, loadPerformance, mutatePerformance,
 } from '../store/performances.js';
+import { buildPerformancePlan } from '../domain/performancePlan.js';
 import { EXPORT_PROFILES } from '../domain/presentation.js';
 
 const POLL_MS = 400;
@@ -60,6 +61,7 @@ export async function runJob(job: Job): Promise<Job> {
     case 'render_card': return renderCard(job);
     case 'ingest_master': return ingestMaster(job);
     case 'assemble_performance_take': return assemblePerformanceTake(job);
+    case 'render_performance': return renderPerformance(job);
   }
 }
 
@@ -186,6 +188,74 @@ async function assemblePerformanceTake(job: Job): Promise<Job> {
 
 /** Enough of each to settle an offset: thirty seconds. */
 const ALIGN_WINDOW = 30 * HOUSE_SAMPLE_RATE;
+
+/**
+ * Create Master Video.  [Doctrine STUDIO-TWO §7, §14, S-7, INV-00]
+ *
+ * "And Prof Class renders the result." The moment the takes finally become one
+ * video — and the first moment in the whole studio that anything is merged,
+ * which is the brief's own architectural instruction observed to the letter.
+ *
+ * The same compositor the Conversation uses: the same shot cache (U-16), so
+ * moving one boundary re-renders one shot; the same export profiles, so §14's
+ * four shapes cost nothing; the same loudness discipline (INV-11).
+ */
+async function renderPerformance(job: Job): Promise<Job> {
+  const id = job.conversationId;
+  const performance = await loadPerformance(id);
+  const exportProfileId = String(job.payload['exportProfileId'] ?? 'youtube_16x9');
+  const allowUnpublishable = Boolean(job.payload['allowUnpublishable']);
+
+  const plan = buildPerformancePlan(performance, {
+    exportProfileId,
+    ...(allowUnpublishable ? { allowUnpublishable } : {}),
+  });
+
+  const workDir = join(paths.performanceRenders(id), safe(plan.planHash));
+  await mkdir(workDir, { recursive: true });
+  const outputPath = join(workDir, 'master.mp4');
+
+  const result = await compose(plan, {
+    workDir,
+    outputPath,
+    resolveAsset: (assetId) => paths.performanceAsset(id, `${assetId}mezz`, 'mp4'),
+    /*
+     * The normalised master, not the author's upload: what alignment measured
+     * and what the finished video plays have to be the same audio, or every
+     * take is out by whatever the two decoders disagree about. [S-3]
+     */
+    masterAudioPath: paths.performanceAsset(
+      id, `${performance.master.assetId}mezz`, 'webm'),
+    onProgress: (info) => {
+      const frames = Number(info['frame'] ?? 0);
+      if (frames > 0 && plan.totalOutputFrames > 0) {
+        job.progress = Math.min(99, Math.round((frames / plan.totalOutputFrames) * 100));
+        void update(job);
+      }
+    },
+  });
+
+  await auditPerformance(id, {
+    action: 'performance.rendered',
+    detail: {
+      planHash: plan.planHash, exportProfileId,
+      totalOutputFrames: plan.totalOutputFrames,
+      shotsRendered: result.shotsRendered, shotsCached: result.shotsCached,
+      scenes: plan.shots.length,
+    },
+  });
+
+  return finish(job, 'done', {
+    progress: 100,
+    result: {
+      planHash: plan.planHash,
+      exportProfileId,
+      totalOutputFrames: plan.totalOutputFrames,
+      shotsRendered: result.shotsRendered,
+      shotsCached: result.shotsCached,
+    },
+  });
+}
 
 /** Normalise an uploaded source and record its measured duration. [U-02] */
 async function ingestSource(job: Job): Promise<Job> {

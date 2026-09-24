@@ -544,7 +544,20 @@ export function layoutForType(type: InterventionType, override?: string): Layout
 export function layoutForProfile(
   type: InterventionType, override: string | undefined, profile: ExportProfile,
 ): Layout {
-  const base = layoutForType(type, override);
+  return reframeFor(layoutForType(type, override), profile);
+}
+
+/**
+ * This arrangement, on a canvas of that shape.  [U-18, U-22]
+ *
+ * Extracted from `layoutForProfile` so Studio Two can reach it: a Performance
+ * has no intervention type to look a layout up by — its scenes name the
+ * arrangement directly — but the reframing is the same question and must have
+ * the same answer. Two implementations of "what does side-by-side become when
+ * it is tall" would eventually disagree, and the disagreement would be a
+ * vertical export that looks different from the one the author previewed.
+ */
+export function reframeFor(base: Layout, profile: ExportProfile): Layout {
   const family = aspectFamily(profile);
   if (family === 'landscape') return base;
   const reframedId = base.reframe?.[family];
