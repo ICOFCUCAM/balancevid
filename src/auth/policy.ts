@@ -37,6 +37,21 @@ const PUBLIC_EXACT = new Set([
 ]);
 
 const PUBLIC_PATTERNS: RegExp[] = [
+  /*
+   * The room.  [Doctrine ROOM §6, §12]
+   *
+   * These are not "public" in the sense the rest of this list means — they
+   * are reachable WITHOUT THE OWNER'S SESSION, which is a different claim.
+   * Each one then does its own check: the join page renders nothing until a
+   * token is presented, and every room API verifies a guest session against
+   * that room's own invite token before it answers.
+   *
+   * Two checks in different layers, as everywhere else here. Middleware
+   * decides which routes are allowed to decide; the route decides.
+   */
+  /^\/r\/[A-Za-z0-9_-]+\/?$/,
+  /^\/api\/conversations\/[A-Za-z0-9_-]+\/room$/,
+  /^\/api\/conversations\/[A-Za-z0-9_-]+\/room\/presence$/,
   // A published conversation's own pages. The route still checks that it IS
   // published — this only decides which routes are allowed to make that call.
   /^\/c\/[A-Za-z0-9_-]+\/watch\/?$/,
@@ -66,9 +81,24 @@ export function isAssetPath(pathname: string): boolean {
  * is permitted to decide", and the route then requires the conversation to be
  * published. Two checks, in different places, both of which must say yes.
  */
+/**
+ * Routes a caller without the owner's session may POST to.
+ *
+ * Deliberately tiny, and deliberately separate from the readable list: every
+ * other write on this instance is the owner's. Joining is the exception the
+ * brief requires — an invitation is a link a stranger follows — and once
+ * inside, a guest may change their own presence and nothing else.
+ */
+const GUEST_WRITABLE: RegExp[] = [
+  /^\/api\/conversations\/[A-Za-z0-9_-]+\/room\/join$/,
+  /^\/api\/conversations\/[A-Za-z0-9_-]+\/room\/presence$/,
+];
+
 export function mayBePublic(pathname: string, method: string): boolean {
+  const write = pathname.replace(/\/+$/, '') || '/';
   // A published artefact is readable. It is never writable by a stranger.
   if (method !== 'GET' && method !== 'HEAD') {
+    if (GUEST_WRITABLE.some((pattern) => pattern.test(write))) return true;
     return pathname === '/api/auth/signin' || pathname === '/api/auth/signout';
   }
   const path = pathname.replace(/\/+$/, '') || '/';

@@ -417,21 +417,14 @@ single packet moves.
   `participants` and `room` optional so a solo conversation is unchanged and
   there is no second kind of conversation.
 
-**Deferred, with the stage that takes it.**
+**Deferred at the end of Stage 1, and delivered in Stage 2 below.**
 
-- **§1, §5 the room and studio surfaces** — Stage 2. The model is in place;
-  the windows are not.
-- **§6, §7 invitation links and QR** — Stage 2. `Room.inviteToken` exists and
-  is the credential; nothing issues or redeems it yet.
-- **§8 audience → speaker** — Stage 2 for the interface. The mechanism is
-  done: `raisedHands()` orders the queue and "bring Sarah in" is
-  `selectSpeaker`, which the tests assert is the same act as any other
-  selection rather than a second path.
-- **WebRTC and the SFU** — Stage 3, as the brief says. Nothing here assumes
+- §1 and §5 the surfaces, §6 and §7 invitation and QR, §8 audience → speaker.
+- **WebRTC and the SFU** remain Stage 3, as the brief says. Nothing assumes
   peer-to-peer or an SFU, which is what keeps that decision open.
 - **§11 the content package** — largely already built: four publication
   formats, per-exchange clips, the article and the manifest all exist. What
-  multi-person adds is per-participant highlights, which need Stage 2's data
+  multi-person adds is per-participant highlights, which need live capture
   before they can be cut.
 
 **R-C — the three open questions, resolved.**
@@ -516,3 +509,59 @@ adding to it, and each resolution removed something.
    the shot cache cannot serve the old cut (U-16), and every take id, asset
    and duration is byte-identical.
 
+## Stage 2 — the room, and the way in
+
+**Done.**
+
+- **§1 the room window** — `/c/[id]/room`, a different window from the
+  Studio, reached from a `+ Invite` button in it. Three areas, and the
+  middle one exists to make the brief's central distinction visible: the
+  people rail says who is here and what their presence is; the stage shows
+  only who a viewer would see. Somebody waiting is a named state, not a
+  person who has failed to appear.
+- **§3 the modes** — all four offered as cards with what each one does, plus
+  pin and Resume automatic, which appears only while a pin is holding.
+- **§4 presence on screen** — waiting, on stage, invited, each with a word
+  beside its colour rather than colour alone (D-04).
+- **§6 invitation** — a link, Copy, the native share sheet where the browser
+  has one, and WhatsApp, Messenger, SMS and Email as ordinary links to apps
+  the person already has. No platform integration, no API key, exactly as the
+  brief specifies. Withdrawal is a new token, which ends the session of
+  everyone who used the old one.
+- **§7 QR** — served from the host's own endpoint as SVG at error-correction
+  level Q, never cached. Owner-only and server-rendered because the code
+  encodes the credential.
+- **§8 audience → speaker** — a guest asks for the floor; the host sees the
+  hand and brings them in; being brought in promotes an audience member to
+  speaker, because the host deciding they may speak IS the promotion, and
+  their hand comes down because it has been answered.
+- **The guest tier, now wired.** Stage 1 built the credential and left it
+  reachable by nothing. It is now the `/r/[id]` join page, the join endpoint
+  that exchanges a link for a scoped session, a presence endpoint a guest may
+  use only on themselves, and a middleware allowance for exactly those paths.
+
+**What the end-to-end run proves a guest CANNOT do**, holding a valid
+invitation: list the conversations on the instance, read the bundle or the
+render plan, delete the conversation, add a response, start an export, close
+the room, or decide who is on stage. A guessed invitation cannot even confirm
+the room exists — a wrong token answers 404, not 403, because 403 would
+confirm it (D-03). Rotating the invitation ends the session of somebody
+already inside.
+
+**R-D — Stage 2 notes.**
+
+1. **Presence is polled, not pushed.** Two seconds. Sockets belong with the
+   media path in Stage 3, and a socket added now would be a second transport
+   to keep in step with the one that replaces it.
+
+2. **Camera and microphone are not requested at the door.** The brief
+   mentions granting them on the way in; a guest hears the conversation from
+   the moment they arrive and is only recorded once the host brings them in,
+   so asking at the door would take a permission most of a lecture audience
+   never needs. The prompt belongs at the moment of being staged, which is
+   Stage 3's business.
+
+3. **The join page shows nothing before the token is accepted** — not the
+   title, not the source, not whether the conversation exists. A page that
+   showed a title for a good id and an error for a bad one would be a way to
+   test ids.

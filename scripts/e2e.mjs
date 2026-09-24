@@ -950,6 +950,192 @@ log('checking the publication formats…');
   }
 }
 
+// --- the Conversation Room (ROOM §1, §3, §4, §6, §7, §8) --------------------
+/*
+ * The whole journey, as a second browser: invite → join → wait → be brought
+ * in → hand up. And, more important than any of it, what a guest holding a
+ * valid invitation still cannot reach. The invite link is a credential a
+ * stranger can be handed over WhatsApp, so every boundary it does not cross
+ * has to be proved rather than intended.
+ */
+log('checking the conversation room…');
+{
+  // ---- the host opens it ----------------------------------------------
+  const opened = await (await sfetch(`${BASE}/api/conversations/${conversationId}/room`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ action: 'open', hostName: 'James' }),
+  })).json();
+  check(opened.open === true, 'the host can open a room on a conversation');
+  check(typeof opened.inviteToken === 'string' && opened.inviteToken.length >= 40,
+    'which comes with an invitation long enough to be a secret');
+  check(opened.participants.length === 1 && opened.participants[0].role === 'host',
+    'and the host is its first participant, not a special case beside the list');
+  check(opened.participants[0].presence === 'staged',
+    'on stage to begin with, because a room of one has nobody else to show');
+  const inviteToken = opened.inviteToken;
+
+  // The QR is the same invitation, drawn. [ROOM §7]
+  const qr = await sfetch(`${BASE}/api/conversations/${conversationId}/room/qr`);
+  check(qr.ok && (qr.headers.get('content-type') ?? '').includes('svg'),
+    'the invitation can go on a wall as a QR code', `status ${qr.status}`);
+  const qrBody = await qr.text();
+  check(qrBody.includes('<svg'), 'as vector, so it still scans when projected large');
+  check((qr.headers.get('cache-control') ?? '').includes('no-store'),
+    'and is never cached, because the invitation can be withdrawn');
+
+  // ---- a stranger arrives with the link -------------------------------
+  const guest = await page.context().browser().newContext();
+  const sarah = await guest.newPage();
+  await sarah.goto(`${BASE}/r/${conversationId}?t=${encodeURIComponent(inviteToken)}`,
+    { waitUntil: 'networkidle' });
+  await sarah.waitForSelector('[data-testid="join-card"]', { timeout: 15_000 });
+  check(true, 'the link opens a join page for somebody with no account');
+
+  const joinText = await sarah.evaluate(() => document.body.innerText);
+  check(!/U-\d|INV-\d|§|participantId|inviteToken/.test(joinText),
+    'which speaks plainly and shows no machinery');
+
+  await sarah.fill('[data-testid="join-name"]', 'Sarah');
+  await sarah.click('[data-testid="join-go"]');
+  await sarah.waitForSelector('[data-testid="people-rail"]', { timeout: 20_000 });
+  check(true, 'and a name is the whole membrane — no account, no password');
+
+  // ---- being in the room is not being on the stage --------------------
+  let room = await api(`/api/conversations/${conversationId}/room`);
+  const sarahRecord = room.participants.find((p) => p.displayName === 'Sarah');
+  check(Boolean(sarahRecord), 'she is in the room');
+  check(sarahRecord.presence === 'waiting',
+    'and WAITING, not staged — she hears everything without appearing',
+    `${sarahRecord.presence}`);
+  check(!room.stagedParticipantIds.includes(sarahRecord.id),
+    'so the composition does not include her');
+
+  const sarahSees = await sarah.evaluate(() => document.body.innerText);
+  check(/Waiting/i.test(sarahSees), 'her own screen says so, in a word');
+  check(!sarahSees.includes(inviteToken),
+    'and a guest is never handed the credential that let them in');
+
+  // ---- she asks to speak, and is brought in [ROOM §8] -----------------
+  await sarah.click('[data-testid="raise-hand"]');
+  await sarah.waitForTimeout(600);
+  room = await api(`/api/conversations/${conversationId}/room`);
+  check(room.hands.includes(sarahRecord.id), 'she can ask for the floor');
+
+  const brought = await (await sfetch(`${BASE}/api/conversations/${conversationId}/room`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      action: 'stage', staged: [...room.stagedParticipantIds, sarahRecord.id] }),
+  })).json();
+  const staged = brought.participants.find((p) => p.id === sarahRecord.id);
+  check(staged.presence === 'staged', '"Sarah, what do you think?" puts her on stage');
+  check(staged.role === 'speaker',
+    'bringing an audience member in promotes them, rather than refusing');
+  check(!brought.hands.includes(sarahRecord.id),
+    'and her hand comes down, because it has been answered');
+
+  // ---- the modes, and the pin [ROOM §3] --------------------------------
+  for (const mode of ['manual', 'host', 'conversation', 'automatic']) {
+    const set = await (await sfetch(`${BASE}/api/conversations/${conversationId}/room`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'speaker-mode', speakerMode: mode }),
+    })).json();
+    check(set.speakerMode === mode, `the host can choose ${mode} switching`);
+  }
+  const pinned = await (await sfetch(`${BASE}/api/conversations/${conversationId}/room`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ action: 'pin', pinned: sarahRecord.id }),
+  })).json();
+  check(pinned.pinnedParticipantId === sarahRecord.id, 'and pin somebody on screen');
+  const resumed = await (await sfetch(`${BASE}/api/conversations/${conversationId}/room`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ action: 'pin', pinned: null }),
+  })).json();
+  check(resumed.pinnedParticipantId === null, 'and resume automatic switching');
+
+  /*
+   * ---- what the invitation does NOT buy (D-03) -------------------------
+   *
+   * The most important block here. Sarah holds a valid guest session. Every
+   * one of these must refuse her, and refuse her the way a stranger is
+   * refused — a 403 on a draft would confirm the draft exists.
+   */
+  const asSarah = async (path, init = {}) => sarah.evaluate(
+    async ([p, i]) => {
+      const r = await fetch(p, i);
+      return r.status;
+    }, [path, init]);
+
+  check(await asSarah('/api/conversations') >= 400,
+    'a guest cannot list the conversations on this instance');
+  check(await asSarah(`/api/conversations/${conversationId}/bundle`) >= 400,
+    'nor read the author\'s publication bundle');
+  check(await asSarah(
+    `/api/conversations/${conversationId}/representations?id=render-plan.json`) >= 400,
+    'nor the render plan');
+  check(await asSarah(`/api/conversations/${conversationId}`, { method: 'DELETE' }) >= 400,
+    'nor delete the conversation');
+  check(await asSarah(`/api/conversations/${conversationId}/interventions`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ tSourceFrame: 10, type: 'critique' }),
+  }) >= 400, 'nor add a response to it');
+  check(await asSarah(`/api/conversations/${conversationId}/renders`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ kind: 'full' }),
+  }) >= 400, 'nor start an export');
+  check(await asSarah(`/api/conversations/${conversationId}/room`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ action: 'close' }),
+  }) >= 400, 'nor close the room she is a guest in');
+  check(await asSarah(`/api/conversations/${conversationId}/room`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ action: 'stage', staged: [] }),
+  }) >= 400, 'nor decide who is on stage');
+
+  // She may see the room and act on herself, and that is the whole list.
+  check(await asSarah(`/api/conversations/${conversationId}/room`) === 200,
+    'she may see the room she is in');
+  check(await asSarah(`/api/conversations/${conversationId}/room/presence`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ action: 'lower-hand' }),
+  }) === 200, 'and put her own hand down');
+
+  // ---- withdrawing the invitation withdraws it [ROOM §6] ---------------
+  const rotated = await (await sfetch(`${BASE}/api/conversations/${conversationId}/room`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ action: 'rotate-invite' }),
+  })).json();
+  check(rotated.inviteToken !== inviteToken, 'a new link can be made');
+  check(await asSarah(`/api/conversations/${conversationId}/room`) >= 400,
+    'and it ends the session of somebody already inside — which is what '
+    + 'withdrawing an invitation has to mean');
+
+  const stale = await sfetch(`${BASE}/api/conversations/${conversationId}/room/join`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ token: inviteToken, displayName: 'Intruder' }),
+  });
+  check(stale.status === 404, 'the old link no longer opens the room',
+    `status ${stale.status}`);
+
+  // A wrong token is refused the way a wrong id is: not found, never 403.
+  const wrong = await sfetch(`${BASE}/api/conversations/${conversationId}/room/join`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ token: 'not-the-token', displayName: 'Intruder' }),
+  });
+  check(wrong.status === 404,
+    'and a guessed invitation cannot even confirm the room exists (D-03)',
+    `status ${wrong.status}`);
+
+  await guest.close();
+
+  // ---- leave it as it was found ---------------------------------------
+  await sfetch(`${BASE}/api/conversations/${conversationId}/room`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ action: 'close' }),
+  });
+  const closed = await api(`/api/conversations/${conversationId}/room`);
+  check(closed.open === false, 'and the room closes again');
+}
+
 // --- the creator's language, not the engineer's -----------------------------
 /*
  * The doctrine's identifiers are precise and they belong in the code, the

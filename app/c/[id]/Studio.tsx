@@ -868,6 +868,14 @@ export default function Studio({ conversationId }: { conversationId: string }) {
             Publish
           </button>
         </div>
+        {/*
+          The way into the room. The brief opens on this button: you are
+          watching a source video, and you click + Invite. [ROOM §6]
+        */}
+        <a className="btn" data-testid="open-room-link"
+           href={`/c/${conversationId}/room`} style={{ padding: '7px 14px' }}>
+          + Invite
+        </a>
         <a className="btn" href="/" style={{ padding: '7px 14px' }}>All conversations</a>
         <SignOut />
       </header>
