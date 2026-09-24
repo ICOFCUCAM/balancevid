@@ -4030,8 +4030,9 @@ writes back.
 - **[`ROOM.md`](ROOM.md)** — the Conversation Room. §1–§12, built, with
   Appendix R recording what each of the four stages cost.
 - **[`STUDIO-TWO.md`](STUDIO-TWO.md)** — the Performance Studio. §1–§15, with
-  **stages one to five built**: the document and the music clock, alignment,
-  scenes and live switching, the master render, and §4's environments.
+  **stages one to seven built**: the document and the music clock, alignment,
+  scenes and live switching, the master render, §4's environments, §9's audio
+  modes, and §11's transitions and beat detection.
   Appendix S maps the brief onto this codebase and records the invariants it
   needed, which are now asserted in code:
 

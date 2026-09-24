@@ -17,10 +17,12 @@ import { mkdir, writeFile, access } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { AssetId } from '../domain/document.js';
 import type {
-  PerformanceShot, RenderPlan, ResponseShot, Shot, SourceShot,
+  PerformanceFrame, PerformanceShot, RenderPlan, ResponseShot, Shot, SourceShot,
+  TransitionShot,
 } from '../domain/plan.js';
 import { LAYOUTS, type Rect } from '../domain/presentation.js';
 import { lookFor } from '../domain/environment.js';
+import { mixExpression, transitionFor } from '../domain/transitions.js';
 import { backdropChain, blurBackdropChain, matteChain } from './matte.js';
 import { mixPerformanceAudio } from './mix.js';
 import { type Frames, framesToSamples } from '../domain/time.js';
@@ -100,6 +102,8 @@ export async function compose(plan: RenderPlan, options: ComposeOptions): Promis
       await renderSourceShot(shot, plan, path, resolveAsset, gains, options);
     } else if (shot.kind === 'performance') {
       await renderPerformanceShot(shot, plan, path, resolveAsset, options);
+    } else if (shot.kind === 'transition') {
+      await renderTransitionShot(shot, plan, path, shotsDir, resolveAsset, options);
     } else {
       await renderResponseShot(shot, plan, path, stillsDir, resolveAsset, gains, options);
     }
@@ -123,7 +127,8 @@ export async function compose(plan: RenderPlan, options: ComposeOptions): Promis
    * microphones the author's mode says are audible where — and written out so
    * the mastering below measures the MIX rather than the song on its own.
    */
-  const performance = plan.shots.some((shot) => shot.kind === 'performance');
+  const performance = plan.shots.some(
+    (shot) => shot.kind === 'performance' || shot.kind === 'transition');
   let performanceAudioPath: string | undefined;
   if (performance) {
     if (!options.masterAudioPath) {
@@ -345,6 +350,69 @@ async function renderPerformanceShot(
     // No audio at all, deliberately: the song arrives at the master pass.
     '-an',
     '-frames:v', String(total),
+    ...encodeArgs(),
+    outPath,
+  ], opts);
+}
+
+/**
+ * One arrangement becoming another.  [Doctrine STUDIO-TWO §11, S-8, U-16]
+ *
+ * Rendered as two ordinary performance shots and one `xfade` between them,
+ * rather than as a third compositing path. The two halves are the SAME
+ * function that renders every other performance shot, so a dissolve between
+ * two Half Mode scenes with different environments works because nothing here
+ * knows what a Half Mode scene or an environment is.
+ *
+ * The overlap is paid for out of the shots either side, so the finished video
+ * is exactly as long as the song (INV-03): `xfade` outputs A + B - duration,
+ * and both sides are exactly the overlap long, so the output is the overlap.
+ */
+async function renderTransitionShot(
+  shot: TransitionShot, plan: RenderPlan, outPath: string, shotsDir: string,
+  resolveAsset: (id: AssetId) => string, opts: ComposeOptions,
+): Promise<void> {
+  const { fps } = plan.exportProfile;
+  const frames = shot.durationFrames;
+  const style = transitionFor(shot.style);
+
+  const half = async (side: 'a' | 'b', frame: PerformanceFrame): Promise<string> => {
+    const path = join(shotsDir, `${shot.hash}.${side}.mp4`);
+    if (await exists(path)) return path;
+    await renderPerformanceShot({
+      id: `${shot.id}_${side}`,
+      kind: 'performance',
+      hash: `${shot.hash}_${side}`,
+      outputStartFrame: shot.outputStartFrame,
+      durationFrames: frames,
+      layoutId: frame.layoutId,
+      fromSample: shot.fromSample,
+      takes: frame.takes,
+    }, plan, path, resolveAsset, opts);
+    return path;
+  };
+
+  const from = await half('a', shot.from);
+  const to = await half('b', shot.to);
+
+  await ffmpeg([
+    '-y', '-i', from, '-i', to,
+    '-filter_complex',
+    `[0:v]format=gbrp[xa];[1:v]format=gbrp[xb];`
+    + `[xa][xb]blend=all_expr=${escapeFilterArgument(mixExpression(style, frames))},`
+    /*
+     * The timestamps are regenerated from the frame index, which is the same
+     * trick the master pass uses and for the same reason. `blend` hands its
+     * output on without a frame rate, so anything downstream that tries to
+     * work one out guesses 25 — and the first version put an `fps` filter here
+     * and silently dropped three frames of a ten-frame dissolve, which INV-03
+     * caught at the end of the render rather than here.
+     */
+    + `format=yuv420p,setpts=N/${fps}/TB[vout]`,
+    '-map', '[vout]',
+    '-fps_mode', 'passthrough',
+    '-an',
+    '-frames:v', String(frames),
     ...encodeArgs(),
     outPath,
   ], opts);
@@ -693,11 +761,23 @@ function escapeFilterPath(path: string): string {
   return path.replace(/\\/g, '\\\\').replace(/:/g, '\\:').replace(/'/g, "\\'");
 }
 
+/**
+ * A filter argument that contains commas.
+ *
+ * A comma separates filters in a graph, so an expression with one in it is
+ * read as two filters and ffmpeg reports a missing filter named after half of
+ * somebody's arithmetic. Escaped here rather than in the domain, because this
+ * is a fact about a command line.
+ */
+function escapeFilterArgument(value: string): string {
+  return value.replace(/[\\,;:'\[\]]/g, (character) => `\\${character}`);
+}
+
 function distinctAssets(shots: Shot[]): AssetId[] {
   // A performance shot carries several assets and contributes no audio, so it
   // has nothing to measure. Speakers are matched; a mastered song is not.
   return [...new Set(shots.flatMap(
-    (s) => (s.kind === 'performance' ? [] : [s.assetId])))];
+    (s) => (s.kind === 'performance' || s.kind === 'transition' ? [] : [s.assetId])))];
 }
 
 async function exists(path: string): Promise<boolean> {

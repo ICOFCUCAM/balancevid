@@ -620,6 +620,9 @@ costume of a transition, and should be named as ambitious rather than shipped
 half-working. That is the same judgement the Studio's Explain toolkit already
 made when it shipped six tools instead of sixteen.
 
+*Built in stage seven, all four. S-20 records what it taught — including that
+Beat cut turned out not to be a transition at all.*
+
 ---
 
 ## S-9 — The rights question this brief does not ask, and must
@@ -1269,6 +1272,100 @@ modelled and rendered but have no door in the studio. §12's interface remains
 an open item. Nothing here ducks the music under a vocal: the mix is honest
 about levels and the master is one pass over the result, and a per-source gain
 is the obvious next thing if anybody needs it.
+
+---
+
+## S-20 — Stage 7: transitions, and the beat
+
+**§11, both halves.** Cut, Dissolve and Fade through black; the pulse of the
+song found by the product and accepted by the author; and cutting on the beat,
+which turned out not to be a transition at all.
+
+| Built | Where |
+|---|---|
+| The four that earn their place | `src/domain/transitions.ts` |
+| The overlap, paid for | `src/domain/performancePlan.ts` |
+| The mix, frame by frame | `src/render/compose.ts` |
+| The pulse | `src/domain/beats.ts` |
+| Snapping, visibly | `app/p/[id]/SwitchingStage.tsx` |
+
+**Beat cut is a cut.** §11 lists it beside Dissolve and Fade as though it were
+a fifth way for one shot to become another, and it is not: what makes a beat
+cut is WHERE it is, not how it looks. Modelling it as a transition style would
+have made a cut on a beat a different object from a cut, with its own row in
+a table and its own branch in the renderer, for no difference in the output. It
+lives in the beat grid and in snapping instead.
+
+**What this stage taught.**
+
+1. **A transition is a length of time, and the song does not get longer.** A
+   dissolve is paid for out of the two sections it joins — half from the end of
+   one, half from the start of the next — so the finished video is exactly as
+   long as the music whether the author dresses their cuts or not (INV-03). The
+   plan checks its own tiling before anybody renders it, because a transition
+   moves two shots' boundaries for every one it adds and being one frame out is
+   a thing you otherwise discover forty minutes later.
+
+2. **Shortening a shot changes its hash, and the first version forgot.** A
+   shot's hash is the address of its bytes on disk (U-16). Paying for an
+   overlap makes a shot twelve frames shorter, which is not the same bytes —
+   and hashing before the adjustment would have served the cached file of the
+   old length, producing a video longer than its own song **on the second
+   render only**. There is now a test whose entire job is that sentence.
+
+3. **`xfade` decides for itself how many frames a crossfade is.** Asked for
+   exactly ten frames at thirty a second it produced seven, and the render came
+   out three frames short of the song it is supposed to be exactly as long as.
+   The mix is a per-pixel expression over the frame INDEX instead: frame zero is
+   entirely the outgoing picture, the last frame is entirely the incoming one,
+   and there are exactly as many in between as were paid for. **A filter
+   specified in seconds cannot make a promise counted in frames.**
+
+4. **And it must be mixed in RGB.** In YUV "nothing" is not zero — black is
+   Y=16 with the colour planes at their midpoint — so fading to black by
+   multiplying towards zero produces a green flash. The same lesson §4's matte
+   learned about `maskedmerge`, arriving from the other direction.
+
+5. **The transition renders as two ordinary shots and one blend.** No third
+   compositing path: a dissolve between two Half Mode scenes with different
+   environments works because nothing in the transition code knows what a Half
+   Mode scene or an environment is.
+
+6. **A tempo detector is wrong in one specific way, and the interface has to
+   allow for it.** Autocorrelation is exactly as happy with half a tempo as with
+   the tempo, because every other beat lines up just as well. A prior centred
+   where people tap — two beats a second — settles most of it, and the rest is
+   two buttons: halve and double, one press each rather than a re-detect. That
+   is not a workaround; asked to tap along to something at 176, most people tap
+   88, and the honest answer is the one they would tap.
+
+7. **The one-millisecond envelope bin was reporting half the tempo.** At 140
+   BPM the beats fall at 428.6ms, so successive onsets land on alternating
+   sides of a bin boundary and a correlation compares a spike against its
+   neighbour. Smoothing the envelope by a couple of milliseconds first fixed
+   it — and a real onset is ten to thirty milliseconds wide anyway, so the
+   sharp single-bin edge was an artefact of the measurement rather than a
+   property of music. **Found by testing three tempos instead of one.**
+
+8. **The confidence threshold was measured, not chosen.** A click track scores
+   0.89 to 0.97 and white noise — onsets everywhere, a period nowhere — tops
+   out at 0.56, so the line sits at 0.65. It changes what the studio SAYS and
+   never what it does: the tempo is shown either way and the author is the one
+   who accepts it.
+
+9. **INV-06, at the one place a detected beat can change the document.**
+   Turning snapping on IS the acceptance, and it is recorded with who made it;
+   until then the grid is drawn faintly on the timeline and moves nothing.
+   Every snap says so while it happens and leaves a boundary that can be
+   dragged like any other. S-8 asked for exactly this, and building it cost
+   nothing over building the version that just snaps.
+
+**Still not built:** publication of a performance as clips or a share card
+(§14's second half); the device calibration from S-3; an upload for `custom`
+backgrounds, which are modelled and rendered but have no door in the studio;
+and §12's interface, still an open item. Of §11's list, Zoom, Swipe, Match
+movement and Chorus transition remain unbuilt on purpose — S-8's judgement,
+unchanged by having built the other four.
 
 ---
 

@@ -191,7 +191,30 @@ export interface PerformanceBackdrop {
   feather: number;
 }
 
-export type Shot = SourceShot | ResponseShot | PerformanceShot;
+/**
+ * One arrangement of performances, for one moment.  [STUDIO-TWO §5, §11]
+ *
+ * The part of a performance shot that says what is on screen, without saying
+ * for how long — so a transition can hold two of them at once.
+ */
+export interface PerformanceFrame {
+  layoutId: string;
+  takes: PerformanceShot['takes'];
+}
+
+/** One arrangement becoming another, over a length of time. [§11, S-8] */
+export interface TransitionShot extends ShotBase {
+  kind: 'transition';
+  /** `dissolve`, `fade` — from the transitions table, never free text. */
+  style: string;
+  /** Where the overlap begins on the music clock. */
+  fromSample: number;
+  /** What is being left, and what is being arrived at. */
+  from: PerformanceFrame;
+  to: PerformanceFrame;
+}
+
+export type Shot = SourceShot | ResponseShot | PerformanceShot | TransitionShot;
 
 /** Generated from the source record, never typed by the user. [U-21, INV-07] */
 export interface AttributionBlock {

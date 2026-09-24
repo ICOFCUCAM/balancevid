@@ -43,7 +43,8 @@ import {
   auditPerformance, loadPerformance, mutatePerformance,
 } from '../store/performances.js';
 import { buildPerformancePlan } from '../domain/performancePlan.js';
-import { addPlate } from '../domain/performanceEdit.js';
+import { addPlate, recordBeats } from '../domain/performanceEdit.js';
+import { BEAT_DETECTOR, detectBeats } from '../domain/beats.js';
 import { matteThreshold, plateVerdict } from '../domain/environment.js';
 import { buildPlateStill, measurePlate } from '../render/plate.js';
 import { EXPORT_PROFILES } from '../domain/presentation.js';
@@ -57,6 +58,9 @@ const POLL_MS = 400;
  * under anything a microphone that is actually working produces.
  */
 const SILENT_PEAK = 0.002;
+
+/** How much of the song the tempo is read from: ninety seconds. [§11] */
+const TEMPO_WINDOW = HOUSE_SAMPLE_RATE * 90;
 
 export async function runJob(job: Job): Promise<Job> {
   switch (job.kind) {
@@ -105,13 +109,35 @@ async function ingestMaster(job: Job): Promise<Job> {
    */
   const durationSamples = await decodeToAnalysis(normalised, paths.masterAnalysis(id));
 
-  await mutatePerformance(id, (draft) => { draft.master.durationSamples = durationSamples; });
+  /*
+   * The pulse, while the analysis copy is already on disk. [§11, S-8]
+   *
+   * Read from the opening rather than the whole song: tempo is a property of
+   * the piece and a minute and a half of it settles the question, where four
+   * minutes of floats is forty megabytes to answer the same one. Written as a
+   * SUGGESTION — nothing may move one of the author's cuts until they accept
+   * it (INV-06).
+   */
+  const opening = await readAnalysis(
+    paths.masterAnalysis(id), 0, Math.min(durationSamples, TEMPO_WINDOW));
+  const beats = detectBeats(opening);
+
+  await mutatePerformance(id, (draft) => {
+    draft.master.durationSamples = durationSamples;
+    if (beats) recordBeats(draft, beats, BEAT_DETECTOR, new Date().toISOString());
+  });
   await auditPerformance(id, {
     action: 'master.ingested',
-    detail: { durationSamples, seconds: Number(samplesToSeconds(durationSamples).toFixed(3)) },
+    detail: {
+      durationSamples, seconds: Number(samplesToSeconds(durationSamples).toFixed(3)),
+      ...(beats ? { bpm: beats.bpm, beatConfidence: beats.confidence } : {}),
+    },
   });
 
-  return finish(job, 'done', { progress: 100, result: { durationSamples } });
+  return finish(job, 'done', {
+    progress: 100,
+    result: { durationSamples, ...(beats ? { bpm: beats.bpm } : {}) },
+  });
 }
 
 /**

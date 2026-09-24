@@ -27,8 +27,9 @@ import { assertPerformanceRenderable } from './invariants.js';
 import { sha256 } from './ids.js';
 import {
   type Performance, type PerformanceSpan, type PerformanceTake,
-  mayPublish, plateFor, projectPerformance,
+  coversSpan, mayPublish, plateFor, projectPerformance,
 } from './performance.js';
+import { overlapSplit, transitionFor } from './transitions.js';
 import { matteFeather, matteThreshold, needsMatte } from './environment.js';
 import { planPerformanceAudio } from './performanceAudio.js';
 import {
@@ -36,10 +37,12 @@ import {
   reframeFor, takeSlots,
 } from './presentation.js';
 import type {
-  AttributionBlock, PerformanceBackdrop, PerformanceShot, RenderPlan,
+  AttributionBlock, PerformanceBackdrop, PerformanceShot, RenderPlan, TransitionShot,
 } from './plan.js';
 import { PLAN_VERSION, canonicalJson } from './plan.js';
-import { HOUSE_FPS, type Frames, samplesToFrames } from './time.js';
+import {
+  HOUSE_FPS, type Frames, formatMasterPosition, framesToSamples, samplesToFrames,
+} from './time.js';
 
 export interface PerformancePlanOptions {
   exportProfileId?: string;
@@ -126,11 +129,12 @@ export function buildPerformancePlan(
       error instanceof Error ? error.message : 'the sound could not be planned');
   }
 
-  const shots: PerformanceShot[] = [];
+  const straight: PerformanceShot[] = [];
   for (const span of timeline.spans) {
     const shot = performanceShot(performance, span, exportProfile);
-    shots.push({ ...shot, hash: hashShot(shot, exportProfile) });
+    straight.push({ ...shot, hash: hashShot(shot, exportProfile) });
   }
+  const shots = withTransitions(performance, timeline, straight, exportProfile);
 
   const accessedAt = options.accessedAt ?? performance.createdAt;
   const plan: Omit<RenderPlan, 'planHash'> = {
@@ -185,10 +189,141 @@ export function buildPerformancePlan(
     },
   };
 
+  /*
+   * The plan checks its own arithmetic before anybody renders it. Transitions
+   * move two shots' boundaries for every one they add, and a tiling that is
+   * one frame out is a video one frame longer than its song — found, without
+   * this, forty minutes later. [INV-02, INV-03]
+   */
+  let frame = 0;
+  for (const shot of plan.shots) {
+    if (shot.outputStartFrame !== frame) {
+      throw new PerformancePlanError(
+        `shot ${shot.id} starts at frame ${shot.outputStartFrame}, but the one `
+        + `before it ends at ${frame}`);
+    }
+    if (shot.durationFrames <= 0) {
+      throw new PerformancePlanError(`shot ${shot.id} has no length`);
+    }
+    frame += shot.durationFrames;
+  }
+  if (frame !== plan.totalOutputFrames) {
+    throw new PerformancePlanError(
+      `the shots run ${frame} frames and the song is ${plan.totalOutputFrames}`);
+  }
+
   return { ...plan, planHash: sha256(canonicalJson(plan)) };
 }
 
 /* ------------------------------------------------------------------------ */
+
+/**
+ * The overlaps, paid for out of the shots either side.  [§11, S-8, INV-03]
+ *
+ * A transition is a length of time and the song does not get longer to make
+ * room for it, so a dissolve at a boundary shortens the shot before it and the
+ * shot after it by exactly what it takes. The frames still tile the song, and
+ * INV-02's check over the output clock is what proves it rather than this
+ * comment.
+ *
+ * THE PRECONDITION IS THE INTERESTING PART. During the overlap both
+ * performances are on screen at once — including the outgoing one after its
+ * scene has ended and the incoming one before its scene has begun. A take that
+ * stops at its scene boundary cannot dissolve out of it, and the answer is to
+ * say which take and offer the cut, not to render half a dissolve into black.
+ */
+function withTransitions(
+  performance: Performance,
+  timeline: ReturnType<typeof projectPerformance>,
+  straight: PerformanceShot[],
+  profile: ExportProfile,
+): (PerformanceShot | TransitionShot)[] {
+  const out: (PerformanceShot | TransitionShot)[] = straight.map((shot) => ({ ...shot }));
+  const inserted: (PerformanceShot | TransitionShot)[] = [];
+
+  for (let i = 0; i < out.length; i += 1) {
+    const shot = out[i] as PerformanceShot;
+    inserted.push(shot);
+
+    const next = out[i + 1] as PerformanceShot | undefined;
+    if (!next) continue;
+    const span = timeline.spans[i + 1]!;
+    const style = transitionFor(span.scene.transition);
+    if (style.frames <= 0) continue;
+
+    const { before, after } = overlapSplit(style);
+    const where = formatMasterPosition(span.fromSample);
+    if (shot.durationFrames <= before || next.durationFrames <= after) {
+      throw new PerformancePlanError(
+        `the ${style.label.toLowerCase()} at ${where} is longer than the sections `
+        + 'it joins — shorten it to a cut, or move the boundary');
+    }
+
+    /*
+     * Both sides must have picture across the whole overlap. Checked on the
+     * MUSIC clock, because that is where a take's coverage is stated, and
+     * converted once rather than per take.
+     */
+    const fromSample = framesToSamples(shot.outputStartFrame + shot.durationFrames - before);
+    const toSample = framesToSamples(next.outputStartFrame + after);
+    for (const [side, takes] of [['leaving', shot.takes], ['arriving', next.takes]] as const) {
+      for (const entry of takes) {
+        const take = performance.takes.find((t) => t.id === entry.takeId);
+        if (!take || !coversSpan(take, fromSample, toSample)) {
+          throw new PerformancePlanError(
+            `the ${style.label.toLowerCase()} at ${where} needs "${entry.label}" on `
+            + `screen either side of it, and the ${side} performance does not reach `
+            + 'that far — use a cut here, or extend the take');
+        }
+      }
+    }
+
+    shot.durationFrames -= before;
+    const startFrame = shot.outputStartFrame + shot.durationFrames;
+
+    const transition: Omit<TransitionShot, 'hash'> = {
+      id: `${shot.id}__${next.id}`,
+      kind: 'transition',
+      style: style.id,
+      outputStartFrame: startFrame,
+      durationFrames: style.frames,
+      layoutId: next.layoutId,
+      fromSample,
+      from: { layoutId: shot.layoutId, takes: reframed(performance, shot.takes, fromSample) },
+      to: { layoutId: next.layoutId, takes: reframed(performance, next.takes, fromSample) },
+    };
+    inserted.push({ ...transition, hash: hashShot(transition, profile) });
+
+    next.outputStartFrame = startFrame + style.frames;
+    next.durationFrames -= after;
+  }
+
+  /*
+   * Re-hashed AFTER the overlaps were paid for. A shot's hash is the address
+   * of its bytes on disk (U-16), and a shot that is now twelve frames shorter
+   * is not the same bytes — the first version of this hashed before the
+   * adjustment, which would have served a cached file of the old length and
+   * produced a video longer than its own song.
+   */
+  return inserted.map((shot) => (shot.kind === 'performance'
+    ? { ...shot, hash: hashShot(stripHash(shot), profile) }
+    : shot));
+}
+
+function stripHash<T extends { hash: string }>(shot: T): Omit<T, 'hash'> {
+  const { hash: _hash, ...rest } = shot;
+  return rest;
+}
+
+/** The same takes, read at the moment the overlap begins. */
+function reframed(
+  performance: Performance, takes: PerformanceShot['takes'], atSample: number,
+): PerformanceShot['takes'] {
+  return takes.map((take) => ({
+    ...take,
+    mediaInFrame: takeFrameAt(performance, take.takeId, atSample),
+  }));
+}
 
 function performanceShot(
   performance: Performance, span: PerformanceSpan, profile: ExportProfile,
@@ -281,7 +416,8 @@ function takeFrameAt(
  * different picture.
  */
 function hashShot(
-  shot: Omit<PerformanceShot, 'hash'>, profile: ExportProfile,
+  shot: Omit<PerformanceShot, 'hash'> | Omit<TransitionShot, 'hash'>,
+  profile: ExportProfile,
 ): string {
   return sha256(canonicalJson({
     ...shot,

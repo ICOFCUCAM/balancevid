@@ -23,6 +23,7 @@
 
 import { LAYOUTS, takeSlots } from './presentation.js';
 import { type RoomPlate, SPACE_LOOKS, needsMatte } from './environment.js';
+import { DEFAULT_TRANSITION, isTransition } from './transitions.js';
 import { newId } from './ids.js';
 import type { TakeId } from './document.js';
 import {
@@ -277,6 +278,12 @@ export function setScene(
   if (scene.audioMode && !AUDIO_MODES.includes(scene.audioMode)) {
     fail(`unknown audio mode: ${scene.audioMode}`);
   }
+  // §11's list is longer than what is built, and a scene naming a transition
+  // nobody wrote is a render that fails at the end rather than an edit that
+  // fails now. [S-8]
+  if (scene.transition && !isTransition(scene.transition)) {
+    fail(`unknown transition: ${scene.transition}`);
+  }
 
   const existing = performance.scenes.find((s) => s.fromSample === at);
   const next: Scene = {
@@ -364,6 +371,26 @@ export function setAudioMode(
 }
 
 /**
+ * How this scene arrives.  [§11, S-8]
+ *
+ * On the scene being arrived AT, because that is the boundary it describes and
+ * because a scene deleted takes its own transition with it rather than leaving
+ * a dissolve into something else.
+ */
+export function setTransition(
+  performance: Performance, sceneId: string, transition: string | null,
+): void {
+  const scene = performance.scenes.find((s) => s.id === sceneId)
+    ?? fail(`no such scene: ${sceneId}`) as never;
+  if (transition === null || transition === DEFAULT_TRANSITION) {
+    delete scene.transition;
+    return;
+  }
+  if (!isTransition(transition)) fail(`unknown transition: ${transition}`);
+  scene.transition = transition;
+}
+
+/**
  * One scene's answer, where it differs from the performance's.  [S-7]
  *
  * The fourth mode S-7 said came free once the sound timeline was separate from
@@ -382,6 +409,60 @@ export function setSceneAudio(
     fail('name a take as the master vocal before a scene can ask for it');
   }
   scene.audioMode = mode;
+}
+
+/* ------------------------------------------------------------------------ *
+ *  Beats — a suggestion until somebody says otherwise.  [§11, S-8, INV-06]
+ * ------------------------------------------------------------------------ */
+
+/**
+ * What the detector heard. Written unaccepted, always.
+ *
+ * Re-detecting does not silently re-accept: if the author had accepted the
+ * old grid and the song was replaced, the new reading is a new suggestion.
+ */
+export function recordBeats(
+  performance: Performance,
+  detected: { bpm: number; phaseSamples: Samples; confidence: number },
+  detector: string, at: string,
+): void {
+  if (!Number.isFinite(detected.bpm) || detected.bpm <= 0) fail('that is not a tempo');
+  assertSamples(detected.phaseSamples);
+  performance.beats = {
+    bpm: detected.bpm,
+    phaseSamples: detected.phaseSamples,
+    confidence: detected.confidence,
+    detector,
+    detectedAt: at,
+  };
+}
+
+/** A human said yes, and only now may anything move a cut. [INV-06] */
+export function acceptBeats(performance: Performance, who: string, at: string): void {
+  const beats = performance.beats ?? fail('no beats have been found in this song') as never;
+  if (!who.trim()) fail('an acceptance needs somebody to have made it');
+  performance.beats = { ...beats, acceptedBy: who.trim(), acceptedAt: at };
+}
+
+/**
+ * Half it, double it, or type it.  [S-8]
+ *
+ * The one correction the detector needs: it cannot tell a tempo from twice a
+ * tempo, and neither can a person — but the person knows which one they are
+ * counting. Setting it is itself an acceptance, because the author has just
+ * told the product what the tempo is.
+ */
+export function setTempo(
+  performance: Performance, bpm: number, who: string, at: string,
+): void {
+  const beats = performance.beats ?? fail('no beats have been found in this song') as never;
+  if (!Number.isFinite(bpm) || bpm < 20 || bpm > 400) fail(`that is not a tempo: ${bpm}`);
+  performance.beats = {
+    ...beats,
+    bpm: Number(bpm.toFixed(2)),
+    acceptedBy: who.trim() || beats.acceptedBy || fail('who is setting this tempo?') as never,
+    acceptedAt: at,
+  };
 }
 
 /* ------------------------------------------------------------------------ *

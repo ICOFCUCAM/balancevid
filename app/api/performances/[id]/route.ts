@@ -1,4 +1,5 @@
-import { classifyMaster, usePlate, setAudioMode, setSceneAudio, setScene, moveScene, removeScene, labelScene, clearScenes, nudgeTake, trimTake, renameTake, setEnvironment, removeTake, PerformanceEditError } from '../../../../src/domain/performanceEdit.js';
+import { acceptBeats, setTempo,
+  classifyMaster, usePlate, setAudioMode, setSceneAudio, setTransition, setScene, moveScene, removeScene, labelScene, clearScenes, nudgeTake, trimTake, renameTake, setEnvironment, removeTake, PerformanceEditError } from '../../../../src/domain/performanceEdit.js';
 import { projectPerformance, covered } from '../../../../src/domain/performance.js';
 import { assertAlignmentInvariants } from '../../../../src/domain/invariants.js';
 import { listJobs } from '../../../../src/store/queue.js';
@@ -73,6 +74,20 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
         case 'move-scene': moveScene(draft, body['sceneId'], body['at']); break;
         case 'remove-scene': removeScene(draft, body['sceneId']); break;
         case 'label-scene': labelScene(draft, body['sceneId'], body['label'] ?? null); break;
+        /*
+         * An acceptance names somebody, exactly as accepting a claim does
+         * (U-15, INV-06). "The product accepted it" is not an acceptance.
+         */
+        case 'accept-beats':
+          acceptBeats(draft, String(body['by'] ?? ''), new Date().toISOString());
+          break;
+        case 'set-tempo':
+          setTempo(draft, Number(body['bpm']), String(body['by'] ?? ''),
+            new Date().toISOString());
+          break;
+        case 'scene-transition':
+          setTransition(draft, body['sceneId'], body['transition'] ?? null);
+          break;
         case 'scene-audio':
           setSceneAudio(draft, body['sceneId'], body['mode'] ?? null);
           break;

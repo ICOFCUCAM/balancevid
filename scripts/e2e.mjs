@@ -3183,6 +3183,73 @@ log('checking the Performance Studio…');
   }
 
   /*
+   * --- §11: transitions, and the beat -----------------------------------
+   *
+   * S-8: a detected beat is a suggestion, not a fact. Cutting on the beat is
+   * what makes an edit look professional, and a cut that moved because a
+   * detector was confident is a cut the author did not make.
+   */
+  {
+    const doc = (await api(`/api/performances/${perfId}`)).performance;
+    check(Boolean(doc.beats?.bpm), 'the song\'s pulse is found when it arrives (§11)',
+      `${doc.beats?.bpm} BPM, confidence ${doc.beats?.confidence}`);
+    check(doc.beats && !doc.beats.acceptedBy,
+      'and is stored with no authority until somebody accepts it (INV-06)');
+
+    // Nothing may move a cut on beats nobody accepted — so the studio asks.
+    await page.waitForSelector('[data-testid="snap-to-beat"]', { timeout: 20_000 });
+    await page.click('[data-testid="snap-to-beat"]');
+    await page.waitForFunction(() => document.querySelector(
+      '[data-testid="snap-to-beat"]')?.getAttribute('data-on') === 'true',
+    null, { timeout: 15_000 });
+    const accepted = (await api(`/api/performances/${perfId}`)).performance.beats;
+    check(Boolean(accepted?.acceptedBy && accepted?.acceptedAt),
+      'turning snapping on IS the acceptance, and it is recorded (INV-06, S-8)',
+      `${accepted?.acceptedBy} at ${accepted?.acceptedAt}`);
+
+    /*
+     * The octave correction S-8 asked for: a detector cannot tell a tempo
+     * from twice a tempo, so halving is one press rather than a re-detect.
+     */
+    const was = accepted.bpm;
+    await page.click('[data-testid="halve-tempo"]');
+    let halved = accepted;
+    for (let i = 0; i < 20; i++) {
+      await sleep(500);
+      halved = (await api(`/api/performances/${perfId}`)).performance.beats;
+      if (Math.abs(halved.bpm - was) > 0.01) break;
+    }
+    check(Math.abs(halved.bpm - was / 2) < 0.1,
+      'and the tempo can be halved in one press', `${was} → ${halved.bpm}`);
+
+    // §11's transitions, on the boundary they describe.
+    const scenes = (await api(`/api/performances/${perfId}`)).performance.scenes
+      .sort((a, b) => a.fromSample - b.fromSample);
+    if (scenes.length > 1) {
+      const arriving = scenes[1];
+      const set = await sfetch(`${BASE}/api/performances/${perfId}`, {
+        method: 'PATCH', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'scene-transition', sceneId: arriving.id,
+          transition: 'dissolve' }),
+      });
+      check(set.status === 200, 'a boundary can be dressed as a dissolve (§11)');
+      const refused = await sfetch(`${BASE}/api/performances/${perfId}`, {
+        method: 'PATCH', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'scene-transition', sceneId: arriving.id,
+          transition: 'match_movement' }),
+      });
+      check(refused.status === 400,
+        'and one nobody built is refused at the edit, not at the export (S-8)');
+      // Back to a cut: the render below is about the sound, not the dressing.
+      await sfetch(`${BASE}/api/performances/${perfId}`, {
+        method: 'PATCH', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'scene-transition', sceneId: arriving.id,
+          transition: 'cut' }),
+      });
+    }
+  }
+
+  /*
    * --- §9: where the sound comes from -----------------------------------
    *
    * "The master vocal stays continuous while the video switches between

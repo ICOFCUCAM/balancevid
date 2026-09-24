@@ -4,6 +4,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Performance } from '../../../src/domain/performance.js';
 import { orderedScenes, sceneAt } from '../../../src/domain/performance.js';
 import { LAYOUTS, takeSlots } from '../../../src/domain/presentation.js';
+import {
+  BEATS_USABLE_CONFIDENCE, beatPositions, snapToBeat,
+} from '../../../src/domain/beats.js';
+import { TRANSITIONS } from '../../../src/domain/transitions.js';
 import { HOUSE_SAMPLE_RATE, formatMasterPosition } from '../../../src/domain/time.js';
 import { usePerformancePlayer } from './usePerformancePlayer.js';
 
@@ -37,6 +41,9 @@ export default function SwitchingStage({
   const [pending, setPending] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [live, setLive] = useState(false);
+  /** Snapping is OFF until the author turns it on, which is the acceptance. */
+  const [snap, setSnap] = useState(false);
+  const [snapped, setSnapped] = useState<number | null>(null);
 
   const ordered = orderedScenes(performance);
   const usable = performance.takes.filter((t) => t.durationSamples > 0);
@@ -46,12 +53,26 @@ export default function SwitchingStage({
   const current = sceneAt(performance, Math.round(player.position));
   const visible = current?.takeIds ?? [];
 
+  const beats = performance.beats;
+
   const write = useCallback(async (at: number, layoutId: string, takeIds: string[]) => {
     setError(null);
+    /*
+     * §11's "cut on beat", and S-8's condition on it: the move is visible, it
+     * is small, and it only happens because the author turned it on. A cut
+     * that moved because a detector was confident is a cut they did not make.
+     */
+    let where = Math.round(at);
+    if (snap && beats?.acceptedBy) {
+      const result = snapToBeat(where, beats);
+      where = result.sample;
+      setSnapped(result.snapped ? where : null);
+      if (!result.snapped) setSnapped(null);
+    }
     try {
       const response = await fetch(`/api/performances/${performance.id}`, {
         method: 'PATCH', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ action: 'set-scene', at: Math.round(at), layoutId, takeIds }),
+        body: JSON.stringify({ action: 'set-scene', at: where, layoutId, takeIds }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error ?? 'that did not work');
@@ -59,7 +80,24 @@ export default function SwitchingStage({
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
+  }, [beats, onChanged, performance.id, snap]);
+
+  const patch = useCallback(async (body: Record<string, unknown>) => {
+    setError(null);
+    const response = await fetch(`/api/performances/${performance.id}`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) { setError(data.error ?? 'that did not work'); return; }
+    onChanged(data.performance);
   }, [onChanged, performance.id]);
+
+  /** Who accepted the beats. One owner for now; the field exists for later. */
+  const accept = useCallback(
+    () => patch({ action: 'accept-beats', by: 'owner' }), [patch]);
+  const tempo = useCallback(
+    (bpm: number) => patch({ action: 'set-tempo', bpm, by: 'owner' }), [patch]);
 
   /*
    * The keys. Numbers choose takes; a scene is written as soon as the chosen
@@ -107,6 +145,14 @@ export default function SwitchingStage({
   }, [choose, live, player]);
 
   const duration = performance.master.durationSamples;
+  /*
+   * Drawn for the first minute only. A four-minute song at 120 BPM is 480
+   * marks, which is 480 elements to lay out on every repaint of a timeline
+   * whose whole job is to stay smooth while the song plays.
+   */
+  const marks = beats
+    ? beatPositions(beats, Math.min(duration, 60 * 48000))
+    : [];
   const pct = (samples: number) => `${Math.max(0, Math.min(100, (samples / duration) * 100))}%`;
 
   return (
@@ -209,6 +255,15 @@ export default function SwitchingStage({
             </div>
           );
         })}
+        {/* The pulse, drawn faintly. A grid nobody accepted is still worth
+            seeing — it is how an author decides whether to trust it. [S-8] */}
+        {beats && marks.map((at) => (
+          <div key={at} data-testid="beat-mark" style={{
+            position: 'absolute', top: 0, height: 6, width: 1,
+            background: beats.acceptedBy ? 'rgba(224,193,79,0.85)' : 'rgba(255,255,255,0.28)',
+            left: pct(at),
+          }} />
+        ))}
         <div style={{
           position: 'absolute', top: 0, bottom: 0, width: 2, background: '#e0674f',
           left: pct(player.position),
@@ -242,6 +297,33 @@ export default function SwitchingStage({
             </option>
           ))}
         </select>
+        {beats && (
+          <button
+            className="small" data-testid="snap-to-beat"
+            data-on={snap ? 'true' : 'false'}
+            title={`${beats.bpm} BPM, ${beats.confidence >= BEATS_USABLE_CONFIDENCE
+              ? 'clearly' : 'not clearly'} heard`}
+            onClick={() => {
+              const turningOn = !snap;
+              setSnap(turningOn);
+              // Turning it on IS the acceptance, and it is recorded on the
+              // document with who made it. [INV-06, S-8]
+              if (turningOn && !beats.acceptedBy) void accept();
+            }}
+            style={{ background: snap ? 'rgba(224,193,79,0.25)' : undefined,
+              borderColor: snap ? '#e0c14f' : undefined }}
+          >
+            {`Snap to the beat · ${Math.round(beats.bpm)} BPM`}
+          </button>
+        )}
+        {beats && snap && (
+          <>
+            <button className="small" data-testid="halve-tempo"
+                    onClick={() => void tempo(beats.bpm / 2)}>÷2</button>
+            <button className="small" data-testid="double-tempo"
+                    onClick={() => void tempo(beats.bpm * 2)}>×2</button>
+          </>
+        )}
         <button className="small" data-testid="clear-scenes"
                 onClick={() => void fetch(`/api/performances/${performance.id}`, {
                   method: 'PATCH', headers: { 'content-type': 'application/json' },
@@ -250,6 +332,42 @@ export default function SwitchingStage({
           Start the edit again
         </button>
       </div>
+
+      {/* ---- how each section arrives (§11) ---------------------------- */}
+      {ordered.length > 1 && (
+        <div className="row" data-testid="transitions"
+             style={{ gap: 8, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span className="small muted">Arriving at</span>
+          {ordered.slice(1).map((scene) => (
+            <select
+              key={scene.id}
+              data-testid="scene-transition" data-scene-id={scene.id}
+              value={scene.transition ?? 'cut'}
+              onChange={(e) => void patch({
+                action: 'scene-transition', sceneId: scene.id, transition: e.target.value,
+              })}
+              style={{ width: 'auto', padding: '3px 6px', fontSize: 11 }}
+              title={TRANSITIONS[scene.transition ?? 'cut']?.hint}
+            >
+              {Object.values(TRANSITIONS).map((option) => (
+                <option key={option.id} value={option.id}>
+                  {formatMasterPosition(scene.fromSample)} · {option.label}
+                </option>
+              ))}
+            </select>
+          ))}
+        </div>
+      )}
+
+      {snapped !== null && (
+        <p className="small" data-testid="snapped-note"
+           style={{ marginTop: 6, color: '#e0c14f' }}>
+          {/* Visible, and reversible: the boundary can be dragged like any
+              other afterwards. [S-8] */}
+          Moved that cut onto the nearest beat. Drag it if that is not where
+          you wanted it.
+        </p>
+      )}
 
       {slots > 1 && (
         <p className="small muted" data-testid="pending-hint" style={{ marginTop: 6 }}>

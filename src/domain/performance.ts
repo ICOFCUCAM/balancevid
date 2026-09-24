@@ -38,6 +38,7 @@
  */
 
 import type { AssetId, Publication, TakeId } from './document.js';
+import type { BeatGrid } from './beats.js';
 import type { RoomPlate } from './environment.js';
 import type { Id } from './ids.js';
 import {
@@ -438,6 +439,15 @@ export interface Performance {
   layoutProfileId: string;
   /** How captions look, as everywhere else. [U-19 §2] */
   captionStyleId?: string;
+  /**
+   * The pulse of the song, detected.  [§11, S-8, INV-06]
+   *
+   * A SUGGESTION until somebody accepts it, and nothing in the product may
+   * move one of the author's cuts while it is unaccepted. Stored on the
+   * performance rather than on the master track because it is a reading of
+   * the music rather than a fact about the file.
+   */
+  beats?: BeatGrid;
   publication?: Publication;
   createdAt: string;
   updatedAt: string;
