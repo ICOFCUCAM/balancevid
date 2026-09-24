@@ -3202,7 +3202,14 @@ log('checking the Performance Studio…');
     await page.waitForFunction(() => document.querySelector(
       '[data-testid="snap-to-beat"]')?.getAttribute('data-on') === 'true',
     null, { timeout: 15_000 });
-    const accepted = (await api(`/api/performances/${perfId}`)).performance.beats;
+    // The acceptance is a round trip, and the button's own state changes the
+    // instant it is pressed: reading the document once races the PATCH.
+    let accepted = null;
+    for (let i = 0; i < 30; i++) {
+      accepted = (await api(`/api/performances/${perfId}`)).performance.beats;
+      if (accepted?.acceptedBy) break;
+      await sleep(500);
+    }
     check(Boolean(accepted?.acceptedBy && accepted?.acceptedAt),
       'turning snapping on IS the acceptance, and it is recorded (INV-06, S-8)',
       `${accepted?.acceptedBy} at ${accepted?.acceptedAt}`);
@@ -3300,7 +3307,118 @@ log('checking the Performance Studio…');
       ?.getAttribute('data-chosen') === 'true', null, { timeout: 15_000 });
   }
 
-  // ---- and none of it is a stranger's -----------------------------------
+  /*
+   * --- §14, second half: the short one and the link preview -------------
+   *
+   * "The product proposes the strongest candidates but never auto-publishes."
+   * A clip is the master render with a window on it — so what is checked here
+   * is that the window is the author's, that the ranking says why, and that
+   * INV-15 reaches the picture a link arrives with.
+   */
+  {
+    // Name a section: §15's scenes are what a clip is cut from.
+    const scenes = (await api(`/api/performances/${perfId}`)).performance.scenes
+      .sort((a, b) => a.fromSample - b.fromSample);
+    await sfetch(`${BASE}/api/performances/${perfId}`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'label-scene', sceneId: scenes[0].id,
+        label: 'Opening' }),
+    });
+
+    const offered = await api(`/api/performances/${perfId}/clips`);
+    const named = (offered.candidates ?? []).find((c) => c.label === 'Opening');
+    check(Boolean(named), 'a named section becomes something you can clip (§14, §15)');
+    check(named && named.suggested === false && /you named/.test(named.reasons.join(' ')),
+      'and the ranking says why, so it can be disagreed with (U-22)',
+      named?.reasons?.join(' · '));
+    check((offered.candidates ?? []).some((c) => c.suggested
+      && /we chose/.test(c.reasons.join(' '))),
+      'while the one the product chose says that it chose it (S-8)');
+
+    const tooShort = await sfetch(`${BASE}/api/performances/${perfId}/clips`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ fromSample: 0, toSample: 48000 }),
+    });
+    check(tooShort.status === 400, 'a clip shorter than a performance is refused');
+
+    const queued = await sfetch(`${BASE}/api/performances/${perfId}/clips`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ fromSample: 0, toSample: samples,
+        exportProfileId: 'vertical_9x16' }),
+    });
+    const queuedBody = await queued.json().catch(() => ({}));
+    check(queued.status === 202, 'and a real one is queued (§14)',
+      queuedBody.error ?? `status ${queued.status}`);
+
+    let clip = null;
+    for (let i = 0; i < 240; i++) {
+      await sleep(1000);
+      const jobs = (await api(`/api/performances/${perfId}/clips`)).jobs ?? [];
+      const job = jobs.find((j) => j.id === queuedBody.job?.id);
+      if (job && (job.state === 'done' || job.state === 'failed')) { clip = job; break; }
+    }
+    check(clip?.state === 'done', 'the clip renders', clip?.error ?? clip?.state);
+
+    if (clip?.state === 'done') {
+      const file = await sfetch(
+        `${BASE}/api/performances/${perfId}/clips/${clip.result.planHash}/file`);
+      check(file.status === 200, 'and is there to download', `status ${file.status}`);
+      const clipPath = `${process.env['TMPDIR'] ?? '/tmp'}/balancevid-e2e-clip.mp4`;
+      await writeFile(clipPath, Buffer.from(await file.arrayBuffer()));
+      const probe = JSON.parse(execFileSync(ffprobe.path, [
+        '-v', 'error', '-show_streams', '-of', 'json', clipPath,
+      ]).toString());
+      const video = probe.streams.find((st) => st.codec_type === 'video');
+      check(video?.width === 1080 && video?.height === 1920,
+        'vertical, for the places people watch one (U-22)',
+        `${video?.width}x${video?.height}`);
+      check(probe.streams.filter((st) => st.codec_type === 'audio').length === 1,
+        'with the song under it');
+    }
+
+    // The link preview, and INV-15 reaching it.
+    const card = await api(`/api/performances/${perfId}/card`);
+    check(card.card?.hero?.quoted === false,
+      'the link preview quotes nobody, because nobody said anything (U-30)');
+    check(String(card.card?.attribution ?? '').includes('balancevid-e2e-song'),
+      'and carries the generated music credit (U-21, INV-07)',
+      card.card?.attribution);
+
+    await sfetch(`${BASE}/api/performances/${perfId}`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'classify-master', class: 'third_party' }),
+    });
+    const refusedCard = await sfetch(`${BASE}/api/performances/${perfId}/card`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+    });
+    check(refusedCard.status === 409,
+      "and no link preview at all for somebody else's music (INV-15)",
+      `status ${refusedCard.status}`);
+    await sfetch(`${BASE}/api/performances/${perfId}`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'classify-master', class: 'own' }),
+    });
+
+    const madeCard = await sfetch(`${BASE}/api/performances/${perfId}/card`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+    });
+    check(madeCard.status === 202, 'and one is drawn for music that is the author’s');
+    let drawn = null;
+    for (let i = 0; i < 90; i++) {
+      await sleep(1000);
+      const jobs = (await api(`/api/performances/${perfId}/card`)).jobs ?? [];
+      drawn = jobs.find((j) => j.state === 'done');
+      if (drawn) break;
+    }
+    check(Boolean(drawn), 'the picture is drawn from the same card the page describes');
+    if (drawn) {
+      const image = await sfetch(`${BASE}/api/performances/${perfId}/card?image=1`);
+      check(image.status === 200 && image.headers.get('content-type') === 'image/png',
+        'and served as a picture a chat window can show', `status ${image.status}`);
+    }
+  }
+
+  // ---- and none of it is a stranger's -----------------------------------  // ---- and none of it is a stranger's -----------------------------------
   for (const path of [`/p/${perfId}`, `/api/performances/${perfId}`,
     `/api/performances/${perfId}/master`, '/api/performances']) {
     const refused = await raw(path);

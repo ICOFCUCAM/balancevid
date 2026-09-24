@@ -1369,4 +1369,76 @@ unchanged by having built the other four.
 
 ---
 
+## S-21 — Stage 8: the short one, and the link preview
+
+**§14's second half.** The vertical clip, and the picture a link arrives with.
+
+| Built | Where |
+|---|---|
+| A window on the song | `src/domain/performance.ts` (`projectPerformance`) |
+| What is worth clipping | `src/domain/performanceClips.ts` |
+| The link preview | `src/publish/performanceCard.ts` |
+| Rendering both | `src/worker/index.ts` |
+| Choosing, with the reasons | `app/p/[id]/PublishPanel.tsx` |
+
+**A clip is the master render with a window on it.** Not a clip pipeline: a
+span passed to the same plan builder. The same scenes, the same matte, the same
+audio modes, the same transitions, the same shot cache, the same INV-15. The
+alternative — a second renderer for short videos — is two things that
+eventually disagree about what the chorus looks like, and the one people see is
+the short one.
+
+**What this stage taught.**
+
+1. **The window asks "is a scene in force here", not "does a scene start
+   here".** The first version of the windowed projection reported a gap
+   whenever a clip opened in the middle of a scene — which is the normal case,
+   since a clip is cut out of the middle of a performance. It would have
+   refused to render the chorus of anything with a long section in it.
+
+2. **Two clocks in one piece of sound.** A clip's audio lands at the CLIP's
+   zero and is read from the SONG's position, so every piece carries both:
+   `fromSample` is where it goes, `mediaFromSample` is where it comes from.
+   Confusing them is a chorus clip playing the first verse, which plays
+   perfectly and is completely wrong.
+
+3. **A clip fades at both ends and the song does not.** The master render must
+   not fade in, because a song beginning on a downbeat somebody wrote is not
+   something to ease into. A clip is cut out of the middle, so the opposite is
+   true: without the fade it starts with a bang and stops mid-word. Same code,
+   opposite answer, decided by whether there is a window.
+
+4. **The floor on a clip's length is a floor, not a rule about the rule.** Eight
+   seconds — or the whole song, when the song is shorter than that. A product
+   that refused to clip a six-second piece because clips are at least eight
+   would be enforcing its own arithmetic against the author's music.
+
+5. **The candidates are the author's sections, and the one the product chose
+   says so.** §15's named scenes are candidates because naming a section is a
+   statement about the song by the person who performed it. The product also
+   offers a stretch of its own, and labels it "we chose these boundaries, not
+   you" — the same honesty S-8 required of detected beats. U-22's rule holds
+   either way: it proposes, and never publishes.
+
+6. **The card quotes nobody, and says so by not using quotation marks.** A
+   conversation's share card is built around a bound statement and earns its
+   quotes by hashing what the source actually said (INV-05). A performance
+   quotes nobody — there is no transcript and no claim — so the hero is the
+   author's own title for their own video, unquoted. Same `ShareCard` shape,
+   same renderer, different facts, because the facts are different.
+
+7. **INV-15 reaches the picture too.** A card is a thing made to be posted, so
+   a performance over music the author has not claimed does not get one at
+   all. The private export exists for them; a preview image to post with does
+   not.
+
+**Still not built:** a public page for a performance — clips and the card
+exist, and nothing yet serves a performance to somebody who was sent a link.
+The device calibration from S-3 still passes a stated zero. `custom`
+backgrounds are modelled and rendered but have no upload in the studio. §12's
+interface remains an open item. Of §11's list, Zoom, Swipe, Match movement and
+Chorus transition remain unbuilt on purpose.
+
+---
+
 *Appendix S ends. The brief above it is unedited.*

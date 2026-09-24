@@ -37,7 +37,9 @@ export type JobKind =
   | 'ingest_master'
   | 'ingest_plate'
   | 'assemble_performance_take'
-  | 'render_performance';
+  | 'render_performance'
+  | 'render_performance_clip'
+  | 'render_performance_card';
 
 export interface Job {
   id: string;

@@ -26,7 +26,7 @@ import type { AssetId, TakeId } from './document.js';
 import { assertPerformanceRenderable } from './invariants.js';
 import { sha256 } from './ids.js';
 import {
-  type Performance, type PerformanceSpan, type PerformanceTake,
+  type Performance, type PerformanceSpan, type PerformanceTake, type PerformanceWindow,
   coversSpan, mayPublish, plateFor, projectPerformance,
 } from './performance.js';
 import { overlapSplit, transitionFor } from './transitions.js';
@@ -46,6 +46,15 @@ import {
 
 export interface PerformancePlanOptions {
   exportProfileId?: string;
+  /**
+   * A stretch of the song rather than all of it.  [§14]
+   *
+   * A clip IS the master render with a window on it. Same scenes, same matte,
+   * same sound, same invariants — one projection, not a second renderer for
+   * short videos, which is how the two would come to disagree about what the
+   * chorus looks like.
+   */
+  span?: PerformanceWindow;
   /**
    * A private export of a track the author has not said they may publish.
    *
@@ -116,12 +125,12 @@ export function buildPerformancePlan(
    * whether to move the boundary or extend the recording. A planner with its
    * own private copy of the same rules is two rules that drift.
    */
-  assertPerformanceRenderable(performance);
-  const timeline = projectPerformance(performance);
+  assertPerformanceRenderable(performance, options.span);
+  const timeline = projectPerformance(performance, options.span);
 
   let audio;
   try {
-    audio = planPerformanceAudio(performance);
+    audio = planPerformanceAudio(performance, options.span);
   } catch (error) {
     // The audio's own refusals are the author's problem, not a crash: a mode
     // naming a vocal that is not there is a thing they can fix in one click.
@@ -260,12 +269,14 @@ function withTransitions(
     }
 
     /*
-     * Both sides must have picture across the whole overlap. Checked on the
-     * MUSIC clock, because that is where a take's coverage is stated, and
-     * converted once rather than per take.
+     * Both sides must have picture across the whole overlap. Measured from the
+     * BOUNDARY on the music clock rather than from the output frame count:
+     * a clip's output clock starts at the clip, and converting its frames back
+     * to samples would place a chorus clip's dissolve at the top of the song.
      */
-    const fromSample = framesToSamples(shot.outputStartFrame + shot.durationFrames - before);
-    const toSample = framesToSamples(next.outputStartFrame + after);
+    const boundary = span.fromSample;
+    const fromSample = boundary - framesToSamples(before);
+    const toSample = boundary + framesToSamples(after);
     for (const [side, takes] of [['leaving', shot.takes], ['arriving', next.takes]] as const) {
       for (const entry of takes) {
         const take = performance.takes.find((t) => t.id === entry.takeId);

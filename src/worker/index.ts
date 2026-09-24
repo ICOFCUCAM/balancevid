@@ -42,7 +42,9 @@ import { decodeToAnalysis, normaliseMaster, readAnalysis } from '../render/audio
 import {
   auditPerformance, loadPerformance, mutatePerformance,
 } from '../store/performances.js';
-import { buildPerformancePlan } from '../domain/performancePlan.js';
+import { buildPerformancePlan, performanceAttribution } from '../domain/performancePlan.js';
+import { clipWindow } from '../domain/performanceClips.js';
+import { buildPerformanceCard } from '../publish/performanceCard.js';
 import { addPlate, recordBeats } from '../domain/performanceEdit.js';
 import { BEAT_DETECTOR, detectBeats } from '../domain/beats.js';
 import { matteThreshold, plateVerdict } from '../domain/environment.js';
@@ -78,6 +80,8 @@ export async function runJob(job: Job): Promise<Job> {
     case 'ingest_plate': return ingestPlate(job);
     case 'assemble_performance_take': return assemblePerformanceTake(job);
     case 'render_performance': return renderPerformance(job);
+    case 'render_performance_clip': return renderPerformanceClip(job);
+    case 'render_performance_card': return renderPerformanceCard(job);
   }
 }
 
@@ -365,6 +369,95 @@ async function renderPerformance(job: Job): Promise<Job> {
       shotsCached: result.shotsCached,
     },
   });
+}
+
+/**
+ * A clip of a performance.  [§14, U-22, INV-15]
+ *
+ * The master render with a window on it and a different canvas — the same
+ * plan builder, the same shots, the same sound. Which means the vertical clip
+ * of the chorus cannot disagree with the sixteen-by-nine master about what the
+ * chorus looks like, because there is nothing for them to disagree with.
+ */
+async function renderPerformanceClip(job: Job): Promise<Job> {
+  const id = job.conversationId;
+  const performance = await loadPerformance(id);
+  const exportProfileId = String(job.payload['exportProfileId'] ?? 'vertical_9x16');
+  const span = clipWindow(
+    performance, Number(job.payload['fromSample']), Number(job.payload['toSample']));
+
+  const plan = buildPerformancePlan(performance, {
+    exportProfileId,
+    span,
+    ...(job.payload['allowUnpublishable'] ? { allowUnpublishable: true } : {}),
+  });
+
+  const workDir = join(paths.performanceClips(id), safe(plan.planHash));
+  await mkdir(workDir, { recursive: true });
+  const outputPath = join(workDir, 'clip.mp4');
+
+  const result = await compose(plan, {
+    workDir,
+    outputPath,
+    resolveAsset: (assetId) => paths.performanceAsset(id, `${assetId}mezz`, 'mp4'),
+    masterAudioPath: paths.performanceAsset(
+      id, `${performance.master.assetId}mezz`, 'webm'),
+    resolveStill: (assetId) => (
+      performance.plates.some((plate) => plate.assetId === assetId)
+        ? paths.performancePlate(id, assetId)
+        : paths.performanceAsset(id, assetId, 'png')),
+    onProgress: (info) => {
+      const frames = Number(info['frame'] ?? 0);
+      if (frames > 0 && plan.totalOutputFrames > 0) {
+        job.progress = Math.min(99, Math.round((frames / plan.totalOutputFrames) * 100));
+        void update(job);
+      }
+    },
+  });
+
+  await auditPerformance(id, {
+    action: 'performance.clip.rendered',
+    detail: {
+      planHash: plan.planHash, exportProfileId,
+      fromSample: span.fromSample, toSample: span.toSample,
+      totalOutputFrames: plan.totalOutputFrames,
+      shotsRendered: result.shotsRendered, shotsCached: result.shotsCached,
+    },
+  });
+
+  return finish(job, 'done', {
+    progress: 100,
+    result: {
+      planHash: plan.planHash,
+      exportProfileId,
+      fromSample: span.fromSample,
+      toSample: span.toSample,
+      totalOutputFrames: plan.totalOutputFrames,
+      seconds: Number((plan.totalOutputFrames / HOUSE_FPS).toFixed(2)),
+    },
+  });
+}
+
+/**
+ * The link preview.  [§14, U-30]
+ *
+ * Drawn from the same `ShareCard` the page will describe itself with, so the
+ * words in the picture and the words in the metadata come from one generator
+ * and cannot drift apart.
+ */
+async function renderPerformanceCard(job: Job): Promise<Job> {
+  const id = job.conversationId;
+  const performance = await loadPerformance(id);
+  const card = buildPerformanceCard({
+    performance,
+    attribution: performanceAttribution(performance, performance.createdAt).text,
+  });
+
+  const outPath = paths.performanceCard(id);
+  await renderShareCard(card, outPath, join(paths.performance(id), 'scratch'));
+  await auditPerformance(id, { action: 'performance.card.rendered', detail: { title: card.title } });
+
+  return finish(job, 'done', { progress: 100, result: { card, path: outPath } });
 }
 
 /** Normalise an uploaded source and record its measured duration. [U-02] */

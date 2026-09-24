@@ -10,6 +10,7 @@ import SwitchingStage from './SwitchingStage.js';
 import MasterRender from './MasterRender.js';
 import RoomPlate from './RoomPlate.js';
 import SoundModes from './SoundModes.js';
+import PublishPanel from './PublishPanel.js';
 
 /**
  * The Performance Studio.  [Doctrine STUDIO-TWO §1, §3, §4, §10, §13]
@@ -323,6 +324,9 @@ export default function PerformanceStudio({ initial }: { initial: Performance })
         {/* ---- one video, when they are ready (§14) ------------------ */}
         {performance.takes.some((t) => t.durationSamples > 0)
           && <MasterRender performance={performance} />}
+
+        {/* ---- the short one, and the link preview (§14) -------------- */}
+        {performance.scenes.length > 0 && <PublishPanel performance={performance} />}
 
         {/* ---- the takes, all on one clock --------------------------- */}
         <section style={{ marginTop: 20 }} data-testid="takes">

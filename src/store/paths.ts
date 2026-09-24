@@ -99,6 +99,9 @@ export const paths = {
   performanceChunks: (id: string, takeId: string) =>
     join(paths.performanceAssets(id), 'chunks', safe(takeId)),
   performanceRenders: (id: string) => join(paths.performance(id), 'renders'),
+  /** Clips and the link preview of a performance. [STUDIO-TWO §14] */
+  performanceClips: (id: string) => join(paths.performance(id), 'clips'),
+  performanceCard: (id: string) => join(paths.performance(id), 'share-card.png'),
   /** The averaged still of an empty room, for §4's matte. [STUDIO-TWO S-6] */
   performancePlate: (id: string, assetId: string) =>
     join(paths.performanceAssets(id), `${safe(assetId)}.plate.png`),

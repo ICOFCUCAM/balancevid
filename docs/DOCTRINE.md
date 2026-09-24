@@ -4032,7 +4032,8 @@ writes back.
 - **[`STUDIO-TWO.md`](STUDIO-TWO.md)** — the Performance Studio. §1–§15, with
   **stages one to seven built**: the document and the music clock, alignment,
   scenes and live switching, the master render, §4's environments, §9's audio
-  modes, and §11's transitions and beat detection.
+  modes, §11's transitions and beat detection, and §14's clips and link
+  preview.
   Appendix S maps the brief onto this codebase and records the invariants it
   needed, which are now asserted in code:
 

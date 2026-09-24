@@ -529,22 +529,50 @@ export interface PerformanceTimeline {
   gaps: { fromSample: Samples; toSample: Samples }[];
 }
 
-export function projectPerformance(performance: Performance): PerformanceTimeline {
-  const end = performance.master.durationSamples;
-  assertSamples(end);
+/**
+ * A stretch of the song to project, rather than all of it.  [§14]
+ *
+ * A clip is the master render with a window on it — the same scenes, the same
+ * matte, the same sound — so there is one projection and not a second one for
+ * short videos. The output clock is rebased to the window, because a clip
+ * starts at its own zero.
+ */
+export interface PerformanceWindow {
+  fromSample: Samples;
+  toSample: Samples;
+}
+
+export function projectPerformance(
+  performance: Performance, window?: PerformanceWindow,
+): PerformanceTimeline {
+  const songEnd = performance.master.durationSamples;
+  assertSamples(songEnd);
+  const start = window ? Math.max(0, Math.min(window.fromSample, songEnd)) : 0;
+  const end = window ? Math.max(start, Math.min(window.toSample, songEnd)) : songEnd;
+  /** Output frames are counted from the window, not from the song. */
+  const zero = samplesToFrames(start);
   const ordered = orderedScenes(performance);
   const spans: PerformanceSpan[] = [];
   const gaps: { fromSample: Samples; toSample: Samples }[] = [];
 
-  /* Before the first scene there is song with nothing on it. */
-  if (ordered.length > 0 && ordered[0]!.fromSample > 0) {
-    gaps.push({ fromSample: 0, toSample: Math.min(ordered[0]!.fromSample, end) });
+  /*
+   * Song with nothing on it, at the beginning of what is being projected.
+   *
+   * Asked as "is a scene in force here", not "does a scene start here": a
+   * window opening in the middle of a four-minute scene is covered by it, and
+   * a clip that reported a gap there would refuse to render the chorus.
+   */
+  const inForce = ordered.filter((scene) => scene.fromSample <= start).pop();
+  if (!inForce) {
+    const next = ordered.find((scene) => scene.fromSample > start)?.fromSample ?? end;
+    if (Math.min(next, end) > start) {
+      gaps.push({ fromSample: start, toSample: Math.min(next, end) });
+    }
   }
-  if (ordered.length === 0 && end > 0) gaps.push({ fromSample: 0, toSample: end });
 
   for (let i = 0; i < ordered.length; i += 1) {
     const scene = ordered[i]!;
-    const fromSample = Math.min(scene.fromSample, end);
+    const fromSample = Math.max(start, Math.min(scene.fromSample, end));
     const toSample = Math.min(ordered[i + 1]?.fromSample ?? end, end);
     if (toSample <= fromSample) continue;
 
@@ -562,13 +590,13 @@ export function projectPerformance(performance: Performance): PerformanceTimelin
       else missing.push(id as TakeId);
     }
 
-    const outputStartFrame = samplesToFrames(fromSample);
+    const outputStartFrame = samplesToFrames(fromSample) - zero;
     spans.push({
       scene,
       fromSample,
       toSample,
       outputStartFrame,
-      durationFrames: samplesToFrames(toSample) - outputStartFrame,
+      durationFrames: samplesToFrames(toSample) - samplesToFrames(fromSample),
       takes,
       missing,
     });
@@ -576,8 +604,8 @@ export function projectPerformance(performance: Performance): PerformanceTimelin
 
   return {
     spans,
-    totalSamples: end,
-    totalOutputFrames: samplesToFrames(end),
+    totalSamples: end - start,
+    totalOutputFrames: samplesToFrames(end) - zero,
     gaps,
   };
 }

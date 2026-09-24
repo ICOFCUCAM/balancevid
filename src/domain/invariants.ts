@@ -9,7 +9,7 @@ import { type Conversation, orderedInterventions, selectedTake } from './documen
 import { quoteHash } from './ids.js';
 import type { SourceItem, Timeline } from './timeline.js';
 import {
-  type Performance, type PerformanceTake,
+  type Performance, type PerformanceTake, type PerformanceWindow,
   mayPublish, needsLicenceNote, plateFor, projectPerformance,
 } from './performance.js';
 import { needsMatte } from './environment.js';
@@ -197,8 +197,10 @@ export function assertPublishable(performance: Performance): void {
  * checked together because an author is better served by being told all of
  * what is wrong than the first thing.
  */
-export function assertPerformanceRenderable(performance: Performance): void {
-  const timeline = projectPerformance(performance);
+export function assertPerformanceRenderable(
+  performance: Performance, window?: PerformanceWindow,
+): void {
+  const timeline = projectPerformance(performance, window);
 
   if (timeline.spans.length === 0) {
     fail('INV-03', 'this performance has no scenes, so there is nothing to render');

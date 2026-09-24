@@ -25,7 +25,7 @@
 
 import type { AssetId, TakeId } from './document.js';
 import {
-  type AudioMode, type Performance, type PerformanceTake,
+  type AudioMode, type Performance, type PerformanceTake, type PerformanceWindow,
   coverage, projectPerformance, takeById,
 } from './performance.js';
 import { type Samples, HOUSE_SAMPLE_RATE } from './time.js';
@@ -74,9 +74,19 @@ export class PerformanceAudioError extends Error {
  * can differ scene by scene without the sound being chopped up by scenes that
  * agree with each other.
  */
-export function planPerformanceAudio(performance: Performance): AudioPiece[] {
-  const timeline = projectPerformance(performance);
+export function planPerformanceAudio(
+  performance: Performance, window?: PerformanceWindow,
+): AudioPiece[] {
+  const timeline = projectPerformance(performance, window);
   if (timeline.spans.length === 0) return [];
+  /*
+   * A clip's sound starts at the clip's own zero, while the SOURCES are still
+   * read at their place in the song. Two clocks, and the piece carries both:
+   * `fromSample` is where it lands in the finished video, `mediaFromSample` is
+   * where to read it from. Confusing them is a chorus clip playing the first
+   * verse. [§14]
+   */
+  const zero = window ? Math.max(0, window.fromSample) : 0;
 
   /** source key → the runs it is audible for, in order. */
   const runs = new Map<string, { takeId?: TakeId; from: Samples; to: Samples }[]>();
@@ -148,9 +158,9 @@ export function planPerformanceAudio(performance: Performance): AudioPiece[] {
       if (key === 'master') {
         pieces.push({
           kind: 'master',
-          fromSample: run.from, toSample: run.to,
+          fromSample: run.from - zero, toSample: run.to - zero,
           mediaFromSample: run.from,
-          ...fades(run.from, run.to, performance),
+          ...fades(run.from, run.to, performance, window),
         });
         continue;
       }
@@ -159,10 +169,10 @@ export function planPerformanceAudio(performance: Performance): AudioPiece[] {
         kind: 'take',
         takeId: take.id as TakeId,
         assetId: take.assetId as AssetId,
-        fromSample: run.from, toSample: run.to,
+        fromSample: run.from - zero, toSample: run.to - zero,
         mediaFromSample: Math.max(0, Math.round(
           (run.from - effective(take)) * take.alignment.rateRatio)),
-        ...fades(run.from, run.to, performance),
+        ...fades(run.from, run.to, performance, window),
       });
     }
   }
@@ -216,10 +226,17 @@ function effective(take: PerformanceTake): Samples {
  * song that begins on a downbeat is an audible mistake.
  */
 function fades(
-  from: Samples, to: Samples, performance: Performance,
+  from: Samples, to: Samples, performance: Performance, window?: PerformanceWindow,
 ): { fadeInSamples: Samples; fadeOutSamples: Samples } {
   const length = to - from;
   const fade = Math.min(AUDIO_FADE_SAMPLES, Math.floor(length / 2));
+  /*
+   * A clip's edges are the opposite case from the song's. The song begins on
+   * a downbeat somebody wrote and must not be faded into; a clip is cut out of
+   * the middle of a song and must be, or it starts with a bang and stops
+   * mid-word. [§14]
+   */
+  if (window) return { fadeInSamples: fade, fadeOutSamples: fade };
   return {
     fadeInSamples: from <= 0 ? 0 : fade,
     fadeOutSamples: to >= performance.master.durationSamples ? 0 : fade,
