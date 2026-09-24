@@ -3996,6 +3996,28 @@ size. It was counting commas. The fields are named now and looked up by name.
 
 ---
 
+## Briefs held outside this document
+
+Two specifications are recorded verbatim in files of their own, because they
+arrived as briefs and editing a brief into doctrine loses the thing that makes
+it worth having. Each carries its own appendix, which is where implementation
+writes back.
+
+- **[`ROOM.md`](ROOM.md)** — the Conversation Room. §1–§12, built, with
+  Appendix R recording what each of the four stages cost.
+- **[`STUDIO-TWO.md`](STUDIO-TWO.md)** — the Performance Studio. §1–§15,
+  **specified and not yet built.** Appendix S maps it onto this codebase and
+  states, among other things, two invariants it will need (sample-exact take
+  alignment, and no published export of a master track the author has not
+  declared they may publish) and one rights question the brief does not ask.
+
+A Performance is a second root document beside the Conversation, not a
+Conversation with a flag: its takes are parallel rather than ordered, and its
+master clock is the music. Everything below the document — assets, the queue,
+layouts, export profiles, the publication system — is shared.
+
+---
+
 *End of doctrine. Amend by extension only (see "Amendment rule").*
 
 ---

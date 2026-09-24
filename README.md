@@ -323,6 +323,8 @@ Stated plainly, because a status table that overstates is worse than none.
 
 ```
 docs/DOCTRINE.md    the constitution
+docs/ROOM.md        the Conversation Room brief, and what building it taught
+docs/STUDIO-TWO.md  the Performance Studio brief — specified, not yet built
 src/domain/         the Conversation and its projections — pure, no I/O
 src/render/         ffmpeg: ingest, compositor, subtitles — worker only
 src/store/          document, chunks, queue — split so the web tier
