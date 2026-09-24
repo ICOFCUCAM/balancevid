@@ -346,6 +346,81 @@ describe('vertical clips (U-22)', () => {
     expect(info.height).toBe(1920);
     // Short enough for the formats it is made for.
     expect(info.durationSeconds).toBeLessThan(90);
+
+    /*
+     * And it was REFRAMED, not shrunk. [U-22 §3]
+     *
+     * The conversation's responses are critiques, which compose side by side;
+     * a tall canvas gets the stacked arrangement instead. This assertion is
+     * the one that would have caught `verticalLayoutId` being declared on
+     * every layout and read by nothing — the clip rendered at 1080×1920 the
+     * whole time, and the two panels inside it were postage stamps.
+     */
+    const responseShot = plan.shots.find((s) => s.kind === 'response') as
+      { layoutId: string };
+    expect(responseShot.layoutId).toBe('vertical_stack');
+  }, 300_000);
+
+  /**
+   * The region survives the format change.  [Doctrine U-22 §3, U-12]
+   *
+   * The author pointed at part of a wide frame and spoke about it. Contained
+   * whole into a narrow panel, that part is a few pixels across — so the
+   * panel is cropped to what they marked. This renders it, because a crop
+   * expressed as an ffmpeg filter either composes or brings the graph down,
+   * and nothing short of running it proves which.
+   */
+  it('crops the source to what the author marked, and still lands frame-exact', async () => {
+    const conversation = makeConversation(
+      SOURCE_FRAMES,
+      ANCHORS.map((frame) => makeIntervention(frame, RESPONSE_FRAMES, {
+        type: 'critique', quote: 'The policy was clearly successful.',
+      })),
+    );
+    conversation.source.mezzanineAssetId = 'asset_source' as AssetId;
+    for (const ivn of conversation.interventions) {
+      for (const take of ivn.takes) take.assetId = 'asset_response' as AssetId;
+    }
+
+    const target = conversation.interventions[1]!;
+    const take = target.takes[0]!;
+    target.annotations = [
+      {
+        id: 'ann_there' as never, kind: 'point',
+        points: [{ x: 0.74, y: 0.36 }],
+        style: { color: '#6fb3e0' }, z: 0,
+        appearOffset: 4, dismissOffset: take.mediaOutFrame - take.mediaInFrame,
+      },
+      {
+        // Excluded from the region: a blur says do not look here.
+        id: 'ann_hide' as never, kind: 'blur',
+        points: [{ x: 0.02, y: 0.80 }, { x: 0.18, y: 0.95 }],
+        style: {}, z: 1,
+      },
+    ];
+
+    const plan = buildClipPlan(conversation, target.id);
+    const shot = plan.shots.find((s) => s.kind === 'response') as
+      { layoutId: string; sourceFocus?: { x: number; y: number; w: number; h: number } };
+    expect(shot.layoutId).toBe('vertical_stack');
+    expect(shot.sourceFocus).toBeDefined();
+    // Around the point, and nowhere near the blur in the opposite corner.
+    expect(shot.sourceFocus!.x).toBeGreaterThan(0.4);
+    expect(shot.sourceFocus!.y).toBeLessThan(0.5);
+
+    const workDir = join(dir, 'work', 'clip-focus');
+    await mkdir(workDir, { recursive: true });
+    const outputPath = join(workDir, 'CLIP.mp4');
+    const result = await compose(plan, {
+      workDir, outputPath,
+      resolveAsset: (id) => (id === 'asset_source' ? sourceMezz : responseMezz),
+    });
+
+    const info = await probe(outputPath);
+    expect(result.totalOutputFrames).toBe(plan.totalOutputFrames);
+    expect(info.durationFrames).toBe(plan.totalOutputFrames);
+    expect(info.width).toBe(1080);
+    expect(info.height).toBe(1920);
   }, 300_000);
 });
 

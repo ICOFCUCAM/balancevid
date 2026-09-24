@@ -3592,6 +3592,55 @@ known counted as work in progress. The video getting ready and the author's
 recordings being assembled are two different things, and one boolean was
 standing for both. Counting the second, and polling on either, separated them.
 
+**The second dead field.** Every layout carried a `verticalLayoutId`, and
+nothing anywhere read it. A 9:16 clip was therefore rendered with the 16:9
+arrangement — `side_by_side` on a tall canvas is two postage stamps in a band
+of blur — while the export profile said 1080×1920 and every test agreed it
+was vertical, because every test checked the dimensions. This is the same
+shape of hole as the provider's oEmbed URL being computed and never fetched.
+**Twice now, the missing feature was a field that was designed, stored and
+never consulted; the test that catches it asserts the consequence, not the
+setting.**
+
+**A format is a shape, not a name.** The four publication formats sort into
+four families — landscape, square, portrait, tall — because what a layout
+needs to know is how wide the canvas is, not which platform it is for. 4:5
+and 1:1 want the same arrangement as each other far more often than 4:5 and
+9:16 do, and binding layouts to named profiles would mean editing every layout
+to add a format.
+
+**The meaning has to survive the reframe, not just the pixels.** Stacking the
+panels is the easy half. The hard half is that a wide frame contained in a
+narrow panel is a strip in which the thing being discussed is a few pixels
+across — technically the same picture, and useless. The author has already
+said where to look: they pointed at it, circled it, drew an arrow to it. A
+reframed panel crops to the union of those marks, which means no new field to
+fill in and no second place for the answer to live. Blur marks are excluded,
+because a blur says *do not look here* and cropping towards the one thing
+being hidden is precisely backwards.
+
+**The preview and the renderer must crop with the same arithmetic.** Sharing
+the function was not optional but it was not free either: the planner pulls in
+hashing and export profiles, none of which can cross into a browser bundle,
+and importing it into the editor broke the build on `node:crypto`. The shared
+geometry moved to a module with no such dependencies. **When two sides must
+agree on a number, the thing to share is the number's definition, and it has
+to be portable enough to be shared.**
+
+**Publish is a stage, not a drawer.** Export was a panel at the bottom of the
+Studio column, which said that publishing is an afterthought of editing. It is
+the third act: Live is where the conversation happens, Studio is where it is
+composed, Publish is where it becomes the forms in which it travels — four
+video shapes, a clip per exchange, an article, captions, a manifest. All of
+them are representations of the same Conversation (INV-00), which is why they
+belong in one place and why none of them is a separate edit.
+
+**A key belongs to the mode that owns it.** Space starts and stops recording,
+and it also scrolls a page. On a stage full of formats and clips it must do
+the second, so the handler asks which stage is showing — through a ref,
+because it is registered once and would otherwise read the mode it was
+registered with.
+
 **A claim card must not look like a verdict.** Selecting a sentence is the
 author saying "this is what I am answering", and the interface should change
 shape to say it back — the statement lifted out of the running text, given its

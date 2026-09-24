@@ -20,11 +20,11 @@ import ClipRail, { type ClipRailItem } from './ClipRail.js';
 import CompositionRail, { type ExplainTool } from './CompositionRail.js';
 import ExplainSurface from './ExplainSurface.js';
 import CompositionStage from './CompositionStage.js';
+import PublishStage from './PublishStage.js';
 import Timeline from './Timeline.js';
 import SidePanel from './SidePanel.js';
 import ClaimCard from './ClaimCard.js';
 import ClaimsPanel from './ClaimsPanel.js';
-import ExportPanel from './ExportPanel.js';
 import { INTERVENTION_TYPES, type InterventionType } from '../../../src/domain/document.js';
 import { HOUSE_FPS, formatTimecode, type Frames } from '../../../src/domain/time.js';
 import { TYPE_PRESENTATION } from '../../../src/domain/presentation.js';
@@ -72,6 +72,8 @@ export default function Studio({ conversationId }: { conversationId: string }) {
    * frame being marked. A mode that changes another panel belongs to neither.
    */
   const [explainTool, setExplainTool] = useState<ExplainTool | null>(null);
+  /* Read by the key handler, which is registered once and must not go stale. */
+  const modeRef = useRef<'live' | 'studio' | 'publish'>('live');
   /** The shape under the pointer, drawn on the composition as it forms. */
   const [markDraft, setMarkDraft] = useState<any>(null);
   /** What this response is answering, shown over the frozen frame while it is. */
@@ -95,7 +97,7 @@ export default function Studio({ conversationId }: { conversationId: string }) {
   const [transcript, setTranscript] = useState<Transcript | null>(null);
   const [currentFrame, setCurrentFrame] = useState(0);
   /** Two modes (§36). Live is the front door; Studio is never required (U-28). */
-  const [mode, setMode] = useState<'live' | 'studio'>('live');
+  const [mode, setMode] = useState<'live' | 'studio' | 'publish'>('live');
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const embedRef = useRef<HTMLIFrameElement | null>(null);
@@ -542,9 +544,17 @@ export default function Studio({ conversationId }: { conversationId: string }) {
     }
   }, [finalizeTake, setPhaseBoth]);
 
+  useEffect(() => { modeRef.current = mode; }, [mode]);
+
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
       if (event.code !== 'Space') return;
+      /*
+       * Space belongs to the conversation, and Publish is not the
+       * conversation. Somebody scrolling a page of formats and clips should
+       * not start a recording with the key they use to scroll it.
+       */
+      if (modeRef.current === 'publish') return;
       const target = event.target as HTMLElement | null;
       if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
       event.preventDefault();
@@ -808,9 +818,15 @@ export default function Studio({ conversationId }: { conversationId: string }) {
           </button>
           <button role="tab" data-testid="mode-studio"
                   aria-selected={mode === 'studio'} onClick={() => setMode('studio')}
-                  style={{ borderRadius: '0 8px 8px 0', padding: '7px 14px',
+                  style={{ borderRadius: 0, padding: '7px 14px',
                     background: mode === 'studio' ? '#2b5f8a' : undefined }}>
             Studio
+          </button>
+          <button role="tab" data-testid="mode-publish"
+                  aria-selected={mode === 'publish'} onClick={() => setMode('publish')}
+                  style={{ borderRadius: '0 8px 8px 0', padding: '7px 14px',
+                    background: mode === 'publish' ? '#2b5f8a' : undefined }}>
+            Publish
           </button>
         </div>
         <a className="btn" href="/" style={{ padding: '7px 14px' }}>All conversations</a>
@@ -831,6 +847,15 @@ export default function Studio({ conversationId }: { conversationId: string }) {
           BOTTOM  when does it happen     the one key, and the statement
         Live is none of that: it is the picture and one key.
       */}
+      {mode === 'publish' ? (
+        <PublishStage
+          conversationId={conversationId}
+          conversation={conversation}
+          snapshot={snapshot}
+          refresh={refresh}
+          embedded={isEmbedded}
+        />
+      ) : (
       <div className="shell-body" style={{
         display: 'grid',
         gridTemplateColumns: mode === 'live'
@@ -1024,12 +1049,6 @@ export default function Studio({ conversationId }: { conversationId: string }) {
                 onSeek={seekTo}
               />
 
-              <ExportPanel
-                conversationId={conversationId}
-                conversation={conversation}
-                snapshot={snapshot}
-                refresh={refresh}
-              />
             </div>
           )}
 
@@ -1117,7 +1136,10 @@ export default function Studio({ conversationId }: { conversationId: string }) {
       </div>
 
 
+      )}
+
       {/* ---- the controls, along the bottom edge ------------------------ */}
+      {mode !== 'publish' && (
       <footer className="shell-foot">
         {error && (
           <div className="small" style={{ color: 'var(--bad)', marginBottom: 8 }}>{error}</div>
@@ -1220,6 +1242,7 @@ export default function Studio({ conversationId }: { conversationId: string }) {
           )}
         </div>
       </footer>
+      )}
     </div>
   );
 }

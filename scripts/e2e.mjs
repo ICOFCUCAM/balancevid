@@ -180,7 +180,7 @@ log('camera armed');
   const inLive = await page.evaluate(() => ({
     transcript: !!document.querySelector('[data-testid="tab-transcript"]'),
     timeline: !!document.querySelector('[data-testid="conversation-timeline"]'),
-    publish: !!document.querySelector('[data-testid="toggle-export"]'),
+    publish: !!document.querySelector('[data-testid="publish-formats"]'),
     stance: document.querySelector('[data-testid="stance"]')?.textContent,
     camera: !!document.querySelector('[data-testid="camera-pip"]'),
   }));
@@ -762,6 +762,95 @@ log('checking a recording that did not save…');
     null, { timeout: 30_000 });
 }
 
+// --- publishing: one conversation, four shapes (U-18, U-22, INV-00) ---------
+/*
+ * The claim this stage makes is that the same composition publishes in four
+ * formats and still means the same thing. Two ways that stops being true:
+ * the reframe is declared and never read (which is what happened to
+ * `verticalLayoutId` for months), or it happens and throws away the point.
+ */
+log('checking the publication formats…');
+{
+  await page.click('[data-testid="mode-publish"]');
+  await page.waitForSelector('[data-testid="publish-formats"]', { timeout: 15_000 });
+
+  const formats = await page.locator('[data-testid="publish-format"]').count();
+  check(formats === 4, 'the conversation offers four shapes to travel in', `${formats}`);
+  for (const id of ['youtube_16x9', 'vertical_9x16', 'portrait_4x5', 'square_1x1']) {
+    check(await page.locator(`[data-testid="publish-format"][data-profile="${id}"]`)
+      .count() === 1, `including ${id}`);
+  }
+
+  /*
+   * Each preview is the layout the RENDERER will resolve for that canvas.
+   * A wide arrangement shown squeezed into a tall box would be a picture of a
+   * video nobody is going to get.
+   */
+  const layouts = await page.evaluate(() => {
+    const out = {};
+    for (const card of document.querySelectorAll('[data-testid="publish-format"]')) {
+      const stage = card.querySelector('[data-testid="composition-stage"]');
+      out[card.getAttribute('data-profile')] = stage?.getAttribute('data-layout') ?? null;
+    }
+    return out;
+  });
+  check(layouts['youtube_16x9'] && layouts['vertical_9x16']
+    && layouts['youtube_16x9'] !== layouts['vertical_9x16'],
+    'a tall canvas is REFRAMED, not the wide one shrunk',
+    `16:9 ${layouts['youtube_16x9']} vs 9:16 ${layouts['vertical_9x16']}`);
+  check(layouts['portrait_4x5'] !== layouts['vertical_9x16'],
+    'and 4:5 gets its own proportions rather than the 9:16 ones',
+    `4:5 ${layouts['portrait_4x5']}`);
+
+  // Space belongs to the conversation, and this is not the conversation.
+  const stanceBefore = await page.locator('[data-testid="stance"]').count();
+  check(stanceBefore === 0, 'the one-key bar is not on the publish stage');
+  await page.keyboard.press('Space');
+  await page.waitForTimeout(500);
+  check(await page.locator('[data-testid="mode-publish"]')
+    .getAttribute('aria-selected') === 'true',
+    'and pressing space here does not start a recording');
+
+  // The moments worth posting, proposed and never published for you (U-22 §4).
+  const candidates = await page.locator('[data-testid="clip-candidate"]').count();
+  check(candidates > 0, 'each exchange is offered as a clip of its own', `${candidates}`);
+  check(await page.locator('[data-testid="publish-make-clips"]').isDisabled(),
+    'and nothing is made until the author chooses');
+  await page.locator('[data-testid="clip-choose"]').first().check();
+  check(!(await page.locator('[data-testid="publish-make-clips"]').isDisabled()),
+    'choosing one arms the button');
+  await page.locator('[data-testid="clip-choose"]').first().uncheck();
+
+  const publishText = await page.evaluate(() => document.body.innerText);
+  check(!/U-\d|INV-\d|Class [AB]|§|exportProfileId/.test(publishText),
+    'and the stage speaks the creator\'s language');
+
+  await page.click('[data-testid="mode-studio"]');
+  await page.waitForSelector('[data-testid="clip-rail"]', { timeout: 10_000 });
+}
+
+/*
+ * And the reframe is real in the render, not only in the preview: a clip's
+ * plan must name the stacked arrangement, and carry the crop derived from
+ * the marks the author placed.
+ */
+{
+  const clipPlans = await api(`/api/conversations/${conversationId}/clips`);
+  const first = clipPlans.candidates?.[0];
+  check(Boolean(first), 'the conversation proposes clips through its own API');
+  const preview = await api(
+    `/api/conversations/${conversationId}/clips?interventionId=${first.interventionId}&plan=1`)
+    .catch(() => null);
+  if (preview?.plan) {
+    const shot = preview.plan.shots.find((s) => s.kind === 'response');
+    check(shot?.layoutId?.startsWith('vertical') || shot?.layoutId?.startsWith('stacked')
+      || shot?.layoutId === 'presenter_tall' || shot?.layoutId === 'full_user'
+      || shot?.layoutId === 'evidence_stack',
+      'and a clip is planned in a tall arrangement, not a shrunken wide one',
+      `${shot?.layoutId}`);
+  }
+}
+
 // --- the creator's language, not the engineer's -----------------------------
 /*
  * The doctrine's identifiers are precise and they belong in the code, the
@@ -1200,8 +1289,9 @@ check(snapAfterDelete.invariantError === null,
 
 // --- render -----------------------------------------------------------------
 log('rendering…');
-await page.click('[data-testid="toggle-export"]');
-await page.click('[data-testid="start-export"]');
+await page.click('[data-testid="mode-publish"]');
+await page.waitForSelector('[data-testid="publish-render"]', { timeout: 20_000 });
+await page.click('[data-testid="publish-render"]');
 let job = null;
 for (let i = 0; i < 300; i++) {
   const jobs = (await api(`/api/conversations/${conversationId}/renders`)).jobs;
@@ -1339,13 +1429,13 @@ for (const intervention of atThumbnailTime.interventions) {
     `asked ${intervention.anchor.tSourceFrame}, got ${decoded}`);
 }
 
-// The panel the author actually uses.
+// The panel the author actually uses. Publishing is its own stage now.
 await page.reload();
-await page.click('button[role=tab]:has-text("Studio")');
-await page.click('[data-testid="toggle-export"]');
+await page.click('[data-testid="mode-publish"]');
 await page.waitForSelector('[data-testid="bundle-panel"]', { timeout: 20000 })
-  .then(() => check(true, 'the studio shows the publication bundle'))
-  .catch(() => check(false, 'the studio shows the publication bundle', 'panel never appeared'));
+  .then(() => check(true, 'the publish stage shows the publication bundle'))
+  .catch(() => check(false, 'the publish stage shows the publication bundle',
+    'panel never appeared'));
 const shownDescription = await page.inputValue('[data-testid="bundle-description"]')
   .catch(() => '');
 check(shownDescription === bundle.description,

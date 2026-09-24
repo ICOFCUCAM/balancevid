@@ -1,8 +1,11 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { LAYOUTS, TYPE_PRESENTATION } from '../../../src/domain/presentation.js';
+import {
+  EXPORT_PROFILES, LAYOUTS, TYPE_PRESENTATION, layoutForProfile,
+} from '../../../src/domain/presentation.js';
 import type { Layer } from '../../../src/domain/presentation.js';
+import { focusRegion } from '../../../src/domain/focus.js';
 import type { InterventionType } from '../../../src/domain/document.js';
 import { HOUSE_FPS } from '../../../src/domain/time.js';
 import Mark from './Mark.js';
@@ -30,10 +33,18 @@ import Mark from './Mark.js';
  * means the same thing in the export.
  */
 export default function CompositionStage({
-  conversationId, intervention, layoutId, drafts, children,
+  conversationId, intervention, layoutId, drafts, children, profileId,
 }: {
   conversationId: string;
   intervention: any;
+  /**
+   * Which publication format to draw. Absent means the wide master.
+   *
+   * The same composition in another shape, resolved the way the renderer
+   * resolves it — so the preview of a 9:16 clip is the arrangement that will
+   * actually be exported, not the 16:9 one squeezed. [U-18, U-22 §3]
+   */
+  profileId?: string;
   /** Overrides the intervention's own layout, for previewing a choice. */
   layoutId?: string | null;
   /** A mark being drawn right now, shown with the saved ones. */
@@ -42,11 +53,21 @@ export default function CompositionStage({
   children?: React.ReactNode;
 }) {
   const fromType = TYPE_PRESENTATION[intervention.type as InterventionType];
-  const layout = LAYOUTS[layoutId ?? intervention.layoutId ?? fromType.layoutId]
-    ?? LAYOUTS['full_source']!;
+  const chosen = layoutId ?? intervention.layoutId ?? fromType.layoutId;
+  const profile = EXPORT_PROFILES[profileId ?? 'youtube_16x9']!;
+  const layout = (() => {
+    try {
+      return layoutForProfile(intervention.type as InterventionType, chosen, profile);
+    } catch {
+      return LAYOUTS[chosen] ?? LAYOUTS['full_source']!;
+    }
+  })();
   const take = (intervention.takes ?? [])
     .find((t: any) => t.id === intervention.selectedTakeId);
   const marks: any[] = [...(intervention.annotations ?? []), ...(drafts ?? [])];
+  // The crop a reframed panel will use, computed exactly as the planner does.
+  const focus = layout.layers.some((l) => l.followFocus)
+    ? focusRegion(intervention) : undefined;
 
   return (
     <div data-testid="composition-stage" data-layout={layout.id}
@@ -75,6 +96,7 @@ export default function CompositionStage({
             conversationId={conversationId}
             intervention={intervention}
             take={take}
+            {...(layer.followFocus && focus ? { focus } : {})}
           />
         </LayerBox>
       ))}
@@ -112,14 +134,42 @@ function LayerBox({ layer, children }: { layer: Layer; children: React.ReactNode
 }
 
 function LayerMedia({
-  layer, conversationId, intervention, take,
-}: { layer: Layer; conversationId: string; intervention: any; take: any }) {
+  layer, conversationId, intervention, take, focus,
+}: {
+  layer: Layer; conversationId: string; intervention: any; take: any;
+  /** The part of the source to show, when the layout follows the marks. */
+  focus?: { x: number; y: number; w: number; h: number };
+}) {
   const box: React.CSSProperties = {
     width: '100%', height: '100%', background: '#000',
     objectFit: layer.fit === 'contain' ? 'contain' : 'cover',
   };
 
   if (layer.source === 'source' || layer.source === 'still') {
+    /*
+     * A crop, done the way the compositor does it: scale the frame up by the
+     * inverse of the region and slide it so the region fills the panel. The
+     * numbers are the same ones the ffmpeg crop uses, which is the point —
+     * a preview that crops differently is a preview of another video.
+     */
+    if (focus) {
+      return (
+        <div style={{ width: '100%', height: '100%', overflow: 'hidden', position: 'relative',
+          background: '#000' }}>
+          <SourceFrame
+            conversationId={conversationId}
+            frame={intervention.anchor.tSourceFrame}
+            style={{
+              position: 'absolute',
+              width: `${100 / focus.w}%`, height: `${100 / focus.h}%`,
+              left: `${(-focus.x / focus.w) * 100}%`,
+              top: `${(-focus.y / focus.h) * 100}%`,
+              objectFit: 'fill', background: '#000',
+            }}
+          />
+        </div>
+      );
+    }
     return (
       <SourceFrame
         conversationId={conversationId}

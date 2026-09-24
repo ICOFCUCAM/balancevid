@@ -10,14 +10,16 @@
 
 import {
   type Annotation, type AssetId, type Conversation, type Evidence,
-  type InterventionId, type Point, type TakeId,
+  type Intervention, type InterventionId, type Point, type TakeId,
   orderedInterventions, selectedTake,
 } from './document.js';
 import { sha256 } from './ids.js';
 import { InvariantViolation } from './invariants.js';
 import {
-  type ExportProfile, EXPORT_PROFILES, TYPE_PRESENTATION, type Transition, layoutForType,
+  type ExportProfile, type Rect, EXPORT_PROFILES, TYPE_PRESENTATION, type Transition,
+  layoutForProfile, layoutForType,
 } from './presentation.js';
+import { focusRegion } from './focus.js';
 import { chainAttribution } from './publish.js';
 import { type Timeline, projectTimeline, sourceRatio } from './timeline.js';
 import type { Frames } from './time.js';
@@ -65,6 +67,15 @@ export interface ResponseShot extends ShotBase {
   evidence?: EvidenceCue[];
   /** Marks over the frozen source frame, in this shot's own frames. [U-12] */
   annotations?: AnnotationCue[];
+  /**
+   * The part of the source this response is about, normalised to the source
+   * frame.  [U-22 §3]
+   *
+   * Set only where the layout asked to follow it — a reframe. The compositor
+   * crops the source panel to this before fitting it, so the thing the author
+   * pointed at is the thing the viewer sees, at a size worth seeing.
+   */
+  sourceFocus?: Rect;
 }
 
 /**
@@ -227,9 +238,21 @@ export function planFromTimeline(
     const implied = cues.length > 0
       ? 'evidence_split'
       : (ivn.annotations?.length ?? 0) > 0 ? 'freeze_pip' : undefined;
-    const layout = layoutForType(
-      ivn.type, options.responseLayoutId ?? ivn.layoutId ?? implied,
+    /*
+     * The layout, reframed for the canvas this export is being drawn on.
+     * The author composed once; this is the same composition in another
+     * shape, not a second composition. [U-18, U-22 §3]
+     */
+    const layout = layoutForProfile(
+      ivn.type, options.responseLayoutId ?? ivn.layoutId ?? implied, exportProfile,
     );
+    /*
+     * And which part of the source it is about, so a reframed panel shows the
+     * thing rather than the whole wide frame shrunk to a strip. Derived from
+     * the marks the author placed: they already said where to look.
+     */
+    const focus = layout.layers.some((l) => l.followFocus)
+      ? focusRegion(ivn) : undefined;
 
     const shot: Omit<ResponseShot, 'hash'> = {
       id: `shot_res_${ivn.id}_${take.id}`,
@@ -246,6 +269,7 @@ export function planFromTimeline(
       outputStartFrame: item.outputStartFrame,
       durationFrames: item.durationFrames,
       layoutId: layout.id,
+      ...(focus ? { sourceFocus: focus } : {}),
       lowerThird: presentation.lowerThird,
       accent: presentation.accent,
       transition: presentation.transition,

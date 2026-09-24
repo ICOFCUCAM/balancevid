@@ -318,9 +318,28 @@ async function renderResponseShot(
     `tpad=start_mode=clone:start_duration=${padHead}:stop_mode=clone:stop_duration=${padTail}[user]`,
   );
   if (stillIdx >= 0) {
-    const rect = layout.layers.find((l) => l.source === 'source' || l.source === 'still')?.rect ?? FULL_RECT;
+    const sourceLayer = layout.layers.find((l) => l.source === 'source' || l.source === 'still');
+    const rect = sourceLayer?.rect ?? FULL_RECT;
     const px = pixelRect(rect, width, height);
-    chains.push(`[still_src]${fitFilter('cover', px.w, px.h)}[still]`);
+    /*
+     * Crop to what the response is about, before fitting.  [U-22 §3]
+     *
+     * A reframed panel is narrow, and a wide frame contained inside it is a
+     * strip in which the thing being discussed is a few pixels across. The
+     * plan says which part matters, derived from the marks the author placed,
+     * and this cuts to it first so the fit has something worth fitting.
+     *
+     * `contain` after the crop rather than `cover`: the region is already the
+     * shape the author's marks made, and cropping it a second time to fill
+     * the panel would cut off the edges of the very thing being shown.
+     */
+    const focus = shot.sourceFocus;
+    const crop = focus
+      ? `crop=iw*${focus.w.toFixed(6)}:ih*${focus.h.toFixed(6)}:` +
+        `iw*${focus.x.toFixed(6)}:ih*${focus.y.toFixed(6)},`
+      : '';
+    const fit = focus ? 'contain' : 'cover';
+    chains.push(`[still_src]${crop}${fitFilter(fit, px.w, px.h)}[still]`);
   }
 
   let current = 'bg0';
