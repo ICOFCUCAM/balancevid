@@ -13,6 +13,13 @@
  *     assets/chunks/<take>/  streamed recording chunks (U-06)
  *     renders/<planHash>/    render plan, shot cache, outputs
  *
+ *   var/performances/<id>/   Studio Two. The same shape, a different document.
+ *     performance.json       the canonical artifact (INV-00)
+ *     audit.log
+ *     assets/                the master track, its analysis copy, the takes
+ *     assets/chunks/<take>/  streamed recording chunks (U-06, shared)
+ *     renders/<planHash>/
+ *
  * This is a filesystem adapter standing in for object storage (D-14). Every
  * path goes through here so swapping in S3 touches one module.
  */
@@ -75,6 +82,34 @@ export const paths = {
    * moment, by the same job, out of the same decoder.
    */
   shareCard: (id: string) => join(paths.thumbnails(id), 'share-card.png'),
+  /* ---- Studio Two.  [STUDIO-TWO S-1] --------------------------------- *
+   *
+   * A parallel tree rather than a flag inside the conversation one, for the
+   * same reason the document is a second root: the two are different objects
+   * and a directory that is sometimes one and sometimes the other is a
+   * directory somebody's cleanup script gets wrong.
+   */
+  performances: () => join(VAR_ROOT, 'performances'),
+  performance: (id: string) => join(VAR_ROOT, 'performances', safe(id)),
+  performanceDocument: (id: string) => join(paths.performance(id), 'performance.json'),
+  performanceAudit: (id: string) => join(paths.performance(id), 'audit.log'),
+  performanceAssets: (id: string) => join(paths.performance(id), 'assets'),
+  performanceAsset: (id: string, assetId: string, ext: string) =>
+    join(paths.performanceAssets(id), `${safe(assetId)}.${ext.replace(/[^a-z0-9]/gi, '')}`),
+  performanceChunks: (id: string, takeId: string) =>
+    join(paths.performanceAssets(id), 'chunks', safe(takeId)),
+  performanceRenders: (id: string) => join(paths.performance(id), 'renders'),
+  /**
+   * The master, as raw samples for analysis.
+   *
+   * A second copy, deliberately. Alignment reads whole minutes of audio and
+   * decoding an MP3 to do it every time is work repeated for no reason;
+   * mono 16-bit PCM at the house rate is the cheapest thing to read and the
+   * only form the measurement wants. [S-3]
+   */
+  masterAnalysis: (id: string) => join(paths.performanceAssets(id), 'master.f32'),
+  takeAnalysis: (id: string, assetId: string) =>
+    join(paths.performanceAssets(id), `${safe(assetId)}.f32`),
   queue: () => join(VAR_ROOT, 'queue'),
   queueState: (state: QueueState) => join(VAR_ROOT, 'queue', state),
 };

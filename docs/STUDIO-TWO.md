@@ -806,4 +806,69 @@ and §12's interface, which is still an open item.
 
 ---
 
+## S-14 — Stage 2, part one: knowing where a take actually is
+
+**The measurement, the decoder, and the store.** Still nothing on screen. 22
+tests, every one of them against signals the test built itself, so the right
+answer is known to the sample before the measurement runs.
+
+| Built | Where |
+|---|---|
+| Alignment and leakage, as arithmetic | `src/domain/align.ts` |
+| Device latency, from a recorded click | `src/domain/align.ts` |
+| Decoding to samples, normalised at the door | `src/render/audio.ts` |
+| The Performance store | `src/store/performances.ts` |
+
+**The honest precondition, which the brief does not state.** Cross correlation
+finds a take on the song by asking whether the two signals agree, and it works
+because both heard the same room — which is how every multicam alignment tool
+works. §10 tells the performer to wear headphones. **With headphones the master
+is not in the microphone and there is nothing to correlate.** That is not a
+defect in the method; it is the method's precondition, and the module says so
+rather than returning confident answers about noise. One measurement, read two
+ways: agreement means the offset is precise AND the author must be warned,
+because the master is coming out of speakers and the finished video will carry
+the backing track twice.
+
+**What this part taught.**
+
+1. **Two thresholds were one threshold.** The first version had a level above
+   which the offset could be trusted and a higher one above which the author
+   was warned. Measuring showed the band between them is exactly where the
+   wrong answers live — a different song entirely scores 0.26 with the offset
+   55 milliseconds out, nearly three times the tolerance a listener notices,
+   and a performer singing in time scores 0.21 because they ARE in time, which
+   is the whole idea. The offset can be trusted exactly when the master is
+   audible, and the author must be warned exactly when the master is audible.
+   Those are one fact. **A threshold chosen from a number you hoped for is a
+   guess; the fixtures that matter are the ones that nearly pass.**
+
+2. **A search window with a hidden side.** The master was sliced starting a
+   search-width before the hint, and the search then ran plus-or-minus that
+   width from there — which put the entire window earlier than the hint. A
+   take that started later than the browser reported could not be found at
+   all, and the measurement settled confidently on the nearest earlier beat, a
+   full second out. It was found by testing the error in both directions, and
+   by nothing else. **An asymmetric bug survives a symmetric test suite.**
+
+3. **Parsing prose for a number, removed rather than fixed.** Duration was
+   read by running a second ffmpeg pass and scraping its human-readable
+   summary — a string whose units had changed between releases (`kB` to
+   `KiB`) and whose sample format was not the one being assumed. Decoding to
+   the analysis file already counts the samples exactly, so the function was
+   deleted and the decode returns the duration. **When a fix is a better
+   regex, look for the reason the string is being read at all.**
+
+4. **The wrong sample rate belongs in the fixture.** The media tests build
+   their song at 44.1 kHz on purpose. A take at 48 kHz against a master at
+   44.1 drifts seven percent — seventeen seconds over a four-minute song — and
+   a test that used the house rate throughout would never discover whether
+   normalisation happens.
+
+**Still to come in stage 2:** the browser surface that plays the master and
+records against it, the calibration the author actually runs, and the worker
+job that refines a take's alignment once it has landed.
+
+---
+
 *Appendix S ends. The brief above it is unedited.*
