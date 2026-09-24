@@ -60,6 +60,22 @@ export interface ResponseShot extends ShotBase {
   padTailFrames: Frames;
   lowerThird: string;
   accent: string;
+  /**
+   * Whose response this is.  [Doctrine ROOM §9]
+   *
+   * "The composition engine should not care whether the speaker was selected
+   *  manually or automatically. It receives `activeParticipant = Sarah` and
+   *  renders Sarah according to the selected layout."
+   *
+   * This is that boundary. By the time a plan exists the question of WHO is
+   * settled — by a host clicking a name, by a voice detector, or by there
+   * being only one person — and the renderer is told the answer and nothing
+   * about how it was reached. Absent on a solo conversation, where the
+   * author is implied.
+   */
+  participantId?: string;
+  /** Their name, for the lower third, when a room has more than one. */
+  speakerName?: string;
   transition: Transition;
   /** The claim being answered, rendered as typography. [U-10] */
   quote?: string;
@@ -256,6 +272,21 @@ export function planFromTimeline(
     const focus = layout.layers.some((l) => l.followFocus)
       ? focusRegion(ivn) : undefined;
 
+    /*
+     * Whose voice this is, named only when naming distinguishes.  [ROOM §4]
+     *
+     * A conversation with one speaker needs no name on screen; one with
+     * three needs one on every response, or the viewer cannot follow who is
+     * answering whom. The plan decides this once, from the document, rather
+     * than each surface deciding for itself.
+     */
+    const speakers = conversation.participants ?? [];
+    const speaking = ivn.participantId
+      ? speakers.find((p) => p.id === ivn.participantId) : undefined;
+    const speakerName = speaking && speakers.filter(
+      (p) => p.role !== 'audience').length > 1
+      ? speaking.displayName : undefined;
+
     const shot: Omit<ResponseShot, 'hash'> = {
       id: `shot_res_${ivn.id}_${take.id}`,
       kind: 'response',
@@ -273,7 +304,14 @@ export function planFromTimeline(
       layoutId: layout.id,
       ...(focus ? { sourceFocus: focus } : {}),
       lowerThird: presentation.lowerThird,
-      accent: presentation.accent,
+      /*
+       * Who, carried through. The name is only set where it distinguishes
+       * someone: a lower third reading the author's own name on every
+       * response of a conversation they are alone in is noise.
+       */
+      ...(ivn.participantId ? { participantId: ivn.participantId } : {}),
+      ...(speakerName ? { speakerName } : {}),
+      accent: speaking?.accent ?? presentation.accent,
       transition: presentation.transition,
       ...(ivn.anchor.quote ? { quote: ivn.anchor.quote } : {}),
       ...(cues.length > 0 ? { evidence: cues } : {}),

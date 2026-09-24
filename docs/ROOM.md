@@ -392,4 +392,67 @@ switching policy — because it is a pure function, it is the part most easily
 got wrong once media is flowing, and it can be tested exhaustively before a
 single packet moves.
 
-**Status: in progress.** Filled in as the stage completes.
+**Done.**
+
+- **§4 participant states** — `invited` / `waiting` / `staged`, in
+  `src/domain/participants.ts`. Presence and staging are separate fields,
+  because being in the room is not being on the stage. A fourth state,
+  `left`, is recorded in Appendix R-C below as an addition, not a change.
+- **§2 automatic switching** — `src/domain/stage.ts`. All seven signals the
+  brief lists: voice activity, energy, speech confidence, a measured noise
+  floor per microphone, minimum speaking duration, hysteresis with a dwell
+  time, and incumbent priority. A pure function over readings and a clock, so
+  a cough, a slammed door, a kitchen extractor fan and two people talking at
+  once are all tested as sequences rather than as single frames. 24 tests.
+- **§3 manual, host, conversation, pin, resume** — the four modes and both
+  manual controls, in the same module and under the same tests.
+- **§9 the composition boundary** — `ResponseShot` carries `participantId`
+  and, where a room holds more than one speaker, `speakerName` and their
+  accent. A test asserts the plan leaks no speaker mode, no pin, no
+  microphone reading: the renderer is told who, never how.
+- **§10 independent recordings** — `Intervention.participantId`. Takes already
+  belonged to interventions, so a participant's media was already separate;
+  naming the owner is what makes it addressable afterwards.
+- **§12 the model** — `Conversation → Participants → Interventions`, with
+  `participants` and `room` optional so a solo conversation is unchanged and
+  there is no second kind of conversation.
+
+**Deferred, with the stage that takes it.**
+
+- **§1, §5 the room and studio surfaces** — Stage 2. The model is in place;
+  the windows are not.
+- **§6, §7 invitation links and QR** — Stage 2. `Room.inviteToken` exists and
+  is the credential; nothing issues or redeems it yet.
+- **§8 audience → speaker** — Stage 2 for the interface. The mechanism is
+  done: `raisedHands()` orders the queue and "bring Sarah in" is
+  `selectSpeaker`, which the tests assert is the same act as any other
+  selection rather than a second path.
+- **WebRTC and the SFU** — Stage 3, as the brief says. Nothing here assumes
+  peer-to-peer or an SFU, which is what keeps that decision open.
+- **§11 the content package** — largely already built: four publication
+  formats, per-exchange clips, the article and the manifest all exist. What
+  multi-person adds is per-participant highlights, which need Stage 2's data
+  before they can be cut.
+
+**R-C — additions and stated conflicts.**
+
+1. **A fourth participant state, `left`.** The brief names three. A
+   participant who leaves cannot simply stop existing: their takes are in the
+   conversation and the finished video is made from them (§10). The
+   alternative was a `connected` boolean that lies about people who are gone.
+   Recorded here rather than folded silently into the three.
+
+2. **No accounts yet.** The brief says participants "don't necessarily need a
+   Prof Class account initially", which this build can honour — but the
+   product currently has ONE password and no identity at all, so a guest and
+   the owner are indistinguishable to the server. Stage 2 cannot issue a
+   working invitation without deciding this. Proposed: the invite token
+   identifies the ROOM, and a joiner claims a participant record with a
+   display name; that is enough for presence and attribution, and stops short
+   of accounts.
+
+3. **`speakerMode` is stored on the conversation, not held in a browser.**
+   §10 requires that automatic switching can be changed to manual after the
+   discussion without re-recording. A setting that lived only in the live
+   session could not be changed afterwards, so it is a field of the document.
+

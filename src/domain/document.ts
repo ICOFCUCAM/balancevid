@@ -10,6 +10,7 @@
 
 import type { Frames } from './time.js';
 import type { Id } from './ids.js';
+import type { Participant, ParticipantId } from './participants.js';
 import type { AiOrigin, SuggestionDecision } from './suggestions.js';
 import type { ProviderId } from './providers.js';
 
@@ -260,6 +261,21 @@ export interface Intervention {
   selectedTakeId: TakeId | null;
   /** Overrides the type's default layout. [U-11, U-18] */
   layoutId?: string;
+  /**
+   * Whose response this is.  [Doctrine ROOM §4, §9, §10]
+   *
+   * Absent means the conversation's author, which is every conversation made
+   * before rooms existed and every solo one after. Present, it names a
+   * participant — and that single field is what lets the composition engine
+   * be told `activeParticipant = Sarah` without knowing anything about rooms,
+   * microphones, or whether a human chose her or a voice detector did.
+   *
+   * Recordings stay separate per person (ROOM §10): a participant's takes are
+   * their own media, and the composed video is made from them afterwards. So
+   * who was on stage can be changed later — automatic to manual, Sarah full
+   * screen, a three-person cut — without asking anyone to say it again.
+   */
+  participantId?: ParticipantId;
   note?: string;
   /** [§44] Attached evidence, in the order the author added it. */
   evidence?: Evidence[];
@@ -348,8 +364,57 @@ export interface Conversation {
    * document produces.
    */
   claimDecisions?: SuggestionDecision[];
+  /**
+   * Everyone in this conversation.  [Doctrine ROOM §4, §12]
+   *
+   *   Conversation → Participants → Interventions
+   *
+   * Absent on a conversation made before rooms existed, and on the ordinary
+   * single-author one: the author is implied, exactly as they were, and
+   * nothing about a solo conversation changes. What this field buys is that
+   * a response can say WHOSE it is, so a three-way discussion is the same
+   * object as a one-person answer with more people in it — not a second kind
+   * of conversation with its own renderer.
+   */
+  participants?: Participant[];
+  /** The room, when one has been opened on this conversation. [ROOM §6] */
+  room?: Room;
   createdAt: string;
   updatedAt: string;
+}
+
+/**
+ * A room opened on a conversation.  [Doctrine ROOM §6, §7]
+ *
+ * "Generate invitation URL → Share URL through WhatsApp." The first
+ * implementation owns no messaging platform and needs none: what it owns is
+ * a link that is safe to paste anywhere, and a record of who it let in.
+ */
+export interface Room {
+  /**
+   * The secret in the invitation link.
+   *
+   * Long and random, because this IS the credential — anyone holding it can
+   * enter, which is the point of being able to send it over WhatsApp to
+   * somebody with no account. It is therefore revocable, and revoking it
+   * cannot be undone by anyone still holding the old one.
+   */
+  inviteToken: string;
+  /** Rotating this is how an invitation is withdrawn. */
+  issuedAt: string;
+  /** Closed rooms accept nobody, whatever link they hold. */
+  open: boolean;
+  /**
+   * How the stage is driven, and by whom.  [ROOM §3]
+   *
+   * Stored, because it is a decision about the finished video and not a
+   * property of the live session: the brief's §10 requires that automatic
+   * switching can be changed to manual AFTER the discussion without
+   * re-recording, and a setting that lived only in a browser could not be.
+   */
+  speakerMode: 'automatic' | 'manual' | 'host' | 'conversation';
+  /** Set by hand; overrides the microphones until cleared. [ROOM §3] */
+  pinnedParticipantId?: ParticipantId;
 }
 
 /** How deep in a response chain this sits. The root is 0. */
