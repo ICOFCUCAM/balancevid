@@ -31,6 +31,8 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
     label?: string;
     offsetSamples?: number;
     method?: 'measured' | 'calibrated' | 'manual';
+    /** What the browser measured this device to add. [§10, S-3] */
+    latencySamples?: number;
     environment?: { kind: string; spaceId?: string; assetId?: string };
     /** Which room this is being recorded in. Defaults to the latest measured. */
     plateAssetId?: string;
@@ -78,6 +80,9 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
           offsetSamples,
           rateRatio: 1,
           method: body.method === 'calibrated' ? 'calibrated' : 'measured',
+          ...(Number.isFinite(body.latencySamples) && Number(body.latencySamples) > 0
+            ? { latencySamples: Math.round(Number(body.latencySamples)) }
+            : {}),
         },
         // Counted when the media lands. Zero means "still arriving".
         durationSamples: 0,

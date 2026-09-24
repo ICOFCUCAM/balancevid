@@ -257,7 +257,7 @@ async function assemblePerformanceTake(job: Job): Promise<Job> {
       target.alignment = {
         ...target.alignment,
         offsetSamples: found.offsetSamples,
-        method: 'calibrated',
+        method: 'heard',
       };
     }
   });

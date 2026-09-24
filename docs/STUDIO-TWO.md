@@ -465,7 +465,9 @@ browser cannot simply be asked what that offset is.
 - A **one-time latency calibration** per device, offered once and remembered:
   the product plays a click, the author's microphone hears it, and the round
   trip is measured. It takes four seconds and it is the difference between
-  takes that line up and takes that nearly do.
+  takes that line up and takes that nearly do. *Built in stage ten; S-23
+  records the direction the correction goes, which is the part worth having
+  written down.*
 - Alignment is stored as `offsetSamples` **and** `rateRatio`, so drift is a
   correction rather than a defect.
 - And the author can **nudge** it. Every professional tool has a sync nudge
@@ -1502,6 +1504,77 @@ item. Of §11's list, Zoom, Swipe, Match movement and Chorus transition remain
 unbuilt on purpose. A published performance is not listed anywhere public
 either — `/api/published` lists conversations, and whether the two belong in
 one list is a question about the product rather than about this stage.
+
+---
+
+## S-23 — Stage 10: what the device adds
+
+**S-3's third promise, and the last number in this studio that was a stated
+zero.** The product plays three clicks, the microphone hears them, and the
+round trip is measured — once per device, remembered by that browser.
+
+| Built | Where |
+|---|---|
+| The arithmetic, and the direction | `src/domain/calibration.ts` |
+| Playing and listening | `app/p/[id]/useCalibration.ts` |
+| Using it | `app/p/[id]/useMasterRecording.ts` |
+
+**The sign is the whole lesson.** The performer hears the song late by the
+output latency, so the sound they make is late by that much; the capture path
+delays it again before it lands in the file. Sound at a media position
+therefore belongs EARLIER in the song than the clock alone would say, and the
+round trip is **subtracted**. The code that was waiting for this number added
+it. That would not have failed anything — it would have doubled the error, so
+a calibrated device would be twice as wrong as an uncalibrated one, and the
+symptom would have been "everything is slightly out", which is the symptom of
+everything. The derivation is written out in the module rather than left to be
+re-derived at three in the morning, and there is a test whose only job is the
+direction.
+
+**What else it taught.**
+
+1. **A round trip measures all three of S-3's errors at once.** Output latency,
+   capture latency, and the recorder's own start delay — the gap between
+   `MediaRecorder.start()` returning and the first sample landing. Measuring
+   the loop through the same recorder includes that gap, and including it is
+   right: the same gap displaces a take by the same amount.
+
+2. **The microphone is opened with everything turned off.** Echo cancellation
+   exists to remove a sound the speakers just made from what the microphone
+   hears — which is precisely the sound being measured. Automatic gain would
+   rescale the click and noise suppression would treat it as noise. The
+   browser's defaults are correct for a call and wrong for a measurement.
+
+3. **One clear reading is a coincidence.** Three clicks, the median, and the
+   whole thing refused if they disagree by more than twelve milliseconds or
+   land outside what a device can be. The browser run proves the refusal
+   rather than the success: Chrome's fake microphone plays a beep of its own,
+   the readings disagree, and the studio says so and keeps the clock. **A
+   calibration that cannot fail honestly is worse than none, because the
+   number it invents moves every take.**
+
+4. **It lives in the browser, not in the document.** A latency is a fact about
+   a device, and the same performance opened on a laptop and a phone has two
+   answers. The measurement is stored per browser — but it is written onto each
+   take as `latencySamples` as that take is recorded, because a number that
+   moved somebody's performance by forty milliseconds and left no trace is one
+   nobody can check afterwards.
+
+5. **One label was meaning two things.** `AlignmentMethod` carried
+   `'calibrated'`, the worker wrote it when it had HEARD the song inside a take
+   and the browser was about to write it when it had SUBTRACTED a measured
+   latency. Two different claims about how a take came to sit where it sits,
+   under one word. There are four now — `measured`, `calibrated`, `heard`,
+   `manual` — and the studio says which in the take's own row. Documents
+   written before this carry `calibrated` where they mean `heard`; that is dev
+   data and not worth a migration, but it is worth writing down.
+
+**Still not built:** an upload for `custom` backgrounds, which are modelled and
+rendered but have no door in the studio; §12's interface, still an open item;
+and S-3's third error, clock DRIFT — `rateRatio` is in the model and is
+measured for nothing, because correcting it needs a long take with the song
+audible at both ends. Of §11's list, Zoom, Swipe, Match movement and Chorus
+transition remain unbuilt on purpose.
 
 ---
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { placeTakeOnSong } from '../../../src/domain/calibration.js';
 
 /**
  * Performing against the song.  [Doctrine STUDIO-TWO §10, S-3, U-06]
@@ -216,6 +217,7 @@ export function useMasterRecording({
         body: JSON.stringify({
           label, environment, offsetSamples: 0,
           method: latencySamples ? 'calibrated' : 'measured',
+          ...(latencySamples ? { latencySamples } : {}),
         }),
       });
       const data = await response.json().catch(() => ({}));
@@ -233,11 +235,18 @@ export function useMasterRecording({
 
         /*
          * WHERE THE SONG IS, at the instant the recorder starts, on the audio
-         * clock — plus what the device adds on the way to the performer's
-         * ears, which they heard and therefore performed behind.
+         * clock — LESS what the device adds.
+         *
+         * Less, not plus. The performer hears the song late by the output
+         * latency and their reply lands in the file later again by the
+         * capture latency, so the sound at a given media position belongs
+         * EARLIER in the song than the clock alone would say. The derivation
+         * is written out in `domain/calibration.ts`; the first version of this
+         * line added the number, which would have doubled the error instead
+         * of removing it. [S-3]
          */
         const into = context2.currentTime - beginsAt;
-        offsetRef.current = Math.max(0, Math.round(into * sampleRate) + latencySamples);
+        offsetRef.current = placeTakeOnSong(Math.round(into * sampleRate), latencySamples);
         startedAtRef.current = context2.currentTime;
         segment(takeRef.current.takeId);
         setPhase('recording');

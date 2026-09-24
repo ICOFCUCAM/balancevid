@@ -4,11 +4,13 @@ import { useCallback, useEffect, useState } from 'react';
 import type { Performance } from '../../../src/domain/performance.js';
 import { MASTER_CLASSES, SPACES, mayPublish } from '../../../src/domain/performance.js';
 import { SPACES_ARE_DRAWN } from '../../../src/domain/environment.js';
+import { describeCalibration } from '../../../src/domain/calibration.js';
 import { HOUSE_SAMPLE_RATE, formatMasterPosition } from '../../../src/domain/time.js';
 import { useMasterRecording } from './useMasterRecording.js';
 import SwitchingStage from './SwitchingStage.js';
 import MasterRender from './MasterRender.js';
 import RoomPlate from './RoomPlate.js';
+import { useCalibration } from './useCalibration.js';
 import SoundModes from './SoundModes.js';
 import PublishPanel from './PublishPanel.js';
 
@@ -94,15 +96,22 @@ export default function PerformanceStudio({ initial }: { initial: Performance })
     }
   }, [id]);
 
+  /*
+   * What this device adds, measured once and remembered by this browser.
+   * Zero until it has been, and zero is honest: the browser's clock alone is
+   * usually within a few hundredths of a second, and saying so beats
+   * pretending a number nobody measured. [§10, S-3]
+   */
+  const device = useCalibration();
+  const latencySamples = device.calibration?.confident
+    ? device.calibration.latencySamples : 0;
+
   const recording = useMasterRecording({
     performanceId: id,
     masterUrl: `/api/performances/${id}/master`,
     sampleRate: HOUSE_SAMPLE_RATE,
     countInSeconds: COUNT_IN_SECONDS,
-    // Stage two records the device latency as zero until the calibration the
-    // appendix describes is built. Stated here rather than hidden, because a
-    // zero that looks like a measurement is the thing S-3 warns about.
-    latencySamples: 0,
+    latencySamples,
     onFinished: (jobId) => { void watchJob(jobId); },
   });
 
@@ -288,6 +297,47 @@ export default function PerformanceStudio({ initial }: { initial: Performance })
           </div>
         </section>
 
+        {/* ---- what this device adds (§10, S-3) ---------------------- */}
+        <section className="panel" data-testid="calibration"
+                 data-latency={latencySamples}
+                 style={{ padding: 12, marginTop: 16 }}>
+          <div className="small muted" style={{ textTransform: 'uppercase',
+            letterSpacing: 0.8, fontSize: 11, marginBottom: 6 }}>
+            This device
+          </div>
+          <div className="row" style={{ gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <button
+              className="small" data-testid="calibrate"
+              disabled={device.phase === 'listening'}
+              onClick={() => void device.run()}
+            >
+              {device.phase === 'listening'
+                ? `Listening… ${device.countdown}`
+                : device.calibration ? 'Measure it again' : 'Measure the delay'}
+            </button>
+            {device.calibration?.confident && (
+              <button className="small" data-testid="forget-calibration"
+                      onClick={device.forget}>
+                Forget it
+              </button>
+            )}
+            <span className="small muted" data-testid="calibration-state"
+                  style={{ maxWidth: 460 }}>
+              {describeCalibration(device.calibration)}
+            </span>
+          </div>
+          <p className="small muted" style={{ fontSize: 11, marginTop: 6,
+            marginBottom: 0, maxWidth: 640 }}>
+            {/* The one instruction that makes the measurement possible, and the
+                opposite of the one recording needs. [S-3] */}
+            Take your headphones off for this one: the microphone has to hear
+            the click your speakers make. Put them back on to record.
+          </p>
+          {device.error && (
+            <p className="small" style={{ color: 'var(--bad)' }}>{device.error}</p>
+          )}
+        </section>
+
         {/* ---- the room, measured (§4, S-6) -------------------------- */}
         <RoomPlate performance={performance} stream={recording.stream}
                    onChanged={setPerformance} />
@@ -357,11 +407,13 @@ export default function PerformanceStudio({ initial }: { initial: Performance })
                 <div className="small muted" style={{ marginTop: 3, fontSize: 11 }}>
                   {/* How it was placed, said plainly: a measurement and a
                       guess are different things. [S-3] */}
-                  {take.alignment.method === 'calibrated'
+                  {take.alignment.method === 'heard'
                     ? 'placed by listening to the song in the recording'
-                    : take.alignment.method === 'manual'
-                      ? 'placed by you'
-                      : 'placed from your browser’s audio clock'}
+                    : take.alignment.method === 'calibrated'
+                      ? 'placed by the clock, less this device’s measured delay'
+                      : take.alignment.method === 'manual'
+                        ? 'placed by you'
+                        : 'placed from your browser’s audio clock'}
                 </div>
                 {/*
                   * Bedroom → Studio, afterwards and without singing it again.

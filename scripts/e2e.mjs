@@ -2766,6 +2766,40 @@ log('checking the Performance Studio…');
   check(true, 'the camera and the song load together');
 
   /*
+   * --- §10: what this device adds ---------------------------------------
+   *
+   * S-3's one-time calibration. Chrome's fake microphone plays a beep of its
+   * own and never hears the product's click, so what is checked here is the
+   * HONEST FAILURE: the studio says it could not hear it, keeps the browser's
+   * clock, and does not quietly apply a number it did not measure.
+   */
+  {
+    await page.waitForSelector('[data-testid="calibrate"]', { timeout: 20_000 });
+    check(/not measured/i.test(
+      await page.locator('[data-testid="calibration-state"]').innerText()),
+      'the device delay is not measured until somebody measures it (S-3)');
+
+    await page.click('[data-testid="calibrate"]');
+    await page.waitForFunction(() => {
+      const button = document.querySelector('[data-testid="calibrate"]');
+      return button && !/Listening/.test(button.textContent ?? '');
+    }, null, { timeout: 60_000 });
+
+    const said = await page.locator('[data-testid="calibration-state"]').innerText();
+    check(/could not hear|disagreed|round trip/.test(said),
+      'and it says what it found, in words somebody can act on', said);
+    /*
+     * The point of the check: a fake microphone that never hears the click
+     * must leave the placement alone. A product that invented a latency here
+     * would move every take by a number nobody measured.
+     */
+    const applied = await page.locator('[data-testid="calibration"]')
+      .getAttribute('data-latency');
+    check(applied === '0' || /round trip/.test(said),
+      'and nothing is applied that was not measured', `latency=${applied}`);
+  }
+
+  /*
    * --- §4: the room, measured before anything is recorded ---------------
    *
    * "The author sees the matte BEFORE they record the other four takes, not

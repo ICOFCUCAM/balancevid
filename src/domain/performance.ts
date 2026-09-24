@@ -176,13 +176,36 @@ export interface Alignment {
    * feedback that improves it.
    */
   nudgeSamples?: Samples;
+  /**
+   * What the device was measured to add, and therefore what was taken off.
+   * [§10, S-3]
+   *
+   * Recorded because it CHANGED the placement: a number that moved somebody's
+   * take by forty milliseconds and left no trace is a number nobody can check
+   * afterwards. Absent when the browser's clock was used on its own.
+   */
+  latencySamples?: Samples;
 }
 
+/**
+ * How a take came to sit where it sits.  [§10, S-3]
+ *
+ * FOUR NAMES BECAUSE THERE ARE FOUR ANSWERS, and they are not equally good.
+ * The type used to carry three while the code wrote two different things into
+ * one of them — the worker meant "I heard the song inside the take" and the
+ * browser meant "I subtracted this device's measured latency", and a label
+ * that means two things is a label nobody can read.
+ */
 export type AlignmentMethod =
-  /** From the audio clock at record time. The normal case. */
+  /** From the audio clock at record time. The normal case, and good enough. */
   | 'measured'
-  /** From a device latency calibration the author ran. Better. */
+  /** The clock, less a round trip this device was measured to add. Better. */
   | 'calibrated'
+  /**
+   * The song was audible in the take and was found in it. Best — and it only
+   * happens when the master leaked from speakers, which costs something else.
+   */
+  | 'heard'
   /** The author placed it. Always wins, never overwritten. */
   | 'manual';
 
