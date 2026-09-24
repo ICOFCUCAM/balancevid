@@ -1,6 +1,6 @@
 import { EditError } from '../../../../../src/domain/edit.js';
 import { publish, unpublish } from '../../../../../src/domain/publish.js';
-import { listJobs } from '../../../../../src/store/queue.js';
+import { enqueue, listJobs } from '../../../../../src/store/queue.js';
 import { audit, loadConversation, mutateConversation } from '../../../../../src/store/repository.js';
 import { fail, json } from '../../../../../src/web/http.js';
 
@@ -52,6 +52,16 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
       action: 'conversation.published',
       detail: { respondable: body.respondable, planHash: render.result['planHash'] },
     });
+    /*
+     * Draw what a link to this will show. [U-31, §52]
+     *
+     * Here rather than at export, because this is the moment the link starts
+     * existing: before now nobody could fetch the card, and a conversation
+     * can change between its last export and being published. Redrawn on
+     * every publish, so the picture always describes what was published
+     * rather than what was last rendered.
+     */
+    await enqueue({ kind: 'render_card', conversationId: id, payload: {} });
     return json({ publication: updated.publication });
   } catch (error) {
     if (error instanceof EditError) return fail(409, error.message);

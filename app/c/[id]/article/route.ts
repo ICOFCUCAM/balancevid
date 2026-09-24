@@ -2,6 +2,7 @@ import { generateArticle } from '../../../../src/article/generate.js';
 import { renderHtml } from '../../../../src/article/html.js';
 import { accessTo } from '../../../../src/auth/request.js';
 import { loadRepresentationContext } from '../../../../src/web/context.js';
+import { shareFor } from '../../../../src/web/share.js';
 import { fail } from '../../../../src/web/http.js';
 
 export const dynamic = 'force-dynamic';
@@ -39,8 +40,15 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
     generatedAt: context.generatedAt,
   });
 
+  // A published article is meant to be cited elsewhere, so it carries what a
+  // link preview reads. A draft carries none of it. [U-31, D-03]
+  const share = await shareFor(request, context.conversation, 'article');
+
   return new Response(
-    renderHtml(article, { conversationHref: (frame) => `/c/${id}?t=${frame}` }),
+    renderHtml(article, {
+      conversationHref: (frame) => `/c/${id}?t=${frame}`,
+      ...(share ? { share } : {}),
+    }),
     { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } },
   );
 }

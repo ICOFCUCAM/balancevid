@@ -29,7 +29,8 @@ export type JobKind =
   | 'render'
   | 'render_clip'
   | 'render_reel'
-  | 'render_thumbnails';
+  | 'render_thumbnails'
+  | 'render_card';
 
 export interface Job {
   id: string;

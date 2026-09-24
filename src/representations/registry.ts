@@ -23,6 +23,7 @@ import { renderMarkdown } from '../article/markdown.js';
 import { buildCues } from '../render/cues.js';
 import { buildManifest } from '../manifest/build.js';
 import { buildBundle } from '../publish/bundle.js';
+import { buildShareCard } from '../publish/card.js';
 import { buildSrt, buildVtt } from '../render/subtitles.js';
 import type { Transcript } from '../transcribe/types.js';
 
@@ -69,6 +70,24 @@ const cues = (context: RepresentationContext) => buildCues(
     ...(context.takeTranscripts ? { takes: context.takeTranscripts } : {}),
   },
 );
+
+const shareCard = (context: RepresentationContext) => {
+  /*
+   * The runtime, where the conversation has one. A projection rather than a
+   * render: the card is asked for on every page load and must not depend on
+   * anything having been exported. A conversation too early to have a
+   * timeline simply says how many responses it has and not how long it runs.
+   */
+  let totalOutputFrames: number | undefined;
+  try { totalOutputFrames = projectTimeline(context.conversation).totalOutputFrames; }
+  catch { totalOutputFrames = undefined; }
+
+  return buildShareCard({
+    conversation: context.conversation,
+    attribution: buildAttribution(context.conversation, context.generatedAt).text,
+    ...(totalOutputFrames ? { totalOutputFrames } : {}),
+  });
+};
 
 const bundle = (context: RepresentationContext) => buildBundle({
   conversation: context.conversation,
@@ -160,6 +179,22 @@ export const REPRESENTATIONS: Representation[] = [
     generate: (c) => JSON.stringify(bundle(c), null, 2),
     // A Class B conversation publishes too, and its author needs a
     // description and an attribution block as much as anyone. [U-01, INV-07]
+    available: () => true,
+  },
+  {
+    id: 'share-card.json',
+    label: 'Share card',
+    mediaType: 'application/json',
+    inputs: ['title', 'source', 'interventions', 'anchors', 'takes', 'lineage'],
+    /*
+     * What a link to this conversation says about itself. Registered rather
+     * than assembled in the page, so the words in the picture and the words
+     * in the metadata come from one generator and cannot drift apart.
+     */
+    generate: (c) => JSON.stringify(shareCard(c), null, 2),
+    // Every conversation has a title, a source and an attribution, which is
+    // the whole of what a card needs. Class B included: a conversation that
+    // cannot export a video can still be read, and its link still travels.
     available: () => true,
   },
   {

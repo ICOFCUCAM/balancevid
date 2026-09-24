@@ -2336,6 +2336,47 @@ check(childSnap.conversation.source.durationFrames > 0,
  * Class A source. Anyone can open it and respond to it" — so a stranger must
  * be able to read a published one, while a draft stays invisible to them.
  */
+/*
+ * --- the share card (U-31, §52, D-03) ---------------------------------------
+ *
+ * A published conversation is a link somebody sends somebody else, and until
+ * it could describe itself that link arrived as a bare URL. What is checked
+ * here is mostly the negative: a DRAFT must preview as nothing at all.
+ *
+ * This is a sharper privacy question than it looks. A link preview is fetched
+ * by a machine the sender has never heard of, with none of their cookies, and
+ * metadata is produced before a page decides whether to 404 — so a title here
+ * would hand the subject of somebody's unfinished argument to anyone who
+ * guessed a URL.
+ */
+log('checking what a draft says about itself…');
+{
+  const meta = (html, property) => html.match(
+    new RegExp(`<meta[^>]+(?:property|name)="${property}"[^>]+content="([^"]*)"`))?.[1];
+
+  const draftPage = await raw(`/c/${conversationId}/watch`);
+  check(draftPage.status === 404, 'a stranger cannot open a draft to begin with');
+
+  const draftCard = await raw(`/api/conversations/${conversationId}/card`);
+  check(draftCard.status === 404, 'and its card is not there to be fetched either',
+    `status ${draftCard.status}`);
+  check(draftCard.status
+    === (await raw('/api/conversations/conv_does_not_exist/card')).status,
+    'answering exactly as a conversation that does not exist would (D-03)');
+
+  check((await raw(
+    `/api/conversations/${conversationId}/representations?id=share-card.json`)).status === 404,
+    'nor can the words on it be read another way');
+
+  // The owner sees no preview for a draft either, which is the honest
+  // answer: there is nothing published to preview.
+  const ownDraft = await (await sfetch(`${BASE}/c/${conversationId}/watch`)).text();
+  const title = (await api(`/api/conversations/${conversationId}`)).conversation.title;
+  check(!meta(ownDraft, 'og:title'), 'an unpublished page claims no preview at all');
+  check(!ownDraft.includes(`content="${title}"`),
+    'and does not name the draft in a tag a crawler reads');
+}
+
 log('checking that publishing opens a door…');
 await sfetch(`${BASE}/api/conversations/${conversationId}/publish`, {
   method: 'POST',
@@ -2347,6 +2388,93 @@ check((await raw(`/c/${conversationId}/watch`)).status === 200,
   'a stranger can watch a published conversation (U-31)');
 check((await raw(`/c/${conversationId}/article`)).status === 200,
   'and read it as an article (U-14)');
+
+/*
+ * Published, the link describes itself — and the picture and the words come
+ * from one generator, which is the property worth protecting. Hand-written
+ * OpenGraph tags go stale against the thing they describe; these cannot,
+ * because `share-card.json` is what both are rendered from.
+ */
+{
+  const meta = (html, property) => html.match(
+    new RegExp(`<meta[^>]+(?:property|name)="${property}"[^>]+content="([^"]*)"`))?.[1];
+
+  /*
+   * The picture is drawn when the conversation is published, not when it was
+   * last exported — so that it describes what was published. Which means
+   * waiting for it here, exactly as a link preview would have to.
+   */
+  let drawn = null;
+  for (let i = 0; i < 60; i++) {
+    drawn = await raw(`/api/conversations/${conversationId}/card`);
+    if (drawn.status === 200) break;
+    await sleep(1000);
+  }
+  check(drawn?.status === 200, 'publishing draws the card', `status ${drawn?.status}`);
+
+  const card = await (await raw(
+    `/api/conversations/${conversationId}/representations?id=share-card.json`)).json();
+  const title = (await api(`/api/conversations/${conversationId}`)).conversation.title;
+  check(card.title === title, 'the card is the conversation\'s own title, not a new one');
+  check(typeof card.description === 'string' && card.description.length > 0,
+    'with a line of description for the places that show no picture');
+  check(card.hero.quoted === false || card.hero.text.length > 0,
+    'and a statement only when one was bound (INV-05)');
+
+  const watched = await (await raw(`/c/${conversationId}/watch`)).text();
+  check(meta(watched, 'og:title') === card.title,
+    'the page a link points at now says what it is', meta(watched, 'og:title'));
+  check(meta(watched, 'og:description') === card.description,
+    'in the same words the card uses — one generator, two renderings');
+  check((meta(watched, 'og:url') ?? '').endsWith(`/c/${conversationId}/watch`),
+    'and points back at itself absolutely, for a machine with no page to resolve against',
+    meta(watched, 'og:url'));
+
+  const image = meta(watched, 'og:image');
+  check(/^https?:\/\/.+\/api\/conversations\/.+\/card$/.test(image ?? ''),
+    'it offers a picture at an absolute URL', image);
+  const picture = await fetch(image, { redirect: 'manual' });
+  check(picture.status === 200, 'which a stranger with no cookies can actually fetch',
+    `status ${picture.status}`);
+  check((picture.headers.get('content-type') ?? '').includes('image/png'),
+    'and is a real image');
+  const bytes = new Uint8Array(await picture.arrayBuffer());
+  check(bytes.length > 4096, 'with something drawn on it', `${bytes.length} bytes`);
+  // A PNG, verified as one rather than trusted from a header we set ourselves.
+  check(bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47,
+    'a real PNG, not a header we wrote on something else');
+  check(meta(watched, 'og:image:width') === '1200'
+    && meta(watched, 'og:image:height') === '630',
+    'declared at the size every preview is read at');
+  check((meta(watched, 'og:image:alt') ?? '').length > 0,
+    'and said in words for anyone who cannot see it (D-04)');
+  check(meta(watched, 'twitter:card') === 'summary_large_image',
+    'wide enough to be read rather than shown as a thumbnail');
+
+  /*
+   * And the author can see it. A card more people will look at than the video
+   * itself, which its own author cannot look at, is half a feature.
+   */
+  await page.goto(`${BASE}/c/${conversationId}`, { waitUntil: 'networkidle' });
+  await page.click('[data-testid="mode-publish"]');
+  await page.waitForSelector('[data-testid="share-preview"]', { timeout: 20_000 })
+    .then(() => check(true, 'the author is shown what their link will look like'))
+    .catch(() => check(false, 'the author is shown what their link will look like',
+      'no preview appeared'));
+  const shown = await page.waitForSelector('[data-testid="share-preview-image"]',
+    { timeout: 30_000 }).then(() => true).catch(() => false);
+  check(shown, 'with the picture itself, not a description of it');
+  const previewText = await page.locator('[data-testid="share-preview"]').innerText();
+  check(previewText.includes(card.title),
+    'and the words underneath it are the card\'s own', previewText.slice(0, 80));
+
+  // The article is the other thing people link to, and it agrees.
+  const read = await (await raw(`/c/${conversationId}/article`)).text();
+  check(meta(read, 'og:title') === card.title,
+    'the article describes itself the same way the video does');
+  check((meta(read, 'og:url') ?? '').endsWith(`/c/${conversationId}/article`),
+    'while pointing at itself, not at the other one');
+}
 check((await raw(
   `/api/conversations/${conversationId}/representations?id=manifest.json`)).status === 200,
   'and its companion player gets its manifest');
@@ -2407,6 +2535,11 @@ check((await raw(`/c/${conversationId}`)).status === 307,
 await sfetch(`${BASE}/api/conversations/${conversationId}/publish`, { method: 'DELETE' });
 check((await raw(`/c/${conversationId}/watch`)).status === 404,
   'withdrawing puts it out of a stranger\'s reach again');
+check((await raw(`/api/conversations/${conversationId}/card`)).status === 404,
+  'and takes the card with it — a withdrawn conversation stops previewing');
+check((await raw(
+  `/api/conversations/${conversationId}/representations?id=share-card.json`)).status === 404,
+  'including the words it was made from');
 
 const childManifest = await api(
   `/api/conversations/${childId}/representations?id=manifest.json`);

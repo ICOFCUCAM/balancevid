@@ -16,6 +16,7 @@ import { dirname, join } from 'node:path';
 import type { ExportProfile } from '../domain/presentation.js';
 import { HOUSE_FPS, type Frames } from '../domain/time.js';
 import type { ThumbnailCandidate } from '../publish/bundle.js';
+import { CARD_HEIGHT, CARD_WIDTH, type ShareCard } from '../publish/card.js';
 import { ffmpeg, type RunOptions } from './ffmpeg.js';
 import { assColor, escapeAss } from './subtitles.js';
 
@@ -178,4 +179,92 @@ export function quoteCardAss(
 
 function escapeFilterPath(path: string): string {
   return path.replace(/\\/g, '\\\\').replace(/:/g, '\\:').replace(/'/g, "\\'");
+}
+
+/**
+ * The share card, drawn.  [Doctrine U-30, U-31, D-04]
+ *
+ * The words are not decided here — `buildShareCard` decided them, and this
+ * sets them. That split is why the picture and the page's own metadata cannot
+ * disagree: there is one generator and two renderings of it.
+ *
+ * It lives in this file, beside the quote card, because the two are the same
+ * craft and a second card renderer would drift from the first within a
+ * release. Same font, same ink, same gold rule, so a link preview looks like
+ * the video it points at rather than like a different product.
+ */
+export async function renderShareCard(
+  card: ShareCard, outPath: string, scratchDir: string, run?: RunOptions,
+): Promise<string> {
+  await mkdir(dirname(outPath), { recursive: true });
+  await mkdir(scratchDir, { recursive: true });
+  const assPath = join(scratchDir, 'share-card.ass');
+  await writeFile(assPath, shareCardAss(card), 'utf8');
+
+  await ffmpeg([
+    '-y',
+    '-f', 'lavfi',
+    '-i', `color=c=${CARD_BACKGROUND.replace('#', '0x')}:s=${CARD_WIDTH}x${CARD_HEIGHT}:d=1`,
+    '-vf', `ass=${escapeFilterPath(assPath)}`,
+    '-frames:v', '1',
+    outPath,
+  ], run);
+  return outPath;
+}
+
+/**
+ * Three sizes and nothing else.
+ *
+ * A link preview is read at about a third of this width, in a message list,
+ * in a second and a half. So the card is built as a poster is: one line of
+ * context, one line that carries it, one line of provenance. Anything more is
+ * a paragraph nobody standing at a bus stop reads.
+ */
+export function shareCardAss(card: ShareCard): string {
+  const width = CARD_WIDTH;
+  const height = CARD_HEIGHT;
+  const side = Math.round(width * 0.075);
+  // The hero shrinks as it lengthens, so a long statement stays on the card
+  // instead of running off it. Measured in characters because libass wraps
+  // for us and the alternative is measuring text ourselves.
+  const heroSize = card.hero.text.length > 110 ? 46
+    : card.hero.text.length > 70 ? 56
+      : card.hero.text.length > 40 ? 66 : 76;
+
+  const style = (
+    name: string, size: number, colour: string, alignment: number,
+    marginV: number, bold: 0 | 1,
+  ) => `Style: ${name},${FONT},${size},${assColor(colour)},${assColor(colour)},`
+    + `${assColor('#000000')},${assColor('#000000')},${bold},0,0,0,100,100,0,0,1,0,0,`
+    + `${alignment},${side},${side},${marginV},1`;
+
+  const text = card.hero.quoted
+    ? `\u201C${card.hero.text}\u201D`
+    : card.hero.text;
+
+  return `${[
+    '[Script Info]',
+    'ScriptType: v4.00+',
+    `PlayResX: ${width}`,
+    `PlayResY: ${height}`,
+    'WrapStyle: 0',
+    'ScaledBorderAndShadow: yes',
+    'YCbCr Matrix: TV.709',
+    '',
+    '[V4+ Styles]',
+    'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding',
+    // 7 = top left, 4 = middle left, 1 = bottom left. Ranged down the card.
+    style('Eyebrow', 26, '#B8BEC6', 7, Math.round(height * 0.11), 0),
+    style('Hero', heroSize, CARD_INK, 4, 0, 1),
+    style('Foot', 24, '#8F97A1', 1, Math.round(height * 0.085), 0),
+    '',
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    // The rule, which is the only ornament and the one thing carried over
+    // from the video's own claim cards.
+    `Dialogue: 0,0:00:00.00,0:00:10.00,Eyebrow,,0,0,0,,{\\pos(${side},${Math.round(height * 0.085)})\\c${assColor(CARD_RULE).slice(2)}\\p1}m 0 0 l 96 0 l 96 5 l 0 5{\\p0}`,
+    `Dialogue: 0,0:00:00.00,0:00:10.00,Eyebrow,,0,0,0,,${escapeAss(card.eyebrow)}`,
+    `Dialogue: 0,0:00:00.00,0:00:10.00,Hero,,0,0,0,,${escapeAss(text)}`,
+    `Dialogue: 0,0:00:00.00,0:00:10.00,Foot,,0,0,0,,${escapeAss(`${card.scale}  ·  ${card.attribution}`)}`,
+  ].join('\n')}\n`;
 }

@@ -3240,6 +3240,7 @@ quietly left in the code.
   substantial work and must not ship as a broken composed export *(U-01, U-36)*
 
 **New, with no prior home**
+- The share card — what a published link says about itself *(U-31, §52)*
 - The Conversation Manifest — the Class B export format *(U-01)*
 - Vertical clip sets per claim–response pair — the distribution engine *(U-22)*
 - The publication bundle *(U-30)*
@@ -3864,6 +3865,52 @@ this appendix were caught by looking at rendered output rather than by the
 tests that covered the same code. Where a fixture can carry its own ground
 truth — an index encoded as a colour, a counter burned into the picture — the
 test reads it back, or it is not testing the thing it claims to test.
+
+**A link that cannot describe itself is a distribution engine with a hole in
+it.** §52 says the composition step is the growth loop, and the doctrine
+listed every artefact the loop produces — the long video, the article, the
+clips, the manifest, the bundle. It did not list the one artefact more people
+see than all of those together: the preview a link becomes when somebody sends
+it to somebody else. Until it existed, a published conversation pasted into a
+message arrived as a bare URL with no title, no subject and no picture.
+
+Three things follow, and the first is the one that nearly went wrong.
+
+**The card is the easiest place in this product to lie.** It is read by people
+who have not watched anything, so nothing on it is checkable by its reader —
+which is the exact situation the product exists to argue against. So it quotes
+a statement ONLY where the author bound one, because a bound quote hashes to
+what the source said (INV-05). An inferred sentence is good enough to open a
+clip on, because the clip then plays it and the viewer hears whether it was
+fair; it is not good enough to set in quotation marks on a still picture that
+plays nothing. **Quotation marks are a promise, and a promise is only as good
+as the thing that can check it.**
+
+**A preview is two renderings, so it needs one generator.** Hand-written
+OpenGraph tags drift from the image beside them within a release — that is the
+ordinary fate of every such tag ever written. So the card is registered as a
+representation (`share-card.json`, D-16) and both the picture and the page's
+metadata are rendered from it. This is the same discipline as the rest of the
+registry, applied to the one artefact where nobody would have thought to
+apply it.
+
+**The card is drawn when the link starts existing, not when the video was
+last exported.** The obvious place was beside the thumbnails, where a decoder
+is already open. It is the wrong place, and only asking what the card is FOR
+shows why: nobody can fetch a draft's card, so one drawn at export time serves
+no one; and a conversation can change between its last export and being
+published, which would leave the picture carrying an old statement while the
+page's metadata carried the new one — the exact drift the single generator
+exists to prevent. It is typography on a colour field and needs no decoder, so
+it is cheap enough to redraw on every publish rather than reason about when it
+went stale.
+
+**Metadata runs before a page decides to 404.** A draft's preview is fetched
+by whatever the link was pasted into, with none of the sender's cookies, and
+`generateMetadata` had already produced a title by the time the page turned
+the stranger away. So the question the card asks is whether the CONVERSATION
+is published, never who is asking — and a draft has no preview for anybody,
+its author included, because there is nothing published to preview (D-03).
 
 ---
 

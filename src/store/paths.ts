@@ -67,6 +67,14 @@ export const paths = {
   thumbnails: (id: string) => join(paths.conversation(id), 'thumbnails'),
   thumbnail: (id: string, candidateId: string) =>
     join(paths.thumbnails(id), `${safe(candidateId)}.png`),
+  /**
+   * The picture a link to this conversation shows. [U-31]
+   *
+   * One per conversation, not one per candidate: there is nothing to choose
+   * between. It sits beside the thumbnails because it is made at the same
+   * moment, by the same job, out of the same decoder.
+   */
+  shareCard: (id: string) => join(paths.thumbnails(id), 'share-card.png'),
   queue: () => join(VAR_ROOT, 'queue'),
   queueState: (state: QueueState) => join(VAR_ROOT, 'queue', state),
 };

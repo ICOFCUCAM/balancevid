@@ -19,7 +19,7 @@ import { buildClipPlan, buildClipTimeline } from '../domain/clips.js';
 import { buildReelPlan, buildReelTimeline } from '../domain/reel.js';
 import { compose } from '../render/compose.js';
 import { ingest, makeProxy } from '../render/ingest.js';
-import { renderThumbnail, renderTakePoster } from '../render/thumbnails.js';
+import { renderShareCard, renderThumbnail, renderTakePoster } from '../render/thumbnails.js';
 import { ensureDirs, paths } from '../store/paths.js';
 import { claim, finish, update, type Job } from '../store/queue.js';
 import { audit, loadConversation, mutateConversation } from '../store/repository.js';
@@ -33,6 +33,7 @@ import { buildCues } from '../render/cues.js';
 import { archiveUpload, archiveWeb, type ArchiveResult } from '../evidence/archive.js';
 import { projectTimeline } from '../domain/timeline.js';
 import { buildBundle } from '../publish/bundle.js';
+import { buildShareCard } from '../publish/card.js';
 import { HOUSE_FPS } from '../domain/time.js';
 import { EXPORT_PROFILES } from '../domain/presentation.js';
 
@@ -49,6 +50,7 @@ export async function runJob(job: Job): Promise<Job> {
     case 'render_clip': return renderClip(job);
     case 'render_reel': return renderReel(job);
     case 'render_thumbnails': return renderThumbnails(job);
+    case 'render_card': return renderCard(job);
   }
 }
 
@@ -514,6 +516,47 @@ async function renderReel(job: Job): Promise<Job> {
       responses: plan.shots.length,
     },
   });
+}
+
+/**
+ * The picture a link to this conversation shows.  [Doctrine U-31, §52]
+ *
+ * DRAWN AT PUBLISH, which is the whole of the design decision here.
+ *
+ * The obvious place was beside the thumbnails, since that job already has a
+ * decoder open. It is the wrong place, for two reasons that only appear when
+ * you ask what the card is FOR. Nobody can fetch a draft's card — the route
+ * refuses it — so one drawn at export time serves no one until the moment of
+ * publication anyway. And a conversation can change between its last export
+ * and being published: rebind a claim and the picture would still carry the
+ * old statement while the page's own metadata carried the new one. That is
+ * precisely the drift this card was built to be incapable of.
+ *
+ * So it is drawn when the link starts existing, and again whenever it starts
+ * existing again. It needs no decoder — typography on a colour field — so it
+ * is cheap enough to redraw every time rather than reason about staleness.
+ */
+async function renderCard(job: Job): Promise<Job> {
+  const conversation = await loadConversation(job.conversationId);
+  const outDir = paths.thumbnails(conversation.id);
+  await mkdir(outDir, { recursive: true });
+
+  let totalOutputFrames: number | undefined;
+  try { totalOutputFrames = projectTimeline(conversation).totalOutputFrames; }
+  catch { totalOutputFrames = undefined; }
+
+  await renderShareCard(
+    buildShareCard({
+      conversation,
+      attribution: buildAttribution(conversation, conversation.createdAt).text,
+      ...(totalOutputFrames ? { totalOutputFrames } : {}),
+    }),
+    paths.shareCard(conversation.id),
+    outDir,
+  );
+
+  await audit(conversation.id, { action: 'card.rendered', detail: {} });
+  return finish(job, 'done', { progress: 100, result: { card: 'share-card.png' } });
 }
 
 /**

@@ -233,3 +233,75 @@ describe('representations rebuild from the Conversation alone (INV-00, D-16)', (
     expect(built.has('article.md')).toBe(true);
   });
 });
+
+/**
+ * What the article says about itself when somebody shares it.  [U-31, D-03]
+ *
+ * The article is the form of a conversation that gets cited, so it is the one
+ * most likely to be pasted somewhere. What is defended here is that a draft
+ * says nothing at all, and that a title containing a quotation mark — which
+ * every title in this product does, because they quote the source — cannot
+ * break out of the attribute it is written into.
+ */
+describe('the article as a shared link', () => {
+  const share = (over: Record<string, unknown> = {}) => ({
+    card: {
+      title: 'My Response to "The History of Europe"',
+      description: 'Answering “The History of Europe”. 2 responses · 04:12.',
+      hero: { text: 'Rome fell in 476.', quoted: true },
+      eyebrow: 'Answering “The History of Europe”',
+      attribution: 'Source: "The History of Europe"',
+      scale: '2 responses · 04:12',
+      image: { width: 1200, height: 630, alt: 'A response' },
+    },
+    pageUrl: 'https://example.test/c/conv_1/article',
+    imageUrl: 'https://example.test/api/conversations/conv_1/card',
+    ...over,
+  });
+
+  it('a draft carries no preview of any kind', () => {
+    const { conversation, sourceTranscript } = fixture();
+    const html = renderHtml(
+      generateArticle({ conversation, sourceTranscript, generatedAt: AT }));
+    expect(html).not.toContain('og:title');
+    expect(html).not.toContain('twitter:card');
+  });
+
+  it('a published one describes itself in the card\'s own words', () => {
+    const { conversation, sourceTranscript } = fixture();
+    const html = renderHtml(
+      generateArticle({ conversation, sourceTranscript, generatedAt: AT }),
+      { share: share() as never });
+    expect(html).toContain('<meta property="og:image" content="https://example.test'
+      + '/api/conversations/conv_1/card">');
+    expect(html).toContain('<meta name="twitter:card" content="summary_large_image">');
+    expect(html).toContain('<meta property="og:image:width" content="1200">');
+  });
+
+  it('and a quotation mark in the title cannot break out of the tag', () => {
+    /*
+     * Every title in this product quotes the source, so this is the normal
+     * case rather than an exotic one. Unescaped it would close the attribute
+     * and put whatever followed into the document as markup.
+     */
+    const { conversation, sourceTranscript } = fixture();
+    const html = renderHtml(
+      generateArticle({ conversation, sourceTranscript, generatedAt: AT }),
+      { share: share() as never });
+    expect(html).toContain('content="My Response to &quot;The History of Europe&quot;"');
+    expect(html).not.toContain('content="My Response to "The');
+  });
+
+  it('claiming a picture only when there is one to claim', () => {
+    const { conversation, sourceTranscript } = fixture();
+    const without = share();
+    delete (without as { imageUrl?: string }).imageUrl;
+    const html = renderHtml(
+      generateArticle({ conversation, sourceTranscript, generatedAt: AT }),
+      { share: without as never });
+    expect(html).toContain('<meta property="og:title"');
+    expect(html).not.toContain('og:image');
+    // Still previewable, just without a picture.
+    expect(html).toContain('<meta name="twitter:card" content="summary">');
+  });
+});

@@ -13,10 +13,19 @@
 
 import { formatTimecode, HOUSE_FPS } from '../domain/time.js';
 import type { Article, ArticleExchange } from './types.js';
+import type { ShareCard } from '../publish/card.js';
 
 export interface HtmlOptions {
   /** Deep links back into the editor at the anchored frame. */
   conversationHref?: (frame: number) => string;
+  /**
+   * What this page says about itself when somebody shares it. [U-31]
+   *
+   * Passed in rather than derived, because the card is decided once by
+   * `buildShareCard` and this is one of its two renderings — the other being
+   * the picture. Absent for a draft, which is not a thing to be previewed.
+   */
+  share?: { card: ShareCard; pageUrl: string; imageUrl?: string };
 }
 
 export function renderHtml(article: Article, options: HtmlOptions = {}): string {
@@ -28,7 +37,7 @@ export function renderHtml(article: Article, options: HtmlOptions = {}): string 
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(article.title)}</title>
 <meta name="description" content="${esc(article.attribution)}">
-<style>${STYLE}</style>
+${options.share ? shareTags(options.share) : ''}<style>${STYLE}</style>
 </head>
 <body>
 <main>
@@ -57,6 +66,32 @@ ${body}
 </body>
 </html>
 `;
+}
+
+/**
+ * The tags every link preview reads.
+ *
+ * Written by hand rather than through a framework helper because this file
+ * produces a standalone document — the article is meant to be saved, cited
+ * and served from anywhere, so it carries its own head.
+ */
+function shareTags(
+  share: { card: ShareCard; pageUrl: string; imageUrl?: string },
+): string {
+  const { card } = share;
+  return [
+    `<meta property="og:type" content="article">`,
+    `<meta property="og:title" content="${esc(card.title)}">`,
+    `<meta property="og:description" content="${esc(card.description)}">`,
+    `<meta property="og:url" content="${esc(share.pageUrl)}">`,
+    ...(share.imageUrl ? [
+      `<meta property="og:image" content="${esc(share.imageUrl)}">`,
+      `<meta property="og:image:width" content="${card.image.width}">`,
+      `<meta property="og:image:height" content="${card.image.height}">`,
+      `<meta property="og:image:alt" content="${esc(card.image.alt)}">`,
+      `<meta name="twitter:card" content="summary_large_image">`,
+    ] : [`<meta name="twitter:card" content="summary">`]),
+  ].join('\n') + '\n';
 }
 
 function exchangeHtml(exchange: ArticleExchange, options: HtmlOptions): string {

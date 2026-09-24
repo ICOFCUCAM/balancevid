@@ -50,6 +50,9 @@ const PUBLIC_PATTERNS: RegExp[] = [
    * decides which routes are allowed to decide; the route decides.
    */
   /^\/r\/[A-Za-z0-9_-]+\/?$/,
+  // The picture a link preview fetches, with none of the sender's cookies.
+  // The route serves it only for a published conversation. [U-31, D-03]
+  /^\/api\/conversations\/[A-Za-z0-9_-]+\/card$/,
   /^\/api\/conversations\/[A-Za-z0-9_-]+\/room$/,
   /^\/api\/conversations\/[A-Za-z0-9_-]+\/room\/presence$/,
   /^\/api\/conversations\/[A-Za-z0-9_-]+\/room\/signal$/,
@@ -150,6 +153,9 @@ export function isPubliclyVisible(conversation: Conversation): boolean {
 const PUBLIC_REPRESENTATIONS = new Set([
   'manifest.json', 'article.json', 'article.md', 'article.html',
   'captions.srt', 'captions.vtt',
+  // What a link to this conversation says about itself. Public by
+  // definition: it exists to be read by whatever the link was pasted into.
+  'share-card.json',
 ]);
 
 export function isPublicRepresentation(id: string | null): boolean {
