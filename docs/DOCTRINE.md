@@ -3641,6 +3641,75 @@ the second, so the handler asks which stage is showing — through a ref,
 because it is registered once and would otherwise read the mode it was
 registered with.
 
+**A citation you cannot show is not a citation you can teach from.** Evidence
+was archived, hashed and stored for every format, and rendered for exactly
+five: PNG, JPEG, WebP, GIF, AVIF. A PDF came back *"stored and hashed; this
+build cannot render a page of this format"* — verifiable, and invisible. The
+locator had carried `page?: number`, commented "1-based, for paged documents",
+since it was written. Rasterising the pages is what made the number mean
+something.
+
+**A deck is one citation with many pages.** It was retrieved once, hashed once
+and cited once; splitting it into forty attachments would give a lecture forty
+citations of the same document and no way to say which page. Which page is on
+screen is a property of the moment being spoken — which is precisely what the
+locator is for. The page falls back to a real one rather than to nothing: a
+citation pointing past the pages prepared is still a citation, and a blank
+panel tells the viewer nothing about why it is blank.
+
+**Use the engine already in the image.** Rasterising a PDF is normally poppler
+or ghostscript, and neither is installed. Chromium is — it archives web
+evidence — and pdf.js draws a page onto an ordinary canvas. Running it in the
+browser we already ship costs no new binary and gives no second answer to
+"what does this page look like". PowerPoint goes through LibreOffice to PDF
+and then the same path, so a deck and a PDF arrive at the compositor
+identically; LibreOffice is optional, the code asks whether it is present, and
+a build without it says *export it as a PDF* rather than accepting slides and
+producing nothing.
+
+**Teaching from a page has two moments.** Here is the document, this is the
+part I mean — and then the part itself, large enough to read, while the
+speaker talks over it from the corner. The second is not a new feature: it is
+the same region zoom in a layout where the evidence panel takes the screen
+(U-18). What looked like "add a callout renderer" was two rectangles.
+
+**A temporary filename must not lose what the file is.** Uploads were saved as
+`<assetId>.upload`, and the archiver decides how to make pages by looking at
+what it has — so a PDF came back saying its format could not be rendered, by a
+build that renders it perfectly. The extension is kept now, sanitised, and the
+first bytes are sniffed as well, because a mis-named PDF is still a PDF.
+
+**The key that runs the conversation cannot also turn the page.** Space ends a
+take, and space scrolls a document. A teacher reading their notes would have
+stopped their recording by turning the page. The reader takes the key in the
+capture phase while it is open, and the conversation's own handler stands down
+for it — and for anything contenteditable, which the INPUT/TEXTAREA test alone
+missed. The capture itself was never at risk: recording is a MediaRecorder
+over the camera stream and nothing in the document reaches it. **The danger
+was never the pixels; it was the keyboard.**
+
+**Read in the tab, not beside it.** A take survives a crash because a new
+recording segment starts every few seconds (U-06), and that rotation is a
+timer, which browsers throttle in a background tab. Alt-tabbing to a PDF
+threatens the thing that protects the recording. Reading inside the page does
+not — which is the argument for the panel existing at all.
+
+**A stated limit is not an error.** A document stored and hashed but not
+rasterised IS a valid citation, and writing that sentence into `archiveError`
+marked a working attachment as broken. It has its own field now. **A field
+named for failure will be read as failure, whatever you put in it.**
+
+**A cleanup that samples after the act cleans up nothing.** The reader test
+recorded a response to prove space still worked, then took the list of
+responses to compare against — after creating it. The new one was in the
+"before" list, the difference was empty, the cleanup removed nothing and
+reported success, and a count three hundred lines later failed instead. The
+same run had a frame-exactness check fail at two frames: it sampled a playing
+clock over one round trip and pressed the key over another, then blamed the
+product for the slack. It asserts against the frame the conversation recorded
+now. **A test that measures its own latency will eventually report it as a
+defect.**
+
 **A claim card must not look like a verdict.** Selecting a sentence is the
 author saying "this is what I am answering", and the interface should change
 shape to say it back — the statement lifted out of the running text, given its

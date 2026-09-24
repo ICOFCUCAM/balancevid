@@ -21,6 +21,7 @@ import CompositionRail, { type ExplainTool } from './CompositionRail.js';
 import ExplainSurface from './ExplainSurface.js';
 import CompositionStage from './CompositionStage.js';
 import PublishStage from './PublishStage.js';
+import Reader from './Reader.js';
 import Timeline from './Timeline.js';
 import SidePanel from './SidePanel.js';
 import ClaimCard from './ClaimCard.js';
@@ -76,6 +77,9 @@ export default function Studio({ conversationId }: { conversationId: string }) {
   const modeRef = useRef<'live' | 'studio' | 'publish'>('live');
   /** The shape under the pointer, drawn on the composition as it forms. */
   const [markDraft, setMarkDraft] = useState<any>(null);
+  /** The notes panel, for teaching from a page while the camera runs. */
+  const [readerOpen, setReaderOpen] = useState(false);
+  const readerRef = useRef(false);
   /** What this response is answering, shown over the frozen frame while it is. */
   const [answering, setAnswering] = useState<string | null>(null);
   /**
@@ -545,6 +549,7 @@ export default function Studio({ conversationId }: { conversationId: string }) {
   }, [finalizeTake, setPhaseBoth]);
 
   useEffect(() => { modeRef.current = mode; }, [mode]);
+  useEffect(() => { readerRef.current = readerOpen; }, [readerOpen]);
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -555,8 +560,22 @@ export default function Studio({ conversationId }: { conversationId: string }) {
        * not start a recording with the key they use to scroll it.
        */
       if (modeRef.current === 'publish') return;
+      /*
+       * While the reader is open the page keys belong to it. Space scrolls a
+       * document, and a teacher reading from their notes must not end their
+       * take by turning the page. The reader handles the key in the capture
+       * phase, so this is a second line of defence rather than the only one.
+       */
+      if (readerRef.current) return;
       const target = event.target as HTMLElement | null;
-      if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
+      /*
+       * Anything the person is typing or reading into keeps its own keys.
+       * `isContentEditable` and `[role=textbox]` catch the editors that are
+       * not <textarea>, which the tag test alone misses.
+       */
+      if (target && (/^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)
+        || target.isContentEditable
+        || target.closest('[data-keys="own"]'))) return;
       event.preventDefault();
       const current = phaseRef.current;
       if (current === 'recording') { resume(); return; }
@@ -752,6 +771,26 @@ export default function Studio({ conversationId }: { conversationId: string }) {
       };
     });
   const composing = interventions.find((iv: any) => iv.id === selectedResponse) ?? null;
+
+  /*
+   * What there is to read, right now.
+   *
+   * The response being composed if there is one; otherwise the one whose
+   * moment the playhead is nearest, because while teaching the author is at
+   * a point in the source and the notes for that point are the ones they
+   * want. No new place to put notes: it is the evidence and the note already
+   * on the response.
+   */
+  const readingFor = composing ?? [...interventions]
+    .sort((a: any, b: any) =>
+      Math.abs(a.anchor.tSourceFrame - currentFrame)
+      - Math.abs(b.anchor.tSourceFrame - currentFrame))[0] ?? null;
+  const readingDoc = (readingFor?.evidence ?? [])
+    .find((e: any) => (e.pageAssetIds?.length ?? 0) > 0) ?? null;
+  const readingPages: number = readingDoc?.pageAssetIds?.length ?? 0;
+  const readingPage: number = Math.min(
+    Math.max(1, readingDoc?.locator?.page ?? 1), Math.max(1, readingPages));
+  const hasReading = readingPages > 0 || Boolean(readingFor?.note);
 
   const annotationBase = composing
     ? `/api/conversations/${conversationId}/interventions/${composing.id}/annotations`
@@ -985,6 +1024,25 @@ export default function Studio({ conversationId }: { conversationId: string }) {
               </div>
             )}
           </Stage>
+          {readerOpen && (
+            <Reader
+              title={readingDoc?.title ?? 'Your notes'}
+              pageCount={readingPages}
+              page={readingPage}
+              pages={(n) => `/api/conversations/${conversationId}/evidence/` +
+                `${readingDoc?.id}/capture?page=${n}`}
+              onPage={(n) => {
+                if (!readingDoc || !readingFor) return;
+                void call(
+                  `/api/conversations/${conversationId}/interventions/${readingFor.id}` +
+                  `/evidence/${readingDoc.id}`,
+                  { method: 'PATCH', body: JSON.stringify({ page: n }) },
+                );
+              }}
+              {...(readingFor?.note ? { note: readingFor.note } : {})}
+              onClose={() => setReaderOpen(false)}
+            />
+          )}
           </div>
 
 
@@ -1217,6 +1275,23 @@ export default function Studio({ conversationId }: { conversationId: string }) {
               ))}
             </select>
 
+            {/*
+              Notes, reachable without leaving the page. Recording is a camera
+              stream, so reading here cannot alter a frame of it — and staying
+              in the tab keeps the segment rotation that makes the take
+              crash-safe (U-06).
+            */}
+            <button
+              data-testid="toggle-reader"
+              data-open={readerOpen ? 'true' : 'false'}
+              onClick={() => setReaderOpen(!readerOpen)}
+              title={hasReading
+                ? 'Read your notes or slides while you speak'
+                : 'Attach a PDF or write a note on a response to read it here'}
+              style={{ background: readerOpen ? '#2b5f8a' : undefined }}
+            >
+              Notes
+            </button>
             {phase === 'cold' && (
               <button className="primary" data-testid="enable-camera" onClick={() => void arm()}>
                 Enable camera

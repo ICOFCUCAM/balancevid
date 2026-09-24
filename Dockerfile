@@ -15,7 +15,13 @@
 #                   them onto the volume on first boot. Off by default: the
 #                   models are identical in every deployment and a host that
 #                   keeps images for rollback would store them once per deploy
-#   WITH_BROWSER=0  skip Chromium (no web-page evidence archiving)
+#   WITH_BROWSER=0  skip Chromium (no web-page evidence archiving, and no
+#                   pages from a PDF — pdf.js renders them in that browser)
+#   WITH_OFFICE=1   add LibreOffice, so PowerPoint and Word attachments can be
+#                   taught from. Off by default: it is a few hundred megabytes
+#                   and a PDF export needs none of it. Without it a deck is
+#                   still stored, hashed and cited — it just says to export it
+#                   as a PDF to put its pages on screen
 
 ARG NODE=node:22-bookworm-slim
 
@@ -52,6 +58,7 @@ RUN mkdir -p /models && if [ "$WITH_MODELS" = "1" ]; then \
 # --------------------------------------------------------------------- runtime
 FROM ${NODE} AS runtime
 ARG WITH_BROWSER=1
+ARG WITH_OFFICE=0
 
 # python3 for the offline transcriber; tini so signals reach both processes and
 # ffmpeg children are not orphaned on a redeploy.
@@ -94,6 +101,19 @@ RUN if [ "$WITH_BROWSER" = "1" ]; then \
     else \
       echo "browser skipped: web-page evidence will record an archive error"; \
     fi
+
+# LibreOffice, for turning a deck or a document into pages (U-33 §2).
+# Optional, and the code asks whether it is here rather than assuming: a build
+# without it tells the author to export a PDF instead of accepting slides and
+# quietly producing nothing.
+RUN if [ "$WITH_OFFICE" = "1" ]; then \
+      apt-get update && apt-get install -y --no-install-recommends \
+        libreoffice-impress libreoffice-writer \
+      && rm -rf /var/lib/apt/lists/*; \
+    else \
+      echo "office converter skipped: attach PowerPoint as PDF to show its pages"; \
+    fi
+
 
 # Empty unless WITH_MODELS=1. Otherwise serve.sh fetches them onto the volume
 # on first boot, where they are stored once rather than once per deployment.

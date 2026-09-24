@@ -148,6 +148,22 @@ export interface Evidence {
   url?: string;
   /** The archived capture: what the render shows and the citation points at. */
   captureAssetId?: AssetId;
+  /**
+   * One capture per page, in order, for a paged document.  [U-33 §2]
+   *
+   * Index 0 is page 1, because `locator.page` is 1-based — people number
+   * pages from one, and the conversion happens at the point of use rather
+   * than being carried around in everyone's head.
+   *
+   * A deck is ONE piece of evidence with many pages, not many pieces of
+   * evidence: it was retrieved once, hashed once and cited once, and
+   * splitting it would give a lecture forty citations of the same document.
+   * Which page is on screen is a property of the moment being spoken, which
+   * is exactly what the locator is for.
+   */
+  pageAssetIds?: AssetId[];
+  /** How many pages it has, including any beyond the ones prepared. */
+  pageCount?: number;
   /** The original bytes as retrieved, when we hold them. */
   originalAssetId?: AssetId;
   /** Content hash of the capture, so a citation is verifiable. [U-33 §1] */
@@ -160,6 +176,14 @@ export interface Evidence {
   /** Set once the archive job has run. */
   archived: boolean;
   archiveError?: string;
+  /**
+   * A stated limit, so nothing pretends to have archived more than it did.
+   *
+   * Not an error: a deck stored and hashed but not rasterised IS a valid
+   * citation. Saying so in the error field would mark a working attachment
+   * as broken, which is a different claim and a wrong one.
+   */
+  archiveNote?: string;
 }
 
 /**
@@ -366,4 +390,20 @@ export function renderableInterventions(conversation: Conversation): Interventio
     const take = selectedTake(ivn);
     return take !== null && takeUsableFrames(take) > 0;
   });
+}
+
+/**
+ * The capture to show for a piece of evidence, at the page being cited.
+ *
+ * One function, used by the planner and the editor alike, so a page number
+ * means the same thing in the preview and in the export. Out-of-range falls
+ * back to the first page rather than showing nothing: a citation pointing at
+ * page 40 of a document whose first 30 were prepared is still a citation, and
+ * a blank panel tells the viewer nothing about why.
+ */
+export function evidenceCapture(evidence: Evidence): AssetId | undefined {
+  const pages = evidence.pageAssetIds;
+  if (!pages || pages.length === 0) return evidence.captureAssetId;
+  const page = evidence.locator.page ?? 1;
+  return pages[Math.min(Math.max(1, page), pages.length) - 1] ?? evidence.captureAssetId;
 }

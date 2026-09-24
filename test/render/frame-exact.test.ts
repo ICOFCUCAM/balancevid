@@ -222,6 +222,88 @@ describe('evidence (U-33)', () => {
     expect((await probe(outputPath)).durationFrames).toBe(plan.totalOutputFrames);
   }, 300_000);
 
+  /**
+   * A deck, taught from page three, with the passage enlarged.
+   *
+   * [Doctrine U-33 §2, U-18] Two things have to survive to the render: the
+   * PAGE the locator names — not page one, which is what a single-capture
+   * model would give — and the layout that puts the marked passage on the
+   * screen at a size worth reading.
+   */
+  it('shows the page being taught from, enlarged to the marked passage', async () => {
+    // Three page-like images, each with its block in a different place, so a
+    // render of the wrong page is a render of a different picture.
+    const pagePaths: string[] = [];
+    for (const [i, y] of [180, 520, 860].entries()) {
+      const pagePath = join(dir, `deck-p${i + 1}.png`);
+      await ffmpeg([
+        '-f', 'lavfi', '-i', 'color=c=white:s=900x1200',
+        '-f', 'lavfi', '-i', `color=c=#${['aa1133', '1133aa', '11aa33'][i]}:s=520x60`,
+        '-filter_complex', `[0:v][1:v]overlay=x=140:y=${y}`,
+        '-frames:v', '1', pagePath,
+      ]);
+      pagePaths.push(pagePath);
+    }
+
+    const conversation = makeConversation(
+      SOURCE_FRAMES,
+      ANCHORS.map((frame) => makeIntervention(frame, RESPONSE_FRAMES, { type: 'teaching' })),
+    );
+    conversation.source.mezzanineAssetId = 'asset_source' as AssetId;
+    for (const ivn of conversation.interventions) {
+      for (const take of ivn.takes) take.assetId = 'asset_response' as AssetId;
+    }
+
+    const target = conversation.interventions[0]!;
+    const take = target.takes[0]!;
+    // The passage is enlarged, which is a layout — the same mechanism as any
+    // other composition choice, not a special case in the renderer.
+    target.layoutId = 'evidence_callout';
+    target.evidence = [{
+      id: 'ev_deck' as never,
+      kind: 'document',
+      title: 'Lecture one — the slides',
+      captureAssetId: 'asset_deckp1' as AssetId,
+      pageAssetIds: ['asset_deckp1', 'asset_deckp2', 'asset_deckp3'] as AssetId[],
+      pageCount: 3,
+      contentHash: 'deadbeef',
+      retrievedAt: '2026-09-24T10:00:00.000Z',
+      // Page three, and the block on it.
+      locator: { page: 3, region: { x: 0.15, y: 0.70, w: 0.58, h: 0.06 },
+        quote: 'the third point' },
+      appearOffset: 10,
+      dismissOffset: take.mediaOutFrame - take.mediaInFrame,
+      archived: true,
+    }];
+
+    const plan = buildRenderPlan(conversation, { burnInCaptions: true });
+    const shot = plan.shots.find((s) => s.kind === 'response') as
+      { evidence?: { captureAssetId: string; page?: number }[]; layoutId: string };
+    expect(shot.layoutId).toBe('evidence_callout');
+    expect(shot.evidence).toHaveLength(1);
+    // The page the author is teaching from, not the cover.
+    expect(shot.evidence![0]!.captureAssetId).toBe('asset_deckp3');
+    expect(shot.evidence![0]!.page).toBe(3);
+
+    const workDir = join(dir, 'work', 'deck');
+    await mkdir(workDir, { recursive: true });
+    const outputPath = join(workDir, 'FINAL.mp4');
+    const asked: string[] = [];
+    const result = await compose(plan, {
+      workDir, outputPath,
+      resolveAsset: (id) => (id === 'asset_source' ? sourceMezz : responseMezz),
+      resolveEvidence: (id) => {
+        asked.push(String(id));
+        const n = Number(String(id).replace(/^.*p/, ''));
+        return pagePaths[n - 1] ?? pagePaths[0]!;
+      },
+    });
+    // The compositor asked for the page, not for the document.
+    expect(asked).toEqual(['asset_deckp3']);
+    expect(result.totalOutputFrames).toBe(plan.totalOutputFrames);
+    expect((await probe(outputPath)).durationFrames).toBe(plan.totalOutputFrames);
+  }, 300_000);
+
   it('does not show evidence that has not been archived', () => {
     const conversation = makeConversation(SOURCE_FRAMES, [makeIntervention(90, RESPONSE_FRAMES)]);
     conversation.source.mezzanineAssetId = 'asset_source' as AssetId;

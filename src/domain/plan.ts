@@ -11,7 +11,7 @@
 import {
   type Annotation, type AssetId, type Conversation, type Evidence,
   type Intervention, type InterventionId, type Point, type TakeId,
-  orderedInterventions, selectedTake,
+  evidenceCapture, orderedInterventions, selectedTake,
 } from './document.js';
 import { sha256 } from './ids.js';
 import { InvariantViolation } from './invariants.js';
@@ -112,6 +112,8 @@ export interface EvidenceCue {
   endFrame: Frames;
   /** Normalised region of the capture to zoom into. [U-33 §2] */
   region?: { x: number; y: number; w: number; h: number };
+  /** Which page of a paged document this is, for the citation. [U-33 §2] */
+  page?: number;
 }
 
 export type Shot = SourceShot | ResponseShot;
@@ -341,7 +343,10 @@ function evidenceCues(
   const cues: EvidenceCue[] = [];
   for (const item of evidence) {
     // An unarchived citation is not yet verifiable, so it is not yet shown.
-    if (!item.archived || !item.captureAssetId) continue;
+    if (!item.archived) continue;
+    // The page being cited, for a paged document; the whole thing otherwise.
+    const capture = evidenceCapture(item);
+    if (!capture) continue;
     // Offsets into what the author kept, so a re-record or a trim does not
     // orphan the citation.
     const appear = clampOffset(item.appearOffset ?? 0, kept);
@@ -349,8 +354,9 @@ function evidenceCues(
     if (dismiss <= appear) continue;
     cues.push({
       evidenceId: item.id,
-      captureAssetId: item.captureAssetId,
+      captureAssetId: capture,
       title: item.title,
+      ...(item.pageAssetIds?.length ? { page: item.locator.page ?? 1 } : {}),
       startFrame: padHeadFrames + appear,
       endFrame: padHeadFrames + dismiss,
       ...(item.locator.region ? { region: item.locator.region } : {}),

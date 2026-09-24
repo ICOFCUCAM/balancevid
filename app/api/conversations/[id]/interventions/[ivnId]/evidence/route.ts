@@ -41,7 +41,19 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
 
     const uploadDir = join(paths.evidence(id), 'uploads');
     await mkdir(uploadDir, { recursive: true });
-    const uploadPath = join(uploadDir, `${assetId}.upload`);
+    /*
+     * Keep the extension.
+     *
+     * The archiver decides how to turn a file into pages by looking at what
+     * it is, and `.upload` tells it nothing — a deck saved under that name
+     * came back "this build cannot render a page of this format" about a
+     * format it renders perfectly well. The name is taken from the file's
+     * own, sanitised to a short alphanumeric suffix so nothing from a
+     * filename reaches the filesystem or a shell.
+     */
+    const declared = (file.name.split('.').pop() ?? '').toLowerCase();
+    const extension = /^[a-z0-9]{1,8}$/.test(declared) ? `.${declared}` : '.upload';
+    const uploadPath = join(uploadDir, `${assetId}${extension}`);
     await writeFile(uploadPath, Buffer.from(await file.arrayBuffer()));
 
     evidence = {

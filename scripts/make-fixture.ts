@@ -26,6 +26,30 @@ await ffmpeg([
   '-frames:v', '1', join(out, 'evidence.png'),
 ]);
 
+/*
+ * A three-page deck, so the end-to-end run exercises a paged document rather
+ * than a page-shaped image. Chromium prints it, which needs no dependency the
+ * project does not already have. [U-33 §2]
+ */
+{
+  const { chromium } = await import('playwright');
+  const executable = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+  const browser = await chromium.launch({
+    ...(existsSync(executable) ? { executablePath: executable } : {}),
+    args: ['--no-sandbox'],
+  });
+  const page = await browser.newPage();
+  await page.setContent(`<style>
+    body{font:56px system-ui;margin:0}
+    div{height:100vh;display:grid;place-items:center;page-break-after:always}
+  </style>
+  <div style="background:#eef">SLIDE ONE</div>
+  <div style="background:#efe">SLIDE TWO</div>
+  <div style="background:#fee">SLIDE THREE</div>`);
+  await page.pdf({ path: join(out, 'deck.pdf'), format: 'A4', printBackground: true });
+  await browser.close();
+}
+
 const silent = join(out, 'picture.mp4');
 await makeSyntheticVideo(silent, join(out, 'source.rgb'), {
   frames: 600, width: 640, height: 360, toneHz: 220,

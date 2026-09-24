@@ -521,6 +521,12 @@ function EvidencePanel({
           disabled={disabled}
           onCall={onCall}
           base={base}
+          enlarged={intervention.layoutId === 'evidence_callout'}
+          onEnlarge={(on) => onCall(
+            `/api/conversations/${conversationId}/interventions/${intervention.id}`,
+            { method: 'PATCH', body: JSON.stringify({
+              layoutId: on ? 'evidence_callout' : 'evidence_split' }) },
+          )}
         />
       ))}
 
@@ -556,7 +562,7 @@ function EvidencePanel({
 }
 
 function EvidenceItem({
-  conversationId, evidence, take, disabled, onCall, base,
+  conversationId, evidence, take, disabled, onCall, base, onEnlarge, enlarged,
 }: {
   conversationId: string;
   evidence: any;
@@ -564,6 +570,9 @@ function EvidenceItem({
   disabled: boolean;
   onCall: (path: string, init: RequestInit) => Promise<void>;
   base: string;
+  /** Put the marked passage on screen, large, for this response. */
+  onEnlarge: (on: boolean) => void;
+  enlarged: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const boxRef = useRef<HTMLDivElement | null>(null);
@@ -571,11 +580,15 @@ function EvidenceItem({
   const patch = (body: Record<string, unknown>) =>
     onCall(`${base}/${evidence.id}`, { method: 'PATCH', body: JSON.stringify(body) });
 
+  const pageCount: number = evidence.pageAssetIds?.length ?? 0;
+  const page: number = Math.min(Math.max(1, evidence.locator?.page ?? 1), Math.max(1, pageCount));
   const status = evidence.archiveError
     ? { text: 'archive failed', colour: 'var(--bad)' }
     : evidence.archived
-      ? { text: `archived ${evidence.retrievedAt?.slice(0, 10) ?? ''}`, colour: 'var(--ok)' }
-      : { text: 'archiving…', colour: 'var(--muted)' };
+      ? { text: pageCount > 1
+          ? `${pageCount} pages · archived ${evidence.retrievedAt?.slice(0, 10) ?? ''}`
+          : `archived ${evidence.retrievedAt?.slice(0, 10) ?? ''}`, colour: 'var(--ok)' }
+      : { text: 'preparing pages…', colour: 'var(--muted)' };
 
   /** Drag a box over the capture. The numeric fields below are the same thing
    *  reachable from the keyboard (D-04). */
@@ -631,6 +644,10 @@ function EvidenceItem({
       {evidence.archiveError && (
         <div className="small" style={{ color: 'var(--bad)' }}>{evidence.archiveError}</div>
       )}
+      {/* A stated limit is not a failure: the citation is good either way. */}
+      {evidence.archiveNote && (
+        <div className="small muted" data-testid="evidence-note">{evidence.archiveNote}</div>
+      )}
 
       {open && (
         <div style={{ marginTop: 8 }}>
@@ -641,8 +658,12 @@ function EvidenceItem({
               style={{ position: 'relative', cursor: 'crosshair', lineHeight: 0 }}
             >
               <img
-                src={`/api/conversations/${conversationId}/evidence/${evidence.id}/capture`}
-                alt={`Archived capture of ${evidence.title}`}
+                src={`/api/conversations/${conversationId}/evidence/${evidence.id}` +
+                  `/capture${pageCount > 1 ? `?page=${page}` : ''}`}
+                alt={pageCount > 1
+                  ? `Page ${page} of ${evidence.title}`
+                  : `Archived capture of ${evidence.title}`}
+                data-testid="evidence-capture"
                 style={{ width: '100%', borderRadius: 4, border: '1px solid var(--line)' }}
               />
               {region && (
@@ -660,6 +681,48 @@ function EvidenceItem({
               No visual capture for this format — it is cited but not shown on screen.
             </div>
           )}
+
+          {/*
+            The page being taught from. A deck is one citation with many
+            pages, so this moves within the same attachment rather than
+            making forty attachments out of one document. [U-33 §2]
+          */}
+          {pageCount > 1 && (
+            <div className="row small" data-testid="evidence-pages"
+                 style={{ gap: 6, marginTop: 8, flexWrap: 'nowrap' }}>
+              <button className="small" data-testid="evidence-prev"
+                      disabled={disabled || page <= 1}
+                      onClick={() => void patch({ page: page - 1 })}>←</button>
+              <span className="grow mono" style={{ textAlign: 'center' }}>
+                Page {page} of {pageCount}
+              </span>
+              <button className="small" data-testid="evidence-next"
+                      disabled={disabled || page >= pageCount}
+                      onClick={() => void patch({ page: page + 1 })}>→</button>
+            </div>
+          )}
+
+          {/*
+            Teaching from a page has two moments: here is the document, and
+            here is the part I mean. The second is the same region, given the
+            screen. [U-33 §2, U-18]
+          */}
+          <div className="row small" style={{ gap: 8, marginTop: 8 }}>
+            <button
+              className="small" data-testid="evidence-enlarge"
+              data-on={enlarged ? 'true' : 'false'}
+              disabled={disabled}
+              onClick={() => onEnlarge(!enlarged)}
+              style={{ background: enlarged ? '#2b5f8a' : undefined }}
+            >
+              {enlarged ? 'Showing the passage large' : 'Show the marked part large'}
+            </button>
+            <span className="muted" style={{ fontSize: 11 }}>
+              {region
+                ? 'The marked part fills the screen while you read it.'
+                : 'Drag a box over the part you are reading first.'}
+            </span>
+          </div>
 
           <div className="row small" style={{ gap: 6, marginTop: 8 }}>
             {(['x', 'y', 'w', 'h'] as const).map((key) => (

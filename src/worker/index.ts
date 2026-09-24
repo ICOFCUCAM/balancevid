@@ -310,6 +310,20 @@ async function archiveEvidence(job: Job): Promise<Job> {
     evidence.retrievedAt = result.retrievedAt;
     if (result.title) evidence.title = evidence.title.trim() || result.title;
     if (result.capturePath) evidence.captureAssetId = assetId as never;
+    /*
+     * A paged document keeps its pages in order. The asset ids follow the
+     * files the rasteriser wrote — `<assetId>p1`, `p2`, … — so the store's
+     * own path helper resolves them without a second naming scheme.
+     */
+    if (result.pagePaths?.length) {
+      evidence.pageAssetIds = result.pagePaths
+        .map((_, i) => `${assetId}p${i + 1}`) as never;
+      evidence.pageCount = result.pageCount ?? result.pagePaths.length;
+      // Page one unless the author has already said which page they mean.
+      if (!evidence.locator.page) evidence.locator.page = 1;
+    }
+    if (result.note) evidence.archiveNote = result.note;
+    else delete evidence.archiveNote;
   });
 
   await audit(job.conversationId, {

@@ -212,8 +212,27 @@ for (let i = 0; i < 2; i++) {
 
   const after = await page.evaluate(() =>
     Math.floor(document.querySelector('video[src*="/source"]').currentTime * 30));
-  check(Math.abs(after - before) <= 1, `resumed at the interrupt frame (${i + 1})`,
-    `paused ${before}, resumed ${after}`);
+
+  /*
+   * Resume where it cut out.  [INV-02]
+   *
+   * Measured against the frame the PRODUCT recorded, not against a reading
+   * the test took of a still-playing clock. `before` is sampled over one
+   * round trip and the key is pressed over another, so at 30fps it trails
+   * the real pause point by a frame or two — that slack is the test's, and
+   * asserting on it makes a timing measurement look like a frame-exactness
+   * failure. The anchor is the frame the conversation committed to, and the
+   * one the render will cut at.
+   */
+  const recorded = (await api(`/api/conversations/${conversationId}`))
+    .conversation.interventions
+    .map((iv) => iv.anchor.tSourceFrame)
+    .sort((a, b) => Math.abs(a - before) - Math.abs(b - before))[0];
+  check(Math.abs(after - recorded) <= 1, `resumed at the interrupt frame (${i + 1})`,
+    `cut out at ${recorded}, resumed at ${after} (test sampled ${before})`);
+  check(Math.abs(recorded - before) <= 3,
+    `and cut out where the author pressed the key (${i + 1})`,
+    `sampled ${before}, recorded ${recorded}`);
 }
 
 // --- into Studio for everything that analyses the conversation ------------
@@ -762,6 +781,86 @@ log('checking a recording that did not save…');
     null, { timeout: 30_000 });
 }
 
+// --- reading from the screen while recording (U-06, U-33, D-07) -------------
+/*
+ * A lecture is delivered from notes. The capture is a MediaRecorder over the
+ * camera stream, so nothing in the document can alter a frame of it — but
+ * space scrolls a document AND ends a take, and until this was fixed turning
+ * the page would have stopped the recording.
+ */
+log('checking the notes reader…');
+{
+  await page.click('[data-testid="mode-live"]');
+  await page.waitForSelector('[data-testid="toggle-reader"]', { timeout: 10_000 });
+  check(true, 'the notes are reachable without leaving the page');
+
+  await page.click('[data-testid="toggle-reader"]');
+  await page.waitForSelector('[data-testid="reader"]', { timeout: 10_000 });
+  check(true, 'and open over the stage');
+
+  // The camera is still running, and the recording is unaffected by any of it.
+  const stanceBefore = await page.locator('[data-testid="stance"]').innerText();
+  await page.keyboard.press('Space');
+  await page.waitForTimeout(600);
+  const stanceAfter = await page.locator('[data-testid="stance"]').innerText();
+  check(stanceBefore === stanceAfter,
+    'space scrolls the notes rather than ending the take',
+    `${stanceBefore} → ${stanceAfter}`);
+  check(await page.locator('[data-testid="reader"]').count() === 1,
+    'and the reader stays open while it does');
+
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(400);
+  check(await page.locator('[data-testid="reader"]').count() === 0,
+    'escape closes it and gives the key back');
+
+  /*
+   * And with it closed, space does what it always did.
+   *
+   * The id list is taken BEFORE the key press, not after: taken after, the
+   * response this proof creates is already in the "before" list, the diff is
+   * empty, and the cleanup silently removes nothing while reporting success.
+   */
+  const beforeReader = (await api(`/api/conversations/${conversationId}`))
+    .conversation.interventions.map((iv) => iv.id);
+  const before = await page.locator('[data-testid="stance"]').innerText();
+  await page.keyboard.press('Space');
+  await page.waitForFunction(
+    (was) => document.querySelector('[data-testid="stance"]')?.textContent !== was,
+    before, { timeout: 15_000 })
+    .then(() => check(true, 'with the notes closed, space runs the conversation again'))
+    .catch(() => check(false, 'with the notes closed, space runs the conversation again'));
+
+  /*
+   * Leave it as it was found. A take needs something in it before it can be
+   * closed — the segments are a couple of seconds long — so this waits
+   * rather than pressing space on an empty recording and then waiting out a
+   * finalise that has nothing to finalise.
+   */
+  if ((await page.locator('[data-testid="stance"]').innerText()) === 'Your turn') {
+    await sleep(2500);
+    await page.keyboard.press('Space');
+    await page.waitForFunction(
+      () => document.querySelector('[data-testid="stance"]')?.textContent === 'Listening',
+      null, { timeout: 120_000 })
+      .then(() => check(true, 'and the take it started closes cleanly'))
+      .catch(() => check(false, 'and the take it started closes cleanly',
+        'never returned to listening'));
+  }
+  // The response that proof made is this test's litter, not the author's.
+  const afterReader = (await api(`/api/conversations/${conversationId}`))
+    .conversation.interventions.map((iv) => iv.id);
+  for (const id of afterReader.filter((id) => !beforeReader.includes(id))) {
+    await sfetch(
+      `${BASE}/api/conversations/${conversationId}/interventions?interventionId=${id}`,
+      { method: 'DELETE' });
+  }
+  check((await api(`/api/conversations/${conversationId}`)).conversation.interventions.length
+    === beforeReader.length, 'and the run leaves the conversation as it found it');
+  await page.click('[data-testid="mode-studio"]');
+  await page.waitForSelector('[data-testid="clip-rail"]', { timeout: 10_000 });
+}
+
 // --- publishing: one conversation, four shapes (U-18, U-22, INV-00) ---------
 /*
  * The claim this stage makes is that the same composition publishes in four
@@ -1124,6 +1223,74 @@ check(evidence?.archived === true, 'evidence is archived at attach time (U-33 §
   evidence?.archiveError ?? '');
 check(Boolean(evidence?.contentHash), 'the archive carries a content hash, so the citation verifies');
 check(Boolean(evidence?.captureAssetId), 'the archive has a capture the render can show');
+
+/*
+ * A deck: one citation, many pages.  [Doctrine U-33 §2]
+ *
+ * A lecture is taught from slides, and a deck that is stored, hashed and
+ * unshowable is a citation nobody can teach from. Every page becomes a
+ * picture the compositor can show and zoom into, and which one is on screen
+ * is a property of the moment being spoken — the locator — not a separate
+ * attachment per page.
+ */
+log('attaching a deck…');
+{
+  const DECK = SOURCE.replace(/source\.mp4$/, 'deck.pdf');
+  await page.locator('input[aria-label="Evidence file"]').first().setInputFiles(DECK);
+
+  let deck = null;
+  for (let i = 0; i < 180; i++) {
+    await sleep(1000);
+    doc = (await api(`/api/conversations/${conversationId}`)).conversation;
+    const target = doc.interventions.find((iv) => iv.id === beforeTrim.id);
+    deck = (target?.evidence ?? []).find((e) => /deck/i.test(e.title)) ?? null;
+    if (deck?.archived || deck?.archiveError) break;
+  }
+  check(Boolean(deck), 'a deck attaches to the point');
+  check(deck?.archived === true, 'and is archived at attach time like any citation',
+    deck?.archiveError ?? '');
+  check(deck?.pageCount === 3, 'every page of it is prepared', `${deck?.pageCount}`);
+  check((deck?.pageAssetIds ?? []).length === 3,
+    'as one citation with many pages, not many citations');
+  check(deck?.locator?.page === 1, 'opening on the first page');
+
+  // Each page is a different picture, so serving the wrong one is visible.
+  const bytes = [];
+  for (const n of [1, 2, 3]) {
+    const res = await sfetch(
+      `${BASE}/api/conversations/${conversationId}/evidence/${deck.id}/capture?page=${n}`);
+    check(res.ok, `page ${n} is served`, `status ${res.status}`);
+    bytes.push((await res.arrayBuffer()).byteLength);
+  }
+  check(new Set(bytes).size === 3, 'and the three pages are three different pictures',
+    bytes.join(', '));
+
+  /*
+   * Teaching from page three: the page the author names is the page the
+   * render shows, not the cover.
+   */
+  await sfetch(
+    `${BASE}/api/conversations/${conversationId}/interventions/${beforeTrim.id}` +
+    `/evidence/${deck.id}`,
+    { method: 'PATCH', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ page: 3, region: { x: 0.2, y: 0.4, w: 0.6, h: 0.2 } }) });
+
+  const planned = await api(
+    `/api/conversations/${conversationId}/representations?id=render-plan.json`);
+  const cue = planned.shots
+    .flatMap((shot) => shot.evidence ?? [])
+    .find((e) => e.evidenceId === deck.id);
+  check(cue?.page === 3, 'the render is planned on the page being taught from', `${cue?.page}`);
+  check(cue?.captureAssetId?.endsWith('p3'),
+    'and asks for that page\'s picture, not the document\'s first',
+    `${cue?.captureAssetId}`);
+  check(Boolean(cue?.region), 'with the marked passage to enlarge');
+
+  // Put it back, so the sections after this see the conversation as it was.
+  await sfetch(
+    `${BASE}/api/conversations/${conversationId}/interventions/${beforeTrim.id}` +
+    `/evidence/${deck.id}`, { method: 'DELETE' });
+}
 
 const capture = await sfetch(
   `${BASE}/api/conversations/${conversationId}/evidence/${evidence.id}/capture`);

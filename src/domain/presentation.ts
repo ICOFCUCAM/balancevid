@@ -241,6 +241,38 @@ export const LAYOUTS: Record<string, Layout> = {
       { source: 'user', rect: { x: 0, y: 0.32, w: 1, h: 0.46 }, fit: 'cover', z: 1 },
     ],
   },
+  /**
+   * The passage, enlarged, while you read it.  [Doctrine U-33 §2]
+   *
+   * Teaching from a page has two moments. First the page: here is the
+   * document, this is the part I mean. Then the passage: the part itself,
+   * large enough to read from across a room, while the speaker talks over
+   * it from the corner.
+   *
+   * `evidence_split` is the first moment and this is the second. The
+   * difference is only where the rectangles are, which is exactly the kind
+   * of difference a layout is supposed to be (U-18) — the zoom into the
+   * marked region is the same mechanism in both.
+   */
+  evidence_callout: {
+    id: 'evidence_callout', label: 'The passage, enlarged',
+    backdrop: 'black',
+    layers: [
+      { source: 'evidence', rect: { x: 0.03, y: 0.06, w: 0.94, h: 0.88 }, fit: 'contain', z: 0 },
+      { source: 'user', rect: { x: 0.74, y: 0.68, w: 0.23, h: 0.26 }, fit: 'cover', z: 1 },
+    ],
+    reframe: { square: 'evidence_callout_tall', portrait: 'evidence_callout_tall',
+      tall: 'evidence_callout_tall' },
+  },
+  /** The same moment on a tall canvas: the passage above, the speaker below. */
+  evidence_callout_tall: {
+    id: 'evidence_callout_tall', label: 'The passage, enlarged (vertical)',
+    backdrop: 'black',
+    layers: [
+      { source: 'evidence', rect: { x: 0.02, y: 0.06, w: 0.96, h: 0.56 }, fit: 'contain', z: 0 },
+      { source: 'user', rect: { x: 0.14, y: 0.66, w: 0.72, h: 0.26 }, fit: 'cover', z: 1 },
+    ],
+  },
   /** A document needs height, so it takes the larger share. */
   evidence_stack: {
     id: 'evidence_stack', label: 'Evidence above you',

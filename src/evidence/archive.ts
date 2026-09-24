@@ -19,6 +19,9 @@ import type { EvidenceKind } from '../domain/document.js';
 import { sha256 } from '../domain/ids.js';
 import { ffmpeg } from '../render/ffmpeg.js';
 import { assertPublicUrl } from './ssrf.js';
+import {
+  isOfficeDocument, officeConverterAvailable, rasteriseOffice, rasterisePdf,
+} from './pages.js';
 
 /** The installed browser. Overridable, because builds move. */
 const CHROMIUM = process.env['BALANCEVID_CHROMIUM']
@@ -30,6 +33,9 @@ const CAPTURE_TIMEOUT_MS = 25_000;
 export interface ArchiveResult {
   /** A PNG the renderer can show and zoom into. Absent when none is possible. */
   capturePath?: string;
+  /** One PNG per page, in order, for a paged document. [U-33 §2] */
+  pagePaths?: string[];
+  pageCount?: number;
   /** The bytes as retrieved, when we hold them. */
   originalPath?: string;
   contentHash: string;
@@ -107,7 +113,60 @@ export async function archiveUpload(
   const originalPath = join(outDir, `${assetId}.original`);
   await copyFile(sourcePath, originalPath);
 
+  /*
+   * A paged document becomes pages.  [U-33 §2]
+   *
+   * A lecture is taught from a deck, and a deck that is stored, hashed and
+   * unshowable is a citation you cannot teach from. PDFs are rasterised
+   * here; PowerPoint and Word go through LibreOffice to PDF first, when this
+   * deployment has it. When it does not, the note says what to do rather
+   * than leaving someone to wonder why their slides never appear.
+   */
   if (kind !== 'image') {
+    const lower = sourcePath.toLowerCase();
+    // The name says what it is; the first bytes settle it. A PDF attached
+    // under the wrong extension is still a PDF, and %PDF- is unambiguous.
+    const looksPdf = lower.endsWith('.pdf')
+      || bytes.subarray(0, 5).toString('latin1') === '%PDF-';
+    try {
+      if (looksPdf) {
+        const paged = await rasterisePdf(sourcePath, outDir, assetId);
+        return {
+          originalPath, contentHash, title, retrievedAt,
+          pagePaths: paged.pagePaths, pageCount: paged.pageCount,
+          ...(paged.pagePaths[0] ? { capturePath: paged.pagePaths[0] } : {}),
+          ...(paged.note ? { note: paged.note } : {}),
+        };
+      }
+      if (isOfficeDocument(sourcePath)) {
+        if (!(await officeConverterAvailable())) {
+          return {
+            originalPath, contentHash, title, retrievedAt,
+            note: 'stored and hashed. To show its pages on screen, export it '
+              + 'as a PDF and attach that instead.',
+          };
+        }
+        const paged = await rasteriseOffice(sourcePath, outDir, assetId);
+        return {
+          originalPath, contentHash, title, retrievedAt,
+          pagePaths: paged.pagePaths, pageCount: paged.pageCount,
+          ...(paged.pagePaths[0] ? { capturePath: paged.pagePaths[0] } : {}),
+          ...(paged.note ? { note: paged.note } : {}),
+        };
+      }
+    } catch (error) {
+      /*
+       * A document we cannot turn into pages is still a citation: it was
+       * retrieved, it is hashed, and it is verifiable. Losing the attachment
+       * because the renderer choked would be losing the author's work over a
+       * presentation problem (D-07).
+       */
+      return {
+        originalPath, contentHash, title, retrievedAt,
+        note: `stored and hashed; its pages could not be prepared — ${
+          error instanceof Error ? error.message : String(error)}`,
+      };
+    }
     return {
       originalPath, contentHash, title, retrievedAt,
       note: 'stored and hashed; this build cannot render a page of this format',
