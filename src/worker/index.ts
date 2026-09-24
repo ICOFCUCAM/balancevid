@@ -50,6 +50,14 @@ import { EXPORT_PROFILES } from '../domain/presentation.js';
 
 const POLL_MS = 400;
 
+/**
+ * Below this peak a take was recorded silent.  [§9]
+ *
+ * About -54 dBFS: quieter than a room with nobody speaking in it, and well
+ * under anything a microphone that is actually working produces.
+ */
+const SILENT_PEAK = 0.002;
+
 export async function runJob(job: Job): Promise<Job> {
   switch (job.kind) {
     case 'ingest_source': return ingestSource(job);
@@ -199,10 +207,22 @@ async function assemblePerformanceTake(job: Job): Promise<Job> {
   const take = await readAnalysis(analysisPath, 0, Math.min(durationSamples, ALIGN_WINDOW));
   const found = measureAlignment(master, take, hintSamples);
 
+  /*
+   * Was anything recorded? Measured rather than assumed, because a muted
+   * microphone produces a take that looks perfect and sounds like nothing —
+   * and §9's Mode A would then mix silence in as though it were a vocal. The
+   * mezzanine always HAS an audio stream (ingest synthesises one), so the
+   * question is about the sound, not about the container. [§9, S-7, U-02]
+   */
+  let peak = 0;
+  for (const sample of take) peak = Math.max(peak, Math.abs(sample));
+  const hasAudio = peak > SILENT_PEAK;
+
   await mutatePerformance(id, (draft) => {
     const target = draft.takes.find((t) => t.id === takeId);
     if (!target) return;
     target.durationSamples = durationSamples;
+    target.hasAudio = hasAudio;
     if (found.masterAudible) {
       target.alignment = {
         ...target.alignment,
@@ -219,6 +239,7 @@ async function assemblePerformanceTake(job: Job): Promise<Job> {
       hintSamples, offsetSamples: found.offsetSamples,
       correlation: Number(found.correlation.toFixed(3)),
       masterAudible: found.masterAudible,
+      hasAudio, peak: Number(peak.toFixed(5)),
       segments: joined.segments,
       skippedSegments: joined.skipped,
     },
@@ -236,6 +257,7 @@ async function assemblePerformanceTake(job: Job): Promise<Job> {
        * speaker leakage cannot be removed afterwards. [§10]
        */
       masterAudible: found.masterAudible,
+      hasAudio,
     },
   });
 }

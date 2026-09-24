@@ -3182,6 +3182,57 @@ log('checking the Performance Studio…');
       'with the finished video beside it');
   }
 
+  /*
+   * --- §9: where the sound comes from -----------------------------------
+   *
+   * "The master vocal stays continuous while the video switches between
+   *  environments." The sound timeline is not the picture timeline, and the
+   *  studio has to say so in words somebody will act on. [S-7]
+   */
+  {
+    const takes = (await api(`/api/performances/${perfId}`)).performance.takes
+      .filter((t) => t.durationSamples > 0);
+    check(takes.every((t) => typeof t.hasAudio === 'boolean'),
+      'whether a take recorded any sound is measured, not assumed (§9)',
+      takes.map((t) => `${t.label}=${t.hasAudio}`).join(' '));
+
+    await page.waitForSelector('[data-testid="sound"]', { timeout: 20_000 });
+    check(await page.locator('[data-testid="audio-mode"]').count() === 3,
+      'the three modes §9 asks for are offered');
+
+    await page.locator('[data-testid="audio-mode"][data-mode="master_vocal"]').click();
+    await page.waitForSelector('[data-testid="vocal-take"]', { timeout: 15_000 });
+    const chosen = (await api(`/api/performances/${perfId}`)).performance.audio;
+    check(chosen.mode === 'master_vocal' && Boolean(chosen.vocalTakeId),
+      'choosing the master vocal names a take to be the voice (Mode C)',
+      JSON.stringify(chosen));
+
+    // S-7's fourth mode: one section answering differently from the rest.
+    const scene = (await api(`/api/performances/${perfId}`)).performance.scenes[0];
+    if (scene) {
+      const one = await sfetch(`${BASE}/api/performances/${perfId}`, {
+        method: 'PATCH', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'scene-audio', sceneId: scene.id,
+          mode: 'take_audio' }),
+      });
+      check(one.status === 200, 'and one section may answer differently (S-7)');
+      const back = await sfetch(`${BASE}/api/performances/${perfId}`, {
+        method: 'PATCH', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'scene-audio', sceneId: scene.id, mode: null }),
+      });
+      check(back.status === 200
+        && !(await api(`/api/performances/${perfId}`)).performance.scenes
+          .find((sc) => sc.id === scene.id)?.audioMode,
+        'and be put back on the performance’s own mode rather than frozen');
+    }
+
+    // Back to the song plus whoever is on screen, which is where it started.
+    await page.locator('[data-testid="audio-mode"][data-mode="music_and_mic"]').click();
+    await page.waitForFunction(() => document.querySelector(
+      '[data-testid="audio-mode"][data-mode="music_and_mic"]')
+      ?.getAttribute('data-chosen') === 'true', null, { timeout: 15_000 });
+  }
+
   // ---- and none of it is a stranger's -----------------------------------
   for (const path of [`/p/${perfId}`, `/api/performances/${perfId}`,
     `/api/performances/${perfId}/master`, '/api/performances']) {

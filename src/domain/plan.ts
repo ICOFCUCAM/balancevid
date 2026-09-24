@@ -22,6 +22,7 @@ import {
 import { focusRegion } from './focus.js';
 import { chainAttribution } from './publish.js';
 import { type Timeline, projectTimeline, sourceRatio } from './timeline.js';
+import type { AudioPiece } from './performanceAudio.js';
 import type { Frames } from './time.js';
 
 export const PLAN_VERSION = 1;
@@ -249,6 +250,16 @@ export interface RenderPlan {
    */
   openingClaim?: { text: string; seconds: number; quoted: boolean };
   audio: AudioMaster;
+  /**
+   * Where the finished sound comes from, for a Performance. [STUDIO-TWO §9, S-7]
+   *
+   * A list of contiguous runs on the music clock rather than one source per
+   * shot, because the audio timeline and the video timeline are independent:
+   * scenes cut the picture and they do not cut the sound. Absent for a
+   * Conversation, whose shots each carry their own audio because there the
+   * sound IS the cut.
+   */
+  performanceAudio?: AudioPiece[];
 }
 
 export interface PlanOptions {

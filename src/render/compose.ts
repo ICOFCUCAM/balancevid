@@ -22,7 +22,8 @@ import type {
 import { LAYOUTS, type Rect } from '../domain/presentation.js';
 import { lookFor } from '../domain/environment.js';
 import { backdropChain, blurBackdropChain, matteChain } from './matte.js';
-import type { Frames } from '../domain/time.js';
+import { mixPerformanceAudio } from './mix.js';
+import { type Frames, framesToSamples } from '../domain/time.js';
 import { ffmpeg, type RunOptions } from './ffmpeg.js';
 import { HOUSE, matchGainDb, measureLoudness, measureLoudnorm } from './ingest.js';
 import { buildAss, buildSrt, buildVtt, type Cue } from './subtitles.js';
@@ -115,6 +116,30 @@ export async function compose(plan: RenderPlan, options: ComposeOptions): Promis
   const assPath = join(workDir, `${plan.planHash}.ass`);
   await writeFile(assPath, buildAss(plan, { cues: options.cues ?? [] }));
 
+  /*
+   * Pass 2b, for a Performance: the sound.  [STUDIO-TWO §9, S-7]
+   *
+   * Built in one piece from the plan's audio timeline — the song, and whichever
+   * microphones the author's mode says are audible where — and written out so
+   * the mastering below measures the MIX rather than the song on its own.
+   */
+  const performance = plan.shots.some((shot) => shot.kind === 'performance');
+  let performanceAudioPath: string | undefined;
+  if (performance) {
+    if (!options.masterAudioPath) {
+      throw new Error('a performance render needs its master track');
+    }
+    performanceAudioPath = await mixPerformanceAudio({
+      pieces: plan.performanceAudio ?? [],
+      masterAudioPath: options.masterAudioPath,
+      resolveAsset: (assetId) => resolveAsset(assetId as AssetId),
+      totalSamples: framesToSamples(plan.totalOutputFrames, plan.exportProfile.fps),
+      workDir,
+      planHash: plan.planHash,
+      run: options,
+    });
+  }
+
   // Pass 3a: measure, so pass 3b can hit the target rather than approach it.
   //
   // loudnorm's limiter treats its TP argument as a goal, not a wall, and lands
@@ -124,7 +149,7 @@ export async function compose(plan: RenderPlan, options: ComposeOptions): Promis
   const TP_HEADROOM_DB = 0.3;
   const askTruePeak = plan.audio.truePeakDb - TP_HEADROOM_DB;
   const measurement = await measureLoudnorm(
-    bodyPath, plan.audio.loudnessLufs, askTruePeak);
+    performanceAudioPath ?? bodyPath, plan.audio.loudnessLufs, askTruePeak);
   const loudnorm = measurement
     ? `loudnorm=I=${plan.audio.loudnessLufs}:TP=${askTruePeak}:LRA=11` +
       `:measured_I=${measurement.measuredI}:measured_TP=${measurement.measuredTp}` +
@@ -133,17 +158,13 @@ export async function compose(plan: RenderPlan, options: ComposeOptions): Promis
     : `loudnorm=I=${plan.audio.loudnessLufs}:TP=${askTruePeak}:LRA=11`;
 
   /*
-   * A Performance's picture carries no sound, so the song is brought in here
-   * as a second input and mapped over the whole thing — one continuous piece
-   * of audio under however many cuts. [S-7]
+   * A Performance's picture carries no sound, so the finished mix is brought
+   * in here as a second input and mapped over the whole thing — one continuous
+   * piece of audio under however many cuts. [S-7]
    */
-  const performance = plan.shots.some((shot) => shot.kind === 'performance');
   const master: string[] = ['-i', bodyPath];
-  if (performance) {
-    if (!options.masterAudioPath) {
-      throw new Error('a performance render needs its master track');
-    }
-    master.push('-i', options.masterAudioPath, '-map', '0:v:0', '-map', '1:a:0');
+  if (performanceAudioPath) {
+    master.push('-i', performanceAudioPath, '-map', '0:v:0', '-map', '1:a:0');
   }
   if (plan.captions.burnIn) {
     master.push(

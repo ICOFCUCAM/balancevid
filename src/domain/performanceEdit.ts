@@ -363,6 +363,27 @@ export function setAudioMode(
   performance.audio = { mode, ...(kept ? { vocalTakeId: kept } : {}) };
 }
 
+/**
+ * One scene's answer, where it differs from the performance's.  [S-7]
+ *
+ * The fourth mode S-7 said came free once the sound timeline was separate from
+ * the picture: the crowd from the concert-stage take under the chorus, and the
+ * studio vocal everywhere else. `null` puts the scene back on the
+ * performance's own mode rather than freezing today's default into it.
+ */
+export function setSceneAudio(
+  performance: Performance, sceneId: string, mode: AudioMode | null,
+): void {
+  const scene = performance.scenes.find((s) => s.id === sceneId)
+    ?? fail(`no such scene: ${sceneId}`) as never;
+  if (mode === null) { delete scene.audioMode; return; }
+  if (!AUDIO_MODES.includes(mode)) fail(`unknown audio mode: ${mode}`);
+  if (mode === 'master_vocal' && !performance.audio.vocalTakeId) {
+    fail('name a take as the master vocal before a scene can ask for it');
+  }
+  scene.audioMode = mode;
+}
+
 /* ------------------------------------------------------------------------ *
  *  Rights.  [§S-9, INV-15]
  * ------------------------------------------------------------------------ */

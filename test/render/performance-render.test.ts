@@ -37,12 +37,21 @@ const SONG = secondsToSamples(SONG_SECONDS);
 let dir: string;
 const asset = (name: string) => join(dir, `${name}.mp4`);
 
-/** A take that is one flat colour, so a pixel names it. */
+/**
+ * A take that is one flat colour, so a pixel names it.
+ *
+ * With a silent audio track, because every take mezzanine has one: ingest
+ * synthesises silence when a camera arrives without sound, so a fixture
+ * without an audio stream would be testing a file the product cannot produce.
+ */
 async function colouredTake(name: string, colour: string): Promise<void> {
   await run(FFMPEG, [
     '-y', '-f', 'lavfi',
     '-i', `color=c=${colour}:s=640x360:r=${HOUSE_FPS}:d=${SONG_SECONDS}`,
-    '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', asset(name),
+    '-f', 'lavfi', '-i', `anullsrc=r=48000:cl=stereo:d=${SONG_SECONDS}`,
+    '-shortest',
+    '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p',
+    '-c:a', 'aac', asset(name),
   ]);
 }
 

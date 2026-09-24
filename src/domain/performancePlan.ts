@@ -30,6 +30,7 @@ import {
   mayPublish, plateFor, projectPerformance,
 } from './performance.js';
 import { matteFeather, matteThreshold, needsMatte } from './environment.js';
+import { planPerformanceAudio } from './performanceAudio.js';
 import {
   type ExportProfile, EXPORT_PROFILES, LAYOUTS, captionStyleFor,
   reframeFor, takeSlots,
@@ -115,6 +116,16 @@ export function buildPerformancePlan(
   assertPerformanceRenderable(performance);
   const timeline = projectPerformance(performance);
 
+  let audio;
+  try {
+    audio = planPerformanceAudio(performance);
+  } catch (error) {
+    // The audio's own refusals are the author's problem, not a crash: a mode
+    // naming a vocal that is not there is a thing they can fix in one click.
+    throw new PerformancePlanError(
+      error instanceof Error ? error.message : 'the sound could not be planned');
+  }
+
   const shots: PerformanceShot[] = [];
   for (const span of timeline.spans) {
     const shot = performanceShot(performance, span, exportProfile);
@@ -139,6 +150,13 @@ export function buildPerformancePlan(
      */
     sourceRatio: 0,
     attribution: performanceAttribution(performance, accessedAt),
+    /*
+     * §9's modes, resolved into a sound timeline of their own. In the plan
+     * rather than worked out by the renderer, and hashed with everything else
+     * — so changing the audio mode changes the PLAN without changing a single
+     * shot hash, and a re-render re-mixes rather than re-renders. [U-16, S-7]
+     */
+    performanceAudio: audio,
     captions: {
       // Lyrics are authored rather than transcribed (S-10), and until they
       // are there is nothing honest to burn in.

@@ -1,4 +1,4 @@
-import { classifyMaster, usePlate, setAudioMode, setScene, moveScene, removeScene, labelScene, clearScenes, nudgeTake, trimTake, renameTake, setEnvironment, removeTake, PerformanceEditError } from '../../../../src/domain/performanceEdit.js';
+import { classifyMaster, usePlate, setAudioMode, setSceneAudio, setScene, moveScene, removeScene, labelScene, clearScenes, nudgeTake, trimTake, renameTake, setEnvironment, removeTake, PerformanceEditError } from '../../../../src/domain/performanceEdit.js';
 import { projectPerformance, covered } from '../../../../src/domain/performance.js';
 import { assertAlignmentInvariants } from '../../../../src/domain/invariants.js';
 import { listJobs } from '../../../../src/store/queue.js';
@@ -73,6 +73,9 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
         case 'move-scene': moveScene(draft, body['sceneId'], body['at']); break;
         case 'remove-scene': removeScene(draft, body['sceneId']); break;
         case 'label-scene': labelScene(draft, body['sceneId'], body['label'] ?? null); break;
+        case 'scene-audio':
+          setSceneAudio(draft, body['sceneId'], body['mode'] ?? null);
+          break;
         case 'clear-scenes': clearScenes(draft); break;
         case 'nudge-take': nudgeTake(draft, body['takeId'], body['nudgeSamples']); break;
         case 'trim-take':

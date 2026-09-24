@@ -119,7 +119,7 @@ structural rather than a matter of configuration.
 
 ```bash
 npx tsx scripts/make-fixture.ts /tmp/bv          # a source whose frames carry their index
-npx tsx scripts/e2e.mjs /tmp/bv/source.mp4       # 451 checks, driven with the spacebar
+npx tsx scripts/e2e.mjs /tmp/bv/source.mp4       # 456 checks, driven with the spacebar
 ```
 
 Chrome's fake media device stands in for a camera, so this exercises the actual

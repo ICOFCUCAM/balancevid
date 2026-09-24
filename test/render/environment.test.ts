@@ -66,6 +66,13 @@ function take(id: string, over: Partial<PerformanceTake> = {}): PerformanceTake 
     environment: { kind: 'original' },
     alignment: { offsetSamples: 0, rateRatio: 1, method: 'measured' },
     durationSamples: SONG,
+    /*
+     * These fixtures are pictures with no sound in them, and the document
+     * says so rather than leaving the mixer to find out: §9 reads `hasAudio`,
+     * which the worker MEASURES when a take lands. What is under test here is
+     * the picture.
+     */
+    hasAudio: false,
     createdAt: '2026-09-24T12:00:00.000Z',
     ...over,
   };

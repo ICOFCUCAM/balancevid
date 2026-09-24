@@ -594,6 +594,8 @@ Two engineering notes:
 - **The master vocal is a take too** — recorded against the same clock, aligned
   the same way, subject to the same INV-14. It is not a special object.
 
+*Built in stage six, including the fourth mode. S-19 records what it taught.*
+
 ---
 
 ## S-8 — Beats are a suggestion, not a fact
@@ -1184,12 +1186,89 @@ flicker S-6 warned about, structurally absent rather than tuned away.
    preview, because the whole reason S-6 wanted one was to let somebody find
    out now that their room will not do it.
 
-**Still not built:** the audio modes (§9), which are declared on scenes and
-stored but do not yet change the mix; transitions and beat detection (§11);
-publication of a performance as clips or a share card (§14's second half); and
-the device calibration from S-3, which still passes a stated zero. §12's
-interface remains an open item. `custom` backgrounds are modelled and
-rendered, but the studio has no upload for one yet.
+**Still not built:** transitions and beat detection (§11); publication of a
+performance as clips or a share card (§14's second half); and the device
+calibration from S-3, which still passes a stated zero. §12's interface
+remains an open item. `custom` backgrounds are modelled and rendered, but the
+studio has no upload for one yet.
+
+---
+
+## S-19 — Stage 6: where the sound comes from
+
+**"The master vocal stays continuous while the video switches between
+environments."** §9's three modes, and the fourth S-7 said would come free.
+
+| Built | Where |
+|---|---|
+| The sound timeline | `src/domain/performanceAudio.ts` |
+| The mix, as one pass | `src/render/mix.ts` |
+| Whether a take recorded anything | `src/worker/index.ts` |
+| Choosing, and choosing per section | `app/p/[id]/SoundModes.tsx` |
+
+**S-7 read that sentence as a structural claim and it was right.** The audio
+timeline and the video timeline are independent. Once that is true in the
+model, Mode A and Mode B are cases of one question — which sources are audible
+over this stretch of the song — and a per-scene override is not a feature but
+the absence of one.
+
+**What this stage taught.**
+
+1. **Contiguity is the feature, not an optimisation.** The planner emits
+   PIECES: one run of one source, with touching runs merged. In Mode C the
+   vocal is therefore a single piece from the first cut to the last, trimmed
+   once and laid down once. A planner emitting one piece per scene would
+   produce the same sound on paper and a seam at every picture cut in fact —
+   and the picture cut is exactly where a seam is most audible, because that is
+   where the ear is already being asked to accept a change.
+
+2. **`amix` normalises by default, which is a fader nobody touched.** Left
+   alone it divides by the number of inputs, so the song drops when a vocal
+   enters and rises when it stops. `normalize=0`, and `dropout_transition=0`
+   for the same reason at the other end. Levels stay where they were recorded
+   and the whole mix is mastered once (U-17, INV-11) — the order a mastering
+   engineer works in.
+
+3. **The two-pass master must measure the MIX.** It was measuring the
+   concatenated picture, which for a Performance has no audio at all, so
+   loudnorm fell back to a single blind pass. The mix is now written out as
+   FLAC, measured, and mastered — one lossless file between the two, and the
+   only encode is the final one.
+
+4. **"Did this take record anything" is a measurement.** A muted microphone
+   produces a take that looks perfect and sounds like nothing, and Mode A
+   would mix that silence in as though it were a vocal. The peak is taken from
+   the analysis decode the alignment already does, and `hasAudio` is written on
+   the take. The studio then says which takes were silent, in their labels,
+   rather than leaving somebody to wonder why the chorus is thin.
+
+5. **A fixture without an audio stream is not a take.** Every mezzanine has
+   audio — ingest synthesises silence when a camera arrives without any — so
+   two earlier test fixtures that were video-only were testing files the
+   product cannot produce. One now carries silence, as a real one would; the
+   other says `hasAudio: false` in its document, which is the honest
+   description of it and exercises the silent-take path through a real render.
+
+6. **The test measures frequency, because every mode produces a file that
+   plays.** The song is a 220 Hz tone, one microphone is 880 Hz and the other
+   1320 Hz, and a Goertzel over a window of the finished audio says which
+   sources are audible at that moment. "The render succeeded" is precisely the
+   assertion that would have passed while Mode C quietly switched vocals at
+   every cut.
+
+7. **Changing the sound re-mixes and re-renders nothing.** The audio timeline
+   is part of the plan, so a change of mode changes the plan hash and leaves
+   every shot hash alone (U-16). Deciding between Mode A and Mode C is
+   therefore about a minute of mixing rather than a re-render of the video,
+   which is what makes it a decision somebody will actually try both ways.
+
+**Still not built:** transitions and beat detection (§11); publication of a
+performance as clips or a share card (§14's second half); the device
+calibration from S-3; and an upload for `custom` backgrounds, which are
+modelled and rendered but have no door in the studio. §12's interface remains
+an open item. Nothing here ducks the music under a vocal: the mix is honest
+about levels and the master is one pass over the result, and a per-source gain
+is the obvious next thing if anybody needs it.
 
 ---
 
