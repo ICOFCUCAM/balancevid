@@ -1441,4 +1441,68 @@ Chorus transition remain unbuilt on purpose.
 
 ---
 
+## S-22 — Stage 9: the page the link points at
+
+**The card described a page that did not exist.** This is that page: a
+published performance, and the rules a link has to obey.
+
+| Built | Where |
+|---|---|
+| What may be published | `src/domain/performanceEdit.ts` |
+| What a link says about itself | `src/web/performanceShare.ts` |
+| Publishing and withdrawing | `app/api/performances/[id]/publish/route.ts` |
+| What a stranger may reach | `src/auth/policy.ts` |
+| The page | `app/p/[id]/watch/` |
+
+**What this stage taught.**
+
+1. **A performance is not respondable, and the field is not a question.**
+   U-31's "anyone can open it and respond to it" is about a conversation,
+   where responding IS the product. There is no mechanism to answer a
+   performance with, so `respondable` is false and the studio does not ask —
+   an option that promised a feature which does not exist is worse than no
+   option.
+
+2. **A private copy stays private, and the exemption is remembered.** Publishing
+   takes the most recent finished master that was NOT exported under
+   `allowUnpublishable`. Without that, an author who exported a rehearsal over
+   somebody else's record, sorted the rights out afterwards and pressed publish
+   would put out a video nobody pressed publish on. INV-15 is about the FILE
+   as much as about the document. The first version also took the wrong job
+   entirely, because `listJobs` returns newest first and the code read the last
+   element — a bug the browser run caught by publishing the private copy.
+
+3. **The public surface is the finished video and nothing else.** The page, the
+   link preview, the master render and the clips. Not the song, not the takes'
+   own media, not the document. Handing out the master track somebody
+   performed over would be publishing the record rather than the performance,
+   which is the distinction the whole rights posture rests on.
+
+4. **An unpublished performance says nothing about itself.** `generateMetadata`
+   runs before the page decides to 404 and with none of the sender's cookies,
+   so a title there would hand the author's unfinished work to anyone who
+   guessed a URL. It returns the generic title, exactly as the conversation's
+   does, and for the same reason (D-03).
+
+5. **The credit is on the page, not behind a disclosure.** INV-07 requires every
+   export to carry its attribution; a page carrying it in a collapsed section
+   is carrying it the way a contract carries small print. It is a line under
+   the video, generated from the record.
+
+6. **A browser check that watches a control is watching a round trip.** The
+   environment check waited for a `<select>` to show the new value and failed
+   at fifteen seconds on a machine that was also rendering video — while the
+   document had the change. It waits on the document now. **When the truth and
+   the display are two different things, assert on the truth.**
+
+**Still not built:** the device calibration from S-3, which still passes a
+stated zero; an upload for `custom` backgrounds, which are modelled and
+rendered but have no door in the studio; and §12's interface, still an open
+item. Of §11's list, Zoom, Swipe, Match movement and Chorus transition remain
+unbuilt on purpose. A published performance is not listed anywhere public
+either — `/api/published` lists conversations, and whether the two belong in
+one list is a question about the product rather than about this stage.
+
+---
+
 *Appendix S ends. The brief above it is unedited.*

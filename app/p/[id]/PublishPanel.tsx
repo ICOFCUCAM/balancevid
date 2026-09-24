@@ -25,7 +25,12 @@ interface ClipJob {
   result?: Record<string, unknown> | null;
 }
 
-export default function PublishPanel({ performance }: { performance: Performance }) {
+export default function PublishPanel({
+  performance, onChanged,
+}: {
+  performance: Performance;
+  onChanged: (next: Performance) => void;
+}) {
   const [jobs, setJobs] = useState<ClipJob[]>([]);
   const [cardJobs, setCardJobs] = useState<ClipJob[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -54,6 +59,31 @@ export default function PublishPanel({ performance }: { performance: Performance
     return () => clearInterval(timer);
   }, [working, refresh]);
 
+  const published = Boolean(performance.publication
+    && !performance.publication.unpublishedAt);
+
+  const withdraw = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/performances/${id}/publish`, { method: 'DELETE' });
+      if (!response.ok) {
+        throw new Error((await response.json().catch(() => ({}))).error ?? 'that did not work');
+      }
+      await reload();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** The document, after something changed on it elsewhere. */
+  const reload = useCallback(async () => {
+    const response = await fetch(`/api/performances/${id}`, { cache: 'no-store' });
+    if (response.ok) onChanged((await response.json()).performance);
+  }, [id, onChanged]);
+
   const post = async (path: string, body?: Record<string, unknown>) => {
     setBusy(true);
     setError(null);
@@ -64,7 +94,7 @@ export default function PublishPanel({ performance }: { performance: Performance
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error ?? 'that did not work');
-      await refresh();
+      await Promise.all([refresh(), reload()]);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -165,6 +195,43 @@ export default function PublishPanel({ performance }: { performance: Performance
             />
           </div>
         )}
+      </div>
+
+      {/* ---- an audience (§14, U-31, INV-15) -------------------------- */}
+      <div className="panel" data-testid="publication" style={{ padding: 12, marginTop: 16 }}>
+        <div className="row" style={{ gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          {published ? (
+            <>
+              <a className="small" data-testid="watch-link"
+                 href={`/p/${id}/watch`} target="_blank" rel="noreferrer">
+                Open the page people see
+              </a>
+              <button className="small" data-testid="unpublish" disabled={busy}
+                      onClick={() => void withdraw()}>
+                Withdraw it
+              </button>
+            </>
+          ) : (
+            <button className="primary" data-testid="publish"
+                    disabled={busy || !publishable}
+                    onClick={() => void post('/publish')}>
+              Publish it
+            </button>
+          )}
+        </div>
+        <p className="small muted" data-testid="publication-state"
+           style={{ marginTop: 6, marginBottom: 0, maxWidth: 640 }}>
+          {published
+            ? 'Anyone with the link can watch this. Withdrawing stops the link '
+              + 'working; the video stays here.'
+            : publishable
+              ? 'Publishing puts the master video on a page anyone with the link '
+                + 'can watch. Nobody can answer it — this is a performance, not '
+                + 'an argument.'
+              /* INV-15, at the act it exists for. */
+              : 'This music is somebody else’s, so there is no page to give it. '
+                + 'A private export is still yours.'}
+        </p>
       </div>
 
       {error && (

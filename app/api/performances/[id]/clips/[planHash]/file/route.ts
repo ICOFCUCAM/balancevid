@@ -1,5 +1,6 @@
 import { join } from 'node:path';
 
+import { accessTo } from '../../../../../../../src/auth/request.js';
 import { paths, safe } from '../../../../../../../src/store/paths.js';
 import { loadPerformance } from '../../../../../../../src/store/performances.js';
 import { fail, serveFile } from '../../../../../../../src/web/http.js';
@@ -11,9 +12,14 @@ type Params = { params: Promise<{ id: string; planHash: string }> };
 /** One finished clip. Addressed by plan hash, like every other render. [U-16] */
 export async function GET(request: Request, { params }: Params): Promise<Response> {
   const { id, planHash } = await params;
+  let performance;
   try {
-    await loadPerformance(id);
+    performance = await loadPerformance(id);
   } catch {
+    return fail(404, 'performance not found');
+  }
+  // Published, or the owner's. A stranger gets the same answer as a wrong id.
+  if (await accessTo(request, performance) === 'denied') {
     return fail(404, 'performance not found');
   }
   return serveFile(

@@ -19,7 +19,7 @@
  * satisfied properly. Recorded in Appendix B as a scope change.
  */
 
-import type { Conversation } from '../domain/document.js';
+// (the shapes below are structural: both documents carry a `publication`)
 
 /**
  * Paths that MAY be public, subject to the per-conversation check below.
@@ -65,6 +65,23 @@ const PUBLIC_PATTERNS: RegExp[] = [
   /^\/api\/conversations\/[A-Za-z0-9_-]+\/source$/,
   /^\/api\/conversations\/[A-Za-z0-9_-]+\/takes\/[A-Za-z0-9_-]+\/media$/,
   /^\/api\/conversations\/[A-Za-z0-9_-]+\/renders\/[A-Za-z0-9_-]+\/file$/,
+  /*
+   * A published performance.  [STUDIO-TWO §14, U-31]
+   *
+   * The same shape as the conversation's: the page, the picture a link
+   * preview fetches, and exactly the media that page plays. Each route still
+   * checks that the performance IS published — this only decides which
+   * routes are allowed to make that call.
+   *
+   * What is NOT here is the raw material: the song, the takes' own media and
+   * the document. A published performance is a finished video and its clips,
+   * and handing out the master track somebody performed over would be
+   * publishing the record rather than the performance. [INV-15]
+   */
+  /^\/p\/[A-Za-z0-9_-]+\/watch\/?$/,
+  /^\/api\/performances\/[A-Za-z0-9_-]+\/card$/,
+  /^\/api\/performances\/[A-Za-z0-9_-]+\/renders\/[A-Za-z0-9_-]+\/file$/,
+  /^\/api\/performances\/[A-Za-z0-9_-]+\/clips\/[A-Za-z0-9_-]+\/file$/,
 ];
 
 /** Next's own assets, and the favicon. Never application data. */
@@ -137,8 +154,10 @@ export function mayBePublic(pathname: string, method: string): boolean {
  * refuse responses to it, and that is a published conversation anyone may
  * watch. Withdrawing it removes it from view again.
  */
-export function isPubliclyVisible(conversation: Conversation): boolean {
-  const publication = conversation.publication;
+export function isPubliclyVisible(
+  document: { publication?: { unpublishedAt?: string } | undefined },
+): boolean {
+  const publication = document.publication;
   return Boolean(publication && !publication.unpublishedAt);
 }
 

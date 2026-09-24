@@ -29,7 +29,7 @@ import type { TakeId } from './document.js';
 import {
   type AudioMode, type MasterTrack, type Performance, type PerformanceTake, type Scene,
   AUDIO_MODES, MASTER_CLASSES, PERFORMANCE_SCHEMA_VERSION,
-  coverage, orderedScenes, plateFor, takeById,
+  coverage, mayPublish, orderedScenes, plateFor, takeById,
 } from './performance.js';
 import { type Samples, assertSamples } from './time.js';
 
@@ -463,6 +463,54 @@ export function setTempo(
     acceptedBy: who.trim() || beats.acceptedBy || fail('who is setting this tempo?') as never,
     acceptedAt: at,
   };
+}
+
+/* ------------------------------------------------------------------------ *
+ *  Publishing.  [§14, U-31, INV-15]
+ * ------------------------------------------------------------------------ */
+
+/**
+ * Give the performance an audience.
+ *
+ * WHAT IS PUBLISHED IS A RENDER, as it is for a conversation: somebody
+ * following a link watches a finished video, not a document that may change
+ * under them while they are watching it.
+ *
+ * NOT RESPONDABLE, and the field is not a question here. U-31's "anyone can
+ * open it and respond to it" is about a conversation, where responding is the
+ * product. A performance is not an argument to answer; there is no mechanism
+ * to answer it with, and offering the option would be a promise of a feature
+ * that does not exist.
+ */
+export function publishPerformance(
+  performance: Performance,
+  options: { planHash: string; publishedAt: string; author?: string },
+): void {
+  if (!mayPublish(performance.master)) {
+    /*
+     * INV-15, at the act it exists for. Every other gate in this product is
+     * about an exportable FILE; this is the one about a URL, and it is the
+     * one that matters most — a private copy of a performance over somebody
+     * else's record is a rehearsal, and a link to it is publishing it.
+     */
+    fail(`"${performance.master.title}" is not marked as something you may publish, `
+      + 'so this cannot be given an audience. A private export is still yours.');
+  }
+  if (performance.scenes.length === 0) fail('there is nothing here to publish yet');
+  if (!options.planHash.trim()) fail('publish a render, not a draft');
+
+  performance.publication = {
+    publishedAt: options.publishedAt,
+    respondable: false,
+    planHash: options.planHash,
+    ...(options.author?.trim() ? { author: options.author.trim() } : {}),
+  };
+}
+
+/** Withdraw it. The file stays on disk; the link stops working. */
+export function unpublishPerformance(performance: Performance, at: string): void {
+  const publication = performance.publication ?? fail('this is not published') as never;
+  publication.unpublishedAt = at;
 }
 
 /* ------------------------------------------------------------------------ *

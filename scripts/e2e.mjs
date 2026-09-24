@@ -2865,12 +2865,19 @@ log('checking the Performance Studio…');
     const before = landed.performance.takes[0];
     await page.selectOption(
       `[data-testid="take-environment-after"][data-take-id="${before.id}"]`, 'church');
-    await page.waitForFunction(
-      (takeId) => document.querySelector(
-        `[data-testid="take-environment-after"][data-take-id="${takeId}"]`)?.value === 'church',
-      before.id, { timeout: 15_000 });
 
-    const changed = (await api(`/api/performances/${perfId}`)).performance.takes[0];
+    /*
+     * Waited for on the DOCUMENT rather than on the control. The select shows
+     * what the document says, so watching the control is watching a round
+     * trip through a machine that is also rendering video — which is how this
+     * check first failed for a reason that had nothing to do with §4.
+     */
+    let changed = before;
+    for (let i = 0; i < 60; i++) {
+      await sleep(1000);
+      changed = (await api(`/api/performances/${perfId}`)).performance.takes[0];
+      if (changed.environment.spaceId === 'church') break;
+    }
     check(changed.environment.spaceId === 'church',
       'the environment can be changed after the fact (§4)',
       JSON.stringify(changed.environment));
@@ -3418,7 +3425,85 @@ log('checking the Performance Studio…');
     }
   }
 
-  // ---- and none of it is a stranger's -----------------------------------  // ---- and none of it is a stranger's -----------------------------------
+  /*
+   * --- §14: the page somebody who was sent the link sees ----------------
+   *
+   * The card describes a page. Until there is one, the preview is a picture of
+   * nothing — so the last of §14 is publishing, and the rules it has to obey
+   * are U-31's (a published thing is readable by anyone) and D-03's (nothing
+   * else is).
+   */
+  {
+    const before = await raw(`/p/${perfId}/watch`);
+    check(before.status >= 300 && before.status !== 200,
+      'an unpublished performance has no page at all (D-03)', `status ${before.status}`);
+
+    // Somebody else's music cannot be given an audience, whatever is rendered.
+    await sfetch(`${BASE}/api/performances/${perfId}`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'classify-master', class: 'third_party' }),
+    });
+    const refused = await sfetch(`${BASE}/api/performances/${perfId}/publish`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+    });
+    const refusedBody = await refused.json().catch(() => ({}));
+    check(refused.status === 409 && /private export/.test(refusedBody.error ?? ''),
+      "somebody else's music gets no audience, only a private copy (INV-15)",
+      refusedBody.error ?? `status ${refused.status}`);
+    await sfetch(`${BASE}/api/performances/${perfId}`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'classify-master', class: 'own' }),
+    });
+
+    const publish = await sfetch(`${BASE}/api/performances/${perfId}/publish`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ author: 'The Author' }),
+    });
+    const published = await publish.json().catch(() => ({}));
+    check(publish.status === 200 && Boolean(published.publication?.planHash),
+      'and the author\'s own music can be given one (§14, U-31)',
+      published.error ?? `status ${publish.status}`);
+    check(published.publication?.respondable === false,
+      'which nobody may answer — a performance is not an argument');
+
+    /*
+     * A STRANGER, with no session at all: the whole point of publishing.
+     */
+    const planHash = published.publication?.planHash;
+    if (!planHash) check(false, 'nothing was published, so nothing below was checked');
+    const page = await raw(`/p/${perfId}/watch`);
+    check(page.status === 200, 'a stranger can watch it', `status ${page.status}`);
+    const html = await page.text();
+    check(html.includes('balancevid-e2e-song'),
+      'and the page carries the music credit, not behind a disclosure (INV-07)');
+    check(/og:title/.test(html) && /og:image/.test(html),
+      'and describes itself to whatever the link was pasted into (U-30)');
+
+    const video = await raw(`/api/performances/${perfId}/renders/${planHash}/file`);
+    check(video.status === 200 || video.status === 206,
+      'and the video plays for them', `status ${video.status}`);
+
+    // But only the published artefact. The song and the takes are not it.
+    for (const path of [`/api/performances/${perfId}/master`,
+      `/api/performances/${perfId}`]) {
+      const denied = await raw(path);
+      check(denied.status >= 300 && denied.status !== 200,
+        `and ${path.replace(perfId, '…')} is still nobody else's business (D-03)`,
+        `status ${denied.status}`);
+    }
+
+    const withdrawn = await sfetch(`${BASE}/api/performances/${perfId}/publish`,
+      { method: 'DELETE' });
+    check(withdrawn.status === 200, 'it can be withdrawn again');
+    const after = await raw(`/p/${perfId}/watch`);
+    check(after.status >= 300 && after.status !== 200,
+      'and then the link stops working', `status ${after.status}`);
+    const afterVideo = await raw(`/api/performances/${perfId}/renders/${planHash}/file`);
+    check(afterVideo.status >= 300 && afterVideo.status !== 200,
+      'including the video it was pointing at', `status ${afterVideo.status}`);
+  }
+
+  // ---- and none of it is a stranger's -----------------------------------  // ---- and none of it is a stranger's -----------------------------------  // ---- and none of it is a stranger's -----------------------------------
   for (const path of [`/p/${perfId}`, `/api/performances/${perfId}`,
     `/api/performances/${perfId}/master`, '/api/performances']) {
     const refused = await raw(path);

@@ -326,7 +326,8 @@ export default function PerformanceStudio({ initial }: { initial: Performance })
           && <MasterRender performance={performance} />}
 
         {/* ---- the short one, and the link preview (§14) -------------- */}
-        {performance.scenes.length > 0 && <PublishPanel performance={performance} />}
+        {performance.scenes.length > 0
+          && <PublishPanel performance={performance} onChanged={setPerformance} />}
 
         {/* ---- the takes, all on one clock --------------------------- */}
         <section style={{ marginTop: 20 }} data-testid="takes">

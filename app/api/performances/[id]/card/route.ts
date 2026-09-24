@@ -2,6 +2,7 @@ import {
   PerformanceCardError, buildPerformanceCard,
 } from '../../../../../src/publish/performanceCard.js';
 import { performanceAttribution } from '../../../../../src/domain/performancePlan.js';
+import { accessTo } from '../../../../../src/auth/request.js';
 import { paths } from '../../../../../src/store/paths.js';
 import { enqueue, listJobs } from '../../../../../src/store/queue.js';
 import { loadPerformance } from '../../../../../src/store/performances.js';
@@ -28,6 +29,14 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
     return fail(404, 'performance not found');
   }
 
+  /*
+   * The picture is fetched by whatever the link was pasted into, with none of
+   * the sender's cookies — so it is served for a PUBLISHED performance and to
+   * its owner, and to nobody else. [U-30, D-03]
+   */
+  if (await accessTo(request, performance) === 'denied') {
+    return fail(404, 'performance not found');
+  }
   if (new URL(request.url).searchParams.get('image')) {
     return serveFile(request, paths.performanceCard(id), 'image/png');
   }

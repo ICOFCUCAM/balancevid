@@ -1,5 +1,6 @@
 import { join } from 'node:path';
 
+import { accessTo } from '../../../../../../../src/auth/request.js';
 import { paths, safe } from '../../../../../../../src/store/paths.js';
 import { loadPerformance } from '../../../../../../../src/store/performances.js';
 import { fail, serveFile } from '../../../../../../../src/web/http.js';
@@ -17,9 +18,18 @@ type Params = { params: Promise<{ id: string; planHash: string }> };
  */
 export async function GET(request: Request, { params }: Params): Promise<Response> {
   const { id, planHash } = await params;
+  let performance;
   try {
-    await loadPerformance(id);
+    performance = await loadPerformance(id);
   } catch {
+    return fail(404, 'performance not found');
+  }
+  /*
+   * A published performance's video is public; an unpublished one's is not.
+   * 404 rather than 403 for a stranger: 403 confirms it exists, and that a
+   * draft exists is itself private (D-03).
+   */
+  if (await accessTo(request, performance) === 'denied') {
     return fail(404, 'performance not found');
   }
   return serveFile(
