@@ -9,7 +9,34 @@
  */
 import type { Caller } from '../auth/request.js';
 import type { Conversation } from '../domain/document.js';
-import { inRoom, presenceOf, raisedHands } from '../domain/participants.js';
+import { hostOf, inRoom, presenceOf, raisedHands } from '../domain/participants.js';
+
+/**
+ * Which participant a caller IS.  [Doctrine ROOM §1, §12]
+ *
+ * A guest's session names them outright. The owner's does not — it says they
+ * own the conversation, which is a different fact — and the host is
+ * nonetheless a participant like anybody else, by the brief's own design: "the
+ * host is its first participant, not a special case beside the list."
+ *
+ * So the owner is the host participant, and that mapping lives here rather
+ * than at each call site. It was missing, and the symptom was quiet: the host
+ * saw a room in which nobody was them, so nothing addressed to them by name —
+ * their own recording, their own place on the stage, their own peer
+ * connections — could find them.
+ */
+export function meIn(
+  conversation: Conversation, caller: Caller,
+): string | undefined {
+  if (caller.participantId) return caller.participantId;
+  if (caller.access === 'owner') return theHost(conversation);
+  return undefined;
+}
+
+/** The owner's place in the list, in one expression rather than two. */
+function theHost(conversation: Conversation): string | undefined {
+  return hostOf(conversation.participants ?? [])?.id;
+}
 
 /**
  * What the room looks like to a caller.
@@ -21,6 +48,8 @@ import { inRoom, presenceOf, raisedHands } from '../domain/participants.js';
 export function roomView(
   conversation: Conversation, owner: boolean, meId?: string,
 ): Record<string, unknown> {
+  // The host is the host participant, whether or not the route said so.
+  const me = meId ?? (owner ? theHost(conversation) : undefined);
   const room = conversation.room;
   const staged = room?.stagedParticipantIds ?? [];
   const participants = (conversation.participants ?? [])
@@ -32,7 +61,7 @@ export function roomView(
       accent: p.accent,
       presence: presenceOf(p, staged),
       handRaisedAt: p.handRaisedAt,
-      me: p.id === meId,
+      me: p.id === me,
     }));
 
   return {
@@ -45,7 +74,7 @@ export function roomView(
     participants,
     hands: raisedHands(conversation.participants ?? []).map((p) => p.id),
     ...(owner && room ? { inviteToken: room.inviteToken } : {}),
-    ...(meId ? { meId } : {}),
+    ...(me ? { meId: me } : {}),
   };
 }
 

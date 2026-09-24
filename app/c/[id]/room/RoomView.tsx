@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import InvitePanel from './InvitePanel.js';
 import { useRoomCapture } from './useRoomCapture.js';
+import { MESH_LIMIT, useRoomMesh } from './useRoomMesh.js';
 
 /**
  * The Conversation Room.  [Doctrine ROOM §1, §3, §4, §5, §8]
@@ -62,12 +63,15 @@ export default function RoomView({
   const [error, setError] = useState<string | null>(null);
 
   /*
-   * Everyone's own camera and microphone.  [ROOM §2, §10]
+   * Everyone's own camera and microphone.  [ROOM §2, §10, §12]
    *
    * Measuring runs for anyone who has turned their microphone on; recording
-   * runs only while the host has them on stage. Nothing is sent to anybody
-   * else — each browser records itself, and the video is made from those
-   * recordings afterwards.
+   * runs only while the host has them on stage. Nothing here is sent to
+   * anybody else — each browser records ITSELF, and the video is made from
+   * those recordings afterwards, which is why the finished conversation does
+   * not depend on anybody's connection holding up.
+   *
+   * Seeing each other live is the separate thing below.
    */
   const meId = room.meId ?? room.participants.find((p) => p.me)?.id;
   const iAmStaged = Boolean(meId && room.stagedParticipantIds.includes(meId));
@@ -78,6 +82,29 @@ export default function RoomView({
     sourceFrame: () => sourceFrame.current,
   });
 
+  /*
+   * Seeing and hearing each other, live.  [ROOM §12]
+   *
+   * Who connects to whom follows the room's own distinction rather than a
+   * convenience: if I am on stage my camera goes to everyone present, and if
+   * I am not, I only connect to the people who are. Two people both waiting
+   * in the rail have nothing to send each other, so they do not connect.
+   */
+  const stagedIds = room.stagedParticipantIds;
+  const peerIds = (iAmStaged
+    ? room.participants.filter((p) => p.presence)
+    : room.participants.filter((p) => p.presence && stagedIds.includes(p.id))
+  ).map((p) => p.id).filter((id) => id !== meId);
+
+  const mesh = useRoomMesh({
+    conversationId,
+    meId,
+    peerIds,
+    localStream: capture.stream,
+    sending: iAmStaged,
+    enabled: room.open,
+  });
+
   const refresh = useCallback(async () => {
     const response = await fetch(`/api/conversations/${conversationId}/room`,
       { cache: 'no-store' });
@@ -85,10 +112,10 @@ export default function RoomView({
   }, [conversationId]);
 
   /*
-   * Polling, not sockets — for now, and stated rather than hidden. The room's
-   * live media path is a later stage (the brief's SFU decision), and until
-   * then presence is the only thing that moves. Two seconds is fast enough to
-   * feel present and slow enough to cost nothing.
+   * Polling, not sockets — for presence, and stated rather than hidden. The
+   * live pictures do not come through here: they are peer-to-peer, and this
+   * carries only who is present and where they stand. Two seconds is fast
+   * enough to feel present and slow enough to cost nothing.
    */
   useEffect(() => {
     const timer = setInterval(() => { void refresh(); }, 2000);
@@ -239,9 +266,24 @@ export default function RoomView({
 
         {/* ---- what the viewer would see ------------------------------ */}
         <section style={{ minHeight: 0, display: 'grid', gridTemplateRows: 'auto 1fr' }}>
-          <div className="small muted" style={{ textTransform: 'uppercase',
-            letterSpacing: 0.8, fontSize: 11, marginBottom: 8 }}>
-            On stage
+          <div className="row" style={{ gap: 10, marginBottom: 8, flexWrap: 'nowrap' }}>
+            <div className="small muted grow" style={{ textTransform: 'uppercase',
+              letterSpacing: 0.8, fontSize: 11 }}>
+              On stage
+            </div>
+            {/*
+              The mesh's honest edge, said out loud rather than degraded
+              through. [ROOM §12] Above this many, every browser is uploading
+              to every other one, and the fix is a relay on the server rather
+              than a larger number here.
+            */}
+            {mesh.tooMany && (
+              <span className="small" data-testid="mesh-limit"
+                    style={{ color: 'var(--warn)' }}>
+                Live video is limited to {MESH_LIMIT} people at once — everyone
+                is still recorded.
+              </span>
+            )}
           </div>
           <div data-testid="room-stage" style={{
             background: '#08090b', borderRadius: 10, border: '1px solid var(--line)',
@@ -257,22 +299,78 @@ export default function RoomView({
                 display: 'grid', gap: 10, width: '100%', height: '100%',
                 gridTemplateColumns: `repeat(${Math.min(onStage.length, 3)}, 1fr)`,
               }}>
-                {onStage.map((person) => (
-                  <div key={person.id} data-testid="stage-tile" style={{
-                    borderRadius: 8, border: `2px solid ${person.accent}`,
-                    background: '#0d1319', display: 'grid', placeItems: 'center',
-                    minHeight: 120, position: 'relative',
-                  }}>
-                    <span style={{ fontSize: 15, fontWeight: 600 }}>{person.displayName}</span>
-                    <span style={{
-                      position: 'absolute', left: 0, bottom: 0, padding: '2px 8px',
-                      background: person.accent, color: '#0e0f11', fontSize: 10,
-                      fontWeight: 700, borderTopRightRadius: 4,
-                    }}>
-                      {person.role === 'host' ? 'HOST' : 'SPEAKER'}
-                    </span>
-                  </div>
-                ))}
+                {onStage.map((person) => {
+                  const mine = person.id === meId;
+                  const live = mine
+                    ? capture.stream
+                    : mesh.remotes.find((r) => r.participantId === person.id)?.stream ?? null;
+                  /*
+                    Your own tile has no connection: it is your camera, in
+                    your browser. Saying `self` rather than `connected` keeps
+                    it out of any question asked about the network — a check
+                    for "somebody is connected" that matches your own face has
+                    not checked anything.
+                  */
+                  const link = mine ? 'self' : mesh.states[person.id] ?? 'new';
+                  return (
+                    <div
+                      key={person.id}
+                      data-testid="stage-tile"
+                      data-participant-id={person.id}
+                      data-live={live ? 'true' : 'false'}
+                      data-connection={link}
+                      style={{
+                        borderRadius: 8, border: `2px solid ${person.accent}`,
+                        background: '#0d1319', display: 'grid', placeItems: 'center',
+                        minHeight: 120, position: 'relative', overflow: 'hidden',
+                      }}
+                    >
+                      {live ? (
+                        /*
+                          Own picture muted, always: a room where you hear
+                          yourself a beat late is a room nobody can speak in.
+                        */
+                        <LiveTile stream={live} muted={mine} name={person.displayName} />
+                      ) : (
+                        <div style={{ textAlign: 'center', padding: 8 }}>
+                          <div style={{ fontSize: 15, fontWeight: 600 }}>
+                            {person.displayName}
+                          </div>
+                          <div className="small muted" style={{ marginTop: 3 }}>
+                            {/*
+                              Why there is no picture, in words. A tile that is
+                              blank for an unexplained reason reads as broken;
+                              a camera nobody turned on is not.
+                            */}
+                            {mine
+                              ? 'Turn your camera on to be seen'
+                              : link === 'failed'
+                                ? 'Could not reach them'
+                                : link === 'connected'
+                                  ? 'Their camera is off'
+                                  : 'Connecting…'}
+                          </div>
+                        </div>
+                      )}
+                      <span style={{
+                        position: 'absolute', left: 0, bottom: 0, padding: '2px 8px',
+                        background: person.accent, color: '#0e0f11', fontSize: 10,
+                        fontWeight: 700, borderTopRightRadius: 4,
+                      }}>
+                        {person.role === 'host' ? 'HOST' : 'SPEAKER'}
+                      </span>
+                      {live && (
+                        <span style={{
+                          position: 'absolute', right: 0, bottom: 0, padding: '2px 8px',
+                          background: 'rgba(8,9,11,0.72)', fontSize: 11, fontWeight: 600,
+                          borderTopLeftRadius: 4,
+                        }}>
+                          {person.displayName}{mine ? ' (you)' : ''}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -442,5 +540,42 @@ export default function RoomView({
         </div>
       </footer>
     </div>
+  );
+}
+
+/**
+ * Somebody's live picture.  [ROOM §12]
+ *
+ * A component of its own because a MediaStream cannot be handed to React as a
+ * prop of `<video>` — `srcObject` is set on the element, never in the markup,
+ * and doing it in a ref effect is the difference between a picture and a
+ * black rectangle.
+ */
+function LiveTile({ stream, muted, name }: {
+  stream: MediaStream; muted: boolean; name: string;
+}) {
+  const ref = useRef<HTMLVideoElement | null>(null);
+  useEffect(() => {
+    const element = ref.current;
+    if (!element || element.srcObject === stream) return;
+    element.srcObject = stream;
+    // Autoplay can still be refused; the room has already had a click for
+    // the microphone, so this almost always succeeds and failing is silent.
+    void element.play().catch(() => { /* the poster stays, the audio does not. */ });
+  }, [stream]);
+
+  return (
+    <video
+      ref={ref}
+      autoPlay
+      playsInline
+      muted={muted}
+      aria-label={name}
+      data-testid="stage-video"
+      style={{
+        position: 'absolute', inset: 0, width: '100%', height: '100%',
+        objectFit: 'cover', background: '#0d1319',
+      }}
+    />
   );
 }

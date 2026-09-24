@@ -19,7 +19,8 @@ import {
   type Participant, type ParticipantId,
 } from '../../src/domain/participants.js';
 import { makeConversation, makeIntervention } from './fixtures.js';
-import type { AssetId } from '../../src/domain/document.js';
+import type { AssetId, Conversation } from '../../src/domain/document.js';
+import { meIn, roomView } from '../../src/web/room.js';
 
 /**
  * A participant, described by what HAPPENED to them rather than by a state.
@@ -297,5 +298,81 @@ describe('changing the cut without re-recording (ROOM §10)', () => {
     expect(text).not.toContain('speakerMode');
     expect(text).not.toContain('tok_secret_do_not_leak');
     expect(text).not.toContain('pinnedParticipantId');
+  });
+});
+
+/**
+ * Who a caller IS in a room.  [Doctrine ROOM §1, §12, D-03]
+ *
+ * This is the question Stage 3 shipped without an answer to, and Stage 4
+ * found. A guest's session names them outright; an owner's session says they
+ * own the conversation, which is a different fact — so the host was nobody in
+ * their own room, and nothing addressed to them by name could reach them.
+ * Nothing looked broken: the rail listed them, the stage held them.
+ *
+ * The brief settled it in advance — "the host is its first participant, not a
+ * special case beside the list" — and these tests are that sentence, checked.
+ */
+describe('who a caller is in the room (ROOM §1, §12)', () => {
+  const room = (): Conversation => {
+    const conversation = makeConversation(600);
+    conversation.participants = [
+      person('part_james', 'host', { joined: true }, { displayName: 'James' }),
+      person('part_sarah', 'audience', { joined: true }, { displayName: 'Sarah' }),
+      person('part_gone', 'audience', { gone: true }, { displayName: 'Ade' }),
+    ];
+    conversation.room = {
+      inviteToken: 'tok_secret_do_not_leak', issuedAt: '2026-01-01T00:00:00.000Z',
+      open: true, speakerMode: 'automatic',
+      stagedParticipantIds: ['part_james' as ParticipantId],
+    };
+    return conversation;
+  };
+
+  it('the owner is the host participant, though their session never says so', () => {
+    expect(meIn(room(), { access: 'owner' })).toBe('part_james');
+  });
+
+  it('a guest is whoever their session says, host or not', () => {
+    expect(meIn(room(), { access: 'participant', participantId: 'part_sarah' }))
+      .toBe('part_sarah');
+  });
+
+  it('and a stranger is nobody, rather than falling back to the host', () => {
+    // The fallback is for the OWNER. A public caller inheriting the host's
+    // identity would be able to act as them.
+    expect(meIn(room(), { access: 'public' })).toBeUndefined();
+    expect(meIn(room(), { access: 'denied' })).toBeUndefined();
+  });
+
+  it('so the host sees themselves in their own room', () => {
+    const view = roomView(room(), true) as {
+      meId?: string; participants: { id: string; me?: boolean }[];
+    };
+    expect(view.meId).toBe('part_james');
+    expect(view.participants.find((p) => p.me)?.id).toBe('part_james');
+  });
+
+  it('and a guest sees themselves, and only themselves', () => {
+    const view = roomView(room(), false, 'part_sarah' as ParticipantId) as {
+      meId?: string; participants: { id: string; me?: boolean }[];
+    };
+    expect(view.meId).toBe('part_sarah');
+    expect(view.participants.filter((p) => p.me).map((p) => p.id)).toEqual(['part_sarah']);
+  });
+
+  it('while the invitation reaches the host and nobody else (D-03)', () => {
+    // It is the credential that lets anyone in: a participant who could read
+    // it could re-issue it to people the host never invited.
+    expect(JSON.stringify(roomView(room(), true))).toContain('tok_secret_do_not_leak');
+    expect(JSON.stringify(roomView(room(), false, 'part_sarah' as ParticipantId)))
+      .not.toContain('tok_secret_do_not_leak');
+  });
+
+  it('and somebody who has left is not in the room a guest is shown', () => {
+    const view = roomView(room(), false, 'part_sarah' as ParticipantId) as {
+      participants: { id: string }[];
+    };
+    expect(view.participants.map((p) => p.id)).toEqual(['part_james', 'part_sarah']);
   });
 });

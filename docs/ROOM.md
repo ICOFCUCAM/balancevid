@@ -633,6 +633,122 @@ deferred without blocking anything.
    can record. Those tests present an owner session, which is what a browser
    does.
 
-**Still Stage 4: WebRTC and the SFU**, exactly as the brief scopes it —
-seeing and hearing each other live, which the finished video does not depend
-on.
+## Stage 4 — seeing and hearing each other, live
+
+The last thing in the brief, and the one the finished video does not depend
+on. §12's instruction — "use a proper WebRTC SFU rather than trying to make
+every participant's browser send media directly to every other participant"
+— is honoured in both halves: this is a mesh, capped at the size a mesh is
+actually good for, and above the cap it says so on screen rather than
+degrading quietly. `MESH_LIMIT = 4`, because a mesh is n−1 uploads per person
+and four people is three uploads each, which a laptop and a home connection
+manage. **The cap is not a placeholder for the SFU. It is the honest edge of
+this transport, and the SFU replaces the transport rather than raising a
+number.**
+
+**Done.**
+
+- **The mailbox** — `/room/signal`, one queue per recipient, in memory, with
+  a 30-second life. Each message names ONE recipient and is readable only by
+  them: connection details contain local network addresses, and handing every
+  guest a map of every other guest's LAN is a gift to nobody. The sender is
+  the signed session, never the request, so no guest can pose as another's
+  peer. Nothing is written to the conversation — signalling is the first two
+  seconds of a call and means nothing afterwards.
+- **The seam** — peers exchange opaque payloads and the room never learns how
+  media travels. An SFU is a peer everybody connects to instead of to each
+  other: the same offer, the same answer, the same candidates. Swapping it in
+  changes who the peers are, not how they are introduced.
+- **STUN, and TURN stated rather than assumed** — enough for two people on
+  ordinary connections; not enough behind symmetric NAT, where a relay is
+  required and has a bandwidth bill. `NEXT_PUBLIC_BALANCEVID_ICE` configures
+  it. Written down because a connection that silently never establishes is
+  the worst way to learn this.
+- **Live tiles** — the stage shows people rather than their names, with the
+  reason in words when it cannot: *connecting*, *their camera is off*, *could
+  not reach them*.
+- **Nothing is kept** — the mailbox sweeps itself on the way through. The
+  per-recipient cap bounded one queue; nothing bounded the number of ROOMS,
+  and a process that had served a thousand seminars would have held a
+  thousand maps of handshakes that ended months ago.
+
+**R-F — what this stage taught.**
+
+1. **The transport is where the product's central claim becomes true or
+   false.** "Being in the room is not being on the main stage" had until now
+   been a statement about layout. It is now a statement about bytes: the
+   staged send, everyone receives, and two people who are both only listening
+   never connect at all, because there would be nothing on the wire. An
+   audience member's camera is not withheld from the composition — it is
+   never transmitted. The end-to-end run asserts exactly this by counting the
+   tracks on the senders of a real peer connection after the host steps off
+   stage, and it must reach zero. **A privacy claim that only the interface
+   makes is a claim about a rectangle.**
+
+2. **`replaceTrack`, not a change of direction — and the reason is the
+   product's, not the protocol's.** Turning a media line around to
+   `recvonly` is a renegotiation, and a camera goes on transmitting for the
+   whole round trip while the far end thinks about it. `replaceTrack(null)`
+   takes the track off the sender in the same tick. When someone is taken off
+   stage, the difference between those two is the number of frames of them
+   that left the building after they were told they had stopped.
+
+3. **Perfect negotiation resolves a collision; it is better not to have
+   one.** Both ends offering at once is resolved by the polite one rolling
+   its offer back — and rollback is not free. The media lines it had just
+   claimed come loose, the other end's offer makes its own, and a connection
+   that should describe two streams describes four. It was measured, not
+   theorised: the first working build negotiated four media lines, half of
+   them inert, and runs of the same test either showed a picture or did not.
+   Both browsers know both participant ids, so both can work out which of
+   them speaks first without another round trip — the same comparison
+   perfect negotiation uses to decide who yields, put to work one step
+   earlier. The answering side turns the offered lines round *before* it
+   answers, inside the same negotiation, so the whole connection is one
+   offer and one answer and is never renegotiated again. **A rule agreed in
+   advance is worth more than a recovery afterwards.**
+
+4. **The host was nobody in their own room.** A guest's session names them; an
+   owner's says they own the conversation, which is a different fact — so
+   `roomView` returned no `meId` for the host, and the room's view of them
+   silently had a hole in it where their identity should be. Nothing appeared
+   broken: the rail listed them, the stage held them. But nothing addressed
+   to them BY NAME could find them, so the host's own recording never started
+   and their peer connections had nobody to be. Stage 3 shipped with this and
+   Stage 4 made it visible, because a camera that goes nowhere is easier to
+   see than a recording that is merely absent. The mapping is one function,
+   `meIn`, used by every route that needs it. **The brief said it first — "the
+   host is its first participant, not a special case beside the list" — and
+   the bug was the code not believing it.**
+
+5. **A track arriving is not a picture arriving.** The lines exist from the
+   moment the connection does, whether or not anybody has turned a camera on,
+   so publishing a remote stream on `ontrack` puts a live-looking black
+   rectangle on the stage for every participant who has not. `unmute` is the
+   event that means media has actually started, and `mute` is what a camera
+   going off, or somebody stepping off stage, looks like from the other end.
+
+6. **Refusing an offer from somebody you were not expecting looks like the
+   safer choice, and is not.** The first version of this checked incoming
+   offers against the list of peers this browser had decided to connect to,
+   which reads as obviously correct and is a deadlock. The two ends learn
+   about each other at different moments: somebody joining knows the whole
+   room at once, while everyone else finds out on their next poll up to two
+   seconds later, so a newcomer's offer can arrive before the other end has
+   any reason to expect it. A refusal there is permanent, because the offer is
+   not made twice — and since the id that decides who speaks first is random,
+   it would have been half of all arrivals, at random, silently never
+   connecting. What actually needed bounding was the resource rather than the
+   guest list, so the cap does that and nothing turns on being recognised.
+   **A rule that is only correct when both sides already agree is not a rule,
+   it is an assumption.**
+
+7. **A test that does not name who it is waiting for is not waiting for
+   anything.** The first version of the end-to-end check waited for any stage
+   tile reading `connected` — and your own tile is always connected, because
+   it is your own camera. It passed before a single packet crossed. It now
+   names the other participant. **A green check that cannot fail is worse
+   than no check, because it is also a claim.**
+
+**The brief is complete.** §1–§12, with the SFU deferred as §12 itself
+defers it and the seam left where it slots in.

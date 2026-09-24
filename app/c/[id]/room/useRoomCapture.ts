@@ -20,9 +20,12 @@ import { measureVoice } from '../../../../src/domain/voice.js';
  *   the path the host's own recording already takes (U-06). Nothing is mixed
  *   live, and who was on stage can therefore be changed afterwards.
  *
- * WHAT THIS DOES NOT DO is send anybody's media to anybody else. Seeing each
- * other live is WebRTC's job and a later stage; the finished video does not
- * depend on it, which is why the order is this way round.
+ * WHAT THIS DOES NOT DO is send anybody's media to anybody else. That is the
+ * transport's job (`useRoomMesh`), and it is deliberately somewhere else: the
+ * finished video is made from what this hook records, so it stays correct
+ * whether or not anybody ever saw each other live. The camera is handed out
+ * below as `stream` for the transport to borrow — one getUserMedia, one
+ * camera light, two unrelated uses of it.
  */
 
 /** How often a microphone reports itself. Ten a second: the policy's clock. */
@@ -38,6 +41,13 @@ export interface RoomCapture {
   error: string | null;
   /** The live camera, for the participant's own reassurance. */
   videoRef: React.RefObject<HTMLVideoElement | null>;
+  /**
+   * The same camera, for the transport to send to the others. [ROOM §12]
+   *
+   * State rather than the ref, because the transport has to react to it
+   * arriving — a ref changing tells React nothing.
+   */
+  stream: MediaStream | null;
   arm: () => Promise<void>;
   disarm: () => void;
 }
@@ -54,6 +64,7 @@ export function useRoomCapture({
   const [armed, setArmed] = useState(false);
   const [recording, setRecording] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [stream, setStream] = useState<MediaStream | null>(null);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -186,6 +197,7 @@ export function useRoomCapture({
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       });
       streamRef.current = stream;
+      setStream(stream);
       if (videoRef.current) videoRef.current.srcObject = stream;
 
       const context = new AudioContext();
@@ -210,6 +222,7 @@ export function useRoomCapture({
     streamRef.current?.getTracks().forEach((track) => track.stop());
     void audioRef.current?.close();
     streamRef.current = null;
+    setStream(null);
     analyserRef.current = null;
     audioRef.current = null;
     takeRef.current = null;
@@ -223,5 +236,5 @@ export function useRoomCapture({
     void audioRef.current?.close();
   }, []);
 
-  return { armed, recording, error, videoRef, arm, disarm };
+  return { armed, recording, error, videoRef, stream, arm, disarm };
 }

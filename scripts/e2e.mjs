@@ -1174,6 +1174,163 @@ log('checking the conversation room…');
   }
 
   /*
+   * ---- seeing and hearing each other, live (ROOM §12) -------------------
+   *
+   * Two real browsers, a real handshake through the signalling mailbox, and a
+   * real picture arriving at the other end. Nothing here is mocked: if the
+   * offer, the answer and the candidates do not actually cross, no tile turns
+   * live and this fails.
+   *
+   * The second half is the one that matters most, and it is the product's
+   * whole distinction expressed as bytes on a wire: taken off stage, a
+   * participant STOPS TRANSMITTING. Not hidden in the layout — not sent.
+   */
+  {
+    log('  connecting two browsers to each other…');
+    const hostId = room.participants.find((p) => p.role === 'host').id;
+
+    /*
+     * Sampled BEFORE anything is staged, because being on stage starts a
+     * recording and the sections after this count interventions. Sampling
+     * afterwards would produce an empty difference and a cleanup that
+     * cleaned nothing up.
+     */
+    const before = new Set((await api(`/api/conversations/${conversationId}`))
+      .conversation.interventions.map((iv) => iv.id));
+
+    const set = (body) => sfetch(`${BASE}/api/conversations/${conversationId}/room`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    // Manual, so live microphones cannot move the stage underneath a test
+    // that is measuring who is connected to whom.
+    await set({ action: 'speaker-mode', speakerMode: 'manual' });
+    await set({ action: 'stage', staged: [hostId, sarahRecord.id] });
+
+    /*
+     * A window onto the peer connections the page makes. Test-side
+     * instrumentation, injected before the page loads, because "is this
+     * camera being transmitted" is not a question the interface can answer
+     * honestly — a tile can be hidden while the tracks keep flowing, and
+     * that is exactly the failure worth catching.
+     */
+    /*
+     * The host joins from a SECOND TAB rather than by navigating the one the
+     * rest of this run is using. Same session, same person — but the studio
+     * keeps the state the later sections were left in, which is what a host
+     * does in practice anyway: the room in one window, their work in the
+     * other.
+     */
+    const hostRoom = await page.context().newPage();
+    hostRoom.on('pageerror', (e) => console.error('  [room page error]', e.message));
+
+    const watchPeers = (target) => target.addInitScript(() => {
+      window.__pcs = [];
+      const Real = window.RTCPeerConnection;
+      window.RTCPeerConnection = class extends Real {
+        constructor(...args) { super(...args); window.__pcs.push(this); }
+      };
+    });
+    await watchPeers(hostRoom);
+
+    await hostRoom.goto(`${BASE}/c/${conversationId}/room`, { waitUntil: 'networkidle' });
+    await hostRoom.waitForSelector('[data-testid="people-rail"]', { timeout: 20_000 });
+    check(/\(you\)/.test(await hostRoom.evaluate(() => document.body.innerText)),
+      'the host is somebody in their own room, not a spectator of it');
+
+    await hostRoom.click('[data-testid="mic-on"]');
+    await sarah.click('[data-testid="mic-on"]');
+
+    /*
+     * Named, not "any connected tile": your own tile is always connected —
+     * it is your own camera — so a check that does not say WHOSE picture it
+     * is waiting for passes without anything having crossed the network.
+     */
+    const linked = (target, who) => target.waitForSelector(
+      `[data-testid="stage-tile"][data-participant-id="${who}"]`
+      + '[data-connection="connected"]', { timeout: 40_000 },
+    ).then(() => true).catch(() => false);
+    const hostLinked = await linked(hostRoom, sarahRecord.id);
+    const guestLinked = await linked(sarah, hostId);
+    check(hostLinked && guestLinked, 'two browsers in the room reach each other directly',
+      `host=${hostLinked} guest=${guestLinked}`);
+
+    // A picture, not a placeholder: the element has real pixels in it.
+    const picture = (target, id) => target.evaluate(async (who) => {
+      for (let i = 0; i < 60; i++) {
+        const video = document.querySelector(
+          `[data-testid="stage-tile"][data-participant-id="${who}"] video`);
+        if (video?.videoWidth > 0) return video.videoWidth;
+        await new Promise((r) => setTimeout(r, 250));
+      }
+      return 0;
+    }, id);
+    check(await picture(hostRoom, sarahRecord.id) > 0,
+      'and the host sees the guest, live');
+    check(await picture(sarah, hostId) > 0, 'and the guest sees the host');
+
+    const sending = (target) => target.evaluate(() => (window.__pcs ?? [])
+      .filter((pc) => pc.connectionState !== 'closed')
+      .flatMap((pc) => pc.getSenders())
+      .filter((sender) => sender.track).length);
+    check(await sending(hostRoom) > 0, 'a staged participant\'s camera is on the wire');
+
+    /*
+     * Off stage. "Being in the room is not being on the main stage" — so the
+     * host stays, still hears and still sees, and their own camera stops
+     * going anywhere.
+     */
+    await set({ action: 'stage', staged: [sarahRecord.id] });
+    let remaining = 1;
+    for (let i = 0; i < 40 && remaining > 0; i++) {
+      await sleep(250);
+      remaining = await sending(hostRoom);
+    }
+    check(remaining === 0,
+      'and taken off stage they stop transmitting — waiting in the room is '
+      + 'not a camera that is merely hidden', `${remaining} track(s) still sent`);
+    check(await picture(hostRoom, sarahRecord.id) > 0,
+      'while they go on seeing whoever is on stage (§4)');
+
+    /*
+     * ---- the mailbox itself ----------------------------------------------
+     *
+     * It carries connection details, which contain local network addresses.
+     * Every one of these must refuse.
+     */
+    const signalAs = (init) => asSarah(
+      `/api/conversations/${conversationId}/room/signal`, {
+        method: 'POST', headers: { 'content-type': 'application/json' }, ...init });
+    check(await signalAs({ body: JSON.stringify({ to: sarahRecord.id, payload: {} }) })
+      === 400, 'a peer cannot post into its own mailbox');
+    check(await signalAs({ body: JSON.stringify({ to: 'p_nobody', payload: {} }) })
+      === 404, 'nor into one that does not exist');
+    check(await signalAs({ body: JSON.stringify({ payload: {} }) }) === 404,
+      'nor broadcast to the room by naming nobody');
+    check(await signalAs({ body: JSON.stringify({ to: hostId, payload: { x: 1 } }) })
+      === 200, 'but may introduce itself to somebody who is actually here');
+
+    const stranger = await fetch(
+      `${BASE}/api/conversations/${conversationId}/room/signal`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ to: hostId, payload: {} }) });
+    check(stranger.status >= 400,
+      'and somebody with no session cannot reach the room\'s signalling at all',
+      `status ${stranger.status}`);
+
+    // ---- put the room back the way the later sections expect it ---------
+    await sarah.click('[data-testid="mic-off"]');
+    await hostRoom.close();
+    const after = (await api(`/api/conversations/${conversationId}`))
+      .conversation.interventions.filter((iv) => !before.has(iv.id));
+    for (const stray of after) {
+      await sfetch(`${BASE}/api/conversations/${conversationId}/interventions`
+        + `?interventionId=${stray.id}`, { method: 'DELETE' });
+    }
+    check(true, `(cleaned up ${after.length} recording(s) the room started)`);
+  }
+
+  /*
    * ---- real microphones drive the policy (ROOM §2, §9) ------------------
    *
    * Each browser measures its own microphone and posts two numbers; the

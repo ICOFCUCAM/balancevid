@@ -52,6 +52,7 @@ const PUBLIC_PATTERNS: RegExp[] = [
   /^\/r\/[A-Za-z0-9_-]+\/?$/,
   /^\/api\/conversations\/[A-Za-z0-9_-]+\/room$/,
   /^\/api\/conversations\/[A-Za-z0-9_-]+\/room\/presence$/,
+  /^\/api\/conversations\/[A-Za-z0-9_-]+\/room\/signal$/,
   // A published conversation's own pages. The route still checks that it IS
   // published — this only decides which routes are allowed to make that call.
   /^\/c\/[A-Za-z0-9_-]+\/watch\/?$/,
@@ -94,6 +95,8 @@ const GUEST_WRITABLE: { method: string; path: RegExp }[] = [
   { method: 'POST', path: /^\/api\/conversations\/[A-Za-z0-9_-]+\/room\/presence$/ },
   // A reading about the sender's own microphone. [ROOM §2]
   { method: 'POST', path: /^\/api\/conversations\/[A-Za-z0-9_-]+\/room\/voice$/ },
+  // Introducing two browsers to each other. [ROOM §12]
+  { method: 'POST', path: /^\/api\/conversations\/[A-Za-z0-9_-]+\/room\/signal$/ },
   /*
    * Recording, for a guest the host has put on stage. The route checks that
    * for itself — this only says the request is allowed to reach a route that
