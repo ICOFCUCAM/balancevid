@@ -47,7 +47,11 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
  */
 export async function PUT(request: Request, { params }: Params): Promise<Response> {
   const { id, takeId } = await params;
-  const body = await request.json().catch(() => ({})) as { hintSamples?: number };
+  const body = await request.json().catch(() => ({})) as {
+    hintSamples?: number;
+    /** How long the recorder ran, by the audio clock. [§10, S-3] */
+    elapsedSamples?: number;
+  };
 
   let performance;
   try {
@@ -68,6 +72,12 @@ export async function PUT(request: Request, { params }: Params): Promise<Respons
       // trusts. [§10, S-3]
       hintSamples: Math.max(0, Math.round(
         Number(body.hintSamples ?? take.alignment.offsetSamples))),
+      /*
+       * What the recorder ran for, so the worker can compare it against what
+       * came out. Not a drift measurement — far too noisy for that — but the
+       * alarm for a device recording at a rate it did not claim. [S-3]
+       */
+      elapsedSamples: Math.max(0, Math.round(Number(body.elapsedSamples ?? 0))),
     },
   });
   await auditPerformance(id, { action: 'take.finished', detail: { takeId, job: job.id } });

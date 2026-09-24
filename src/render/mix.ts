@@ -52,14 +52,24 @@ export function mixGraph(
     const label = `ap${index}`;
     labels.push(`[${label}]`);
     const length = piece.toSample - piece.fromSample;
+    /*
+     * A take whose clock differs from the song's is READ for longer (or
+     * shorter) than the piece lasts and then played at that speed, exactly as
+     * its picture is. `atempo` changes the speed without changing the pitch,
+     * which at a few parts per million is inaudible either way and is the
+     * right thing to mean. [§10, S-3, INV-14]
+     */
+    const ratio = piece.rateRatio ?? 1;
+    const source = Math.round(length * ratio);
     const steps = [
       `atrim=start=${seconds(piece.mediaFromSample)}`
-      + `:end=${seconds(piece.mediaFromSample + length)}`,
+      + `:end=${seconds(piece.mediaFromSample + source)}`,
       'asetpts=PTS-STARTPTS',
       // Every source is brought to the house rate before anything else
       // touches it: a 44.1 kHz take mixed against a 48 kHz song is the drift
       // INV-14 exists to refuse, arriving by the back door.
       `aresample=${HOUSE_SAMPLE_RATE}`,
+      ...(ratio === 1 ? [] : [`atempo=${ratio.toFixed(9)}`]),
     ];
     if (piece.fadeInSamples > 0) {
       steps.push(`afade=t=in:st=0:d=${seconds(piece.fadeInSamples)}`);

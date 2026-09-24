@@ -13,6 +13,10 @@ import {
   mayPublish, needsLicenceNote, plateFor, projectPerformance,
 } from './performance.js';
 import { needsMatte } from './environment.js';
+// One definition of "too far to be drift", shared by the invariant that
+// refuses it and the measurement that produces it. Two copies of a threshold
+// are two thresholds.
+import { MAX_PLAUSIBLE_DRIFT } from './drift.js';
 import { formatMasterPosition } from './time.js';
 
 export class InvariantViolation extends Error {
@@ -164,8 +168,6 @@ export function assertAlignmentInvariants(performance: Performance): void {
   }
 }
 
-/** A thousandth. Real drift is parts per million; this is generous. */
-const MAX_PLAUSIBLE_DRIFT = 0.001;
 
 /**
  * INV-15 — no published export contains a master track the author has not

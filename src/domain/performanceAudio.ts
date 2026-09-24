@@ -58,6 +58,15 @@ export interface AudioPiece {
   /** Fades, in samples, applied at this piece's own ends. */
   fadeInSamples: Samples;
   fadeOutSamples: Samples;
+  /**
+   * This take's clock against the song's, where it was measured. [§10, S-3]
+   *
+   * Absent means one. Present, the mixer reads more (or less) of the take than
+   * the piece is long and plays it at that speed, for the same reason the
+   * picture does: a correction applied only at the in-point is not a
+   * correction of drift, it is a correction of the moment before it starts.
+   */
+  rateRatio?: number;
 }
 
 export class PerformanceAudioError extends Error {
@@ -172,6 +181,8 @@ export function planPerformanceAudio(
         fromSample: run.from - zero, toSample: run.to - zero,
         mediaFromSample: Math.max(0, Math.round(
           (run.from - effective(take)) * take.alignment.rateRatio)),
+        ...(take.alignment.rateRatio !== 1
+          ? { rateRatio: take.alignment.rateRatio } : {}),
         ...fades(run.from, run.to, performance, window),
       });
     }

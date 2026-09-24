@@ -38,6 +38,9 @@ import { buildBundle } from '../publish/bundle.js';
 import { buildShareCard } from '../publish/card.js';
 import { HOUSE_FPS, HOUSE_SAMPLE_RATE, samplesToSeconds } from '../domain/time.js';
 import { measureAlignment } from '../domain/align.js';
+import {
+  MIN_DRIFT_SPAN_SAMPLES, captureRateError, measureDrift,
+} from '../domain/drift.js';
 import { decodeToAnalysis, normaliseMaster, readAnalysis } from '../render/audio.js';
 import {
   auditPerformance, loadPerformance, mutatePerformance,
@@ -238,6 +241,50 @@ async function assemblePerformanceTake(job: Job): Promise<Job> {
   const found = measureAlignment(master, take, hintSamples);
 
   /*
+   * Drift, where there is something to measure it against.  [§10, S-3, INV-14]
+   *
+   * The same measurement again, near the END of the take: if the take's clock
+   * differs from the song's, the offset will have moved, and the ratio is
+   * exactly that movement over the distance between the two readings. It needs
+   * the song to be AUDIBLE in the recording, which happens only when it leaked
+   * from the speakers — so on headphones there is no measurement and the ratio
+   * stays the honest 1. A take too short to divide over is not measured either.
+   */
+  let drift = { rateRatio: 1, ppm: 0, usable: false, why: 'the song was not audible in the take' };
+  const spanSamples = durationSamples - ALIGN_WINDOW;
+  if (found.masterAudible && spanSamples >= MIN_DRIFT_SPAN_SAMPLES) {
+    const tail = await readAnalysis(analysisPath, spanSamples, ALIGN_WINDOW);
+    const tailHint = found.offsetSamples + spanSamples;
+    const atEnd = await readAnalysis(
+      paths.masterAnalysis(id),
+      Math.max(0, tailHint - ALIGN_WINDOW),
+      ALIGN_WINDOW * 2);
+    const endFound = measureAlignment(
+      atEnd, tail, Math.min(tailHint, ALIGN_WINDOW));
+    if (endFound.masterAudible) {
+      drift = measureDrift({
+        startMasterSample: found.offsetSamples,
+        // The end sighting is relative to the window that was read, so it is
+        // put back on the song's own clock before the two are compared.
+        endMasterSample: Math.max(0, tailHint - ALIGN_WINDOW) + endFound.offsetSamples,
+        spanSamples,
+      });
+    }
+  } else if (!found.masterAudible) {
+    drift = { ...drift, why: 'the song was not audible in the take — nothing to measure against' };
+  } else {
+    drift = { ...drift, why: 'the take is too short to measure drift over' };
+  }
+
+  /*
+   * And the coarse check that is always available: did this recorder produce
+   * as much audio as it ran for? Far too noisy to see drift, and exactly right
+   * for a device that recorded at 44.1 kHz while claiming 48. [S-3]
+   */
+  const elapsedSamples = Number(job.payload['elapsedSamples'] ?? 0);
+  const capture = captureRateError(durationSamples, elapsedSamples);
+
+  /*
    * Was anything recorded? Measured rather than assumed, because a muted
    * microphone produces a take that looks perfect and sounds like nothing —
    * and §9's Mode A would then mix silence in as though it were a vocal. The
@@ -253,6 +300,10 @@ async function assemblePerformanceTake(job: Job): Promise<Job> {
     if (!target) return;
     target.durationSamples = durationSamples;
     target.hasAudio = hasAudio;
+    // Applied only when it was measured. A ratio of 1 that nobody checked and
+    // a ratio of 1 that was measured are the same number and different facts;
+    // the audit below records which this was.
+    if (drift.usable) target.alignment = { ...target.alignment, rateRatio: drift.rateRatio };
     if (found.masterAudible) {
       target.alignment = {
         ...target.alignment,
@@ -270,6 +321,8 @@ async function assemblePerformanceTake(job: Job): Promise<Job> {
       correlation: Number(found.correlation.toFixed(3)),
       masterAudible: found.masterAudible,
       hasAudio, peak: Number(peak.toFixed(5)),
+      driftPpm: drift.ppm, driftApplied: drift.usable, drift: drift.why,
+      ...(capture.gross ? { captureRatePercent: capture.percent } : {}),
       segments: joined.segments,
       skippedSegments: joined.skipped,
     },
@@ -288,6 +341,14 @@ async function assemblePerformanceTake(job: Job): Promise<Job> {
        */
       masterAudible: found.masterAudible,
       hasAudio,
+      driftPpm: drift.ppm,
+      driftApplied: drift.usable,
+      /*
+       * Surfaced to the studio, because it is the one thing here the author
+       * can act on: a device recording at a rate it did not claim ruins every
+       * take it makes, and the answer is a different input device. [S-3]
+       */
+      ...(capture.gross ? { captureRatePercent: capture.percent } : {}),
     },
   });
 }

@@ -163,6 +163,10 @@ log('conversation', conversationId);
 log('waiting for the source to be normalised…');
 await page.waitForSelector('video[src*="/source"]', { timeout: 120_000 });
 const api = async (path) => (await sfetch(`${BASE}${path}`)).json();
+
+/** The assembly job for a performance's first take, from a document read. */
+const job0 = (doc) => (doc?.jobs ?? [])
+  .find((job) => job.kind === 'assemble_performance_take');
 let snap = await api(`/api/conversations/${conversationId}`);
 check(snap.conversation.source.durationFrames === 600, 'source normalised to 600 frames',
   `got ${snap.conversation.source.durationFrames}`);
@@ -2876,6 +2880,19 @@ log('checking the Performance Studio…');
     check(Number.isInteger(take.alignment?.offsetSamples),
       'placed on the song in whole samples (INV-14)', `${take.alignment?.offsetSamples}`);
     check(take.alignment?.rateRatio === 1, 'claiming no drift that was not measured');
+    /*
+     * §10's third error. There is nothing to measure drift against on
+     * headphones and nothing long enough to divide over in a five-second
+     * fixture — so what is checked is that the product SAYS so rather than
+     * producing a ratio it did not measure. [S-3, INV-14]
+     */
+    check(job0(landed)?.result?.driftApplied === false,
+      'and no drift correction where there was nothing to measure (S-3)',
+      job0(landed)?.result?.drift);
+    check(typeof job0(landed)?.result?.driftPpm === 'number',
+      'while still reporting what it looked for');
+    check(job0(landed)?.result?.captureRatePercent === undefined,
+      'and the recorder produced as much audio as it ran for');
     check(!landed.alignmentError, 'and the alignment invariants hold',
       landed.alignmentError ?? '');
 

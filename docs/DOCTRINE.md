@@ -4034,7 +4034,7 @@ writes back.
   scenes and live switching, the master render, §4's environments, §9's audio
   modes, §11's transitions and beat detection, §14's export — clips, the link
   preview, and the page a published performance is watched on — and §10's
-  device calibration.
+  device calibration and drift measurement.
   Appendix S maps the brief onto this codebase and records the invariants it
   needed, which are now asserted in code:
 

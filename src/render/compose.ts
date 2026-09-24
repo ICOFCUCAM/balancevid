@@ -252,9 +252,15 @@ async function renderPerformanceShot(
 
   const inputs: string[] = [];
   for (const take of shot.takes) {
+    /*
+     * A take whose clock differs from the song's is read for LONGER than the
+     * shot lasts, because it is about to be slowed to fit. Reading only the
+     * shot's length would run the input out before the end. [§10, S-3]
+     */
+    const ratio = take.rateRatio ?? 1;
     inputs.push(
       '-accurate_seek', '-ss', frameSeconds(take.mediaInFrame, fps),
-      '-t', seconds,
+      '-t', ((total / fps) * Math.max(1, ratio) + 0.2).toFixed(6),
       '-i', resolveAsset(take.assetId),
     );
   }
@@ -282,9 +288,22 @@ async function renderPerformanceShot(
     if (!take) return;
     const box = pixelRect(layer.rect, width, height);
     const fitted = `f${index}`;
+    /*
+     * The drift correction, applied across the WHOLE shot rather than at its
+     * in-point — correcting where a four-minute scene STARTS and letting it
+     * slide apart inside itself is not a correction.
+     *
+     * The ratio is take samples per master sample (`masterToTake`), so a take
+     * whose clock ran fast needs more of its own media to cover the same
+     * stretch of song, and is therefore played FAST. Dividing the timestamps
+     * is what does that. `setpts` before `fps`, so the frame-rate filter is
+     * resampling a stream that already runs at the right speed. [INV-14]
+     */
+    const ratio = take.rateRatio ?? 1;
+    const retime = ratio === 1 ? '' : `setpts=PTS/${ratio.toFixed(9)},`;
     filters.push(
       `[${index}:v]${fitFilter(layer.fit, box.w, box.h)},`
-      + `setsar=1,fps=${fps},trim=end=${seconds},setpts=PTS-STARTPTS[${fitted}]`,
+      + `setsar=1,${retime}fps=${fps},trim=end=${seconds},setpts=PTS-STARTPTS[${fitted}]`,
     );
 
     /*

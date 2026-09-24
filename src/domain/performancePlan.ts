@@ -369,6 +369,7 @@ function performanceShot(
        */
       mediaInFrame: takeFrameAt(performance, take.id, span.fromSample),
       label: take.label,
+      ...(take.alignment.rateRatio !== 1 ? { rateRatio: take.alignment.rateRatio } : {}),
       ...(backdropFor(performance, take) ?? {}),
     })),
     ...(span.scene.label ? { label: span.scene.label } : {}),

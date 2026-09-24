@@ -161,6 +161,15 @@ export interface PerformanceShot extends ShotBase {
     mediaInFrame: Frames;
     label: string;
     /**
+     * This take's clock against the song's, where it was measured. [§10, S-3]
+     *
+     * Absent means one, which is both the normal case and the honest one: a
+     * ratio is only present when something measured it. Present, the renderer
+     * plays the take at this speed for the whole shot — correcting the IN
+     * point alone would leave a four-minute scene sliding apart inside itself.
+     */
+    rateRatio?: number;
+    /**
      * What to put behind this performer, and how to cut them out. [§4, S-6]
      *
      * Complete: the plate to difference against, the threshold measured from

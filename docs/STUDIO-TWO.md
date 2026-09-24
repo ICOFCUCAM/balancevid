@@ -469,7 +469,9 @@ browser cannot simply be asked what that offset is.
   records the direction the correction goes, which is the part worth having
   written down.*
 - Alignment is stored as `offsetSamples` **and** `rateRatio`, so drift is a
-  correction rather than a defect.
+  correction rather than a defect. *Built in stage eleven — measured where
+  there is something to measure it against, and honestly absent where there
+  is not. S-24.*
 - And the author can **nudge** it. Every professional tool has a sync nudge
   because every automatic alignment is occasionally wrong, and an author who
   can see the problem and cannot fix it will abandon the product rather than
@@ -1575,6 +1577,67 @@ and S-3's third error, clock DRIFT — `rateRatio` is in the model and is
 measured for nothing, because correcting it needs a long take with the song
 audible at both ends. Of §11's list, Zoom, Swipe, Match movement and Chorus
 transition remain unbuilt on purpose.
+
+---
+
+## S-24 — Stage 11: two clocks, and the one that drifts
+
+**S-3's third error, and the last of the three.** `rateRatio` has been in the
+model since stage one and INV-14 has been checking it since stage two. Nothing
+measured it until now — and a field that is always exactly 1.0 is a field that
+is lying quietly.
+
+| Built | Where |
+|---|---|
+| The measurement, and the direction | `src/domain/drift.ts` |
+| Taking it, at both ends | `src/worker/index.ts` |
+| Honouring it, in picture and sound | `src/render/compose.ts`, `mix.ts` |
+
+**What this stage taught.**
+
+1. **Drift is only measurable where there is something to measure it against.**
+   Two sightings of the same take on the song, far apart, give the ratio to a
+   few parts per million — and each sighting needs the song to be AUDIBLE in
+   the recording, which happens only when it leaked from the speakers. On
+   headphones, which is what §10 asks for, there is no signal and no
+   measurement. The product says so and leaves the ratio at one. **A
+   measurement that cannot be taken is not a measurement to estimate.**
+
+2. **The direction is the whole risk.** `rateRatio` is take samples per master
+   sample, so a take whose clock ran fast produces more of its own samples for
+   the same stretch of song, covers LESS song, and is played FAST to put it
+   back. The first version of both the formula and the renderer had this
+   inverted — and an inverted drift correction does not fail, it doubles the
+   error. The domain test therefore puts the measured ratio back through the
+   model's own `masterToTake` and checks it lands where the take was found,
+   which is the check that distinguishes the two "numbers near one".
+
+3. **A correction applied at the in-point is not a correction of drift.** It is
+   a correction of the moment before the drift starts. The ratio is applied
+   across the whole shot — `setpts` on the picture, `atempo` on the sound —
+   and the input is read for longer than the shot lasts, because it is about
+   to be played faster.
+
+4. **The model was already right about coverage, and the test fixture was
+   wrong.** A take at a ratio of two covers half as much song as its own
+   length, so an eight-second take cannot fill an eight-second song and INV-03
+   refused to render it. The fixture grew; the rule stayed.
+
+5. **There is a coarse check that works on headphones, and it answers a
+   different question.** Comparing how long the recorder ran (by the audio
+   clock) against how many samples came out is far too noisy to see twenty
+   parts per million — the stop instant alone is worse than that. It is
+   exactly right for a device that recorded at 44.1 kHz while claiming 48,
+   which is not drift at all but an eight percent error that ruins every take
+   it makes. It is reported as a warning the author can act on ("try a
+   different input device"), and never as a ratio.
+
+**Still not built:** an upload for `custom` backgrounds, which are modelled and
+rendered but have no door in the studio; and §12's interface, still an open
+item. Of §11's list, Zoom, Swipe, Match movement and Chorus transition remain
+unbuilt on purpose. With this, every numbered section of the brief that
+describes behaviour is built, and the three errors S-3 named are all either
+measured or honestly refused.
 
 ---
 

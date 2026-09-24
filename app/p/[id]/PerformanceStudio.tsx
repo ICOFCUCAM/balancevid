@@ -5,6 +5,7 @@ import type { Performance } from '../../../src/domain/performance.js';
 import { MASTER_CLASSES, SPACES, mayPublish } from '../../../src/domain/performance.js';
 import { SPACES_ARE_DRAWN } from '../../../src/domain/environment.js';
 import { describeCalibration } from '../../../src/domain/calibration.js';
+import { describeDrift } from '../../../src/domain/drift.js';
 import { HOUSE_SAMPLE_RATE, formatMasterPosition } from '../../../src/domain/time.js';
 import { useMasterRecording } from './useMasterRecording.js';
 import SwitchingStage from './SwitchingStage.js';
@@ -82,6 +83,20 @@ export default function PerformanceStudio({ initial }: { initial: Performance })
       const job = (data.jobs ?? []).find((j: any) => j.id === jobId);
       if (!job || job.state === 'pending' || job.state === 'running') continue;
       if (job.state === 'failed') { setWarning(job.error ?? 'that take could not be assembled'); return; }
+      /*
+       * A device that recorded at a rate it did not claim ruins every take it
+       * makes, and no offset or ratio rescues it. Said first, because it is
+       * the only one of these the author can do something about. [§10, S-3]
+       */
+      if (typeof job.result?.captureRatePercent === 'number') {
+        setWarning(
+          `This device produced ${Math.abs(job.result.captureRatePercent)}% `
+          + `${job.result.captureRatePercent < 0 ? 'less' : 'more'} audio than the `
+          + 'time it ran for, which means it is not recording at the rate it says. '
+          + 'The take is kept, but it will not line up. Try a different microphone '
+          + 'or input device.');
+        return;
+      }
       if (job.result?.masterAudible) {
         setWarning(
           'The song is coming out of your speakers and into your microphone. '
@@ -414,6 +429,11 @@ export default function PerformanceStudio({ initial }: { initial: Performance })
                       : take.alignment.method === 'manual'
                         ? 'placed by you'
                         : 'placed from your browser’s audio clock'}
+                  {/* Drift, where it was measured. A ratio of exactly one is
+                      not mentioned, because it is the absence of a finding
+                      rather than a finding. [§10, S-3] */}
+                  {describeDrift(take.alignment.rateRatio)
+                    && ` · ${describeDrift(take.alignment.rateRatio)}`}
                 </div>
                 {/*
                   * Bedroom → Studio, afterwards and without singing it again.
