@@ -3018,9 +3018,11 @@ INV-14  A Performance take's alignment to the master is in samples,
         measured, and never silently resampled.          [U-08, STUDIO-TWO]
 INV-15  No published export contains a master track the author has
         not declared they may publish.                   [U-01, STUDIO-TWO]
+INV-16  No performer is composited into an environment without a
+        matte measured from a plate of their own room.   [D-16, STUDIO-TWO]
 ```
 
-INV-14 and INV-15 belong to Studio Two and are specified in
+INV-14, INV-15 and INV-16 belong to Studio Two and are specified in
 [`STUDIO-TWO.md`](STUDIO-TWO.md). They are listed here because this is the
 list, and an invariant kept somewhere else is one a reviewer does not check.
 
@@ -4028,9 +4030,10 @@ writes back.
 - **[`ROOM.md`](ROOM.md)** — the Conversation Room. §1–§12, built, with
   Appendix R recording what each of the four stages cost.
 - **[`STUDIO-TWO.md`](STUDIO-TWO.md)** — the Performance Studio. §1–§15, with
-  **stage one built**: the document, the music clock, scenes, and the rights
-  classification. Appendix S maps the brief onto this codebase and records the
-  two invariants it needed, which are now asserted in code:
+  **stages one to five built**: the document and the music clock, alignment,
+  scenes and live switching, the master render, and §4's environments.
+  Appendix S maps the brief onto this codebase and records the invariants it
+  needed, which are now asserted in code:
 
 ```
 INV-14  Every take's alignment to the master is stored in samples, is
@@ -4038,6 +4041,9 @@ INV-14  Every take's alignment to the master is stored in samples, is
         without recording that it did.                       [U-08, U-17]
 INV-15  No published export contains a master track the author has not
         declared they may publish.                    [U-01, D-08, U-35]
+INV-16  A performer is composited into an environment only where a
+        matte was measured from a plate of their own room; the raw
+        recording is never altered.                          [D-16, U-18]
 ```
 
 A Performance is a second root document beside the Conversation, not a

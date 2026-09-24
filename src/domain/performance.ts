@@ -38,6 +38,7 @@
  */
 
 import type { AssetId, Publication, TakeId } from './document.js';
+import type { RoomPlate } from './environment.js';
 import type { Id } from './ids.js';
 import {
   type Frames, type Samples, HOUSE_SAMPLE_RATE, assertSamples, samplesToFrames,
@@ -46,7 +47,7 @@ import {
 export type PerformanceId = Id<'perf'>;
 export type SceneId = Id<'scene'>;
 
-export const PERFORMANCE_SCHEMA_VERSION = 1;
+export const PERFORMANCE_SCHEMA_VERSION = 2;
 
 /* ------------------------------------------------------------------------ *
  *  The master track, and what may be done with it.  [S-9, INV-15]
@@ -265,6 +266,15 @@ export interface PerformanceTake {
   /** What the author calls it: "Living room", "Beach". [§1] */
   label: string;
   environment: Environment;
+  /**
+   * Which plate this take is matted against. [§4, S-6, INV-16]
+   *
+   * A reference rather than a copy: one plate serves every take recorded in
+   * that room, and the measurement belongs to the room rather than to
+   * whichever take happened to be next. Absent means no matte was measured
+   * for this take, which is why its environment can only be `original`.
+   */
+  plateAssetId?: AssetId;
   alignment: Alignment;
   /** Measured by decoding. [U-02] */
   durationSamples: Samples;
@@ -297,6 +307,20 @@ export function coverage(take: PerformanceTake): { fromSample: Samples; toSample
     fromSample: Math.max(naturalFrom, take.useFromSample ?? naturalFrom),
     toSample: Math.min(naturalTo, take.useToSample ?? naturalTo),
   };
+}
+
+/**
+ * The plate this take is matted against, if any.  [§4, S-6, INV-16]
+ *
+ * A query rather than a field, for the reason nothing derivable is a field:
+ * the plate is on the performance and the take names it, so there is one
+ * place for the measurement to be wrong rather than two.
+ */
+export function plateFor(
+  performance: Performance, take: PerformanceTake,
+): RoomPlate | undefined {
+  if (!take.plateAssetId) return undefined;
+  return performance.plates.find((plate) => plate.assetId === take.plateAssetId);
 }
 
 /** Does this take have picture at this moment of the song? */
@@ -399,6 +423,13 @@ export interface Performance {
   takes: PerformanceTake[];
   /** Order is derived from `fromSample`, never stored. [U-08] */
   scenes: Scene[];
+  /**
+   * The rooms this performance has been recorded in, measured. [§4, S-6]
+   *
+   * Plural because a performance made over a week is made in more than one
+   * light. Newest last; a take names the one it was shot against.
+   */
+  plates: RoomPlate[];
   audio: {
     mode: AudioMode;
     /** For `master_vocal`: which take is the voice. It is a take like any other. */

@@ -35,6 +35,7 @@ export type JobKind =
    * see the note on `Job` for why that is a rename waiting to happen rather
    * than a second queue. [STUDIO-TWO S-1] */
   | 'ingest_master'
+  | 'ingest_plate'
   | 'assemble_performance_take'
   | 'render_performance';
 

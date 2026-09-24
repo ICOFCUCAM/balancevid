@@ -1,4 +1,4 @@
-import { classifyMaster, setAudioMode, setScene, moveScene, removeScene, labelScene, clearScenes, nudgeTake, trimTake, renameTake, setEnvironment, removeTake, PerformanceEditError } from '../../../../src/domain/performanceEdit.js';
+import { classifyMaster, usePlate, setAudioMode, setScene, moveScene, removeScene, labelScene, clearScenes, nudgeTake, trimTake, renameTake, setEnvironment, removeTake, PerformanceEditError } from '../../../../src/domain/performanceEdit.js';
 import { projectPerformance, covered } from '../../../../src/domain/performance.js';
 import { assertAlignmentInvariants } from '../../../../src/domain/invariants.js';
 import { listJobs } from '../../../../src/store/queue.js';
@@ -82,6 +82,9 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
         case 'rename-take': renameTake(draft, body['takeId'], body['label']); break;
         case 'set-environment':
           setEnvironment(draft, body['takeId'], body['environment']);
+          break;
+        case 'use-plate':
+          usePlate(draft, body['takeId'], body['plateAssetId'] ?? null);
           break;
         case 'remove-take': removeTake(draft, body['takeId']); break;
         default: throw new PerformanceEditError(`unknown action: ${body['action']}`);

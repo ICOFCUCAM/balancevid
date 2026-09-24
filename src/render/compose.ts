@@ -20,6 +20,8 @@ import type {
   PerformanceShot, RenderPlan, ResponseShot, Shot, SourceShot,
 } from '../domain/plan.js';
 import { LAYOUTS, type Rect } from '../domain/presentation.js';
+import { lookFor } from '../domain/environment.js';
+import { backdropChain, blurBackdropChain, matteChain } from './matte.js';
 import type { Frames } from '../domain/time.js';
 import { ffmpeg, type RunOptions } from './ffmpeg.js';
 import { HOUSE, matchGainDb, measureLoudness, measureLoudnorm } from './ingest.js';
@@ -45,6 +47,15 @@ export interface ComposeOptions extends RunOptions {
    * boundaries and AAC's 1024-sample frames.
    */
   masterAudioPath?: string;
+  /**
+   * Stills: the room plates a matte is measured against, and an author's own
+   * backdrop picture.  [Doctrine STUDIO-TWO §4, S-6]
+   *
+   * Separate from `resolveAsset` because these are pictures rather than
+   * recordings — a plate resolved to a mezzanine mp4 path would be a file
+   * that does not exist, discovered by ffmpeg rather than by us.
+   */
+  resolveStill?: (assetId: AssetId) => string;
 }
 
 export interface ComposeResult {
@@ -210,37 +221,91 @@ async function renderPerformanceShot(
   const { width, height, fps } = plan.exportProfile;
   const layout = LAYOUTS[shot.layoutId] ?? LAYOUTS['performance_full']!;
   const total = shot.durationFrames;
+  const seconds = frameSeconds(total, fps);
   const panels = layout.layers.filter((layer) => layer.source === 'take');
 
   const inputs: string[] = [];
   for (const take of shot.takes) {
     inputs.push(
       '-accurate_seek', '-ss', frameSeconds(take.mediaInFrame, fps),
-      '-t', frameSeconds(total, fps),
+      '-t', seconds,
       '-i', resolveAsset(take.assetId),
     );
   }
+  /** Stills come after every take, so a take's index is still its slot. */
+  let nextInput = shot.takes.length;
+  const still = (assetId: AssetId): number => {
+    if (!opts.resolveStill) {
+      throw new Error('this render needs a room plate and was given no way to find one');
+    }
+    inputs.push('-loop', '1', '-t', seconds, '-i', opts.resolveStill(assetId));
+    return nextInput++;
+  };
 
   const filters: string[] = [];
   /*
-   * The canvas. Black rather than a blurred fill for now: a backdrop made
-   * from "the source" has no meaning here, and inventing one from an
-   * arbitrary take would be the product choosing a performance the author did
-   * not.
+   * The canvas. Black rather than a blurred fill: a backdrop made from "the
+   * source" has no meaning here, and inventing one from an arbitrary take
+   * would be the product choosing a performance the author did not.
    */
-  filters.push(`color=c=black:s=${width}x${height}:r=${fps}:d=${frameSeconds(total, fps)}[bg]`);
+  filters.push(`color=c=black:s=${width}x${height}:r=${fps}:d=${seconds}[bg]`);
 
   let last = 'bg';
   panels.forEach((layer, index) => {
     const take = shot.takes[index];
     if (!take) return;
     const box = pixelRect(layer.rect, width, height);
+    const fitted = `f${index}`;
     filters.push(
       `[${index}:v]${fitFilter(layer.fit, box.w, box.h)},`
-      + `setsar=1,fps=${fps},trim=end=${frameSeconds(total, fps)},setpts=PTS-STARTPTS[p${index}]`,
+      + `setsar=1,fps=${fps},trim=end=${seconds},setpts=PTS-STARTPTS[${fitted}]`,
     );
+
+    /*
+     * §4. The performer is cut out of their room and put somewhere else —
+     * or, by default and by preference, left exactly where they were. The
+     * plan says which, and carries the measurement it was decided by, so
+     * nothing is chosen here. [S-6, INV-16]
+     */
+    let panel = fitted;
+    if (take.backdrop) {
+      const { backdrop } = take;
+      const keyable = `k${index}`;
+      const plate = `pl${index}`;
+      const behind = `bd${index}`;
+      const composed = `m${index}`;
+
+      if (backdrop.kind === 'blur') {
+        // Their own room, softened: the same picture twice, one copy out of
+        // focus behind the other.
+        filters.push(`[${fitted}]format=gbrp,split=2[${keyable}][${keyable}_bg]`);
+        filters.push(...blurBackdropChain(`${keyable}_bg`, behind));
+      } else if (backdrop.kind === 'space') {
+        filters.push(`[${fitted}]format=gbrp[${keyable}]`);
+        filters.push(...backdropChain(
+          lookFor(backdrop.spaceId), box.w, box.h, fps, seconds, behind));
+      } else {
+        filters.push(`[${fitted}]format=gbrp[${keyable}]`);
+        const own = still(backdrop.assetId as AssetId);
+        filters.push(
+          `[${own}:v]${fitFilter('cover', box.w, box.h)},setsar=1,fps=${fps},`
+          + `format=gbrp[${behind}]`);
+      }
+
+      const plateInput = still(backdrop.plateAssetId);
+      filters.push(
+        `[${plateInput}:v]${fitFilter(layer.fit, box.w, box.h)},setsar=1,fps=${fps},`
+        + `format=gbrp[${plate}]`);
+      filters.push(...matteChain({
+        fg: keyable, plate, backdrop: behind, out: composed,
+        threshold: backdrop.threshold, feather: backdrop.feather,
+      }));
+      panel = `${composed}_yuv`;
+      filters.push(`[${composed}]format=yuv420p[${panel}]`);
+    }
+
     const next = index === panels.length - 1 ? 'vout' : `s${index}`;
-    filters.push(`[${last}][p${index}]overlay=${box.x}:${box.y}:shortest=0[${next}]`);
+    filters.push(`[${last}][${panel}]overlay=${box.x}:${box.y}:shortest=0[${next}]`);
     last = next;
   });
 

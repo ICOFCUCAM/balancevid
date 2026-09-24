@@ -3,10 +3,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Performance } from '../../../src/domain/performance.js';
 import { MASTER_CLASSES, SPACES, mayPublish } from '../../../src/domain/performance.js';
+import { SPACES_ARE_DRAWN } from '../../../src/domain/environment.js';
 import { HOUSE_SAMPLE_RATE, formatMasterPosition } from '../../../src/domain/time.js';
 import { useMasterRecording } from './useMasterRecording.js';
 import SwitchingStage from './SwitchingStage.js';
 import MasterRender from './MasterRender.js';
+import RoomPlate from './RoomPlate.js';
 
 /**
  * The Performance Studio.  [Doctrine STUDIO-TWO §1, §3, §4, §10, §13]
@@ -43,6 +45,8 @@ export default function PerformanceStudio({ initial }: { initial: Performance })
 
   const id = performance.id;
   const ready = performance.master.durationSamples > 0;
+  /** A room has been measured, so a matte can be made. [§4, S-6, INV-16] */
+  const measured = performance.plates.length > 0;
 
   const refresh = useCallback(async () => {
     const response = await fetch(`/api/performances/${id}`, { cache: 'no-store' });
@@ -222,15 +226,19 @@ export default function PerformanceStudio({ initial }: { initial: Performance })
                     <select id="take-space" data-testid="take-environment" value={environment}
                             onChange={(e) => setEnvironment(e.target.value)}>
                       <option value="original">The room you are in</option>
-                      <option value="blur">The room you are in, softened</option>
-                      {SPACES.map((s) => (
+                      {/* Anything else needs a plate, and a menu that offers
+                          what it cannot do is a menu that lies. [§4, INV-16] */}
+                      {measured && <option value="blur">The room you are in, softened</option>}
+                      {measured && SPACES.map((s) => (
                         <option key={s.id} value={s.id}>{s.label}</option>
                       ))}
                     </select>
                     <span className="small muted" style={{ fontSize: 11 }}>
-                      {/* The recording is kept whatever this says. [§4, S-6] */}
-                      Stored with the take, not burned into it — you can change
-                      it afterwards without singing the song again.
+                      {measured
+                        /* The recording is kept whatever this says. [§4, S-6] */
+                        ? 'Stored with the take, not burned into it — you can change '
+                          + 'it afterwards without singing the song again.'
+                        : 'Measure your room below to put yourself anywhere else.'}
                     </span>
                   </div>
                   <button
@@ -277,6 +285,10 @@ export default function PerformanceStudio({ initial }: { initial: Performance })
             </div>
           </div>
         </section>
+
+        {/* ---- the room, measured (§4, S-6) -------------------------- */}
+        <RoomPlate performance={performance} stream={recording.stream}
+                   onChanged={setPerformance} />
 
         {warning && (
           <p className="panel small" data-testid="leakage-warning"
@@ -340,8 +352,38 @@ export default function PerformanceStudio({ initial }: { initial: Performance })
                     : take.alignment.method === 'manual'
                       ? 'placed by you'
                       : 'placed from your browser’s audio clock'}
-                  {take.environment.kind !== 'original'
-                    && ` · ${take.environment.spaceId ?? take.environment.kind}`}
+                </div>
+                {/*
+                  * Bedroom → Studio, afterwards and without singing it again.
+                  * This select IS the promise of §4: the environment is a
+                  * field, so changing it costs a re-render and nothing else.
+                  */}
+                <div className="row" style={{ gap: 6, marginTop: 5, alignItems: 'center' }}>
+                  <label className="small muted" style={{ fontSize: 11 }}
+                         htmlFor={`env-${take.id}`}>Show this take in</label>
+                  <select
+                    id={`env-${take.id}`} data-testid="take-environment-after"
+                    data-take-id={take.id}
+                    disabled={busy || (!measured && take.environment.kind === 'original')}
+                    value={take.environment.kind === 'space'
+                      ? take.environment.spaceId ?? 'original'
+                      : take.environment.kind}
+                    onChange={(e) => void act({
+                      action: 'set-environment', takeId: take.id,
+                      environment: e.target.value === 'original' ? { kind: 'original' }
+                        : e.target.value === 'blur' ? { kind: 'blur' }
+                          : { kind: 'space', spaceId: e.target.value },
+                    })}
+                    style={{ fontSize: 11, padding: '2px 6px', width: 'auto' }}
+                  >
+                    <option value="original">the room it was shot in</option>
+                    {(measured || take.plateAssetId) && (
+                      <option value="blur">that room, softened</option>
+                    )}
+                    {(measured || take.plateAssetId) && SPACES.map((s) => (
+                      <option key={s.id} value={s.id}>{s.label}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
             ))

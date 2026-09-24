@@ -119,7 +119,7 @@ structural rather than a matter of configuration.
 
 ```bash
 npx tsx scripts/make-fixture.ts /tmp/bv          # a source whose frames carry their index
-npx tsx scripts/e2e.mjs /tmp/bv/source.mp4       # 442 checks, driven with the spacebar
+npx tsx scripts/e2e.mjs /tmp/bv/source.mp4       # 451 checks, driven with the spacebar
 ```
 
 Chrome's fake media device stands in for a camera, so this exercises the actual
@@ -324,7 +324,7 @@ Stated plainly, because a status table that overstates is worse than none.
 ```
 docs/DOCTRINE.md    the constitution
 docs/ROOM.md        the Conversation Room brief, and what building it taught
-docs/STUDIO-TWO.md  the Performance Studio brief — specified, not yet built
+docs/STUDIO-TWO.md  the Performance Studio brief, and what building it taught
 src/domain/         the Conversation and its projections — pure, no I/O
 src/render/         ffmpeg: ingest, compositor, subtitles — worker only
 src/store/          document, chunks, queue — split so the web tier

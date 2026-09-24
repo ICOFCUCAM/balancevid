@@ -9,8 +9,10 @@ import { type Conversation, orderedInterventions, selectedTake } from './documen
 import { quoteHash } from './ids.js';
 import type { SourceItem, Timeline } from './timeline.js';
 import {
-  type Performance, mayPublish, needsLicenceNote, projectPerformance,
+  type Performance, type PerformanceTake,
+  mayPublish, needsLicenceNote, plateFor, projectPerformance,
 } from './performance.js';
+import { needsMatte } from './environment.js';
 import { formatMasterPosition } from './time.js';
 
 export class InvariantViolation extends Error {
@@ -259,5 +261,40 @@ export function assertPerformanceRenderable(performance: Performance): void {
 
   if (performance.audio.mode === 'master_vocal' && !performance.audio.vocalTakeId) {
     fail('INV-03', 'the master vocal mode is chosen but no take has been named as the vocal');
+  }
+
+  /*
+   * INV-16, checked over the takes that will actually be on screen. A take
+   * sitting unused in the rail with an environment it can no longer support is
+   * not a reason to refuse somebody's export.
+   */
+  for (const span of timeline.spans) {
+    for (const take of span.takes) assertMattable(performance, take);
+  }
+}
+
+/**
+ * INV-16 — no composited environment without a measured matte.  [§4, S-6]
+ *
+ * "A bad matte on a music video is markedly worse than no background at all."
+ * The product's answer to a matte it cannot measure is to say so, not to
+ * approximate somebody's silhouette and let them find out at full resolution.
+ */
+export function assertMattable(
+  performance: Performance, take: PerformanceTake,
+): void {
+  if (!needsMatte(take.environment)) return;
+  const plate = plateFor(performance, take);
+  if (!plate) {
+    fail('INV-16',
+      `"${take.label}" is set to a background that needs the performer separated `
+      + 'from the room, but no plate was measured for it — record three seconds '
+      + 'of the empty room, or put the take back in the room it was shot in');
+  }
+  if (take.environment.kind === 'space' && !take.environment.spaceId) {
+    fail('INV-16', `"${take.label}" names a virtual space without saying which one`);
+  }
+  if (take.environment.kind === 'custom' && !take.environment.assetId) {
+    fail('INV-16', `"${take.label}" names a custom background with no picture behind it`);
   }
 }

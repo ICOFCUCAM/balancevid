@@ -40,7 +40,23 @@ export async function loadPerformance(id: string): Promise<Performance> {
       `performance ${id} is schema v${parsed.schemaVersion}; `
       + `this build understands v${PERFORMANCE_SCHEMA_VERSION}`);
   }
-  return parsed;
+  return migrate(parsed);
+}
+
+/**
+ * Old documents, read by new code.  [U-25 §1]
+ *
+ * In memory only — the document on disk is rewritten the next time something
+ * changes it, and never merely because it was looked at. A read that writes
+ * turns opening a performance into an edit, and the audit log into a lie.
+ */
+function migrate(performance: Performance): Performance {
+  // v1 → v2: the room plates §4's matte is measured from. A performance made
+  // before there were plates has none, which is exactly right: its takes can
+  // only be shown in the room they were recorded in.
+  performance.plates ??= [];
+  performance.schemaVersion = PERFORMANCE_SCHEMA_VERSION;
+  return performance;
 }
 
 export async function listPerformances(): Promise<Performance[]> {

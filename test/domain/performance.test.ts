@@ -18,6 +18,7 @@ import {
   orderedScenes, projectPerformance, sceneAt, takeToMaster,
 } from '../../src/domain/performance.js';
 import {
+  addPlate,
   addTake, classifyMaster, clearScenes, moveScene, newPerformance, nudgeTake, realign,
   removeScene, removeTake, setAudioMode, setEnvironment, setScene, trimTake,
 } from '../../src/domain/performanceEdit.js';
@@ -563,9 +564,19 @@ describe('what may leave the building (S-9, INV-15)', () => {
 });
 
 describe('the environment is a field, never pixels (S-6, §4)', () => {
-  it('changing it is a field change, and the recording is untouched', () => {
+  /** A performance whose room has been measured, so a matte can exist. */
+  function measured(): Performance {
     const p = performance();
-    addTake(p, take('take_1'));
+    addPlate(p, {
+      assetId: 'plate_1' as AssetId,
+      noise: 0.01, quality: 0.9, width: 1280, height: 720, capturedAt: AT,
+    });
+    addTake(p, take('take_1', { plateAssetId: 'plate_1' as AssetId }));
+    return p;
+  }
+
+  it('changing it is a field change, and the recording is untouched', () => {
+    const p = measured();
     const { assetId } = p.takes[0]!;
     setEnvironment(p, 'take_1', { kind: 'space', spaceId: 'recording_studio' });
     expect(p.takes[0]!.environment).toEqual({ kind: 'space', spaceId: 'recording_studio' });
@@ -577,10 +588,22 @@ describe('the environment is a field, never pixels (S-6, §4)', () => {
   });
 
   it('and a space has to say which one', () => {
-    const p = performance();
-    addTake(p, take('take_1'));
+    const p = measured();
     expect(() => setEnvironment(p, 'take_1', { kind: 'space' })).toThrow(/which one/);
     expect(() => setEnvironment(p, 'take_1', { kind: 'custom' })).toThrow(/a picture/);
+  });
+
+  /*
+   * INV-16. A background is only as good as the matte, and there is no matte
+   * without a measured plate — so the answer to "put me on a stage" in a room
+   * nobody has measured is the remedy, not an approximation of a silhouette.
+   */
+  it('refuses any background at all where no room was measured (INV-16)', () => {
+    const p = performance();
+    addTake(p, take('take_1'));
+    expect(() => setEnvironment(p, 'take_1', { kind: 'blur' }))
+      .toThrow(/three seconds of the empty room/);
+    expect(p.takes[0]!.environment.kind).toBe('original');
   });
 });
 

@@ -22,12 +22,13 @@
  */
 
 import { LAYOUTS, takeSlots } from './presentation.js';
+import { type RoomPlate, SPACE_LOOKS, needsMatte } from './environment.js';
 import { newId } from './ids.js';
 import type { TakeId } from './document.js';
 import {
   type AudioMode, type MasterTrack, type Performance, type PerformanceTake, type Scene,
   AUDIO_MODES, MASTER_CLASSES, PERFORMANCE_SCHEMA_VERSION,
-  coverage, orderedScenes, takeById,
+  coverage, orderedScenes, plateFor, takeById,
 } from './performance.js';
 import { type Samples, assertSamples } from './time.js';
 
@@ -49,6 +50,7 @@ export function newPerformance(
     master,
     takes: [],
     scenes: [],
+    plates: [],
     audio: { mode: 'music_and_mic' },
     layoutProfileId: 'default',
     createdAt: at,
@@ -107,11 +109,67 @@ export function setEnvironment(
   if (environment.kind === 'space' && !environment.spaceId) {
     fail('a virtual space needs to say which one');
   }
+  if (environment.kind === 'space' && !SPACE_LOOKS[environment.spaceId!]) {
+    fail(`unknown space: ${environment.spaceId}`);
+  }
   if (environment.kind === 'custom' && !environment.assetId) {
     fail('a custom background needs a picture');
   }
+  /*
+   * INV-16, at the door as well as at the render. Anything but the room they
+   * were actually in needs the performer separated from that room, and the
+   * only thing here that can separate them is a plate. Refused with the
+   * remedy, because "not possible" and "record three seconds of the empty
+   * room" are the same fact said two ways and only one of them is useful.
+   */
+  if (needsMatte(environment) && !plateFor(performance, target)) {
+    fail('that background needs a matte, and this take has no plate to make one '
+      + 'from — record three seconds of the empty room, then set it again');
+  }
   target.environment = environment;
 }
+
+/* ------------------------------------------------------------------------ *
+ *  Plates — the room with nobody in it.  [§4, S-6, INV-16]
+ * ------------------------------------------------------------------------ */
+
+/**
+ * A measured plate arrives.
+ *
+ * Appended rather than replacing: a performance recorded over a week is
+ * recorded in more than one light, and the takes shot against the old plate
+ * still need it. Nothing is ever matted against a plate it was not shot with.
+ */
+export function addPlate(performance: Performance, plate: RoomPlate): void {
+  if (performance.plates.some((p) => p.assetId === plate.assetId)) {
+    fail('that plate is already on this performance');
+  }
+  performance.plates.push(plate);
+}
+
+/**
+ * Which plate a take is matted against.
+ *
+ * Set when the take is recorded, from whichever plate was current; changed
+ * afterwards only by an author who knows the camera did not move between the
+ * two. Clearing it puts the take back in its own room, so the environment
+ * goes back with it rather than being left describing a matte that no longer
+ * exists.
+ */
+export function usePlate(
+  performance: Performance, takeId: string, plateAssetId: string | null,
+): void {
+  const target = take(performance, takeId);
+  if (plateAssetId === null) {
+    delete target.plateAssetId;
+    if (needsMatte(target.environment)) target.environment = { kind: 'original' };
+    return;
+  }
+  const plate = performance.plates.find((p) => p.assetId === plateAssetId);
+  if (!plate) fail(`no such plate: ${plateAssetId}`);
+  target.plateAssetId = plate!.assetId;
+}
+
 
 /**
  * The author's correction to where a take sits on the song.  [§10, S-3]

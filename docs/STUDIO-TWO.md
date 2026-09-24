@@ -559,6 +559,16 @@ Proposed:
   needs a rights line of its own. They ship with the product, so the product
   owns that problem rather than the author.
 
+```
+INV-16  A performer is composited into an environment only where a matte was
+        measured from a plate of their own room; the raw recording is never
+        altered.                                                 [D-16, U-18]
+```
+
+*Built in stage five. S-18 records what the building taught — including that
+the plate makes the matte measurable rather than guessed, and that drawing the
+spaces rather than shipping photographs dissolves the rights line above.*
+
 ---
 
 ## S-7 — Audio: the brief's three modes, and the one structural consequence
@@ -1090,11 +1100,96 @@ something an author can take away.
    duration check in this codebase read ffmpeg's prose and believed a units
    suffix; the structured answer is the only one worth asserting on (U-02).
 
-**Still not built:** the environment matte (§4); the audio modes (§9), which
+**Still not built:** the audio modes (§9), which
 are declared on scenes and stored but do not yet change the mix; transitions
 and beat detection (§11); publication of a performance as clips or a share card
 (§14's second half); and the device calibration from S-3, which still passes
 zero. §12's interface remains an open item.
+
+---
+
+## S-18 — Stage 5: the environment, and the matte it needs
+
+**"You can record in your bedroom while the finished performance makes it look
+as though you are in a studio."** §4, built — and S-6's warning was the design
+brief: a virtual background is only as good as the matte, and a bad matte on a
+music video is worse than no background at all.
+
+| Built | Where |
+|---|---|
+| The plate, the spaces, the thresholds | `src/domain/environment.ts` |
+| Measuring a room by decoding it | `src/render/plate.ts` |
+| The key, as a filter graph | `src/render/matte.ts` |
+| INV-16 | `src/domain/invariants.ts` |
+| The plate, and the key running live | `app/p/[id]/RoomPlate.tsx` |
+
+**The matte is a difference, not a guess.** There is no segmentation model
+here estimating where a person ends. There is a PLATE — three seconds of the
+room with nobody in it — and everything that differs from it by more than the
+room's own measured noise is the performer. The author steps out of shot once;
+in exchange the matte has no per-frame estimate in it at all, which is the
+flicker S-6 warned about, structurally absent rather than tuned away.
+
+**What this stage taught.**
+
+1. **A measurement makes the threshold, and then nobody has to choose one.**
+   The plate is decoded to small grey frames and the per-pixel standard
+   deviation over time is counted in JavaScript — the room's own noise. The key
+   fires at three times that. A clean camera on a tripod gets a tight key and a
+   noisy one in a dim room gets a forgiving one, and no number was typed by
+   anybody. The same measurement answers "will this work in my room" before the
+   author records five takes, which is exactly what S-6 asked for.
+
+2. **The difference has to be taken in RGB.** A difference on luma cannot see a
+   blue shirt against a grey wall of the same brightness, and a matte that
+   loses a shirt is worse than none. Differencing in planar RGB and reducing to
+   grey afterwards measures colour distance, which is what "different from the
+   wall" actually means. `maskedmerge` then needs all three streams in planar
+   RGB too: in YUV its mask's neutral chroma blends the colour of every pixel
+   halfway to the backdrop, which looks like a washed-out grade rather than
+   like a bug.
+
+3. **A filter-graph label can be consumed exactly once.** The take is needed
+   twice — to measure the difference and to be composited — and feeding `[fg]`
+   to two filters makes ffmpeg look for a *file* called `fg` and report
+   "Invalid stream specifier". The split is inside `matteChain` rather than at
+   the call site, because using it correctly should not require knowing that.
+
+4. **Drawing the spaces dissolved the rights problem S-6 raised.** The eleven
+   spaces are recipes — two colours, a light pool, a vignette, some grain,
+   sometimes one straight edge — evaluated at the panel's own size. Nothing is
+   licensed, nothing is credited, and nothing was somebody's photograph first.
+   The honest consequence is stated in the studio rather than discovered in the
+   export: "Beach" is a stylised backdrop in the colours of a beach, not a
+   photograph of one. An author who wants a real place behind them supplies it,
+   and its rights are theirs — which is U-01's shape again.
+
+5. **INV-16 is enforced at the door as well as at the render, and the door's
+   message is the remedy.** "That background needs a matte, and this take has
+   no plate to make one from — record three seconds of the empty room, then set
+   it again." The invariant also checks only the takes that are ON SCREEN: a
+   take sitting unused in the rail with an environment it can no longer support
+   is not a reason to refuse somebody's export.
+
+6. **Dropping the plate takes the environment with it.** `usePlate(…, null)`
+   puts the take back in its own room and resets `environment` to `original`,
+   because a take left saying "Concert Stage" with nothing to matte against is
+   a document describing a video it cannot produce — and that is a thing found
+   at render time, by the author, at the end.
+
+7. **The preview uses the export's technique, not a better one.** The studio's
+   live key fetches the same plate the renderer will, at the same threshold,
+   and does the same difference in a canvas. It would have been easy to preview
+   with something smoother. A preview that flatters the export is worse than no
+   preview, because the whole reason S-6 wanted one was to let somebody find
+   out now that their room will not do it.
+
+**Still not built:** the audio modes (§9), which are declared on scenes and
+stored but do not yet change the mix; transitions and beat detection (§11);
+publication of a performance as clips or a share card (§14's second half); and
+the device calibration from S-3, which still passes a stated zero. §12's
+interface remains an open item. `custom` backgrounds are modelled and
+rendered, but the studio has no upload for one yet.
 
 ---
 

@@ -1,4 +1,6 @@
-import { addTake } from '../../../../../src/domain/performanceEdit.js';
+import {
+  PerformanceEditError, addTake, setEnvironment,
+} from '../../../../../src/domain/performanceEdit.js';
 import type { AssetId, TakeId } from '../../../../../src/domain/document.js';
 import { newId } from '../../../../../src/domain/ids.js';
 import {
@@ -30,6 +32,8 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
     offsetSamples?: number;
     method?: 'measured' | 'calibrated' | 'manual';
     environment?: { kind: string; spaceId?: string; assetId?: string };
+    /** Which room this is being recorded in. Defaults to the latest measured. */
+    plateAssetId?: string;
   };
 
   let performance;
@@ -49,22 +53,44 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
   const assetId = newId('asset');
   const label = (body.label ?? '').trim() || `Take ${performance.takes.length + 1}`;
 
-  await mutatePerformance(id, (draft) => {
-    addTake(draft, {
-      id: takeId as TakeId,
-      assetId: assetId as AssetId,
-      label,
-      environment: (body.environment as never) ?? { kind: 'original' },
-      alignment: {
-        offsetSamples,
-        rateRatio: 1,
-        method: body.method === 'calibrated' ? 'calibrated' : 'measured',
-      },
-      // Counted when the media lands. Zero means "still arriving".
-      durationSamples: 0,
-      createdAt: new Date().toISOString(),
+  /*
+   * The room this take is being shot in. The newest plate unless the author
+   * says otherwise, because plates are recorded in order and the latest one
+   * is the light they are standing in now. [§4, S-6]
+   */
+  const plate = body.plateAssetId
+    ? performance.plates.find((p) => p.assetId === body.plateAssetId)
+    : performance.plates[performance.plates.length - 1];
+  if (body.plateAssetId && !plate) return fail(400, 'no such plate');
+
+  try {
+    await mutatePerformance(id, (draft) => {
+      addTake(draft, {
+        id: takeId as TakeId,
+        assetId: assetId as AssetId,
+        label,
+        // Set below, through the one door that knows INV-16. A take that
+        // began with an environment it cannot support would be a document
+        // that was briefly invalid, which is a document that can be saved.
+        environment: { kind: 'original' },
+        ...(plate ? { plateAssetId: plate.assetId } : {}),
+        alignment: {
+          offsetSamples,
+          rateRatio: 1,
+          method: body.method === 'calibrated' ? 'calibrated' : 'measured',
+        },
+        // Counted when the media lands. Zero means "still arriving".
+        durationSamples: 0,
+        createdAt: new Date().toISOString(),
+      });
+      if (body.environment && body.environment.kind !== 'original') {
+        setEnvironment(draft, takeId, body.environment as never);
+      }
     });
-  });
+  } catch (error) {
+    if (error instanceof PerformanceEditError) return fail(409, error.message);
+    throw error;
+  }
 
   await auditPerformance(id, {
     action: 'take.started', detail: { takeId, assetId, label, offsetSamples },

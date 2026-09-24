@@ -26,14 +26,17 @@ import type { AssetId, TakeId } from './document.js';
 import { assertPerformanceRenderable } from './invariants.js';
 import { sha256 } from './ids.js';
 import {
-  type Performance, type PerformanceSpan,
-  mayPublish, projectPerformance,
+  type Performance, type PerformanceSpan, type PerformanceTake,
+  mayPublish, plateFor, projectPerformance,
 } from './performance.js';
+import { matteFeather, matteThreshold, needsMatte } from './environment.js';
 import {
   type ExportProfile, EXPORT_PROFILES, LAYOUTS, captionStyleFor,
   reframeFor, takeSlots,
 } from './presentation.js';
-import type { AttributionBlock, PerformanceShot, RenderPlan } from './plan.js';
+import type {
+  AttributionBlock, PerformanceBackdrop, PerformanceShot, RenderPlan,
+} from './plan.js';
 import { PLAN_VERSION, canonicalJson } from './plan.js';
 import { HOUSE_FPS, type Frames, samplesToFrames } from './time.js';
 
@@ -202,8 +205,41 @@ function performanceShot(
        */
       mediaInFrame: takeFrameAt(performance, take.id, span.fromSample),
       label: take.label,
+      ...(backdropFor(performance, take) ?? {}),
     })),
     ...(span.scene.label ? { label: span.scene.label } : {}),
+  };
+}
+
+/**
+ * The backdrop, resolved and measured.  [§4, S-6, INV-16]
+ *
+ * Absent when the take stays in its own room, which is the reliable case and
+ * the default. Present, it carries everything the renderer needs and nothing
+ * it has to work out: the plate, the threshold derived from that plate's
+ * measured noise, and the feather. INV-16 has already refused the case where
+ * a matte is wanted and none was measured, so a missing plate here is a bug
+ * rather than a state to handle twice.
+ */
+function backdropFor(
+  performance: Performance, take: PerformanceTake,
+): { backdrop: PerformanceBackdrop } | undefined {
+  if (!needsMatte(take.environment)) return undefined;
+  const plate = plateFor(performance, take);
+  if (!plate) {
+    throw new PerformancePlanError(
+      `"${take.label}" needs a matte and has no plate — this should have been `
+      + 'refused by INV-16 before the plan was built');
+  }
+  return {
+    backdrop: {
+      kind: take.environment.kind as 'blur' | 'space' | 'custom',
+      ...(take.environment.spaceId ? { spaceId: take.environment.spaceId } : {}),
+      ...(take.environment.assetId ? { assetId: take.environment.assetId } : {}),
+      plateAssetId: plate.assetId,
+      threshold: matteThreshold(plate),
+      feather: matteFeather(plate),
+    },
   };
 }
 

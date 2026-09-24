@@ -159,9 +159,35 @@ export interface PerformanceShot extends ShotBase {
     /** Where in this take's own media the stretch begins, in FRAMES. */
     mediaInFrame: Frames;
     label: string;
+    /**
+     * What to put behind this performer, and how to cut them out. [§4, S-6]
+     *
+     * Complete: the plate to difference against, the threshold measured from
+     * that plate's own noise, and the feather. The renderer does no
+     * measurement and makes no choice — a plan is a description of an export,
+     * and a renderer that decides anything is a second place for the export
+     * to be decided.
+     */
+    backdrop?: PerformanceBackdrop;
   }[];
   /** The author's name for this stretch — "Chorus". [§15] */
   label?: string;
+}
+
+/** Where the performer is put, once they are cut out of their room. [§4] */
+export interface PerformanceBackdrop {
+  /** `blur` is their own room softened; `space` is a drawn look; `custom` theirs. */
+  kind: 'blur' | 'space' | 'custom';
+  /** For `space`: which drawn look, from SPACE_LOOKS. */
+  spaceId?: string;
+  /** For `custom`: the author's own picture. */
+  assetId?: AssetId;
+  /** The still of the empty room this take is differenced against. */
+  plateAssetId: AssetId;
+  /** 0..255 on the difference, measured from the plate's own noise. */
+  threshold: number;
+  /** Pixels of softening on the matte's edge. */
+  feather: number;
 }
 
 export type Shot = SourceShot | ResponseShot | PerformanceShot;

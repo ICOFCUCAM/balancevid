@@ -43,6 +43,9 @@ import {
   auditPerformance, loadPerformance, mutatePerformance,
 } from '../store/performances.js';
 import { buildPerformancePlan } from '../domain/performancePlan.js';
+import { addPlate } from '../domain/performanceEdit.js';
+import { matteThreshold, plateVerdict } from '../domain/environment.js';
+import { buildPlateStill, measurePlate } from '../render/plate.js';
 import { EXPORT_PROFILES } from '../domain/presentation.js';
 
 const POLL_MS = 400;
@@ -60,6 +63,7 @@ export async function runJob(job: Job): Promise<Job> {
     case 'render_thumbnails': return renderThumbnails(job);
     case 'render_card': return renderCard(job);
     case 'ingest_master': return ingestMaster(job);
+    case 'ingest_plate': return ingestPlate(job);
     case 'assemble_performance_take': return assemblePerformanceTake(job);
     case 'render_performance': return renderPerformance(job);
   }
@@ -100,6 +104,56 @@ async function ingestMaster(job: Job): Promise<Job> {
   });
 
   return finish(job, 'done', { progress: 100, result: { durationSamples } });
+}
+
+/**
+ * The room, with nobody in it.  [§4, S-6, INV-16]
+ *
+ * Two things come out of three seconds of an empty room: a still to difference
+ * every take against, and the room's own noise. The second decides the matte's
+ * threshold and is the honest answer to "will this work where I am", which the
+ * author is owed BEFORE they record five takes rather than after.
+ */
+async function ingestPlate(job: Job): Promise<Job> {
+  const id = job.conversationId;
+  const assetId = String(job.payload['assetId']);
+  const clipPath = String(job.payload['clipPath']);
+
+  const stillPath = paths.performancePlate(id, assetId);
+  await buildPlateStill(clipPath, stillPath);
+  job.progress = 50;
+  await update(job);
+
+  const measured = await measurePlate(
+    clipPath, join(paths.performanceAssets(id), 'scratch'));
+
+  const plate = {
+    assetId: assetId as AssetId,
+    ...(job.payload['label'] ? { label: String(job.payload['label']) } : {}),
+    noise: Number(measured.noise.toFixed(6)),
+    quality: Number(measured.quality.toFixed(4)),
+    width: measured.width,
+    height: measured.height,
+    capturedAt: new Date().toISOString(),
+  };
+  await mutatePerformance(id, (draft) => { addPlate(draft, plate); });
+  await auditPerformance(id, {
+    action: 'plate.measured',
+    detail: {
+      assetId, noise: plate.noise, quality: plate.quality,
+      frames: measured.frames, threshold: matteThreshold(plate),
+    },
+  });
+
+  return finish(job, 'done', {
+    progress: 100,
+    result: {
+      assetId, noise: plate.noise, quality: plate.quality,
+      threshold: matteThreshold(plate),
+      verdict: plateVerdict(plate).text,
+      usable: plateVerdict(plate).ok,
+    },
+  });
 }
 
 /**
@@ -226,6 +280,14 @@ async function renderPerformance(job: Job): Promise<Job> {
      */
     masterAudioPath: paths.performanceAsset(
       id, `${performance.master.assetId}mezz`, 'webm'),
+    /*
+     * Plates and the author's own backdrops: pictures rather than recordings,
+     * and resolved apart from the mezzanines for that reason. [§4, S-6]
+     */
+    resolveStill: (assetId) => (
+      performance.plates.some((plate) => plate.assetId === assetId)
+        ? paths.performancePlate(id, assetId)
+        : paths.performanceAsset(id, assetId, 'png')),
     onProgress: (info) => {
       const frames = Number(info['frame'] ?? 0);
       if (frames > 0 && plan.totalOutputFrames > 0) {

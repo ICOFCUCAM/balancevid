@@ -2765,6 +2765,42 @@ log('checking the Performance Studio…');
   await page.waitForSelector('[data-testid="start-take"]', { timeout: 40_000 });
   check(true, 'the camera and the song load together');
 
+  /*
+   * --- §4: the room, measured before anything is recorded ---------------
+   *
+   * "The author sees the matte BEFORE they record the other four takes, not
+   *  after — because if it is poor in their room, the answer is a light or a
+   *  different wall, and they need to know that at take one." [S-6]
+   */
+  {
+    // Nothing has been measured yet, so nothing but the room they are in is
+    // on offer. A menu that lists what it cannot do is a menu that lies.
+    const before = await page.locator('[data-testid="take-environment"] option').count();
+    check(before === 1, 'with no measured room, no background is offered (INV-16)',
+      `${before} option(s)`);
+
+    const refused = await sfetch(`${BASE}/api/performances/${perfId}`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'set-environment', takeId: 'take_nothing',
+        environment: { kind: 'blur' } }),
+    });
+    check(refused.status >= 400, 'and the door refuses it too, not just the menu');
+
+    await page.click('[data-testid="record-plate"]');
+    await page.waitForSelector('[data-testid="plate-verdict"]', { timeout: 90_000 });
+    const plates = (await api(`/api/performances/${perfId}`)).performance.plates ?? [];
+    check(plates.length === 1, 'three seconds of the empty room is measured (§4)');
+    check(plates[0]?.noise > 0 && plates[0]?.quality >= 0 && plates[0]?.quality <= 1,
+      'and the measurement is a number, not a promise',
+      `noise=${plates[0]?.noise} quality=${plates[0]?.quality}`);
+    check(await page.locator('[data-testid="matte-preview"]').count() === 1,
+      'the key runs live on the camera, before take one (S-6)');
+
+    const after = await page.locator('[data-testid="take-environment"] option').count();
+    check(after > before, 'and only then are the backgrounds offered',
+      `${after} option(s)`);
+  }
+
   await page.fill('[data-testid="take-label"]', 'Living room');
   await page.selectOption('[data-testid="take-environment"]', 'concert_stage');
   await page.click('[data-testid="start-take"]');
@@ -2818,6 +2854,31 @@ log('checking the Performance Studio…');
     check(typeof job?.result?.correlation === 'number',
       'and reports how audible the song was in the take',
       `corr=${job?.result?.correlation} audible=${job?.result?.masterAudible}`);
+  }
+
+  /*
+   * Bedroom → Studio, afterwards, without singing it again. The promise §4
+   * makes and D-16 requires: the environment is a field of the take, so
+   * changing it costs a re-render and never a recording.
+   */
+  if (landed) {
+    const before = landed.performance.takes[0];
+    await page.selectOption(
+      `[data-testid="take-environment-after"][data-take-id="${before.id}"]`, 'church');
+    await page.waitForFunction(
+      (takeId) => document.querySelector(
+        `[data-testid="take-environment-after"][data-take-id="${takeId}"]`)?.value === 'church',
+      before.id, { timeout: 15_000 });
+
+    const changed = (await api(`/api/performances/${perfId}`)).performance.takes[0];
+    check(changed.environment.spaceId === 'church',
+      'the environment can be changed after the fact (§4)',
+      JSON.stringify(changed.environment));
+    check(changed.assetId === before.assetId
+      && changed.durationSamples === before.durationSamples,
+      'and the recording underneath it is the same file, untouched (D-16)');
+    check(Boolean(changed.plateAssetId),
+      'matted against the room it was actually shot in');
   }
 
   // ---- the rights class governs what the studio will do ----------------
