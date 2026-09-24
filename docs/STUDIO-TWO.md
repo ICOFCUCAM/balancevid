@@ -936,4 +936,67 @@ switching.
 
 ---
 
+## S-16 — Stage 3: many takes, switched
+
+**Directing the music video.** §7's number keys, §8's draggable boundaries,
+§5's Full and Half, §6's four-way, and §15's named sections — all of them
+writing the same object.
+
+| Built | Where |
+|---|---|
+| The arrangements, as rows | `src/domain/presentation.ts` |
+| Several takes playing as one | `app/p/[id]/usePerformancePlayer.ts` |
+| The stage, the rail, the timeline | `app/p/[id]/SwitchingStage.tsx` |
+| Take media, with range requests | `…/takes/[takeId]/media/route.ts` |
+
+**§5 and §6 needed no engine, as S-5 predicted.** `performance_full`,
+`performance_half`, `performance_quad` and `performance_focus` are four rows in
+the table layouts already live in. The only extension the model needed was a
+`take` layer that names a SLOT rather than a fixed source — because a
+Conversation has one source and one responder, and a Performance has as many
+takes as somebody cared to record. The scene says who; the layout says where.
+
+**What this stage taught.**
+
+1. **The song is the clock, and no video may be the reference.** Four `<video>`
+   elements have four opinions about what a second is. So the master plays
+   through Web Audio — whose `currentTime` is the hardware's own clock — and
+   every take is STEERED to agree with it rather than set. A take inside 12ms
+   is left alone; one outside that is walked back by bending its playback rate
+   a few percent, which is invisible; only an error too large to walk off is
+   corrected by seeking, because seeking stalls. Setting `currentTime` every
+   tick, which is the obvious implementation, is a permanent stutter. **In a
+   timing tool, a preview that judders makes the author mistrust their own
+   timing, which is the one thing they must be able to trust.**
+
+2. **A hook cannot ask its caller for something only the hook knows.** The
+   player took the list of visible takes as an argument, and the caller worked
+   it out from the playhead — which comes out of the player. The first version
+   quietly passed the scene at position zero, so it would have decoded the
+   opening scene's takes for the whole song and paused everything else. The
+   player resolves it from its own clock now. **When a parameter can only be
+   computed from the return value, it is not a parameter.**
+
+3. **An arrangement's capacity is a question the table can answer.**
+   `takeSlots(layout)` counts the take layers, and `setScene` refuses a scene
+   whose takes do not fill its panels. It caught one of this appendix's own
+   earlier tests, which had put two takes into a one-panel arrangement. Three
+   performances in a two-panel scene is not a preference to interpret — it is a
+   panel that does not exist, and the alternative is a silently dropped
+   performance the author finds after exporting.
+
+4. **Range requests are not an optimisation here.** Switching means seeking:
+   the author drags to the chorus and several videos must arrive there
+   together. Without `Range` a browser will not seek until the whole file has
+   arrived, which for a four-minute take means the feature simply does not
+   work.
+
+**Still not built:** the master render (§14 and the export), which is the one
+thing everything else now waits on; the environment matte (§4); the audio modes
+(§9); transitions and beat detection (§11); and the device calibration from
+S-3. §12's interface is still an open item — what is above was designed
+against the rest of the brief, not from §12.
+
+---
+
 *Appendix S ends. The brief above it is unedited.*

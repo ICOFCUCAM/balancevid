@@ -30,6 +30,7 @@ import {
   beatsToSamples, framesToSamples, samplesToFrames, secondsToSamples,
 } from '../../src/domain/time.js';
 import type { AssetId, TakeId } from '../../src/domain/document.js';
+import { LAYOUTS, takeSlots } from '../../src/domain/presentation.js';
 
 const AT = '2026-09-24T12:00:00.000Z';
 /** Four minutes, which is a song. */
@@ -256,9 +257,9 @@ describe('scenes are the primitive (S-4, §7, §8, §15)', () => {
   const switched = () => {
     const p = fiveTakes();
     // §7: the author presses 1 → 3 → 2 while the song plays.
-    setScene(p, 0, { layoutId: 'full_user', takeIds: ['take_living_room'] });
-    setScene(p, secondsToSamples(60), { layoutId: 'full_user', takeIds: ['take_beach'] });
-    setScene(p, secondsToSamples(120), { layoutId: 'full_user', takeIds: ['take_studio'] });
+    setScene(p, 0, { layoutId: 'performance_full', takeIds: ['take_living_room'] });
+    setScene(p, secondsToSamples(60), { layoutId: 'performance_full', takeIds: ['take_beach'] });
+    setScene(p, secondsToSamples(120), { layoutId: 'performance_full', takeIds: ['take_studio'] });
     return p;
   };
 
@@ -279,8 +280,8 @@ describe('scenes are the primitive (S-4, §7, §8, §15)', () => {
 
   it('order is derived from the clock, never stored', () => {
     const p = fiveTakes();
-    setScene(p, secondsToSamples(120), { layoutId: 'full_user', takeIds: ['take_studio'] });
-    setScene(p, 0, { layoutId: 'full_user', takeIds: ['take_beach'] });
+    setScene(p, secondsToSamples(120), { layoutId: 'performance_full', takeIds: ['take_studio'] });
+    setScene(p, 0, { layoutId: 'performance_full', takeIds: ['take_beach'] });
     expect(orderedScenes(p).map((s) => s.fromSample))
       .toEqual([0, secondsToSamples(120)]);
   });
@@ -289,8 +290,8 @@ describe('scenes are the primitive (S-4, §7, §8, §15)', () => {
     // Two scenes at the same sample is a document whose order depends on a
     // tiebreak, which is a thing to prevent rather than to sort.
     const p = fiveTakes();
-    setScene(p, 0, { layoutId: 'full_user', takeIds: ['take_beach'] });
-    setScene(p, 0, { layoutId: 'full_user', takeIds: ['take_studio'] });
+    setScene(p, 0, { layoutId: 'performance_full', takeIds: ['take_beach'] });
+    setScene(p, 0, { layoutId: 'performance_full', takeIds: ['take_studio'] });
     expect(p.scenes).toHaveLength(1);
     expect(p.scenes[0]!.takeIds).toEqual(['take_studio']);
   });
@@ -305,16 +306,40 @@ describe('scenes are the primitive (S-4, §7, §8, §15)', () => {
   it('§6\'s four-way is a scene with four takes', () => {
     const p = fiveTakes();
     setScene(p, 0, {
-      layoutId: 'full_user',
+      layoutId: 'performance_quad',
       takeIds: ['take_living_room', 'take_studio', 'take_beach', 'take_stage'],
     });
     expect(p.scenes[0]!.takeIds).toHaveLength(4);
   });
 
+  it('and §5\'s Half Mode is a scene with two', () => {
+    const p = fiveTakes();
+    setScene(p, 0, {
+      layoutId: 'performance_half', takeIds: ['take_beach', 'take_stage'],
+    });
+    expect(takeSlots(LAYOUTS['performance_half']!)).toBe(2);
+  });
+
+  it('but an arrangement will not hold more performances than it has panels', () => {
+    /*
+     * Asked when the scene is written, not discovered at render time. Three
+     * takes in a two-panel scene is a panel that does not exist, and a
+     * silently dropped performance is what an author finds after exporting.
+     */
+    const p = fiveTakes();
+    expect(() => setScene(p, 0, {
+      layoutId: 'performance_half',
+      takeIds: ['take_beach', 'take_stage', 'take_studio'],
+    })).toThrow(/holds 2 performances, not 3/);
+    expect(() => setScene(p, 0, {
+      layoutId: 'performance_quad', takeIds: ['take_beach'],
+    })).toThrow(/holds 4 performances, not 1/);
+  });
+
   it('but the same take cannot occupy two panels of one scene', () => {
     const p = fiveTakes();
     expect(() => setScene(p, 0, {
-      layoutId: 'full_user', takeIds: ['take_beach', 'take_beach'],
+      layoutId: 'performance_full', takeIds: ['take_beach', 'take_beach'],
     })).toThrow(/two panels/);
   });
 
@@ -347,8 +372,8 @@ describe('scenes are the primitive (S-4, §7, §8, §15)', () => {
 describe('the timeline the scenes make (S-4)', () => {
   const full = () => {
     const p = fiveTakes();
-    setScene(p, 0, { layoutId: 'full_user', takeIds: ['take_living_room'] });
-    setScene(p, secondsToSamples(60), { layoutId: 'full_user', takeIds: ['take_beach'] });
+    setScene(p, 0, { layoutId: 'performance_full', takeIds: ['take_living_room'] });
+    setScene(p, secondsToSamples(60), { layoutId: 'performance_full', takeIds: ['take_beach'] });
     return p;
   };
 
@@ -379,7 +404,7 @@ describe('the timeline the scenes make (S-4)', () => {
      * them.
      */
     const p = fiveTakes();
-    setScene(p, secondsToSamples(60), { layoutId: 'full_user', takeIds: ['take_beach'] });
+    setScene(p, secondsToSamples(60), { layoutId: 'performance_full', takeIds: ['take_beach'] });
     const timeline = projectPerformance(p);
     expect(timeline.gaps).toEqual([{ fromSample: 0, toSample: secondsToSamples(60) }]);
     expect(covered(p)).toBeCloseTo(0.75, 5);
@@ -390,9 +415,11 @@ describe('the timeline the scenes make (S-4)', () => {
     // discovers after rendering.
     const p = fiveTakes();
     trimTake(p, 'take_beach', 0, secondsToSamples(60));
-    setScene(p, 0, { layoutId: 'full_user', takeIds: ['take_living_room', 'take_beach'] });
+    setScene(p, 0, {
+      layoutId: 'performance_half', takeIds: ['take_living_room', 'take_beach'],
+    });
     setScene(p, secondsToSamples(60), {
-      layoutId: 'full_user', takeIds: ['take_living_room', 'take_beach'],
+      layoutId: 'performance_half', takeIds: ['take_living_room', 'take_beach'],
     });
     const timeline = projectPerformance(p);
     expect(timeline.spans[0]!.takes).toHaveLength(2);
@@ -409,7 +436,7 @@ describe('the timeline the scenes make (S-4)', () => {
      */
     const p = fiveTakes();
     trimTake(p, 'take_beach', 0, secondsToSamples(30));
-    setScene(p, 0, { layoutId: 'full_user', takeIds: ['take_beach'] });
+    setScene(p, 0, { layoutId: 'performance_full', takeIds: ['take_beach'] });
     const timeline = projectPerformance(p);
     expect(timeline.spans[0]!.takes).toEqual([]);
     expect(timeline.spans[0]!.missing).toEqual(['take_beach']);
@@ -419,7 +446,7 @@ describe('the timeline the scenes make (S-4)', () => {
 describe('what a renderable performance must be', () => {
   const ready = () => {
     const p = fiveTakes();
-    setScene(p, 0, { layoutId: 'full_user', takeIds: ['take_living_room'] });
+    setScene(p, 0, { layoutId: 'performance_full', takeIds: ['take_living_room'] });
     return p;
   };
 
@@ -434,7 +461,7 @@ describe('what a renderable performance must be', () => {
 
   it('nor one with song left uncovered', () => {
     const p = fiveTakes();
-    setScene(p, secondsToSamples(60), { layoutId: 'full_user', takeIds: ['take_beach'] });
+    setScene(p, secondsToSamples(60), { layoutId: 'performance_full', takeIds: ['take_beach'] });
     expect(() => assertPerformanceRenderable(p)).toThrow(/no performance on them/);
   });
 
@@ -560,9 +587,9 @@ describe('the environment is a field, never pixels (S-6, §4)', () => {
 describe('the document round-trips', () => {
   it('through JSON unchanged, which is how it is stored', () => {
     const p = fiveTakes();
-    setScene(p, 0, { layoutId: 'full_user', takeIds: ['take_beach'], label: 'Verse 1' });
+    setScene(p, 0, { layoutId: 'performance_full', takeIds: ['take_beach'], label: 'Verse 1' });
     setScene(p, secondsToSamples(60), {
-      layoutId: 'full_user', takeIds: ['take_stage'], label: 'Chorus',
+      layoutId: 'performance_full', takeIds: ['take_stage'], label: 'Chorus',
     });
     nudgeTake(p, 'take_beach', -240);
     setAudioMode(p, 'master_vocal', 'take_studio');
@@ -575,8 +602,8 @@ describe('the document round-trips', () => {
 
   it('and removing a scene leaves the rest where they were', () => {
     const p = fiveTakes();
-    setScene(p, 0, { layoutId: 'full_user', takeIds: ['take_beach'] });
-    setScene(p, secondsToSamples(60), { layoutId: 'full_user', takeIds: ['take_stage'] });
+    setScene(p, 0, { layoutId: 'performance_full', takeIds: ['take_beach'] });
+    setScene(p, secondsToSamples(60), { layoutId: 'performance_full', takeIds: ['take_stage'] });
     const [first] = orderedScenes(p);
     removeScene(p, first!.id);
     expect(orderedScenes(p).map((s) => s.fromSample)).toEqual([secondsToSamples(60)]);

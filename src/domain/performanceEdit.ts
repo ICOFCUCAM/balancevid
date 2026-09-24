@@ -21,7 +21,7 @@
  *   what they say.
  */
 
-import { LAYOUTS } from './presentation.js';
+import { LAYOUTS, takeSlots } from './presentation.js';
 import { newId } from './ids.js';
 import type { TakeId } from './document.js';
 import {
@@ -203,6 +203,18 @@ export function setScene(
   for (const id of scene.takeIds) take(performance, id);
   if (new Set(scene.takeIds).size !== scene.takeIds.length) {
     fail('the same take cannot occupy two panels of one scene');
+  }
+  /*
+   * The arrangement decides how many takes it can hold, and it is asked here
+   * rather than discovered at render time. Three takes in a two-panel scene
+   * is not a preference to interpret — it is a panel that does not exist, and
+   * a silently dropped performance is the kind of thing an author finds after
+   * exporting.
+   */
+  const slots = takeSlots(layout!);
+  if (slots > 0 && scene.takeIds.length !== slots) {
+    fail(`"${layout!.label}" holds ${slots} `
+      + `performance${slots === 1 ? '' : 's'}, not ${scene.takeIds.length}`);
   }
   if (scene.audioMode && !AUDIO_MODES.includes(scene.audioMode)) {
     fail(`unknown audio mode: ${scene.audioMode}`);

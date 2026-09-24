@@ -153,7 +153,16 @@ export function captionStyleFor(
 /** Normalised rect, 0–1 relative to canvas. Resolution independent. [U-12, U-18] */
 export interface Rect { x: number; y: number; w: number; h: number }
 
-export type LayerSource = 'source' | 'user' | 'still' | 'screen' | 'evidence';
+/**
+ * What fills a layer.
+ *
+ * `take` is Studio Two's, and it is the only one that is not a single named
+ * thing: a Conversation has one source and one responder, but a Performance
+ * has as many takes as somebody cared to record, and a layout has to say
+ * WHICH of them goes where without knowing what they are. So a `take` layer
+ * names a SLOT, and the scene fills the slots in order. [STUDIO-TWO §5, §6]
+ */
+export type LayerSource = 'source' | 'user' | 'still' | 'screen' | 'evidence' | 'take';
 
 export interface Layer {
   source: LayerSource;
@@ -174,8 +183,28 @@ export interface Layer {
    * to lose.
    */
   followFocus?: boolean;
+  /**
+   * For a `take` layer: which of the scene's takes goes here, counting from 0.
+   *
+   * The scene says WHO is on screen; the layout says WHERE each of them sits.
+   * Keeping those apart is what makes "the same four people, now in a
+   * two-by-two" a change of one field. [STUDIO-TWO §5, §6, U-18]
+   */
+  slot?: number;
   /** Source audio ducks under the response where both are present. [U-17 §5] */
   duckDb?: number;
+}
+
+/**
+ * How many takes this arrangement expects.
+ *
+ * Asked of the layout rather than stored beside it, so a layout and its
+ * capacity cannot disagree — and so a scene naming three takes for a
+ * two-panel arrangement is caught when it is written rather than when it is
+ * rendered.
+ */
+export function takeSlots(layout: Layout): number {
+  return layout.layers.filter((layer) => layer.source === 'take').length;
 }
 
 export interface Layout {
@@ -206,7 +235,68 @@ export interface Layout {
 
 const FULL: Rect = { x: 0, y: 0, w: 1, h: 1 };
 
+/**
+ * Studio Two's arrangements.  [Doctrine STUDIO-TWO §5, §6, U-18]
+ *
+ * §5 asks for Full Mode and Half Mode "very explicitly", and §6 for several
+ * synchronised takes on screen at once. Neither needs an engine: layouts are
+ * already data, so these are rows, and they inherit `reframe` for free — which
+ * is how §14's four output shapes work without a second set of decisions.
+ *
+ * A note on the quad. Two-by-two is the one arrangement that needs no reframe
+ * at all: four equal panels are four equal panels whatever the shape of the
+ * frame, which is why §6's "all four performers are actually you" survives
+ * being posted vertically.
+ */
+const PERFORMANCE_LAYOUTS: Record<string, Layout> = {
+  performance_full: {
+    id: 'performance_full', label: 'Full',
+    layers: [{ source: 'take', slot: 0, rect: FULL, fit: 'cover', z: 0 }],
+  },
+  performance_half: {
+    id: 'performance_half', label: 'Half and half',
+    backdrop: 'blur',
+    layers: [
+      { source: 'take', slot: 0, rect: { x: 0, y: 0.25, w: 0.5, h: 0.5 }, fit: 'cover', z: 0 },
+      { source: 'take', slot: 1, rect: { x: 0.5, y: 0.25, w: 0.5, h: 0.5 }, fit: 'cover', z: 1 },
+    ],
+    // What is beside becomes above, for the same reason side_by_side reframes:
+    // two wide panels in a tall frame are two postage stamps.
+    reframe: {
+      square: 'performance_half_stacked',
+      portrait: 'performance_half_stacked',
+      tall: 'performance_half_stacked',
+    },
+  },
+  performance_half_stacked: {
+    id: 'performance_half_stacked', label: 'One above the other',
+    backdrop: 'blur',
+    layers: [
+      { source: 'take', slot: 0, rect: { x: 0, y: 0.06, w: 1, h: 0.44 }, fit: 'cover', z: 0 },
+      { source: 'take', slot: 1, rect: { x: 0, y: 0.50, w: 1, h: 0.44 }, fit: 'cover', z: 1 },
+    ],
+  },
+  performance_quad: {
+    id: 'performance_quad', label: 'Four ways',
+    layers: [
+      { source: 'take', slot: 0, rect: { x: 0, y: 0, w: 0.5, h: 0.5 }, fit: 'cover', z: 0 },
+      { source: 'take', slot: 1, rect: { x: 0.5, y: 0, w: 0.5, h: 0.5 }, fit: 'cover', z: 1 },
+      { source: 'take', slot: 2, rect: { x: 0, y: 0.5, w: 0.5, h: 0.5 }, fit: 'cover', z: 2 },
+      { source: 'take', slot: 3, rect: { x: 0.5, y: 0.5, w: 0.5, h: 0.5 }, fit: 'cover', z: 3 },
+    ],
+  },
+  performance_focus: {
+    id: 'performance_focus', label: 'One large, two small',
+    layers: [
+      { source: 'take', slot: 0, rect: FULL, fit: 'cover', z: 0 },
+      { source: 'take', slot: 1, rect: { x: 0.70, y: 0.06, w: 0.26, h: 0.22 }, fit: 'cover', z: 1 },
+      { source: 'take', slot: 2, rect: { x: 0.70, y: 0.32, w: 0.26, h: 0.22 }, fit: 'cover', z: 2 },
+    ],
+  },
+};
+
 export const LAYOUTS: Record<string, Layout> = {
+  ...PERFORMANCE_LAYOUTS,
   full_source: {
     id: 'full_source', label: 'Source full screen',
     layers: [{ source: 'source', rect: FULL, fit: 'cover', z: 0 }],

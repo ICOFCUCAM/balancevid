@@ -2829,6 +2829,123 @@ log('checking the Performance Studio…');
   check((await api(`/api/performances/${perfId}`)).performance.master.class === 'licensed',
     'and the document is left as it was');
 
+  // ---- directing: many takes, one song (§2, §5, §6, §7, §8, §15) --------
+  {
+    // A second take, so there is something to cut between.
+    await page.waitForSelector('[data-testid="start-take"]', { timeout: 40_000 });
+    await page.fill('[data-testid="take-label"]', 'Beach');
+    await page.click('[data-testid="start-take"]');
+    await page.waitForSelector('[data-testid="recording-now"]', { timeout: 25_000 });
+    await sleep(6000);
+    await page.click('[data-testid="stop-take"]');
+
+    let two = null;
+    for (let i = 0; i < 120; i++) {
+      await sleep(1000);
+      const d = await api(`/api/performances/${perfId}`);
+      if (d.performance.takes.filter((t) => t.durationSamples > 0).length === 2) { two = d; break; }
+    }
+    check(Boolean(two), 'a second take lands on the same song');
+
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.waitForSelector('[data-testid="switching-stage"]', { timeout: 30_000 });
+    check(await page.locator('[data-testid="rail-take"]').count() === 2,
+      'both takes appear in the rail, numbered as the keys are');
+
+    /*
+     * §7. The author presses a number while the song plays and a scene is
+     * written onto the master timeline. This is the whole of "directing the
+     * music video live" — and it writes the same object §8 will drag.
+     */
+    await page.click('[data-testid="live-switching"]');
+    await page.click('[data-testid="player-play"]');
+    await sleep(1200);
+    await page.keyboard.press('1');
+    await sleep(2000);
+    await page.keyboard.press('2');
+    await sleep(800);
+
+    let scenes = (await api(`/api/performances/${perfId}`)).performance.scenes;
+    check(scenes.length === 2, 'pressing a number puts that take on the song (§7)',
+      `${scenes.length} scene(s)`);
+    check(scenes.every((sc) => Number.isInteger(sc.fromSample)),
+      'at a moment on the music clock, in whole samples');
+    const ordered = [...scenes].sort((a, b) => a.fromSample - b.fromSample);
+    check(ordered[1].fromSample > ordered[0].fromSample,
+      'and the second cut lands after the first',
+      `${ordered[0].fromSample} then ${ordered[1].fromSample}`);
+    check(ordered.every((sc) => sc.takeIds.length === 1
+      && sc.layoutId === 'performance_full'),
+      'each showing one performance, full frame (§5)');
+
+    check(await page.locator('[data-testid="timeline-scene"]').count() === 2,
+      'and the song is drawn with the scenes cut into it (§2)');
+
+    /*
+     * §8. The same scenes, moved. "Now you can drag the boundaries." One
+     * artefact, two ways in — so there is no switching log to reconcile with
+     * an edit list.
+     */
+    const moveTo = ordered[1].fromSample + 48000;
+    const moved = await sfetch(`${BASE}/api/performances/${perfId}`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'move-scene', sceneId: ordered[1].id, at: moveTo }),
+    });
+    check(moved.status === 200, 'a boundary can be dragged afterwards (§8)');
+    scenes = (await api(`/api/performances/${perfId}`)).performance.scenes;
+    check(scenes.find((sc) => sc.id === ordered[1].id)?.fromSample === moveTo,
+      'and it is the same scene that moved, not a new one');
+    check(scenes.length === 2, 'with no extra scene invented by the edit');
+
+    // Two scenes cannot start at one instant: the order would depend on a
+    // tiebreak rather than on the author.
+    const collide = await sfetch(`${BASE}/api/performances/${perfId}`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'move-scene', sceneId: ordered[1].id,
+        at: ordered[0].fromSample }),
+    });
+    check(collide.status === 400, 'but not onto another one');
+
+    /*
+     * §5 and §6 are rows in the layout table, and the table decides how many
+     * performances an arrangement holds. Three takes in a two-panel scene is
+     * a panel that does not exist.
+     */
+    const takeIds = two.performance.takes.map((t) => t.id);
+    const half = await sfetch(`${BASE}/api/performances/${perfId}`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'set-scene', at: 0,
+        layoutId: 'performance_half', takeIds }),
+    });
+    check(half.status === 200, 'two takes can share the frame (§5 Half Mode)');
+    const tooMany = await sfetch(`${BASE}/api/performances/${perfId}`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'set-scene', at: 0,
+        layoutId: 'performance_full', takeIds }),
+    });
+    check(tooMany.status === 400,
+      'but an arrangement holds only the number of panels it has (§6)');
+
+    // §15: the sections of the song, named.
+    const labelled = await sfetch(`${BASE}/api/performances/${perfId}`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'label-scene',
+        sceneId: ordered[0].id, label: 'Verse 1' }),
+    });
+    check(labelled.status === 200, 'a stretch of the song can be named (§15)');
+    check((await api(`/api/performances/${perfId}`)).performance.scenes
+      .find((sc) => sc.id === ordered[0].id)?.label === 'Verse 1',
+      'and the name is on the scene, not beside it');
+
+    // Starting the edit again costs the edit and never a performance.
+    await page.click('[data-testid="clear-scenes"]');
+    await sleep(800);
+    const cleared = (await api(`/api/performances/${perfId}`)).performance;
+    check(cleared.scenes.length === 0, 'the edit can be thrown away and done again');
+    check(cleared.takes.length === 2,
+      'and the recordings survive it — they are what cost something to make');
+  }
+
   // ---- and none of it is a stranger's -----------------------------------
   for (const path of [`/p/${perfId}`, `/api/performances/${perfId}`,
     `/api/performances/${perfId}/master`, '/api/performances']) {

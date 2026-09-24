@@ -5,6 +5,7 @@ import type { Performance } from '../../../src/domain/performance.js';
 import { MASTER_CLASSES, SPACES, mayPublish } from '../../../src/domain/performance.js';
 import { HOUSE_SAMPLE_RATE, formatMasterPosition } from '../../../src/domain/time.js';
 import { useMasterRecording } from './useMasterRecording.js';
+import SwitchingStage from './SwitchingStage.js';
 
 /**
  * The Performance Studio.  [Doctrine STUDIO-TWO §1, §3, §4, §10, §13]
@@ -286,6 +287,19 @@ export default function PerformanceStudio({ initial }: { initial: Performance })
           <p className="small muted" data-testid="take-notice" style={{ marginTop: 12 }}>
             {notice}
           </p>
+        )}
+
+        {/* ---- directing: many takes, one song (§2, §7, §8, §15) ------ */}
+        {performance.takes.some((t) => t.durationSamples > 0) && (
+          <section style={{ marginTop: 20 }}>
+            <h2 style={{ fontSize: 15, marginBottom: 2 }}>Direct</h2>
+            <p className="small muted" style={{ marginTop: 0, maxWidth: 640 }}>
+              Play the song and press a number to put that take on screen. The
+              song never moves — you are deciding which performance occupies
+              each part of it, and you can drag the boundaries afterwards.
+            </p>
+            <SwitchingStage performance={performance} onChanged={setPerformance} />
+          </section>
         )}
 
         {/* ---- the takes, all on one clock --------------------------- */}
