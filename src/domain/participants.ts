@@ -23,15 +23,28 @@ export type ParticipantId = Id<'part'>;
  *   invited   an invitation exists; nobody has used it yet
  *   waiting   connected, hearing everything, not in the composition
  *   staged    connected AND part of what the viewer sees
- *   left      was here, is not now — kept, because their recordings are
  *
- * `left` is not in the brief's list of three, and it is not a fourth state of
- * the same kind: the brief describes who is in the room, and this records
- * that someone was. A participant who leaves cannot be deleted — their takes
- * are in the conversation and the finished video is made from them — so the
- * alternative to naming this state is a "connected" flag that lies.
+ * The brief's three, and exactly three — DERIVED, never stored.
+ *
+ * The first attempt stored this as a field and had to invent a fourth value,
+ * `left`, for someone who had gone: they are not invited, not waiting and not
+ * staged, and they cannot simply be deleted because their recordings are in
+ * the conversation and the finished video is made from them. A fourth value
+ * in a three-value vocabulary is a sign the vocabulary is describing two
+ * different things at once.
+ *
+ * It was. Presence is a fact about TIME — invited when, joined when, left
+ * when — and staging is a decision about the COMPOSITION, which belongs to
+ * the room because "who is on stage" is one fact about the picture, not a
+ * flag on each person. Store those, and the brief's three states fall out of
+ * them with nothing left over. Having gone is then not a state at all; it is
+ * `leftAt` being set.
+ *
+ * This is the same discipline the conversation already keeps for order (U-08)
+ * and for every representation (INV-00): store what happened, derive what
+ * follows.
  */
-export type ParticipantState = 'invited' | 'waiting' | 'staged' | 'left';
+export type ParticipantState = 'invited' | 'waiting' | 'staged';
 
 /**
  * What someone may do.  [ROOM §3, §8]
@@ -51,7 +64,6 @@ export interface Participant {
   /** What they are called on screen. Theirs to set, not generated. */
   displayName: string;
   role: ParticipantRole;
-  state: ParticipantState;
   /**
    * The colour that identifies them everywhere.  [U-20]
    *
@@ -82,12 +94,43 @@ export interface Participant {
 
 /** Connected: in the room, whether or not the viewer can see them. */
 export function inRoom(participant: Participant): boolean {
-  return participant.state === 'waiting' || participant.state === 'staged';
+  return Boolean(participant.joinedAt) && !participant.leftAt;
 }
 
-/** In the composition — what the viewer actually sees. [ROOM §4] */
-export function onStage(participant: Participant): boolean {
-  return participant.state === 'staged';
+/**
+ * Was here, is not now.
+ *
+ * Not a state — a fact about their timestamps. They keep everything else:
+ * their name, their colour and above all their takes, which the finished
+ * video is made from whether or not they are still in the room.
+ */
+export function hasLeft(participant: Participant): boolean {
+  return Boolean(participant.joinedAt) && Boolean(participant.leftAt);
+}
+
+/**
+ * In the composition — what the viewer actually sees.  [ROOM §4]
+ *
+ * Asked of the ROOM, because who is on stage is one decision about the
+ * picture rather than a flag each person carries. Two people cannot disagree
+ * about whether one of them is on screen.
+ */
+export function onStage(participant: Participant, stagedIds: readonly string[]): boolean {
+  return inRoom(participant) && stagedIds.includes(participant.id);
+}
+
+/**
+ * The brief's three states, derived.  [ROOM §4]
+ *
+ * Someone who has left is none of the three, and says so: `undefined` rather
+ * than a fourth name for a thing that is not a presence.
+ */
+export function presenceOf(
+  participant: Participant, stagedIds: readonly string[] = [],
+): ParticipantState | undefined {
+  if (hasLeft(participant)) return undefined;
+  if (!participant.joinedAt) return 'invited';
+  return stagedIds.includes(participant.id) ? 'staged' : 'waiting';
 }
 
 /**
@@ -104,6 +147,11 @@ export function hostOf(participants: Participant[]): Participant | undefined {
 /** Those the floor can be given to: present, and permitted to be seen. */
 export function stageable(participants: Participant[]): Participant[] {
   return participants.filter((p) => inRoom(p) && p.role !== 'audience');
+}
+
+/** Everyone whose recordings the conversation holds, present or not. */
+export function everyoneWhoSpoke(participants: Participant[]): Participant[] {
+  return participants.filter((p) => Boolean(p.joinedAt));
 }
 
 /** Hands up, oldest first, because the first to ask should be the first asked. */

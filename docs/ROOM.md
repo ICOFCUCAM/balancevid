@@ -434,25 +434,85 @@ single packet moves.
   multi-person adds is per-participant highlights, which need Stage 2's data
   before they can be cut.
 
-**R-C — additions and stated conflicts.**
+**R-C — the three open questions, resolved.**
 
-1. **A fourth participant state, `left`.** The brief names three. A
-   participant who leaves cannot simply stop existing: their takes are in the
-   conversation and the finished video is made from them (§10). The
-   alternative was a `connected` boolean that lies about people who are gone.
-   Recorded here rather than folded silently into the three.
+All three are closed. Each was resolved by changing the design rather than by
+adding to it, and each resolution removed something.
 
-2. **No accounts yet.** The brief says participants "don't necessarily need a
-   Prof Class account initially", which this build can honour — but the
-   product currently has ONE password and no identity at all, so a guest and
-   the owner are indistinguishable to the server. Stage 2 cannot issue a
-   working invitation without deciding this. Proposed: the invite token
-   identifies the ROOM, and a joiner claims a participant record with a
-   display name; that is enough for presence and attribution, and stops short
-   of accounts.
+1. **There is no fourth state. The brief's three are DERIVED.**
 
-3. **`speakerMode` is stored on the conversation, not held in a browser.**
-   §10 requires that automatic switching can be changed to manual after the
-   discussion without re-recording. A setting that lived only in the live
-   session could not be changed afterwards, so it is a field of the document.
+   The first attempt stored `state` on each participant and had to invent
+   `left` for someone who had gone — not invited, not waiting, not staged,
+   and not deletable either, because their takes are in the conversation and
+   the finished video is made from them. A fourth value in a three-value
+   vocabulary meant the vocabulary was describing two things at once.
+
+   It was. Presence is a fact about TIME (`invitedAt`, `joinedAt`, `leftAt`)
+   and staging is a decision about the COMPOSITION, which belongs to the room
+   — `stagedParticipantIds` — because who is on stage is one fact about the
+   picture, not a flag each person carries that two records can disagree
+   about. `presenceOf()` returns the brief's three and nothing else; having
+   gone returns `undefined`, because it is the absence of a presence rather
+   than a kind of one. Same discipline the conversation already keeps for
+   order (U-08) and every representation (INV-00): store what happened,
+   derive what follows.
+
+2. **Identity: a capability link, exchanged for a scoped session.**
+
+   The brief's requirement — joining over a forwarded WhatsApp link, with no
+   account — is a capability URL, which is a sound model if what it grants is
+   small, scoped and revocable. There are now two credentials, and they are
+   different kinds of thing:
+
+   - **The owner's session** is signed from the password hash and reaches
+     everything, as before.
+   - **A guest's session** (`src/auth/guest.ts`) names ONE conversation and
+     ONE participant, both inside the signature rather than beside it, and is
+     signed from *that room's invite token*. Rotating the token therefore
+     ends every guest session in that room — including people already inside,
+     which is what "withdraw the invitation" has to mean — and ends nothing
+     anywhere else. It expires at 12 hours.
+
+   `Access` gains `participant`, and what that tier may do is an allowlist of
+   ACTS in one readable place (`guestMay`): be present, raise a hand, record
+   themselves, watch the source. It may not edit the conversation, move
+   anchors, attach evidence, publish, export, or learn that another
+   conversation exists. The asymmetry is the product's position, not a
+   limitation: a guest contributes to a conversation rather than co-owning
+   it, and widening that will be an explicit role rather than a looser
+   default.
+
+   Twenty-one tests attack it: a cookie rewritten to name another
+   conversation, another participant, a later expiry; a session from one room
+   presented to another; a rotated token; malformed input. Each must fail
+   closed, and does.
+
+   This stops short of accounts, and deliberately: accounts are a product
+   decision about who owns what across conversations, and nothing here
+   forecloses it.
+
+3. **`speakerMode` on the document — and the stage history needs no field
+   at all.**
+
+   Placement was already right: §10 requires changing automatic to manual
+   after the discussion, and a setting living in a browser session would be
+   gone by then. Tested, along with the §9 boundary — the plan carries no
+   mode, no pin and no invite token.
+
+   The substantive half was whether §10 is fully satisfied, which needs the
+   record of WHO HELD THE STAGE WHEN to be editable afterwards. The instinct
+   was a `stageHistory` on the room. It is not needed, and adding it would
+   have been a fourth field declared and never read — a mistake this codebase
+   has now shipped three times (the provider's oEmbed URL, `verticalLayoutId`,
+   `LayerSource: 'screen'`).
+
+   **The stage history already exists: it is the interventions.** A live room
+   does not produce a log of switches alongside the turns — each switch IS
+   someone taking a turn, and a turn is an intervention, anchored on the
+   source clock (U-08) and naming its participant. So "change automatic
+   switching to manual" is editing the conversation, which is the one thing
+   this product has always been able to do. Proved: reassign a turn to
+   another speaker, and the plan's speakers change, the plan hash changes so
+   the shot cache cannot serve the old cut (U-16), and every take id, asset
+   and duration is byte-identical.
 

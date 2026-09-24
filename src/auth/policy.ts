@@ -104,3 +104,55 @@ const PUBLIC_REPRESENTATIONS = new Set([
 export function isPublicRepresentation(id: string | null): boolean {
   return id !== null && PUBLIC_REPRESENTATIONS.has(id);
 }
+
+/**
+ * What a guest in the room may do.  [Doctrine ROOM §4, §6, §12, D-03]
+ *
+ * An allowlist of ACTS, not of paths, because the question "may Sarah do
+ * this?" should have one answer written in one place that a person can read
+ * and audit. A guest was let in by a link somebody forwarded; the reasonable
+ * assumption is that they are who they say and nothing more.
+ *
+ * What they may do is bounded by two ideas:
+ *
+ *   THEIR OWN VOICE      they can be present, raise a hand, and record
+ *                        themselves. Their takes are theirs.
+ *   NOT THE AUTHOR'S WORK they cannot edit the conversation, move anyone's
+ *                        anchors, attach evidence, publish, export, or learn
+ *                        that any other conversation exists.
+ *
+ * The asymmetry is deliberate and it is the product's position, not a
+ * limitation: the conversation belongs to whoever opened it, and a guest
+ * contributes to it rather than co-owning it. When that should change it
+ * will be an explicit role, not a widened default.
+ */
+export type RoomAct =
+  | 'room.read'          // see who is here and what is on screen
+  | 'room.presence'      // say I am here, or that I have left
+  | 'room.raise-hand'    // ask for the floor [ROOM §8]
+  | 'take.own.create'    // record myself
+  | 'take.own.upload'    // send my own chunks
+  | 'source.watch';      // see the video everyone is discussing
+
+const GUEST_MAY: ReadonlySet<RoomAct> = new Set<RoomAct>([
+  'room.read', 'room.presence', 'room.raise-hand',
+  'take.own.create', 'take.own.upload', 'source.watch',
+]);
+
+export function guestMay(act: RoomAct): boolean {
+  return GUEST_MAY.has(act);
+}
+
+/**
+ * Acts a guest must never reach, named so the test can assert on them.
+ *
+ * Kept as a list rather than "everything not in GUEST_MAY" because the point
+ * of writing them down is that somebody adding a route tomorrow sees the
+ * shape of what is being protected.
+ */
+export const OWNER_ONLY = [
+  'conversation.edit', 'conversation.delete', 'intervention.move',
+  'evidence.attach', 'annotation.draw', 'layout.set', 'publish',
+  'render', 'clips.make', 'bundle.read', 'conversations.list',
+  'room.open', 'room.close', 'room.stage', 'room.remove-participant',
+] as const;

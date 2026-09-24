@@ -415,6 +415,18 @@ export interface Room {
   speakerMode: 'automatic' | 'manual' | 'host' | 'conversation';
   /** Set by hand; overrides the microphones until cleared. [ROOM §3] */
   pinnedParticipantId?: ParticipantId;
+  /**
+   * Who is in the composition right now.  [ROOM §4]
+   *
+   * On the ROOM and not on each participant, because "who is on stage" is one
+   * decision about the picture. A flag per person is a way for two records to
+   * disagree about whether one of them is on screen, and there is no correct
+   * answer when they do.
+   *
+   * A list rather than a single id: a layout may hold two or three people at
+   * once, and the brief's §11 asks for a three-person cut.
+   */
+  stagedParticipantIds?: ParticipantId[];
 }
 
 /** How deep in a response chain this sits. The root is 0. */
