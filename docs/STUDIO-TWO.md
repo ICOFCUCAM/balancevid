@@ -744,4 +744,66 @@ one with no visible result.
 
 ---
 
+## S-13 — Stage 1, built
+
+**The document, the clock, the scenes and the rights class.** No interface, no
+renderer, nothing on screen. 47 tests.
+
+| Built | Where |
+|---|---|
+| `t_master`, in samples | `src/domain/time.ts` |
+| The Performance, takes, scenes, environments | `src/domain/performance.ts` |
+| Switching, dragging, trimming, classifying | `src/domain/performanceEdit.ts` |
+| INV-14, INV-15, and what makes a Performance renderable | `src/domain/invariants.ts` |
+
+**One boundary moved, and the reason.** Stage 1 was written as "tests prove
+that a scene list renders to a plan". It delivers the TIMELINE instead — the
+projection a plan is built from — and stops there. A performance shot is a
+third kind of shot beside `source` and `response`, carrying several takes and a
+layout, and that is a decision about the compositor rather than about the
+document. Studio One keeps `projectTimeline` and `planFromTimeline` apart for
+exactly this reason: the projection is arithmetic over the document and can be
+tested with no renderer anywhere near it. The plan belongs to the stage that
+renders.
+
+**What the stage taught.**
+
+1. **Asking whether a take covers a MOMENT is not asking whether it covers a
+   SCENE.** The first projection checked each take against the first sample of
+   the span it was in. A take that starts a scene and runs out halfway through
+   passed as though it had covered the whole thing — the rest would have
+   rendered black with nothing having complained. It was found by a test that
+   expected a complaint and got silence, which is the only reliable way to
+   find this class of defect: **assert on the refusal, not only on the
+   acceptance.** The check is `coversSpan` now, end to end.
+
+2. **The order of two true diagnostics is a product decision.** A scene naming
+   one take that does not reach it satisfies both "this scene shows nobody"
+   and "a take you named does not reach all of this". Both are accurate; only
+   the second is useful, because the author DID name a take and needs to know
+   which one and what to do. The specific check runs first and the general one
+   is now only reachable by a document something else edited. **An error
+   message that is true and unhelpful is a bug with a passing test.**
+
+3. **A nudge is not a correction to a measurement, it is a separate fact.**
+   Storing the author's sync adjustment in the same field as the measured
+   offset means a re-measure silently discards a human's fix. Kept apart, a
+   re-measure is safe, and the difference between the two is the feedback that
+   says how good the automatic alignment actually is.
+
+4. **The rights class had to be a field before anything else existed.** It is
+   the one thing that cannot be added later without invalidating work people
+   have already done — a library of performances made against unclassified
+   music is a library nobody can publish and nobody can fix in bulk. Stage 1
+   is the right place for it precisely because there is nothing to migrate
+   yet.
+
+**Deliberately not built yet, and named so it is not mistaken for done:** the
+plan and the renderer (Stage 2), latency calibration and the leakage warning
+(Stage 2, and they are the difference between takes that line up and takes
+that nearly do), the environment matte (Stage 4), beat detection (Stage 5),
+and §12's interface, which is still an open item.
+
+---
+
 *Appendix S ends. The brief above it is unedited.*

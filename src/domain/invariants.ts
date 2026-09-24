@@ -8,6 +8,10 @@
 import { type Conversation, orderedInterventions, selectedTake } from './document.js';
 import { quoteHash } from './ids.js';
 import type { SourceItem, Timeline } from './timeline.js';
+import {
+  type Performance, mayPublish, needsLicenceNote, projectPerformance,
+} from './performance.js';
+import { formatMasterPosition } from './time.js';
 
 export class InvariantViolation extends Error {
   constructor(readonly invariant: string, message: string) {
@@ -111,5 +115,149 @@ export function assertDocumentIntegrity(conversation: Conversation): void {
         fail('INV-12', `take ${take.id} claims more pre-roll than it has media`);
       }
     }
+  }
+}
+
+/* ------------------------------------------------------------------------ *
+ *  The Performance.  [STUDIO-TWO S-2, S-4, S-9]
+ * ------------------------------------------------------------------------ */
+
+/**
+ * INV-14 — every take's alignment to the master is in samples, measured, and
+ *          never silently resampled.
+ *
+ * The music clock is finer than the picture clock, and deliberately: one frame
+ * at 30fps is 33 milliseconds, and 33 milliseconds on a snare is the
+ * difference between a performance and an amateur one. So the alignment is not
+ * allowed to be a rounded frame count wearing a sample's name, and a rate
+ * ratio far from 1 is a measurement that went wrong rather than a clock that
+ * drifted — real drift is parts per million, not parts per hundred.
+ */
+export function assertAlignmentInvariants(performance: Performance): void {
+  for (const take of performance.takes) {
+    const { alignment } = take;
+    if (!Number.isInteger(alignment.offsetSamples)) {
+      fail('INV-14', `take ${take.id} has a fractional offset (${alignment.offsetSamples})`);
+    }
+    if (alignment.nudgeSamples !== undefined && !Number.isInteger(alignment.nudgeSamples)) {
+      fail('INV-14', `take ${take.id} has a fractional nudge (${alignment.nudgeSamples})`);
+    }
+    if (!Number.isInteger(take.durationSamples) || take.durationSamples <= 0) {
+      fail('INV-14', `take ${take.id} has no measured duration (${take.durationSamples})`);
+    }
+    if (!Number.isFinite(alignment.rateRatio) || alignment.rateRatio <= 0) {
+      fail('INV-14', `take ${take.id} has an impossible rate ratio (${alignment.rateRatio})`);
+    }
+    /*
+     * A clock that differs from the master by more than a thousandth is not
+     * drifting, it is a different sample rate that ingest failed to
+     * normalise. Catching it here turns a video that slides out of sync over
+     * four minutes into an error at the moment the take is added.
+     */
+    if (Math.abs(alignment.rateRatio - 1) > MAX_PLAUSIBLE_DRIFT) {
+      fail('INV-14',
+        `take ${take.id} claims a rate ratio of ${alignment.rateRatio}, which is a `
+        + 'resampling error rather than clock drift');
+    }
+  }
+}
+
+/** A thousandth. Real drift is parts per million; this is generous. */
+const MAX_PLAUSIBLE_DRIFT = 0.001;
+
+/**
+ * INV-15 — no published export contains a master track the author has not
+ *          declared they may publish.
+ *
+ * INV-01's shape, applied to music. A `third_party` master performs,
+ * rehearses, previews and exports privately; it does not leave the building.
+ * Asserted at the point of export rather than trusted to an interface,
+ * because an interface is one refactor away from not being in the path.
+ */
+export function assertPublishable(performance: Performance): void {
+  if (!mayPublish(performance.master)) {
+    fail('INV-15',
+      `"${performance.master.title}" is not marked as something you may publish. `
+      + 'You can perform and export privately against it; publishing needs a '
+      + 'track you own, hold a licence for, or that is openly licensed.');
+  }
+  if (needsLicenceNote(performance.master) && !performance.master.licence?.trim()) {
+    fail('INV-15',
+      `"${performance.master.title}" is marked ${performance.master.class} but does `
+      + 'not say what permits it. Name the licence.');
+  }
+}
+
+/**
+ * A scene list a renderer can actually execute.
+ *
+ * Not one invariant but the set of things that make a Performance renderable,
+ * checked together because an author is better served by being told all of
+ * what is wrong than the first thing.
+ */
+export function assertPerformanceRenderable(performance: Performance): void {
+  const timeline = projectPerformance(performance);
+
+  if (timeline.spans.length === 0) {
+    fail('INV-03', 'this performance has no scenes, so there is nothing to render');
+  }
+
+  /*
+   * A gap is a stretch of song with no picture. Legal while composing — the
+   * timeline exists to be looked at while it is incomplete — and not
+   * renderable, because the alternative is exporting black and calling it
+   * finished.
+   */
+  if (timeline.gaps.length > 0) {
+    const first = timeline.gaps[0]!;
+    fail('INV-03',
+      `${timeline.gaps.length} stretch(es) of the song have no performance on them — `
+      + `the first from ${formatMasterPosition(first.fromSample)} to `
+      + `${formatMasterPosition(first.toSample)}`);
+  }
+
+  for (const span of timeline.spans) {
+    /*
+     * Named but absent, checked BEFORE the empty case, because when a scene
+     * names one take that does not reach it both are true and this is the one
+     * that says something the author can act on. "Names no take" would be
+     * accurate and unhelpful: they did name one.
+     */
+    if (span.missing.length > 0) {
+      const where = formatMasterPosition(span.fromSample);
+      const to = formatMasterPosition(span.toSample);
+      fail('INV-03',
+        `the scene from ${where} to ${to} expects ${span.scene.takeIds.length} `
+        + `performance(s), but ${span.missing.join(', ')} do not reach all of it — `
+        + 'either move the scene boundary or extend the take');
+    }
+    /*
+     * An empty scene. `setScene` refuses to make one, so reaching this means
+     * a document that was edited by something else — which is exactly when an
+     * invariant earns its place.
+     */
+    if (span.takes.length === 0) {
+      fail('INV-03',
+        `the scene at ${formatMasterPosition(span.fromSample)} shows nobody`);
+    }
+  }
+
+  // INV-02, on the output clock: the spans must tile it with no gap or overlap.
+  let expected = 0;
+  for (const span of timeline.spans) {
+    if (span.outputStartFrame !== expected) {
+      fail('INV-02',
+        `the scene at ${formatMasterPosition(span.fromSample)} starts at output frame `
+        + `${span.outputStartFrame}, but the one before it ends at ${expected}`);
+    }
+    expected += span.durationFrames;
+  }
+  if (expected !== timeline.totalOutputFrames) {
+    fail('INV-03',
+      `the scenes run ${expected} frames but the song is ${timeline.totalOutputFrames}`);
+  }
+
+  if (performance.audio.mode === 'master_vocal' && !performance.audio.vocalTakeId) {
+    fail('INV-03', 'the master vocal mode is chosen but no take has been named as the vocal');
   }
 }
