@@ -565,3 +565,74 @@ already inside.
    title, not the source, not whether the conversation exists. A page that
    showed a title for a good id and an error for a bad one would be a way to
    test ids.
+
+## Stage 3 — live: each participant records themselves, and real voices switch the stage
+
+**The split this stage is built on.** WebRTC turned out not to be on the
+critical path, and saying why is the substance of the stage. The two things
+that determine the finished video are WHO WAS ON STAGE and WHAT THEY SAID.
+Neither needs media to travel between browsers:
+
+- Each browser records ITSELF, in rolling segments, and uploads them — the
+  path the host's own recording has always taken (U-06). Nothing is mixed
+  live, which is exactly what §10 asks for.
+- Each browser measures ITS OWN microphone and posts two numbers. No audio
+  is sent for this.
+
+So a seminar in one physical room, everyone on their own phone, already
+works completely. WebRTC is for seeing and hearing each other *live* — a
+comfort during the conversation, absent from the video afterwards. That is
+why it is last rather than first, and the SFU decision the brief defers stays
+deferred without blocking anything.
+
+**Done.**
+
+- **§2 real voice activity** — `src/domain/voice.ts`, a pure function over a
+  spectrum, with 16 tests driven by synthetic rooms: mains hum, an extractor
+  fan, white noise, a keyboard click, a vowel. Two signals, and both are
+  required: WHERE the energy sits (the 300–3400 Hz speech band, which hum is
+  below and hiss is above) and WHETHER IT MOVES (spectral flux, which
+  separates a talkative room from a merely noisy one — a fan is the same
+  spectrum second after second). The geometric mean of the two punishes a low
+  score in either, so a fan in band and a broadband slam both fail. A voice
+  scores over three times a fan of the same loudness. The noise floor tracks
+  the room, rising slowly and falling quickly, so a burst does not become the
+  new normal and a quiet room hears a soft voice again.
+- **§2, §9 the server decides** — `/room/voice` takes a reading, runs the
+  policy built in Stage 1, and writes only when the stage actually moves.
+  Every browser running its own policy would reach its own conclusion, and
+  the composition would differ between the people watching it; there is one
+  stage because there is one decision. The live hysteresis is in memory
+  deliberately — it is the state of a moment and means nothing an hour later;
+  what outlives the room is the turns people took, which are interventions.
+- **§10 independent recording** — a guest who has been staged records
+  themselves. Their turn is an intervention attributed BY THE SERVER from
+  their signed session; there is no field in the request to claim one.
+
+**R-E — what this stage cost, and one hole it opened.**
+
+1. **A path-only allowance is not a rule.** Letting a staged guest POST to
+   `/interventions` was written as a path, and that path also answers DELETE
+   — so for one build, a guest could have deleted the author's responses. The
+   allowance is `{ method, path }` now, and the DELETE handler checks the
+   owner for itself rather than trusting middleware. Both layers, which is
+   the discipline this codebase already claimed to keep. **A rule that names a
+   route without naming what may be done to it is not a rule about
+   anything.**
+
+2. **A refusal moved layers, and the answer improved.** A stranger POSTing to
+   a published conversation used to get 401 from middleware and now gets 404
+   from the route. That is not a weakening: 404 is what they get for a
+   conversation that does not exist, so a real one and an imaginary one now
+   answer identically, where 401 said "this is real, you are not allowed"
+   (D-03). The end-to-end run asserts the two answers match.
+
+3. **Routes that gained authorisation broke tests that had none.** Handlers
+   called directly in unit tests were relying on "it reached the handler" and
+   "it is the owner" being the same statement. They are not, now that a guest
+   can record. Those tests present an owner session, which is what a browser
+   does.
+
+**Still Stage 4: WebRTC and the SFU**, exactly as the brief scopes it —
+seeing and hearing each other live, which the finished video does not depend
+on.

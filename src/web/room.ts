@@ -7,6 +7,7 @@
  * told. Two of them would eventually disagree, and the thing they would
  * disagree about is a credential.
  */
+import type { Caller } from '../auth/request.js';
 import type { Conversation } from '../domain/document.js';
 import { inRoom, presenceOf, raisedHands } from '../domain/participants.js';
 
@@ -57,4 +58,48 @@ export function roomView(
  */
 export function joinUrl(origin: string, conversationId: string, token: string): string {
   return `${origin}/r/${conversationId}?t=${encodeURIComponent(token)}`;
+}
+
+/**
+ * May this caller record into this conversation?  [Doctrine ROOM §10, D-03]
+ *
+ * A guest records THEMSELVES, and that is the whole of it. The permission is
+ * not "may write takes" but "may write takes that are theirs", which is a
+ * different question and the only safe one: a take belongs to an
+ * intervention, and an intervention names a participant.
+ *
+ * Two rules, both necessary:
+ *
+ *   The participant id comes from the SIGNED SESSION, never from the request.
+ *   Nothing a guest sends can name somebody else.
+ *
+ *   They must be on stage. Being in the room is being able to hear (§4); a
+ *   room where anyone may start recording into the finished video whenever
+ *   they like is not one a host controls.
+ */
+
+export function mayRecord(conversation: Conversation, caller: Caller): boolean {
+  if (caller.access === 'owner') return true;
+  if (caller.access !== 'participant' || !caller.participantId) return false;
+  const staged: readonly string[] = conversation.room?.stagedParticipantIds ?? [];
+  return Boolean(conversation.room?.open) && staged.includes(caller.participantId);
+}
+
+/**
+ * May this caller write to this take?
+ *
+ * Owner: yes. Guest: only if the take hangs off an intervention that names
+ * them. A take id is guessable in principle and forwarded in practice, so
+ * this is checked on every chunk rather than trusted from whoever created it.
+ */
+export function mayWriteTake(
+  conversation: Conversation, takeId: string, caller: Caller,
+): boolean {
+  if (caller.access === 'owner') return true;
+  if (!mayRecord(conversation, caller)) return false;
+  const owning = conversation.interventions.find(
+    (intervention) => intervention.takes.some((take) => take.id === takeId));
+  // A take nobody owns yet is the one being created right now, by them.
+  if (!owning) return false;
+  return owning.participantId === caller.participantId;
 }

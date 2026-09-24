@@ -1015,6 +1015,21 @@ log('checking the conversation room…');
   check(!sarahSees.includes(inviteToken),
     'and a guest is never handed the credential that let them in');
 
+  /*
+   * Waiting means waiting. Being in the room is being able to HEAR (§4); a
+   * room where anybody may put themselves into the finished video whenever
+   * they like is not one a host controls.
+   */
+  const beforeStaged = await sarah.evaluate(async (cid) => {
+    const r = await fetch(`/api/conversations/${cid}/interventions`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ tSourceFrame: 60, type: 'explain' }),
+    });
+    return r.status;
+  }, conversationId);
+  check(beforeStaged >= 400,
+    'and cannot record into the video until the host brings her in', `${beforeStaged}`);
+
   // ---- she asks to speak, and is brought in [ROOM §8] -----------------
   await sarah.click('[data-testid="raise-hand"]');
   await sarah.waitForTimeout(600);
@@ -1074,10 +1089,6 @@ log('checking the conversation room…');
     'nor the render plan');
   check(await asSarah(`/api/conversations/${conversationId}`, { method: 'DELETE' }) >= 400,
     'nor delete the conversation');
-  check(await asSarah(`/api/conversations/${conversationId}/interventions`, {
-    method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ tSourceFrame: 10, type: 'critique' }),
-  }) >= 400, 'nor add a response to it');
   check(await asSarah(`/api/conversations/${conversationId}/renders`, {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ kind: 'full' }),
@@ -1098,6 +1109,130 @@ log('checking the conversation room…');
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ action: 'lower-hand' }),
   }) === 200, 'and put her own hand down');
+
+  /*
+   * ---- recording, per participant (ROOM §10) ---------------------------
+   *
+   * "Record each participant's media independently." Each browser records
+   * ITSELF and uploads chunks; nothing is mixed live. So the two things that
+   * decide the finished video — who was on stage, and what they said — need
+   * no media transport between browsers at all.
+   */
+  {
+    // Sarah is staged, so she may record. Her turn is attributed by the
+    // SERVER from her session; there is no field in the body to claim one.
+    const started = await sarah.evaluate(async (cid) => {
+      const r = await fetch(`/api/conversations/${cid}/interventions`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ tSourceFrame: 240, type: 'explain' }),
+      });
+      return { status: r.status, body: await r.json().catch(() => ({})) };
+    }, conversationId);
+    check(started.status === 201, 'a staged guest can begin a turn', `${started.status}`);
+
+    const doc = (await api(`/api/conversations/${conversationId}`)).conversation;
+    const hers = doc.interventions.find((iv) => iv.id === started.body.interventionId);
+    check(hers?.participantId === sarahRecord.id,
+      'and it is attributed to her, from her session rather than her request',
+      `${hers?.participantId}`);
+
+    // A chunk of her own take is hers to send.
+    const mine = await sarah.evaluate(async ([cid, takeId]) => {
+      const r = await fetch(`/api/conversations/${cid}/takes/${takeId}/chunks?index=0`,
+        { method: 'POST', body: new Blob(['not really video']) });
+      return r.status;
+    }, [conversationId, started.body.takeId]);
+    check(mine === 202, 'she can upload her own recording', `${mine}`);
+
+    /*
+     * And somebody else's is not. The take id travels in a URL and is the
+     * only thing distinguishing one upload from another, so this is checked
+     * on every chunk rather than trusted from whoever made the take.
+     */
+    const hostTake = doc.interventions.find((iv) => !iv.participantId)?.takes?.[0]?.id;
+    check(Boolean(hostTake), 'the host has a take of their own to try against');
+    const theirs = await sarah.evaluate(async ([cid, takeId]) => {
+      const r = await fetch(`/api/conversations/${cid}/takes/${takeId}/chunks?index=99`,
+        { method: 'POST', body: new Blob(['intrusion']) });
+      return r.status;
+    }, [conversationId, hostTake]);
+    check(theirs >= 400, 'and cannot upload into somebody else\'s recording', `${theirs}`);
+
+    // Nor delete the author's work — the same path answers POST for her.
+    const deleted = await sarah.evaluate(async ([cid, ivnId]) => {
+      const r = await fetch(`/api/conversations/${cid}/interventions?interventionId=${ivnId}`,
+        { method: 'DELETE' });
+      return r.status;
+    }, [conversationId, doc.interventions[0].id]);
+    check(deleted >= 400,
+      'and cannot delete a response, though she may POST to the same path', `${deleted}`);
+
+    // Tidy her turn away; the sections after this count interventions.
+    await sfetch(
+      `${BASE}/api/conversations/${conversationId}/interventions` +
+      `?interventionId=${started.body.interventionId}`, { method: 'DELETE' });
+  }
+
+  /*
+   * ---- real microphones drive the policy (ROOM §2, §9) ------------------
+   *
+   * Each browser measures its own microphone and posts two numbers; the
+   * server runs the switching policy. No audio is sent, and the decision is
+   * made in one place so that everyone watching sees the same stage.
+   */
+  {
+    await sfetch(`${BASE}/api/conversations/${conversationId}/room`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'speaker-mode', speakerMode: 'automatic' }),
+    });
+
+    const speak = async (energy, confidence) => sarah.evaluate(
+      async ([cid, e, c]) => {
+        const r = await fetch(`/api/conversations/${cid}/room/voice`, {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ energy: e, speechConfidence: c }),
+        });
+        return r.json();
+      }, [conversationId, energy, confidence]);
+
+    // A cough: loud, brief, and not enough to move anything.
+    const cough = await speak(0.95, 0.9);
+    check(cough.active !== undefined, 'a microphone reading is accepted');
+    check(cough.changed === false,
+      'and one loud instant does not move the stage — a cough is not a turn');
+
+    // Sustained speech, past the minimum duration, does.
+    let last = cough;
+    for (let i = 0; i < 14; i++) { last = await speak(0.8, 0.9); await sleep(80); }
+    check(last.active === sarahRecord.id,
+      'sustained speech gives her the floor', `${last.reason}`);
+
+    // A guest cannot report about anybody but themselves: there is no field
+    // for it, and the server reads the signed session instead.
+    const forged = await sarah.evaluate(async ([cid, other]) => {
+      const r = await fetch(`/api/conversations/${cid}/room/voice`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ participantId: other, energy: 0.99, speechConfidence: 0.99 }),
+      });
+      return (await r.json()).active;
+    }, [conversationId, room.participants.find((p) => p.role === 'host').id]);
+    check(forged === sarahRecord.id,
+      'and a reading claiming to be somebody else is still read as its sender');
+
+    // A pin outranks every microphone, live as well as in the policy's tests.
+    await sfetch(`${BASE}/api/conversations/${conversationId}/room`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'pin', pinned: room.participants.find(
+        (p) => p.role === 'host').id }),
+    });
+    const pinnedLive = await speak(0.95, 0.95);
+    check(pinnedLive.active !== sarahRecord.id,
+      'a pin outranks the microphones while it holds', `${pinnedLive.reason}`);
+    await sfetch(`${BASE}/api/conversations/${conversationId}/room`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'pin', pinned: null }),
+    });
+  }
 
   // ---- withdrawing the invitation withdraws it [ROOM §6] ---------------
   const rotated = await (await sfetch(`${BASE}/api/conversations/${conversationId}/room`, {
@@ -2066,10 +2201,50 @@ for (const id of ['render-plan.json', 'timeline.json', 'bundle.json']) {
 }
 check((await raw(`/c/${conversationId}`)).status === 307,
   'and not the studio, which is where the drafts are');
-check((await raw(`/api/conversations/${conversationId}/interventions`, {
-  method: 'POST', headers: { 'content-type': 'application/json' },
-  body: JSON.stringify({ tSourceFrame: 1, type: 'critique' }),
-})).status === 401, 'a stranger still cannot change what was published');
+/*
+ * A stranger still cannot change what was published.
+ *
+ * The REFUSAL moved layers and the check moved with it. This path now accepts
+ * POST from a guest the host has staged (ROOM §10), so middleware no longer
+ * turns it away wholesale and the route decides — which is the arrangement
+ * this codebase uses everywhere else: middleware says which routes may
+ * decide, the route decides.
+ *
+ * The answer is 404 rather than 401, and that is not a weakening: 404 is what
+ * a stranger gets for a conversation that does not exist, so a published one
+ * and an imaginary one now answer identically. The old 401 said "this is
+ * real, you are not allowed" (D-03).
+ */
+{
+  const refused = await raw(`/api/conversations/${conversationId}/interventions`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ tSourceFrame: 1, type: 'critique' }),
+  });
+  check(refused.status >= 400, 'a stranger still cannot change what was published',
+    `status ${refused.status}`);
+
+  const imaginary = await raw('/api/conversations/conv_does_not_exist/interventions', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ tSourceFrame: 1, type: 'critique' }),
+  });
+  check(refused.status === imaginary.status,
+    'and is told no more than they would be about a conversation that does not exist',
+    `${refused.status} vs ${imaginary.status}`);
+
+  // The same, for the paths a guest may reach once staged.
+  for (const path of [
+    `/api/conversations/${conversationId}/takes/take_anything/chunks?index=0`,
+    `/api/conversations/${conversationId}/takes/take_anything/finalize`,
+    `/api/conversations/${conversationId}/room/voice`,
+  ]) {
+    const stranger = await raw(path, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ interventionId: 'x', energy: 1, speechConfidence: 1 }),
+    });
+    check(stranger.status >= 400, `a stranger is refused at ${path.split('/').pop()}`,
+      `status ${stranger.status}`);
+  }
+}
 
 // Withdrawing closes it again.
 await sfetch(`${BASE}/api/conversations/${conversationId}/publish`, { method: 'DELETE' });

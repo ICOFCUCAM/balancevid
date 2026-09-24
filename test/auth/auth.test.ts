@@ -139,16 +139,51 @@ describe('what a stranger may reach', () => {
     expect(mayBePublic('/api/jobs/job_abc', 'GET')).toBe(false);
   });
 
-  it('never allows a write, not even to a published conversation', () => {
+  it('never allows a write to a published artefact', () => {
     // Reading a published artefact is the whole point of publishing it.
-    // Changing one is not, and "anyone can respond" needs an account first.
+    // Changing one is not.
     for (const method of ['POST', 'PATCH', 'PUT', 'DELETE']) {
       expect(mayBePublic('/c/conv_abc/watch', method)).toBe(false);
       expect(mayBePublic('/api/conversations/conv_abc/source', method)).toBe(false);
-      expect(mayBePublic('/api/conversations/conv_abc/interventions', method)).toBe(false);
       expect(mayBePublic('/api/published', method)).toBe(false);
     }
     expect(mayBePublic('/api/auth/signin', 'POST')).toBe(true);
+  });
+
+  it('lets a room\'s own writes reach a route that can judge them', () => {
+    /*
+     * The narrow exception, and the reason it is narrow.  [ROOM §6, §10]
+     *
+     * A guest joins from a forwarded link and records themselves once the
+     * host stages them, so these paths must be REACHABLE without the owner's
+     * session. Reachable is not permitted: each route then verifies a guest
+     * session against that room's invite token, and a stranger gets the same
+     * answer they would get for a conversation that does not exist.
+     */
+    for (const path of [
+      '/api/conversations/conv_abc/room/join',
+      '/api/conversations/conv_abc/room/presence',
+      '/api/conversations/conv_abc/room/voice',
+      '/api/conversations/conv_abc/interventions',
+      '/api/conversations/conv_abc/takes/take_x/chunks',
+      '/api/conversations/conv_abc/takes/take_x/finalize',
+    ]) {
+      expect(mayBePublic(path, 'POST'), path).toBe(true);
+    }
+  });
+
+  it('and the METHOD is part of that rule, not just the path', () => {
+    /*
+     * This cost a real hole. The interventions path also answers DELETE, and
+     * an allowance written as a path alone handed guests the ability to
+     * delete the author's responses. A rule that names a route without naming
+     * what may be done to it is not a rule about anything.
+     */
+    for (const method of ['DELETE', 'PATCH', 'PUT']) {
+      expect(mayBePublic('/api/conversations/conv_abc/interventions', method), method)
+        .toBe(false);
+      expect(mayBePublic('/api/conversations/conv_abc/room/join', method), method).toBe(false);
+    }
   });
 
   it('is private by default, so a route added tomorrow is not exposed', () => {

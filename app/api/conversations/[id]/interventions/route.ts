@@ -7,6 +7,8 @@ import { assertFrames } from '../../../../../src/domain/time.js';
 import { EditError, bindAcceptedClaim, decideClaim } from '../../../../../src/domain/edit.js';
 import { claimsFor } from '../../../../../src/knowledge/index.js';
 import { audit, loadConversation, mutateConversation } from '../../../../../src/store/repository.js';
+import { callerFor, isOwner } from '../../../../../src/auth/request.js';
+import { mayRecord } from '../../../../../src/web/room.js';
 import { loadTranscript } from '../../../../../src/store/transcripts.js';
 import { fail, json } from '../../../../../src/web/http.js';
 
@@ -40,6 +42,27 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
     by?: string;
     editedQuote?: string;
   };
+
+  /*
+   * Whose turn is this?  [Doctrine ROOM §9, §10, D-03]
+   *
+   * The owner records into their own conversation, as they always have. A
+   * guest records only as THEMSELVES, and only while the host has them on
+   * stage — a room where anyone may put themselves into the finished video
+   * whenever they like is not one a host controls.
+   *
+   * The participant comes from the signed session and never from the body.
+   * That is the single line that stops a guest attributing a recording to
+   * somebody else, and it is why the body has no participant field to send.
+   */
+  let conversation;
+  try {
+    conversation = await loadConversation(id);
+  } catch {
+    return fail(404, 'conversation not found');
+  }
+  const caller = await callerFor(request, conversation);
+  if (!mayRecord(conversation, caller)) return fail(404, 'conversation not found');
 
   const tSourceFrame = Number(body.tSourceFrame);
   try {
@@ -80,6 +103,7 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
       mediaOutFrame: 0,
     }],
     selectedTakeId: takeId,
+    ...(caller.participantId ? { participantId: caller.participantId as never } : {}),
     ...(body.note ? { note: body.note } : {}),
     createdAt: new Date().toISOString(),
   };
@@ -164,6 +188,15 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
 /** Delete an intervention. Takes are kept on disk; only the document changes. */
 export async function DELETE(request: Request, { params }: Params): Promise<Response> {
   const { id } = await params;
+  /*
+   * The owner's, and only the owner's.  [D-03, D-06]
+   *
+   * Checked here as well as in middleware, because middleware decides which
+   * ROUTES may be reached and this file answers more than one method on the
+   * same route. Guests may POST here to record themselves; nobody but the
+   * owner may delete somebody's work.
+   */
+  if (!(await isOwner(request))) return fail(404, 'conversation not found');
   const interventionId = new URL(request.url).searchParams.get('interventionId');
   if (!interventionId) return fail(400, 'interventionId is required');
   await mutateConversation(id, (conversation) => {

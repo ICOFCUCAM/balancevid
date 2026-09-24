@@ -89,16 +89,34 @@ export function isAssetPath(pathname: string): boolean {
  * brief requires — an invitation is a link a stranger follows — and once
  * inside, a guest may change their own presence and nothing else.
  */
-const GUEST_WRITABLE: RegExp[] = [
-  /^\/api\/conversations\/[A-Za-z0-9_-]+\/room\/join$/,
-  /^\/api\/conversations\/[A-Za-z0-9_-]+\/room\/presence$/,
+const GUEST_WRITABLE: { method: string; path: RegExp }[] = [
+  { method: 'POST', path: /^\/api\/conversations\/[A-Za-z0-9_-]+\/room\/join$/ },
+  { method: 'POST', path: /^\/api\/conversations\/[A-Za-z0-9_-]+\/room\/presence$/ },
+  // A reading about the sender's own microphone. [ROOM §2]
+  { method: 'POST', path: /^\/api\/conversations\/[A-Za-z0-9_-]+\/room\/voice$/ },
+  /*
+   * Recording, for a guest the host has put on stage. The route checks that
+   * for itself — this only says the request is allowed to reach a route that
+   * can decide. [ROOM §10]
+   *
+   * THE METHOD IS PART OF THE RULE, and learning that cost a real hole: the
+   * interventions path also answers DELETE, and a path-only allowance handed
+   * guests the ability to delete the author's responses. A rule that names a
+   * route without naming what may be done to it is not a rule about
+   * anything.
+   */
+  { method: 'POST', path: /^\/api\/conversations\/[A-Za-z0-9_-]+\/interventions$/ },
+  { method: 'POST', path: /^\/api\/conversations\/[A-Za-z0-9_-]+\/takes\/[A-Za-z0-9_-]+\/chunks$/ },
+  { method: 'POST', path: /^\/api\/conversations\/[A-Za-z0-9_-]+\/takes\/[A-Za-z0-9_-]+\/finalize$/ },
 ];
 
 export function mayBePublic(pathname: string, method: string): boolean {
   const write = pathname.replace(/\/+$/, '') || '/';
   // A published artefact is readable. It is never writable by a stranger.
   if (method !== 'GET' && method !== 'HEAD') {
-    if (GUEST_WRITABLE.some((pattern) => pattern.test(write))) return true;
+    if (GUEST_WRITABLE.some((rule) => rule.method === method && rule.path.test(write))) {
+      return true;
+    }
     return pathname === '/api/auth/signin' || pathname === '/api/auth/signout';
   }
   const path = pathname.replace(/\/+$/, '') || '/';

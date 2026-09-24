@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import InvitePanel from './InvitePanel.js';
+import { useRoomCapture } from './useRoomCapture.js';
 
 /**
  * The Conversation Room.  [Doctrine ROOM §1, §3, §4, §5, §8]
@@ -59,6 +60,23 @@ export default function RoomView({
   const [room, setRoom] = useState<RoomState>(initial);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  /*
+   * Everyone's own camera and microphone.  [ROOM §2, §10]
+   *
+   * Measuring runs for anyone who has turned their microphone on; recording
+   * runs only while the host has them on stage. Nothing is sent to anybody
+   * else — each browser records itself, and the video is made from those
+   * recordings afterwards.
+   */
+  const meId = room.meId ?? room.participants.find((p) => p.me)?.id;
+  const iAmStaged = Boolean(meId && room.stagedParticipantIds.includes(meId));
+  const sourceFrame = useRef(0);
+  const capture = useRoomCapture({
+    conversationId,
+    staged: iAmStaged,
+    sourceFrame: () => sourceFrame.current,
+  });
 
   const refresh = useCallback(async () => {
     const response = await fetch(`/api/conversations/${conversationId}/room`,
@@ -359,6 +377,56 @@ export default function RoomView({
       </div>
 
       <footer className="shell-foot">
+        <div className="row" style={{ gap: 12, marginBottom: 8, flexWrap: 'nowrap' }}>
+          {/*
+            Their own picture, small, and only once they have turned it on.
+            The recording indicator is the picture itself (D-03): if you can
+            see yourself, you are being recorded.
+          */}
+          <video
+            ref={capture.videoRef} autoPlay muted playsInline
+            data-testid="my-camera"
+            style={{
+              width: 132, aspectRatio: '16 / 9', objectFit: 'cover', borderRadius: 6,
+              border: `2px solid ${capture.recording ? '#e0674f' : 'var(--line)'}`,
+              display: capture.armed ? 'block' : 'none', flex: '0 0 auto',
+            }}
+          />
+          <div className="grow" style={{ minWidth: 0 }}>
+            {capture.recording ? (
+              <div data-testid="recording-now" style={{ fontWeight: 600, color: '#e0674f' }}>
+                Recording you
+              </div>
+            ) : capture.armed ? (
+              <div style={{ fontWeight: 600 }}>Microphone on</div>
+            ) : (
+              <div style={{ fontWeight: 600 }}>Microphone off</div>
+            )}
+            <div className="small muted">
+              {capture.recording
+                ? 'You are on stage, and this is being kept.'
+                : capture.armed
+                  ? 'Heard, not recorded. Recording starts when you are brought in.'
+                  : 'Turn it on so the room can tell when you are speaking.'}
+            </div>
+          </div>
+          {capture.armed ? (
+            <button className="small" data-testid="mic-off" onClick={capture.disarm}>
+              Turn off
+            </button>
+          ) : (
+            <button className="primary" data-testid="mic-on" onClick={() => void capture.arm()}>
+              Turn on camera and microphone
+            </button>
+          )}
+        </div>
+
+        {capture.error && (
+          <p className="small" style={{ color: 'var(--bad)', margin: '0 0 8px' }}>
+            {capture.error}
+          </p>
+        )}
+
         <div className="row small muted" style={{ gap: 14 }}>
           <span className="grow">
             {/* The distinction, said once where everyone can see it. */}

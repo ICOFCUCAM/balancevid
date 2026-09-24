@@ -14,6 +14,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { configureOwner, ownerCookie } from '../helpers/session.js';
 
 import { S, makeConversation, makeIntervention } from '../domain/fixtures.js';
 import { transcriptOf } from './fixtures.js';
@@ -28,15 +29,18 @@ let routes: typeof import('../../app/api/conversations/[id]/claims/route.js');
 let interventions: typeof import('../../app/api/conversations/[id]/interventions/route.js');
 let repo: typeof import('../../src/store/repository.js');
 let conversationId: string;
+let cookie: string;
 
 /** A POST to the claims route, shaped like the browser's. */
 const post = (id: string, body: unknown) => routes.POST(
-  new Request('http://test/api', { method: 'POST', body: JSON.stringify(body) }),
+  new Request('http://test/api', {
+    method: 'POST', body: JSON.stringify(body), headers: { cookie },
+  }),
   { params: Promise.resolve({ id }) },
 );
 
 const get = (id: string) => routes.GET(
-  new Request('http://test/api'), { params: Promise.resolve({ id }) });
+  new Request('http://test/api', { headers: { cookie } }), { params: Promise.resolve({ id }) });
 
 async function claims(id = conversationId) {
   return (await (await get(id)).json()) as {
@@ -49,6 +53,12 @@ beforeAll(async () => {
   // set before anything that touches it is imported.
   dir = await mkdtemp(join(tmpdir(), 'balancevid-knowledge-'));
   process.env['BALANCEVID_VAR'] = dir;
+  /*
+   * Say who we are. Creating an intervention is the owner's act (or a staged
+   * guest's), so the handler now asks — and a test calling it directly has
+   * to answer the same way a browser does.
+   */
+  cookie = await ownerCookie(configureOwner());
 
   repo = await import('../../src/store/repository.js');
   routes = await import('../../app/api/conversations/[id]/claims/route.js');
@@ -186,7 +196,7 @@ describe('answering a suggestion opens an intervention that carries its origin',
 
     const response = await interventions.POST(
       new Request('http://test/api', {
-        method: 'POST',
+        method: 'POST', headers: { cookie },
         body: JSON.stringify({
           tSourceFrame: claim.suggested.endFrame,
           type: 'critique',
@@ -211,7 +221,7 @@ describe('answering a suggestion opens an intervention that carries its origin',
     const { claims: list } = await claims();
     const response = await interventions.POST(
       new Request('http://test/api', {
-        method: 'POST',
+        method: 'POST', headers: { cookie },
         body: JSON.stringify({
           tSourceFrame: 10, type: 'critique', claimKey: list[0]!.key,
         }),
@@ -224,7 +234,7 @@ describe('answering a suggestion opens an intervention that carries its origin',
   it('still lets an author bind their own highlighted quote with no origin', async () => {
     const response = await interventions.POST(
       new Request('http://test/api', {
-        method: 'POST',
+        method: 'POST', headers: { cookie },
         body: JSON.stringify({
           tSourceFrame: 20, type: 'context', quote: 'According to the treasury',
         }),
