@@ -3241,6 +3241,7 @@ quietly left in the code.
 
 **New, with no prior home**
 - The share card — what a published link says about itself *(U-31, §52)*
+- The opening of a clip, chosen by the author *(U-22 §2)*
 - The Conversation Manifest — the Class B export format *(U-01)*
 - Vertical clip sets per claim–response pair — the distribution engine *(U-22)*
 - The publication bundle *(U-30)*
@@ -3911,6 +3912,48 @@ by whatever the link was pasted into, with none of the sender's cookies, and
 the stranger away. So the question the card asks is whether the CONVERSATION
 is published, never who is asking — and a draft has no preview for anybody,
 its author included, because there is nothing published to preview (D-03).
+
+**The most consequential editorial choice in the distribution engine was the
+one the author could not make.** U-22 says a vertical clip opens on the
+statement so that it reads with the sound off, and the implementation obeyed
+it exactly: the product chose the words and the moment, and the author took
+what they were given. But these formats are decided in their first second, so
+the opening is not a detail of a clip — it is most of what a clip is. It is
+now the author's: what it opens on, what it says, and how much source runs
+before the cut.
+
+Two things follow, and the first is the rule the feature is built around.
+
+**QUOTATION MARKS ARE RESERVED FOR WHAT WAS SAID.** A statement card shows the
+source's own sentence and the clip plays it a moment later — the viewer hears
+whether the quotation was fair, and that is what earns the marks. A hook is the
+AUTHOR speaking, over the source's own picture, and it is never quoted: in
+quotation marks it would be a sentence attributed to somebody who never said
+it, on top of their footage. So the flag travels from the document through the
+plan to the subtitle script rather than being decided where the text is drawn,
+and the panel where the author types a hook tells them, in words, that it will
+not be quoted. This is the same rule the share card arrived at from the other
+direction, and it is worth stating once as a general one: **the product may
+quote only what it can also play.**
+
+**An opening typed into an export dialogue is a forbidden shape.** D-16 already
+named "a clip has a title that exists nowhere else", and a hook is exactly
+that shape if it lives in the panel: it would survive until the next re-plan
+and then quietly vanish. So it is a field of the Conversation. The clamps are
+NOT: a lead-in longer than the source before the anchor is cut back when the
+clip is planned, not when the choice is made, because the anchor can still
+move and storing the clamped number would freeze a decision against a source
+that has since changed.
+
+**And a check that was guarded into never running.** The clip-plan assertion
+read "if a plan came back, check its layout" — and no plan ever came back,
+because the route did not answer that query at all. It passed every run for
+weeks while asserting nothing. This is the second time this appendix has
+recorded the same shape (see "the file exists" above), so it is worth naming as
+a rule rather than an anecdote: **a check written to tolerate its subject being
+absent will eventually be the only thing standing between you and a feature
+that is entirely absent.** If a precondition is required, assert it; if it is
+genuinely optional, the test is measuring something else.
 
 ---
 

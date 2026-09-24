@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { EXPORT_PROFILES } from '../../../src/domain/presentation.js';
-import { formatTimecode } from '../../../src/domain/time.js';
+import { HOUSE_FPS, formatTimecode } from '../../../src/domain/time.js';
+import { MAX_HOOK_LENGTH } from '../../../src/domain/document.js';
 import { forCreator } from '../../../src/web/language.js';
 import CompositionStage from './CompositionStage.js';
 import PublishPanel from './PublishPanel.js';
@@ -260,44 +261,61 @@ export default function PublishStage({
             const made = clipJobs.find(
               (j) => j.payload?.interventionId === candidate.interventionId);
             return (
-              <label
+              <div
                 key={candidate.interventionId}
                 data-testid="clip-candidate"
                 data-intervention-id={candidate.interventionId}
                 className="panel"
                 style={{
-                  display: 'flex', gap: 12, alignItems: 'flex-start', padding: 10,
-                  marginBottom: 8, cursor: 'pointer',
+                  padding: 10, marginBottom: 8,
                   borderColor: picked ? '#6fb3e0' : 'var(--line)',
                 }}
               >
-                <input
-                  type="checkbox" checked={picked}
-                  data-testid="clip-choose"
-                  onChange={() => toggle(candidate.interventionId)}
-                  style={{ width: 'auto', marginTop: 3 }}
-                />
-                <div className="grow" style={{ minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, fontSize: 14 }}>
-                    {candidate.claim
-                      ? `“${candidate.claim.slice(0, 90)}${candidate.claim.length > 90 ? '…' : ''}”`
-                      : `Your ${String(candidate.typeLabel).toLocaleLowerCase()} at ${
-                        formatTimecode(candidate.tSourceFrame).slice(0, 8)}`}
-                  </div>
-                  <div className="small muted">
-                    {formatTimecode(candidate.totalFrames).slice(3, 8)} ·{' '}
-                    {String(candidate.typeLabel).toLocaleLowerCase()}
-                    {candidate.tooLong && ' · longer than most feeds allow'}
-                    {candidate.reasons?.length > 0 && ` · ${candidate.reasons[0]}`}
-                  </div>
+                {/*
+                  Only the checkbox and the title are the label. It used to
+                  wrap the whole card, which was fine until the card had
+                  controls in it — every click on the opening editor would
+                  also have toggled whether the clip was being made.
+                */}
+                <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                  <label className="grow" style={{
+                    display: 'flex', gap: 12, alignItems: 'flex-start',
+                    minWidth: 0, cursor: 'pointer', marginBottom: 0,
+                  }}>
+                    <input
+                      type="checkbox" checked={picked}
+                      data-testid="clip-choose"
+                      onChange={() => toggle(candidate.interventionId)}
+                      style={{ width: 'auto', marginTop: 3 }}
+                    />
+                    <span className="grow" style={{ minWidth: 0 }}>
+                      <span style={{ fontWeight: 600, fontSize: 14, display: 'block' }}>
+                        {candidate.claim
+                          ? `“${candidate.claim.slice(0, 90)}${candidate.claim.length > 90 ? '…' : ''}”`
+                          : `Your ${String(candidate.typeLabel).toLocaleLowerCase()} at ${
+                            formatTimecode(candidate.tSourceFrame).slice(0, 8)}`}
+                      </span>
+                      <span className="small muted">
+                        {formatTimecode(candidate.totalFrames).slice(3, 8)} ·{' '}
+                        {String(candidate.typeLabel).toLocaleLowerCase()}
+                        {candidate.tooLong && ' · longer than most feeds allow'}
+                        {candidate.reasons?.length > 0 && ` · ${candidate.reasons[0]}`}
+                      </span>
+                    </span>
+                  </label>
+                  {made && (
+                    <span className="small muted" data-testid="clip-state"
+                          style={{ flex: '0 0 auto' }}>
+                      {made.state === 'done' ? 'ready' : made.state}
+                    </span>
+                  )}
                 </div>
-                {made && (
-                  <span className="small muted" data-testid="clip-state"
-                        style={{ flex: '0 0 auto' }}>
-                    {made.state === 'done' ? 'ready' : made.state}
-                  </span>
-                )}
-              </label>
+                <OpeningEditor
+                  conversationId={conversationId}
+                  candidate={candidate}
+                  onChanged={loadClips}
+                />
+              </div>
             );
           })}
 
@@ -354,4 +372,181 @@ function RenderList({ jobs, conversationId }: { jobs: any[]; conversationId: str
       })}
     </div>
   );
+}
+
+/**
+ * How this clip opens.  [Doctrine U-22 §2, INV-05]
+ *
+ * A vertical clip is decided in its first second, and until now the product
+ * decided it. This is the author taking that back: what the clip opens on,
+ * what it says, and how much runs before the cut.
+ *
+ * THE ONE THING THE INTERFACE MUST MAKE OBVIOUS is which of those two the
+ * author is writing. The statement is the source's own sentence and appears in
+ * quotation marks, because the clip plays it a moment later. A line of their
+ * own is theirs, over somebody else's picture, and is never quoted — so the
+ * control says so in words rather than leaving it to be discovered in the
+ * export.
+ */
+function OpeningEditor({ conversationId, candidate, onChanged }: {
+  conversationId: string;
+  candidate: any;
+  onChanged: () => Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const card = candidate.opening?.card;
+  const mode: 'statement' | 'text' | 'none' = card
+    ? (card.quoted ? 'statement' : 'text')
+    : (candidate.opening?.chosen ? 'none' : 'statement');
+  const [draft, setDraft] = useState<string>(mode === 'text' ? card.text : '');
+
+  const save = async (opening: unknown) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await fetch(
+        `/api/conversations/${conversationId}/interventions/${candidate.interventionId}`,
+        {
+          method: 'PATCH', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ opening }),
+        },
+      );
+      if (!response.ok) {
+        throw new Error((await response.json().catch(() => ({}))).error ?? 'could not save that');
+      }
+      await onChanged();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const lead = Math.round((candidate.opening?.leadInFrames ?? 0) / HOUSE_FPS);
+  const chosenLead = !candidate.opening?.leadInChosen
+    ? 'sentence'
+    : ([0, 3, 6, 10].includes(lead) ? String(lead) : 'other');
+
+  return (
+    <div data-testid="clip-opening" data-mode={mode} style={{ marginTop: 8 }}>
+      <button
+        className="small" data-testid="clip-opening-toggle"
+        onClick={() => setOpen(!open)}
+        style={{ padding: '2px 8px', fontSize: 11 }}
+      >
+        {open ? 'Done' : 'Opening'}
+      </button>
+      <span className="small muted" style={{ marginLeft: 8, fontSize: 11 }}>
+        {/* What it will do, said here so the panel need not be opened to know. */}
+        {mode === 'statement' && card && 'opens on the statement'}
+        {mode === 'statement' && !card && 'opens straight on the footage'}
+        {mode === 'text' && `opens on “${String(card.text).slice(0, 40)}”, in your words`}
+        {mode === 'none' && 'opens straight on the footage'}
+        {lead > 0 && ` · ${lead}s of source first`}
+      </span>
+
+      {open && (
+        <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--line)' }}>
+          <div className="row" style={{ gap: 5, marginBottom: 8 }}>
+            {([
+              ['statement', 'The statement', 'Their words, in quotation marks'],
+              ['text', 'A line of my own', 'Your words — never in quotation marks'],
+              ['none', 'Nothing', 'Straight into the footage'],
+            ] as const).map(([id, label, hint]) => (
+              <button
+                key={id}
+                className="small"
+                data-testid="opening-mode"
+                data-choice={id}
+                data-chosen={mode === id ? 'true' : 'false'}
+                title={hint}
+                disabled={busy}
+                onClick={() => void save(
+                  id === 'text'
+                    ? { card: { kind: 'text', text: draft || 'Watch this' } }
+                    : { card: { kind: id } },
+                )}
+                style={{
+                  padding: '3px 9px', fontSize: 11,
+                  background: mode === id ? 'rgba(43,95,138,0.30)' : undefined,
+                  borderColor: mode === id ? '#6fb3e0' : undefined,
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {mode === 'text' && (
+            <div className="field" style={{ marginBottom: 8 }}>
+              <input
+                data-testid="opening-text"
+                value={draft}
+                maxLength={MAX_HOOK_LENGTH}
+                placeholder="What makes someone stop scrolling"
+                onChange={(e) => setDraft(e.target.value)}
+                onBlur={() => {
+                  if (draft !== card?.text) {
+                    void save({ card: { kind: 'text', text: draft } });
+                  }
+                }}
+              />
+              <span className="small muted" style={{ fontSize: 11 }}>
+                {/* Said plainly, because it is the difference between quoting
+                    somebody and speaking over them. */}
+                Shown without quotation marks — these are your words, not
+                theirs. {MAX_HOOK_LENGTH - draft.length} left.
+              </span>
+            </div>
+          )}
+
+          <div className="row small" style={{ gap: 8, alignItems: 'center' }}>
+            <span className="muted" style={{ fontSize: 11 }}>Start</span>
+            <select
+              data-testid="opening-lead-in"
+              disabled={busy}
+              value={chosenLead}
+              /*
+                The card always goes with it. Sending only the lead-in would
+                clear the card the author had chosen — an opening is one
+                decision as far as the document is concerned, and a control
+                that quietly undoes the control next to it is the worst kind.
+              */
+              onChange={(e) => void save(e.target.value === 'sentence'
+                ? { card: cardBody(mode, draft) }
+                : {
+                  leadInFrames: Number(e.target.value) * HOUSE_FPS,
+                  card: cardBody(mode, draft),
+                })}
+              style={{ width: 'auto', padding: '2px 6px', fontSize: 11 }}
+            >
+              <option value="sentence">at the sentence they were answering</option>
+              <option value="0">at the cut</option>
+              <option value="3">3 seconds before</option>
+              <option value="6">6 seconds before</option>
+              <option value="10">10 seconds before</option>
+              {/* What the source could actually supply, when it is not one of
+                  the offered numbers — a clip near the start of the video
+                  cannot have ten seconds before it. */}
+              {chosenLead === 'other' && (
+                <option value="other">{lead} seconds before</option>
+              )}
+            </select>
+          </div>
+
+          {error && (
+            <p className="small" style={{ color: 'var(--bad)', marginBottom: 0 }}>{error}</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** The card as the API wants it, so a lead-in change does not drop it. */
+function cardBody(mode: 'statement' | 'text' | 'none', draft: string) {
+  if (mode === 'text') return { kind: 'text' as const, text: draft };
+  return { kind: mode };
 }

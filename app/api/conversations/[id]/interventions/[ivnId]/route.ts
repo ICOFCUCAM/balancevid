@@ -1,6 +1,8 @@
-import type { InterventionType } from '../../../../../../src/domain/document.js';
+import type {
+  InterventionType, Opening,
+} from '../../../../../../src/domain/document.js';
 import {
-  EditError, deleteIntervention, moveAnchor, setLayout, setNote, setType,
+  EditError, deleteIntervention, moveAnchor, setLayout, setNote, setOpening, setType,
 } from '../../../../../../src/domain/edit.js';
 import { rm } from 'node:fs/promises';
 import { paths } from '../../../../../../src/store/paths.js';
@@ -25,6 +27,7 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
     layoutId?: string | null;
     tSourceFrame?: number;
     note?: string | null;
+    opening?: Opening | null;
   };
 
   const before = await loadConversation(id).catch(() => null);
@@ -36,6 +39,7 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
       if (body.layoutId !== undefined) setLayout(draft, ivnId, body.layoutId);
       if (body.tSourceFrame !== undefined) moveAnchor(draft, ivnId, body.tSourceFrame);
       if (body.note !== undefined) setNote(draft, ivnId, body.note);
+      if (body.opening !== undefined) setOpening(draft, ivnId, body.opening);
     });
     /*
      * A thumbnail of "the moment you stopped at" is wrong the instant the

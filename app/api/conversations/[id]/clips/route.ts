@@ -1,4 +1,4 @@
-import { clipCandidates } from '../../../../../src/domain/clips.js';
+import { buildClipPlan, clipCandidates } from '../../../../../src/domain/clips.js';
 import { listJobs, enqueue } from '../../../../../src/store/queue.js';
 import { audit, loadConversation } from '../../../../../src/store/repository.js';
 import { loadTranscript } from '../../../../../src/store/transcripts.js';
@@ -16,8 +16,15 @@ type Params = { params: Promise<{ id: string }> };
  *
  * Each candidate carries its reasons, so a creator can disagree with the
  * ranking rather than being told what is good.
+ *
+ * With `?interventionId=…&plan=1` it answers with the plan that pair would be
+ * rendered from instead. That is the author's working material, so it is
+ * owner-only like every other plan — middleware already sees to that, since
+ * this route is not one a published conversation exposes. It exists so that
+ * what the publish panel SHOWS about a clip and what the worker would
+ * actually render can be compared rather than assumed to agree.
  */
-export async function GET(_request: Request, { params }: Params): Promise<Response> {
+export async function GET(request: Request, { params }: Params): Promise<Response> {
   const { id } = await params;
   let conversation;
   try {
@@ -26,6 +33,21 @@ export async function GET(_request: Request, { params }: Params): Promise<Respon
     return fail(404, 'conversation not found');
   }
   const transcript = await loadTranscript(id);
+
+  const query = new URL(request.url).searchParams;
+  const wanted = query.get('interventionId');
+  if (wanted && query.get('plan')) {
+    try {
+      return json({
+        plan: buildClipPlan(conversation, wanted, {
+          transcript: transcript?.transcript ?? null,
+        }),
+      });
+    } catch (error) {
+      return fail(409, error instanceof Error ? error.message : 'that pair cannot be clipped');
+    }
+  }
+
   return json({
     candidates: clipCandidates(conversation, transcript?.transcript ?? null),
     jobs: (await listJobs(id)).filter((job) => job.kind === 'render_clip'),

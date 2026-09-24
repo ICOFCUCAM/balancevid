@@ -920,6 +920,87 @@ log('checking the publication formats…');
     'choosing one arms the button');
   await page.locator('[data-testid="clip-choose"]').first().uncheck();
 
+  /*
+   * --- the opening (U-22 §2, INV-05) ------------------------------------
+   *
+   * A vertical clip is decided in its first second, and until now the product
+   * decided it. The author can now say what the clip opens on — and the one
+   * rule the interface has to carry is that their own line is never set in
+   * quotation marks, because it would then read as something the source said,
+   * over the source's own picture.
+   */
+  {
+    const first = page.locator('[data-testid="clip-candidate"]').first();
+    const interventionId = await first.getAttribute('data-intervention-id');
+    check(await first.locator('[data-testid="clip-opening"]').count() === 1,
+      'every clip says how it will open, before it is made');
+
+    await first.locator('[data-testid="clip-opening-toggle"]').click();
+    await first.locator('[data-testid="opening-mode"][data-choice="text"]').click();
+    await page.waitForTimeout(700);
+
+    const HOOK = 'This number is doing a lot of work';
+    const box = first.locator('[data-testid="opening-text"]');
+    await box.fill(HOOK);
+    await box.blur();
+    await page.waitForTimeout(900);
+
+    // It landed on the CONVERSATION, not in the export panel. A hook that
+    // lived only in the dialogue would vanish at the next re-plan. [D-16]
+    const doc = (await api(`/api/conversations/${conversationId}`)).conversation;
+    const stored = doc.interventions.find((iv) => iv.id === interventionId)?.opening;
+    check(stored?.card?.kind === 'text' && stored.card.text === HOOK,
+      'the author\'s own opening is written into the conversation',
+      JSON.stringify(stored ?? null));
+
+    const planned = await api(`/api/conversations/${conversationId}` +
+      `/clips?interventionId=${interventionId}&plan=1`);
+    check(planned.plan?.openingClaim?.text === HOOK,
+      'and it is what the clip will actually open on',
+      JSON.stringify(planned.plan?.openingClaim ?? null));
+    check(planned.plan?.openingClaim?.quoted === false,
+      'carried as NOT a quotation — these are the author\'s words, not the source\'s');
+
+    // And the panel says so in words, rather than leaving it to be found in
+    // the export.
+    const saysSo = await first.locator('[data-testid="clip-opening"]').innerText();
+    check(/without quotation marks/i.test(saysSo),
+      'and the author is told that, where they type it');
+
+    // Back to the statement, which IS quoted — the clip plays it.
+    await first.locator('[data-testid="opening-mode"][data-choice="statement"]').click();
+    await page.waitForTimeout(900);
+    const back = await api(`/api/conversations/${conversationId}` +
+      `/clips?interventionId=${interventionId}&plan=1`);
+    check(back.plan?.openingClaim?.quoted === true,
+      'while the source\'s own sentence keeps its quotation marks');
+
+    // Where it starts is theirs too.
+    await first.locator('[data-testid="opening-lead-in"]').selectOption('3');
+    await page.waitForTimeout(900);
+    const moved = await api(`/api/conversations/${conversationId}` +
+      `/clips?interventionId=${interventionId}&plan=1`);
+    const sourceShot = moved.plan?.shots?.find((sh) => sh.kind === 'source');
+    // Three seconds, or all there is before the cut if the source is shorter
+    // than that: the clamp is against the source, not against the request.
+    const anchorFrame = doc.interventions
+      .find((iv) => iv.id === interventionId).anchor.tSourceFrame;
+    check(sourceShot?.durationFrames === Math.min(90, anchorFrame),
+      'and the author can say how much runs before the cut',
+      `${sourceShot?.durationFrames} vs ${Math.min(90, anchorFrame)}`);
+
+    // An opening nobody could read is refused, rather than silently trimmed.
+    const tooLong = await sfetch(
+      `${BASE}/api/conversations/${conversationId}/interventions/${interventionId}`, {
+        method: 'PATCH', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ opening: { card: { kind: 'text', text: 'x'.repeat(200) } } }),
+      });
+    check(tooLong.status === 400, 'an opening too long to read is refused as a bad request',
+      `status ${tooLong.status}`);
+
+    await first.locator('[data-testid="clip-opening-toggle"]').click();
+  }
+
   const publishText = await page.evaluate(() => document.body.innerText);
   check(!/U-\d|INV-\d|Class [AB]|§|exportProfileId/.test(publishText),
     'and the stage speaks the creator\'s language');
@@ -937,17 +1018,21 @@ log('checking the publication formats…');
   const clipPlans = await api(`/api/conversations/${conversationId}/clips`);
   const first = clipPlans.candidates?.[0];
   check(Boolean(first), 'the conversation proposes clips through its own API');
+  /*
+   * This used to be written as "if a plan came back, check it" — and no plan
+   * ever came back, because the route did not answer `plan=1` at all. It
+   * passed every run without asserting anything. The route answers now, and
+   * so the check is required to run.
+   */
   const preview = await api(
-    `/api/conversations/${conversationId}/clips?interventionId=${first.interventionId}&plan=1`)
-    .catch(() => null);
-  if (preview?.plan) {
-    const shot = preview.plan.shots.find((s) => s.kind === 'response');
-    check(shot?.layoutId?.startsWith('vertical') || shot?.layoutId?.startsWith('stacked')
-      || shot?.layoutId === 'presenter_tall' || shot?.layoutId === 'full_user'
-      || shot?.layoutId === 'evidence_stack',
-      'and a clip is planned in a tall arrangement, not a shrunken wide one',
-      `${shot?.layoutId}`);
-  }
+    `/api/conversations/${conversationId}/clips?interventionId=${first.interventionId}&plan=1`);
+  check(Boolean(preview?.plan), 'a clip\'s plan can be read before it is rendered');
+  const shot = preview.plan.shots.find((s) => s.kind === 'response');
+  check(shot?.layoutId?.startsWith('vertical') || shot?.layoutId?.startsWith('stacked')
+    || shot?.layoutId === 'presenter_tall' || shot?.layoutId === 'full_user'
+    || shot?.layoutId === 'evidence_stack',
+    'and a clip is planned in a tall arrangement, not a shrunken wide one',
+    `${shot?.layoutId}`);
 }
 
 // --- the Conversation Room (ROOM §1, §3, §4, §6, §7, §8) --------------------

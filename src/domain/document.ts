@@ -253,6 +253,65 @@ export interface Annotation {
   drawFrames?: Frames;
 }
 
+/**
+ * How a clip of this pair opens.  [Doctrine U-22 §2, §52, D-16]
+ *
+ * A vertical clip is watched with the sound off and decided in its first
+ * second, so the opening is the most consequential editorial choice in the
+ * whole distribution engine — and until now it was the only one the author
+ * could not make. The product chose the moment and the words, and the author
+ * took what they were given.
+ *
+ * It lives HERE, on the Conversation, and not in the clip plan. D-16 names
+ * "a clip has a title that exists nowhere else" as a forbidden shape, and a
+ * hook typed into an export dialogue is exactly that shape: it would survive
+ * until the next re-plan and then quietly vanish. Absent fields mean "decide
+ * for me", so a conversation nobody has touched is the same object it was.
+ */
+export interface Opening {
+  /**
+   * How much source plays before the cut, in frames.
+   *
+   * Absent means derived — the sentence the author was answering, which
+   * begins where the thought begins. A number is their own decision and is
+   * clamped to what the source can actually supply.
+   */
+  leadInFrames?: Frames;
+  /** The card held over the first seconds. Absent means the statement. */
+  card?: OpeningCard;
+}
+
+/**
+ * QUOTATION MARKS ARE RESERVED FOR WHAT WAS SAID.
+ *
+ * `statement` shows the source's own sentence, in quotation marks, and the
+ * clip then plays it — the viewer hears whether the quotation was fair, which
+ * is what earns the marks.
+ *
+ * `text` is the AUTHOR speaking, over the source's footage, and it is never
+ * quoted. The distinction is not decoration: unquoted, a hook is plainly the
+ * person answering; in quotation marks it would be words put into the mouth
+ * of somebody who never said them, on top of their own picture.
+ */
+export type OpeningCard =
+  | { kind: 'statement' }
+  | { kind: 'none' }
+  | { kind: 'text'; text: string; seconds?: number };
+
+/** How long an opening card holds, when nobody has said otherwise. */
+export const CARD_SECONDS = 2.5;
+/** The range a card may be held for: long enough to read, short enough to keep. */
+export const MIN_CARD_SECONDS = 1;
+export const MAX_CARD_SECONDS = 6;
+/**
+ * The most a hook may say.
+ *
+ * Not a storage limit — a reading one. A hook is read in a moving thumbnail by
+ * somebody who has not decided to watch anything yet, and past about this much
+ * it stops being a hook and becomes a paragraph they scroll past.
+ */
+export const MAX_HOOK_LENGTH = 120;
+
 export interface Intervention {
   id: InterventionId;
   anchor: Anchor;
@@ -261,6 +320,8 @@ export interface Intervention {
   selectedTakeId: TakeId | null;
   /** Overrides the type's default layout. [U-11, U-18] */
   layoutId?: string;
+  /** How a clip of this pair opens, where the author has decided. [U-22] */
+  opening?: Opening;
   /**
    * Whose response this is.  [Doctrine ROOM §4, §9, §10]
    *

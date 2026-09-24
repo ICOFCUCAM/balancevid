@@ -17,8 +17,10 @@
  */
 
 import {
-  INTERVENTION_TYPES, type Annotation, type Conversation, type Evidence,
-  type EvidenceLocator, type Intervention, type InterventionType, type Point, type Take,
+  INTERVENTION_TYPES, MAX_CARD_SECONDS, MAX_HOOK_LENGTH, MIN_CARD_SECONDS,
+  type Annotation, type Conversation, type Evidence,
+  type EvidenceLocator, type Intervention, type InterventionType, type Opening,
+  type Point, type Take,
 } from './document.js';
 import { LAYOUTS } from './presentation.js';
 import { normaliseQuote, quoteHash } from './ids.js';
@@ -65,6 +67,71 @@ export function setLayout(
   const target = intervention(conversation, interventionId);
   if (layoutId === null) delete target.layoutId;
   else target.layoutId = layoutId;
+}
+
+/**
+ * [U-22 §2] Decide how a clip of this pair opens. null restores the default.
+ *
+ * Stored canonically rather than as the author typed it: a hook they cleared
+ * becomes `none` here, so the document never holds an empty string that some
+ * later reader has to guess the meaning of. The lead-in is NOT clamped to the
+ * source here, because the anchor can still move — that is resolved when the
+ * clip is planned, against the source as it is then.
+ */
+export function setOpening(
+  conversation: Conversation, interventionId: string, opening: Opening | null,
+): void {
+  const target = intervention(conversation, interventionId);
+  if (opening === null) {
+    delete target.opening;
+    return;
+  }
+
+  const next: Opening = {};
+
+  if (opening.leadInFrames !== undefined) {
+    /*
+     * Checked before `assertFrames`, not after. Afterwards it would never
+     * run — assertFrames rejects a negative first — and it would throw a
+     * plain Error, which this route reports as "not found" rather than as
+     * the bad request it is.
+     */
+    if (!(opening.leadInFrames >= 0)) {
+      throw new EditError('a lead-in cannot be negative');
+    }
+    assertFrames(opening.leadInFrames);
+    next.leadInFrames = opening.leadInFrames;
+  }
+
+  const card = opening.card;
+  if (card) {
+    if (card.kind === 'statement' || card.kind === 'none') {
+      next.card = { kind: card.kind };
+    } else if (card.kind === 'text') {
+      const text = card.text.replace(/\s+/g, ' ').trim();
+      if (text.length > MAX_HOOK_LENGTH) {
+        throw new EditError(
+          `an opening line is read in a moving thumbnail — keep it under ${MAX_HOOK_LENGTH} characters`);
+      }
+      // Cleared means no card, said once here rather than inferred everywhere.
+      next.card = text ? { kind: 'text', text } : { kind: 'none' };
+      if (text && card.seconds !== undefined) {
+        if (!Number.isFinite(card.seconds)
+          || card.seconds < MIN_CARD_SECONDS || card.seconds > MAX_CARD_SECONDS) {
+          throw new EditError(
+            `an opening card holds for ${MIN_CARD_SECONDS}–${MAX_CARD_SECONDS} seconds`);
+        }
+        (next.card as { seconds?: number }).seconds = card.seconds;
+      }
+    } else {
+      throw new EditError(`unknown opening card: ${(card as { kind: string }).kind}`);
+    }
+  }
+
+  // Nothing decided is the same as no decision, so the document does not grow
+  // an empty object that reads as "the author chose this".
+  if (next.leadInFrames === undefined && !next.card) delete target.opening;
+  else target.opening = next;
 }
 
 /**

@@ -18,6 +18,7 @@
  */
 
 import {
+  CARD_SECONDS, MAX_CARD_SECONDS, MAX_HOOK_LENGTH, MIN_CARD_SECONDS,
   type Conversation, type Intervention,
   orderedInterventions, selectedTake, takeUsableFrames,
 } from './document.js';
@@ -35,6 +36,86 @@ export const MAX_LEAD_IN: Frames = secondsToFrames(15, HOUSE_FPS);
 /** Past this a clip is too long for the formats it is made for. */
 export const LONG_CLIP_FRAMES: Frames = secondsToFrames(90, HOUSE_FPS);
 
+/**
+ * What a clip actually opens with.  [Doctrine U-22 §2, INV-05]
+ *
+ * One function, used by the planner, by the candidate list and by the panel
+ * that lets the author change it — so what they are shown before they choose
+ * is what they get afterwards.
+ *
+ * The `quoted` flag is the honesty rule made mechanical. A statement is the
+ * source's own sentence and the clip plays it a moment later, which is what
+ * earns the quotation marks. A hook is the author's line over the source's
+ * picture and never gets them.
+ */
+export interface ResolvedOpening {
+  leadInFrames: Frames;
+  card?: { text: string; seconds: number; quoted: boolean };
+  /** True when the author decided the card rather than the product. */
+  chosen: boolean;
+  /**
+   * True when the author decided where it starts.
+   *
+   * Separate from `chosen` because the two are separate decisions: somebody
+   * can write their own hook and still want the lead-in worked out for them.
+   * One flag for both would make the panel show a number the author never
+   * picked as though they had.
+   */
+  leadInChosen: boolean;
+}
+
+export function openingFor(
+  conversation: Conversation, intervention: Intervention, transcript?: Transcript | null,
+): ResolvedOpening {
+  const opening = intervention.opening;
+  const anchor = intervention.anchor.tSourceFrame;
+
+  /*
+   * Their number, clamped to what exists. A lead-in longer than the source
+   * before the anchor cannot be played, and one past MAX_LEAD_IN stops being
+   * a quotation and becomes a rebroadcast.
+   */
+  const leadInChosen = opening?.leadInFrames !== undefined;
+  const leadInFrames = opening?.leadInFrames === undefined
+    ? leadInFor(conversation, intervention, transcript)
+    : Math.max(0, Math.min(opening.leadInFrames, MAX_LEAD_IN, anchor));
+
+  const card = opening?.card;
+  if (card?.kind === 'none') return { leadInFrames, chosen: true, leadInChosen };
+
+  if (card?.kind === 'text') {
+    const text = card.text.replace(/\s+/g, ' ').trim().slice(0, MAX_HOOK_LENGTH);
+    // An empty hook is not a hook. Rather than open on a blank card, this is
+    // read as "no card" — which is what an author who cleared the box meant.
+    if (!text) return { leadInFrames, chosen: true, leadInChosen };
+    return {
+      leadInFrames,
+      card: {
+        text,
+        seconds: clampSeconds(card.seconds ?? CARD_SECONDS),
+        quoted: false,
+      },
+      chosen: true,
+      leadInChosen,
+    };
+  }
+
+  const statement = claimTextFor(intervention, transcript);
+  return {
+    leadInFrames,
+    ...(statement
+      ? { card: { text: statement, seconds: CARD_SECONDS, quoted: true } }
+      : {}),
+    chosen: Boolean(opening?.card),
+    leadInChosen,
+  };
+}
+
+function clampSeconds(seconds: number): number {
+  if (!Number.isFinite(seconds)) return CARD_SECONDS;
+  return Math.min(MAX_CARD_SECONDS, Math.max(MIN_CARD_SECONDS, seconds));
+}
+
 export interface ClipCandidate {
   interventionId: string;
   index: number;
@@ -48,6 +129,15 @@ export interface ClipCandidate {
   responseFrames: Frames;
   totalFrames: Frames;
   tooLong: boolean;
+  /**
+   * How this one will open, as it stands.
+   *
+   * Carried on the candidate so the panel where the author changes it and the
+   * plan that renders it are reading the same answer. A preview that is
+   * computed separately from the thing it previews is a preview of something
+   * else.
+   */
+  opening: ResolvedOpening;
   /** Why this one might be worth posting. Ranked, never auto-published. */
   score: number;
   reasons: string[];
@@ -69,7 +159,8 @@ export function clipCandidates(
   return orderedInterventions(conversation).map((intervention, index) => {
     const take = selectedTake(intervention);
     const responseFrames = take ? takeUsableFrames(take) : 0;
-    const leadIn = leadInFor(conversation, intervention, transcript);
+    const opening = openingFor(conversation, intervention, transcript);
+    const leadIn = opening.leadInFrames;
     const claim = claimTextFor(intervention, transcript);
     const claimIsBound = Boolean(intervention.anchor.quote);
 
@@ -105,6 +196,7 @@ export function clipCandidates(
       responseFrames,
       totalFrames,
       tooLong,
+      opening,
       score,
       reasons,
     };
@@ -131,7 +223,7 @@ export function buildClipTimeline(
   }
 
   const anchor = intervention.anchor.tSourceFrame;
-  const leadIn = leadInFor(conversation, intervention, transcript);
+  const leadIn = openingFor(conversation, intervention, transcript).leadInFrames;
   const sourceInFrame = Math.max(0, anchor - leadIn);
   const sourceFrames = anchor - sourceInFrame;
   const speech = takeUsableFrames(take);
@@ -175,15 +267,19 @@ export function buildClipPlan(
   const intervention = conversation.interventions.find((i) => i.id === interventionId);
   if (!intervention) throw new Error(`no such intervention: ${interventionId}`);
   const timeline = buildClipTimeline(conversation, interventionId, options.transcript);
-  const claim = claimTextFor(intervention, options.transcript);
+  const opening = openingFor(conversation, intervention, options.transcript);
 
   return planFromTimeline(conversation, timeline, {
     exportProfileId: 'vertical_9x16',
     burnInCaptions: true,
     ...options,
-    // A vertical clip is watched with the sound off as often as not, so it
-    // opens on the statement rather than on someone mid-sentence.
-    ...(claim ? { openingClaim: { text: claim, seconds: 2.5 } } : {}),
+    /*
+     * A vertical clip is watched with the sound off as often as not, so it
+     * opens on something readable rather than on someone mid-sentence. What
+     * that is — the statement, the author's own hook, or nothing at all — is
+     * the author's to decide, and `openingFor` is where that is decided.
+     */
+    ...(opening.card ? { openingClaim: opening.card } : {}),
     sourceLayoutId: 'vertical_source',
     responseLayoutId: 'vertical_stack',
   });

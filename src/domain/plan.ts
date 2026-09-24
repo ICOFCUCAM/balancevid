@@ -166,13 +166,19 @@ export interface RenderPlan {
   /** INV-07: every export carries captions. Not a user preference. [U-19] */
   captions: { burnIn: boolean; sidecars: ReadonlyArray<'srt' | 'vtt'> };
   /**
-   * A claim shown as typography over the opening seconds.
+   * What is shown as typography over the opening seconds.
    *
    * A vertical clip has to work with the sound off, which is how these formats
-   * are actually consumed, so it opens on the statement being answered rather
-   * than on someone mid-sentence. [U-22 §2]
+   * are actually consumed, so it opens on something readable rather than on
+   * someone mid-sentence. [U-22 §2]
+   *
+   * `quoted` decides whether it is set in quotation marks, and it is not a
+   * styling choice. True means the source's own sentence, which the clip then
+   * plays; false means the author's own hook, over the source's picture.
+   * Quoting the second would be putting words in somebody's mouth on top of
+   * their own footage. [INV-05]
    */
-  openingClaim?: { text: string; seconds: number };
+  openingClaim?: { text: string; seconds: number; quoted: boolean };
   audio: AudioMaster;
 }
 
@@ -184,7 +190,7 @@ export interface PlanOptions {
   /** Overrides, used by vertical clips where the canvas is a different shape. */
   sourceLayoutId?: string;
   responseLayoutId?: string;
-  openingClaim?: { text: string; seconds: number };
+  openingClaim?: { text: string; seconds: number; quoted: boolean };
 }
 
 export function buildRenderPlan(conversation: Conversation, options: PlanOptions = {}): RenderPlan {

@@ -137,8 +137,19 @@ export function buildAss(plan: RenderPlan, options: AssOptions = {}): string {
   // The opening card: the statement the clip answers, held before anything
   // moves, so the clip reads with the sound off. [U-22 §2]
   if (plan.openingClaim && options.claimCards !== false) {
-    const hold = Math.max(1, Math.round(plan.openingClaim.seconds * fps));
-    lines.push(event(0, hold, 'Claim', `\u201C${escapeAss(plan.openingClaim.text)}\u201D`, fps, true));
+    const opening = plan.openingClaim;
+    const hold = Math.max(1, Math.round(opening.seconds * fps));
+    /*
+     * Quotation marks only where they were earned. The source's own sentence
+     * gets them, because the clip plays it a moment later and the viewer can
+     * hear whether the quotation was fair. The author's own hook does not:
+     * quoted, it would read as something the source said, over the source's
+     * own picture. [INV-05]
+     */
+    const text = opening.quoted
+      ? `\u201C${escapeAss(opening.text)}\u201D`
+      : escapeAss(opening.text);
+    lines.push(event(0, hold, 'Claim', text, fps, true));
   }
 
   if (options.claimCards !== false) {
