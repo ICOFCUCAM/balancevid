@@ -610,3 +610,75 @@ The brief's chain — backup, loop, next programme — needed no sequencing code
 at all, because it was already the order of resolution.
 
 ---
+
+## §14 — Guests on the broadcast stage
+
+    YOU  →  YOU + SARAH  →  SARAH  →  SOURCE VIDEO  →  TRIPTYCH
+
+The Conversation Room has the people: invitation by link, participants in the
+room and on the stage, manual and automatic speaker switching with hysteresis,
+and a mesh that hands back a stream per person (ROOM §4, §6, D-17). The
+encoder takes one stream. The mixer is what makes one out of several, and it
+is all it is: it connects to nobody, decides who is on stage for nobody, and
+invents no geometry.
+
+**It draws from `LAYOUTS`.** A quad on the broadcast stage and a quad in an
+export are one table, so a broadcast and a recording of it cannot drift apart.
+The arrangement is chosen by headcount and overridable, which is what a vision
+mixer is.
+
+**A canvas, not a server mix.** Mixing on the server would mean every camera
+travelling to it, being decoded, composited and re-encoded — an SFU and a
+rendering farm, for a room of three. The browser already has every stream
+decoded; drawing them into a canvas costs one composite per frame and produces
+exactly the single feed the encoder wants. D-14 says an SFU comes later, and
+this is why it can.
+
+**Every microphone is mixed, not just the one on screen.** A guest speaking
+over a picture of somebody else is still speaking, and a broadcast that muted
+them until the vision cut would clip the first word of every answer. Who is
+SEEN is the Room's decision; who is HEARD is everybody.
+
+## §15 — Distribution
+
+See D-21. One programme, many audiences; each destination its own shape and
+its own composition; every platform a connector; and the first implementation
+activates only this channel's own output.
+
+---
+
+## C-6 — Stage 6: the mixer, and the outputs
+
+**Checked first, and most of it existed.** The Room had the people, the
+staging and the switching; `LAYOUTS` had the geometry; `useRoomMesh` had the
+streams. What did not exist anywhere was a browser-side compositor — grep for
+`captureStream` found two unrelated uses and no mixer. So one new hook, and
+two existing systems joined rather than re-implemented.
+
+**The mixer draws, and nothing else.** Every temptation to make it clever was
+somebody else's job: who is on stage is the Room's, which arrangement is the
+layout table's, who is connected is the mesh's. What is left is a draw loop
+and an audio graph, which is the whole of it.
+
+**The draw loop must not restart when somebody joins.** A restarted
+`captureStream` is a new track, and a new track mid-broadcast is a gap in the
+recording — so the sources live in a ref and the loop reads them, rather than
+the loop being rebuilt when they change.
+
+**The encoder had to stop owning the camera.** It opened `getUserMedia`
+itself, which was right when it was the only thing that needed a picture and
+wrong the moment a mixer also did — two red lights for one broadcast. It now
+takes a stream when it is given one, and only stops tracks it opened.
+
+**Distribution is declared and mostly unimplemented, on purpose.** Every
+destination is a row with a shape and a layout; only the channel's own can
+send. A platform behind an app review reads NOT CONNECTED rather than ON,
+because "on" with nothing arriving is the screen that loses a broadcast.
+
+**And the vertical output is a layout, not a crop.** `broadcast_vertical` sits
+in the same table as `performance_quad`, which means it reframes, renders and
+is chosen by exactly the code that already handles every other arrangement.
+Adding it cost eight lines and no new concept, which is the point of having
+had a layout table for the last two studios.
+
+---

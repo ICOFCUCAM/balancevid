@@ -33,6 +33,7 @@
 import type { Id } from './ids.js';
 import type { Publication } from './document.js';
 import type { ChannelIdentity } from './identity.js';
+import type { Destination } from './distribution.js';
 
 export type ChannelId = Id<'chan'>;
 export type ProgrammeId = Id<'prog'>;
@@ -470,6 +471,16 @@ export interface Channel {
    * instead, which is already something rather than nothing.
    */
   backup?: ProgrammeSource;
+  /**
+   * WHERE THE PROGRAMME GOES.  [§15, D-21]
+   *
+   * One master broadcast output, and destinations that receive it. Declared
+   * from the beginning even though the first implementation activates only
+   * the channel's own, because a destination is a row in a list and adding
+   * the list later would mean every screen that shows "on air" learning that
+   * there is more than one place it can be on air in.
+   */
+  destinations?: Destination[];
   /**
    * How the channel looks.  [§13, D-16]
    *

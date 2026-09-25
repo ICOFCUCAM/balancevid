@@ -25,7 +25,8 @@ import {
 } from '../../src/domain/channel.js';
 import {
   ChannelEditError,
-  addBlock, addToBlock, addToRotation, bookLiveEvent, closeIngest, endLive,
+  addBlock, addDestination, addToBlock, addToRotation, bookLiveEvent,
+  closeIngest, endLive, setDestination,
   goLive, keepLive, moveInRotation, setIdentity,
   moveProgramme, newChannel, openIngest, removeFromRotation, removeProgramme,
   faultLive, recoverLive, requestRecording, rollIn, scheduleProgramme,
@@ -36,6 +37,8 @@ import {
   deadAir, distinctAssetsRead, livePlaylist, playoutWindow, segmentIndexAt,
 } from '../../src/domain/playout.js';
 import { marksFor } from '../../src/domain/identity.js';
+import { PLATFORMS, layoutFor, sending, sizeOf } from '../../src/domain/distribution.js';
+import { LAYOUTS } from '../../src/domain/presentation.js';
 import {
   InvariantViolation,
   assertChannelOwnsNoScheduledMedia, assertScheduleResolves,
@@ -1204,5 +1207,104 @@ describe('the viewer never sees a dead screen (§9)', () => {
     expect(() => setBackup(c, { kind: 'live', ingestId: c.live!.ingestId }))
       .toThrow(ChannelEditError);
     expect(() => setBackup(c, { kind: 'live_event' })).toThrow(ChannelEditError);
+  });
+});
+
+describe('one programme, many audiences (§15, D-21)', () => {
+  /*
+   *                    ON AIR
+   *         ┌────────────┼────────────┐
+   *        TV          TikTok       YouTube
+   *       16:9          9:16         16:9
+   *
+   * "One live programme → multiple outputs." Not one video made three times.
+   */
+  it('a destination is declared off, whatever it is', () => {
+    const c = newChannel('Prof Class TV', 'UTC', AT);
+    const own = addDestination(c, { kind: 'own' }, AT);
+    const tiktok = addDestination(c, { kind: 'tiktok' }, AT);
+    expect(own.enabled).toBe(false);
+    expect(tiktok.enabled).toBe(false);
+  });
+
+  /*
+   * "Don't merely crop the television channel." A destination carries a SHAPE
+   * and a LAYOUT, so the vertical output is a vertical composition.
+   */
+  it('and it carries its own shape and its own composition', () => {
+    const c = newChannel('Prof Class TV', 'UTC', AT);
+    const own = addDestination(c, { kind: 'own' }, AT);
+    const tiktok = addDestination(c, { kind: 'tiktok' }, AT);
+    expect(own.shape).toBe('16:9');
+    expect(tiktok.shape).toBe('9:16');
+    expect(layoutFor(own)).toBe('performance_full');
+    expect(layoutFor(tiktok)).toBe('broadcast_vertical');
+    expect(sizeOf(tiktok.shape)).toEqual({ width: 1080, height: 1920 });
+  });
+
+  it('the vertical layout is a real layout, not a crop rectangle', () => {
+    expect(LAYOUTS['broadcast_vertical']).toBeDefined();
+    const panels = LAYOUTS['broadcast_vertical']!.layers;
+    expect(panels).toHaveLength(2);
+    /* Presenter above, content below — and neither of them full-bleed, so
+       there is a band at the foot for the station's name. */
+    expect(panels[0]!.rect.y).toBeLessThan(panels[1]!.rect.y);
+    expect(panels[1]!.rect.y + panels[1]!.rect.h).toBeLessThan(1);
+  });
+
+  it('an operator may override the composition, from the same table', () => {
+    const c = newChannel('Prof Class TV', 'UTC', AT);
+    const tiktok = addDestination(c, { kind: 'tiktok' }, AT);
+    setDestination(c, tiktok.id, { layoutId: 'performance_quad' });
+    expect(layoutFor(c.destinations![0]!)).toBe('performance_quad');
+    expect(() => setDestination(c, tiktok.id, { layoutId: 'not_a_layout' }))
+      .toThrow(ChannelEditError);
+  });
+
+  /*
+   * A destination that is switched on and blocked is not sending, and the
+   * control room has to show both facts — "on" with nothing arriving is the
+   * screen that loses a broadcast.
+   */
+  it('switched on is not the same as sending', () => {
+    const c = newChannel('Prof Class TV', 'UTC', AT);
+    const own = addDestination(c, { kind: 'own' }, AT);
+    const tiktok = addDestination(c, { kind: 'tiktok' }, AT);
+    setDestination(c, own.id, { enabled: true });
+    setDestination(c, tiktok.id, { enabled: true });
+    const live = sending(c.destinations!, (d) => (d.kind === 'own' ? 'on' : 'blocked'));
+    expect(live.map((d) => d.kind)).toEqual(['own']);
+  });
+
+  /*
+   * The difference between a connector somebody can switch on this afternoon
+   * and one that waits on an app review is not decoration.
+   */
+  it('and the platforms that need review say so', () => {
+    expect(PLATFORMS['own'].needsReview).toBe(false);
+    expect(PLATFORMS['rtmp'].needsReview).toBe(false);
+    expect(PLATFORMS['tiktok'].needsReview).toBe(true);
+    expect(PLATFORMS['tiktok'].hint).toMatch(/review/i);
+  });
+
+  it('a channel cannot be its own destination twice', () => {
+    const c = newChannel('Prof Class TV', 'UTC', AT);
+    addDestination(c, { kind: 'own' }, AT);
+    expect(() => addDestination(c, { kind: 'own' }, AT)).toThrow(ChannelEditError);
+  });
+
+  /*
+   * Destinations are outputs, not media. Adding five of them costs nothing —
+   * which is the same rule the schedule keeps, arriving at the other end.
+   */
+  it('and a destination costs no asset, because it is an output', () => {
+    const c = newChannel('Prof Class TV', 'UTC', AT);
+    addToRotation(c, { source: FILM, durationMs: HOUR }, AT);
+    const before = referencedAssets(c).length;
+    for (const kind of ['own', 'tiktok', 'youtube', 'facebook', 'x'] as const) {
+      addDestination(c, { kind }, AT);
+    }
+    expect(c.destinations).toHaveLength(5);
+    expect(referencedAssets(c)).toHaveLength(before);
   });
 });

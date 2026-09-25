@@ -9,6 +9,9 @@ import {
 } from '../../../src/domain/channel.js';
 import StudioBar from '../../StudioBar.js';
 import { useLiveEncoder } from './useLiveEncoder.js';
+import { useBroadcastGuests } from './useBroadcastGuests.js';
+import { arrangementFor, useBroadcastMixer } from './useBroadcastMixer.js';
+import { PLATFORMS } from '../../../src/domain/distribution.js';
 
 /**
  * The Channel Studio.  [Doctrine CHANNEL §1–§7, D-18, INV-17]
@@ -84,7 +87,29 @@ export default function ChannelStudio({
    * a component that unmounts takes the camera with it — and the panel
    * re-renders on every tick of the clock.
    */
-  const encoder = useLiveEncoder(id);
+  /**
+   * THE CAMERA, THE ROOM, THE MIX, THE PIPE — in that order.
+   *
+   * The operator's own camera is opened once here; the room's staged guests
+   * arrive through the Room's own mesh; the mixer draws them into one picture
+   * using the same layout table the renderer uses; and the encoder pushes
+   * that one stream. Each of the four knows nothing about the others but the
+   * stream it is handed. [§6, ROOM, U-18]
+   */
+  const [camera, setCamera] = useState<MediaStream | null>(null);
+  const [arrangement, setArrangement] = useState<string | undefined>(undefined);
+  const liveNow = channel.live && channel.live.phase !== 'ended';
+  const guests = useBroadcastGuests({
+    roomId: channel.live?.roomId,
+    localStream: camera,
+    enabled: Boolean(liveNow),
+  });
+  const mixer = useBroadcastMixer({
+    sources: guests.sources,
+    layoutId: arrangement,
+    enabled: Boolean(liveNow) && guests.sources.length > 0,
+  });
+  const encoder = useLiveEncoder(id, mixer.stream);
 
   const refresh = useCallback(async () => {
     const response = await fetch(`/api/channels/${id}`, { cache: 'no-store' });
@@ -104,12 +129,31 @@ export default function ChannelStudio({
    */
   const phase = channel.live?.phase;
   useEffect(() => {
-    if ((phase === 'armed' || phase === 'on_air') && !encoder.running) {
+    let cancelled = false;
+    if (phase === 'armed' || phase === 'on_air') {
+      if (!camera) {
+        void navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: { echoCancellation: true, noiseSuppression: true },
+        }).then((media) => { if (!cancelled) setCamera(media); })
+          .catch(() => setError('the camera could not be opened'));
+      }
+    } else {
+      for (const track of camera?.getTracks() ?? []) track.stop();
+      if (camera) setCamera(null);
+    }
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
+
+  /* The pipe follows the mix, which follows the session. */
+  useEffect(() => {
+    if ((phase === 'armed' || phase === 'on_air') && mixer.stream && !encoder.running) {
       void encoder.start();
     }
     if (phase === undefined || phase === 'ended') encoder.stop();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase]);
+  }, [phase, mixer.stream]);
 
   useEffect(() => {
     void (async () => {
@@ -317,11 +361,16 @@ export default function ChannelStudio({
                * over themselves.
                */
               <video
-                ref={encoder.videoRef} autoPlay muted playsInline
+                autoPlay muted playsInline
                 data-testid="live-preview"
+                ref={(element) => {
+                  if (element && element.srcObject !== mixer.stream) {
+                    element.srcObject = mixer.stream;
+                  }
+                }}
                 style={{
                   width: '100%', height: '100%', objectFit: 'contain',
-                  display: encoder.stream ? 'block' : 'none',
+                  display: mixer.stream ? 'block' : 'none',
                 }}
               />
             ) : on.kind !== 'off' ? (
@@ -519,6 +568,113 @@ export default function ChannelStudio({
                 </p>
               )}
 
+              {/* ---- where the programme goes (§15) ---------------------- */}
+              {/*
+                * BROADCAST OUTPUTS. One programme, several audiences, each
+                * composing the same moment its own way. Declared from the
+                * beginning even though only the channel's own is implemented,
+                * because a destination is a row and adding the row later
+                * would mean every screen learning there is more than one
+                * place to be on air. [§15, D-21]
+                */}
+              <Section
+                text="Distribution"
+                aside={(
+                  <button className="small" data-testid="add-destination"
+                          onClick={() => {
+                            const kind = window.prompt(
+                              'Which destination? own, tiktok, youtube, facebook, '
+                              + 'x, rtmp', 'tiktok');
+                            if (kind) void patch({ action: 'add-destination', kind });
+                          }}
+                          style={{
+                            border: 0, background: 'none', padding: 0,
+                            color: '#5c9ee0', fontSize: 11, cursor: 'pointer',
+                          }}>
+                    Manage
+                  </button>
+                )}
+              />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {(channel.destinations ?? []).length === 0 && (
+                  <p className="small muted" style={{ margin: 0, fontSize: 11 }}>
+                    Only this channel. Add a destination to send the same
+                    programme somewhere else.
+                  </p>
+                )}
+                {(channel.destinations ?? []).map((destination) => {
+                  const platform = PLATFORMS[destination.kind];
+                  /*
+                   * SWITCHED ON IS NOT SENDING. Only the channel's own
+                   * connector is implemented; the rest are declared and
+                   * blocked, and saying "ON" for one of those would be the
+                   * screen that loses a broadcast.
+                   */
+                  const canSend = destination.kind === 'own';
+                  const state = !destination.enabled ? 'OFF'
+                    : canSend ? (onAir ? 'ON' : 'READY') : 'NOT CONNECTED';
+                  return (
+                    <div key={destination.id} className="row"
+                         data-testid="destination" data-kind={destination.kind}
+                         data-state={state}
+                         style={{
+                           gap: 7, fontSize: 11, padding: '5px 7px', borderRadius: 6,
+                           background: 'var(--panel-2)',
+                           border: '1px solid var(--line)',
+                         }}>
+                      <button
+                        type="button" aria-label={`Turn ${destination.label} on or off`}
+                        data-testid="toggle-destination"
+                        onClick={() => void patch({
+                          action: 'set-destination', destinationId: destination.id,
+                          enabled: !destination.enabled,
+                        })}
+                        style={{
+                          width: 9, height: 9, borderRadius: '50%', padding: 0,
+                          border: 0, cursor: 'pointer', flex: '0 0 auto',
+                          background: state === 'ON' ? '#c0392b'
+                            : state === 'READY' ? '#4f8a5b'
+                              : state === 'NOT CONNECTED' ? '#8e6a1f' : '#2a3038',
+                        }}
+                      />
+                      <span className="grow" style={{
+                        minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}>{destination.label}</span>
+                      <span className="muted" style={{ fontSize: 9 }}>
+                        {destination.shape}
+                      </span>
+                      <span className="muted" style={{ fontSize: 9, fontWeight: 700 }}
+                            title={platform?.needsReview
+                              ? platform.hint : undefined}>
+                        {state}
+                      </span>
+                      <button
+                        type="button" data-testid="remove-destination"
+                        onClick={() => void patch({
+                          action: 'remove-destination', destinationId: destination.id,
+                        })}
+                        style={{
+                          border: 0, background: 'none', padding: '0 2px',
+                          color: 'var(--bad)', cursor: 'pointer', fontSize: 12,
+                        }}
+                      >&times;</button>
+                    </div>
+                  );
+                })}
+                {(channel.destinations ?? []).some(
+                  (destination) => destination.enabled
+                    && PLATFORMS[destination.kind]?.needsReview) && (
+                  <p className="small muted" style={{ margin: 0, fontSize: 10 }}>
+                    {/* Said plainly rather than shown as a working switch: a
+                        platform whose Live products are behind an app review
+                        is not something this can turn on for you. */}
+                    Those platforms review apps before they may broadcast. The
+                    connector has to be approved for your account and region.
+                  </p>
+                )}
+              </div>
+
               {/* ---- the live chain (§6, §8) ----------------------------- */}
               <Section
                 text={armed ? 'Armed \u2014 not on air' : onAir ? 'On air, live' : 'Live'}
@@ -561,6 +717,87 @@ export default function ChannelStudio({
                       Back to the room
                     </button>
                   </div>
+                  {/*
+                    * WHO IS ON THE BROADCAST STAGE.  [§6, ROOM §4]
+                    *
+                    * The Room decides this — by hand or by voice activity —
+                    * and the channel reads it. "Bring Sarah to stage" happens
+                    * over there and the picture changes over here, which is
+                    * the whole reason a channel names a room rather than
+                    * growing one.
+                    */}
+                  {channel.live?.roomId && (
+                    <div data-testid="broadcast-stage" style={{
+                      display: 'flex', flexDirection: 'column', gap: 5,
+                      padding: '6px 8px', borderRadius: 7,
+                      background: 'var(--panel-2)', border: '1px solid var(--line)',
+                    }}>
+                      <div className="row" style={{ justifyContent: 'space-between' }}>
+                        <span className="small muted" style={{
+                          fontSize: 9, letterSpacing: 0.8, fontWeight: 700,
+                        }}>ON STAGE</span>
+                        <a className="small" href={`/c/${channel.live.roomId}/room`}
+                           data-testid="to-room" style={{ fontSize: 10 }}>
+                          Open the room
+                        </a>
+                      </div>
+                      {guests.sources.length === 0 ? (
+                        <span className="small muted" style={{ fontSize: 11 }}>
+                          Just the camera. Bring somebody to stage in the room.
+                        </span>
+                      ) : guests.sources.map((person) => (
+                        <div key={person.id} className="row"
+                             data-testid="stage-person" style={{ gap: 7, fontSize: 11 }}>
+                          <span aria-hidden="true" style={{
+                            width: 8, height: 8, borderRadius: '50%',
+                            background: person.accent ?? '#3e7ca6',
+                          }} />
+                          <span className="grow">{person.label}</span>
+                        </div>
+                      ))}
+                      {guests.tooMany && (
+                        <span className="small" style={{
+                          fontSize: 10, color: 'var(--warn)',
+                        }}>
+                          {/* The Room's own warning, surfaced where it
+                              matters: a mesh this size is a broadcast that
+                              will drop somebody. [ROOM §6, D-14] */}
+                          More people on stage than a mesh should carry.
+                        </span>
+                      )}
+                      {/*
+                        * WHICH ARRANGEMENT, from the same table Studio Two
+                        * picks from. Automatic by headcount, overridable —
+                        * which is what a vision mixer is. [U-18]
+                        */}
+                      <div className="row" style={{ gap: 4, flexWrap: 'wrap' }}>
+                        {(['auto', 'performance_full', 'performance_half',
+                          'performance_thirds', 'performance_quad'] as const).map((id) => {
+                          const on = id === 'auto'
+                            ? arrangement === undefined
+                            : arrangement === id;
+                          return (
+                            <button
+                              key={id} type="button" data-testid="stage-arrangement"
+                              data-option={id} data-chosen={on ? 'true' : 'false'}
+                              onClick={() => setArrangement(id === 'auto' ? undefined : id)}
+                              style={{
+                                padding: '3px 7px', fontSize: 10, borderRadius: 5,
+                                border: `1px solid ${on ? '#3d7fd6' : 'var(--line)'}`,
+                                background: on ? 'rgba(45,110,200,0.22)' : 'transparent',
+                              }}
+                            >
+                              {id === 'auto'
+                                ? `Auto (${arrangementFor(guests.sources.length)
+                                  .replace('performance_', '')})`
+                                : id.replace('performance_', '')}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   {/*
                     * WHETHER THE PIPE IS ACTUALLY DELIVERING. A live studio
                     * that says LIVE while nothing is arriving is the worst

@@ -20,6 +20,10 @@ import {
   programmeEnd, programmeStart, rotationAt, rotationLengthMs,
 } from './channel.js';
 import { DEFAULT_IDENTITY, type ChannelIdentity } from './identity.js';
+import {
+  PLATFORMS, type Destination, type DestinationKind,
+} from './distribution.js';
+import { LAYOUTS } from './presentation.js';
 import { newId } from './ids.js';
 
 export class ChannelEditError extends Error {}
@@ -877,4 +881,79 @@ export function recoverLive(channel: Channel): boolean {
   if (!live?.faultedAt) return false;
   delete live.faultedAt;
   return true;
+}
+
+/* ------------------------------------------------------------------------ *
+ *  Distribution.  [§15, D-21]
+ * ------------------------------------------------------------------------ */
+
+/**
+ * Add somewhere for the programme to go.  [§15]
+ *
+ * The shape comes from the platform unless the operator says otherwise,
+ * because a vertical destination that defaulted to 16:9 would be a vertical
+ * destination somebody sets up wrong once and notices a week later.
+ *
+ * NO CREDENTIALS PASS THROUGH HERE. A destination names its settings; what
+ * they are is the connector's business and where they are kept is not the
+ * document's. A stream key in a JSON file that is also a portable archive
+ * (U-25) is a stream key in somebody's backup.
+ */
+export function addDestination(
+  channel: Channel,
+  entry: { kind: DestinationKind; label?: string; shape?: Destination['shape'];
+    layoutId?: string },
+  at: string,
+): Destination {
+  const platform = PLATFORMS[entry.kind];
+  if (!platform) fail(`unknown destination: ${entry.kind}`);
+  channel.destinations ??= [];
+  if (entry.kind === 'own' && channel.destinations.some((d) => d.kind === 'own')) {
+    fail('the channel is already one of its own destinations');
+  }
+  const made: Destination = {
+    id: newId('dest'),
+    kind: entry.kind,
+    label: (entry.label?.trim() || platform.label).slice(0, 80),
+    /*
+     * OFF, always, whatever it is. A destination that switched itself on when
+     * it was created would put a broadcast somewhere nobody had decided to
+     * put it, and the first time that matters is the time it matters.
+     */
+    enabled: false,
+    shape: entry.shape ?? platform.shape,
+    ...(entry.layoutId ? { layoutId: entry.layoutId } : {}),
+    createdAt: at,
+  };
+  channel.destinations.push(made);
+  return made;
+}
+
+export function removeDestination(channel: Channel, destinationId: string): void {
+  const before = channel.destinations?.length ?? 0;
+  channel.destinations = (channel.destinations ?? []).filter(
+    (destination) => destination.id !== destinationId);
+  if ((channel.destinations.length) === before) {
+    fail(`no destination ${destinationId} on this channel`);
+  }
+}
+
+/** Switch a destination on or off, and change how it composes. */
+export function setDestination(
+  channel: Channel, destinationId: string,
+  patch: { enabled?: boolean; shape?: Destination['shape']; layoutId?: string | null;
+    label?: string },
+): Destination {
+  const destination = (channel.destinations ?? []).find(
+    (candidate) => candidate.id === destinationId)
+    ?? fail(`no destination ${destinationId} on this channel`);
+  if (patch.enabled !== undefined) destination.enabled = patch.enabled;
+  if (patch.shape) destination.shape = patch.shape;
+  if (patch.label?.trim()) destination.label = patch.label.trim().slice(0, 80);
+  if (patch.layoutId === null) delete destination.layoutId;
+  else if (patch.layoutId) {
+    if (!LAYOUTS[patch.layoutId]) fail(`unknown arrangement: ${patch.layoutId}`);
+    destination.layoutId = patch.layoutId;
+  }
+  return destination;
 }

@@ -482,6 +482,34 @@ const PERFORMANCE_LAYOUTS: Record<string, Layout> = {
       { source: 'take', slot: 3, rect: { x: 0.6667, y: 0.6667, w: 0.3333, h: 0.3333 }, fit: 'cover', z: 3 },
     ],
   },
+  /*
+   * THE VERTICAL BROADCAST.  [CHANNEL §15, U-22, D-21]
+   *
+   *     ┌───────────────┐
+   *     │      YOU      │
+   *     ├───────────────┤
+   *     │    CONTENT    │
+   *     ├───────────────┤
+   *     │  Prof Class   │
+   *     └───────────────┘
+   *
+   * "Don't merely crop the television channel." A 16:9 programme squeezed
+   * into 9:16 is a letterboxed strip in the middle of a black phone screen;
+   * this is a composition made for the shape — the presenter at the top where
+   * a thumb is not, the programme under them, and a band at the foot the
+   * station's name is drawn into.
+   *
+   * It is a LAYOUT and not a crop, which is what lets it be chosen, changed
+   * and rendered by everything that already handles layouts.
+   */
+  broadcast_vertical: {
+    id: 'broadcast_vertical', label: 'Vertical broadcast',
+    backdrop: 'blur',
+    layers: [
+      { source: 'take', slot: 0, rect: { x: 0, y: 0.04, w: 1, h: 0.40 }, fit: 'cover', z: 0 },
+      { source: 'take', slot: 1, rect: { x: 0, y: 0.44, w: 1, h: 0.44 }, fit: 'cover', z: 1 },
+    ],
+  },
   performance_pip: {
     id: 'performance_pip', label: 'Picture in picture',
     layers: [

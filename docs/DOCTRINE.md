@@ -4608,3 +4608,41 @@ is made.
 **What is not built and is honest to name:** DASH (HLS only), a second
 playout machine (the engine assumes it is the only writer of a channel's
 stream directory), and hardware encoding.
+
+---
+
+## D-21 · Distribution
+
+> **Online TV creates one master broadcast output, and destinations receive
+> that output. One live programme → multiple outputs.**
+
+Not one video made three times. The channel decides once what is on air, and
+each destination composes that same moment its own way.
+
+**A destination is not a crop.** *"Don't merely crop the television
+channel."* Each one carries a SHAPE and a LAYOUT, so a vertical output is a
+vertical composition — presenter above, content below, the station's name in
+the band at the foot — drawn from the same layout table everything else uses
+(U-18). This is U-22 arriving at the broadcast layer: vertical is a different
+edit, and a destination naming a layout rather than a crop rectangle is what
+makes it one.
+
+**Every platform is a connector behind one interface.** TikTok's Live
+products are behind an app review whose terms are TikTok's to change; so are
+YouTube's and Facebook's. Hard-coding "send RTMP to TikTok" would put a
+platform's policy in the middle of the broadcast engine. The architecture is
+here from the beginning and the first implementation activates exactly one
+destination — the channel's own — because a connector that cannot be tested
+is a connector that is wrong, and the only one that can be tested today is
+ours.
+
+**Switched on is not sending.** `enabled` is the operator's switch and the
+connector's state is a separate answer. A destination showing "on" with
+nothing arriving is the screen that loses a broadcast, so the control room
+shows both and a platform that has not been approved reads NOT CONNECTED
+rather than ON.
+
+**No credentials in the document.** A destination names its settings; what
+they are is the connector's business and where they are kept is not the
+document's. A conversation directory is a portable archive (U-25), and a
+stream key in one is a stream key in somebody's backup.

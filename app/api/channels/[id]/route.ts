@@ -5,7 +5,8 @@ import {
   goLive, keepLive, moveInRotation, moveProgramme, openIngest, removeBlock,
   removeFromBlock, removeFromRotation, removeProgramme, requestRecording,
   retitleProgramme, rollIn, scheduleProgramme, setEmergency, setFiller,
-  setBackup, setIdentity, skipToNext, takeLive,
+  addDestination, removeDestination, setBackup, setDestination, setIdentity,
+  skipToNext, takeLive,
 } from '../../../../src/domain/channelEdit.js';
 import {
   gaps, nextAfter, onAirAt, orderedProgrammes, overlaps, referencedAssets,
@@ -226,6 +227,26 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
           break;
         case 'next':
           skipToNext(draft, at);
+          break;
+        /* ---- where the programme goes (§15) --------------------------- */
+        case 'add-destination':
+          addDestination(draft, {
+            kind: body['kind'],
+            label: body['label'],
+            ...(body['shape'] ? { shape: body['shape'] } : {}),
+            ...(body['layoutId'] ? { layoutId: body['layoutId'] } : {}),
+          }, at);
+          break;
+        case 'set-destination':
+          setDestination(draft, body['destinationId'], {
+            ...(body['enabled'] !== undefined ? { enabled: Boolean(body['enabled']) } : {}),
+            ...(body['shape'] ? { shape: body['shape'] } : {}),
+            ...(body['layoutId'] !== undefined ? { layoutId: body['layoutId'] } : {}),
+            ...(body['label'] ? { label: body['label'] } : {}),
+          });
+          break;
+        case 'remove-destination':
+          removeDestination(draft, body['destinationId']);
           break;
         /* ---- the safe playlist (§9) ----------------------------------- */
         case 'backup':

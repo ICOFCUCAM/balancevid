@@ -62,7 +62,17 @@ export interface LiveEncoder {
   stop: () => void;
 }
 
-export function useLiveEncoder(channelId: string): LiveEncoder {
+/**
+ * `feed` is what to broadcast, when something else is composing it.
+ *
+ * Absent, the encoder opens the camera itself — which is a channel going live
+ * on its own with nobody else in the room. Present, it broadcasts the mixed
+ * picture the composition engine produced and never touches getUserMedia,
+ * because the mixer already has the camera and two of them is two red lights.
+ */
+export function useLiveEncoder(
+  channelId: string, feed?: MediaStream | null,
+): LiveEncoder {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -97,13 +107,18 @@ export function useLiveEncoder(channelId: string): LiveEncoder {
   const start = useCallback(async () => {
     setError(null);
     try {
-      const media = await navigator.mediaDevices.getUserMedia({
+      const media = feed ?? await navigator.mediaDevices.getUserMedia({
         video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } },
         audio: {
           echoCancellation: true, noiseSuppression: true, autoGainControl: true,
         },
       });
-      streamRef.current = media;
+      /*
+       * Only a camera this hook opened is a camera this hook turns off. A
+       * mixed feed belongs to the mixer, and stopping its tracks here would
+       * black out the operator's own preview along with the broadcast.
+       */
+      streamRef.current = feed ? null : media;
       setStream(media);
       if (videoRef.current) videoRef.current.srcObject = media;
 
@@ -155,7 +170,7 @@ export function useLiveEncoder(channelId: string): LiveEncoder {
       setError(e instanceof Error ? e.message : String(e));
       stop();
     }
-  }, [channelId, stop]);
+  }, [channelId, feed, stop]);
 
   return { videoRef, stream, running, sent, dropped, rate, error, start, stop };
 }
