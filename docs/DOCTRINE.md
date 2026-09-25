@@ -3144,6 +3144,35 @@ are acceptable only because they read one plan. If they ever diverge in
 interpretation, that is a defect of the highest severity — the user's preview
 is a promise about the export.
 
+**Media transport for rooms: an SFU, and not yet.**  [ROOM §6, D-17]
+
+A deferred decision, recorded now because deferring it is the decision.
+
+Browsers connecting directly to one another is fine for two people and stops
+being fine at four: every participant uploads their camera once per other
+participant, so a five-way room asks each of five domestic uplinks for four
+simultaneous streams. Mesh does not degrade gracefully at that point; it
+fails, on the worst connection in the room, and the person it fails for is
+whoever has the least bandwidth rather than whoever joined last.
+
+So the answer is a selective forwarding unit: each participant sends once and
+receives what the server chooses to forward. It is not built, because the
+first milestone has one author and no room to scale, and because an SFU is a
+piece of infrastructure to run rather than a library to import.
+
+**What keeps the choice open is a boundary, not a plan.** The signalling route
+carries opaque payloads between named peers and knows nothing about what is
+inside them. The room knows who is present and who is on stage; it does not
+know how media travels. An SFU is then simply a peer that everyone connects
+to — it slots into the seam without the Conversation model, the stage policy
+or the composition engine learning that anything changed.
+
+And it cannot become load-bearing by accident, because the finished video is
+never the live stream: each participant's media is recorded independently and
+the export is rendered from the canonical timeline afterwards (ROOM §10).
+Whatever carries the conversation between people carries nothing that ends up
+in the file.
+
 ---
 
 ## D-15 · Definition of Done
@@ -4312,6 +4341,15 @@ and making it explicit on the way out costs nothing.
 not per person, because an argument has one sequence. Derived from source
 order (U-08), never stored: a stored number disagrees with the timeline the
 first time somebody moves an anchor.
+
+*Four names for where somebody stands, three of them derived.* Invited — an
+invitation exists and nobody has used it. Waiting — connected, hearing
+everything, not in the composition. On stage — connected and part of what the
+viewer sees. In room — the union of the last two, asked as a predicate because
+it is a question about the connection rather than a fourth place to be.
+Presence is stored as WHEN things happened (invited, joined, left) and the
+names fall out of it; storing the name instead needs a fifth for somebody who
+has gone, and their recordings are still in the conversation.
 
 *Speaker identity reaches every representation.* The timeline projection
 carries who and which; the render carries the name and that person's colour;
