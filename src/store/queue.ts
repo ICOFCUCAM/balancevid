@@ -31,6 +31,7 @@ export type JobKind =
   | 'render_reel'
   | 'render_thumbnails'
   | 'render_card'
+  | 'render_claim_cards'
   /* Studio Two. The conversationId field carries a performance id for these —
    * see the note on `Job` for why that is a rename waiting to happen rather
    * than a second queue. [STUDIO-TWO S-1] */

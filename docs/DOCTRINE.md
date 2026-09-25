@@ -3260,6 +3260,10 @@ quietly left in the code.
 - The source intake journey — choose, prepare, enter *(§40)*
 - The conversation as audio — one representation derived from another, with
   what listening costs it said in a number *(D-16, U-22)*
+- A card per claim–response pair, made to be posted rather than to preview a
+  link *(U-30, U-31, §52)*
+- The conversation as something to move around in — the article with an index
+  and a player, each exchange a seek *(D-16, U-14)*
 
 ---
 
@@ -3347,6 +3351,41 @@ document — and says "3 of your 7 responses point at something on screen". The
 count comes from the document, so it is a measurement. **A warning about
 content in general is decoration; the same warning about the thing in front of
 you is information.**
+
+**A card travels alone, so whatever it claims, it claims alone.** The share
+card had one honesty rule — only a statement the author BOUND goes in
+quotation marks, because a bound statement hashes to what the source actually
+said. A card per exchange needed a second one, because it carries two
+sentences instead of one: the author's own words come off a speech recogniser
+that nobody accepted (INV-06), and the temptation to set them in quotation
+marks is exactly as strong and exactly as wrong. They are set as the body, the
+way the article already prints them. **A quotation mark is a claim about
+provenance, not a typographic choice, and the test that a representation is
+honest is whether it is still honest with the conversation removed.**
+
+**The provenance block was lying, and it is the one block whose job is to be
+true about the rest.** "How this was made" was handed the SOURCE's transcript
+and wrote a note about the RESPONSES: *no transcript was available, so
+responses are listed without their text* — printed directly above those
+responses, in full, with their text, whenever the source was untranscribed and
+the takes were not. That is the ordinary case for an embedded source, so it
+had been shipping for months in the article and would have shipped in the new
+page. It was found by LOOKING AT A RENDERED PAGE, which no test does. The note
+is counted from the exchanges now rather than inferred from a transcript that
+is a different transcript. **Two things called "the transcript" are two
+things, and a document that describes itself must describe what it actually
+contains — U-15 exists to make AI involvement legible, and a legible lie is
+worse than silence.**
+
+**A representation that needs a script to be a document is not the accessible
+form of anything.** U-14 promised one. The interactive page could have been a
+player and an empty container filled by JavaScript, which is how such pages are
+usually built and which would have passed every test about seeking. Instead
+every exchange is in the markup with its timecodes, the index is ordinary
+anchors, and the seek points are attributes the script reads rather than a
+table it was handed. **The enhancement is the seeking; the document is the
+document.** Tested by stripping every `<script>` from the output and asserting
+the whole argument is still there.
 
 **A rule belongs to the medium that has it.** The publication bundle emits NO
 chapters when the list would be under three entries or would not begin at zero,

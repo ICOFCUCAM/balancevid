@@ -7,7 +7,7 @@ import { segment } from '../../src/transcribe/segmentation.js';
 import { TRANSCRIPT_VERSION, type Transcript } from '../../src/transcribe/types.js';
 import { HOUSE_FPS } from '../../src/domain/time.js';
 import { quoteHash } from '../../src/domain/ids.js';
-import { S, makeConversation, makeIntervention } from '../domain/fixtures.js';
+import { S, makeConversation, makeIntervention, makeTake } from '../domain/fixtures.js';
 
 const F = (seconds: number) => Math.round(seconds * HOUSE_FPS);
 const AT = '2026-09-22T12:00:00.000Z';
@@ -303,5 +303,57 @@ describe('the article as a shared link', () => {
     expect(html).not.toContain('og:image');
     // Still previewable, just without a picture.
     expect(html).toContain('<meta name="twitter:card" content="summary">');
+  });
+});
+
+/**
+ * The provenance block is the one part of a document whose job is to be true
+ * about the rest of it.  [U-15, INV-07]
+ *
+ * It used to be handed the SOURCE's transcript and write a note about the
+ * RESPONSES. A conversation whose source was never transcribed but whose takes
+ * were — the ordinary case for an embedded source — published a document
+ * saying its responses had no text, directly above those responses, in full,
+ * with their text. Found by looking at a rendered page rather than by a test,
+ * which is why there is now a test.
+ */
+describe('how this was made, said truthfully', () => {
+  const spoken = (text: string): Transcript => ({
+    engine: 'test', language: 'en', characteristics: {}, words: [],
+    sentences: [{ text, startFrame: 0, endFrame: 600, words: [] }],
+  } as unknown as Transcript);
+
+  function withResponses(n: number, transcribed: number) {
+    const conversation = makeConversation(S(600), Array.from({ length: n }, (_, i) =>
+      makeIntervention(S(60 * (i + 1)), S(20), { type: 'critique' })));
+    const takes = new Map<string, Transcript>();
+    conversation.interventions.forEach((intervention, i) => {
+      intervention.takes = [makeTake(S(20))];
+      intervention.selectedTakeId = intervention.takes[0]!.id;
+      if (i < transcribed) takes.set(intervention.takes[0]!.id, spoken('I disagree.'));
+    });
+    return generateArticle({
+      conversation, sourceTranscript: null, takeTranscripts: takes,
+      generatedAt: '2026-01-01T00:00:00.000Z',
+    });
+  }
+
+  it('does not claim the responses have no text when they have text', () => {
+    const article = withResponses(3, 3);
+    expect(article.exchanges.every((e) => e.response.text)).toBe(true);
+    expect(article.provenance.notes.join(' ')).not.toMatch(/responses are listed without/);
+    expect(article.provenance.notes.join(' ')).not.toMatch(/No response was transcribed/);
+  });
+
+  it('counts the ones that really were not transcribed', () => {
+    expect(withResponses(3, 1).provenance.notes.join(' '))
+      .toMatch(/2 of 3 responses were not transcribed/);
+    expect(withResponses(2, 0).provenance.notes.join(' '))
+      .toMatch(/No response was transcribed/);
+  });
+
+  it('and says what a missing SOURCE transcript actually costs', () => {
+    expect(withResponses(1, 1).provenance.notes.join(' '))
+      .toMatch(/source was not transcribed/);
   });
 });

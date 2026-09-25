@@ -24,6 +24,9 @@ import { buildCues } from '../render/cues.js';
 import { buildManifest } from '../manifest/build.js';
 import { buildBundle } from '../publish/bundle.js';
 import { buildShareCard } from '../publish/card.js';
+import { buildClaimCards } from '../publish/claimCard.js';
+import { generateInteractive } from '../interactive/generate.js';
+import { renderInteractive } from '../interactive/html.js';
 import { buildSrt, buildVtt } from '../render/subtitles.js';
 import type { Transcript } from '../transcribe/types.js';
 
@@ -94,6 +97,12 @@ const bundle = (context: RepresentationContext) => buildBundle({
   sourceTranscript: context.sourceTranscript ?? null,
   generatedAt: context.generatedAt,
   attribution: buildAttribution(context.conversation, context.generatedAt).text,
+});
+
+const claimCards = (context: RepresentationContext) => buildClaimCards({
+  conversation: context.conversation,
+  attribution: buildAttribution(context.conversation, context.generatedAt).text,
+  ...(context.takeTranscripts ? { takeTranscripts: context.takeTranscripts } : {}),
 });
 
 export const REPRESENTATIONS: Representation[] = [
@@ -195,6 +204,43 @@ export const REPRESENTATIONS: Representation[] = [
     // Every conversation has a title, a source and an attribution, which is
     // the whole of what a card needs. Class B included: a conversation that
     // cannot export a video can still be read, and its link still travels.
+    available: () => true,
+  },
+  {
+    id: 'claim-cards.json',
+    label: 'Share cards (one per exchange)',
+    mediaType: 'application/json',
+    inputs: ['source', 'interventions', 'anchors', 'takes', 'transcripts', 'lineage'],
+    /*
+     * The WORDS of every card. The pictures are drawn from these by the
+     * worker, which is the same split that keeps `share-card.json` and its
+     * image from drifting: one generator, two renderings, and the alt text
+     * comes from the same place as the ink. [U-30, D-04]
+     */
+    generate: (c) => JSON.stringify(claimCards(c), null, 2),
+    // A conversation with no recorded response has no exchange to make a card
+    // of, and a card of a claim with no answer is a poster for the claim.
+    available: (c) => claimCards(c).length > 0,
+  },
+  {
+    id: 'interactive.html',
+    label: 'Interactive (HTML)',
+    mediaType: 'text/html; charset=utf-8',
+    inputs: ['source', 'interventions', 'anchors', 'takes', 'transcripts', 'publication'],
+    /*
+     * The article, arranged to be moved around in: an index of the exchanges
+     * over the published video, each one a seek. Registered rather than only
+     * served, so the rebuild test asserts that it survives deletion like every
+     * other representation — and so that it cannot quietly acquire a field the
+     * Conversation does not have. [D-16]
+     */
+    generate: (c) => renderInteractive(generateInteractive({
+      conversation: c.conversation,
+      sourceTranscript: c.sourceTranscript ?? null,
+      ...(c.transcriptVersion ? { transcriptVersion: c.transcriptVersion } : {}),
+      ...(c.takeTranscripts ? { takeTranscripts: c.takeTranscripts } : {}),
+      generatedAt: c.generatedAt,
+    })),
     available: () => true,
   },
   {

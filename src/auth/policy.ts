@@ -53,6 +53,10 @@ const PUBLIC_PATTERNS: RegExp[] = [
   // The picture a link preview fetches, with none of the sender's cookies.
   // The route serves it only for a published conversation. [U-31, D-03]
   /^\/api\/conversations\/[A-Za-z0-9_-]+\/card$/,
+  // And a card per exchange, which is the same thing one scale down: made to
+  // be posted, so made to be fetched by whatever it was posted into. The
+  // route still checks that the conversation IS published.
+  /^\/api\/conversations\/[A-Za-z0-9_-]+\/cards\/[0-9]+$/,
   /^\/api\/conversations\/[A-Za-z0-9_-]+\/room$/,
   /^\/api\/conversations\/[A-Za-z0-9_-]+\/room\/presence$/,
   /^\/api\/conversations\/[A-Za-z0-9_-]+\/room\/signal$/,
@@ -60,6 +64,7 @@ const PUBLIC_PATTERNS: RegExp[] = [
   // published — this only decides which routes are allowed to make that call.
   /^\/c\/[A-Za-z0-9_-]+\/watch\/?$/,
   /^\/c\/[A-Za-z0-9_-]+\/article\/?$/,
+  /^\/c\/[A-Za-z0-9_-]+\/explore\/?$/,
   // Exactly the media the companion player needs, and nothing else.
   /^\/api\/conversations\/[A-Za-z0-9_-]+\/representations$/,
   /^\/api\/conversations\/[A-Za-z0-9_-]+\/source$/,
@@ -175,6 +180,9 @@ const PUBLIC_REPRESENTATIONS = new Set([
   // What a link to this conversation says about itself. Public by
   // definition: it exists to be read by whatever the link was pasted into.
   'share-card.json',
+  // A card per exchange, and the page that plays them. Both exist to be read
+  // by somebody who was sent a link.
+  'claim-cards.json', 'interactive.html',
 ]);
 
 export function isPublicRepresentation(id: string | null): boolean {

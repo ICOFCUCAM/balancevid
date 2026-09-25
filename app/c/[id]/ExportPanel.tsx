@@ -118,6 +118,12 @@ export default function ExportPanel({
             <a className="btn small" href={`/c/${conversationId}/article`} target="_blank" rel="noreferrer">
               Read it as an article
             </a>
+            {/* The same conversation to move around in: an index of the
+                exchanges over the video, each one a seek. [D-16] */}
+            <a className="btn small" data-testid="open-interactive"
+               href={`/c/${conversationId}/explore`} target="_blank" rel="noreferrer">
+              Explore the exchanges
+            </a>
           </div>
         </div>
       )}

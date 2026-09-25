@@ -17,6 +17,9 @@ import type { ExportProfile } from '../domain/presentation.js';
 import { HOUSE_FPS, type Frames } from '../domain/time.js';
 import type { ThumbnailCandidate } from '../publish/bundle.js';
 import { CARD_HEIGHT, CARD_WIDTH, type ShareCard } from '../publish/card.js';
+import {
+  CLAIM_CARD_HEIGHT, CLAIM_CARD_WIDTH, type ClaimCard,
+} from '../publish/claimCard.js';
 import { ffmpeg, type RunOptions } from './ffmpeg.js';
 import { assColor, escapeAss } from './subtitles.js';
 
@@ -266,5 +269,119 @@ export function shareCardAss(card: ShareCard): string {
     `Dialogue: 0,0:00:00.00,0:00:10.00,Eyebrow,,0,0,0,,${escapeAss(card.eyebrow)}`,
     `Dialogue: 0,0:00:00.00,0:00:10.00,Hero,,0,0,0,,${escapeAss(text)}`,
     `Dialogue: 0,0:00:00.00,0:00:10.00,Foot,,0,0,0,,${escapeAss(`${card.scale}  ·  ${card.attribution}`)}`,
+  ].join('\n')}\n`;
+}
+
+/**
+ * A claim card, drawn.  [Doctrine U-30, U-31, D-04]
+ *
+ * The third thing in this file made of the same craft, and for the same
+ * reason: one font, one ink, one gold rule, so a card somebody posts looks
+ * like the video it came from rather than like a different product.
+ *
+ * The layout is an argument in three parts, read top to bottom in the order
+ * it happened. What the source said, set apart and in quotation marks when it
+ * has earned them. The rule. What was said back, in the body weight, because
+ * the response is the point of the card. The attribution under both, which is
+ * the one line that is never dropped however long the other two run.
+ */
+export async function renderClaimCard(
+  card: ClaimCard, outPath: string, scratchDir: string, run?: RunOptions,
+): Promise<string> {
+  await mkdir(dirname(outPath), { recursive: true });
+  await mkdir(scratchDir, { recursive: true });
+  const assPath = join(scratchDir, `${card.index}-claim-card.ass`);
+  await writeFile(assPath, claimCardAss(card), 'utf8');
+
+  await ffmpeg([
+    '-y',
+    '-f', 'lavfi',
+    '-i', `color=c=${CARD_BACKGROUND.replace('#', '0x')}`
+      + `:s=${CLAIM_CARD_WIDTH}x${CLAIM_CARD_HEIGHT}:d=1`,
+    '-vf', `ass=${escapeFilterPath(assPath)}`,
+    '-frames:v', '1',
+    outPath,
+  ], run);
+  return outPath;
+}
+
+/**
+ * The script for one claim card.
+ *
+ * Both blocks shrink as they lengthen, in steps rather than continuously: a
+ * size computed from a character count to the pixel produces a set of cards
+ * that are all slightly different, which reads as carelessness across a row
+ * of them. Four sizes means several cards share one, and a row looks made.
+ */
+export function claimCardAss(card: ClaimCard): string {
+  const width = CLAIM_CARD_WIDTH;
+  const height = CLAIM_CARD_HEIGHT;
+  const side = Math.round(width * 0.085);
+
+  const step = (text: string, big: number, mid: number, small: number, tiny: number) =>
+    text.length > 170 ? tiny : text.length > 110 ? small : text.length > 60 ? mid : big;
+
+  const claimSize = step(card.claim.text, 62, 54, 46, 40);
+  const responseSize = step(card.response.text, 48, 42, 37, 33);
+
+  const style = (
+    name: string, size: number, colour: string, alignment: number,
+    marginV: number, bold: 0 | 1, italic: 0 | 1 = 0,
+  ) => `Style: ${name},${FONT},${size},${assColor(colour)},${assColor(colour)},`
+    + `${assColor('#000000')},${assColor('#000000')},${bold},${italic},0,0,100,100,0,0,1,0,0,`
+    + `${alignment},${side},${side},${marginV},1`;
+
+  const claimText = card.claim.quoted
+    ? `“${card.claim.text}”`
+    : card.claim.text;
+
+  /*
+   * The claim sits in the top half and the response in the bottom half, each
+   * centred within its own half rather than both flowing from the top. A card
+   * whose halves move as the text grows looks like a template being filled;
+   * two fixed rooms, each with its text centred, looks composed.
+   */
+  const claimY = Math.round(height * 0.34);
+  const ruleY = Math.round(height * 0.52);
+  const responseY = Math.round(height * 0.70);
+
+  return `${[
+    '[Script Info]',
+    'ScriptType: v4.00+',
+    `PlayResX: ${width}`,
+    `PlayResY: ${height}`,
+    'WrapStyle: 0',
+    'ScaledBorderAndShadow: yes',
+    'YCbCr Matrix: TV.709',
+    '',
+    '[V4+ Styles]',
+    'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding',
+    // 7 = top left, 5 = middle centre-ish (positioned), 1 = bottom left.
+    style('Eyebrow', 26, '#B8BEC6', 7, Math.round(height * 0.085), 0),
+    // The claim is italic as well as quoted: the two together survive the
+    // greyscale and the thumbnail, where quotation marks alone do not. [D-04]
+    style('Claim', claimSize, CARD_INK, 5, 0, 0, 1),
+    style('Label', 24, CARD_RULE, 5, 0, 1),
+    style('Response', responseSize, CARD_INK, 5, 0, 0),
+    style('Foot', 24, '#8F97A1', 1, Math.round(height * 0.055), 0),
+    '',
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    `Dialogue: 0,0:00:00.00,0:00:10.00,Eyebrow,,0,0,0,,{\\pos(${side},${
+      Math.round(height * 0.058)})\\c${assColor(CARD_RULE).slice(2)}\\p1}`
+      + `m 0 0 l 96 0 l 96 5 l 0 5{\\p0}`,
+    `Dialogue: 0,0:00:00.00,0:00:10.00,Eyebrow,,0,0,0,,${escapeAss(card.eyebrow)}`,
+    `Dialogue: 0,0:00:00.00,0:00:10.00,Claim,,0,0,0,,{\\pos(${
+      Math.round(width / 2)},${claimY})}${escapeAss(claimText)}`,
+    // The label is the turn: everything above it is the source's and
+    // everything below is the author's. In the one accent colour, so the
+    // card has a single ornament rather than a second one competing.
+    `Dialogue: 0,0:00:00.00,0:00:10.00,Label,,0,0,0,,{\\pos(${
+      Math.round(width / 2)},${ruleY})}${escapeAss(card.label.toUpperCase())}`,
+    `Dialogue: 0,0:00:00.00,0:00:10.00,Response,,0,0,0,,{\\pos(${
+      Math.round(width / 2)},${responseY})${
+      card.response.kind === 'unheard' ? '\\i1\\c' + assColor('#B8BEC6').slice(2) : ''
+    }}${escapeAss(card.response.text)}`,
+    `Dialogue: 0,0:00:00.00,0:00:10.00,Foot,,0,0,0,,${escapeAss(card.attribution)}`,
   ].join('\n')}\n`;
 }

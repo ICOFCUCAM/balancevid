@@ -2118,6 +2118,88 @@ if (job?.state === 'done') {
   }, null, 2));
 }
 
+// --- a card per exchange (U-30, U-31, D-04) ---------------------------------
+/*
+ * "Every claim/response could produce a beautiful static card." A card travels
+ * without the conversation it came from, so what it claims, it claims alone:
+ * the bound statement in quotation marks, the machine-transcribed response
+ * never in them, and the attribution on every one of them.
+ */
+if (job?.state === 'done') {
+  log('making the share cards…');
+  await page.waitForSelector('[data-testid="cards-panel"]', { timeout: 20_000 });
+
+  const before = await api(`/api/conversations/${conversationId}/cards`);
+  check(before.cards.length > 0, 'there is a card for every answered claim',
+    `${before.cards.length} cards`);
+  check(before.cards.every((card) => card.attribution && card.attribution.length > 0),
+    'and every one of them carries the attribution (INV-07)');
+
+  const quoted = before.cards.find((card) => card.claim.quoted);
+  check(Boolean(quoted), 'a bound statement is quoted on its card (INV-05)',
+    quoted ? quoted.claim.text.slice(0, 50) : 'none bound');
+  check(before.cards.every((card) => card.response.kind !== 'spoken'
+    || !card.response.text.startsWith('\u201C')),
+    'and the response is never in quotation marks — no human accepted it (INV-06)');
+  check(before.cards.every((card) => card.alt && card.alt.length > 20),
+    'each card is described in words as well as drawn (D-04)');
+
+  await page.click('[data-testid="make-cards"]');
+  let cardJob = null;
+  for (let i = 0; i < 300; i++) {
+    const jobs = (await api(`/api/conversations/${conversationId}/cards`)).jobs;
+    cardJob = jobs[0];
+    if (cardJob && (cardJob.state === 'done' || cardJob.state === 'failed')) break;
+    await sleep(1000);
+  }
+  check(cardJob?.state === 'done', 'the cards were drawn',
+    cardJob?.error ?? cardJob?.state ?? 'no job');
+
+  if (cardJob?.state === 'done') {
+    check(cardJob.result.drawn === before.cards.length,
+      'all of them, not some of them',
+      `${cardJob.result.drawn} of ${before.cards.length}`);
+    const png = await sfetch(`${BASE}/api/conversations/${conversationId}/cards/1`);
+    check(png.ok && (png.headers.get('content-type') ?? '').includes('image/png'),
+      'and each one is served as a picture', `${png.status} ${png.headers.get('content-type')}`);
+    await page.waitForSelector('[data-testid="card-download"]', { timeout: 30_000 });
+    check(await page.locator('[data-testid="card-row"]').count() === before.cards.length,
+      'the studio shows what each card will say before it draws it');
+  }
+}
+
+// --- the conversation, to move around in (D-16, U-14) -----------------------
+/*
+ * The article is the conversation read straight through; this is the same
+ * argument as a set of exchanges you can jump between. The check that matters
+ * is the one about JavaScript: the product promised an accessible form of
+ * every conversation, and a page whose content appears only after a script
+ * has run is not one.
+ */
+{
+  log('checking the interactive page…');
+  const page1 = await sfetch(`${BASE}/c/${conversationId}/explore`);
+  check(page1.ok, 'the interactive page is served', `status ${page1.status}`);
+  const html = await page1.text();
+  const plain = html.replace(/<script[\s\S]*?<\/script>/g, '');
+
+  check(/id="e1"/.test(plain) && /id="e2"/.test(plain),
+    'every exchange is in the markup, with no script run (U-14, D-04)');
+  check(/href="#e1"/.test(plain),
+    'and the index is ordinary anchors that work without one');
+  check(/<span class="stamp">\d\d:\d\d:\d\d/.test(plain),
+    'with timecodes as readable text rather than something a script fills in');
+  check(/data-at="[0-9.]+"/.test(plain),
+    'the seek points are in the markup, so the script reads one source of truth');
+
+  // A draft plays nothing: publishing publishes one video, and until then
+  // there is no video this page is allowed to show. [U-31, INV-15]
+  check(!/<video/.test(html) || /has not published a video yet/.test(html)
+    || /\/renders\//.test(html),
+    'it plays the published render or says there is none',
+    /<video/.test(html) ? 'player present' : 'no player');
+}
+
 // --- the conversation, to listen to (U-22, D-16) ----------------------------
 if (job?.state === 'done') {
   log('taking the audio…');
@@ -2522,6 +2604,28 @@ check(listed.published.some((p) => p.id === conversationId && p.respondable),
   check(rubbish.status >= 300 && rubbish.status !== 200,
     'and a hash that is not a hash is simply not found',
     `status ${rubbish.status}`);
+
+  /*
+   * The two things a link can now point at, for somebody with no session.
+   * A card exists to be passed on and a page to be sent, so both are public
+   * once published — and both are still bounded by what WAS published: the
+   * page plays the named render, not the newest one on disk. [U-31, INV-15]
+   */
+  const explore = await raw(`/c/${conversationId}/explore`);
+  check(explore.status === 200, 'a stranger can explore the exchanges',
+    `status ${explore.status}`);
+  const exploreHtml = explore.status === 200 ? await explore.text() : '';
+  check(exploreHtml.includes(`/renders/${publishedHash}/file`),
+    'and the page plays the render that was published, not the newest one (INV-15)');
+  for (const job of others) {
+    check(!exploreHtml.includes(job.result.planHash),
+      'and names no other render anywhere in its markup', job.result.planHash.slice(0, 12));
+  }
+
+  const card = await raw(`/api/conversations/${conversationId}/cards/1`);
+  check(card.status === 200 && (card.headers.get('content-type') ?? '').includes('image/png'),
+    'and a card of one exchange is fetched by whatever the link was pasted into (U-30)',
+    `status ${card.status}`);
 }
 
 const child = await (await sfetch(`${BASE}/api/conversations`, {

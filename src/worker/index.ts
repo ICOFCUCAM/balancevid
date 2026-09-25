@@ -19,7 +19,9 @@ import { buildClipPlan, buildClipTimeline } from '../domain/clips.js';
 import { buildReelPlan, buildReelTimeline } from '../domain/reel.js';
 import { compose } from '../render/compose.js';
 import { ingest, makeProxy } from '../render/ingest.js';
-import { renderShareCard, renderThumbnail, renderTakePoster } from '../render/thumbnails.js';
+import {
+  renderClaimCard, renderShareCard, renderThumbnail, renderTakePoster,
+} from '../render/thumbnails.js';
 import { ensureDirs, paths, safe } from '../store/paths.js';
 import { claim, finish, update, type Job } from '../store/queue.js';
 import { audit, loadConversation, mutateConversation } from '../store/repository.js';
@@ -36,6 +38,7 @@ import { archiveUpload, archiveWeb, type ArchiveResult } from '../evidence/archi
 import { projectTimeline } from '../domain/timeline.js';
 import { buildBundle, conversationChapters } from '../publish/bundle.js';
 import { buildShareCard } from '../publish/card.js';
+import { buildClaimCards, claimCardName } from '../publish/claimCard.js';
 import { HOUSE_FPS, HOUSE_SAMPLE_RATE, samplesToSeconds } from '../domain/time.js';
 import { measureAlignment } from '../domain/align.js';
 import {
@@ -83,6 +86,7 @@ export async function runJob(job: Job): Promise<Job> {
     case 'render_reel': return renderReel(job);
     case 'render_thumbnails': return renderThumbnails(job);
     case 'render_card': return renderCard(job);
+    case 'render_claim_cards': return renderClaimCards(job);
     case 'ingest_master': return ingestMaster(job);
     case 'ingest_plate': return ingestPlate(job);
     case 'assemble_performance_take': return assemblePerformanceTake(job);
@@ -1140,6 +1144,55 @@ async function renderCard(job: Job): Promise<Job> {
   await audit(conversation.id, { action: 'card.rendered', detail: {} });
   return finish(job, 'done', { progress: 100, result: { card: 'share-card.png' } });
 }
+
+/**
+ * A card per exchange.  [Doctrine U-30, U-31, D-04]
+ *
+ * ONE FAILED CARD DOES NOT FAIL THE SET, for the same reason a failed
+ * thumbnail does not: an author with six cards and one missing is in a better
+ * position than an author with a failed job and none. The job reports how many
+ * it drew, so nobody has to count the files to find out.
+ *
+ * The words are decided by `buildClaimCards` and the picture is drawn from
+ * them, so what a screen reader is told and what is on the card come from one
+ * generator — the split that keeps `share-card.json` and its picture honest,
+ * applied to the same problem one scale down.
+ */
+async function renderClaimCards(job: Job): Promise<Job> {
+  const id = job.conversationId;
+  const conversation = await loadConversation(id);
+  const cards = buildClaimCards({
+    conversation,
+    attribution: buildAttribution(conversation, conversation.createdAt).text,
+    takeTranscripts: await loadAllTakeTranscripts(id),
+  });
+
+  const outDir = paths.claimCards(id);
+  await mkdir(outDir, { recursive: true });
+
+  const drawn: number[] = [];
+  const failed: { index: number; error: string }[] = [];
+  for (const card of cards) {
+    try {
+      await renderClaimCard(card, join(outDir, claimCardName(card.index)), outDir);
+      drawn.push(card.index);
+    } catch (error) {
+      failed.push({ index: card.index, error: String(error).slice(0, 200) });
+    }
+    job.progress = Math.round((drawn.length + failed.length) / Math.max(1, cards.length) * 100);
+    await update(job);
+  }
+
+  await auditConversationCards(id, cards.length, drawn.length, failed.length);
+  return finish(job, 'done', {
+    progress: 100,
+    result: { cards: cards.length, drawn: drawn.length, ...(failed.length ? { failed } : {}) },
+  });
+}
+
+const auditConversationCards = (
+  id: string, total: number, drawn: number, failed: number,
+) => audit(id, { action: 'claim-cards.rendered', detail: { total, drawn, failed } });
 
 /**
  * Thumbnail candidates, rendered.  [Doctrine U-30]

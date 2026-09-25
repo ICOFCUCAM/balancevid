@@ -117,7 +117,7 @@ export function generateArticle(inputs: ArticleInputs): Article {
       responseWords,
     },
     exchanges,
-    provenance: provenanceOf(sourceTranscript, inputs.transcriptVersion),
+    provenance: provenanceOf(sourceTranscript, inputs.transcriptVersion, exchanges),
     generatedAt,
   };
 }
@@ -149,14 +149,43 @@ function attributionLine(conversation: Conversation): string {
   return parts.join(' · ');
 }
 
+/**
+ * How this was made, said from what actually happened.  [U-15, INV-07]
+ *
+ * THE SOURCE'S TRANSCRIPT AND THE RESPONSES' ARE DIFFERENT TRANSCRIPTS. This
+ * function used to be handed the source's and write a note about the
+ * responses: "No transcript was available, so responses are listed without
+ * their text." A conversation whose source was never transcribed but whose
+ * takes were — which is the ordinary case for an embedded source — then
+ * published a document that said its own responses had no text directly above
+ * the responses, in full, with their text.
+ *
+ * So the note is counted rather than inferred. A provenance block is the one
+ * part of a published document whose whole job is to be true about the rest of
+ * it, and a false line there is worse than no line at all.
+ */
 function provenanceOf(
-  transcript: Transcript | null | undefined, version?: number,
+  transcript: Transcript | null | undefined,
+  version: number | undefined,
+  exchanges: ArticleExchange[],
 ): ArticleProvenance {
   const notes: string[] = [
     'Every word of every response was spoken by the author. No response text was generated.',
   ];
+
+  const untranscribed = exchanges.filter((exchange) => exchange.response.text === null).length;
+  if (untranscribed > 0) {
+    notes.push(untranscribed === exchanges.length
+      ? 'No response was transcribed, so they are listed by length rather than by what was said.'
+      : `${untranscribed} of ${exchanges.length} responses were not transcribed, `
+        + 'and are listed by length rather than by what was said.');
+  }
+
   if (!transcript) {
-    notes.push('No transcript was available, so responses are listed without their text.');
+    // About the SOURCE, and said as being about the source: without it there
+    // is no sentence to show where the author bound no claim.
+    notes.push('The source was not transcribed, so exchanges with no bound claim '
+      + 'name the moment rather than quoting it.');
     return { notes };
   }
   if (!transcript.characteristics.punctuation) {

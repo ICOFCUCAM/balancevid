@@ -149,6 +149,11 @@ export default function BundlePanel({ conversationId, ready }: { conversationId:
         <a className="btn small" href={bundle.links.article} target="_blank" rel="noreferrer">
           Article
         </a>
+        {/* The same document, arranged to be moved around in. [D-16] */}
+        <a className="btn small" data-testid="open-interactive"
+           href={`/c/${conversationId}/explore`} target="_blank" rel="noreferrer">
+          Interactive
+        </a>
         <a className="btn small"
            href={`/api/conversations/${conversationId}/representations?id=captions.srt`}
            target="_blank" rel="noreferrer">Captions</a>

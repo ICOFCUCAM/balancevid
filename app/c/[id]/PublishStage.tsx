@@ -9,6 +9,7 @@ import CompositionStage from './CompositionStage.js';
 import PublishPanel from './PublishPanel.js';
 import BundlePanel from './BundlePanel.js';
 import AudioPanel from './AudioPanel.js';
+import CardsPanel from './CardsPanel.js';
 
 /**
  * How the conversation becomes public.  [Doctrine INV-00, U-22, U-30, D-16]
@@ -339,6 +340,7 @@ export default function PublishStage({
         </section>
 
         {/* ---- the forms that are not video ------------------------------ */}
+        <CardsPanel conversationId={conversationId} />
         <AudioPanel
           conversationId={conversationId}
           hasRender={jobs.some((j) =>

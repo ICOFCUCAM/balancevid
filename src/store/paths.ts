@@ -82,6 +82,14 @@ export const paths = {
    * moment, by the same job, out of the same decoder.
    */
   shareCard: (id: string) => join(paths.thumbnails(id), 'share-card.png'),
+  /**
+   * A card per exchange.  [U-30, U-31]
+   *
+   * Beside the share card and for the same reason — both are typography made
+   * by the same job out of the same facts — but a directory rather than a
+   * file, because there are as many of these as the author had things to say.
+   */
+  claimCards: (id: string) => join(paths.thumbnails(id), 'claim-cards'),
   /* ---- Studio Two.  [STUDIO-TWO S-1] --------------------------------- *
    *
    * A parallel tree rather than a flag inside the conversation one, for the
