@@ -61,11 +61,18 @@ export function aspectFamily(profile: ExportProfile): AspectFamily {
  * was said (INV-07, D-04), so they are not a surface for taste to operate on
  * freely: a colour picker and a size slider is a way to produce captions
  * nobody can read, offered by the product that insisted on them. What varies
- * here are three things that change legibility in different CONDITIONS, and
+ * here are properties that change legibility in different CONDITIONS, and
  * every combination on offer has been checked against the floor below.
  *
  * Data rather than branches, for the same reason layouts are (U-18): adding a
  * look is a row, and the renderer never learns a style's name.
+ *
+ * AND EVERY LOOK CARRIES THE SAME WORDS. A look decides typeface, size, scrim,
+ * placement and emphasis. None of them decides CONTENT: the text comes from
+ * the canonical transcript through `buildCues`, once, for every export in
+ * every shape. A look that could drop a line, or add one, would be an edit
+ * hiding in a style menu — which is how a vertical clip ends up saying
+ * something the long version does not. [D-16, INV-00]
  */
 export interface CaptionStyle {
   id: string;
@@ -92,6 +99,46 @@ export interface CaptionStyle {
   scrim: 'box' | 'outline';
   /** How far off the bottom the line sits, as a fraction of height. */
   marginFraction: number;
+  /**
+   * A serif face, for a look that reads as a document rather than a feed.
+   *
+   * Only two faces are offered, and the sans is the default, because a serif
+   * at caption size over moving footage is harder to read — it is on the list
+   * for the essay and the lecture, where the footage is calm and the register
+   * matters, and it is not the one anything falls back to.
+   */
+  serif?: boolean;
+  /**
+   * Put WHO IS SPEAKING in front of the line.
+   *
+   * The sidecars always carry the speaker (U-19, U-20) because a caption file
+   * read on its own has no picture to tell you. Burning it in is a different
+   * decision: on a two-panel composition the picture already says, and the
+   * prefix is clutter; on a clip that cuts between faces it is the only thing
+   * that does. So it is a look, and the default is off.
+   */
+  speakerPrefix?: boolean;
+  /**
+   * Light each word as it is said.
+   *
+   * What short-form video calls "highlighted words", and the one look here
+   * with a hard requirement: it needs word-level timing, which the transcript
+   * carries but not every engine produces. Where the timing is missing the
+   * line is drawn plainly rather than lit all at once — degraded, never
+   * dropped, because a caption is the accessible form and losing it is not an
+   * option a style menu gets to take. [D-04]
+   */
+  highlightWords?: boolean;
+  /**
+   * Set the SOURCE's lines apart as quotation.
+   *
+   * In quotation marks and italic, so it is unmistakable on a clip that has
+   * been passed on twice that those words are somebody else's. It is the
+   * caption-level form of the rule the cards and the opening cards already
+   * follow, and it applies only to the source: the author's own words are not
+   * a quotation of anybody. [INV-05, U-20]
+   */
+  quoteSource?: boolean;
 }
 
 /**
@@ -127,6 +174,31 @@ export const CAPTION_STYLES: Record<string, CaptionStyle> = {
     id: 'lifted', label: 'Lifted',
     hint: 'Larger, and raised clear of where apps put their own buttons.',
     fontFraction: 0.058, scrim: 'box', marginFraction: 0.24,
+  },
+  editorial: {
+    id: 'editorial', label: 'Editorial',
+    hint: 'Serif, smaller, set low. For an essay or a lecture, over calm footage.',
+    fontFraction: 0.044, scrim: 'outline', marginFraction: 0.07, serif: true,
+  },
+  speakers: {
+    id: 'speakers', label: 'Speaker captions',
+    hint: 'Every line says who is talking. For a clip that cuts between faces.',
+    fontFraction: 0.05, scrim: 'box', marginFraction: 0.06, speakerPrefix: true,
+  },
+  social: {
+    id: 'social', label: 'Large social captions',
+    hint: 'Big, boxed, high. Read at arm\u2019s length with the sound off.',
+    fontFraction: 0.068, scrim: 'box', marginFraction: 0.26,
+  },
+  highlight: {
+    id: 'highlight', label: 'Highlighted words',
+    hint: 'Each word lights as it is said. Needs word timing; plain without it.',
+    fontFraction: 0.062, scrim: 'box', marginFraction: 0.24, highlightWords: true,
+  },
+  quoted: {
+    id: 'quoted', label: 'Source quote captions',
+    hint: 'The source\u2019s words in quotation marks, yours plain. Unmistakable once passed on.',
+    fontFraction: 0.052, scrim: 'box', marginFraction: 0.06, quoteSource: true,
   },
 };
 

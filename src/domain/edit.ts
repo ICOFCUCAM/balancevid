@@ -146,10 +146,18 @@ export function setOpening(
     }
   }
 
+  if (opening.order !== undefined) {
+    if (opening.order !== 'source_first' && opening.order !== 'response_first') {
+      throw new EditError(`unknown opening order: ${String(opening.order)}`);
+    }
+    next.order = opening.order;
+  }
+
   // Nothing decided is the same as no decision, so the document does not grow
   // an empty object that reads as "the author chose this".
-  if (next.leadInFrames === undefined && !next.card) delete target.opening;
-  else target.opening = next;
+  if (next.leadInFrames === undefined && !next.card && next.order === undefined) {
+    delete target.opening;
+  } else target.opening = next;
 }
 
 /**

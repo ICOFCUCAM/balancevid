@@ -11,11 +11,18 @@
  */
 
 import type { RenderPlan } from '../domain/plan.js';
-import { CAPTION_FLOOR_FRACTION } from '../domain/presentation.js';
+import { CAPTION_FLOOR_FRACTION, type CaptionStyle } from '../domain/presentation.js';
 import { annotationEvents } from './annotations.js';
 import { HOUSE_FPS, type Frames } from '../domain/time.js';
 
 export type Speaker = 'source' | 'user';
+
+export interface CueWord {
+  text: string;
+  /** t_output, like the cue's own frames. */
+  startFrame: Frames;
+  endFrame: Frames;
+}
 
 export interface Cue {
   /** t_output. Captions are timed in the final video's clock. [U-08] */
@@ -23,9 +30,37 @@ export interface Cue {
   endFrame: Frames;
   speaker: Speaker;
   text: string;
+  /**
+   * The same line, word by word, where the engine timed it.
+   *
+   * Carried on the cue rather than looked up at draw time because a cue has
+   * already been clipped to its shot and shifted onto the output clock, and
+   * doing that arithmetic twice in two places is how the highlight ends up a
+   * few frames behind the voice. Absent when the engine gives no word timing,
+   * which is a thing the renderer must cope with rather than require. [U-08]
+   */
+  words?: CueWord[];
 }
 
 const FONT = 'DejaVu Sans';
+/**
+ * The one alternative face, for the Editorial look.
+ *
+ * Two faces, not a font menu. A serif at caption size over moving footage is
+ * harder to read, so it is offered where the footage is calm and the register
+ * matters — an essay, a lecture — and nothing falls back to it. [U-19 §2]
+ */
+const SERIF_FONT = 'DejaVu Serif';
+
+/**
+ * The colour the word being spoken is lit in.
+ *
+ * A bright amber against the caption's white, on the same box, so both states
+ * clear the contrast floor. It is an addition rather than a subtraction on
+ * purpose: the version of this effect that dims the words not yet said puts
+ * most of every line under the floor for most of its life. [D-04]
+ */
+const HIGHLIGHT_INK = '#F2C14E';
 
 /** ASS colours are &HAABBGGRR — alpha first, then blue, green, red. */
 export function assColor(hex: string, alpha = 0): string {
@@ -93,6 +128,10 @@ export function buildAss(plan: RenderPlan, options: AssOptions = {}): string {
     base * Math.max(captionStyle.fontFraction, CAPTION_FLOOR_FRACTION));
   const captionMargin = Math.round(height * captionStyle.marginFraction);
   const boxed = captionStyle.scrim === 'box';
+  const face = {
+    ...(captionStyle.serif ? { serif: true } : {}),
+    ...(captionStyle.highlightWords ? { secondary: HIGHLIGHT_INK } : {}),
+  };
   const lowerSize = Math.round(base * 0.032);
   const attrSize = Math.round(base * 0.026);
   const margin = Math.round(height * 0.06);
@@ -112,8 +151,8 @@ export function buildAss(plan: RenderPlan, options: AssOptions = {}): string {
     'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding',
     // Speaker identity carried by more than colour, so it survives greyscale
     // and colour-blindness (U-20): the source is plain, the responder is bold.
-    style('SourceCap', captionSize, '#FFFFFF', '#000000', 0, captionMargin, 2, boxed),
-    style('UserCap', captionSize, '#FFFFFF', '#000000', 1, captionMargin, 2, boxed),
+    style('SourceCap', captionSize, '#FFFFFF', '#000000', 0, captionMargin, 2, boxed, face),
+    style('UserCap', captionSize, '#FFFFFF', '#000000', 1, captionMargin, 2, boxed, face),
     style('Lower', lowerSize, '#FFFFFF', '#000000', 1, Math.round(height * 0.14), 1),
     // The claim being answered, as typography. This is what makes a response
     // legible to someone who did not watch the source. [U-10 §3]
@@ -200,19 +239,125 @@ export function buildAss(plan: RenderPlan, options: AssOptions = {}): string {
   }
 
   for (const cue of options.cues ?? []) {
-    lines.push(event(
-      cue.startFrame, cue.endFrame,
-      cue.speaker === 'user' ? 'UserCap' : 'SourceCap',
-      escapeAss(cue.text), fps,
-    ));
+    const styleName = cue.speaker === 'user' ? 'UserCap' : 'SourceCap';
+    /*
+     * The look may emit override tags, so the text is already ASS and must not
+     * be escaped again. Everything that came from a person went through
+     * `escapeAss` on the way in.
+     */
+    for (const drawn of captionEvents(cue, captionStyle)) {
+      lines.push(event(drawn.startFrame, drawn.endFrame, styleName, drawn.text, fps, true));
+    }
   }
 
   return lines.join('\n') + '\n';
 }
 
+/**
+ * One cue, as the chosen look draws it — usually one event, sometimes many.
+ * [U-19 §2, U-20, D-16, INV-00]
+ *
+ * THE LOOK NEVER CHANGES WHICH WORDS ARE THERE. Everything below adds marks, a
+ * prefix, a colour or a split to the same text `buildCues` produced from the
+ * canonical transcript. No branch here can drop a line or write one, which is
+ * the property that lets six looks exist without six versions of what was
+ * said — and it is what keeps a vertical clip from saying something the long
+ * version does not.
+ */
+function captionEvents(
+  cue: Cue, style: CaptionStyle,
+): { startFrame: Frames; endFrame: Frames; text: string }[] {
+  const lit = style.highlightWords ? litWords(cue) : null;
+  if (!lit) {
+    return [{
+      startFrame: cue.startFrame,
+      endFrame: cue.endFrame,
+      text: decorate(escapeAss(cue.text), cue, style),
+    }];
+  }
+  return lit;
+
+  /**
+   * One event per word, each drawing the WHOLE line with one word coloured.
+   *
+   * The obvious implementation is ASS karaoke — one event, `\\kf` per word —
+   * and it is wrong for what this look is called. Karaoke fills from the
+   * secondary colour to the primary, which colours the words NOT YET SAID and
+   * turns them plain as they arrive. "Each word lights as it is said" is the
+   * opposite, and it is the one people mean: the line sits in its ordinary
+   * ink and the word being spoken is lit.
+   *
+   * So the line is redrawn once per word. More events, and worth it: the
+   * effect is the one the name promises, the unlit words never leave the
+   * caption's own ink, and nothing is dimmed — the version that dims what has
+   * not been said yet puts most of every line under the contrast floor for
+   * most of its life. [D-04]
+   */
+  function litWords(source: Cue): { startFrame: Frames; endFrame: Frames; text: string }[] | null {
+    const words = source.words;
+    if (!words?.length) return null;
+    /*
+     * AND ONLY WHEN THE WORDS ARE THE LINE. Words are clipped to their shot,
+     * so a sentence straddling a cut keeps its text and loses the words that
+     * fell outside. Drawing the line from those would silently publish a
+     * shorter sentence than the sidecar carries, which is exactly the drift
+     * this whole family of looks is forbidden to cause. Checked rather than
+     * assumed, and a mismatch falls back to the plain line. [D-16]
+     */
+    const joined = words.map((word) => word.text).join(' ').replace(/\s+/g, ' ').trim();
+    if (joined !== source.text.replace(/\s+/g, ' ').trim()) return null;
+
+    return words.map((word, index) => {
+      const next = words[index + 1];
+      const body = words.map((other, position) => {
+        const text = escapeAss(other.text);
+        return position === index
+          ? `{\\c${assColor(HIGHLIGHT_INK)}}${text}{\\c${assColor('#FFFFFF')}}`
+          : text;
+      }).join(' ');
+      return {
+        startFrame: index === 0 ? source.startFrame : word.startFrame,
+        // Held until the next word starts, so the lit word never blinks out
+        // into an unlit line during a pause between two words.
+        endFrame: next ? next.startFrame : source.endFrame,
+        text: decorate(body, source, style),
+      };
+    }).filter((drawn) => drawn.endFrame > drawn.startFrame);
+  }
+}
+
+/**
+ * The marks and the prefix, applied to a line however it was built.
+ *
+ * Separate from building it so the plain line and each of a highlighted
+ * line's frames get exactly the same treatment — a quoted highlight keeps its
+ * quotation marks on every frame, which is the sort of thing that goes wrong
+ * when two paths decorate independently.
+ */
+function decorate(body: string, cue: Cue, style: CaptionStyle): string {
+  /*
+   * The source's words as quotation, where the look asks for it. Only the
+   * source's: the author's own words are not a quotation of anybody, and
+   * marks around them would say they were. [INV-05]
+   */
+  const wrapped = style.quoteSource && cue.speaker === 'source'
+    ? `{\\i1}\u201C${body}\u201D{\\i0}`
+    : body;
+
+  if (!style.speakerPrefix) return wrapped;
+  /*
+   * WHO IS SPEAKING, in the one visual language (U-20): carried by the label
+   * and its weight rather than by colour, so it survives greyscale like
+   * everything else in that language does.
+   */
+  const who = cue.speaker === 'user' ? 'YOU' : 'SOURCE';
+  return `{\\b1}${who}:{\\b0} ${wrapped}`;
+}
+
 function style(
   name: string, size: number, primary: string, outline: string,
   bold: 0 | 1, marginV: number, alignment = 2, boxed?: boolean,
+  face?: { serif?: boolean; secondary?: string },
 ): string {
   /*
    * BorderStyle 3 = an opaque box behind the text, which guarantees the 4.5:1
@@ -223,8 +368,12 @@ function style(
    */
   const box = boxed ?? alignment === 1;
   return [
-    `Style: ${name}`, FONT, String(size),
-    assColor(primary), assColor(primary), assColor(outline), assColor('#000000', 0x80),
+    `Style: ${name}`, face?.serif ? SERIF_FONT : FONT, String(size),
+    // Primary is the word as spoken; secondary is what karaoke fills FROM, so
+    // a look without a highlight sets both the same and nothing appears to
+    // change. [U-19 §2]
+    assColor(primary), assColor(face?.secondary ?? primary),
+    assColor(outline), assColor('#000000', 0x80),
     String(bold), '0', '0', '0', '100', '100', '0', '0',
     box ? '3' : '1',
     box ? '6' : '3', '0',

@@ -924,7 +924,15 @@ log('checking the publication formats…');
   {
     await page.waitForSelector('[data-testid="caption-look"]', { timeout: 10_000 });
     const offered = await page.locator('[data-testid="caption-style"]').count();
-    check(offered >= 3, 'the author can choose how captions look', `${offered} looks`);
+    check(offered >= 6, 'the author can choose how captions look', `${offered} looks`);
+    /*
+     * The looks the brief asked for, by name. Checked as a set rather than a
+     * count so that six of the wrong ones does not pass.
+     */
+    for (const look of ['editorial', 'speakers', 'social', 'highlight', 'quoted']) {
+      check(await page.locator(`[data-testid="caption-style"][data-style="${look}"]`)
+        .count() === 1, `and "${look}" is one of them`);
+    }
     check(await page.locator('[data-testid="caption-style"][data-style="auto"]')
       .getAttribute('data-chosen') === 'true',
       'and by default the shape of the video decides');
@@ -1055,6 +1063,40 @@ log('checking the publication formats…');
     check(sourceShot?.durationFrames === Math.min(90, anchorFrame),
       'and the author can say how much runs before the cut',
       `${sourceShot?.durationFrames} vs ${Math.min(90, anchorFrame)}`);
+
+    /*
+     * --- which comes first (U-22 §2, INV-00) ---------------------------
+     *
+     * The first seconds of a short clip matter, and that is exactly the
+     * pressure that turns a composition tool into a reaction-video maker.
+     * The resolution: it is a PUBLICATION choice on the response, it reorders
+     * the CLIP, and the conversation is untouched by it.
+     */
+    const beforeOrder = (await api(`/api/conversations/${conversationId}`)).conversation;
+    await first.locator('[data-testid="opening-order"][data-choice="response_first"]').click();
+    await page.waitForTimeout(900);
+    const flipped = await api(`/api/conversations/${conversationId}` +
+      `/clips?interventionId=${interventionId}&plan=1`);
+    check(flipped.plan?.shots?.[0]?.kind === 'response',
+      'the clip can open on the reply rather than on the moment (U-22 §2)',
+      `${flipped.plan?.shots?.map((sh) => sh.kind).join(' → ')}`);
+    check(flipped.plan?.shots?.at(-1)?.kind === 'source',
+      'and the moment follows it, rather than being dropped');
+
+    // Re-ordered, not re-cut: same total, same frames of each. [INV-03]
+    check(flipped.plan?.totalOutputFrames === moved.plan?.totalOutputFrames,
+      'the clip is re-ordered, not re-cut (INV-03)',
+      `${flipped.plan?.totalOutputFrames} vs ${moved.plan?.totalOutputFrames}`);
+
+    // And the conversation itself did not move. [INV-00]
+    const afterOrder = (await api(`/api/conversations/${conversationId}`)).conversation;
+    check(JSON.stringify(afterOrder.interventions.map((iv) => iv.anchor.tSourceFrame))
+      === JSON.stringify(beforeOrder.interventions.map((iv) => iv.anchor.tSourceFrame)),
+      'and the conversation is untouched by a publication choice (INV-00)');
+
+    // Put it back, so what follows sees the order the argument happened in.
+    await first.locator('[data-testid="opening-order"][data-choice="source_first"]').click();
+    await page.waitForTimeout(900);
 
     // An opening nobody could read is refused, rather than silently trimmed.
     const tooLong = await sfetch(

@@ -292,7 +292,31 @@ export interface Opening {
   leadInFrames?: Frames;
   /** The card held over the first seconds. Absent means the statement. */
   card?: OpeningCard;
+  /**
+   * Which comes first: the moment being answered, or the answer.  [U-22 §2]
+   *
+   * A SEPARATE AXIS FROM THE CARD, because they are separate decisions. The
+   * card is what is written over the opening; this is what is underneath it.
+   * An author can open on the statement and still want their own reply to
+   * play before the clip shows where it came from — which is the shape most
+   * short-form video has, and which reads as a person talking rather than as
+   * a quotation with a rebuttal attached.
+   *
+   * Absent means `source_first`: the thing being answered, then the answer.
+   * That is the order the argument happened in, and it stays the default
+   * because a product about disagreement should not make "reply first, context
+   * later" the path of least resistance. It is offered because a clip nobody
+   * watches past the first second makes no argument at all.
+   *
+   * IT CHANGES THE CLIP, NOT THE CONVERSATION. [INV-00] The Conversation's
+   * timeline is untouched; this reorders the two items of a CLIP's timeline,
+   * and everything downstream — captions, marks, shot boundaries — follows
+   * from that timeline without knowing anything about it.
+   */
+  order?: OpeningOrder;
 }
+
+export type OpeningOrder = 'source_first' | 'response_first';
 
 /**
  * QUOTATION MARKS ARE RESERVED FOR WHAT WAS SAID.

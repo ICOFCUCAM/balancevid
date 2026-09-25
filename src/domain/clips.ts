@@ -19,7 +19,7 @@
 
 import {
   CARD_SECONDS, MAX_CARD_SECONDS, MAX_HOOK_LENGTH, MIN_CARD_SECONDS,
-  type Conversation, type Intervention,
+  type Conversation, type Intervention, type OpeningOrder,
   orderedInterventions, selectedTake, takeUsableFrames,
 } from './document.js';
 import { planFromTimeline, type PlanOptions, type RenderPlan } from './plan.js';
@@ -51,6 +51,10 @@ export const LONG_CLIP_FRAMES: Frames = secondsToFrames(90, HOUSE_FPS);
 export interface ResolvedOpening {
   leadInFrames: Frames;
   card?: { text: string; seconds: number; quoted: boolean };
+  /** Which of the two plays first. Resolved here so one place decides. */
+  order: OpeningOrder;
+  /** True when the author decided the order rather than the product. */
+  orderChosen: boolean;
   /** True when the author decided the card rather than the product. */
   chosen: boolean;
   /**
@@ -75,21 +79,32 @@ export function openingFor(
    * before the anchor cannot be played, and one past MAX_LEAD_IN stops being
    * a quotation and becomes a rebroadcast.
    */
+  /*
+   * The order, resolved here with everything else so the planner, the
+   * candidate list and the panel cannot disagree about what the clip will do.
+   */
+  const order: OpeningOrder = opening?.order ?? 'source_first';
+  const orderChosen = opening?.order !== undefined;
+
   const leadInChosen = opening?.leadInFrames !== undefined;
   const leadInFrames = opening?.leadInFrames === undefined
     ? leadInFor(conversation, intervention, transcript)
     : Math.max(0, Math.min(opening.leadInFrames, MAX_LEAD_IN, anchor));
 
   const card = opening?.card;
-  if (card?.kind === 'none') return { leadInFrames, chosen: true, leadInChosen };
+  if (card?.kind === 'none') {
+    return { leadInFrames, order, orderChosen, chosen: true, leadInChosen };
+  }
 
   if (card?.kind === 'text') {
     const text = card.text.replace(/\s+/g, ' ').trim().slice(0, MAX_HOOK_LENGTH);
     // An empty hook is not a hook. Rather than open on a blank card, this is
     // read as "no card" — which is what an author who cleared the box meant.
-    if (!text) return { leadInFrames, chosen: true, leadInChosen };
+    if (!text) return { leadInFrames, order, orderChosen, chosen: true, leadInChosen };
     return {
       leadInFrames,
+      order,
+      orderChosen,
       card: {
         text,
         seconds: clampSeconds(card.seconds ?? CARD_SECONDS),
@@ -103,6 +118,8 @@ export function openingFor(
   const statement = claimTextFor(intervention, transcript);
   return {
     leadInFrames,
+    order,
+    orderChosen,
     ...(statement
       ? { card: { text: statement, seconds: CARD_SECONDS, quoted: true } }
       : {}),
@@ -223,11 +240,29 @@ export function buildClipTimeline(
   }
 
   const anchor = intervention.anchor.tSourceFrame;
-  const leadIn = openingFor(conversation, intervention, transcript).leadInFrames;
-  const sourceInFrame = Math.max(0, anchor - leadIn);
+  const opening = openingFor(conversation, intervention, transcript);
+  const sourceInFrame = Math.max(0, anchor - opening.leadInFrames);
   const sourceFrames = anchor - sourceInFrame;
   const speech = takeUsableFrames(take);
   const responseFrames = RESPONSE_PAD_FRAMES + speech + RESPONSE_PAD_FRAMES;
+
+  /*
+   * WHICH GOES FIRST.  [U-22 §2]
+   *
+   * The only thing the order changes is where each item starts, and that is
+   * deliberate: captions, marks and shot boundaries are all derived from this
+   * timeline, so reordering it reorders them without any of them being told.
+   * A version of this that reordered the SHOTS would have had to reorder four
+   * other things by hand and would have forgotten one.
+   *
+   * Note what does not change. `sourceFrames` and `responseFrames` are how
+   * much of each there is, not when; `totalOutputFrames` is their sum either
+   * way; and the source still plays the same frames of the same source. The
+   * clip is re-ordered, not re-cut, and INV-03 holds unchanged.
+   */
+  const responseFirst = opening.order === 'response_first' && sourceFrames > 0;
+  const sourceStart = responseFirst ? responseFrames : 0;
+  const responseStart = responseFirst ? 0 : sourceFrames;
 
   return {
     items: [
@@ -235,7 +270,7 @@ export function buildClipTimeline(
         kind: 'source' as const,
         sourceInFrame,
         sourceOutFrame: anchor,
-        outputStartFrame: 0,
+        outputStartFrame: sourceStart,
         durationFrames: sourceFrames,
       }] : []),
       {
@@ -247,10 +282,10 @@ export function buildClipTimeline(
         mediaOutFrame: take.mediaOutFrame,
         padHeadFrames: RESPONSE_PAD_FRAMES,
         padTailFrames: RESPONSE_PAD_FRAMES,
-        outputStartFrame: sourceFrames,
+        outputStartFrame: responseStart,
         durationFrames: responseFrames,
       },
-    ],
+    ].sort((a, b) => a.outputStartFrame - b.outputStartFrame),
     totalOutputFrames: sourceFrames + responseFrames,
     sourceFrames,
     responseFrames,

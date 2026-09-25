@@ -3264,6 +3264,9 @@ quietly left in the code.
   link *(U-30, U-31, §52)*
 - The conversation as something to move around in — the article with an index
   and a player, each exchange a seek *(D-16, U-14)*
+- Six caption looks, all from one transcript — Editorial, Speaker captions,
+  Large social, Highlighted words, Source quote captions *(U-19 §2, D-04)*
+- Which comes first in a clip: the moment, or the reply *(U-22 §2, INV-00)*
 
 ---
 
@@ -3362,6 +3365,42 @@ marks is exactly as strong and exactly as wrong. They are set as the body, the
 way the article already prints them. **A quotation mark is a claim about
 provenance, not a typographic choice, and the test that a representation is
 honest is whether it is still honest with the conversation removed.**
+
+**A look may change how words are drawn and never which words are there.**
+Six caption looks now exist where three did, including one that redraws a line
+once per word. Each of them is a property on a row in a table, and none of
+them is a branch that can add a line or drop one: the text comes from the
+canonical transcript through `buildCues`, once, for every export in every
+shape. The test that matters strips the override tags, the speaker prefix and
+the quotation marks from all six and asserts the same sequence of lines — **a
+look that could change the words would be an edit hiding in a style menu, and
+that is precisely how a vertical clip ends up saying something the long
+version does not.** Where the words were clipped to a shot and no longer
+reconstruct the line, the word-level look falls back to drawing it plainly:
+degraded, never dropped, because a caption is the accessible form.
+
+**Naming a feature after what it looks like, and then building what the format
+made easy.** "Highlighted words" was implemented as ASS karaoke, which is the
+one line of code the format offers and which colours the words NOT YET SAID,
+turning them plain as they arrive. That is the opposite of "each word lights
+as it is said", and it was only visible by drawing a frame and looking at it.
+The line is redrawn once per word now, which is more events and the effect the
+name promises. **When the format has a feature with nearly the right name,
+check what it actually does to the picture before letting it decide what the
+product does.**
+
+**Short-form's first three seconds are real, and they are still not allowed to
+reach the Conversation.** The pressure to open on the reply rather than on the
+thing being answered is the exact pressure that turns this into a reaction-video
+maker. The resolution is the one the doctrine already had: the order is a
+PUBLICATION choice, stored on the response, read when a clip is planned, and it
+reorders two items of the clip's timeline. Captions, marks and shot boundaries
+follow without being told, because they are all derived from that timeline —
+a version that reordered the shots would have had to reorder four other things
+by hand and would have missed one. The default stays source-first, and the
+panel says what choosing otherwise costs: *it reaches more people and asks them
+to trust you before they have seen what you are answering.* **Offering it is
+right; defaulting to it would be a different product.**
 
 **The provenance block was lying, and it is the one block whose job is to be
 true about the rest.** "How this was made" was handed the SOURCE's transcript

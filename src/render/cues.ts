@@ -14,7 +14,7 @@ import type { Conversation } from '../domain/document.js';
 import type { Timeline } from '../domain/timeline.js';
 import type { Frames } from '../domain/time.js';
 import { forDisplay, type Transcript, type TranscriptSentence } from '../transcribe/types.js';
-import type { Cue } from './subtitles.js';
+import type { Cue, CueWord } from './subtitles.js';
 
 export interface CueSources {
   /** The source transcript, on the source clock. */
@@ -37,11 +37,17 @@ export function buildCues(
         // hears the first half, so they must read the first half.
         const start = Math.max(sentence.startFrame, item.sourceInFrame);
         const end = Math.min(sentence.endFrame, item.sourceOutFrame);
+        const shift = item.outputStartFrame - item.sourceInFrame;
         push(cues, {
           startFrame: item.outputStartFrame + (start - item.sourceInFrame),
           endFrame: item.outputStartFrame + (end - item.sourceInFrame),
           speaker: 'source',
           text: forDisplay(sentence.text, transcript.characteristics),
+          ...(() => {
+            const words = wordsOf(
+              transcript, sentence, item.sourceInFrame, item.sourceOutFrame, shift);
+            return words ? { words } : {};
+          })(),
         });
       }
       continue;
@@ -58,11 +64,41 @@ export function buildCues(
         endFrame: end + shift,
         speaker: 'user',
         text: forDisplay(sentence.text, transcript.characteristics),
+        ...(() => {
+          const words = wordsOf(
+            transcript, sentence, item.mediaInFrame, item.mediaOutFrame, shift);
+          return words ? { words } : {};
+        })(),
       });
     }
   }
 
   return cues.sort((a, b) => a.startFrame - b.startFrame);
+}
+
+
+/**
+ * The words of one sentence, clipped to the shot and moved onto the output
+ * clock — exactly the treatment the sentence's own frames get.
+ *
+ * A word half outside the shot is dropped rather than clipped: a highlight
+ * that lights half a word is worse than one that skips it, and the text of
+ * the line is unchanged either way because the line is the sentence's text,
+ * not a join of these.
+ */
+function wordsOf(
+  transcript: Transcript, sentence: TranscriptSentence,
+  from: Frames, to: Frames, shift: Frames,
+): CueWord[] | undefined {
+  const words = transcript.words.slice(sentence.wordStart, sentence.wordEnd)
+    .filter((word) => word.startFrame >= from && word.endFrame <= to
+      && word.endFrame > word.startFrame)
+    .map((word) => ({
+      text: forDisplay(word.text, transcript.characteristics),
+      startFrame: word.startFrame + shift,
+      endFrame: word.endFrame + shift,
+    }));
+  return words.length > 0 ? words : undefined;
 }
 
 function overlapping(

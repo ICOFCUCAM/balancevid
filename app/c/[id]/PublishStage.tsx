@@ -438,6 +438,15 @@ function OpeningEditor({ conversationId, candidate, onChanged }: {
     }
   };
 
+  /*
+   * A SEPARATE AXIS FROM THE CARD. What is written over the opening and what
+   * plays underneath it are two decisions, so they are two controls — and
+   * both travel on every save, because the document stores one `opening` and
+   * sending half of it would clear the other half. [U-22 §2]
+   */
+  const order: 'source_first' | 'response_first' =
+    candidate.opening?.order ?? 'source_first';
+
   const lead = Math.round((candidate.opening?.leadInFrames ?? 0) / HOUSE_FPS);
   const chosenLead = !candidate.opening?.leadInChosen
     ? 'sentence'
@@ -479,8 +488,8 @@ function OpeningEditor({ conversationId, candidate, onChanged }: {
                 disabled={busy}
                 onClick={() => void save(
                   id === 'text'
-                    ? { card: { kind: 'text', text: draft || 'Watch this' } }
-                    : { card: { kind: id } },
+                    ? { order, card: { kind: 'text', text: draft || 'Watch this' } }
+                    : { order, card: { kind: id } },
                 )}
                 style={{
                   padding: '3px 9px', fontSize: 11,
@@ -503,7 +512,7 @@ function OpeningEditor({ conversationId, candidate, onChanged }: {
                 onChange={(e) => setDraft(e.target.value)}
                 onBlur={() => {
                   if (draft !== card?.text) {
-                    void save({ card: { kind: 'text', text: draft } });
+                    void save({ order, card: { kind: 'text', text: draft } });
                   }
                 }}
               />
@@ -529,8 +538,9 @@ function OpeningEditor({ conversationId, candidate, onChanged }: {
                 that quietly undoes the control next to it is the worst kind.
               */
               onChange={(e) => void save(e.target.value === 'sentence'
-                ? { card: cardBody(mode, draft) }
+                ? { order, card: cardBody(mode, draft) }
                 : {
+                  order,
                   leadInFrames: Number(e.target.value) * HOUSE_FPS,
                   card: cardBody(mode, draft),
                 })}
@@ -549,6 +559,49 @@ function OpeningEditor({ conversationId, candidate, onChanged }: {
               )}
             </select>
           </div>
+
+          <div className="row small" style={{ gap: 8, alignItems: 'center', marginTop: 8 }}>
+            <span className="muted" style={{ fontSize: 11 }}>Order</span>
+            {([
+              ['source_first', 'The moment, then my reply',
+                'The order the argument happened in'],
+              ['response_first', 'My reply, then the moment',
+                'Opens on you talking; the clip shows what you are answering after'],
+            ] as const).map(([id, label, hint]) => (
+              <button
+                key={id}
+                className="small"
+                data-testid="opening-order"
+                data-choice={id}
+                data-chosen={order === id ? 'true' : 'false'}
+                title={hint}
+                disabled={busy}
+                onClick={() => void save({
+                  order: id,
+                  card: cardBody(mode, draft),
+                  ...(chosenLead === 'sentence'
+                    ? {} : { leadInFrames: lead * HOUSE_FPS }),
+                })}
+                style={{
+                  padding: '3px 9px', fontSize: 11,
+                  background: order === id ? 'rgba(43,95,138,0.30)' : undefined,
+                  borderColor: order === id ? '#6fb3e0' : undefined,
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <p className="small muted" style={{ fontSize: 11, margin: '4px 0 0' }}>
+            {/* Said plainly, because the reason to choose it and the reason not
+                to are both real, and the author is the one who should weigh
+                them rather than the default. */}
+            {order === 'response_first'
+              ? 'Your clip opens on you. It reaches more people and asks them to '
+                + 'trust you before they have seen what you are answering.'
+              : 'Your clip opens on what you are answering, which is the order '
+                + 'the argument happened in.'}
+          </p>
 
           {error && (
             <p className="small" style={{ color: 'var(--bad)', marginBottom: 0 }}>{error}</p>
