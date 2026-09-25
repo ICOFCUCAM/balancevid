@@ -169,30 +169,22 @@ export default function PerformanceStudio({ initial }: { initial: Performance })
       </header>
 
       {/*
-        * Three panels and a timeline, which is the shape the work has.
-        * [Doctrine STUDIO-TWO §2, §5, §7]
+        * ONE GRID, not a grid inside a grid.
         *
-        * LEFT is what you have recorded, CENTRE is what is on screen and when,
-        * RIGHT is how it is set up. The same division Studio One arrived at
-        * for a different job — and the reason it is a division at all is that
-        * directing needs the takes and the timeline visible at once, which a
-        * single scrolling column cannot do.
+        * The takes rail, the stage and the composition panel are three
+        * columns of one row, and the timeline runs underneath all three. A
+        * rail in its own outer grid cannot share a row with panels that live
+        * in an inner one, and a timeline nested in a middle column cannot
+        * span the width — which is what it did when this was two columns.
         *
-        * The panels scroll independently so the stage and the timeline stay
-        * where they are while somebody reads down a list of environments.
+        * So the rail is handed to the directing surface and placed by it.
         */}
-      <div className="shell-body" style={{
-        display: 'grid', gap: 14, padding: '14px 18px', minHeight: 0,
-        /*
-         * TWO columns, not three. The directing surface carries its own
-         * stage-and-composition split, so a third column here would be a
-         * fourth panel — and the setting-up (rights, device, room) is done
-         * once and then never again, which is not what a permanent column is
-         * for. It folds away below.
-         */
-        gridTemplateColumns: 'minmax(250px, 330px) minmax(0, 1fr)',
-      }}>
-        <div className="shell-scroll" style={{ minWidth: 0 }}>
+      <div className="shell-body shell-scroll" style={{ padding: '14px 18px' }}>
+        <SwitchingStage
+          performance={performance}
+          onChanged={setPerformance}
+          takesPanel={(
+            <div style={{ minWidth: 0 }}>
         {/* ---- the takes, all on one clock --------------------------- */}
         <section style={{ marginTop: 20 }} data-testid="takes">
           <h2 style={{ fontSize: 15, marginBottom: 2 }}>Takes</h2>
@@ -350,21 +342,11 @@ export default function PerformanceStudio({ initial }: { initial: Performance })
             ))
           )}
         </section>
-        </div>
+            </div>
+          )}
+        />
 
-        <div className="shell-scroll" style={{ minWidth: 0 }}>
-        {/* ---- directing: many takes, one song (§2, §7, §8, §15) ------ */}
-        {performance.takes.some((t) => t.durationSamples > 0) && (
-          <section style={{ marginTop: 20 }}>
-            <h2 style={{ fontSize: 15, marginBottom: 2 }}>Direct</h2>
-            <p className="small muted" style={{ marginTop: 0, maxWidth: 640 }}>
-              Play the song and press a number to put that take on screen. The
-              song never moves — you are deciding which performance occupies
-              each part of it, and you can drag the boundaries afterwards.
-            </p>
-            <SwitchingStage performance={performance} onChanged={setPerformance} />
-          </section>
-        )}
+
         {/* ---- where the sound comes from (§9, S-7) ------------------ */}
         {performance.takes.some((t) => t.durationSamples > 0)
           && <SoundModes performance={performance} onChanged={setPerformance} />}
@@ -585,7 +567,6 @@ export default function PerformanceStudio({ initial }: { initial: Performance })
           </p>
         )}
         </details>
-        </div>
       </div>
     </div>
   );

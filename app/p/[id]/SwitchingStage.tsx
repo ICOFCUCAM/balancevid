@@ -49,10 +49,21 @@ const ARRANGEMENTS = [
 ] as const;
 
 export default function SwitchingStage({
-  performance, onChanged,
+  performance, onChanged, takesPanel,
 }: {
   performance: Performance;
   onChanged: (next: Performance) => void;
+  /**
+   * The takes rail, rendered by the studio and placed by this component.
+   *
+   * Passed in rather than built here because the rail is about the DOCUMENT
+   * — recording, uploading, renaming, deleting — and this component is about
+   * DIRECTING. But it has to sit in this grid, because the takes, the stage
+   * and the composition panel are three columns of one row and the timeline
+   * runs under all three. A rail in its own grid outside this one cannot
+   * share a row with them.
+   */
+  takesPanel?: React.ReactNode;
 }) {
   const [arrangement, setArrangement] = useState<string>('performance_full');
   const [pending, setPending] = useState<string[]>([]);
@@ -251,13 +262,21 @@ export default function SwitchingStage({
 
   return (
     <div data-testid="switching-stage" style={{
-      display: 'flex', flexDirection: 'column', gap: 12, minHeight: 0,
+      /*
+       * Three panels in one row, then the timeline under all three, then the
+       * transport under that. Named areas rather than nested flexboxes: the
+       * timeline has to span the full width, and a timeline nested inside the
+       * middle column cannot — which is exactly what it did when this was two
+       * columns with the stage and the panel inside one of them.
+       */
+      display: 'grid', minHeight: 0, gap: 12,
+      gridTemplateColumns: 'minmax(250px, 330px) minmax(0, 1fr) minmax(290px, 360px)',
+      gridTemplateAreas: '"takes stage panel" "timeline timeline timeline" '
+        + '"transport transport transport"',
+      alignItems: 'start',
     }}>
-      {/* ---- stage and composition, side by side (§5, §6) -------------- */}
-      <div style={{
-        display: 'grid', gap: 12, minHeight: 0,
-        gridTemplateColumns: 'minmax(0, 1fr) minmax(300px, 360px)',
-      }}>
+      <div style={{ gridArea: 'takes', minWidth: 0 }}>{takesPanel}</div>
+      <>
         {/*
           * WHAT THE VIEWER WOULD SEE. Every take on screen at once when the
           * arrangement holds several, laid out as the arrangement lays them
@@ -267,8 +286,9 @@ export default function SwitchingStage({
           data-testid="performance-stage"
           data-layout={current?.layoutId ?? 'none'}
           style={{
-            position: 'relative', aspectRatio: '16 / 9', background: '#05070a',
-            borderRadius: 10, border: '1px solid var(--line)', overflow: 'hidden',
+            gridArea: 'stage', position: 'relative', aspectRatio: '16 / 9',
+            background: '#05070a', borderRadius: 10,
+            border: '1px solid var(--line)', overflow: 'hidden',
           }}
         >
           {visible.length === 0 && (
@@ -325,6 +345,7 @@ export default function SwitchingStage({
         {/* ---- composition, background, effects (§4, §5, §6) ----------- */}
         <aside data-testid="composition-panel" className="shell-scroll"
                style={{
+                 gridArea: 'panel',
                  border: '1px solid var(--line)', borderRadius: 10,
                  padding: '4px 12px 14px', background: 'var(--panel)',
                }}>
@@ -412,10 +433,11 @@ export default function SwitchingStage({
             </p>
           )}
         </aside>
-      </div>
+      </>
 
       {/* ---- the song, the takes on it, and the edit (§2, §7, §8) ------ */}
       <div data-testid="performance-timeline" style={{
+        gridArea: 'timeline',
         border: '1px solid var(--line)', borderRadius: 10,
         background: 'var(--panel)', overflow: 'hidden',
       }}>
@@ -576,6 +598,7 @@ export default function SwitchingStage({
 
       {/* ---- the transport (§7) ---------------------------------------- */}
       <div className="row" data-testid="transport" style={{
+        gridArea: 'transport',
         gap: 12, alignItems: 'center', flexWrap: 'wrap',
         border: '1px solid var(--line)', borderRadius: 10,
         background: 'var(--panel)', padding: '10px 14px',
@@ -648,7 +671,10 @@ export default function SwitchingStage({
         </div>
       </div>
 
-      {/* ---- the beat grid, and the cuts it may move (§11, S-8) -------- */}
+      {/* ---- everything that is said rather than shown ----------------- */}
+      <div style={{
+        gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: 8,
+      }}>
       {beats && !beats.acceptedBy && (
         <p className="small muted" data-testid="beats-suggestion" style={{ margin: 0 }}>
           A pulse of about {Math.round(beats.bpm)} BPM was detected, at{' '}
@@ -702,6 +728,7 @@ export default function SwitchingStage({
         </p>
       )}
       {error && <p className="small" style={{ color: 'var(--bad)', margin: 0 }}>{error}</p>}
+      </div>
     </div>
   );
 }
