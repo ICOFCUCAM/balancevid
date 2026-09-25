@@ -43,6 +43,13 @@ export function pathFor(
       : paths.renders(source.documentId);
     return join(dir, safe(source.planHash), 'master.mp4');
   }
+  /*
+   * A BOOKED LIVE SLOT RESOLVES TO NOTHING, and that is correct rather than a
+   * fault. It references an intention: at the hour, the channel shows whoever
+   * is live, and if nobody is, it falls through to the loop. There is no file
+   * behind it because nobody has made one yet. [§6]
+   */
+  if (source.kind === 'live_event') return undefined;
   if (source.kind === 'media') {
     /*
      * OTHER MEDIA lives in the library, not in the channel. A station ident
@@ -64,7 +71,7 @@ export function pathFor(
    * left to play. [§7, §8]
    */
   return ingest.assetId
-    ? paths.channelAsset(channel.id, ingest.assetId, 'mp4')
+    ? paths.channelAsset(channel.id, ingest.assetId, 'webm')
     : paths.channelLiveBuffer(channel.id, ingest.bufferId);
 }
 

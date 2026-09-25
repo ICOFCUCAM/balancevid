@@ -32,6 +32,7 @@
 
 import type { Id } from './ids.js';
 import type { Publication } from './document.js';
+import type { ChannelIdentity } from './identity.js';
 
 export type ChannelId = Id<'chan'>;
 export type ProgrammeId = Id<'prog'>;
@@ -78,6 +79,22 @@ export type ProgrammeSource =
    * ingest is what the asset belongs to.
    */
   | { kind: 'live'; ingestId: IngestId }
+  /**
+   * A LIVE EVENT IN THE LISTING.  [§6]
+   *
+   *     19:00  LIVE — Evening Discussion
+   *
+   * A slot that is booked for a broadcast nobody has made yet. It is not a
+   * reference to media, because there is no media: it is a reference to an
+   * INTENTION, and what it does is hold the air open. At 19:00 the channel
+   * switches to whatever live session is running; if nobody went live it
+   * falls through to the loop, which is the honest behaviour — a listing
+   * cannot make somebody turn up.
+   *
+   * Distinct from `live`, which names a session that exists. This is the slot
+   * you book on Monday for Friday.
+   */
+  | { kind: 'live_event'; note?: string }
   /**
    * OTHER MEDIA.  [§3, the brief's third branch]
    *
@@ -324,6 +341,44 @@ export interface LiveSession {
   endedAt?: string;
 }
 
+/**
+ * A DAY-PART.  [§5]
+ *
+ *     06:00 ─ Morning Music
+ *     09:00 ─ Education
+ *     12:00 ─ Conversations
+ *     18:00 ─ Live
+ *     23:00 ─ Overnight Music
+ *
+ * "Rather than scheduling every individual video, create programming blocks.
+ *  That makes the channel feel like an actual television station."
+ *
+ * And it is the right shape, not just a convenience: a station does not
+ * decide at eleven minutes past nine what to play, it decides that the
+ * morning is music. A block is a NAMED STRETCH OF THE DAY WITH ITS OWN LOOP,
+ * so "Morning Music" is one thing to edit and it covers three hours forever
+ * rather than ninety entries somebody has to keep in order.
+ *
+ * `fromMinute` is minutes past midnight IN THE CHANNEL'S OWN ZONE, because a
+ * block is a statement about breakfast and breakfast is local. It is a time
+ * of day rather than an instant for the same reason: it happens every day,
+ * and an instant happens once.
+ */
+export interface ChannelBlock {
+  id: Id<'blk'>;
+  name: string;
+  /** Minutes past midnight, local to the channel. */
+  fromMinute: number;
+  /**
+   * Which days it runs. 0 is Sunday, as `Date` counts them. Empty means
+   * every day, which is what a channel starting out wants.
+   */
+  days?: number[];
+  /** Its own loop, played round for as long as the block holds the air. */
+  rotation: RotationEntry[];
+  createdAt: string;
+}
+
 export interface Channel {
   schemaVersion: number;
   id: ChannelId;
@@ -362,6 +417,14 @@ export interface Channel {
    * from itself after every deploy.
    */
   rotationFrom?: string;
+  /**
+   * The day's shape.  [§5]
+   *
+   * Between the fixed programmes and the channel's own rotation: a block
+   * holding the air plays ITS loop, and the channel's loop is what runs when
+   * no block does. Ordered by time of day on read, never stored in order.
+   */
+  blocks: ChannelBlock[];
   ingests: LiveIngest[];
   /** Set while the red light is on, and only then. [§5] */
   live?: LiveSession;
@@ -374,6 +437,17 @@ export interface Channel {
    * operator; nothing clears it on its own.
    */
   emergency?: { source: ProgrammeSource; atMs: number };
+  /**
+   * How the channel looks.  [§13, D-16]
+   *
+   * "The station branding should be applied at the broadcast layer, not
+   *  permanently burned into your source videos. That way you can change your
+   *  channel identity later."
+   *
+   * A small table, drawn by the encoder over whatever is on the wire.
+   * Changing it changes every future second and touches no stored file.
+   */
+  identity?: ChannelIdentity;
   recordings: BroadcastRecording[];
   /**
    * What goes out when nothing is scheduled.  [§4]
@@ -492,8 +566,20 @@ export function referencedAssets(channel: Channel): ProgrammeSource[] {
     if (!source) return;
     seen.set(sourceKey(source), source);
   };
-  for (const programme of channel.programmes) add(programme.source);
+  for (const programme of channel.programmes) {
+    /* A booked live slot is an intention, not an asset. */
+    if (programme.source.kind !== 'live_event') add(programme.source);
+  }
   for (const entry of channel.rotation) add(entry.source);
+  /*
+   * AND EVERY DAY-PART'S LOOP. The playout engine reads these, so leaving
+   * them out would mean a block whose film had been deleted went out as black
+   * with nothing reporting it — INV-17's second half is only as good as the
+   * list it is given. [§5]
+   */
+  for (const block of channel.blocks ?? []) {
+    for (const entry of block.rotation) add(entry.source);
+  }
   add(channel.filler);
   add(channel.live?.segment);
   add(channel.emergency?.source);
@@ -503,6 +589,8 @@ export function referencedAssets(channel: Channel): ProgrammeSource[] {
 /** A reference's identity, for counting and comparing. */
 export function sourceKey(source: ProgrammeSource): string {
   if (source.kind === 'live') return `live:${source.ingestId}`;
+  /* A booked slot references no media, so it costs no asset. [§6, D-18] */
+  if (source.kind === 'live_event') return 'live_event';
   if (source.kind === 'media') return `media:${source.assetId}`;
   return `render:${source.document}:${source.documentId}:${source.planHash}`;
 }
@@ -629,7 +717,9 @@ export type OnAir =
   | { kind: 'programme'; programme: Programme; source: ProgrammeSource; fromMs: number;
     untilMs: number }
   | { kind: 'rotation'; entry: RotationEntry; source: ProgrammeSource; fromMs: number;
-    untilMs: number }
+    untilMs: number;
+    /** Set when the loop being played belongs to a day-part. [§5] */
+    blockName?: string }
   | { kind: 'off' };
 
 export type OnAirKind = OnAir['kind'];
@@ -656,19 +746,62 @@ export function whatIsOn(channel: Channel, at: number): OnAir {
      * anybody re-cueing anything. [§5]
      */
     const source = live.segment ?? { kind: 'live' as const, ingestId: live.ingestId };
+    /*
+     * WHERE IN THE BUFFER THIS INSTANT IS.  [§7]
+     *
+     * The live buffer is one growing file that started when the camera came
+     * up, so "now" is however long the camera has been running — not zero.
+     * Zero was right when the buffer was imaginary and is the bug that would
+     * have made every segment replay the first four seconds of the broadcast
+     * forever.
+     *
+     * Measured from `openedAt` rather than from `takenAt`: recording starts
+     * when the feed is ARMED, so by the time somebody takes it there are
+     * already some seconds in the file, and reading from the cut would read
+     * from the wrong place by exactly the length of the preview.
+     */
+    const ingest = ingestById(channel, live.ingestId);
+    const intoBuffer = ingest ? Math.max(0, at - Date.parse(ingest.openedAt)) : 0;
     return {
       kind: 'live', session: live, source,
-      fromMs: live.segment ? (live.segmentFromMs ?? 0) : 0,
+      fromMs: live.segment ? (live.segmentFromMs ?? 0) : intoBuffer,
     };
   }
 
   const programme = onAirAt(channel, at);
-  if (programme) {
+  /*
+   * A BOOKED LIVE SLOT HOLDS THE AIR OPEN AND NOTHING MORE.  [§6]
+   *
+   * If somebody is live, the branch above already returned. If nobody is, the
+   * slot falls through to whatever would have been on — a listing cannot make
+   * somebody turn up, and a channel that went to black at nineteen hundred
+   * because its presenter was late would be a channel that punished the
+   * viewer for it.
+   */
+  if (programme && programme.source.kind !== 'live_event') {
     return {
       kind: 'programme', programme, source: programme.source,
       fromMs: (programme.fromMs ?? 0) + (at - programmeStart(programme)),
       untilMs: programmeEnd(programme),
     };
+  }
+
+  /*
+   * THE DAY-PART, between the fixed slots and the channel's own loop. A block
+   * holding the air plays ITS rotation; the channel's is what runs when no
+   * block does. [§5]
+   */
+  const block = blockAt(channel, at);
+  if (block) {
+    const turningBlock = turnOf(block.block.rotation, block.fromMs, at);
+    if (turningBlock) {
+      return {
+        kind: 'rotation', entry: turningBlock.entry, source: turningBlock.entry.source,
+        fromMs: (turningBlock.entry.fromMs ?? 0) + turningBlock.intoMs,
+        untilMs: at + (turningBlock.entry.durationMs - turningBlock.intoMs),
+        blockName: block.block.name,
+      };
+    }
   }
 
   const turning = rotationAt(channel, at);
@@ -688,4 +821,91 @@ export function rotationById(
   channel: Channel, id: string,
 ): RotationEntry | undefined {
   return channel.rotation.find((entry) => entry.id === id);
+}
+
+/* ------------------------------------------------------------------------ *
+ *  Day-parts.  [§5]
+ * ------------------------------------------------------------------------ */
+
+/** The blocks in the order they run through a day. */
+export function orderedBlocks(channel: Channel): ChannelBlock[] {
+  return [...(channel.blocks ?? [])].sort((a, b) => a.fromMinute - b.fromMinute);
+}
+
+/**
+ * Minutes past midnight, and the weekday, IN THE CHANNEL'S OWN ZONE.
+ *
+ * Computed through `Intl` rather than by arithmetic on the instant, because
+ * the arithmetic is wrong twice a year: an hour added in March does not move
+ * breakfast, and a channel whose morning block started at five for one day
+ * every spring would be a channel with a bug nobody could reproduce in
+ * summer. [§2]
+ */
+export function localDay(channel: Channel, at: number): {
+  minute: number; weekday: number;
+} {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: channel.timezone,
+    hour: '2-digit', minute: '2-digit', weekday: 'short', hour12: false,
+  }).formatToParts(new Date(at));
+  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? '0';
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  return {
+    minute: Number(get('hour')) * 60 + Number(get('minute')),
+    weekday: Math.max(0, days.indexOf(get('weekday'))),
+  };
+}
+
+/**
+ * Which block holds the air at this instant, and when it took it.
+ *
+ * The last block whose start has passed today — so the overnight block that
+ * began at 23:00 is still the one running at 02:00, which is how a schedule
+ * printed in a newspaper has always read.
+ */
+export function blockAt(
+  channel: Channel, at: number,
+): { block: ChannelBlock; fromMs: number } | undefined {
+  const blocks = orderedBlocks(channel).filter((block) => block.rotation.length > 0);
+  if (blocks.length === 0) return undefined;
+  const { minute, weekday } = localDay(channel, at);
+  const runsToday = (block: ChannelBlock, day: number) =>
+    !block.days || block.days.length === 0 || block.days.includes(day);
+
+  const todays = blocks.filter((block) => runsToday(block, weekday));
+  const current = [...todays].reverse().find((block) => block.fromMinute <= minute);
+  if (current) {
+    return { block: current, fromMs: at - (minute - current.fromMinute) * 60_000 };
+  }
+  /*
+   * Before the first block of the day: yesterday's last one is still running,
+   * which is what an overnight block IS. Its anchor is yesterday's clock.
+   */
+  const yesterday = (weekday + 6) % 7;
+  const carried = [...blocks.filter((block) => runsToday(block, yesterday))].pop();
+  if (!carried) return undefined;
+  const sinceMidnight = minute * 60_000;
+  return {
+    block: carried,
+    fromMs: at - sinceMidnight - (24 * 60 - carried.fromMinute) * 60_000,
+  };
+}
+
+/** Where a loop is, given when it started. Shared by blocks and the channel. */
+function turnOf(
+  rotation: RotationEntry[], fromMs: number, at: number,
+): { entry: RotationEntry; intoMs: number; index: number } | undefined {
+  const turn = rotation.reduce((total, entry) => total + entry.durationMs, 0);
+  if (turn <= 0) return undefined;
+  const into = (((at - fromMs) % turn) + turn) % turn;
+  let index = 0;
+  let offset = 0;
+  for (let i = 0; i < rotation.length; i += 1) {
+    if (into >= offset) { index = i; }
+    else break;
+    offset += rotation[i]!.durationMs;
+  }
+  let before = 0;
+  for (let i = 0; i < index; i += 1) before += rotation[i]!.durationMs;
+  return { entry: rotation[index]!, index, intoMs: into - before };
 }

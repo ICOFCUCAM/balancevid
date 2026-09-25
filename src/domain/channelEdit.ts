@@ -15,9 +15,11 @@ import {
   CHANNEL_SCHEMA_VERSION,
   type Channel, type LiveIngest, type LiveSession, type Programme,
   type ProgrammeSource, type RotationEntry,
-  ingestById, isOpen, orderedProgrammes, programmeById, programmeEnd, programmeStart,
-  rotationAt, rotationLengthMs,
+  type ChannelBlock,
+  ingestById, isOpen, orderedBlocks, orderedProgrammes, programmeById,
+  programmeEnd, programmeStart, rotationAt, rotationLengthMs,
 } from './channel.js';
+import { DEFAULT_IDENTITY, type ChannelIdentity } from './identity.js';
 import { newId } from './ids.js';
 
 export class ChannelEditError extends Error {}
@@ -48,6 +50,7 @@ export function newChannel(
     timezone,
     programmes: [],
     rotation: [],
+    blocks: [],
     ingests: [],
     recordings: [],
     createdAt: at,
@@ -619,6 +622,13 @@ function assertSource(source: ProgrammeSource, channel: Channel): void {
     if (!/^[A-Za-z0-9_-]{1,128}$/.test(source.planHash)) fail('that is not a render');
     return;
   }
+  /*
+   * A BOOKED LIVE SLOT REFERENCES AN INTENTION, so there is nothing to check
+   * but the note somebody typed on it. It is the one source with no media
+   * behind it and it is deliberately allowed here: holding the air open at
+   * seven is a scheduling act, not a media one. [§6]
+   */
+  if (source.kind === 'live_event') return;
   if (source.kind === 'media') {
     /*
      * The library's third branch. Checked for shape here and for existence at
@@ -659,4 +669,155 @@ function assertNoClash(channel: Channel, programme: Programme): void {
         + `at ${new Date(programmeStart(other)).toISOString()}`);
     }
   }
+}
+
+/* ------------------------------------------------------------------------ *
+ *  Day-parts, booked live slots, and the channel's identity.  [§5, §6, §13]
+ * ------------------------------------------------------------------------ */
+
+/**
+ * Give the day a shape.  [§5]
+ *
+ *     06:00 ─ Morning Music        18:00 ─ Live
+ *     09:00 ─ Education            20:00 ─ Best Conversations
+ *     12:00 ─ Conversations        23:00 ─ Overnight Music
+ *
+ * A block is created empty and filled the same way the channel's own loop is,
+ * because it IS a loop — one that only holds the air for part of the day. A
+ * station does not decide at eleven minutes past nine what to play; it
+ * decides that the morning is music.
+ */
+export function addBlock(
+  channel: Channel,
+  block: { name: string; fromMinute: number; days?: number[] },
+  at: string,
+): ChannelBlock {
+  const name = block.name.trim();
+  if (!name) fail('a block needs a name');
+  if (!Number.isInteger(block.fromMinute)
+    || block.fromMinute < 0 || block.fromMinute > 24 * 60 - 1) {
+    fail('a block starts at a time of day');
+  }
+  if (orderedBlocks(channel).some((other) => other.fromMinute === block.fromMinute
+    && sameDays(other.days, block.days))) {
+    /*
+     * Two blocks starting at the same minute on the same day is the same
+     * fault as two programmes at the same instant: the channel would have to
+     * pick, and a machine picking the shape of the day is not a schedule.
+     */
+    fail('another block already starts then');
+  }
+  const made: ChannelBlock = {
+    id: newId('blk'),
+    name: name.slice(0, 80),
+    fromMinute: block.fromMinute,
+    ...(block.days?.length ? { days: [...new Set(block.days)].sort() } : {}),
+    rotation: [],
+    createdAt: at,
+  };
+  channel.blocks.push(made);
+  return made;
+}
+
+export function removeBlock(channel: Channel, blockId: string): void {
+  const before = channel.blocks.length;
+  channel.blocks = channel.blocks.filter((block) => block.id !== blockId);
+  if (channel.blocks.length === before) fail(`no block ${blockId} on this channel`);
+}
+
+/** Put something into a day-part's loop. Same rules as the channel's own. */
+export function addToBlock(
+  channel: Channel, blockId: string,
+  entry: {
+    source: ProgrammeSource; durationMs: number; title?: string;
+    fromMs?: number; toMs?: number; loop?: boolean;
+  },
+  at: string,
+): RotationEntry {
+  const block = channel.blocks.find((candidate) => candidate.id === blockId)
+    ?? fail(`no block ${blockId} on this channel`);
+  if (!Number.isFinite(entry.durationMs) || entry.durationMs < MINIMUM_SLOT_MS) {
+    fail('a turn in a block needs a length');
+  }
+  assertSource(entry.source, channel);
+  const made: RotationEntry = {
+    id: newId('rot'),
+    source: entry.source,
+    durationMs: Math.round(entry.durationMs),
+    ...(entry.title?.trim() ? { title: entry.title.trim().slice(0, 200) } : {}),
+    ...(entry.fromMs !== undefined ? { fromMs: Math.round(entry.fromMs) } : {}),
+    ...(entry.toMs !== undefined ? { toMs: Math.round(entry.toMs) } : {}),
+    ...(entry.loop ? { loop: true } : {}),
+    createdAt: at,
+  };
+  block.rotation.push(made);
+  return made;
+}
+
+export function removeFromBlock(
+  channel: Channel, blockId: string, entryId: string,
+): void {
+  const block = channel.blocks.find((candidate) => candidate.id === blockId)
+    ?? fail(`no block ${blockId} on this channel`);
+  const before = block.rotation.length;
+  block.rotation = block.rotation.filter((entry) => entry.id !== entryId);
+  if (block.rotation.length === before) fail(`no entry ${entryId} in that block`);
+}
+
+function sameDays(a?: number[], b?: number[]): boolean {
+  const left = [...new Set(a ?? [])].sort().join(',');
+  const right = [...new Set(b ?? [])].sort().join(',');
+  return left === right;
+}
+
+/**
+ * Book a live slot in the listing.  [§6]
+ *
+ *     19:00  LIVE — Evening Discussion
+ *
+ * It references an intention, not media. At the hour the channel switches to
+ * whoever is live; if nobody is, it falls through to whatever would have been
+ * on — because a listing cannot make somebody turn up, and a channel that
+ * went to black at nineteen hundred because its presenter was late would be
+ * punishing the viewer for it.
+ */
+export function bookLiveEvent(
+  channel: Channel,
+  entry: { startsAt: string; durationMs: number; title?: string; note?: string },
+  at: string,
+): Programme {
+  return scheduleProgramme(channel, {
+    startsAt: entry.startsAt,
+    durationMs: entry.durationMs,
+    source: {
+      kind: 'live_event',
+      ...(entry.note?.trim() ? { note: entry.note.trim().slice(0, 200) } : {}),
+    },
+    ...(entry.title?.trim() ? { title: entry.title.trim() } : {}),
+  }, at);
+}
+
+/**
+ * How the channel looks.  [§13, D-16]
+ *
+ * Merged rather than replaced, so turning the live lamp off does not also
+ * forget the bug. There is no "clear everything" here on purpose: an identity
+ * is a thing you adjust, and a single button that wiped it would be a button
+ * somebody presses once.
+ */
+export function setIdentity(
+  channel: Channel, patch: Partial<ChannelIdentity>,
+): void {
+  const now = channel.identity ?? { ...DEFAULT_IDENTITY };
+  const next: ChannelIdentity = { ...now, ...patch };
+  if (next.bug) {
+    if (next.bug.opacity < 0 || next.bug.opacity > 1) {
+      fail('a bug is between invisible and solid');
+    }
+    if (!next.bug.text?.trim() && !next.bug.assetId) delete next.bug;
+  }
+  if (next.lowerThird && next.lowerThird.holdMs < 0) {
+    fail('a lower third cannot be held for less than no time');
+  }
+  channel.identity = next;
 }

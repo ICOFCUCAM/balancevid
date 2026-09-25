@@ -32,7 +32,7 @@ export async function keepBuffer(
   await mkdir(paths.channelAssets(channelId), { recursive: true });
   await rename(
     paths.channelLiveBuffer(channelId, bufferId),
-    paths.channelAsset(channelId, assetId, 'mp4'),
+    paths.channelAsset(channelId, assetId, 'webm'),
   );
 }
 

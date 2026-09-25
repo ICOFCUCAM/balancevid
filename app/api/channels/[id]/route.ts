@@ -1,14 +1,15 @@
 import { isOwner } from '../../../../src/auth/request.js';
 import {
   ChannelEditError,
-  addToRotation, closeIngest, endLive, goLive, keepLive, moveInRotation,
-  moveProgramme, openIngest, removeFromRotation, removeProgramme,
-  requestRecording, retitleProgramme, rollIn, scheduleProgramme, setEmergency,
-  setFiller, skipToNext, takeLive,
+  addBlock, addToBlock, addToRotation, bookLiveEvent, closeIngest, endLive,
+  goLive, keepLive, moveInRotation, moveProgramme, openIngest, removeBlock,
+  removeFromBlock, removeFromRotation, removeProgramme, requestRecording,
+  retitleProgramme, rollIn, scheduleProgramme, setEmergency, setFiller,
+  setIdentity, skipToNext, takeLive,
 } from '../../../../src/domain/channelEdit.js';
 import {
   gaps, nextAfter, onAirAt, orderedProgrammes, overlaps, referencedAssets,
-  rotationLengthMs, rotationOffsets, whatIsOn,
+  blockAt, orderedBlocks, rotationLengthMs, rotationOffsets, whatIsOn,
 } from '../../../../src/domain/channel.js';
 import {
   assertChannelOwnsNoScheduledMedia, assertScheduleResolves,
@@ -72,6 +73,8 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
     next: nextAfter(channel, now) ?? null,
     rotationOffsets: rotationOffsets(channel),
     rotationLengthMs: rotationLengthMs(channel),
+    blocks: orderedBlocks(channel),
+    blockNow: blockAt(channel, now)?.block.name ?? null,
     gaps: gaps(channel, now, now + DAY_MS),
     overlaps: overlaps(channel).map(({ a, b }) => [a.id, b.id]),
     /** Distinct references, which is the number D-18 is about. */
@@ -171,6 +174,45 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
           break;
         case 'unrotate':
           removeFromRotation(draft, body['entryId']);
+          break;
+        /* ---- the day's shape (§5) ------------------------------------- */
+        case 'add-block':
+          addBlock(draft, {
+            name: body['name'] ?? '',
+            fromMinute: Number(body['fromMinute']),
+            ...(Array.isArray(body['days']) ? { days: body['days'].map(Number) } : {}),
+          }, at);
+          break;
+        case 'remove-block':
+          removeBlock(draft, body['blockId']);
+          break;
+        case 'add-to-block': {
+          if (!await resolves(draft, body['source'])) {
+            throw new ChannelEditError('there is no such render');
+          }
+          addToBlock(draft, body['blockId'], {
+            source: body['source'],
+            durationMs: Number(body['durationMs']),
+            title: body['title'],
+            ...(body['loop'] ? { loop: true } : {}),
+          }, at);
+          break;
+        }
+        case 'remove-from-block':
+          removeFromBlock(draft, body['blockId'], body['entryId']);
+          break;
+        /* ---- a slot booked for a broadcast nobody has made yet (§6) ---- */
+        case 'book-live':
+          bookLiveEvent(draft, {
+            startsAt: body['startsAt'],
+            durationMs: Number(body['durationMs']),
+            title: body['title'],
+            note: body['note'],
+          }, at);
+          break;
+        /* ---- how the channel looks (§13) ------------------------------ */
+        case 'identity':
+          setIdentity(draft, body['identity'] ?? {});
           break;
         /* ---- the red button (§5) -------------------------------------- */
         case 'go-live':

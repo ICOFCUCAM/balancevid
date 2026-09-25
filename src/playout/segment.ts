@@ -22,12 +22,15 @@
  * already matches it.
  */
 
-import { mkdir, rename, rm } from 'node:fs/promises';
+import { mkdir, rename, rm, stat } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type { Channel } from '../domain/channel.js';
 import {
   SEGMENT_MS, type Read, playoutWindow, segmentStart,
 } from '../domain/playout.js';
+import { whatIsOn } from '../domain/channel.js';
+import { marksFor } from '../domain/identity.js';
+import type { Mark } from '../domain/identity.js';
 import { HOUSE } from '../render/ingest.js';
 import { ffmpeg, type RunOptions } from '../render/ffmpeg.js';
 import { paths } from '../store/paths.js';
@@ -64,6 +67,20 @@ export async function produceSegment(
   const target = paths.channelSegment(channel.id, index);
   await mkdir(dirname(target), { recursive: true });
 
+  /*
+   * THE STATION'S MARKS, computed once for the segment from what is on air at
+   * its start. Not per piece: a segment that spanned a programme boundary
+   * would otherwise change its lower third halfway through four seconds,
+   * which reads as a glitch rather than as a caption. [§13]
+   */
+  const marks = marksFor(
+    channel.identity,
+    whatIsOn(channel, fromAt),
+    intoProgramme(channel, fromAt),
+    (on) => titleOf(channel, on),
+    nextTitle(channel, fromAt),
+  );
+
   const reads = playoutWindow(channel, fromAt, toAt, (source) => {
     const path = pathFor(channel, source);
     return path ? factsOf(path)?.durationMs : undefined;
@@ -83,7 +100,7 @@ export async function produceSegment(
      * inside the segment, so the pieces are one continuous timeline before
      * they are joined rather than two clips that each start at zero.
      */
-    await encodePiece(channel, read, piece, factsOf, read.atMs - fromAt, opts);
+    await encodePiece(channel, read, piece, factsOf, read.atMs - fromAt, marks, opts);
     pieces.push(piece);
   }
 
@@ -105,6 +122,26 @@ export async function produceSegment(
     await appendAll(pieces, temp);
     await Promise.all(pieces.map((piece) => rm(piece, { force: true })));
   }
+
+  /*
+   * A SEGMENT WITH NOTHING IN IT IS WORSE THAN BLACK.  [§7]
+   *
+   * ffmpeg can exit successfully having written no packets — the commonest
+   * cause is reading a live buffer past its end, which happens whenever the
+   * camera falls behind the delay, and it will happen. A player handed a
+   * zero-byte segment does not show black, it stalls and often gives up on
+   * the stream; a player handed four seconds of black carries on and
+   * recovers when the feed does.
+   *
+   * So the length is checked rather than assumed. This is the last thing
+   * between the engine and the wire, and it is the one place that can promise
+   * every segment is playable.
+   */
+  const made = await stat(temp).catch(() => null);
+  if (!made || made.size < 1024) {
+    await rm(temp, { force: true });
+    await black((SEGMENT_MS / 1000).toFixed(3), temp, 0, marks, opts);
+  }
   await rename(temp, target);
 }
 
@@ -122,11 +159,62 @@ async function appendAll(pieces: string[], out: string): Promise<void> {
   }
 }
 
+/**
+ * The station's marks, as ffmpeg filters.  [§13]
+ *
+ * The identity decides WHAT; this knows HOW. Text is escaped for drawtext,
+ * which is a filter-graph language with its own opinions about colons and
+ * apostrophes — an unescaped programme title called "Verse 1: the beginning"
+ * would not produce a wrong caption, it would fail the whole segment and put
+ * the channel to black.
+ */
+function markFilters(marks: Mark[]): string[] {
+  const pad = 28;
+  /* The lower marks stack upward, so NEXT sits under the title. */
+  let lowerLeft = 0;
+  return marks.map((mark) => {
+    const size = Math.round((mark.size / 720) * STREAM.height);
+    const box = mark.plate
+      ? `:box=1:boxcolor=black@0.55:boxborderw=${Math.round(size * 0.45)}`
+      : '';
+    let x = `${pad}`;
+    let y = `${pad}`;
+    if (mark.corner === 'top-right' || mark.corner === 'bottom-right') {
+      x = `w-tw-${pad}`;
+    }
+    if (mark.corner === 'bottom-left' || mark.corner === 'bottom-right') {
+      const lift = pad + lowerLeft;
+      y = `h-th-${lift}`;
+      lowerLeft += size * 2;
+    }
+    return `drawtext=text='${escapeDrawText(mark.text)}'`
+      + `:fontcolor=${mark.ink}@${mark.opacity.toFixed(2)}`
+      + `:fontsize=${size}:x=${x}:y=${y}${box}`;
+  });
+}
+
+/**
+ * drawtext's escaping, which is not a string's escaping.
+ *
+ * A colon separates the filter's own options and a single quote ends the
+ * text; both appear in ordinary programme titles. A backslash has to go first
+ * or it escapes the escapes.
+ */
+function escapeDrawText(text: string): string {
+  return text
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\u2019")
+    .replace(/:/g, '\\:')
+    .replace(/%/g, '\\%')
+    .slice(0, 120);
+}
+
 /** One read, encoded into the house stream format. */
 async function encodePiece(
   channel: Channel, read: Read, out: string,
   factsOf: (path: string) => SourceFacts | undefined,
   offsetMs: number,
+  marks: Mark[],
   opts: RunOptions,
 ): Promise<void> {
   const seconds = (read.durationMs / 1000).toFixed(3);
@@ -154,7 +242,7 @@ async function encodePiece(
       '-map', '0:v:0', '-map', '1:a:0',
       ...encodeArgs(offsetMs),
       out,
-    ], opts).catch(async () => { await black(seconds, out, offsetMs, opts); });
+    ], opts).catch(async () => { await black(seconds, out, offsetMs, marks, opts); });
     return;
   }
 
@@ -172,8 +260,15 @@ async function encodePiece(
    * not probe is treated the same, because a file we cannot measure is a file
    * we cannot cut four seconds out of with any confidence.
    */
-  if (!path || !facts) {
-    await black(seconds, out, offsetMs, opts);
+  /*
+   * A LIVE FEED IS NOT MEASURED, IT IS FOLLOWED. A growing file has no
+   * duration to probe and probing one would cache whatever length it happened
+   * to have a minute ago — so live skips the facts check entirely and is read
+   * at the offset the engine computed, which is the delay's whole purpose.
+   */
+  const following = read.source.kind === 'live' && !read.notYet;
+  if (!path || (!facts && !following)) {
+    await black(seconds, out, offsetMs, marks, opts);
     return;
   }
 
@@ -200,13 +295,19 @@ async function encodePiece(
     '-accurate_seek', '-ss', (read.fromMs / 1000).toFixed(3),
     '-t', seconds,
     '-i', path,
-    ...(facts.hasAudio ? [] : silence),
+    /* A live feed always carries the microphone; a file says whether it does. */
+    ...((facts?.hasAudio ?? following) ? [] : silence),
     '-vf',
-    `scale=${STREAM.width}:${STREAM.height}:force_original_aspect_ratio=decrease,`
-      + `pad=${STREAM.width}:${STREAM.height}:(ow-iw)/2:(oh-ih)/2,`
-      + `fps=${STREAM.fps},setsar=1`,
+    [
+      `scale=${STREAM.width}:${STREAM.height}:force_original_aspect_ratio=decrease`,
+      `pad=${STREAM.width}:${STREAM.height}:(ow-iw)/2:(oh-ih)/2`,
+      `fps=${STREAM.fps}`,
+      'setsar=1',
+      /* The identity, over the picture and never inside it. [§13, D-16] */
+      ...markFilters(marks),
+    ].join(','),
     '-map', '0:v:0',
-    '-map', facts.hasAudio ? '0:a:0' : '1:a:0',
+    '-map', (facts?.hasAudio ?? following) ? '0:a:0' : '1:a:0',
     '-t', seconds,
     ...encodeArgs(offsetMs),
     out,
@@ -215,13 +316,13 @@ async function encodePiece(
      * A source that cannot be read is black, not a dead channel. The stream's
      * job at that moment is to keep going.
      */
-    await black(seconds, out, offsetMs, opts);
+    await black(seconds, out, offsetMs, marks, opts);
   });
 }
 
 /** Four seconds of nothing, which is what a channel shows when it has none. */
 async function black(
-  seconds: string, out: string, offsetMs: number, opts: RunOptions,
+  seconds: string, out: string, offsetMs: number, marks: Mark[], opts: RunOptions,
 ): Promise<void> {
   await ffmpeg([
     '-y',
@@ -270,4 +371,30 @@ export function streamDir(channelId: string): string {
 
 export function segmentName(index: number): string {
   return join(`${index}.ts`);
+}
+
+/* ---- what the marks say, which the identity does not know ------------- */
+
+function titleOf(channel: Channel, on: ReturnType<typeof whatIsOn>): string {
+  if (on.kind === 'off') return channel.name;
+  if (on.kind === 'live') return on.session.segment ? channel.name : 'Live';
+  if (on.kind === 'emergency') return channel.name;
+  if (on.kind === 'programme') return on.programme.title ?? channel.name;
+  return on.entry.title ?? channel.name;
+}
+
+/** How far into the current thing the channel is, for the at-start hold. */
+function intoProgramme(channel: Channel, at: number): number {
+  const on = whatIsOn(channel, at);
+  if (on.kind === 'programme') return at - Date.parse(on.programme.startsAt);
+  if (on.kind === 'rotation') return on.entry.durationMs - (on.untilMs - at);
+  return 0;
+}
+
+function nextTitle(channel: Channel, at: number): string | undefined {
+  const on = whatIsOn(channel, at);
+  if (on.kind !== 'rotation' || channel.rotation.length === 0) return undefined;
+  const index = channel.rotation.findIndex((entry) => entry.id === on.entry.id);
+  const after = channel.rotation[(index + 1) % channel.rotation.length];
+  return after?.title;
 }

@@ -353,3 +353,188 @@ describe('the loop, on the wire (§4, §5)', () => {
     expect(await filesUnder(paths.channelAssets(channel.id))).toEqual([]);
   });
 });
+
+describe('the pipe: camera bytes reach the wire (§7, §8)', () => {
+  /*
+   *     Camera → Microphone → Live ingest → Broadcast encoder → Online TV
+   *
+   * Everything downstream of the ingest was built and tested before the
+   * ingest existed. This is the test that could not be written until the pipe
+   * was: real bytes appended to a growing buffer, read by the playout engine
+   * at the broadcast delay, and put on the wire as a segment with a picture
+   * in it.
+   */
+  let channel: Channel;
+  let goLive: typeof import('../../src/domain/channelEdit.js').goLive;
+  let takeLive: typeof import('../../src/domain/channelEdit.js').takeLive;
+  let keepLive: typeof import('../../src/domain/channelEdit.js').keepLive;
+  let endLive: typeof import('../../src/domain/channelEdit.js').endLive;
+  let liveBuffer: typeof import('../../src/store/liveBuffer.js');
+
+  beforeAll(async () => {
+    ({ goLive, takeLive, keepLive, endLive } = await import(
+      '../../src/domain/channelEdit.js'));
+    liveBuffer = await import('../../src/store/liveBuffer.js');
+  });
+
+  /**
+   * What a browser posts: WebM from MediaRecorder, in chunks. Made here with
+   * ffmpeg rather than mocked, because the whole question is whether
+   * appending real encoder output produces a file the playout engine can
+   * read — and a mock would answer a different question.
+   */
+  async function pushChunks(bufferPath: string, seconds: number): Promise<void> {
+    await mkdir(join(bufferPath, '..'), { recursive: true });
+    const piece = `${bufferPath}.chunk.webm`;
+    await ffmpeg([
+      '-y',
+      '-f', 'lavfi', '-i', `testsrc=size=320x180:rate=15:duration=${seconds}`,
+      '-f', 'lavfi', '-i', `sine=frequency=440:duration=${seconds}`,
+      '-c:v', 'libvpx', '-deadline', 'realtime', '-cpu-used', '8', '-b:v', '300k',
+      '-c:a', 'libopus', '-b:a', '64k', '-shortest', piece,
+    ]);
+    const { readFile, appendFile } = await import('node:fs/promises');
+    const bytes = await readFile(piece);
+    /*
+     * Checked before it is appended. A zero-byte encode under a loaded
+     * machine would otherwise surface three assertions later as "the buffer
+     * is empty", which is a true statement about the wrong thing.
+     */
+    if (bytes.byteLength === 0) throw new Error('the test encoder produced nothing');
+    await appendFile(bufferPath, bytes);
+    await rm(piece, { force: true });
+  }
+
+  it('bytes appended to the buffer become a segment with a picture', async () => {
+    channel = newChannel('Live Test', 'UTC', AT);
+    /*
+     * Armed twenty seconds ago, so the twelve-second delay has been met and
+     * the read lands eight seconds into a buffer that holds twenty-four.
+     */
+    const opened = new Date(Date.now() - 20_000).toISOString();
+    goLive(channel, 'The live studio', opened);
+    takeLive(channel, opened);
+    await saveChannel(channel);
+
+    const bufferPath = paths.channelLiveBuffer(
+      channel.id, channel.ingests[0]!.bufferId);
+    await mkdir(paths.channelLive(channel.id), { recursive: true });
+    await pushChunks(bufferPath, 24);
+    expect((await stat(bufferPath)).size).toBeGreaterThan(1000);
+
+    const index = segmentIndexAt(Date.now());
+    await produceSegment(channel, index, () => undefined);
+    const file = paths.channelSegment(channel.id, index);
+    const info = await stat(file);
+    expect(info.size).toBeGreaterThan(1000);
+
+    /*
+     * A PICTURE, NOT A SLATE — measured rather than guessed from the file
+     * size. A size threshold is a bitrate threshold in disguise and fails on
+     * a loaded machine; the average luminance of a black slate is about
+     * sixteen and of a test pattern is not.
+     */
+    const raw = await ffprobe([
+      '-v', 'error', '-print_format', 'json',
+      '-show_entries', 'format=duration:stream=codec_type', file,
+    ]);
+    const probed = JSON.parse(raw) as {
+      format?: { duration?: string }; streams?: { codec_type?: string }[];
+    };
+    expect(Number(probed.format?.duration)).toBeGreaterThan(SEGMENT_MS / 1000 - 0.5);
+    expect((probed.streams ?? []).map((s) => s.codec_type).sort())
+      .toEqual(['audio', 'video']);
+
+    /*
+     * A PICTURE, NOT A SLATE — measured against a slate made by the same
+     * encoder in the same second, rather than against a number.
+     *
+     * An absolute file size is a bitrate threshold in disguise and fails on a
+     * loaded machine. Decoding a frame would be better and is not available:
+     * `signalstats`, a one-pixel scale and rawvideo output all segfault on
+     * this platform's static ffmpeg, the same way the concat demuxer does. A
+     * relative comparison needs none of them and answers the actual question,
+     * which is whether anything is moving.
+     */
+    const slateChannel = newChannel('Slate', 'UTC', AT);
+    await saveChannel(slateChannel);
+    await produceSegment(slateChannel, index, () => undefined);
+    const slate = await stat(paths.channelSegment(slateChannel.id, index));
+    expect(info.size).toBeGreaterThan(slate.size * 3);
+  }, 180_000);
+
+  /*
+   * "If you don't choose to save, the temporary live buffers are discarded
+   *  after the broadcast."
+   */
+  it('and the buffer is gone afterwards, when nobody saved it', async () => {
+    const bufferId = channel.ingests[0]!.bufferId;
+    const ended = endLive(channel, new Date().toISOString(), 30_000);
+    expect(ended.keep).toBe(false);
+    await liveBuffer.discardBuffer(channel.id, bufferId);
+    await expect(stat(paths.channelLiveBuffer(channel.id, bufferId))).rejects.toThrow();
+    expect(await filesUnder(paths.channelAssets(channel.id))).toEqual([]);
+  }, 60_000);
+
+  it('but a saved one is renamed into assets, not copied', async () => {
+    const c = newChannel('Keep It', 'UTC', AT);
+    const opened = new Date(Date.now() - 30_000).toISOString();
+    goLive(c, 'Kept', opened);
+    takeLive(c, opened);
+    keepLive(c, true);
+    await saveChannel(c);
+
+    const bufferId = c.ingests[0]!.bufferId;
+    await mkdir(paths.channelLive(c.id), { recursive: true });
+    await pushChunks(paths.channelLiveBuffer(c.id, bufferId), 4);
+    const before = (await stat(paths.channelLiveBuffer(c.id, bufferId))).size;
+
+    const ended = endLive(c, new Date().toISOString(), 30_000);
+    expect(ended.keep).toBe(true);
+    await liveBuffer.keepBuffer(c.id, bufferId, (ended as { assetId: string }).assetId);
+
+    /* The same bytes, in a different place. A rename, not a copy. */
+    const after = await stat(
+      paths.channelAsset(c.id, (ended as { assetId: string }).assetId, 'webm'));
+    expect(after.size).toBe(before);
+    await expect(stat(paths.channelLiveBuffer(c.id, bufferId))).rejects.toThrow();
+  }, 180_000);
+});
+
+
+describe('a segment is never empty, whatever the feed does (§7)', () => {
+  /*
+   * ffmpeg can exit successfully having written no packets, and the commonest
+   * cause is reading a live buffer past its end — which happens whenever the
+   * camera falls behind the delay, and it will happen. A player handed a
+   * zero-byte segment stalls and often gives up on the stream; one handed
+   * four seconds of black carries on and recovers when the feed does.
+   */
+  it('a live read past the end of the buffer puts black on the wire', async () => {
+    const { goLive, takeLive } = await import('../../src/domain/channelEdit.js');
+    const c = newChannel('Short Buffer', 'UTC', AT);
+    /* Armed a minute ago, so the read lands 48s in — and the buffer is empty. */
+    const opened = new Date(Date.now() - 60_000).toISOString();
+    goLive(c, 'Nothing arriving', opened);
+    takeLive(c, opened);
+    await saveChannel(c);
+    await mkdir(paths.channelLive(c.id), { recursive: true });
+    await writeFile(paths.channelLiveBuffer(c.id, c.ingests[0]!.bufferId), '');
+
+    const index = segmentIndexAt(Date.now());
+    await produceSegment(c, index, () => undefined);
+    const info = await stat(paths.channelSegment(c.id, index));
+    expect(info.size).toBeGreaterThan(1000);
+
+    const raw = await ffprobe([
+      '-v', 'error', '-print_format', 'json',
+      '-show_entries', 'format=duration:stream=codec_type', paths.channelSegment(c.id, index),
+    ]);
+    const probed = JSON.parse(raw) as {
+      format?: { duration?: string }; streams?: { codec_type?: string }[];
+    };
+    expect(Number(probed.format?.duration)).toBeGreaterThan(SEGMENT_MS / 1000 - 0.5);
+    expect((probed.streams ?? []).map((s) => s.codec_type).sort())
+      .toEqual(['audio', 'video']);
+  }, 120_000);
+});

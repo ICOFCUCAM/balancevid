@@ -374,6 +374,7 @@ export function assertScheduleResolves(
   const named = missing.map((source) => {
     if (source.kind === 'live') return `a live feed (${source.ingestId})`;
     if (source.kind === 'media') return `a library file (${source.assetId})`;
+    if (source.kind === 'live_event') return 'a booked live slot';
     return `${source.document} ${source.documentId} render ${source.planHash.slice(0, 8)}`;
   });
   fail('INV-17',

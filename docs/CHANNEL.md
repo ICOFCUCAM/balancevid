@@ -460,3 +460,89 @@ finish it. The other way round, the bytes would be gone and the document would
 still be promising a recording.
 
 ---
+
+## §13 — The channel's identity
+
+> *The station branding should be applied at the broadcast layer, not
+> permanently burned into your source videos. That way you can change your
+> channel identity later.*
+
+That sentence is the design, and it is the Representation Rule again (D-16). A
+bug in the corner is a property of the CHANNEL, not of the film: burning it in
+would make that render un-broadcastable anywhere else and would mean
+re-rendering a library to change a logo.
+
+So the identity is a small table on the channel — station bug, LIVE
+indicator, lower thirds with NOW and NEXT, a presenter's name, an ink colour
+— the segment encoder draws it over whatever it is putting on the wire, and
+changing it changes every future second without touching a stored file.
+
+**The LIVE lamp is drawn only when the channel is actually live.** It is the
+one piece of station branding that would be a lie rather than a decoration,
+and it is the piece every viewer checks.
+
+**What to draw and how to draw it are separate.** `identity.ts` returns marks
+— text, corner, opacity, size — and knows nothing about ffmpeg; the encoder
+turns marks into filters and decides nothing. That is what lets the whole
+identity be unit-tested without producing a frame.
+
+**Black still wears the marks.** A viewer who joins during a gap should see
+whose channel they have joined.
+
+---
+
+## C-4 — Stage 4: the pipe, the station, and the marks
+
+**The gap was the pipe and it is closed.** A live session was modelled,
+scheduled, pre-empted, delayed, swept and invariant-checked with nothing
+arriving. `POST /api/channels/:id/live` is what arrives.
+
+**It appends; it does not assemble.** The other two studios collect numbered
+chunks and join them when the take is finished. A broadcast is never
+finished, so the chunks are not collected: each is appended to one growing
+file the playout engine is reading four seconds behind. That works because of
+what MediaRecorder writes — a header chunk and then continuation clusters, so
+appending in order produces a stream a decoder can follow.
+
+**There is no retry and no reordering, deliberately.** A chunk that arrives
+late has missed the broadcast, and inserting it would corrupt a file being
+read right now. Live is the one place in this product where "later" means
+"never", so a failure counts itself and the studio says the feed is
+struggling.
+
+**A live feed cannot be read ahead of itself.** The engine produces segments
+two ahead of the playhead, which is fine for a film and impossible for a
+camera that has not recorded the next eight seconds. So live content is read
+from twelve seconds ago — the run-ahead, the chunk interval, and room for a
+browser that hiccups. That is the glass-to-glass delay every HLS channel has,
+declared here rather than discovered as a stutter.
+
+**A segment with nothing in it is worse than black**, and it took the pipe to
+find that out. ffmpeg can exit successfully having written no packets, and
+the commonest cause is reading a live buffer past its end — which happens
+whenever the camera falls behind, and it will happen. A player handed a
+zero-byte segment stalls and often gives up on the stream; one handed four
+seconds of black carries on and recovers. The length is now checked before
+the segment reaches the wire.
+
+**Blocks are what make it a station.** A station does not decide at eleven
+minutes past nine what to play; it decides that the morning is music. A block
+is a named stretch of the day with its own loop, and the overnight one carries
+past midnight, which is how a schedule printed in a newspaper has always read.
+Its time of day is resolved through `Intl` in the channel's own zone, because
+arithmetic on the instant is wrong twice a year and the bug is unreproducible
+in summer.
+
+**A booked live slot references an intention, not media.** It costs no asset,
+and when nobody turns up it falls through to whatever would have been on — a
+listing cannot make somebody turn up, and a channel that went to black at
+nineteen hundred because its presenter was late would be punishing the viewer
+for it.
+
+**Three ffmpeg filters segfault on this platform's static build** — the concat
+demuxer over MPEG-TS, `signalstats`, a one-pixel scale, and rawvideo output.
+The test that asks "is there a picture on the wire" ended up comparing the
+live segment against a slate encoded by the same encoder in the same second,
+which needs none of them and answers the actual question.
+
+---

@@ -47,6 +47,8 @@ export async function loadChannel(id: string): Promise<Channel> {
 /** Old documents, read by new code. In memory only. [U-25 §1] */
 function migrate(channel: Channel): Channel {
   channel.programmes ??= [];
+  channel.rotation ??= [];
+  channel.blocks ??= [];
   channel.ingests ??= [];
   channel.recordings ??= [];
   channel.schemaVersion = CHANNEL_SCHEMA_VERSION;

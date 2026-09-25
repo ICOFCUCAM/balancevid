@@ -54,6 +54,24 @@ export const SEGMENT_MS = 4000;
 export const WINDOW_SEGMENTS = 6;
 
 /**
+ * How far behind the camera a live broadcast goes out.  [§7]
+ *
+ * A LIVE FEED CANNOT BE READ AHEAD OF ITSELF. The engine produces segments
+ * two ahead of the playhead so a slow encode does not starve the playlist,
+ * which is fine for a film that already exists and impossible for a camera
+ * that has not recorded the next eight seconds yet. Asked for them anyway,
+ * ffmpeg reads past the end of the growing file and puts out a fraction of a
+ * second of picture followed by nothing.
+ *
+ * So live content is read from twelve seconds ago: the run-ahead, plus the
+ * chunk interval, plus room for a browser that hiccups. That is the
+ * glass-to-glass delay every HLS channel has and viewers never notice,
+ * because there is nothing to compare it against — and it is declared here
+ * rather than discovered as a stutter.
+ */
+export const LIVE_DELAY_MS = 12_000;
+
+/**
  * ONE READ FROM ONE ASSET.
  *
  * The complete instruction: which reference, where in it to start, how long
@@ -75,6 +93,10 @@ export interface Read {
   fromMs: number;
   /** The programme this read belongs to, for the listing and the log. */
   programmeId?: string;
+  /**
+   * A live feed the delay has not reached yet. The encoder puts a slate up.
+   */
+  notYet?: true;
   /**
    * Nothing is scheduled and there is no filler.
    *
@@ -142,8 +164,24 @@ export function playoutWindow(
        * same way, from its own beginning, because an apology slide starts at
        * the start. [§6]
        */
+      /*
+       * The delay applies to a live FEED, not to a segment rolled in over it
+       * — a film played during a live show is an ordinary file and can be
+       * read from wherever it likes. [§7]
+       */
+      const behind = on.kind === 'live' && on.source.kind === 'live'
+        ? LIVE_DELAY_MS : 0;
       reads.push({
-        atMs: cursor, durationMs: toAt - cursor, source: on.source, fromMs: on.fromMs,
+        atMs: cursor,
+        durationMs: toAt - cursor,
+        source: on.source,
+        fromMs: Math.max(0, on.fromMs - behind),
+        /*
+         * Before the delay has elapsed there is nothing in the buffer yet.
+         * Saying so lets the encoder put a slate up rather than read past the
+         * end of a file that is still being written.
+         */
+        ...(on.fromMs < behind ? { notYet: true as const } : {}),
       });
       cursor = toAt;
       continue;

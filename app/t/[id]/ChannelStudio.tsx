@@ -8,6 +8,7 @@ import {
   referencedAssets, rotationLengthMs, rotationOffsets, sourceKey, whatIsOn,
 } from '../../../src/domain/channel.js';
 import StudioBar from '../../StudioBar.js';
+import { useLiveEncoder } from './useLiveEncoder.js';
 
 /**
  * The Channel Studio.  [Doctrine CHANNEL §1–§7, D-18, INV-17]
@@ -76,6 +77,14 @@ export default function ChannelStudio({
   }, []);
 
   const id = channel.id;
+  /**
+   * THE PIPE. Camera → microphone → this → the channel's live buffer.
+   *
+   * Held at the top of the studio rather than inside the live panel, because
+   * a component that unmounts takes the camera with it — and the panel
+   * re-renders on every tick of the clock.
+   */
+  const encoder = useLiveEncoder(id);
 
   const refresh = useCallback(async () => {
     const response = await fetch(`/api/channels/${id}`, { cache: 'no-store' });
@@ -87,6 +96,20 @@ export default function ChannelStudio({
   }, [id]);
 
   useEffect(() => { void refresh(); }, [refresh]);
+
+  /*
+   * The camera follows the session, not a button. Arming opens it, ending
+   * closes it — so a broadcast that was ended from another tab, or by the
+   * document changing underneath, does not leave a camera light on.
+   */
+  const phase = channel.live?.phase;
+  useEffect(() => {
+    if ((phase === 'armed' || phase === 'on_air') && !encoder.running) {
+      void encoder.start();
+    }
+    if (phase === undefined || phase === 'ended') encoder.stop();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
 
   useEffect(() => {
     void (async () => {
@@ -141,8 +164,9 @@ export default function ChannelStudio({
     const known = library.find(
       (item) => sourceKey(item.source) === sourceKey(source))?.title;
     if (known) return known;
-    return source.kind === 'media'
-      ? 'a picture' : `${source.document} ${source.documentId.slice(0, 12)}`;
+    if (source.kind === 'media') return 'a picture';
+    if (source.kind === 'live_event') return source.note ?? 'LIVE \u2014 booked';
+    return `${source.document} ${source.documentId.slice(0, 12)}`;
   }, [channel.ingests, library]);
 
   /**
@@ -285,7 +309,22 @@ export default function ChannelStudio({
               border: '1px solid var(--line)', overflow: 'hidden',
             }}
           >
-            {on.kind !== 'off' ? (
+            {on.kind === 'live' && on.source.kind === 'live' ? (
+              /*
+               * THE OPERATOR'S OWN PICTURE, not the transmission. What goes
+               * out is this twelve seconds later (LIVE_DELAY_MS); showing the
+               * delayed version on the desk is how presenters end up talking
+               * over themselves.
+               */
+              <video
+                ref={encoder.videoRef} autoPlay muted playsInline
+                data-testid="live-preview"
+                style={{
+                  width: '100%', height: '100%', objectFit: 'contain',
+                  display: encoder.stream ? 'block' : 'none',
+                }}
+              />
+            ) : on.kind !== 'off' ? (
               <Monitor on={on} channel={channel} />
             ) : (
               <div className="small muted" style={{
@@ -514,6 +553,34 @@ export default function ChannelStudio({
                       Back to the room
                     </button>
                   </div>
+                  {/*
+                    * WHETHER THE PIPE IS ACTUALLY DELIVERING. A live studio
+                    * that says LIVE while nothing is arriving is the worst
+                    * screen in a control room, so the chunk counters are on
+                    * it: what reached the channel, and what did not. [§7]
+                    */}
+                  <div className="row" data-testid="feed-health" style={{
+                    gap: 8, fontSize: 11, padding: '5px 8px', borderRadius: 7,
+                    background: 'var(--panel-2)', border: '1px solid var(--line)',
+                  }}>
+                    <span aria-hidden="true" style={{
+                      width: 8, height: 8, borderRadius: '50%',
+                      background: encoder.running && encoder.dropped === 0 ? '#4f8a5b'
+                        : encoder.running ? '#e0c14f' : '#8e2f24',
+                    }} />
+                    <span className="grow muted">
+                      {encoder.running
+                        ? `Feed \u00b7 ${encoder.sent} sent`
+                          + (encoder.dropped ? ` \u00b7 ${encoder.dropped} lost` : '')
+                        : encoder.error ?? 'No camera'}
+                    </span>
+                    {encoder.running && (
+                      <span className="muted" style={{
+                        fontFamily: 'ui-monospace, monospace',
+                      }}>{Math.round(encoder.rate / 1000)} kB/s</span>
+                    )}
+                  </div>
+
                   {/*
                     * SAVE THIS LIVE SESSION.  [§8]
                     *
@@ -846,7 +913,8 @@ export default function ChannelStudio({
                 <button
                   className="primary" data-testid="go-live"
                   title={'Brings the camera up and shows it to you. Nothing '
-                    + 'reaches the wire until you press TAKE LIVE.'}
+                    + 'reaches the wire until you press TAKE LIVE — the '
+                    + 'programme keeps playing until then.'}
                   onClick={() => {
                     const label = window.prompt('What is the live show called?', 'Live');
                     if (!label) return;
@@ -871,7 +939,8 @@ export default function ChannelStudio({
               ) : (
                 <button
                   className="small" data-testid="end-live"
-                  title="Back to PROGRAM. The schedule resumes where the clock says."
+                  title={'Return to program. The schedule resumes where the clock '
+                    + 'says, and the viewer sees one continuous channel.'}
                   onClick={() => {
                     if (!window.confirm(keeping
                       ? 'End the broadcast? It will be saved as a recording.'
@@ -881,7 +950,7 @@ export default function ChannelStudio({
                   }}
                   style={{ borderColor: '#c0392b', color: '#e07a6b' }}
                 >
-                  END LIVE
+                  RETURN TO PROGRAM
                 </button>
               )}
             </div>
@@ -1062,6 +1131,20 @@ function Monitor({ on, channel }: { on: OnAir; channel: Channel }) {
     );
   }
 
+  if (source.kind === 'live_event') {
+    /* A booked slot with nobody live: the loop is what actually goes out, so
+       the monitor says what the schedule promised and what happened. */
+    return (
+      <div className="small muted" style={{
+        position: 'absolute', inset: 0, display: 'grid', placeItems: 'center',
+        textAlign: 'center', padding: 20,
+      }}>
+        {source.note ?? 'Live event'}
+        <br />
+        <span style={{ fontSize: 11 }}>Nobody is live \u2014 the loop is on air</span>
+      </div>
+    );
+  }
   const url = source.kind === 'media'
     ? `/api/library/${source.assetId}`
     : `/api/${source.document === 'performance' ? 'performances' : 'conversations'}`

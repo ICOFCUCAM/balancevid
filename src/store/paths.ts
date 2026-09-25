@@ -161,8 +161,15 @@ export const paths = {
    * `assets/` and becomes an archived recording like any other.
    */
   channelLive: (id: string) => join(paths.channel(id), 'live'),
+  /*
+   * WebM, because that is what a browser records. MediaRecorder writes a
+   * header chunk and then continuation clusters, so appending them in order
+   * produces a growing file a decoder can follow — which is what a live
+   * buffer has to be. Nothing transcodes it on the way in (U-23); the playout
+   * engine re-encodes every piece it puts on the wire anyway.
+   */
   channelLiveBuffer: (id: string, bufferId: string) =>
-    join(paths.channelLive(id), `${safe(bufferId)}.mp4`),
+    join(paths.channelLive(id), `${safe(bufferId)}.webm`),
   channelSegment: (id: string, index: number) =>
     join(paths.channelStream(id), `${Math.max(0, Math.floor(index))}.ts`),
   /** Clips and the link preview of a performance. [STUDIO-TWO §14] */

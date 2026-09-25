@@ -25,7 +25,8 @@ import {
 } from '../../src/domain/channel.js';
 import {
   ChannelEditError,
-  addToRotation, closeIngest, endLive, goLive, keepLive, moveInRotation,
+  addBlock, addToBlock, addToRotation, bookLiveEvent, closeIngest, endLive,
+  goLive, keepLive, moveInRotation, setIdentity,
   moveProgramme, newChannel, openIngest, removeFromRotation, removeProgramme,
   requestRecording, rollIn, scheduleProgramme, setEmergency, setFiller,
   skipToNext, takeLive,
@@ -34,6 +35,7 @@ import {
   SEGMENT_MS, WINDOW_SEGMENTS,
   deadAir, distinctAssetsRead, livePlaylist, playoutWindow, segmentIndexAt,
 } from '../../src/domain/playout.js';
+import { marksFor } from '../../src/domain/identity.js';
 import {
   InvariantViolation,
   assertChannelOwnsNoScheduledMedia, assertScheduleResolves,
@@ -898,5 +900,224 @@ describe('the rest of the control bar (§6)', () => {
     const session = goLive(c, 'Studio', at(20));
     expect(() => setEmergency(
       c, { kind: 'live', ingestId: session.ingestId }, at(20))).toThrow(ChannelEditError);
+  });
+});
+
+describe('a booked live slot holds the air open (§6)', () => {
+  function booked(): Channel {
+    const c = newChannel('Prof Class TV', 'UTC', AT);
+    c.rotationFrom = at(0);
+    addToRotation(c, { source: FILM, durationMs: 30 * MINUTE, title: 'Music' }, AT);
+    bookLiveEvent(c, {
+      startsAt: at(19), durationMs: HOUR, title: 'LIVE — Evening Discussion',
+    }, AT);
+    return c;
+  }
+
+  it('costs no asset, because it references an intention', () => {
+    const c = booked();
+    expect(c.programmes).toHaveLength(1);
+    /* The film in the loop is the only file this channel points at. */
+    expect(referencedAssets(c)).toHaveLength(1);
+  });
+
+  /*
+   * A listing cannot make somebody turn up. A channel that went to black at
+   * nineteen hundred because its presenter was late would be punishing the
+   * viewer for it.
+   */
+  it('and falls through to the loop when nobody is live', () => {
+    const c = booked();
+    const on = whatIsOn(c, Date.parse(at(19, 30)));
+    expect(on.kind).toBe('rotation');
+  });
+
+  it('but the moment somebody takes it, the slot is what it said it was', () => {
+    const c = booked();
+    goLive(c, 'Evening Discussion', at(18, 55));
+    takeLive(c, at(19));
+    expect(whatIsOn(c, Date.parse(at(19, 30))).kind).toBe('live');
+  });
+
+  it('and at 20:00 the channel returns to the schedule', () => {
+    const c = booked();
+    goLive(c, 'Evening Discussion', at(18, 55));
+    takeLive(c, at(19));
+    endLive(c, at(20));
+    expect(whatIsOn(c, Date.parse(at(20, 10))).kind).toBe('rotation');
+  });
+});
+
+describe('channel blocks give the day a shape (§5)', () => {
+  /*
+   *   06:00 ─ Morning Music
+   *   12:00 ─ Conversations
+   *   23:00 ─ Overnight Music
+   */
+  function station(): Channel {
+    const c = newChannel('Prof Class TV', 'UTC', AT);
+    c.rotationFrom = at(0);
+    addToRotation(c, { source: FILM, durationMs: HOUR, title: 'Default' }, AT);
+    const morning = addBlock(c, { name: 'Morning Music', fromMinute: 6 * 60 }, AT);
+    addToBlock(c, morning.id, {
+      source: FILM, durationMs: 30 * MINUTE, title: 'A morning song',
+    }, AT);
+    const noon = addBlock(c, { name: 'Conversations', fromMinute: 12 * 60 }, AT);
+    addToBlock(c, noon.id, {
+      source: DEBATE, durationMs: 45 * MINUTE, title: 'A conversation',
+    }, AT);
+    const night = addBlock(c, { name: 'Overnight Music', fromMinute: 23 * 60 }, AT);
+    addToBlock(c, night.id, {
+      source: FILM, durationMs: 20 * MINUTE, title: 'Overnight',
+    }, AT);
+    return c;
+  }
+
+  it('the block holding the air plays its own loop, not the channel\'s', () => {
+    const c = station();
+    const morning = whatIsOn(c, Date.parse(at(7)));
+    expect(morning.kind).toBe('rotation');
+    expect(morning.kind === 'rotation' && morning.entry.title).toBe('A morning song');
+    expect(morning.kind === 'rotation' && morning.blockName).toBe('Morning Music');
+
+    const noon = whatIsOn(c, Date.parse(at(13)));
+    expect(noon.kind === 'rotation' && noon.entry.title).toBe('A conversation');
+    expect(noon.kind === 'rotation' && noon.blockName).toBe('Conversations');
+  });
+
+  /*
+   * The overnight block that began at 23:00 is still the one running at
+   * 02:00, which is how a schedule printed in a newspaper has always read.
+   */
+  it('and the overnight block carries past midnight', () => {
+    const c = station();
+    const small = whatIsOn(c, Date.parse(at(2)));
+    expect(small.kind === 'rotation' && small.blockName).toBe('Overnight Music');
+  });
+
+  it('the channel\'s own loop is what runs where no block does', () => {
+    const c = newChannel('Prof Class TV', 'UTC', AT);
+    c.rotationFrom = at(0);
+    addToRotation(c, { source: FILM, durationMs: HOUR, title: 'Default' }, AT);
+    const evening = addBlock(c, { name: 'Evening', fromMinute: 18 * 60 }, AT);
+    addToBlock(c, evening.id, {
+      source: DEBATE, durationMs: HOUR, title: 'Evening thing',
+    }, AT);
+    /* Before 18:00 on a channel whose only block is the evening one, the
+       evening block is yesterday's carry — so this checks the fall-through
+       by giving the block days it does not run on today. */
+    evening.days = [(new Date(Date.parse(at(9))).getUTCDay() + 3) % 7];
+    const morning = whatIsOn(c, Date.parse(at(9)));
+    expect(morning.kind === 'rotation' && morning.entry.title).toBe('Default');
+  });
+
+  it('a fixed programme still pre-empts a block', () => {
+    const c = station();
+    scheduleProgramme(c, {
+      startsAt: at(7), durationMs: HOUR, source: DEBATE, title: 'The fixed one',
+    }, AT);
+    const on = whatIsOn(c, Date.parse(at(7, 30)));
+    expect(on.kind).toBe('programme');
+  });
+
+  it('two blocks starting at the same minute are refused', () => {
+    const c = station();
+    expect(() => addBlock(c, { name: 'Clash', fromMinute: 6 * 60 }, AT))
+      .toThrow(ChannelEditError);
+  });
+
+  it('and a block is references like everything else — no copies', () => {
+    const c = station();
+    expect(c.blocks).toHaveLength(3);
+    expect(c.blocks.reduce((n, b) => n + b.rotation.length, 0)).toBe(3);
+    /*
+     * Four turns across the channel and its three blocks. `referencedAssets`
+     * counts what the CHANNEL's own schedule points at; a block's loop is
+     * counted with it below, which is the number that matters on screen.
+     */
+    const everything = new Set([
+      ...referencedAssets(c).map(sourceKey),
+      ...c.blocks.flatMap((b) => b.rotation.map((e) => sourceKey(e.source))),
+    ]);
+    expect(everything.size).toBe(2);
+  });
+});
+
+describe('the channel identity is drawn, never burned in (§13, D-16)', () => {
+  const title = () => 'Everlasting Love';
+
+  it('a bug goes up and stays up', () => {
+    const c = newChannel('Prof Class TV', 'UTC', AT);
+    setIdentity(c, {
+      bug: { text: 'PROF CLASS', corner: 'bottom-right', opacity: 0.8 },
+    });
+    const marks = marksFor(
+      c.identity, { kind: 'off' }, 0, title);
+    expect(marks.map((m) => m.kind)).toEqual(['bug']);
+    expect(marks[0]!.corner).toBe('bottom-right');
+  });
+
+  /*
+   * A LIVE lamp on a repeat is the one piece of station branding that is a
+   * lie rather than a decoration, and it is the piece every viewer checks.
+   */
+  it('the LIVE lamp is drawn only when the channel is actually live', () => {
+    const c = newChannel('Prof Class TV', 'UTC', AT);
+    setIdentity(c, {});
+    const session = goLive(c, 'Studio', at(20));
+    const notYet = marksFor(c.identity, {
+      kind: 'rotation',
+      entry: { id: 'rot_x' as never, source: FILM, durationMs: HOUR, createdAt: AT },
+      source: FILM, fromMs: 0, untilMs: 1,
+    }, 0, title);
+    expect(notYet.some((m) => m.kind === 'lamp')).toBe(false);
+
+    takeLive(c, at(20));
+    const nowLive = marksFor(c.identity, {
+      kind: 'live', session: c.live!, source: { kind: 'live', ingestId: session.ingestId },
+      fromMs: 0,
+    }, 0, title);
+    expect(nowLive.some((m) => m.kind === 'lamp')).toBe(true);
+  });
+
+  it('the lower third holds at the start and then goes, by default', () => {
+    const c = newChannel('Prof Class TV', 'UTC', AT);
+    setIdentity(c, { lowerThird: { show: 'at-start', holdMs: 8000 } });
+    const on: Parameters<typeof marksFor>[1] = {
+      kind: 'rotation',
+      entry: { id: 'rot_x' as never, source: FILM, durationMs: HOUR, createdAt: AT },
+      source: FILM, fromMs: 0, untilMs: 1,
+    };
+    expect(marksFor(c.identity, on, 2000, title).some((m) => m.kind === 'lower-third'))
+      .toBe(true);
+    expect(marksFor(c.identity, on, 20_000, title).some((m) => m.kind === 'lower-third'))
+      .toBe(false);
+  });
+
+  it('and NEXT rides with the title rather than appearing on its own', () => {
+    const c = newChannel('Prof Class TV', 'UTC', AT);
+    setIdentity(c, { lowerThird: { show: 'always', holdMs: 0 } });
+    const marks = marksFor(c.identity, {
+      kind: 'rotation',
+      entry: { id: 'rot_x' as never, source: FILM, durationMs: HOUR, createdAt: AT },
+      source: FILM, fromMs: 0, untilMs: 1,
+    }, 0, title, 'History Discussion');
+    expect(marks.find((m) => m.kind === 'next')?.text).toContain('History Discussion');
+  });
+
+  /*
+   * The identity lives on the channel and nowhere else, which is the whole
+   * point: changing it changes every future second and touches no file.
+   */
+  it('changing it touches no reference and no asset', () => {
+    const c = newChannel('Prof Class TV', 'UTC', AT);
+    addToRotation(c, { source: FILM, durationMs: HOUR }, AT);
+    const before = JSON.stringify({ r: c.rotation, p: c.programmes });
+    setIdentity(c, { bug: { text: 'PC', corner: 'top-right', opacity: 0.7 } });
+    setIdentity(c, { ink: '#ffcc00' });
+    expect(JSON.stringify({ r: c.rotation, p: c.programmes })).toBe(before);
+    /* Merged, not replaced: the second change did not forget the first. */
+    expect(c.identity!.bug!.text).toBe('PC');
+    expect(c.identity!.ink).toBe('#ffcc00');
   });
 });
