@@ -11,7 +11,7 @@
 import {
   type Annotation, type AssetId, type Conversation, type Evidence,
   type Intervention, type InterventionId, type Point, type TakeId,
-  evidenceCapture, orderedInterventions, selectedTake,
+  evidenceCapture, hasSeveralVoices, orderedInterventions, participantFor, selectedTake,
 } from './document.js';
 import { sha256 } from './ids.js';
 import { InvariantViolation } from './invariants.js';
@@ -404,11 +404,15 @@ export function planFromTimeline(
      * answering whom. The plan decides this once, from the document, rather
      * than each surface deciding for itself.
      */
-    const speakers = conversation.participants ?? [];
-    const speaking = ivn.participantId
-      ? speakers.find((p) => p.id === ivn.participantId) : undefined;
-    const speakerName = speaking && speakers.filter(
-      (p) => p.role !== 'audience').length > 1
+    /*
+     * Asked of who has actually SPOKEN, not of who is on the invitation list.
+     * A colleague invited last week and still silent does not put a name on
+     * every one of the author's responses; the moment they answer once, every
+     * response needs one. `hasSeveralVoices` is that question, asked in one
+     * place so the render, the article and the cards cannot disagree.
+     */
+    const speaking = participantFor(conversation, ivn);
+    const speakerName = hasSeveralVoices(conversation)
       ? speaking.displayName : undefined;
 
     const shot: Omit<ResponseShot, 'hash'> = {

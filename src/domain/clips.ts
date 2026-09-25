@@ -20,7 +20,7 @@
 import {
   CARD_SECONDS, MAX_CARD_SECONDS, MAX_HOOK_LENGTH, MIN_CARD_SECONDS,
   type Conversation, type Intervention, type OpeningOrder,
-  orderedInterventions, selectedTake, takeUsableFrames,
+  orderedInterventions, participantFor, responseNumbers, selectedTake, takeUsableFrames,
 } from './document.js';
 import { planFromTimeline, type PlanOptions, type RenderPlan } from './plan.js';
 import { TYPE_PRESENTATION } from './presentation.js';
@@ -277,6 +277,11 @@ export function buildClipTimeline(
         kind: 'response' as const,
         interventionId: intervention.id,
         takeId: take.id,
+        // A clip is one pair lifted out of the conversation, and it travels
+        // furthest from it — so it is the export that most needs to say
+        // whose answer this is. [ROOM §4]
+        participantId: participantFor(conversation, intervention).id,
+        responseNumber: responseNumbers(conversation).get(intervention.id) ?? 0,
         anchorFrame: anchor,
         mediaInFrame: take.mediaInFrame,
         mediaOutFrame: take.mediaOutFrame,

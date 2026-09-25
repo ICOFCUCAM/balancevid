@@ -15,6 +15,20 @@ import { CAPTION_FLOOR_FRACTION, type CaptionStyle } from '../domain/presentatio
 import { annotationEvents } from './annotations.js';
 import { HOUSE_FPS, type Frames } from '../domain/time.js';
 
+/**
+ * WHICH SIDE of the conversation, not which person.  [U-20, ROOM §4]
+ *
+ * The primary distinction a viewer needs is the source's words against the
+ * answer to them, and this product carries that by shape and position as well
+ * as colour so it survives greyscale. That stays two-valued however many
+ * people answer — a three-way discussion is still an argument with a source
+ * on one side of it.
+ *
+ * WHO among the answerers is a separate field, because it is a separate
+ * question and it degrades differently: a caption file read with no picture
+ * needs the name, and a caption burned into a video where only one person
+ * ever speaks does not.
+ */
 export type Speaker = 'source' | 'user';
 
 export interface CueWord {
@@ -29,6 +43,17 @@ export interface Cue {
   startFrame: Frames;
   endFrame: Frames;
   speaker: Speaker;
+  /**
+   * The name of the person answering, when naming them tells the viewer
+   * something.  [ROOM §4, §9]
+   *
+   * Set by `buildCues` from the conversation, and only where the conversation
+   * has more than one voice in it — the same question the lower third asks,
+   * asked once in the domain rather than twice in two renderers. Absent on a
+   * source cue, which is the source, and on a solo conversation, where a name
+   * on every line is noise.
+   */
+  speakerName?: string;
   text: string;
   /**
    * The same line, word by word, where the engine timed it.
@@ -350,7 +375,15 @@ function decorate(body: string, cue: Cue, style: CaptionStyle): string {
    * and its weight rather than by colour, so it survives greyscale like
    * everything else in that language does.
    */
-  const who = cue.speaker === 'user' ? 'YOU' : 'SOURCE';
+  /*
+   * Their name where there is one to give, and "YOU" where the conversation
+   * has one voice. A two-person discussion captioned "YOU" twice tells the
+   * viewer nothing; a solo one captioned with the author's own name on every
+   * line reads as a transcript of somebody else.
+   */
+  const who = cue.speaker === 'user'
+    ? (cue.speakerName ? cue.speakerName.toUpperCase() : 'YOU')
+    : 'SOURCE';
   return `{\\b1}${who}:{\\b0} ${wrapped}`;
 }
 
@@ -390,12 +423,25 @@ function event(
   return `Dialogue: 0,${assTime(startFrame, fps)},${assTime(endFrame, fps)},${styleName},,0,0,0,,${body}`;
 }
 
+/**
+ * Who said it, for a caption FILE.
+ *
+ * Always named where a name exists, unlike the burned-in version: a sidecar
+ * is read by a screen reader and by anyone with the sound off and no picture,
+ * and "You" in a file that will outlive the page it was downloaded from names
+ * nobody at all. [D-04, U-19]
+ */
+function speakerLabel(cue: Cue): string {
+  if (cue.speaker !== 'user') return 'Source';
+  return cue.speakerName ?? 'You';
+}
+
 /** INV-07 — sidecars ship with every export, whatever the burn-in setting. */
 export function buildSrt(cues: Cue[], fps: number = HOUSE_FPS): string {
   return cues.map((cue, i) => [
     String(i + 1),
     `${srtTime(cue.startFrame, fps)} --> ${srtTime(cue.endFrame, fps)}`,
-    `${cue.speaker === 'user' ? 'YOU' : 'SOURCE'}: ${cue.text}`,
+    `${speakerLabel(cue).toUpperCase()}: ${cue.text}`,
     '',
   ].join('\n')).join('\n');
 }
@@ -403,7 +449,7 @@ export function buildSrt(cues: Cue[], fps: number = HOUSE_FPS): string {
 export function buildVtt(cues: Cue[], fps: number = HOUSE_FPS): string {
   const body = cues.map((cue) =>
     `${srtTime(cue.startFrame, fps).replace(',', '.')} --> ${srtTime(cue.endFrame, fps).replace(',', '.')}\n` +
-    `<v ${cue.speaker === 'user' ? 'You' : 'Source'}>${cue.text}`,
+    `<v ${speakerLabel(cue)}>${cue.text}`,
   ).join('\n\n');
   return `WEBVTT\n\n${body}\n`;
 }

@@ -16,7 +16,9 @@
  */
 
 import type { Conversation } from './document.js';
-import { renderableInterventions, selectedTake, takeUsableFrames } from './document.js';
+import {
+  participantFor, renderableInterventions, responseNumbers, selectedTake, takeUsableFrames,
+} from './document.js';
 import { planFromTimeline, type PlanOptions, type RenderPlan } from './plan.js';
 import { RESPONSE_PAD_FRAMES } from './time.js';
 import type { ResponseItem, Timeline } from './timeline.js';
@@ -32,6 +34,12 @@ export class EmptyReelError extends Error {
 export function buildReelTimeline(conversation: Conversation): Timeline {
   const items: ResponseItem[] = [];
   let outputCursor = 0;
+  /*
+   * The reel drops the source, not the attribution. A run of responses with
+   * no source between them is exactly where a viewer most needs to know
+   * whose voice changed. [ROOM §4]
+   */
+  const numbers = responseNumbers(conversation);
 
   for (const intervention of renderableInterventions(conversation)) {
     const take = selectedTake(intervention)!;
@@ -41,6 +49,8 @@ export function buildReelTimeline(conversation: Conversation): Timeline {
       kind: 'response',
       interventionId: intervention.id,
       takeId: take.id,
+      participantId: participantFor(conversation, intervention).id,
+      responseNumber: numbers.get(intervention.id) ?? 0,
       anchorFrame: intervention.anchor.tSourceFrame,
       mediaInFrame: take.mediaInFrame,
       mediaOutFrame: take.mediaOutFrame,

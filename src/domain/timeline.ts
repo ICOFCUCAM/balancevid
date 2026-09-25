@@ -21,10 +21,13 @@ import {
   type InterventionId,
   type Take,
   type TakeId,
+  participantFor,
   renderableInterventions,
+  responseNumbers,
   selectedTake,
   takeUsableFrames,
 } from './document.js';
+import type { ParticipantId } from './participants.js';
 import { type Frames, RESPONSE_PAD_FRAMES, assertFrames } from './time.js';
 
 export interface SourceItem {
@@ -42,6 +45,19 @@ export interface ResponseItem {
   kind: 'response';
   interventionId: InterventionId;
   takeId: TakeId;
+  /**
+   * Whose voice this is, and which response of the conversation it is.
+   * [ROOM §4, §9]
+   *
+   * On the PROJECTION rather than left to each surface to look up, because
+   * "SOURCE ──●──●──●, you then Sarah then you" is a fact about the timeline,
+   * and a timeline that cannot say who is speaking is a timeline a
+   * multi-voice conversation cannot be drawn from. Both are derived — the id
+   * from the intervention, the number from source order — so neither can
+   * disagree with the document. [U-08]
+   */
+  participantId: ParticipantId;
+  responseNumber: number;
   /** The source frame this response interrupts — and resumes at. */
   anchorFrame: Frames;
   /** t_media within the take, half-open */
@@ -95,6 +111,15 @@ export function projectTimeline(conversation: Conversation): Timeline {
     outputCursor += durationFrames;
   };
 
+  /*
+   * Numbered over EVERY intervention, not only the renderable ones. "Response
+   * 3" is the author's third response, and it stays the third whether or not
+   * the second has been recorded yet — a number that renumbered itself when a
+   * take was deleted would be a different number in the studio and in the
+   * export.
+   */
+  const numbers = responseNumbers(conversation);
+
   for (const ivn of interventions) {
     const anchorFrame = clampAnchor(ivn, duration);
     const take = selectedTake(ivn) as Take; // renderableInterventions guarantees this
@@ -111,6 +136,8 @@ export function projectTimeline(conversation: Conversation): Timeline {
       kind: 'response',
       interventionId: ivn.id,
       takeId: take.id,
+      participantId: participantFor(conversation, ivn).id,
+      responseNumber: numbers.get(ivn.id) ?? 0,
       anchorFrame,
       mediaInFrame: take.mediaInFrame,
       mediaOutFrame: take.mediaOutFrame,

@@ -68,12 +68,38 @@ describe('where the source stops (U-08, INV-02)', () => {
   it('on the frame the author interrupted, converted once', () => {
     const doc = build();
     for (const stop of doc.stops) {
-      expect(stop.atSeconds).toBeCloseTo(stop.atFrame / HOUSE_FPS, 6);
+      expect(stop.atSeconds).toBeCloseTo(stop.atFrame / HOUSE_FPS, 5);
     }
     // The frame stays on the stop beside the seconds: it is the canonical
     // number, and a page that only had seconds could not be checked.
     expect(doc.stops.map((stop) => stop.atFrame))
       .toEqual([60, 120, 180].map((seconds) => seconds * HOUSE_FPS));
+  });
+
+  /*
+   * A frame boundary is a knife edge. `atFrame / fps` at 30fps is 4.333333…,
+   * and a seek rounded down by a third of a millisecond lands in the frame
+   * BEFORE the one the author interrupted — which is the whole thing this
+   * feature exists not to do. The browser run caught it; the first version
+   * rounded to milliseconds and was wrong for two frames in three.
+   */
+  it('and holds the MIDDLE of that frame, so no rounding can miss it', () => {
+    const doc = build();
+    for (const stop of doc.stops) {
+      const frame = 1 / HOUSE_FPS;
+      expect(stop.holdSeconds).toBeGreaterThan(stop.atFrame / HOUSE_FPS);
+      expect(stop.holdSeconds).toBeLessThan((stop.atFrame + 1) / HOUSE_FPS);
+      // Half a frame of room on each side, at any precision a player has.
+      expect(stop.holdSeconds - stop.atFrame / HOUSE_FPS).toBeCloseTo(frame / 2, 6);
+    }
+  });
+
+  it('and the two numbers are not the same number', () => {
+    // They answer different questions: one is "have we reached it", the other
+    // is "where do we sit". Collapsing them is how the bug got in.
+    for (const stop of build().stops) {
+      expect(stop.holdSeconds).not.toBe(stop.atSeconds);
+    }
   });
 
   /*

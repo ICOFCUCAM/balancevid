@@ -3269,6 +3269,10 @@ quietly left in the code.
 - Which comes first in a clip: the moment, or the reply *(U-22 §2, INV-00)*
 - Presentation mode — the conversation as a score, performed live in a room
   *(D-16, INV-00, U-08)*
+- The author as a participant, so a conversation with three voices is the
+  same object as one with a single voice *(ROOM §4, §9, U-20)*
+- Capabilities per participant — respond, edit own, edit conversation, invite,
+  publish — granted, never assumed *(ROOM §3, D-03)*
 
 ---
 
@@ -3367,6 +3371,36 @@ marks is exactly as strong and exactly as wrong. They are set as the body, the
 way the article already prints them. **A quotation mark is a claim about
 provenance, not a typographic choice, and the test that a representation is
 honest is whether it is still honest with the conversation removed.**
+
+**The default that means "me" leaves me as the one voice with no name.**
+`Intervention.participantId` absent meant the author, which is right and was
+not changed: migrating every existing document to add a row nobody asked for
+is a way to lose one. But the consequence was that the author had no display
+name, no colour and no row in any list — fine while they are alone, wrong the
+moment they are not. The author is now ALWAYS a participant when you ask for
+one and only stored when there is something to store. **An implicit default is
+a value that no surface can render; making it explicit at the point of asking
+costs nothing and makes every surface total.**
+
+**Adding a fourth role broke two places that meant "not the third one."** The
+`editor` role — somebody who shapes the conversation and never appears in it —
+arrived into code that asked `role !== 'audience'` to mean "can be on stage".
+Both places would have put a producer on camera. The question is now a
+function, `mayBeStaged`, so the next role added has to answer it. **An
+enumeration tested by exclusion is an enumeration that silently admits
+whatever is added next.**
+
+**Publishing is in nobody's defaults but the host's.** A multi-person
+conversation must not hand everyone control of the finished product, and the
+capability that matters most is the one that cannot be undone: once the link
+is out, it is out. A co-host is somebody trusted to run a discussion, which is
+a different kind of trust from being able to end the argument by publishing
+it. The same distinction separates editing your own stumble from re-cutting
+what everyone said — two capabilities, because collapsing them would mean the
+first grants the second. **Capabilities are narrowings applied on top of the
+existing owner-versus-guest checks, never widenings: a grant cannot let
+somebody record into a closed room, only stop somebody on stage from
+recording.**
 
 **A representation can be a SCORE rather than a recording.** Every other
 thing the Conversation produces is the argument already performed — a video,

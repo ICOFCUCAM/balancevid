@@ -9,7 +9,7 @@
  */
 import type { Caller } from '../auth/request.js';
 import type { Conversation } from '../domain/document.js';
-import { hostOf, inRoom, presenceOf, raisedHands } from '../domain/participants.js';
+import { hostOf, inRoom, may, presenceOf, raisedHands } from '../domain/participants.js';
 
 /**
  * Which participant a caller IS.  [Doctrine ROOM §1, §12]
@@ -111,7 +111,20 @@ export function mayRecord(conversation: Conversation, caller: Caller): boolean {
   if (caller.access === 'owner') return true;
   if (caller.access !== 'participant' || !caller.participantId) return false;
   const staged: readonly string[] = conversation.room?.stagedParticipantIds ?? [];
-  return Boolean(conversation.room?.open) && staged.includes(caller.participantId);
+  if (!conversation.room?.open || !staged.includes(caller.participantId)) return false;
+
+  /*
+   * AND the owner has to have said they may.  [ROOM §3]
+   *
+   * A NARROWING, never a widening: everything above still has to pass, so a
+   * capability cannot let somebody record into a closed room or from off
+   * stage. What it adds is that being on stage is no longer the same as being
+   * allowed to contribute — an audience member brought up to be seen is not
+   * thereby somebody recording into the finished video.
+   */
+  const participant = (conversation.participants ?? [])
+    .find((p) => p.id === caller.participantId);
+  return Boolean(participant && may(participant, 'respond'));
 }
 
 /**

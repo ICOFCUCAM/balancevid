@@ -2272,8 +2272,16 @@ if (job?.state === 'done') {
     check(JSON.stringify(doc.stops.map((s) => s.atFrame)) === JSON.stringify(anchors),
       'and each stop is the frame the author interrupted, not a rounded second (U-08)',
       `${doc.stops.map((s) => s.atFrame).join(',')} vs ${anchors.join(',')}`);
-    check(doc.stops.every((s) => Math.abs(s.atSeconds - s.atFrame / 30) < 1e-6),
+    check(doc.stops.every((s) => Math.abs(s.atSeconds - s.atFrame / 30) < 1e-5),
       'converted to seconds once, in the document rather than in a script');
+    /*
+     * And the seek target is the MIDDLE of that frame. Seeking to the
+     * boundary lands in the frame before it once rounding goes the wrong way,
+     * which is the one thing a presentation must not do. [U-08, INV-02]
+     */
+    check(doc.stops.every((s) =>
+      s.holdSeconds > s.atFrame / 30 && s.holdSeconds < (s.atFrame + 1) / 30),
+      'and the frame it holds is unambiguously the author\'s frame (INV-02)');
 
     // A bound statement may be quoted on a wall; an inferred one may not.
     const bound = doc.stops.filter((s) => s.claim && s.claim.quoted);
@@ -2292,10 +2300,14 @@ if (job?.state === 'done') {
       'and lets the server decide the video type');
   }
 
-  // The studio offers it.
-  await page.click('[data-testid="mode-publish"]').catch(() => {});
-  await page.waitForTimeout(400);
-  check(await page.locator('[data-testid="open-present"]').count() >= 0,
+  /*
+   * The studio offers it. Asserted WITHOUT navigating: the page is already on
+   * the publish stage, and clicking the mode button again remounted the
+   * panel underneath — which left the next block's button disabled while its
+   * jobs reloaded, and failed a check about audio for a reason that had
+   * nothing to do with audio.
+   */
+  check(await page.locator('[data-testid="open-present"]').count() === 1,
     'the studio links to it');
 }
 
@@ -2313,6 +2325,11 @@ if (job?.state === 'done') {
     'and says which of them do not survive being heard (U-22)',
     JSON.stringify(before.listening));
 
+  // Enabled, not merely present: it is disabled until the panel knows a
+  // render exists, and clicking a disabled button times out 30 seconds later
+  // saying nothing useful about audio.
+  await page.locator('[data-testid="make-audio"]:not([disabled])')
+    .waitFor({ timeout: 30_000 });
   await page.click('[data-testid="make-audio"]');
   let audio = null;
   for (let i = 0; i < 300; i++) {

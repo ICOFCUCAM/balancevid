@@ -252,7 +252,9 @@ const SCRIPT = String.raw`
   function stopAt(stop) {
     if (!video) return;
     video.pause();
-    video.currentTime = stop.atSeconds;
+    // The MIDDLE of the author's frame, not its edge: seeking to the boundary
+    // lands in the frame before it at any precision the player rounds at.
+    video.currentTime = stop.holdSeconds;
     held = stop;
     armed = null;
     show(stop);

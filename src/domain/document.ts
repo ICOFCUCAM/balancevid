@@ -568,6 +568,118 @@ export function orderedInterventions(conversation: Conversation): Intervention[]
   });
 }
 
+/**
+ * The author, as a participant.  [Doctrine ROOM §4, INV-00, U-20]
+ *
+ * WHY THIS IS SYNTHESISED RATHER THAN STORED. `Intervention.participantId`
+ * absent means "the author", which is every conversation made before rooms
+ * existed and every solo one since. That default is right and is not being
+ * changed: migrating a hundred documents to add a row nobody asked for is a
+ * way to lose one of them.
+ *
+ * But "absent means the author" leaves the author as the one voice in the
+ * conversation with no name, no colour and no row in a list — which is fine
+ * while they are alone and wrong the moment they are not. So the author is
+ * ALWAYS a participant when you ask for one; they are only stored when
+ * somebody has said something about them worth storing.
+ *
+ * The stored one wins where it exists, so an author who has set their display
+ * name keeps it.
+ */
+export function authorParticipant(conversation: Conversation): Participant {
+  const stored = (conversation.participants ?? []).find((p) => p.role === 'host');
+  if (stored) return stored;
+  return {
+    /*
+     * A stable id derived from the conversation, so two calls agree and a
+     * reference to the author survives being written down — without inventing
+     * a record that the document does not contain.
+     */
+    id: `part_author_${conversation.id}` as ParticipantId,
+    displayName: conversation.publication?.author ?? 'You',
+    role: 'host',
+    // The responder colour this product has always used. [U-20]
+    accent: AUTHOR_ACCENT,
+    invitedAt: conversation.createdAt,
+    joinedAt: conversation.createdAt,
+  };
+}
+
+/** The responder colour, unchanged from when there was only ever one. [U-20] */
+export const AUTHOR_ACCENT = '#a35a34';
+
+/**
+ * Whose response this is — always someone.  [ROOM §4, §9]
+ *
+ * Total by construction. Every surface that shows a response can ask this and
+ * get a name and a colour, so none of them has to carry its own idea of what
+ * an unattributed response means.
+ */
+export function participantFor(
+  conversation: Conversation, intervention: Intervention,
+): Participant {
+  if (!intervention.participantId) return authorParticipant(conversation);
+  return (conversation.participants ?? []).find((p) => p.id === intervention.participantId)
+    /*
+     * A response naming a participant the document no longer has. Not an
+     * error: somebody can be removed from a room, and their recording is
+     * still in the conversation and the finished video is still made from it.
+     * It is attributed to the author rather than dropped, because a response
+     * with no author on screen reads as the source saying it.
+     */
+    ?? authorParticipant(conversation);
+}
+
+/**
+ * Everyone whose voice is in this conversation, in the order they first speak.
+ *
+ * The author first, always, because it is their conversation — then everyone
+ * else by when they first answered. Order by first contribution rather than
+ * by when they were invited: a participant rail is a list of voices, and the
+ * one nobody has heard from yet belongs at the bottom.
+ */
+export function speakingParticipants(conversation: Conversation): Participant[] {
+  const author = authorParticipant(conversation);
+  const out: Participant[] = [author];
+  const seen = new Set([author.id]);
+  for (const intervention of orderedInterventions(conversation)) {
+    const who = participantFor(conversation, intervention);
+    if (seen.has(who.id)) continue;
+    seen.add(who.id);
+    out.push(who);
+  }
+  return out;
+}
+
+/**
+ * Which response this is, counting from one.  [ROOM §9]
+ *
+ * "Response 1 — You, Response 2 — Sarah, Response 3 — You." A number over the
+ * whole conversation rather than per person: it is the position in the
+ * argument, and an argument has one order. Derived from source order like
+ * everything else about sequence (U-08), never stored — a stored number is a
+ * number that disagrees with the timeline the first time somebody moves an
+ * anchor.
+ */
+export function responseNumbers(conversation: Conversation): Map<string, number> {
+  const numbers = new Map<string, number>();
+  orderedInterventions(conversation).forEach((intervention, index) => {
+    numbers.set(intervention.id, index + 1);
+  });
+  return numbers;
+}
+
+/**
+ * Does naming the speaker tell the viewer anything?
+ *
+ * One voice needs no name on screen; two or more need one on every response.
+ * Asked in one place so the render, the article, the cards and the timeline
+ * cannot disagree about whether this is a conversation with one voice in it.
+ */
+export function hasSeveralVoices(conversation: Conversation): boolean {
+  return speakingParticipants(conversation).length > 1;
+}
+
 /** Only interventions with a usable selected take reach a render. */
 export function renderableInterventions(conversation: Conversation): Intervention[] {
   return orderedInterventions(conversation).filter((ivn) => {

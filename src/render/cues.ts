@@ -11,6 +11,7 @@
  */
 
 import type { Conversation } from '../domain/document.js';
+import { hasSeveralVoices, participantFor } from '../domain/document.js';
 import type { Timeline } from '../domain/timeline.js';
 import type { Frames } from '../domain/time.js';
 import { forDisplay, type Transcript, type TranscriptSentence } from '../transcribe/types.js';
@@ -24,9 +25,19 @@ export interface CueSources {
 }
 
 export function buildCues(
-  _conversation: Conversation, timeline: Timeline, transcripts: CueSources,
+  conversation: Conversation, timeline: Timeline, transcripts: CueSources,
 ): Cue[] {
   const cues: Cue[] = [];
+  /*
+   * Built once, and only when there is more than one voice: a solo
+   * conversation captioned with the author's own name on every line reads as
+   * a transcript of somebody else.
+   */
+  const named = hasSeveralVoices(conversation)
+    ? new Map(conversation.interventions.map((intervention) =>
+      [intervention.id as string,
+        participantFor(conversation, intervention).displayName]))
+    : null;
 
   for (const item of timeline.items) {
     if (item.kind === 'source') {
@@ -63,6 +74,12 @@ export function buildCues(
         startFrame: start + shift,
         endFrame: end + shift,
         speaker: 'user',
+        /*
+         * Whose answer this is, where naming them tells the viewer something.
+         * The question is asked of the conversation once — the same test the
+         * lower third uses — rather than by each renderer. [ROOM §4, U-20]
+         */
+        ...(named ? { speakerName: named.get(item.interventionId) } : {}),
         text: forDisplay(sentence.text, transcript.characteristics),
         ...(() => {
           const words = wordsOf(

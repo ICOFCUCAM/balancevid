@@ -50,8 +50,27 @@ export interface PresentationStop {
   interventionId: string;
   /** The exact frame the author interrupted. The canonical number. [U-08] */
   atFrame: Frames;
-  /** The same instant in seconds, converted once, for the player. */
+  /**
+   * The frame's own boundary, in seconds. What "have we reached it" is asked
+   * against while the source is running forward.
+   */
   atSeconds: number;
+  /**
+   * Where to SEEK to hold that frame — the middle of it, not its edge.
+   *
+   * A frame boundary is a knife edge: `atFrame / fps` at 30fps is
+   * 4.333333…, and any rounding downwards lands the seek in the frame
+   * BEFORE the one the author interrupted. Rounding to milliseconds, which
+   * looked harmless at a thirtieth of a second, does exactly that for two
+   * frames in three.
+   *
+   * Seeking to the midpoint is unambiguous at any precision the player has:
+   * it is inside frame N by half a frame in both directions. The two numbers
+   * are separate because they answer different questions, and computing
+   * either one in a script would be doing frame arithmetic where nobody can
+   * test it. [U-08, INV-02]
+   */
+  holdSeconds: number;
   timecode: string;
   /** The move, in the product's own language: CRITIQUE, CORRECTION… [U-11] */
   label: string;
@@ -190,6 +209,7 @@ function stopFor(
     interventionId: intervention.id,
     atFrame,
     atSeconds: round(atFrame / HOUSE_FPS),
+    holdSeconds: round((atFrame + 0.5) / HOUSE_FPS),
     timecode: formatTimecode(atFrame).slice(0, 8),
     label: TYPE_PRESENTATION[intervention.type].lowerThird,
     ...(claim ? { claim } : {}),
@@ -233,6 +253,13 @@ function promptFrom(
   return text || undefined;
 }
 
+/**
+ * Microseconds, not milliseconds.
+ *
+ * A millisecond is a thirtieth of a frame, which sounds like plenty until the
+ * rounding goes the wrong way across a frame boundary. Six places is below
+ * anything a player resolves and costs three characters.
+ */
 function round(seconds: number): number {
-  return Math.round(seconds * 1000) / 1000;
+  return Math.round(seconds * 1_000_000) / 1_000_000;
 }
