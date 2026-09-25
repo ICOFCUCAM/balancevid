@@ -50,10 +50,21 @@ export const MIN_DRIFT_SPAN_SAMPLES = HOUSE_SAMPLE_RATE * 60;
 /**
  * A capture rate this far from the clock is a rate error, not drift.
  *
- * One percent. The measurement's own noise is a few hundred parts per
- * million at worst; 44.1 kHz mistaken for 48 is eighty thousand.
+ * One percent. 44.1 kHz mistaken for 48 is eight percent, so there is room
+ * underneath for everything this measurement is bad at.
  */
 export const GROSS_RATE_ERROR = 0.01;
+
+/**
+ * And it is not asked about a take too short to answer it.
+ *
+ * The two ends of the window are a recorder starting and a recorder stopping,
+ * and neither is instant: on a seven-second take the slop is well over one
+ * percent, which is how this check first reported every take from a working
+ * machine as broken. Twenty seconds puts the same absolute error under a
+ * fifth of the threshold; four minutes puts it nowhere near.
+ */
+export const MIN_RATE_CHECK_SAMPLES = HOUSE_SAMPLE_RATE * 20;
 
 export interface DriftMeasurement {
   rateRatio: number;
@@ -129,7 +140,10 @@ export function captureRateError(
   const ratio = mediaSamples / elapsedSamples;
   return {
     ratio,
-    gross: Math.abs(ratio - 1) > GROSS_RATE_ERROR,
+    // Short takes are measured and reported, and never judged: a measurement
+    // whose error is larger than its threshold is not evidence of anything.
+    gross: elapsedSamples >= MIN_RATE_CHECK_SAMPLES
+      && Math.abs(ratio - 1) > GROSS_RATE_ERROR,
     percent: Number(((ratio - 1) * 100).toFixed(2)),
   };
 }

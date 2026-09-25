@@ -3304,6 +3304,16 @@ only once that last upload has landed rather than after a guessed wait.
 **U-06 says a take is never lost; the way a take is actually lost is one
 segment at a time, at the end, in a branch that looked like a guard.**
 
+**Publishing publishes one artefact, not a directory.** Both studios' render
+routes asked "is this published?" and then served any file the caller could
+name a hash for — every draft render, every shape exported and thought better
+of, and in the Performance Studio the private copies made under the rights
+exemption. Neither route was wrong about authentication; both were wrong about
+scope, in the same place, a month apart. The fix is one line in each: a
+non-owner gets the render the publication NAMES. **An access check answers "may
+you be here"; it does not answer "may you have that", and a route that asks
+only the first question is open by the width of whatever else is on disk.**
+
 **Measuring, not assuming.** Every duration in this system that came from a
 container header was wrong at least once. Pre-roll length, take length, source
 length: all are now measured by decoding. U-02 said this about sources; it is

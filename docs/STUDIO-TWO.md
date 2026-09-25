@@ -1641,4 +1641,76 @@ measured or honestly refused.
 
 ---
 
+## S-25 — What the review found
+
+Eleven stages were built quickly, one after another, each with its own tests
+and its own browser run, and none of them reviewed as a whole. This is the
+pass that looked at all of it at once. It found five things, and the two worst
+were in code that every test agreed with.
+
+**1. Publishing published everything on disk.** [INV-15, D-03]
+The render route checked that the performance was published and then served
+whatever hash it was asked for — including a private copy exported under the
+rights exemption over music the author had not claimed. The same hole was in
+the Conversation's copy of the route, written a month earlier, where it served
+every draft render. Both now serve the render the publication NAMES, and the
+clips route refuses one made as a private copy. Recorded in the main
+doctrine's Appendix C as well, because it is a lesson about publishing rather
+than about performances.
+
+**2. The browser's measurement never reached the document.**
+[§10, S-3] A take's offset was written when the recording was DECLARED — before
+the count-in, as zero — and the worker only ever overwrote it when it could
+hear the song inside the take. On headphones, which is the path §10 asks for,
+everything the browser measured at capture was discarded, including stage
+ten's whole device calibration. It went unnoticed for nine stages because
+recording always begins at the top of the song, so the placeholder was nearly
+right. The worker keeps the measurement now, and the browser run asserts that
+what was measured is what was stored.
+
+**3. And it could not have been kept, because it was clamped at zero.**
+`placeTakeOnSong` subtracted the device latency and then clamped — and since
+`into` is about zero, every correction landed just below the clamp and was
+thrown away. A take recorded from the top on a device with a forty-millisecond
+delay genuinely begins forty milliseconds BEFORE the music: its first frames
+were captured while the performer was still waiting to hear the first beat.
+Offsets may be negative now, `formatMasterPosition` says so instead of
+throwing, and the studio says "starts just before the song".
+
+**4. Which broke rendering, in a way that was right and useless.** With real
+offsets reaching the document, a take that began nine milliseconds after the
+song no longer "covered" a scene starting at zero, and the product refused to
+render a whole performance for being a third of a frame short — with a message
+telling the author to extend a take that was already long enough. Coverage is
+asked in FRAMES now, which is the unit the export is made of. Flooring gives
+the two ends different behaviour and both are correct: a take beginning inside
+the first frame begins at frame zero; a take running out inside the last frame
+is a frame short, and a frame short is a black frame.
+
+**5. The coarse rate check was measuring the wrong instant.** It compared the
+media's length against the recorder's running time, and took that running time
+when the take was FINALISED — which waits for the last segment to upload. Every
+take from a working machine came out one or two percent short, which the check
+reported as a device recording at the wrong sample rate. It is taken at `stop()`
+now, and the check is not applied at all to a take shorter than twenty seconds,
+because a measurement whose error is larger than its threshold is not evidence.
+**A false alarm about somebody's hardware is the most expensive wrong thing a
+product can say.**
+
+**What the pass did not find** is worth recording too: no path traversal (`safe`
+covers every identifier that reaches the filesystem), no ASS injection (titles
+and attributions are escaped), no route where a guest may write, and no
+measurement stored as a fact that was not measured.
+
+**Still open, and now the largest thing in the product:** annotations do not
+follow the source when a layout is reframed. They are drawn in canvas
+coordinates, which is correct on a 16:9 master where the source fills the frame
+and wrong on every vertical, square and portrait export, where the source
+occupies a panel and may be cropped to the author's focus region. A blur is a
+privacy tool, so this is not only cosmetic. The fix is to draw the marks onto
+the source stream before it is cropped and fitted, rather than onto the canvas
+afterwards — one place, and then they follow the picture everywhere for free.
+
+---
+
 *Appendix S ends. The brief above it is unedited.*

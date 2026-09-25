@@ -2450,6 +2450,36 @@ const listed = await api('/api/published');
 check(listed.published.some((p) => p.id === conversationId && p.respondable),
   'it appears as something others can answer');
 
+/*
+ * And publishing publishes ONE video. Every other render on disk is the
+ * author's working material — a draft made before they cut something, a shape
+ * they exported and thought better of — and a stranger with the link and a
+ * hash must not be handed it. [U-31, D-03]
+ */
+{
+  const state = (await api(`/api/conversations/${conversationId}`)).conversation;
+  const publishedHash = state.publication?.planHash;
+  const others = (await api(`/api/conversations/${conversationId}/renders`)).jobs
+    .filter((job) => job.state === 'done' && job.result?.planHash
+      && job.result.planHash !== publishedHash);
+  const theirs = await raw(
+    `/api/conversations/${conversationId}/renders/${publishedHash}/file`);
+  check(theirs.status === 200 || theirs.status === 206,
+    'a stranger can watch the render that was published', `status ${theirs.status}`);
+  for (const job of others) {
+    const sneaked = await raw(
+      `/api/conversations/${conversationId}/renders/${job.result.planHash}/file`);
+    check(sneaked.status >= 300 && sneaked.status !== 200,
+      'and no other render on disk, however it is asked for (D-03)',
+      `status ${sneaked.status}`);
+  }
+  const rubbish = await raw(
+    `/api/conversations/${conversationId}/renders/..%2F..%2Fetc/file`);
+  check(rubbish.status >= 300 && rubbish.status !== 200,
+    'and a hash that is not a hash is simply not found',
+    `status ${rubbish.status}`);
+}
+
 const child = await (await sfetch(`${BASE}/api/conversations`, {
   method: 'POST',
   headers: { 'content-type': 'application/json' },
@@ -2879,6 +2909,18 @@ log('checking the Performance Studio…');
       JSON.stringify(take.environment));
     check(Number.isInteger(take.alignment?.offsetSamples),
       'placed on the song in whole samples (INV-14)', `${take.alignment?.offsetSamples}`);
+    /*
+     * WHAT THE BROWSER MEASURED IS WHAT THE DOCUMENT RECORDS. On headphones
+     * there is no leaked song to correlate against, so the browser's own
+     * measurement is the best answer there is — and it used to be discarded,
+     * leaving the placeholder written when the take was declared. It went
+     * unnoticed because recording starts at the top of the song and the
+     * placeholder is nearly right. [§10, S-3]
+     */
+    const hinted = job0(landed)?.payload?.hintSamples;
+    check(take.alignment?.offsetSamples === hinted,
+      'and at the place the browser measured, not a placeholder',
+      `stored ${take.alignment?.offsetSamples}, measured ${hinted}`);
     check(take.alignment?.rateRatio === 1, 'claiming no drift that was not measured');
     /*
      * §10's third error. There is nothing to measure drift against on
@@ -3533,6 +3575,23 @@ log('checking the Performance Studio…');
     const video = await raw(`/api/performances/${perfId}/renders/${planHash}/file`);
     check(video.status === 200 || video.status === 206,
       'and the video plays for them', `status ${video.status}`);
+
+    /*
+     * ONE video, not every video on disk. A private copy exported under the
+     * rights exemption is a rehearsal the author asked to keep, and publishing
+     * the performance must not hand it out — which the first version of this
+     * route did, to anybody, as soon as anything was published. [INV-15]
+     */
+    const privateRenders = ((await api(`/api/performances/${perfId}/renders`)).jobs ?? [])
+      .filter((job) => job.state === 'done' && job.payload?.allowUnpublishable);
+    check(privateRenders.length > 0, 'the run made a private copy to try this with');
+    for (const job of privateRenders) {
+      const sneaked = await raw(
+        `/api/performances/${perfId}/renders/${job.result.planHash}/file`);
+      check(sneaked.status >= 300 && sneaked.status !== 200,
+        'and a private copy is not served to a stranger just because something '
+        + 'else was published (INV-15)', `status ${sneaked.status}`);
+    }
 
     // But only the published artefact. The song and the takes are not it.
     for (const path of [`/api/performances/${perfId}/master`,

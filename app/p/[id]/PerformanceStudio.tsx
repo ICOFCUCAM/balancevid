@@ -414,7 +414,9 @@ export default function PerformanceStudio({ initial }: { initial: Performance })
                   </span>
                   <span className="small muted" style={{ flex: '0 0 auto' }}>
                     {take.durationSamples > 0
-                      ? `starts at ${formatMasterPosition(take.alignment.offsetSamples)} · `
+                      ? `${take.alignment.offsetSamples < 0
+                        ? 'starts just before the song'
+                        : `starts at ${formatMasterPosition(take.alignment.offsetSamples)}`} · `
                         + `${formatMasterPosition(take.durationSamples)} long`
                       : 'saving…'}
                   </span>

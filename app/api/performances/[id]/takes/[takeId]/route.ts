@@ -51,6 +51,8 @@ export async function PUT(request: Request, { params }: Params): Promise<Respons
     hintSamples?: number;
     /** How long the recorder ran, by the audio clock. [§10, S-3] */
     elapsedSamples?: number;
+    /** What this device was measured to add, and therefore what was taken off. */
+    latencySamples?: number;
   };
 
   let performance;
@@ -70,14 +72,19 @@ export async function PUT(request: Request, { params }: Params): Promise<Respons
       assetId: take.assetId,
       // The browser's own measurement, which the worker checks rather than
       // trusts. [§10, S-3]
-      hintSamples: Math.max(0, Math.round(
-        Number(body.hintSamples ?? take.alignment.offsetSamples))),
+      // As above: a measured take can begin before the song, and the hint is
+      // the browser's measurement rather than a position on the song.
+      hintSamples: Math.round(
+        Number(body.hintSamples ?? take.alignment.offsetSamples)),
       /*
        * What the recorder ran for, so the worker can compare it against what
        * came out. Not a drift measurement — far too noisy for that — but the
        * alarm for a device recording at a rate it did not claim. [S-3]
        */
       elapsedSamples: Math.max(0, Math.round(Number(body.elapsedSamples ?? 0))),
+      /* What the browser took off for this device, so the take can record it. */
+      latencySamples: Math.max(0, Math.round(
+        Number(body.latencySamples ?? take.alignment.latencySamples ?? 0))),
     },
   });
   await auditPerformance(id, { action: 'take.finished', detail: { takeId, job: job.id } });

@@ -109,12 +109,19 @@ export function summariseCalibration(
  *
  * `into` is where the song had got to when the recorder started, by the audio
  * clock. The device's round trip is subtracted, for the reason derived at the
- * top of this file. Clamped at zero because a take cannot start before the
- * song does — the first few milliseconds of a take recorded from the very top
- * are simply before the music, and `coverage` already treats them that way.
+ * top of this file.
+ *
+ * THE ANSWER MAY BE NEGATIVE, and clamping it at zero was this measurement's
+ * whole undoing: recording always begins at the top of the song, so `into` is
+ * about zero and every correction pushed the offset just below it — where a
+ * clamp threw the measurement away. A take recorded from the top with a
+ * forty-millisecond device delay genuinely begins forty milliseconds before
+ * the music: its first frames were captured while the performer was still
+ * waiting to hear the first beat. `coverage` already treats that stretch as
+ * unusable, which is the correct treatment of it.
  */
 export function placeTakeOnSong(into: Samples, latencySamples: Samples): Samples {
-  return Math.max(0, Math.round(into) - Math.round(latencySamples));
+  return Math.round(into) - Math.round(latencySamples);
 }
 
 /** Said in the studio, in milliseconds, because that is how latency is talked about. */

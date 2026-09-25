@@ -48,7 +48,12 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
     return fail(409, 'the song is still being prepared — give it a moment');
   }
 
-  const offsetSamples = Math.max(0, Math.round(Number(body.offsetSamples ?? 0)));
+  /*
+   * NOT clamped at zero. A take whose device delay was measured begins just
+   * before the song, and rounding that up to zero is how a calibration gets
+   * quietly discarded — which is exactly what this used to do. [§10, S-3]
+   */
+  const offsetSamples = Math.round(Number(body.offsetSamples ?? 0));
   if (!Number.isFinite(offsetSamples)) return fail(400, 'a take needs a starting point');
 
   const takeId = newId('take');

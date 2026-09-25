@@ -81,6 +81,15 @@ export function useMasterRecording({
    */
   const indexRef = useRef(0);
   const startedAtRef = useRef(0);
+  /**
+   * When the recorder was told to stop, on the audio clock.
+   *
+   * Taken at `stop()` rather than when the take is finalised. Finalising waits
+   * for the last segment to upload, and measuring the recording's length from
+   * there makes every take look one or two percent short — which is the coarse
+   * rate check reporting a working machine as broken. [§10, S-3]
+   */
+  const stoppedAtRef = useRef(0);
   const offsetRef = useRef(0);
 
   /* ---- the camera, and the song, loaded before anything begins --------- */
@@ -146,13 +155,15 @@ export function useMasterRecording({
        * against how many samples actually came out, which catches a device
        * recording at a rate it did not claim. [§10, S-3]
        */
-      const context = audioRef.current;
-      const elapsedSamples = context && startedAtRef.current > 0
-        ? Math.max(0, Math.round((context.currentTime - startedAtRef.current) * sampleRate))
+      const elapsedSamples = stoppedAtRef.current > startedAtRef.current
+        ? Math.max(0, Math.round(
+          (stoppedAtRef.current - startedAtRef.current) * sampleRate))
         : 0;
       const response = await fetch(`/api/performances/${performanceId}/takes/${takeId}`, {
         method: 'PUT', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ hintSamples: offsetRef.current, elapsedSamples }),
+        body: JSON.stringify({
+          hintSamples: offsetRef.current, elapsedSamples, latencySamples,
+        }),
       });
       const data = await response.json().catch(() => ({}));
       if (data.job?.id) onFinished(data.job.id);
@@ -161,7 +172,7 @@ export function useMasterRecording({
     } finally {
       setPhase('ready');
     }
-  }, [onFinished, performanceId, sampleRate]);
+  }, [latencySamples, onFinished, performanceId, sampleRate]);
 
   const segment = useCallback((takeId: string) => {
     const media = streamRef.current;
@@ -258,6 +269,7 @@ export function useMasterRecording({
         const into = context2.currentTime - beginsAt;
         offsetRef.current = placeTakeOnSong(Math.round(into * sampleRate), latencySamples);
         startedAtRef.current = context2.currentTime;
+        stoppedAtRef.current = 0;
         segment(takeRef.current.takeId);
         setPhase('recording');
       }, Math.max(0, countInSeconds * 1000));
@@ -272,6 +284,7 @@ export function useMasterRecording({
     if (!take) return;
     setPhase('finishing');
     takeRef.current = null;
+    stoppedAtRef.current = audioRef.current?.currentTime ?? 0;
     sourceRef.current?.stop();
 
     const recorder = recorderRef.current;

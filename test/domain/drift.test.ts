@@ -120,6 +120,27 @@ describe('the coarse check a headphone take still gets', () => {
     expect(found.gross).toBe(false);
   });
 
+  /*
+   * NOR ABOUT A TAKE TOO SHORT TO ASK. Both ends of the window are a recorder
+   * being told to start and stop, and neither is instant: on a seven-second
+   * take that slop is well over one percent. The first version of this check
+   * had no minimum and reported every take from a working machine as recorded
+   * at the wrong rate — a false alarm about the author's hardware, which is
+   * the most expensive kind of wrong thing to say.
+   */
+  it('and refuses to judge a take shorter than its own error', () => {
+    const short = secondsToSamples(7);
+    // Two percent out on seven seconds: past the threshold, under the floor.
+    expect(captureRateError(Math.round(short * 0.98), short).gross).toBe(false);
+    const long = secondsToSamples(240);
+    expect(captureRateError(Math.round(long * 0.98), long).gross).toBe(true);
+  });
+
+  it('but still reports the number it measured, whatever it does with it', () => {
+    const short = secondsToSamples(7);
+    expect(captureRateError(Math.round(short * 0.98), short).percent).toBeLessThan(-1);
+  });
+
   it('or about a take that has not landed yet', () => {
     expect(captureRateError(0, secondsToSamples(240)).gross).toBe(false);
     expect(captureRateError(secondsToSamples(240), 0).gross).toBe(false);

@@ -366,7 +366,25 @@ export function coversSpan(
   take: PerformanceTake, fromSample: Samples, toSample: Samples,
 ): boolean {
   const own = coverage(take);
-  return own.fromSample <= fromSample && own.toSample >= toSample;
+  /*
+   * ASKED IN FRAMES, because frames are what gets rendered.
+   *
+   * A take begins whenever the recorder began, which is a few hundred samples
+   * either side of the song's own zero — nine milliseconds, a third of a
+   * frame, a difference the export cannot represent and no one can see. Asked
+   * in samples, that take "does not reach" a scene starting at zero, and the
+   * product refuses to render a performance for being eight thousandths of a
+   * second short. It did exactly that as soon as the browser's measurement
+   * started reaching the document, and the message was about extending a take
+   * that was already long enough.
+   *
+   * Flooring makes the two ends behave differently, and correctly: at the
+   * start, a take that begins inside the first frame begins at frame zero; at
+   * the end, a take that runs out inside the last frame is a frame short, and
+   * a frame short is a black frame. [U-08, INV-02]
+   */
+  return samplesToFrames(Math.max(0, own.fromSample)) <= samplesToFrames(fromSample)
+    && samplesToFrames(own.toSample) >= samplesToFrames(toSample);
 }
 
 /* ------------------------------------------------------------------------ *

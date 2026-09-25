@@ -16,6 +16,7 @@ import {
   type MasterTrack, type Performance, type PerformanceTake,
   coverage, covered, covers, effectiveOffset, masterToTake, mayPublish,
   orderedScenes, projectPerformance, sceneAt, takeToMaster,
+  coversSpan,
 } from '../../src/domain/performance.js';
 import {
   addPlate,
@@ -560,6 +561,44 @@ describe('what may leave the building (S-9, INV-15)', () => {
     classifyMaster(p, { class: 'licensed', licence: 'Sync licence 2026-0041' });
     expect(mayPublish(p.master)).toBe(true);
     expect(() => assertPublishable(p)).not.toThrow();
+  });
+});
+
+describe('coverage is asked in frames, because frames are what render (U-08)', () => {
+  /*
+   * The recorder begins a few hundred samples either side of the song's own
+   * zero — a third of a frame, invisible, and unrepresentable in an export.
+   * Asked in samples, such a take "does not reach" a scene starting at zero
+   * and the whole performance is refused for being nine thousandths of a
+   * second short. That happened the moment the browser's measurement started
+   * reaching the document, with a message telling the author to extend a take
+   * that was already long enough.
+   */
+  it('a take that begins inside the first frame covers a scene starting at zero', () => {
+    const p = performance();
+    addTake(p, take('take_1', {
+      alignment: { offsetSamples: 896, rateRatio: 1, method: 'measured' },
+    }));
+    expect(coversSpan(p.takes[0]!, 0, SONG)).toBe(true);
+  });
+
+  it('and one that begins a whole frame late does not', () => {
+    const p = performance();
+    addTake(p, take('take_1', {
+      alignment: { offsetSamples: 1601, rateRatio: 1, method: 'measured' },
+    }));
+    expect(coversSpan(p.takes[0]!, 0, SONG)).toBe(false);
+  });
+
+  /*
+   * The end is strict, and the asymmetry is the point: a take that runs out
+   * inside the last frame is a frame short, and a frame short is a black
+   * frame. A take that starts inside the first frame is not missing anything.
+   */
+  it('but a take that runs out inside the last frame is still short', () => {
+    const p = performance();
+    addTake(p, take('take_1', { durationSamples: SONG - 1 }));
+    expect(coversSpan(p.takes[0]!, 0, SONG)).toBe(false);
   });
 });
 

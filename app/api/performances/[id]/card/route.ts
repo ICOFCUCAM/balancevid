@@ -34,9 +34,8 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
    * the sender's cookies — so it is served for a PUBLISHED performance and to
    * its owner, and to nobody else. [U-30, D-03]
    */
-  if (await accessTo(request, performance) === 'denied') {
-    return fail(404, 'performance not found');
-  }
+  const access = await accessTo(request, performance);
+  if (access === 'denied') return fail(404, 'performance not found');
   if (new URL(request.url).searchParams.get('image')) {
     return serveFile(request, paths.performanceCard(id), 'image/png');
   }
@@ -47,7 +46,15 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
         performance,
         attribution: performanceAttribution(performance, performance.createdAt).text,
       }),
-      jobs: (await listJobs(id)).filter((job) => job.kind === 'render_performance_card'),
+      /*
+       * The card is public by definition — it exists to be read by whatever
+       * the link was pasted into. The QUEUE is not: what the worker is doing
+       * is the author's business, and a stranger asking what a link says
+       * about itself has no reason to be handed a list of job ids. [D-03]
+       */
+      ...(access === 'owner'
+        ? { jobs: (await listJobs(id)).filter((job) => job.kind === 'render_performance_card') }
+        : {}),
     });
   } catch (error) {
     if (error instanceof PerformanceCardError) return fail(409, error.message);

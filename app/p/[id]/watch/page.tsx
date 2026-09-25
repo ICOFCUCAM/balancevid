@@ -95,12 +95,21 @@ export default async function WatchPerformance(
   const jobs = await listJobs(id);
 
   /*
-   * The clips that belong to what was published, and only those. A clip made
-   * from a later edit is not part of this video, and offering it under this
-   * link would be publishing something nobody pressed publish on.
+   * The clips the author may give away, and only those.  [INV-15]
+   *
+   * A clip exported under the rights exemption is a private copy of a
+   * rehearsal, and reclassifying the music afterwards does not turn it into
+   * something to post — the exemption is remembered, exactly as it is for the
+   * master. A clip cut AFTER publishing does appear: the author made it from
+   * this performance, which is their decision rather than the product's.
+   *
+   * The same rule is enforced on the route that serves them. This list decides
+   * what is linked; that decides what is served, and only the second is a
+   * boundary.
    */
   const clips = jobs
     .filter((job) => job.kind === 'render_performance_clip' && job.state === 'done')
+    .filter((job) => !job.payload?.['allowUnpublishable'])
     .filter((job) => Number(job.payload?.['toSample'] ?? 0) > 0)
     .map((job) => ({
       url: `/api/performances/${id}/clips/${String(job.result!['planHash'])}/file`,

@@ -17,7 +17,9 @@ import {
   MAX_PLAUSIBLE_LATENCY, MAX_SPREAD_SAMPLES, MIN_PLAUSIBLE_LATENCY,
   describeCalibration, placeTakeOnSong, summariseCalibration,
 } from '../../src/domain/calibration.js';
-import { HOUSE_SAMPLE_RATE, secondsToSamples } from '../../src/domain/time.js';
+import {
+  HOUSE_SAMPLE_RATE, formatMasterPosition, secondsToSamples,
+} from '../../src/domain/time.js';
 
 const AT = '2026-09-24T12:00:00.000Z';
 const ms = (value: number) => Math.round((HOUSE_SAMPLE_RATE * value) / 1000);
@@ -114,10 +116,24 @@ describe('which way the correction goes (S-3)', () => {
     expect(placeTakeOnSong(clock, 0)).toBe(clock);
   });
 
-  it('never before the song starts', () => {
-    // A take begun at the very top: its first few milliseconds are simply
-    // before the music, which `coverage` already treats as unusable.
-    expect(placeTakeOnSong(ms(10), ms(40))).toBe(0);
+  /*
+   * AND IT MAY BE NEGATIVE. This used to be clamped at zero, which threw the
+   * whole calibration away in the only flow that exists: recording begins at
+   * the top of the song, so every correction pushed the offset just below
+   * zero and the clamp rounded it back. A take recorded from the top on a
+   * device with a forty-millisecond delay genuinely begins forty milliseconds
+   * before the music — its first frames were captured while the performer was
+   * still waiting to hear the first beat — and `coverage` treats that stretch
+   * as unusable, which is the correct treatment of it.
+   */
+  it('places a take begun at the very top before the song, rather than at it', () => {
+    expect(placeTakeOnSong(ms(10), ms(40))).toBe(ms(10) - ms(40));
+    expect(placeTakeOnSong(0, ms(40))).toBe(-ms(40));
+  });
+
+  it('and the studio can say so without throwing', () => {
+    expect(formatMasterPosition(-ms(40))).toBe('-00:00.040');
+    expect(formatMasterPosition(ms(40))).toBe('00:00.040');
   });
 
   it('and describes a real measurement in milliseconds', () => {

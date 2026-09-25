@@ -215,7 +215,9 @@ async function assemblePerformanceTake(job: Job): Promise<Job> {
   const id = job.conversationId;
   const takeId = String(job.payload['takeId']);
   const assetId = String(job.payload['assetId']);
-  const hintSamples = Number(job.payload['hintSamples'] ?? 0);
+  const hintSamples = Math.round(Number(job.payload['hintSamples'] ?? 0));
+  /* What the browser took off for this device, recorded on the take. [S-3] */
+  const latencySamples = Math.max(0, Math.round(Number(job.payload['latencySamples'] ?? 0)));
 
   const chunkDir = paths.performanceChunks(id, takeId);
   const mezzanine = paths.performanceAsset(id, `${assetId}mezz`, 'mp4');
@@ -236,7 +238,7 @@ async function assemblePerformanceTake(job: Job): Promise<Job> {
   const performance = await loadPerformance(id);
   const master = await readAnalysis(
     paths.masterAnalysis(id), 0,
-    Math.min(performance.master.durationSamples, hintSamples + ALIGN_WINDOW));
+    Math.min(performance.master.durationSamples, Math.max(0, hintSamples) + ALIGN_WINDOW));
   const take = await readAnalysis(analysisPath, 0, Math.min(durationSamples, ALIGN_WINDOW));
   const found = measureAlignment(master, take, hintSamples);
 
@@ -261,7 +263,13 @@ async function assemblePerformanceTake(job: Job): Promise<Job> {
       ALIGN_WINDOW * 2);
     const endFound = measureAlignment(
       atEnd, tail, Math.min(tailHint, ALIGN_WINDOW));
-    if (endFound.masterAudible) {
+    if (!endFound.masterAudible) {
+      // Audible at the start and not at the end is a real state — somebody
+      // put their headphones on halfway through — and saying "the song was
+      // not audible" of a take it plainly was audible in is the kind of
+      // small lie that makes an author stop believing the other messages.
+      drift = { ...drift, why: 'the song was audible at the start of the take but not at the end' };
+    } else {
       drift = measureDrift({
         startMasterSample: found.offsetSamples,
         // The end sighting is relative to the window that was read, so it is
@@ -270,9 +278,7 @@ async function assemblePerformanceTake(job: Job): Promise<Job> {
         spanSamples,
       });
     }
-  } else if (!found.masterAudible) {
-    drift = { ...drift, why: 'the song was not audible in the take — nothing to measure against' };
-  } else {
+  } else if (found.masterAudible) {
     drift = { ...drift, why: 'the take is too short to measure drift over' };
   }
 
@@ -309,6 +315,24 @@ async function assemblePerformanceTake(job: Job): Promise<Job> {
         ...target.alignment,
         offsetSamples: found.offsetSamples,
         method: 'heard',
+      };
+    } else {
+      /*
+       * THE BROWSER'S MEASUREMENT, KEPT.  [§10, S-3]
+       *
+       * Without this the take held whatever was written when it was declared
+       * — which is zero, because the document learns about a recording before
+       * the count-in has finished. Everything the browser measured at capture,
+       * including the device calibration, was then thrown away on the ONLY
+       * path §10 recommends: headphones, where there is no leaked song to
+       * correlate against. It went unnoticed because recording always starts
+       * at the top of the song, so the placeholder was nearly right.
+       */
+      target.alignment = {
+        ...target.alignment,
+        offsetSamples: hintSamples,
+        method: latencySamples > 0 ? 'calibrated' : 'measured',
+        ...(latencySamples > 0 ? { latencySamples } : {}),
       };
     }
   });

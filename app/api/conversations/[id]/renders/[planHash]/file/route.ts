@@ -27,7 +27,25 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
   } catch {
     return fail(404, 'conversation not found');
   }
-  if (await accessTo(request, conversation) === 'denied') {
+  const access = await accessTo(request, conversation);
+  if (access === 'denied') return fail(404, 'conversation not found');
+
+  /*
+   * AND ONLY THE RENDER THAT WAS PUBLISHED.  [U-31, D-03]
+   *
+   * Publishing a conversation publishes ONE video: the one the publication
+   * names, which is what a responder is answering. Every other render on disk
+   * is the author's working material — a draft made before they cut something,
+   * a shape they exported and thought better of — and serving those to anyone
+   * who has the link and a hash is publishing what nobody pressed publish on.
+   *
+   * Found by a review, after the same hole was found in the other studio's
+   * copy of this route. The two were written a month apart and had the same
+   * gap in the same place, which is what a shared rule with two
+   * implementations does.
+   */
+  if (!/^[A-Za-z0-9_-]{1,128}$/.test(planHash)) return fail(404, 'not found');
+  if (access !== 'owner' && conversation.publication?.planHash !== planHash) {
     return fail(404, 'conversation not found');
   }
 

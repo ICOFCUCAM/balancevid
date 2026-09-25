@@ -157,7 +157,16 @@ export function beatsToSamples(
 export function formatMasterPosition(
   samples: Samples, rate: number = HOUSE_SAMPLE_RATE,
 ): string {
-  assertSamples(samples);
+  /*
+   * Negative is a real answer here, and only here: a take whose device delay
+   * was measured begins slightly BEFORE the song does, because the performer
+   * heard the first beat late and their reply landed later still. Positions on
+   * the song are never negative; a take's offset onto it can be. [§10, S-3]
+   */
+  if (!Number.isInteger(samples)) {
+    throw new RangeError(`sample values must be integers, got ${samples}`);
+  }
+  if (samples < 0) return `-${formatMasterPosition(-samples, rate)}`;
   const totalMs = Math.round((samples / rate) * 1000);
   const ms = totalMs % 1000;
   const totalSec = Math.floor(totalMs / 1000);
