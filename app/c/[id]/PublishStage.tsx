@@ -8,6 +8,7 @@ import { forCreator } from '../../../src/web/language.js';
 import CompositionStage from './CompositionStage.js';
 import PublishPanel from './PublishPanel.js';
 import BundlePanel from './BundlePanel.js';
+import AudioPanel from './AudioPanel.js';
 
 /**
  * How the conversation becomes public.  [Doctrine INV-00, U-22, U-30, D-16]
@@ -338,6 +339,11 @@ export default function PublishStage({
         </section>
 
         {/* ---- the forms that are not video ------------------------------ */}
+        <AudioPanel
+          conversationId={conversationId}
+          hasRender={jobs.some((j) =>
+            (j.kind === 'render' || j.kind === 'render_reel') && j.state === 'done')}
+        />
         <BundlePanel conversationId={conversationId} ready={interventions.length > 0} />
         <PublishPanel
           conversationId={conversationId}

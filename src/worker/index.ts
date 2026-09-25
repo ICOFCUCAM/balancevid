@@ -48,6 +48,10 @@ import {
 import { buildPerformancePlan, performanceAttribution } from '../domain/performancePlan.js';
 import { clipWindow } from '../domain/performanceClips.js';
 import { buildPerformanceCard } from '../publish/performanceCard.js';
+import { type AudioChapter, audioChapters } from '../domain/audioExport.js';
+import { exportAudio } from '../render/audioFile.js';
+import { orderedScenes, projectPerformance } from '../domain/performance.js';
+import { samplesToFrames } from '../domain/time.js';
 import { addPlate, recordBeats } from '../domain/performanceEdit.js';
 import { BEAT_DETECTOR, detectBeats } from '../domain/beats.js';
 import { matteThreshold, plateVerdict } from '../domain/environment.js';
@@ -85,6 +89,7 @@ export async function runJob(job: Job): Promise<Job> {
     case 'render_performance': return renderPerformance(job);
     case 'render_performance_clip': return renderPerformanceClip(job);
     case 'render_performance_card': return renderPerformanceCard(job);
+    case 'render_audio': return renderAudio(job);
   }
 }
 
@@ -543,6 +548,83 @@ async function renderPerformanceCard(job: Job): Promise<Job> {
   await auditPerformance(id, { action: 'performance.card.rendered', detail: { title: card.title } });
 
   return finish(job, 'done', { progress: 100, result: { card, path: outPath } });
+}
+
+/**
+ * The conversation, or the performance, to listen to.  [§14, U-22, INV-00]
+ *
+ * One pass over a render that already exists. Which document it belongs to
+ * decides two things and nothing else: where the video is, and what the
+ * chapters are — a conversation's are the moments somebody interrupted, a
+ * performance's are the sections the author named (§15).
+ */
+async function renderAudio(job: Job): Promise<Job> {
+  const id = job.conversationId;
+  const planHash = safe(String(job.payload['planHash']));
+  const performance = Boolean(job.payload['performance']);
+
+  const from = performance
+    ? join(paths.performanceRenders(id), planHash, 'master.mp4')
+    : join(paths.render(id, planHash), 'FINAL.mp4');
+  const outPath = performance
+    ? join(paths.performanceRenders(id), planHash, 'audio.mp3')
+    : join(paths.render(id, planHash), 'audio.mp3');
+
+  let chapters: AudioChapter[];
+  let title: string;
+  let artist: string | undefined;
+
+  if (performance) {
+    const document = await loadPerformance(id);
+    const timeline = projectPerformance(document);
+    /*
+     * A performance's chapters are its NAMED sections and nothing else. Every
+     * cut is a scene, and a chapter list with an entry at every camera change
+     * is a list nobody uses. [§15]
+     */
+    chapters = audioChapters(
+      orderedScenes(document)
+        .filter((scene) => scene.label)
+        .map((scene) => ({
+          startFrame: samplesToFrames(scene.fromSample),
+          title: scene.label!,
+        })),
+      timeline.totalOutputFrames);
+    title = document.title;
+    artist = document.master.artist;
+  } else {
+    const document = await loadConversation(id);
+    const summary = buildBundle({
+      conversation: document,
+      sourceTranscript: (await loadTranscript(id))?.transcript ?? null,
+      generatedAt: new Date().toISOString(),
+      // The same generated credit the video carries. [U-21, INV-07]
+      attribution: buildAttribution(document).text,
+    });
+    chapters = audioChapters(summary.chapters, projectTimeline(document).totalOutputFrames);
+    title = document.title;
+    artist = document.publication?.author;
+  }
+
+  const result = await exportAudio({
+    from, outPath, chapters, title,
+    ...(artist ? { artist } : {}),
+    run: {
+      onProgress: (info) => {
+        const seconds = Number(info['out_time_ms'] ?? 0) / 1_000_000;
+        if (seconds > 0) { job.progress = Math.min(99, Math.round(seconds)); void update(job); }
+      },
+    },
+  });
+
+  const record = { action: 'audio.rendered', detail: { planHash, chapters: result.chapters } };
+  if (performance) await auditPerformance(id, record);
+  else await audit(id, record);
+
+  return finish(job, 'done', {
+    progress: 100,
+    result: { planHash, chapters: result.chapters, mastered: result.measured },
+  });
 }
 
 /** Normalise an uploaded source and record its measured duration. [U-02] */

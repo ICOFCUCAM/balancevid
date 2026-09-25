@@ -2118,6 +2118,50 @@ if (job?.state === 'done') {
   }, null, 2));
 }
 
+// --- the conversation, to listen to (U-22, D-16) ----------------------------
+if (job?.state === 'done') {
+  log('taking the audio…');
+  await page.waitForSelector('[data-testid="audio-panel"]', { timeout: 20_000 });
+
+  const before = await api(`/api/conversations/${conversationId}/audio`);
+  // The cost is measured from the document, not guessed at in prose: this
+  // conversation has annotated responses, so it must say so.
+  check(before.listening.total > 0, 'the audio panel counts the responses it would carry',
+    `${before.listening.total}`);
+  check(before.listening.pointing > 0 && /point/.test(before.listening.note ?? ''),
+    'and says which of them do not survive being heard (U-22)',
+    JSON.stringify(before.listening));
+
+  await page.click('[data-testid="make-audio"]');
+  let audio = null;
+  for (let i = 0; i < 300; i++) {
+    const jobs = (await api(`/api/conversations/${conversationId}/audio`)).jobs;
+    audio = jobs[0];
+    if (audio && (audio.state === 'done' || audio.state === 'failed')) break;
+    await sleep(1000);
+  }
+  check(audio?.state === 'done', 'the audio file was made',
+    audio?.error ?? audio?.state ?? 'no job');
+
+  if (audio?.state === 'done') {
+    // Derived, not composed: the audio is taken from the render that exists.
+    check(audio.result.planHash === job.result.planHash,
+      'and it was taken from the render, not assembled a second time (INV-00)',
+      `${audio.result.planHash} vs ${job.result.planHash}`);
+    check((audio.result.chapters ?? 0) > 0,
+      'with a chapter at every moment the author interrupted',
+      `${audio.result.chapters} chapters`);
+
+    const mp3 = await sfetch(
+      `${BASE}/api/conversations/${conversationId}/renders/${job.result.planHash}/file?kind=mp3`,
+      { headers: { range: 'bytes=0-1023' } });
+    check(mp3.status === 206, 'the audio serves byte ranges like every other export',
+      `status ${mp3.status}`);
+    check((mp3.headers.get('content-type') ?? '').includes('audio'),
+      'and is served as audio', mp3.headers.get('content-type') ?? 'no type');
+  }
+}
+
 // --- the publication bundle (U-30) ------------------------------------------
 log('checking the publication bundle…');
 const { bundle, renderedThumbnails } = await api(`/api/conversations/${conversationId}/bundle`);
@@ -3280,6 +3324,34 @@ log('checking the Performance Studio…');
       'and the studio has one button for it, once the song is covered');
     check(await page.locator('[data-testid="render-download"]').count() >= 1,
       'with the finished video beside it');
+
+    /*
+     * --- §14: the performance, to listen to ----------------------------
+     *
+     * The same mechanism as the other studio's, on a different subject: the
+     * master's sound, mastered for listening, with the author's NAMED
+     * sections as chapters (§15) rather than one per cut.
+     */
+    await page.locator('[data-testid="make-audio"]').first().click();
+    let perfAudio = null;
+    for (let i = 0; i < 240; i++) {
+      await sleep(1000);
+      const jobs = (await api(`/api/performances/${perfId}/audio`)).jobs ?? [];
+      perfAudio = jobs[0];
+      if (perfAudio && (perfAudio.state === 'done' || perfAudio.state === 'failed')) break;
+    }
+    check(perfAudio?.state === 'done', 'the master can be taken as audio (§14, U-22)',
+      perfAudio?.error ?? perfAudio?.state ?? 'no job');
+    if (perfAudio?.state === 'done') {
+      const mp3 = await sfetch(
+        `${BASE}/api/performances/${perfId}/renders/${perfAudio.result.planHash}/file?kind=mp3`,
+        { headers: { range: 'bytes=0-1023' } });
+      check(mp3.status === 206, 'and is served like every other export',
+        `status ${mp3.status}`);
+      await page.waitForSelector('[data-testid="audio-download"]', { timeout: 30_000 });
+      check(await page.locator('[data-testid="audio-download"]').count() >= 1,
+        'with the studio offering it beside the video');
+    }
   }
 
   /*
@@ -3592,6 +3664,18 @@ log('checking the Performance Studio…');
         'and a private copy is not served to a stranger just because something '
         + 'else was published (INV-15)', `status ${sneaked.status}`);
     }
+
+    /*
+     * And the audio is not the published artefact either. An MP3 of a
+     * performance over somebody else's record is the closest thing this
+     * system can make to a music file; the video is what was published.
+     * [INV-15, U-01]
+     */
+    const strangersAudio = await raw(
+      `/api/performances/${perfId}/renders/${planHash}/file?kind=mp3`);
+    check(strangersAudio.status >= 300 && strangersAudio.status !== 200,
+      'and a stranger gets the video, not a music file of it (INV-15)',
+      `status ${strangersAudio.status}`);
 
     // But only the published artefact. The song and the takes are not it.
     for (const path of [`/api/performances/${perfId}/master`,

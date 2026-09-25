@@ -41,6 +41,7 @@ interface RenderJob {
 export default function MasterRender({ performance }: { performance: Performance }) {
   const [shape, setShape] = useState<string>('youtube_16x9');
   const [jobs, setJobs] = useState<RenderJob[]>([]);
+  const [audioJobs, setAudio] = useState<RenderJob[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -50,14 +51,46 @@ export default function MasterRender({ performance }: { performance: Performance
   const missing = timeline.gaps.reduce((sum, g) => sum + (g.toSample - g.fromSample), 0);
 
   const refresh = useCallback(async () => {
-    const response = await fetch(`/api/performances/${id}/renders`, { cache: 'no-store' });
-    if (response.ok) setJobs((await response.json()).jobs ?? []);
+    const [renders, audioJobs] = await Promise.all([
+      fetch(`/api/performances/${id}/renders`, { cache: 'no-store' }),
+      fetch(`/api/performances/${id}/audio`, { cache: 'no-store' }),
+    ]);
+    if (renders.ok) setJobs((await renders.json()).jobs ?? []);
+    if (audioJobs.ok) setAudio(((await audioJobs.json()).jobs ?? []) as RenderJob[]);
   }, [id]);
+
+  const audio = async (planHash: string) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/performances/${id}/audio`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ planHash }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error ?? 'that did not work');
+      // The job is now pending, which is what starts the poll below.
+      await refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   useEffect(() => { void refresh(); }, [refresh]);
 
   /* While something is rendering, ask again. Rendering is minutes, not ms. */
-  const working = jobs.some((j) => j.state === 'pending' || j.state === 'running');
+  const working = [...jobs, ...audioJobs]
+    .some((j) => j.state === 'pending' || j.state === 'running');
+  /** Which renders have had their audio taken, and which are having it taken. */
+  const audioState = (planHash: string): 'none' | 'working' | 'done' => {
+    const mine = audioJobs.filter((j) => String(j.result?.['planHash'] ?? '') === planHash
+      || String(j.payload?.['planHash'] ?? '') === planHash);
+    if (mine.some((j) => j.state === 'done')) return 'done';
+    return mine.some((j) => j.state === 'pending' || j.state === 'running')
+      ? 'working' : 'none';
+  };
   useEffect(() => {
     if (!working) return;
     const timer = setInterval(() => { void refresh(); }, 2000);
@@ -172,11 +205,29 @@ export default function MasterRender({ performance }: { performance: Performance
                   </span>
                 </div>
                 {job.state === 'done' && planHash && (
-                  <a className="small" data-testid="render-download"
-                     href={`/api/performances/${id}/renders/${planHash}/file`}
-                     download style={{ display: 'inline-block', marginTop: 4 }}>
-                    Download the video
-                  </a>
+                  <div className="row" style={{ gap: 12, marginTop: 4 }}>
+                    <a className="small" data-testid="render-download"
+                       href={`/api/performances/${id}/renders/${planHash}/file`}
+                       download>
+                      Download the video
+                    </a>
+                    {/* The same render, listened to rather than watched. [§14] */}
+                    <button className="small" data-testid="make-audio"
+                            disabled={busy || audioState(planHash) === 'working'}
+                            onClick={() => void audio(planHash)}
+                            style={{ padding: '2px 8px', fontSize: 11 }}>
+                      {audioState(planHash) === 'working' ? 'Taking the audio…'
+                        : audioState(planHash) === 'done' ? 'Take it again'
+                        : 'Make an audio file'}
+                    </button>
+                    {audioState(planHash) === 'done' && (
+                      <a className="small" data-testid="audio-download"
+                         href={`/api/performances/${id}/renders/${planHash}/file?kind=mp3`}
+                         download>
+                        Download the audio
+                      </a>
+                    )}
+                  </div>
                 )}
                 {job.state === 'failed' && (
                   <div className="small" style={{ color: 'var(--bad)', marginTop: 4 }}>

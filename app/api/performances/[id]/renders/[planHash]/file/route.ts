@@ -46,9 +46,26 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
   if (access !== 'owner' && performance.publication?.planHash !== safe(planHash)) {
     return fail(404, 'performance not found');
   }
-  return serveFile(
-    request,
-    join(paths.performanceRenders(id), safe(planHash), 'master.mp4'),
-    'video/mp4',
-  );
+  const dir = join(paths.performanceRenders(id), safe(planHash));
+  const wantsAudio = new URL(request.url).searchParams.get('kind') === 'mp3';
+
+  /*
+   * THE AUDIO IS THE AUTHOR'S, EVEN WHEN THE VIDEO IS PUBLIC.  [INV-15, U-01]
+   *
+   * A published performance is a finished video, and the same reasoning that
+   * keeps the master track off the public list applies here: an MP3 of a
+   * performance over somebody else's record is the closest thing this system
+   * can produce to a music file, and a link that hands one to a stranger is
+   * distributing the record with a voice on it. The video is what was
+   * published; this is the author's own copy of its sound.
+   *
+   * The Conversation Studio's copy of this route has no such clause on
+   * purpose: two people talking is not a record.
+   */
+  if (wantsAudio && access !== 'owner') return fail(404, 'not found');
+
+  // The same render, listened to rather than watched. [STUDIO-TWO §14, U-22]
+  return wantsAudio
+    ? serveFile(request, join(dir, 'audio.mp3'), 'audio/mpeg')
+    : serveFile(request, join(dir, 'master.mp4'), 'video/mp4');
 }

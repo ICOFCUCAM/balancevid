@@ -55,6 +55,8 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
   switch (kind) {
     case 'srt': return serveFile(request, join(dir, 'FINAL.mp4.srt'), 'application/x-subrip');
     case 'vtt': return serveFile(request, join(dir, 'FINAL.mp4.vtt'), 'text/vtt');
+    // The same render, listened to rather than watched. [U-22]
+    case 'mp3': return serveFile(request, join(dir, 'audio.mp3'), 'audio/mpeg');
     default: return serveFile(request, join(dir, 'FINAL.mp4'), 'video/mp4');
   }
 }

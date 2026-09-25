@@ -39,7 +39,8 @@ export type JobKind =
   | 'assemble_performance_take'
   | 'render_performance'
   | 'render_performance_clip'
-  | 'render_performance_card';
+  | 'render_performance_card'
+  | 'render_audio';
 
 export interface Job {
   id: string;

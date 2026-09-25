@@ -3258,6 +3258,8 @@ quietly left in the code.
 - The publication bundle *(U-30)*
 - Published conversations as sources — the network, for free *(U-31)*
 - The source intake journey — choose, prepare, enter *(§40)*
+- The conversation as audio — one representation derived from another, with
+  what listening costs it said in a number *(D-16, U-22)*
 
 ---
 
@@ -3324,6 +3326,37 @@ scope, in the same place, a month apart. The fix is one line in each: a
 non-owner gets the render the publication NAMES. **An access check answers "may
 you be here"; it does not answer "may you have that", and a route that asks
 only the first question is open by the width of whatever else is on disk.**
+
+**A representation derives; it does not compose a second time.** [D-16, INV-00]
+The audio export is one pass over a finished render: its sound, re-mastered to
+where spoken word is mastered, with chapters written into the file. The
+tempting design was an audio pipeline that assembled the takes itself — it
+would have been simpler to write, and it would have been a second composition
+of one conversation. Two compositions eventually disagree about where a cut is,
+inaudibly, until somebody notices half a sentence missing. **The shortest path
+from the Conversation to a representation is not always through the
+Conversation: when one representation is already a faithful projection, the
+next one derives from it.**
+
+**And a representation that loses something says so, with a number.** A
+response that circles a road on a map does not survive being heard: the words
+are all there and the subject is not. The product could have said "audio may
+not suit every conversation", which is a caution nobody reads. It counts
+instead — how many of THIS author's responses mark the frame or show a
+document — and says "3 of your 7 responses point at something on screen". The
+count comes from the document, so it is a measurement. **A warning about
+content in general is decoration; the same warning about the thing in front of
+you is information.**
+
+**Believed formats are not formats.** ID3 chapters were going to be written on
+the strength of knowing that ffmpeg supports `-f ffmetadata`. What that
+actually requires is the metadata file as a second input, `-map_metadata 1`,
+and `-write_id3v2 1`; without the last of these the chapters are computed,
+passed, and silently dropped. It was checked with ffmpeg and ffprobe before a
+line of it was written, and there is a render test that probes the chapters
+back out of the MP3. The same lesson as `xfade`, in a different corner: **a
+container feature is not supported until you have opened the file and found
+it there.**
 
 **Measuring, not assuming.** Every duration in this system that came from a
 container header was wrong at least once. Pre-roll length, take length, source

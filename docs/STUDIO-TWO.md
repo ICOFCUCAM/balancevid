@@ -1711,6 +1711,41 @@ privacy tool, so this is not only cosmetic. The fix is to draw the marks onto
 the source stream before it is cropped and fitted, rather than onto the canvas
 afterwards — one place, and then they follow the picture everywhere for free.
 
+## S-26 — The performance, to listen to
+
+Built across both studios at once, so most of it is recorded in the main
+doctrine's Appendix C. Two things are specific to this one.
+
+**A performance's chapters are its NAMED scenes and nothing else.** [§15] Every
+cut is a scene here — that is what a scene is in this studio — so a chapter at
+every scene boundary is a chapter at every camera change, which is a list
+nobody opens twice. The Conversation Studio has the opposite property: its
+chapter list is the moments the author interrupted, and those are exactly the
+moments a listener wants. The same function, `audioChapters`, serves both; what
+differs is what each studio calls a chapter, and that belongs to the studio.
+
+**What listening costs is a different number here.** A conversation loses its
+subject when a response points at the screen. A performance loses the
+performance: the take IS the picture. So the Performance Studio does not offer
+an audio export as a representation of the work — it offers the master, which
+is what the song already was, with the sections named. The audio controls sit
+under the master render rather than beside the publication formats, because
+that is a different claim: not "the same thing, to listen to" but "the sound
+this was made from, mastered for listening".
+
+**And the audio is the author's, even when the video is public.** The
+Conversation Studio serves a published conversation's MP3 to anyone who has the
+link, because two people talking is not a record. Here the same file is the
+closest thing the system can produce to a music file — a performance over
+somebody else's track, in the format people keep music in — so a stranger gets
+the video and the owner gets the MP3. Nobody asked for this clause; it follows
+from the one already in the public-route list, which keeps the master track off
+it for exactly the same reason. [INV-15, U-01]
+
+**Still not built:** the device calibration from S-3, which still passes a
+stated zero; an upload for `custom` backgrounds; §12's interface. Zoom, Swipe,
+Match movement and Chorus remain unbuilt on purpose (S-8).
+
 ---
 
 *Appendix S ends. The brief above it is unedited.*
