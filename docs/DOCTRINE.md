@@ -3304,6 +3304,17 @@ only once that last upload has landed rather than after a guessed wait.
 **U-06 says a take is never lost; the way a take is actually lost is one
 segment at a time, at the end, in a branch that looked like a guard.**
 
+**A mark follows the picture, or it points at something else.** Annotations
+were mapped into the panel the source occupies, which is most of the work and
+looks right until the export crops. A vertical render crops the source to the
+region the author's own marks describe (U-22 §3) — and the marks were not
+cropped with it, so the circle ended up around whatever the crop happened to
+leave in that part of the frame. A blur is a privacy tool, so the same gap
+uncovered the thing it was hiding. The transform now runs through the focus
+crop and the fit, in the plan, once: **a coordinate is only meaningful with the
+space it was measured in, and "normalised" names a number without naming the
+space.**
+
 **Publishing publishes one artefact, not a directory.** Both studios' render
 routes asked "is this published?" and then served any file the caller could
 name a hash for — every draft render, every shape exported and thought better

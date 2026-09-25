@@ -20,6 +20,10 @@ import {
   type Transition, captionStyleFor, layoutForProfile, layoutForType,
 } from './presentation.js';
 import { focusRegion } from './focus.js';
+import {
+  type Placement, type Point as MarkPoint,
+  markScale, projectPoint, projectRect,
+} from './marks.js';
 import { chainAttribution } from './publish.js';
 import { type Timeline, projectTimeline, sourceRatio } from './timeline.js';
 import type { AudioPiece } from './performanceAudio.js';
@@ -438,7 +442,20 @@ export function planFromTimeline(
       ...(() => {
         const marks = annotationCues(
           ivn.annotations ?? [], layout, item.mediaInFrame, item.mediaOutFrame,
-          item.padHeadFrames, presentation.accent);
+          item.padHeadFrames, presentation.accent,
+          {
+            focus,
+            /*
+             * The source's own shape, so a mark can be put back where it
+             * belongs. Missing on conversations ingested before it was
+             * recorded, and the canvas's shape is then assumed — which is the
+             * behaviour those marks were authored against. [U-12, U-22 §3]
+             */
+            sourceAspect: conversation.source.width && conversation.source.height
+              ? conversation.source.width / conversation.source.height
+              : exportProfile.width / exportProfile.height,
+            canvasAspect: exportProfile.width / exportProfile.height,
+          });
         return marks.length > 0 ? { annotations: marks } : {};
       })(),
     };
@@ -534,8 +551,15 @@ function evidenceCues(
  * pointed at something that is no longer in the video.
  */
 function annotationCues(
-  annotations: Annotation[], layout: { layers: Array<{ source: string; rect: { x: number; y: number; w: number; h: number } }> },
+  annotations: Annotation[],
+  layout: {
+    layers: Array<{
+      source: string; fit?: 'cover' | 'contain';
+      rect: { x: number; y: number; w: number; h: number };
+    }>;
+  },
   mediaInFrame: Frames, mediaOutFrame: Frames, padHeadFrames: Frames, accent: string,
+  frame: { focus?: Rect | undefined; sourceAspect: number; canvasAspect: number },
 ): AnnotationCue[] {
   if (annotations.length === 0) return [];
   /**
@@ -545,8 +569,34 @@ function annotationCues(
    * point at, and drawing it over the canvas anyway would land it on something
    * the author never marked. [U-12 §1]
    */
-  const panel = layout.layers.find((l) => l.source === 'source' || l.source === 'still')?.rect;
-  if (!panel) return [];
+  const layer = layout.layers.find((l) => l.source === 'source' || l.source === 'still');
+  if (!layer) return [];
+
+  /*
+   * THE MARK FOLLOWS THE PICTURE, through everything done to it. [U-22 §3]
+   *
+   * Mapping into the panel is not enough, and was all this did: a vertical
+   * export crops the source to the region the author marked, and a mark that
+   * is not cropped with it ends up pointing at whatever the crop happened to
+   * leave in that part of the frame. The fit matters for the same reason — a
+   * picture letterboxed inside a panel does not fill it, and a mark stretched
+   * to the panel's edges is a mark somewhere else.
+   *
+   * "The user selected this region of the source as the subject of the
+   *  response. The meaning survives the format change" — this is the line of
+   * code that makes the second sentence true.
+   */
+  const placement: Placement = {
+    panel: layer.rect,
+    fit: layer.fit === 'contain' ? 'contain' : 'cover',
+    // The compositor crops to the focus and then CONTAINS it, because the
+    // region is already the shape the author's marks made. `renderResponseShot`
+    // does exactly this; the two must agree or the mark is off by the letterbox.
+    ...(frame.focus ? { focus: frame.focus, fit: 'contain' as const } : {}),
+    sourceAspect: frame.sourceAspect,
+    canvasAspect: frame.canvasAspect,
+  };
+  const stroke = markScale(placement);
 
   const kept = Math.max(0, mediaOutFrame - mediaInFrame);
   const cues: AnnotationCue[] = [];
@@ -554,15 +604,35 @@ function annotationCues(
     const appear = clampOffset(annotation.appearOffset ?? 0, kept);
     const dismiss = clampOffset(annotation.dismissOffset ?? kept, kept);
     if (dismiss <= appear) continue;
+    /*
+     * A rectangle keeps its corners — which for a blur is the behaviour that
+     * matters, because a box half off screen must keep covering the half that
+     * is on it. Everything else is projected point by point, and a mark with
+     * nothing left on screen is dropped rather than pinned to the edge: a
+     * circle at the edge of the picture is a circle around the wrong thing.
+     */
+    const rectangular = annotation.kind === 'box' || annotation.kind === 'blur';
+    const projected = rectangular && annotation.points.length >= 2
+      ? projectRect(annotation.points[0]!, annotation.points[1]!, placement)
+      : annotation.points.map((point) => projectPoint(point, placement));
+    if (!projected) continue;
+    const points = (projected as (Point | null)[]).filter((p): p is Point => p !== null);
+    if (points.length === 0 || points.length !== annotation.points.length) continue;
+
     cues.push({
       annotationId: annotation.id,
       kind: annotation.kind,
-      points: annotation.points.map((point) => ({
-        x: panel.x + point.x * panel.w,
-        y: panel.y + point.y * panel.h,
-      })),
+      points,
       ...(annotation.text ? { text: annotation.text } : {}),
-      style: { color: accent, ...annotation.style },
+      style: {
+        color: accent,
+        ...annotation.style,
+        // A stroke is a fraction of the canvas, and a picture in a panel is
+        // smaller than the canvas. Keeping the fraction would swallow what the
+        // mark points at.
+        ...(annotation.style?.width !== undefined
+          ? { width: annotation.style.width * stroke } : {}),
+      },
       z: annotation.z,
       startFrame: padHeadFrames + appear,
       endFrame: padHeadFrames + dismiss,

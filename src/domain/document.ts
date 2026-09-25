@@ -58,6 +58,19 @@ export interface Source {
   mezzanineAssetId?: AssetId;
   originalAssetId?: AssetId;
   durationFrames: Frames;
+  /**
+   * The mezzanine's own pixel dimensions, measured at ingest.
+   * [U-02, U-12, U-22 §3]
+   *
+   * Recorded because a MARK needs them. An annotation is placed on the source
+   * picture, and a vertical export shows that picture in a panel, cropped to
+   * what the author marked — so putting the mark back where it belongs means
+   * knowing the shape of the thing it was placed on. Absent on conversations
+   * ingested before this existed, and the planner then treats the source as
+   * filling the frame, which is what those marks were authored against.
+   */
+  width?: number;
+  height?: number;
   rightsAttestationId?: string;
   /** Which transcript version the source currently has. Versioned, never
    *  overwritten, because anchors are bound to it (U-05). */

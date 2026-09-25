@@ -570,6 +570,10 @@ async function ingestSource(job: Job): Promise<Job> {
     // The duration the timeline uses is the one measured from the mezzanine,
     // never the one the uploaded container claimed.
     conversation.source.durationFrames = result.info.durationFrames;
+    // And its shape, which is what puts an annotation back where it belongs
+    // when the composition is reframed. [U-12, U-22 §3]
+    conversation.source.width = result.info.width;
+    conversation.source.height = result.info.height;
   });
   await audit(job.conversationId, {
     action: 'source.ingested',

@@ -155,6 +155,86 @@ describe('annotations in the plan', () => {
     ]);
   });
 
+  /*
+   * AND FOLLOWS IT THROUGH THE REFRAME.  [U-22 §3]
+   *
+   * "The user selected this region of the source as the subject of the
+   *  response. The meaning survives the format change."
+   *
+   * A vertical export stacks the source above the responder AND crops it to
+   * the region the marks made, so that the thing being discussed is worth
+   * seeing. The mark has to be cropped with it. Mapping into the panel — which
+   * is all this did — leaves the circle pointing at whatever the crop happened
+   * to leave in that part of the frame, which is the failure this whole
+   * feature exists to avoid.
+   */
+  it('and follows the source when the export is reframed and cropped', () => {
+    const { conversation, intervention } = fixture();
+    conversation.source.width = 1920;
+    conversation.source.height = 1080;
+    intervention.layoutId = 'side_by_side';
+    // A mark in the bottom-right quarter of the source, nowhere near its middle.
+    addAnnotation(conversation, intervention.id, mark({
+      points: [{ x: 0.70, y: 0.70 }, { x: 0.80, y: 0.80 }],
+    }));
+
+    const tall = buildRenderPlan(conversation, { exportProfileId: 'vertical_9x16' })
+      .shots.find((s) => s.kind === 'response') as {
+        layoutId: string; sourceFocus?: any; annotations?: any[];
+      };
+    expect(tall.layoutId).toBe('vertical_stack');
+    expect(tall.sourceFocus).toBeTruthy();
+
+    const [topLeft, bottomRight] = tall.annotations![0]!.points;
+    /*
+     * The source occupies y 0.08–0.38 of the tall canvas, so the mark is up
+     * there with it rather than in the middle of the frame where the
+     * responder is.
+     */
+    expect(topLeft.y).toBeGreaterThan(0.08);
+    expect(bottomRight.y).toBeLessThan(0.38);
+    /*
+     * And because the export cropped to the marked region, the mark is now
+     * near the MIDDLE of that panel — not at the bottom right, where it sits
+     * on the uncropped master.
+     */
+    expect(topLeft.x).toBeGreaterThan(0.2);
+    expect(bottomRight.x).toBeLessThan(0.8);
+
+    const wide = buildRenderPlan(conversation).shots
+      .find((s) => s.kind === 'response') as { annotations?: any[] };
+    // On the master, where the source fills its own half, it is where it was.
+    expect(wide.annotations![0]!.points[0].x).toBeCloseTo(0.35, 2);
+  });
+
+  /*
+   * A blur is a privacy tool — a face, an address, a document — so a blur that
+   * does not follow the crop is not a smaller version of this bug. It is the
+   * thing being uncovered.
+   */
+  it('and a blur box keeps covering what it covered', () => {
+    const { conversation, intervention } = fixture();
+    conversation.source.width = 1920;
+    conversation.source.height = 1080;
+    intervention.layoutId = 'side_by_side';
+    addAnnotation(conversation, intervention.id, mark({
+      kind: 'ellipse', points: [{ x: 0.60, y: 0.60 }, { x: 0.66, y: 0.66 }],
+    }));
+    addAnnotation(conversation, intervention.id, mark({
+      kind: 'blur', points: [{ x: 0.62, y: 0.62 }, { x: 0.64, y: 0.64 }],
+    }));
+
+    const tall = buildRenderPlan(conversation, { exportProfileId: 'vertical_9x16' })
+      .shots.find((s) => s.kind === 'response') as { annotations?: any[] };
+    const blur = tall.annotations!.find((a: any) => a.kind === 'blur')!;
+    const ring = tall.annotations!.find((a: any) => a.kind === 'ellipse')!;
+
+    // Still inside the thing it was hiding, and still a rectangle.
+    expect(blur.points[0].x).toBeGreaterThan(ring.points[0].x);
+    expect(blur.points[1].x).toBeLessThan(ring.points[1].x);
+    expect(blur.points[1].y).toBeGreaterThan(blur.points[0].y);
+  });
+
   /**
    * Timing belongs to the response, not to the recording. [U-12 §2]
    *
