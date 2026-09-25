@@ -3267,6 +3267,8 @@ quietly left in the code.
 - Six caption looks, all from one transcript — Editorial, Speaker captions,
   Large social, Highlighted words, Source quote captions *(U-19 §2, D-04)*
 - Which comes first in a clip: the moment, or the reply *(U-22 §2, INV-00)*
+- Presentation mode — the conversation as a score, performed live in a room
+  *(D-16, INV-00, U-08)*
 
 ---
 
@@ -3365,6 +3367,34 @@ marks is exactly as strong and exactly as wrong. They are set as the body, the
 way the article already prints them. **A quotation mark is a claim about
 provenance, not a typographic choice, and the test that a representation is
 honest is whether it is still honest with the conversation removed.**
+
+**A representation can be a SCORE rather than a recording.** Every other
+thing the Conversation produces is the argument already performed — a video,
+an article, clips, an audio file. Presentation mode is the same record handed
+back to a person to perform again: the source plays, stops on the frames the
+author interrupted, and a lecturer says the response out loud. It took no new
+field on the Conversation and no new authoring surface, which is the test of
+whether something is a representation. **The record is not a description of a
+performance that happened; it is the thing a performance can be made from, and
+noticing that turned out to be a whole output rather than a feature.**
+
+**A declared media type can reject a file the browser never asked for.** The
+presentation page carried `<source type="video/mp4">` while the source route
+serves the WebM editing proxy by default. The browser read the declared type,
+decided it could not play it, and never made the request — no error, no
+network entry, a video element that sat at `readyState 0` looking like a
+loading bug. Letting the server's own content type decide is both correct and
+the only version that cannot go stale when the route changes. **A page that
+declares what the server is about to send has two sources of truth about one
+byte stream.**
+
+**`hidden` does not hide when your own CSS is more specific.** The presenter
+window rendered the stage as well — a second copy of the source, playing its
+audio into the room from the speaker's laptop — because `#stage { display:flex }`
+outranks the user agent's `[hidden] { display:none }`. Every test passed; it
+was visible the moment somebody opened the window and looked. **An attribute
+that means "this is not here" needs `!important` behind it the instant you
+style the thing it applies to.**
 
 **A look may change how words are drawn and never which words are there.**
 Six caption looks now exist where three did, including one that redraws a line

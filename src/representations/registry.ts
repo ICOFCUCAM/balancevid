@@ -26,6 +26,7 @@ import { buildBundle } from '../publish/bundle.js';
 import { buildShareCard } from '../publish/card.js';
 import { buildClaimCards } from '../publish/claimCard.js';
 import { generateInteractive } from '../interactive/generate.js';
+import { generatePresentation } from '../present/generate.js';
 import { renderInteractive } from '../interactive/html.js';
 import { buildSrt, buildVtt } from '../render/subtitles.js';
 import type { Transcript } from '../transcribe/types.js';
@@ -242,6 +243,28 @@ export const REPRESENTATIONS: Representation[] = [
       generatedAt: c.generatedAt,
     })),
     available: () => true,
+  },
+  {
+    id: 'presentation.json',
+    label: 'Presentation (stops and prompts)',
+    mediaType: 'application/json',
+    inputs: ['source', 'interventions', 'anchors', 'takes', 'transcripts', 'evidence'],
+    /*
+     * Where the source stops, and what the presenter is reminded of at each
+     * stop. Registered rather than only served so the rebuild test asserts it
+     * survives deletion, and so it cannot quietly grow a field the
+     * Conversation does not have — a presentation is a score, and a score
+     * with its own notes would be a second document. [D-16, INV-00]
+     */
+    generate: (c) => JSON.stringify(generatePresentation({
+      conversation: c.conversation,
+      sourceTranscript: c.sourceTranscript ?? null,
+      ...(c.takeTranscripts ? { takeTranscripts: c.takeTranscripts } : {}),
+      generatedAt: c.generatedAt,
+    }), null, 2),
+    // A conversation with no interruptions has nothing to stop for, and a
+    // presentation of it is just the source playing.
+    available: (c) => c.conversation.interventions.length > 0,
   },
   {
     id: 'description.txt',

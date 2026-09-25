@@ -124,6 +124,12 @@ export default function ExportPanel({
                href={`/c/${conversationId}/explore`} target="_blank" rel="noreferrer">
               Explore the exchanges
             </a>
+            {/* And the same conversation to stand up and deliver: the source
+                stops where you interrupted it, and you say it yourself. */}
+            <a className="btn small" data-testid="open-present"
+               href={`/c/${conversationId}/present`} target="_blank" rel="noreferrer">
+              Present it live
+            </a>
           </div>
         </div>
       )}

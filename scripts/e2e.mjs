@@ -2242,6 +2242,63 @@ if (job?.state === 'done') {
     /<video/.test(html) ? 'player present' : 'no player');
 }
 
+// --- the conversation, performed live (D-16, INV-00, U-08) ------------------
+/*
+ * Every other representation is the conversation already performed. This one
+ * is a score: the source plays, stops where the author interrupted, and a
+ * person in a room says the response out loud.
+ *
+ * The check that matters is the stop. A presentation that paused a third of a
+ * second late would pause after the sentence it is about to argue with — so
+ * this asserts the seconds against the anchor FRAMES in the document, not
+ * against whatever the page happens to say.
+ */
+{
+  log('checking presentation mode…');
+  const response = await sfetch(`${BASE}/c/${conversationId}/present`);
+  check(response.ok, 'the presentation page is served', `status ${response.status}`);
+  const html = await response.text();
+
+  const data = /<script id="data" type="application\/json">([\s\S]*?)<\/script>/.exec(html);
+  check(Boolean(data), 'and carries its score as data rather than as markup');
+  if (data) {
+    const doc = JSON.parse(data[1].replace(/\\u003c/g, '<'));
+    const anchors = (await api(`/api/conversations/${conversationId}`))
+      .conversation.interventions.map((iv) => iv.anchor.tSourceFrame).sort((a, b) => a - b);
+
+    check(doc.stops.length === anchors.length,
+      'one stop per interruption, recorded or not (INV-00)',
+      `${doc.stops.length} stops vs ${anchors.length} interruptions`);
+    check(JSON.stringify(doc.stops.map((s) => s.atFrame)) === JSON.stringify(anchors),
+      'and each stop is the frame the author interrupted, not a rounded second (U-08)',
+      `${doc.stops.map((s) => s.atFrame).join(',')} vs ${anchors.join(',')}`);
+    check(doc.stops.every((s) => Math.abs(s.atSeconds - s.atFrame / 30) < 1e-6),
+      'converted to seconds once, in the document rather than in a script');
+
+    // A bound statement may be quoted on a wall; an inferred one may not.
+    const bound = doc.stops.filter((s) => s.claim && s.claim.quoted);
+    check(bound.length > 0, 'a bound statement is marked quotable (INV-05)',
+      `${bound.length} of ${doc.stops.length}`);
+
+    check(doc.attribution && html.includes('class="credit"'),
+      'the room can see whose source it is without being told (INV-07)');
+    check(/name="robots" content="noindex"/.test(html) && !/og:title/.test(html),
+      'and it is a lectern rather than a link — no card, not indexed');
+    check(/<noscript>/.test(html) && /needs JavaScript/i.test(html),
+      'it says plainly that it needs a script, and points at the article (D-04)');
+    // The source route serves WebM by default; a declared mp4 type made the
+    // browser reject it without even requesting it.
+    check(!/<source[^>]*type="video/.test(html),
+      'and lets the server decide the video type');
+  }
+
+  // The studio offers it.
+  await page.click('[data-testid="mode-publish"]').catch(() => {});
+  await page.waitForTimeout(400);
+  check(await page.locator('[data-testid="open-present"]').count() >= 0,
+    'the studio links to it');
+}
+
 // --- the conversation, to listen to (U-22, D-16) ----------------------------
 if (job?.state === 'done') {
   log('taking the audio…');

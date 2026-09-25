@@ -65,6 +65,12 @@ const PUBLIC_PATTERNS: RegExp[] = [
   /^\/c\/[A-Za-z0-9_-]+\/watch\/?$/,
   /^\/c\/[A-Za-z0-9_-]+\/article\/?$/,
   /^\/c\/[A-Za-z0-9_-]+\/explore\/?$/,
+  /*
+   * Presenting a published conversation is an ordinary thing to do with one:
+   * a lecturer, a seminar, a newsroom. The route still checks that it IS
+   * published, and the page is `noindex` — it is a lectern, not a link.
+   */
+  /^\/c\/[A-Za-z0-9_-]+\/present\/?$/,
   // Exactly the media the companion player needs, and nothing else.
   /^\/api\/conversations\/[A-Za-z0-9_-]+\/representations$/,
   /^\/api\/conversations\/[A-Za-z0-9_-]+\/source$/,
