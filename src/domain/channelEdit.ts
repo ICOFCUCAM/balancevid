@@ -13,7 +13,8 @@
 
 import {
   CHANNEL_SCHEMA_VERSION,
-  type Channel, type LiveIngest, type Programme, type ProgrammeSource,
+  type Channel, type LiveIngest, type LiveSession, type Programme,
+  type ProgrammeSource, type RotationEntry,
   ingestById, isOpen, orderedProgrammes, programmeById, programmeEnd, programmeStart,
 } from './channel.js';
 import { newId } from './ids.js';
@@ -45,6 +46,7 @@ export function newChannel(
     name: trimmed.slice(0, 120),
     timezone,
     programmes: [],
+    rotation: [],
     ingests: [],
     recordings: [],
     createdAt: at,
@@ -177,6 +179,180 @@ export function setFiller(channel: Channel, source: ProgrammeSource | null): voi
 }
 
 /* ------------------------------------------------------------------------ *
+ *  The continuous rotation.  [§4]
+ * ------------------------------------------------------------------------ */
+
+/**
+ * Put something into the loop.  [§4]
+ *
+ * NO TIME IS ASKED FOR, which is the whole difference between this and
+ * `scheduleProgramme`. A rotation entry's start is the sum of what comes
+ * before it; putting one at the top moves everything after it, and nobody
+ * edits a clock. That is what makes the brief's listing editable rather than
+ * a column of numbers to keep in agreement.
+ *
+ * `durationMs` still has to be given, because the domain does not decode. The
+ * route reads it off the library, which measured it once.
+ */
+export function addToRotation(
+  channel: Channel,
+  entry: {
+    source: ProgrammeSource; durationMs: number; title?: string;
+    fromMs?: number; toMs?: number; loop?: boolean;
+  },
+  at: string,
+  position?: number,
+): RotationEntry {
+  if (!Number.isFinite(entry.durationMs) || entry.durationMs < MINIMUM_SLOT_MS) {
+    fail('a turn in the rotation needs a length');
+  }
+  assertSource(entry.source, channel);
+  const made: RotationEntry = {
+    id: newId('rot'),
+    source: entry.source,
+    durationMs: Math.round(entry.durationMs),
+    ...(entry.title?.trim() ? { title: entry.title.trim().slice(0, 200) } : {}),
+    ...(entry.fromMs !== undefined ? { fromMs: Math.round(entry.fromMs) } : {}),
+    ...(entry.toMs !== undefined ? { toMs: Math.round(entry.toMs) } : {}),
+    ...(entry.loop ? { loop: true } : {}),
+    createdAt: at,
+  };
+  const where = position === undefined
+    ? channel.rotation.length
+    : Math.max(0, Math.min(position, channel.rotation.length));
+  channel.rotation.splice(where, 0, made);
+  /*
+   * THE LOOP STARTS THE MOMENT THERE IS ONE. Without an anchor the rotation's
+   * position would be computed against the channel's creation, which is a
+   * number that means nothing — and a channel created last month would open
+   * somewhere arbitrary in its first rotation. Set once and never moved:
+   * changing it later would jump every viewer to a different programme.
+   */
+  channel.rotationFrom ??= at;
+  return made;
+}
+
+/** Move a turn earlier or later in the loop. Everything after it follows. */
+export function moveInRotation(
+  channel: Channel, entryId: string, toPosition: number,
+): void {
+  const from = channel.rotation.findIndex((entry) => entry.id === entryId);
+  if (from < 0) fail(`no rotation entry ${entryId} on this channel`);
+  const [entry] = channel.rotation.splice(from, 1);
+  const where = Math.max(0, Math.min(toPosition, channel.rotation.length));
+  channel.rotation.splice(where, 0, entry!);
+}
+
+/**
+ * Take a turn out of the loop.
+ *
+ * As with unscheduling, THE MEDIA IS UNTOUCHED. The channel never made the
+ * file and never removes it. [§3, D-18]
+ */
+export function removeFromRotation(channel: Channel, entryId: string): void {
+  const before = channel.rotation.length;
+  channel.rotation = channel.rotation.filter((entry) => entry.id !== entryId);
+  if (channel.rotation.length === before) {
+    fail(`no rotation entry ${entryId} on this channel`);
+  }
+}
+
+/* ------------------------------------------------------------------------ *
+ *  The red button.  [§5]
+ * ------------------------------------------------------------------------ */
+
+/**
+ * GO LIVE.  [§5]
+ *
+ * "The scheduled programming stops or pauses. You appear in the live studio."
+ *
+ * It opens an ingest — the one kind of programme that brings media with it —
+ * and puts the channel into a live session that PRE-EMPTS everything. The
+ * schedule is not edited, cleared or paused: it goes on being the schedule,
+ * and `whatIsOn` simply stops consulting it while the red light is on. A
+ * broadcast that rewrote its listings to go live would be a broadcast whose
+ * listings were wrong afterwards.
+ *
+ * `roomId` is where the people are. "You can bring people into the room" is
+ * the Conversation Room, which already exists — invitation by link,
+ * participants in the room and on the stage, automatic speaker switching
+ * (ROOM, D-17). A channel names the room it is coming out of rather than
+ * growing a second one.
+ */
+export function goLive(
+  channel: Channel, label: string, at: string, roomId?: string,
+): LiveSession {
+  if (channel.live && !channel.live.endedAt) fail('this channel is already live');
+  const ingest = openIngest(channel, label, at);
+  channel.live = {
+    ingestId: ingest.id,
+    ...(roomId ? { roomId } : {}),
+    startedAt: at,
+  };
+  return channel.live;
+}
+
+/**
+ * Roll something into the live show, or take it down.  [§5]
+ *
+ * "You can bring up Studio One conversations, Studio Two performances,
+ *  videos, images, graphics, announcements, prepared segments."
+ *
+ * A reference like every other reference. While it is up it is what goes out
+ * and the feed is underneath it; taking it down returns to the room without
+ * anybody re-cueing anything, because nothing was ever cued — the feed never
+ * stopped, the channel just stopped looking at it.
+ */
+export function rollIn(
+  channel: Channel, source: ProgrammeSource | null, fromMs?: number,
+): void {
+  const live = channel.live;
+  if (!live || live.endedAt) return fail('this channel is not live');
+  if (source === null) {
+    delete live.segment;
+    delete live.segmentFromMs;
+    return;
+  }
+  assertSource(source, channel);
+  if (source.kind === 'live') fail('the live feed is already what is underneath');
+  live.segment = source;
+  if (fromMs !== undefined && Number.isFinite(fromMs) && fromMs >= 0) {
+    live.segmentFromMs = Math.round(fromMs);
+  } else {
+    delete live.segmentFromMs;
+  }
+}
+
+/**
+ * END LIVE.  [§5]
+ *
+ * "and the scheduled channel automatically resumes."
+ *
+ * It resumes WHERE THE CLOCK SAYS, not where it left off, and that is a
+ * decision rather than an accident. A channel's rotation is computed from the
+ * wall clock against a fixed anchor, so an hour of live television means the
+ * rotation has moved an hour on — exactly as it does on any broadcast
+ * channel, where the nine o'clock film starts at nine whether or not the news
+ * overran. Resuming where it paused would make the channel drift further from
+ * its own listings after every live show, and the listing is what viewers
+ * were told.
+ *
+ * The feed is closed with it, so what was broadcast live becomes an ordinary
+ * asset that can be scheduled like anything else. [§5]
+ */
+export function endLive(
+  channel: Channel, at: string, durationMs?: number,
+): void {
+  const live = channel.live;
+  if (!live || live.endedAt) return fail('this channel is not live');
+  live.endedAt = at;
+  delete live.segment;
+  delete live.segmentFromMs;
+  const ingest = ingestById(channel, live.ingestId);
+  if (ingest && isOpen(ingest)) closeIngest(channel, ingest.id, at, durationMs);
+}
+
+/* ------------------------------------------------------------------------ *
  *  The two things that make media.  [§5, §6, D-18]
  * ------------------------------------------------------------------------ */
 
@@ -284,6 +460,18 @@ function assertSource(source: ProgrammeSource, channel: Channel): void {
     }
     if (!/^[A-Za-z0-9_-]{1,128}$/.test(source.documentId)) fail('that is not a document');
     if (!/^[A-Za-z0-9_-]{1,128}$/.test(source.planHash)) fail('that is not a render');
+    return;
+  }
+  if (source.kind === 'media') {
+    /*
+     * The library's third branch. Checked for shape here and for existence at
+     * the route, the same split the render case takes — the domain does not
+     * read disk, and a domain that did could not be tested without one.
+     */
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(source.assetId)) fail('that is not a file');
+    if (source.form !== 'image' && source.form !== 'video') {
+      fail(`unknown kind of file: ${source.form}`);
+    }
     return;
   }
   if (source.kind === 'live') {

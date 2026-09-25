@@ -77,7 +77,28 @@ export type ProgrammeSource =
    * the programme does not hold the media: it names the ingest, and the
    * ingest is what the asset belongs to.
    */
-  | { kind: 'live'; ingestId: IngestId };
+  | { kind: 'live'; ingestId: IngestId }
+  /**
+   * OTHER MEDIA.  [§3, the brief's third branch]
+   *
+   * "Media library → Studio 1, Studio 2, Other Media." A station ident, a
+   * caption card, a photograph, an announcement slide, a piece of footage
+   * that was never part of a conversation or a performance. Real channels are
+   * half made of these and a schedule that could not hold one would send
+   * people back to a video editor to make a ten-second title.
+   *
+   * It is STILL a reference. The asset it names was uploaded to the library
+   * once and lives there; scheduling it thirty times makes thirty programmes
+   * and no copies, exactly as a render does. `stillMs` is how long a picture
+   * stays up, because a photograph has no duration of its own and something
+   * has to say.
+   */
+  | {
+    kind: 'media';
+    assetId: string;
+    /** `image` is held for its slot; `video` plays. */
+    form: 'image' | 'video';
+  };
 
 export interface Programme {
   id: ProgrammeId;
@@ -164,6 +185,81 @@ export interface BroadcastRecording {
   durationMs?: number;
 }
 
+/**
+ * ONE ENTRY IN THE CONTINUOUS ROTATION.  [§4, the brief]
+ *
+ *     00:00  Music Video — Everlasting Love
+ *     04:17  History Discussion
+ *     28:42  Music Video — Performance 2
+ *     ...
+ *     When the schedule reaches the end: it continues from the beginning.
+ *
+ * THE TIMES IN THAT LIST ARE NOT TIMES OF DAY. They are where each item falls
+ * in a sequence that plays back to back and then starts again — which is why
+ * a rotation entry carries a DURATION and no start at all. Its start is the
+ * sum of what comes before it, derived on every read, and an entry moved to
+ * the top moves everything after it without anybody editing a clock.
+ *
+ * This is the layer that makes the brief's promise true: "so your channel is
+ * always online". A rotation cannot have a gap, because there is nothing
+ * between the end of one entry and the start of the next.
+ */
+export interface RotationEntry {
+  id: Id<'rot'>;
+  source: ProgrammeSource;
+  /** How long this item holds the air. */
+  durationMs: number;
+  title?: string;
+  /** Which part of the referenced media, on the media's own clock. */
+  fromMs?: number;
+  toMs?: number;
+  /** Repeat within its own slot, for something shorter than its turn. */
+  loop?: boolean;
+  createdAt: string;
+}
+
+/**
+ * THE CHANNEL IS LIVE.  [§5, the brief]
+ *
+ * "You press GO LIVE. The scheduled programming stops or pauses. You appear
+ *  in the live studio... Then End Live, and the scheduled channel
+ *  automatically resumes."
+ *
+ * A live session PRE-EMPTS everything: it beats a fixed programme, which
+ * beats the rotation. That ordering is the whole of it, and it is deliberate
+ * — the one thing a broadcaster presses a red button for is to interrupt what
+ * was going out.
+ *
+ * `roomId` is where the people are. "You can bring people into the room" is
+ * the Conversation Room, which already exists (ROOM.md, D-17): invitation by
+ * link, participants in the room and on the stage, automatic speaker
+ * switching. A channel going live names the conversation whose room it is
+ * coming out of rather than growing a second room of its own — a second room
+ * would be a second place invitations, staging and speaker detection could
+ * disagree.
+ */
+export interface LiveSession {
+  /** The media arriving. Always present: live is the one thing that is new. */
+  ingestId: IngestId;
+  /** The room the people are in, where there are people. [ROOM §1, D-17] */
+  roomId?: string;
+  /**
+   * Something rolled into the live show.  [§5]
+   *
+   * "You can bring up Studio One conversations, Studio Two performances,
+   *  videos, images, graphics, announcements, prepared segments."
+   *
+   * A reference like every other reference, on the air until it is taken
+   * down. While it is set, it is what goes out; the live feed is underneath
+   * it, and pulling it down returns to the room without anybody re-cueing
+   * anything.
+   */
+  segment?: ProgrammeSource;
+  segmentFromMs?: number;
+  startedAt: string;
+  endedAt?: string;
+}
+
 export interface Channel {
   schemaVersion: number;
   id: ChannelId;
@@ -182,7 +278,29 @@ export interface Channel {
    * stored is an order that can be wrong. [U-08]
    */
   programmes: Programme[];
+  /**
+   * THE CONTINUOUS ROTATION.  [§4]
+   *
+   * ORDERED, unlike everything else in this codebase — and for once the order
+   * is the data rather than something derived from a clock, because there is
+   * no clock to derive it from. "It continues from the beginning" is a
+   * statement about a sequence, and a sequence whose order was inferred from
+   * timestamps would be a sequence you could not reorder.
+   */
+  rotation: RotationEntry[];
+  /**
+   * When the rotation began, as an instant.
+   *
+   * The rotation's position is computed from the wall clock against this, not
+   * from a cursor that ticks. A cursor is a second clock, and a second clock
+   * is a thing that stops when a process restarts — a channel that resumed
+   * where it was rather than where the time says would drift a little further
+   * from itself after every deploy.
+   */
+  rotationFrom?: string;
   ingests: LiveIngest[];
+  /** Set while the red light is on, and only then. [§5] */
+  live?: LiveSession;
   recordings: BroadcastRecording[];
   /**
    * What goes out when nothing is scheduled.  [§4]
@@ -302,15 +420,17 @@ export function referencedAssets(channel: Channel): ProgrammeSource[] {
     seen.set(sourceKey(source), source);
   };
   for (const programme of channel.programmes) add(programme.source);
+  for (const entry of channel.rotation) add(entry.source);
   add(channel.filler);
+  add(channel.live?.segment);
   return [...seen.values()];
 }
 
 /** A reference's identity, for counting and comparing. */
 export function sourceKey(source: ProgrammeSource): string {
-  return source.kind === 'live'
-    ? `live:${source.ingestId}`
-    : `render:${source.document}:${source.documentId}:${source.planHash}`;
+  if (source.kind === 'live') return `live:${source.ingestId}`;
+  if (source.kind === 'media') return `media:${source.assetId}`;
+  return `render:${source.document}:${source.documentId}:${source.planHash}`;
 }
 
 /**
@@ -353,4 +473,129 @@ export function programmeById(
   channel: Channel, id: string,
 ): Programme | undefined {
   return channel.programmes.find((programme) => programme.id === id);
+}
+
+/* ------------------------------------------------------------------------ *
+ *  The rotation, and what is actually on air.  [§4, §5]
+ * ------------------------------------------------------------------------ */
+
+/** One turn of the whole rotation. Zero when there is nothing in it. */
+export function rotationLengthMs(channel: Channel): number {
+  return channel.rotation.reduce((total, entry) => total + entry.durationMs, 0);
+}
+
+/**
+ * Where an entry starts within one turn.
+ *
+ * The "00:00 / 04:17 / 28:42" column of the brief's listing, derived rather
+ * than stored — which is what makes moving an entry to the top move
+ * everything after it without anybody editing a clock.
+ */
+export function rotationOffsets(channel: Channel): number[] {
+  const offsets: number[] = [];
+  let at = 0;
+  for (const entry of channel.rotation) {
+    offsets.push(at);
+    at += entry.durationMs;
+  }
+  return offsets;
+}
+
+/**
+ * Which entry of the rotation an instant lands in, and how far into it.
+ *
+ * THE WRAP IS A MODULUS. "When the schedule reaches the end it continues from
+ * the beginning" is `(now - start) % turn`, and expressing it that way is
+ * what makes the channel correct after a restart: there is no cursor to lose,
+ * so a process that comes back up computes the same answer the old one would
+ * have. [§4]
+ */
+export function rotationAt(channel: Channel, at: number): {
+  entry: RotationEntry; intoMs: number; index: number;
+} | undefined {
+  const turn = rotationLengthMs(channel);
+  if (turn <= 0) return undefined;
+  const from = channel.rotationFrom
+    ? Date.parse(channel.rotationFrom)
+    : Date.parse(channel.createdAt);
+  /*
+   * `%` in JavaScript keeps the sign of the dividend, so an instant BEFORE
+   * the rotation started would land on a negative offset and index -1. A
+   * channel is a loop with no beginning as far as a viewer is concerned, so
+   * the modulus is made positive and the rotation is treated as having always
+   * been running.
+   */
+  const into = (((at - from) % turn) + turn) % turn;
+  const offsets = rotationOffsets(channel);
+  let index = 0;
+  for (let i = 0; i < offsets.length; i += 1) {
+    if (into >= offsets[i]!) index = i;
+    else break;
+  }
+  return {
+    entry: channel.rotation[index]!, index, intoMs: into - offsets[index]!,
+  };
+}
+
+/**
+ * WHAT IS ACTUALLY ON AIR, in the order that decides it.  [§4, §5]
+ *
+ *   live      — the red button beats everything, which is what it is for;
+ *   programme — a fixed-time slot pre-empts the rotation;
+ *   rotation  — the continuous loop, which is always there;
+ *   off       — only when there is no rotation and nothing scheduled.
+ *
+ * ONE FUNCTION, because "what is on air" asked in three places is three
+ * places that can disagree about it — and the one that matters is the playout
+ * engine, which is the only one nobody is watching.
+ */
+export type OnAir =
+  | { kind: 'live'; session: LiveSession; source: ProgrammeSource; fromMs: number }
+  | { kind: 'programme'; programme: Programme; source: ProgrammeSource; fromMs: number;
+    untilMs: number }
+  | { kind: 'rotation'; entry: RotationEntry; source: ProgrammeSource; fromMs: number;
+    untilMs: number }
+  | { kind: 'off' };
+
+export function whatIsOn(channel: Channel, at: number): OnAir {
+  const live = channel.live;
+  if (live && !live.endedAt) {
+    /*
+     * A segment rolled into the live show is what goes out while it is up;
+     * the feed is underneath it. Taking it down returns to the room without
+     * anybody re-cueing anything. [§5]
+     */
+    const source = live.segment ?? { kind: 'live' as const, ingestId: live.ingestId };
+    return {
+      kind: 'live', session: live, source,
+      fromMs: live.segment ? (live.segmentFromMs ?? 0) : 0,
+    };
+  }
+
+  const programme = onAirAt(channel, at);
+  if (programme) {
+    return {
+      kind: 'programme', programme, source: programme.source,
+      fromMs: (programme.fromMs ?? 0) + (at - programmeStart(programme)),
+      untilMs: programmeEnd(programme),
+    };
+  }
+
+  const turning = rotationAt(channel, at);
+  if (turning) {
+    return {
+      kind: 'rotation', entry: turning.entry, source: turning.entry.source,
+      fromMs: (turning.entry.fromMs ?? 0) + turning.intoMs,
+      untilMs: at + (turning.entry.durationMs - turning.intoMs),
+    };
+  }
+
+  return { kind: 'off' };
+}
+
+/** Every reference the rotation makes, for the count that proves the rule. */
+export function rotationById(
+  channel: Channel, id: string,
+): RotationEntry | undefined {
+  return channel.rotation.find((entry) => entry.id === id);
 }

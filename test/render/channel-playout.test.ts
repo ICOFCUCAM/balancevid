@@ -19,6 +19,7 @@ import { join } from 'node:path';
 
 import type { Channel, ProgrammeSource } from '../../src/domain/channel.js';
 import { newChannel, scheduleProgramme } from '../../src/domain/channelEdit.js';
+/* eslint-disable @typescript-eslint/consistent-type-imports */
 import { SEGMENT_MS, segmentIndexAt } from '../../src/domain/playout.js';
 import { ffmpeg, ffprobe } from '../../src/render/ffmpeg.js';
 
@@ -241,4 +242,103 @@ describe('off air is something, not nothing (§4, §7)', () => {
     expect((await stat(paths.channelSegment(channel.id, index))).size)
       .toBeGreaterThan(500);
   }, 120_000);
+});
+
+describe('the loop, on the wire (§4, §5)', () => {
+  /*
+   * The brief's channel: a handful of finished things, back to back, round
+   * and round. What is proved here is what the domain tests cannot — that the
+   * engine turns that into real segments from the real files, and that going
+   * live interrupts it without touching either.
+   */
+  let channel: Channel;
+  let goLive: typeof import('../../src/domain/channelEdit.js').goLive;
+  let endLive: typeof import('../../src/domain/channelEdit.js').endLive;
+  let addToRotation: typeof import('../../src/domain/channelEdit.js').addToRotation;
+
+  beforeAll(async () => {
+    ({ addToRotation, goLive, endLive } = await import('../../src/domain/channelEdit.js'));
+    await makeFilm('perf_loop_a', 'hash_a');
+    await makeFilm('perf_loop_b', 'hash_b');
+    channel = newChannel('Always On', 'UTC', AT);
+    channel.rotationFrom = new Date(Date.now() - 60_000).toISOString();
+    addToRotation(channel, {
+      source: {
+        kind: 'render', document: 'performance', documentId: 'perf_loop_a',
+        planHash: 'hash_a',
+      },
+      durationMs: 6000, title: 'A',
+    }, AT);
+    addToRotation(channel, {
+      source: {
+        kind: 'render', document: 'performance', documentId: 'perf_loop_b',
+        planHash: 'hash_b',
+      },
+      durationMs: 6000, title: 'B',
+    }, AT);
+    await saveChannel(channel);
+  });
+
+  it('a twelve-second loop of two films is two files, forever', async () => {
+    const { referencedAssets } = await import('../../src/domain/channel.js');
+    expect(channel.rotation).toHaveLength(2);
+    expect(referencedAssets(channel)).toHaveLength(2);
+    /* A day of this channel is still two files. */
+    const { playoutWindow, distinctAssetsRead } = await import(
+      '../../src/domain/playout.js');
+    const now = Date.now();
+    const reads = playoutWindow(channel, now, now + 6 * 60 * 60 * 1000, () => 6000);
+    expect(reads.length).toBeGreaterThan(3000);
+    expect(distinctAssetsRead(reads)).toBe(2);
+  });
+
+  it('and the engine puts it on the wire, never off air', async () => {
+    const index = segmentIndexAt(Date.now());
+    await produceSegment(channel, index, () => ({ durationMs: 6000, hasAudio: true }));
+    const file = paths.channelSegment(channel.id, index);
+    expect((await stat(file)).size).toBeGreaterThan(1000);
+    const raw = await ffprobe([
+      '-v', 'error', '-print_format', 'json',
+      '-show_entries', 'format=duration:stream=codec_type', file,
+    ]);
+    const probed = JSON.parse(raw) as {
+      format?: { duration?: string }; streams?: { codec_type?: string }[];
+    };
+    expect(Number(probed.format?.duration)).toBeGreaterThan(SEGMENT_MS / 1000 - 0.5);
+    expect((probed.streams ?? []).map((s) => s.codec_type).sort())
+      .toEqual(['audio', 'video']);
+  }, 120_000);
+
+  /*
+   * "You press GO LIVE. The scheduled programming stops or pauses... Then End
+   *  Live and the scheduled channel automatically resumes."
+   */
+  it('going live interrupts the loop without editing it', async () => {
+    const { whatIsOn } = await import('../../src/domain/channel.js');
+    const before = JSON.stringify(channel.rotation);
+    goLive(channel, 'The live studio', new Date().toISOString());
+    expect(whatIsOn(channel, Date.now()).kind).toBe('live');
+    expect(JSON.stringify(channel.rotation)).toBe(before);
+
+    /*
+     * And the wire keeps moving. The feed's own file does not exist yet — no
+     * encoder has pushed anything — so what goes out is black rather than
+     * nothing, which is the difference between a channel that is live with no
+     * picture and a channel that has stopped.
+     */
+    const index = segmentIndexAt(Date.now()) + 1;
+    await produceSegment(channel, index, () => undefined);
+    expect((await stat(paths.channelSegment(channel.id, index))).size)
+      .toBeGreaterThan(500);
+  }, 120_000);
+
+  it('and ending it puts the loop back where the clock says', async () => {
+    const { whatIsOn } = await import('../../src/domain/channel.js');
+    endLive(channel, new Date().toISOString(), 60_000);
+    const on = whatIsOn(channel, Date.now());
+    expect(on.kind).toBe('rotation');
+    /* The feed it opened is now an ordinary asset, referenced not copied. */
+    expect(channel.ingests[0]!.closedAt).toBeDefined();
+    expect(await filesUnder(paths.channelAssets(channel.id))).toEqual([]);
+  });
 });

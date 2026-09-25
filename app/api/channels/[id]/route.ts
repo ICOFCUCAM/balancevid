@@ -1,11 +1,13 @@
 import { isOwner } from '../../../../src/auth/request.js';
 import {
   ChannelEditError,
-  closeIngest, moveProgramme, openIngest, removeProgramme, requestRecording,
-  retitleProgramme, scheduleProgramme, setFiller,
+  addToRotation, closeIngest, endLive, goLive, moveInRotation, moveProgramme,
+  openIngest, removeFromRotation, removeProgramme, requestRecording,
+  retitleProgramme, rollIn, scheduleProgramme, setFiller,
 } from '../../../../src/domain/channelEdit.js';
 import {
   gaps, nextAfter, onAirAt, orderedProgrammes, overlaps, referencedAssets,
+  rotationLengthMs, rotationOffsets, whatIsOn,
 } from '../../../../src/domain/channel.js';
 import {
   assertChannelOwnsNoScheduledMedia, assertScheduleResolves,
@@ -62,8 +64,12 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
   return json({
     channel,
     listing: orderedProgrammes(channel),
+    /* What is ACTUALLY on: live, then a fixed slot, then the loop. [§4, §5] */
+    whatIsOn: whatIsOn(channel, now),
     onAir: onAirAt(channel, now) ?? null,
     next: nextAfter(channel, now) ?? null,
+    rotationOffsets: rotationOffsets(channel),
+    rotationLengthMs: rotationLengthMs(channel),
     gaps: gaps(channel, now, now + DAY_MS),
     overlaps: overlaps(channel).map(({ a, b }) => [a.id, b.id]),
     /** Distinct references, which is the number D-18 is about. */
@@ -136,6 +142,43 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
         case 'unschedule':
           removeProgramme(draft, body['programmeId']);
           break;
+        /* ---- the continuous loop (§4) --------------------------------- */
+        case 'rotate': {
+          if (!await resolves(draft, body['source'])) {
+            throw new ChannelEditError(
+              'there is no such render — put something in the loop that has been made');
+          }
+          addToRotation(draft, {
+            source: body['source'],
+            durationMs: Number(body['durationMs']),
+            title: body['title'],
+            ...(body['fromMs'] !== undefined ? { fromMs: Number(body['fromMs']) } : {}),
+            ...(body['toMs'] !== undefined ? { toMs: Number(body['toMs']) } : {}),
+            ...(body['loop'] ? { loop: true } : {}),
+          }, at, body['position'] === undefined ? undefined : Number(body['position']));
+          break;
+        }
+        case 'move-in-rotation':
+          moveInRotation(draft, body['entryId'], Number(body['position']));
+          break;
+        case 'unrotate':
+          removeFromRotation(draft, body['entryId']);
+          break;
+        /* ---- the red button (§5) -------------------------------------- */
+        case 'go-live':
+          goLive(draft, body['label'] ?? 'Live', at, body['roomId']);
+          break;
+        case 'roll-in':
+          if (body['source'] && !await resolves(draft, body['source'])) {
+            throw new ChannelEditError('there is no such render');
+          }
+          rollIn(draft, body['source'] ?? null,
+            body['fromMs'] === undefined ? undefined : Number(body['fromMs']));
+          break;
+        case 'end-live':
+          endLive(draft, at,
+            body['durationMs'] === undefined ? undefined : Number(body['durationMs']));
+          break;
         case 'filler':
           if (body['source'] && !await resolves(draft, body['source'])) {
             throw new ChannelEditError('there is no such render');
@@ -174,7 +217,9 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
   return json({
     channel,
     listing: orderedProgrammes(channel),
+    whatIsOn: whatIsOn(channel, Date.now()),
     onAir: onAirAt(channel, Date.now()) ?? null,
+    rotationOffsets: rotationOffsets(channel),
     assets: referencedAssets(channel).length,
   });
 }

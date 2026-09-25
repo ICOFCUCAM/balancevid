@@ -12,7 +12,7 @@
  * person can click one.
  */
 
-import { readdir, stat } from 'node:fs/promises';
+import { readFile, readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { ProgrammeDocument, ProgrammeSource } from '../domain/channel.js';
 import { listConversations } from './repository.js';
@@ -20,10 +20,12 @@ import { listPerformances } from './performances.js';
 import { paths } from './paths.js';
 
 export interface BroadcastItem {
-  source: ProgrammeSource & { kind: 'render' };
+  /** A reference — a render, or a piece of other media. Never a copy. */
+  source: ProgrammeSource;
   /** The document's title, read now rather than copied at schedule time. */
   title: string;
-  document: ProgrammeDocument;
+  /** `other` is the library's third branch: idents, cards, photographs. */
+  document: ProgrammeDocument | 'other';
   documentId: string;
   planHash: string;
   /** Bytes on disk, which is the only cheap fact about a file. */
@@ -56,7 +58,52 @@ export async function broadcastLibrary(): Promise<BroadcastItem[]> {
       paths.performanceRenders(performance.id)));
   }
 
+  /*
+   * THE THIRD BRANCH of the brief's diagram: idents, caption cards,
+   * photographs — media that no studio made. Listed beside the other two
+   * because a scheduler does not care which door a thing came through, only
+   * that it can point at it. [§3]
+   */
+  items.push(...await otherMedia());
+
   return items.sort((a, b) => b.madeAt.localeCompare(a.madeAt));
+}
+
+/** Everything in `var/library/`, which is where other media lives. */
+async function otherMedia(): Promise<BroadcastItem[]> {
+  let names: string[];
+  try {
+    names = await readdir(paths.library());
+  } catch {
+    return [];
+  }
+  const found: BroadcastItem[] = [];
+  for (const name of names) {
+    if (name.endsWith('.json')) continue;
+    const assetId = name.split('.')[0];
+    if (!assetId) continue;
+    const file = join(paths.library(), name);
+    const info = await stat(file).catch(() => null);
+    if (!info) continue;
+    let title = assetId;
+    try {
+      const sidecar = await readFile(join(paths.library(), `${assetId}.json`), 'utf8');
+      title = (JSON.parse(sidecar) as { label?: string }).label ?? assetId;
+    } catch { /* an upload with no sidecar keeps its id. */ }
+    found.push({
+      source: {
+        kind: 'media', assetId,
+        form: name.endsWith('.jpg') ? 'image' : 'video',
+      },
+      title,
+      document: 'other',
+      documentId: assetId,
+      planHash: '',
+      bytes: info.size,
+      madeAt: info.mtime.toISOString(),
+    });
+  }
+  return found;
 }
 
 async function rendersOf(

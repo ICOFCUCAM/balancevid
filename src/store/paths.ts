@@ -124,6 +124,21 @@ export const paths = {
    *                      a segment you cannot go back and watch is the wire,
    *                      not a copy of the work.
    */
+  /**
+   * OTHER MEDIA: the third branch of the brief's library diagram.
+   *
+   *   var/library/<assetId>.<ext>
+   *
+   * Idents, caption cards, photographs, announcement slides — the things no
+   * studio made and every channel may schedule. Outside `channels/` on
+   * purpose: an ident belongs to the library, not to whichever channel
+   * happened to use it first, and putting it inside one would make the second
+   * channel that wanted it copy it. [CHANNEL §3, D-18]
+   */
+  library: () => join(VAR_ROOT, 'library'),
+  libraryMedia: (assetId: string, ext: string) =>
+    join(paths.library(), `${safe(assetId)}.${ext.replace(/[^a-z0-9]/gi, '')}`),
+
   channels: () => join(VAR_ROOT, 'channels'),
   channel: (id: string) => join(VAR_ROOT, 'channels', safe(id)),
   channelDocument: (id: string) => join(paths.channel(id), 'channel.json'),

@@ -30,7 +30,7 @@
 
 import {
   type Channel, type Programme, type ProgrammeSource,
-  gaps, onAirAt, orderedProgrammes, programmeEnd, programmeStart, sourceKey,
+  gaps, orderedProgrammes, programmeStart, sourceKey, whatIsOn,
 } from './channel.js';
 
 /**
@@ -105,96 +105,103 @@ export function playoutWindow(
   if (toAt <= fromAt) return [];
   const reads: Read[] = [];
   let cursor = fromAt;
+  /*
+   * A guard, not a limit. Every branch below advances the cursor, but a
+   * duration that came out as zero — a rotation entry edited to nothing while
+   * the engine was mid-window — would spin here forever, and a playout
+   * process that stops responding is a channel off the air with no error
+   * anywhere. It gives up on the window instead.
+   */
+  let steps = 0;
 
-  while (cursor < toAt) {
-    const programme = onAirAt(channel, cursor);
-    if (!programme) {
+  while (cursor < toAt && steps < 10_000) {
+    steps += 1;
+    const on = whatIsOn(channel, cursor);
+
+    if (on.kind === 'off') {
       /*
-       * A hole. It runs until the next programme starts or the window ends,
-       * whichever comes first — filled if the channel has filler and declared
-       * off-air if it has not.
+       * Only reachable when there is no rotation AND nothing scheduled. With
+       * a rotation the channel is always online, which is the brief's point;
+       * this is the empty channel, and it runs to the next programme or to
+       * the end of the window.
        */
       const next = orderedProgrammes(channel)
         .find((entry) => programmeStart(entry) > cursor);
       const until = Math.min(next ? programmeStart(next) : toAt, toAt);
-      reads.push(fillerRead(channel, cursor, until - cursor, assetLengthMs));
-      cursor = until;
+      reads.push(fillerRead(channel, cursor, Math.max(1, until - cursor), assetLengthMs));
+      cursor = until > cursor ? until : toAt;
       continue;
     }
 
-    const slotEnd = Math.min(programmeEnd(programme), toAt);
-    const intoSlot = cursor - programmeStart(programme);
+    if (on.kind === 'live') {
+      /*
+       * A live feed has no end until somebody presses the button, so it is
+       * read to the end of the window. Nothing else can be scheduled over it:
+       * that is what pre-emption means.
+       */
+      reads.push({
+        atMs: cursor, durationMs: toAt - cursor, source: on.source, fromMs: on.fromMs,
+      });
+      cursor = toAt;
+      continue;
+    }
+
+    /* A programme or a turn of the rotation: both have an end and a length. */
+    const slotEnd = Math.min(on.untilMs, toAt);
     const want = slotEnd - cursor;
+    if (want <= 0) { cursor = Math.max(slotEnd, cursor + 1); continue; }
 
-    /*
-     * WHERE IN THE MEDIA THIS INSTANT IS.
-     *
-     * For a looping programme it is how far into the current pass we are,
-     * which is the modulus of how far into the slot we are — the arithmetic
-     * that lets ten minutes of waves fill a thirty-minute slot without
-     * anybody cutting anything. For the ordinary case it is simply the
-     * distance into the slot, offset by the trim.
-     */
-    const trimFrom = programme.fromMs ?? 0;
-    const own = ownLength(programme, assetLengthMs);
+    const loops = on.kind === 'programme' ? on.programme.loop : on.entry.loop;
+    const trimFrom = (on.kind === 'programme' ? on.programme.fromMs : on.entry.fromMs)
+      ?? 0;
+    const trimTo = on.kind === 'programme' ? on.programme.toMs : on.entry.toMs;
+    const asset = assetLengthMs?.(on.source);
+    const own = trimTo !== undefined ? Math.max(0, trimTo - trimFrom) : asset;
+    const programmeId = on.kind === 'programme' ? on.programme.id : on.entry.id;
+    /* How far into the slot this instant is, which `whatIsOn` already worked out. */
+    const intoSlot = on.fromMs - trimFrom;
 
-    if (programme.loop && own !== undefined && own > 0) {
+    if (loops && own !== undefined && own > 0) {
+      /*
+       * Ten minutes of film in a thirty-minute slot. The arithmetic that lets
+       * something short hold a long turn without anybody cutting anything.
+       */
       let at = cursor;
+      let into = intoSlot % own;
       while (at < slotEnd) {
-        const intoPass = (at - programmeStart(programme)) % own;
-        const take = Math.min(own - intoPass, slotEnd - at);
+        const take = Math.min(own - into, slotEnd - at);
+        if (take <= 0) break;
         reads.push({
-          atMs: at,
-          durationMs: take,
-          source: programme.source,
-          fromMs: trimFrom + intoPass,
-          programmeId: programme.id,
+          atMs: at, durationMs: take, source: on.source,
+          fromMs: trimFrom + into, programmeId,
         });
         at += take;
+        into = 0;
       }
       cursor = slotEnd;
       continue;
     }
 
-    /*
-     * A programme that is shorter than its slot, and does not loop. It plays
-     * out and the remainder of the slot is a hole like any other — which is
-     * the truth, and is what the editor has to be shown before it happens.
-     */
     if (own !== undefined && intoSlot >= own) {
-      reads.push(fillerRead(channel, cursor, want, assetLengthMs, programme.id));
+      /* It has run out. The rest of the slot is a hole like any other. */
+      reads.push(fillerRead(channel, cursor, want, assetLengthMs, programmeId));
       cursor = slotEnd;
       continue;
     }
     const available = own === undefined ? want : Math.min(want, own - intoSlot);
     reads.push({
-      atMs: cursor,
-      durationMs: available,
-      source: programme.source,
-      fromMs: trimFrom + intoSlot,
-      programmeId: programme.id,
+      atMs: cursor, durationMs: available, source: on.source,
+      fromMs: trimFrom + intoSlot, programmeId,
     });
     cursor += available;
     if (available < want) {
       reads.push(fillerRead(
-        channel, cursor, want - available, assetLengthMs, programme.id));
+        channel, cursor, want - available, assetLengthMs, programmeId));
       cursor = slotEnd;
     }
   }
 
   return reads;
-}
-
-/** A programme's own running length, as far as anything here can know it. */
-function ownLength(
-  programme: Programme,
-  assetLengthMs?: (source: ProgrammeSource) => number | undefined,
-): number | undefined {
-  const asset = assetLengthMs?.(programme.source);
-  const from = programme.fromMs ?? 0;
-  const to = programme.toMs ?? asset;
-  if (to === undefined) return undefined;
-  return Math.max(0, to - from);
 }
 
 /**
@@ -298,5 +305,13 @@ export function distinctAssetsRead(reads: Read[]): number {
 export function deadAir(
   channel: Channel, fromAt: number, toAt: number,
 ): { fromAt: number; toAt: number }[] {
-  return channel.filler ? [] : gaps(channel, fromAt, toAt);
+  /*
+   * A CHANNEL WITH A ROTATION HAS NO DEAD AIR, by construction: the rotation
+   * covers every instant a fixed programme does not, and when it reaches the
+   * end it starts again. That is the brief's "so your channel is always
+   * online", stated as the function that would have to return something for
+   * it to be untrue. [§4]
+   */
+  if (channel.rotation.length > 0 || channel.filler) return [];
+  return gaps(channel, fromAt, toAt);
 }

@@ -361,9 +361,11 @@ export function assertScheduleResolves(
   channel: Channel, missing: readonly ProgrammeSource[],
 ): void {
   if (missing.length === 0) return;
-  const named = missing.map((source) => (source.kind === 'live'
-    ? `a live feed (${source.ingestId})`
-    : `${source.document} ${source.documentId} render ${source.planHash.slice(0, 8)}`));
+  const named = missing.map((source) => {
+    if (source.kind === 'live') return `a live feed (${source.ingestId})`;
+    if (source.kind === 'media') return `a library file (${source.assetId})`;
+    return `${source.document} ${source.documentId} render ${source.planHash.slice(0, 8)}`;
+  });
   fail('INV-17',
     `${named.join(', ')} ${missing.length === 1 ? 'is' : 'are'} scheduled on `
     + `"${channel.name}" but no longer on disk — a programme references media, so `

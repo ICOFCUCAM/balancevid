@@ -132,6 +132,31 @@ async function encodePiece(
   const seconds = (read.durationMs / 1000).toFixed(3);
   const path = read.offAir ? undefined : pathFor(channel, read.source);
   const facts = path ? factsOf(path) : undefined;
+  /*
+   * A STILL IS HELD, NOT PLAYED.  [§3]
+   *
+   * A caption card has no duration of its own, so `-loop 1` holds the one
+   * frame for the slot and silence rides underneath it. Its own branch
+   * because everything below assumes a file with a clock in it — seeking a
+   * JPEG to four seconds in produces nothing at all, which on air is black
+   * where a station ident should be.
+   */
+  if (path && read.source.kind === 'media' && read.source.form === 'image') {
+    await ffmpeg([
+      '-y',
+      '-loop', '1', '-framerate', String(STREAM.fps), '-i', path,
+      '-f', 'lavfi', '-i',
+      `anullsrc=channel_layout=stereo:sample_rate=${HOUSE.audioSampleRate}`,
+      '-t', seconds,
+      '-vf',
+      `scale=${STREAM.width}:${STREAM.height}:force_original_aspect_ratio=decrease,`
+        + `pad=${STREAM.width}:${STREAM.height}:(ow-iw)/2:(oh-ih)/2,setsar=1`,
+      '-map', '0:v:0', '-map', '1:a:0',
+      ...encodeArgs(offsetMs),
+      out,
+    ], opts).catch(async () => { await black(seconds, out, offsetMs, opts); });
+    return;
+  }
 
   /*
    * OFF AIR IS SOMETHING, NOT NOTHING.

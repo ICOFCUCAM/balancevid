@@ -20,12 +20,14 @@ import { describe, expect, it } from 'vitest';
 import {
   type Channel, type ProgrammeSource,
   gaps, nextAfter, onAirAt, orderedProgrammes, overlaps, programmeEnd,
-  referencedAssets, sourceKey,
+  referencedAssets, rotationAt, rotationLengthMs, rotationOffsets, sourceKey,
+  whatIsOn,
 } from '../../src/domain/channel.js';
 import {
   ChannelEditError,
-  closeIngest, moveProgramme, newChannel, openIngest, removeProgramme,
-  requestRecording, scheduleProgramme, setFiller,
+  addToRotation, closeIngest, endLive, goLive, moveInRotation, moveProgramme,
+  newChannel, openIngest, removeFromRotation, removeProgramme, requestRecording,
+  rollIn, scheduleProgramme, setFiller,
 } from '../../src/domain/channelEdit.js';
 import {
   SEGMENT_MS, WINDOW_SEGMENTS,
@@ -455,5 +457,246 @@ describe('INV-17, asserted against what is on disk', () => {
     scheduleProgramme(c, { startsAt: at(9), durationMs: HOUR, source: FILM }, AT);
     expect(() => assertScheduleResolves(c, [])).not.toThrow();
     expect(() => assertScheduleResolves(c, [FILM])).toThrow(InvariantViolation);
+  });
+});
+
+describe('the rotation, which is why the channel is always online (§4)', () => {
+  /*
+   *     00:00  Music Video — Everlasting Love
+   *     04:17  History Discussion
+   *     28:42  Music Video — Performance 2
+   *     ...
+   *     When the schedule reaches the end: it continues from the beginning.
+   *
+   * The times in that listing are not times of day; they are the sum of what
+   * comes before. So the offsets are derived, and moving an entry to the top
+   * moves everything after it without anybody editing a clock.
+   */
+  function loop(): Channel {
+    const c = newChannel('Always On', 'Africa/Lagos', AT);
+    c.rotationFrom = at(0);
+    addToRotation(c, {
+      source: FILM, durationMs: 4 * MINUTE + 17_000, title: 'Everlasting Love',
+    }, AT);
+    addToRotation(c, {
+      source: DEBATE, durationMs: 24 * MINUTE + 25_000, title: 'History Discussion',
+    }, AT);
+    addToRotation(c, {
+      source: FILM, durationMs: 4 * MINUTE + 28_000, title: 'Performance 2',
+    }, AT);
+    return c;
+  }
+
+  it('the listing column is derived from the durations, never stored', () => {
+    const c = loop();
+    expect(rotationOffsets(c)).toEqual([0, 257_000, 1_722_000]);
+    expect(rotationLengthMs(c)).toBe(1_990_000);
+  });
+
+  it('and moving one to the top moves everything after it', () => {
+    const c = loop();
+    moveInRotation(c, c.rotation[2]!.id, 0);
+    expect(c.rotation.map((entry) => entry.title))
+      .toEqual(['Performance 2', 'Everlasting Love', 'History Discussion']);
+    expect(rotationOffsets(c)[0]).toBe(0);
+    // Nobody edited a time, and the whole listing moved.
+    expect(rotationOffsets(c)).toEqual([0, 268_000, 525_000]);
+  });
+
+  it('when it reaches the end, it continues from the beginning', () => {
+    const c = loop();
+    const turn = rotationLengthMs(c);
+    const start = Date.parse(at(0));
+    expect(rotationAt(c, start)?.entry.title).toBe('Everlasting Love');
+    expect(rotationAt(c, start + turn)?.entry.title).toBe('Everlasting Love');
+    expect(rotationAt(c, start + turn)?.intoMs).toBe(0);
+    // Forty turns later it is still exactly where the arithmetic says.
+    expect(rotationAt(c, start + 40 * turn + 300_000)?.entry.title)
+      .toBe('History Discussion');
+  });
+
+  /*
+   * A channel is a loop with no beginning as far as a viewer is concerned, so
+   * an instant before the rotation was created still lands somewhere in it
+   * rather than on index -1.
+   */
+  it('and an instant before it started lands in it too, not outside it', () => {
+    const c = loop();
+    const before = Date.parse(at(0)) - 3 * rotationLengthMs(c) - 100_000;
+    const found = rotationAt(c, before);
+    expect(found).toBeDefined();
+    expect(found!.index).toBeGreaterThanOrEqual(0);
+    expect(found!.intoMs).toBeGreaterThanOrEqual(0);
+  });
+
+  /*
+   * THE BRIEF'S PROMISE, as the function that would have to return something
+   * for it to be untrue.
+   */
+  it('a channel with a rotation has no dead air, ever', () => {
+    const c = loop();
+    const start = Date.parse(at(0));
+    expect(deadAir(c, start, start + 7 * 24 * HOUR)).toHaveLength(0);
+    const reads = playoutWindow(c, start, start + HOUR, () => 30 * MINUTE);
+    expect(reads.every((read) => !read.offAir)).toBe(true);
+    /* An hour of television out of two files. */
+    expect(distinctAssetsRead(reads)).toBe(2);
+  });
+
+  it('and a fixed programme pre-empts the loop for its slot, then the loop returns', () => {
+    const c = loop();
+    scheduleProgramme(c, {
+      startsAt: at(20), durationMs: HOUR, source: DEBATE, title: 'The nine o\'clock',
+    }, AT);
+    expect(whatIsOn(c, Date.parse(at(19, 30))).kind).toBe('rotation');
+    const during = whatIsOn(c, Date.parse(at(20, 30)));
+    expect(during.kind).toBe('programme');
+    expect(during.kind === 'programme' && during.programme.title).toBe('The nine o\'clock');
+    expect(whatIsOn(c, Date.parse(at(21, 30))).kind).toBe('rotation');
+  });
+
+  it('taking a turn out of the loop leaves the media alone', () => {
+    const c = loop();
+    removeFromRotation(c, c.rotation[0]!.id);
+    expect(c.rotation).toHaveLength(2);
+    expect(referencedAssets(c)).toHaveLength(2);
+  });
+
+  it('and the loop is references like everything else — three turns, two files', () => {
+    const c = loop();
+    expect(c.rotation).toHaveLength(3);
+    expect(referencedAssets(c)).toHaveLength(2);
+  });
+});
+
+describe('the red button (§5)', () => {
+  function ready(): Channel {
+    const c = newChannel('Always On', 'UTC', AT);
+    c.rotationFrom = at(0);
+    addToRotation(c, { source: FILM, durationMs: 30 * MINUTE, title: 'The film' }, AT);
+    scheduleProgramme(c, {
+      startsAt: at(20), durationMs: HOUR, source: DEBATE, title: 'The debate',
+    }, AT);
+    return c;
+  }
+
+  it('going live pre-empts a scheduled programme, which is what it is for', () => {
+    const c = ready();
+    expect(whatIsOn(c, Date.parse(at(20, 30))).kind).toBe('programme');
+    goLive(c, 'Studio', at(20, 10));
+    expect(whatIsOn(c, Date.parse(at(20, 30))).kind).toBe('live');
+  });
+
+  it('and it opens a feed, which is one of the two things that make media', () => {
+    const c = ready();
+    const session = goLive(c, 'Studio', at(20));
+    expect(c.ingests).toHaveLength(1);
+    expect(c.ingests[0]!.id).toBe(session.ingestId);
+    expect(c.ingests[0]!.closedAt).toBeUndefined();
+  });
+
+  it('but it does not touch the schedule, so the listings stay true', () => {
+    const c = ready();
+    const before = JSON.stringify({ p: c.programmes, r: c.rotation });
+    goLive(c, 'Studio', at(20));
+    expect(JSON.stringify({ p: c.programmes, r: c.rotation })).toBe(before);
+  });
+
+  it('twice is refused — one channel, one red light', () => {
+    const c = ready();
+    goLive(c, 'Studio', at(20));
+    expect(() => goLive(c, 'Outside', at(20, 5))).toThrow(ChannelEditError);
+  });
+
+  /*
+   * "You can bring up Studio One conversations, Studio Two performances,
+   *  videos, images, graphics, announcements, prepared segments."
+   */
+  it('something rolled in is what goes out, and the feed is underneath it', () => {
+    const c = ready();
+    goLive(c, 'Studio', at(20));
+    rollIn(c, DEBATE, 90_000);
+    const on = whatIsOn(c, Date.parse(at(20, 10)));
+    expect(on.kind).toBe('live');
+    expect(on.kind !== 'off' && sourceKey(on.source)).toBe(sourceKey(DEBATE));
+    expect(on.kind !== 'off' && on.fromMs).toBe(90_000);
+  });
+
+  it('and taking it down returns to the room with nothing re-cued', () => {
+    const c = ready();
+    const session = goLive(c, 'Studio', at(20));
+    rollIn(c, DEBATE);
+    rollIn(c, null);
+    const on = whatIsOn(c, Date.parse(at(20, 10)));
+    expect(on.kind !== 'off' && sourceKey(on.source)).toBe(`live:${session.ingestId}`);
+  });
+
+  it('the room is the room that already exists, named rather than rebuilt', () => {
+    const c = ready();
+    const session = goLive(c, 'Studio', at(20), 'conv_the_long_way');
+    expect(session.roomId).toBe('conv_the_long_way');
+  });
+
+  /*
+   * "and the scheduled channel automatically resumes" — where the clock says,
+   * not where it paused. An hour of live television means the rotation has
+   * moved an hour on, exactly as it does on any broadcast channel.
+   */
+  it('ending it resumes where the clock says, not where it paused', () => {
+    const c = ready();
+    goLive(c, 'Studio', at(20));
+    endLive(c, at(21), HOUR);
+    const on = whatIsOn(c, Date.parse(at(21, 10)));
+    expect(on.kind).toBe('rotation');
+    /* 21:10 is 70 minutes past a thirty-minute turn, so ten minutes in. */
+    expect(on.kind === 'rotation' && on.fromMs).toBe(10 * MINUTE);
+  });
+
+  it('and the feed it opened becomes an ordinary asset, schedulable like any other', () => {
+    const c = ready();
+    const session = goLive(c, 'Studio', at(20));
+    endLive(c, at(21), 58 * MINUTE);
+    expect(c.ingests[0]!.closedAt).toBe(at(21));
+    expect(c.ingests[0]!.durationMs).toBe(58 * MINUTE);
+    scheduleProgramme(c, {
+      startsAt: at(23), durationMs: HOUR,
+      source: { kind: 'live', ingestId: session.ingestId }, title: 'Live, repeated',
+    }, AT);
+    /* The repeat is a reference. No second copy of an hour of television. */
+    expect(referencedAssets(c).filter((s) => s.kind === 'live')).toHaveLength(1);
+  });
+
+  it('ending a channel that is not live is refused rather than ignored', () => {
+    const c = ready();
+    expect(() => endLive(c, at(21))).toThrow(ChannelEditError);
+    expect(() => rollIn(c, DEBATE)).toThrow(ChannelEditError);
+  });
+});
+
+describe('other media — the library\'s third branch (§3)', () => {
+  const IDENT: ProgrammeSource = {
+    kind: 'media', assetId: 'asset_ident', form: 'video',
+  };
+  const CARD: ProgrammeSource = {
+    kind: 'media', assetId: 'asset_card', form: 'image',
+  };
+
+  it('an ident and a caption card schedule like anything else', () => {
+    const c = newChannel('With Idents', 'UTC', AT);
+    addToRotation(c, { source: IDENT, durationMs: 10_000, title: 'Ident' }, AT);
+    addToRotation(c, { source: FILM, durationMs: 30 * MINUTE, title: 'The film' }, AT);
+    addToRotation(c, { source: CARD, durationMs: 15_000, title: 'Up next' }, AT);
+    expect(c.rotation).toHaveLength(3);
+    expect(referencedAssets(c)).toHaveLength(3);
+  });
+
+  it('and an ident used twenty times is still one file', () => {
+    const c = newChannel('With Idents', 'UTC', AT);
+    for (let turn = 0; turn < 20; turn += 1) {
+      addToRotation(c, { source: IDENT, durationMs: 10_000 }, AT);
+      addToRotation(c, { source: FILM, durationMs: 5 * MINUTE }, AT);
+    }
+    expect(c.rotation).toHaveLength(40);
+    expect(referencedAssets(c)).toHaveLength(2);
   });
 });

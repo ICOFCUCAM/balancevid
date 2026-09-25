@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Channel, Programme, ProgrammeSource } from '../../../src/domain/channel.js';
+import type { OnAir, RotationEntry } from '../../../src/domain/channel.js';
 import {
   nextAfter, onAirAt, orderedProgrammes, programmeEnd, programmeStart,
-  referencedAssets, sourceKey,
+  referencedAssets, rotationLengthMs, rotationOffsets, sourceKey, whatIsOn,
 } from '../../../src/domain/channel.js';
 import StudioBar from '../../StudioBar.js';
 
@@ -36,9 +37,10 @@ const DAY = 24 * HOUR;
 const SLOTS = [5, 15, 30, 60, 90, 120];
 
 interface LibraryItem {
-  source: ProgrammeSource & { kind: 'render' };
+  /** A reference. A render from either studio, or a piece of other media. */
+  source: ProgrammeSource;
   title: string;
-  document: 'conversation' | 'performance';
+  document: 'conversation' | 'performance' | 'other';
   documentId: string;
   planHash: string;
   bytes: number;
@@ -107,6 +109,16 @@ export default function ChannelStudio({
   }, [id, refresh]);
 
   const listing = orderedProgrammes(channel);
+  /*
+   * WHAT IS ACTUALLY ON, by the same function the playout engine uses: live,
+   * then a fixed slot, then the loop. Computed here from the ticking clock
+   * rather than read from the server, so the studio and the wire agree
+   * without a round trip every second. [§4, §5]
+   */
+  const on: OnAir = whatIsOn(channel, now);
+  const onAir = channel.live && !channel.live.endedAt;
+  const turn = rotationLengthMs(channel);
+  const offsets = rotationOffsets(channel);
   const live = onAirAt(channel, now);
   const coming = nextAfter(channel, now);
   const programme = listing.find((entry) => entry.id === chosen) ?? live ?? listing[0];
@@ -119,8 +131,11 @@ export default function ChannelStudio({
       return channel.ingests.find((ingest) => ingest.id === source.ingestId)?.label
         ?? 'a live feed';
     }
-    return library.find((item) => sourceKey(item.source) === sourceKey(source))?.title
-      ?? `${source.document} ${source.documentId.slice(0, 12)}`;
+    const known = library.find(
+      (item) => sourceKey(item.source) === sourceKey(source))?.title;
+    if (known) return known;
+    return source.kind === 'media'
+      ? 'a picture' : `${source.document} ${source.documentId.slice(0, 12)}`;
   }, [channel.ingests, library]);
 
   /* ---- the day the listing is drawn over --------------------------- */
@@ -159,8 +174,8 @@ export default function ChannelStudio({
         <div style={{
           display: 'grid', minHeight: 0, gap: 12,
           gridTemplateColumns: 'minmax(250px, 330px) minmax(0, 1fr) minmax(290px, 360px)',
-          gridTemplateAreas: '"library monitor panel" "schedule schedule schedule" '
-            + '"transport transport transport"',
+          gridTemplateAreas: '"library monitor panel" "loop loop loop" '
+            + '"schedule schedule schedule" "transport transport transport"',
           alignItems: 'start',
         }}>
           {/* ---- what there is to broadcast (§3) ------------------------ */}
@@ -215,7 +230,8 @@ export default function ChannelStudio({
                         background: '#0d1319', border: '1px solid var(--line)',
                         display: 'grid', placeItems: 'center', fontSize: 9,
                         color: 'var(--muted)',
-                      }}>{item.document === 'performance' ? 'S2' : 'S1'}</span>
+                      }}>{item.document === 'performance' ? 'S2'
+                        : item.document === 'other' ? 'LIB' : 'S1'}</span>
                       <span style={{ minWidth: 0, flex: 1 }}>
                         <span style={{
                           fontWeight: 600, fontSize: 13, display: 'block',
@@ -239,15 +255,16 @@ export default function ChannelStudio({
           {/* ---- the monitor (§7) --------------------------------------- */}
           <div
             data-testid="channel-monitor"
-            data-on-air={live ? 'true' : 'false'}
+            data-on-air={on.kind !== 'off' ? 'true' : 'false'}
+            data-mode={on.kind}
             style={{
               gridArea: 'monitor', position: 'relative', aspectRatio: '16 / 9',
               background: '#05070a', borderRadius: 10,
               border: '1px solid var(--line)', overflow: 'hidden',
             }}
           >
-            {live ? (
-              <Monitor channel={channel} programme={live} now={now} />
+            {on.kind !== 'off' ? (
+              <Monitor on={on} channel={channel} />
             ) : (
               <div className="small muted" style={{
                 position: 'absolute', inset: 0, display: 'grid',
@@ -262,12 +279,21 @@ export default function ChannelStudio({
             <div className="row" style={{
               position: 'absolute', left: 10, top: 10, gap: 8,
             }}>
-              <span data-testid="on-air-lamp" style={{
+              {/*
+                * THREE STATES, NOT TWO. Red is the red button — somebody is
+                * live. Blue is the channel running itself, which is the
+                * ordinary condition of a channel with a loop and not
+                * something to call "off". Grey is genuinely nothing, which a
+                * channel with a rotation can never be. [§4, §5]
+                */}
+              <span data-testid="on-air-lamp" data-mode={on.kind} style={{
                 padding: '3px 9px', borderRadius: 4, fontSize: 11, fontWeight: 700,
-                background: live ? '#c0392b' : 'rgba(5,7,10,0.78)',
-                color: live ? '#fff' : 'var(--muted)',
+                background: on.kind === 'live' ? '#c0392b'
+                  : on.kind === 'off' ? 'rgba(5,7,10,0.78)' : 'rgba(45,110,200,0.55)',
+                color: on.kind === 'off' ? 'var(--muted)' : '#fff',
               }}>
-                {live ? 'ON AIR' : 'OFF AIR'}
+                {on.kind === 'live' ? '\u25cf LIVE'
+                  : on.kind === 'off' ? 'OFF AIR' : 'ON AIR'}
               </span>
               <span style={{
                 padding: '3px 8px', borderRadius: 4,
@@ -275,13 +301,16 @@ export default function ChannelStudio({
                 fontFamily: 'ui-monospace, monospace',
               }}>{clock(now)}</span>
             </div>
-            {live && (
+            {on.kind !== 'off' && (
               <span style={{
                 position: 'absolute', left: 10, bottom: 10, padding: '3px 8px',
                 borderRadius: 4, background: 'rgba(5,7,10,0.85)', fontSize: 11,
               }}>
-                {live.title ?? nameOf(live.source)}
-                {' · until '}{clock(programmeEnd(live))}
+                {on.kind === 'live'
+                  ? (on.session.segment ? nameOf(on.session.segment) : 'The live studio')
+                  : (on.kind === 'programme'
+                    ? on.programme.title : on.entry.title) ?? nameOf(on.source)}
+                {on.kind !== 'live' && ` \u00b7 until ${clock(on.untilMs)}`}
               </span>
             )}
           </div>
@@ -311,6 +340,15 @@ export default function ChannelStudio({
                     void patch({
                       action: 'schedule', source: item.source,
                       startsAt, durationMs, title: item.title, ...(loop ? { loop } : {}),
+                    });
+                  }}
+                  onRotate={(durationMs, loop) => {
+                    const item = library.find(
+                      (entry) => sourceKey(entry.source) === picked);
+                    if (!item) return;
+                    void patch({
+                      action: 'rotate', source: item.source,
+                      durationMs, title: item.title, ...(loop ? { loop } : {}),
                     });
                   }}
                 />
@@ -362,44 +400,108 @@ export default function ChannelStudio({
                 </p>
               )}
 
-              {/* ---- the two that make media (§5, §6) -------------------- */}
-              <Section text="Live and recordings" />
-              <div className="row" style={{ gap: 6 }}>
-                {channel.ingests.some((ingest) => !ingest.closedAt) ? (
-                  <button className="small" data-testid="close-ingest"
-                          onClick={() => void patch({
-                            action: 'close-ingest',
-                            ingestId: channel.ingests.find((i) => !i.closedAt)!.id,
-                          })}>
-                    Stop the live feed
+              {/* ---- the red button (§5) --------------------------------- */}
+              <Section text={onAir ? 'On air, live' : 'Go live'} />
+              {onAir ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {/*
+                    * "You can bring up Studio One conversations, Studio Two
+                    * performances, videos, images, graphics, announcements."
+                    * A reference like every other reference: while it is up it
+                    * is what goes out, and the feed is underneath it.
+                    */}
+                  <div className="row" style={{ gap: 6 }}>
+                    <button
+                      className="small" data-testid="roll-in"
+                      disabled={!picked}
+                      title={picked
+                        ? 'Put the picked item on air over the live feed'
+                        : 'Pick something from the library first'}
+                      onClick={() => {
+                        const item = library.find(
+                          (entry) => sourceKey(entry.source) === picked);
+                        if (item) void patch({ action: 'roll-in', source: item.source });
+                      }}
+                      style={{ flex: '1 1 0' }}
+                    >
+                      Roll it in
+                    </button>
+                    <button
+                      className="small" data-testid="roll-out"
+                      disabled={!channel.live?.segment}
+                      onClick={() => void patch({ action: 'roll-in', source: null })}
+                      style={{ flex: '1 1 0' }}
+                    >
+                      Back to the room
+                    </button>
+                  </div>
+                  {channel.live?.roomId ? (
+                    <a className="btn small" data-testid="to-room"
+                       href={`/c/${channel.live.roomId}/room`}
+                       style={{ textAlign: 'center' }}>
+                      Open the room
+                    </a>
+                  ) : (
+                    <p className="small muted" style={{ margin: 0, fontSize: 11 }}>
+                      No room attached — it is a feed with nobody invited.
+                    </p>
+                  )}
+                  <button
+                    className="small" data-testid="end-live"
+                    onClick={() => {
+                      if (!window.confirm(
+                        'End the live broadcast? The schedule resumes where the '
+                        + 'clock says it should be.')) return;
+                      void patch({ action: 'end-live' });
+                    }}
+                    style={{ borderColor: '#c0392b', color: '#e07a6b' }}
+                  >
+                    End live
                   </button>
-                ) : (
-                  <button className="small" data-testid="open-ingest"
-                          title={'A live feed is one of only two things that makes a '
-                            + 'new file here. Everything else points at what exists.'}
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <button
+                    className="primary" data-testid="go-live"
+                    title={'Interrupts whatever is going out. The schedule is not '
+                      + 'touched — it resumes where the clock says when you stop.'}
+                    onClick={() => {
+                      const label = window.prompt(
+                        'What is the live show called?', 'Live');
+                      if (!label) return;
+                      /*
+                       * The room is asked for because it already exists.
+                       * "Bring people into the room" is the Conversation Room
+                       * — invitations, staging, speaker switching — and a
+                       * channel names one rather than growing a second.
+                       */
+                      const roomId = window.prompt(
+                        'Which conversation\u2019s room are the people in? '
+                        + '(blank for a feed with nobody)', '') || undefined;
+                      void patch({ action: 'go-live', label, roomId });
+                    }}
+                    style={{ background: '#c0392b', borderColor: '#c0392b' }}
+                  >
+                    &#9679; GO LIVE
+                  </button>
+                  <button className="small" data-testid="request-recording"
+                          title={'A channel records only what somebody asks it to '
+                            + 'keep. It is the other of the two things that make a '
+                            + 'new file here.'}
                           onClick={() => {
-                            const label = window.prompt('What is the feed?', 'Live');
-                            if (label) void patch({ action: 'open-ingest', label });
+                            const label = window.prompt('What should it be called?');
+                            if (!label) return;
+                            void patch({
+                              action: 'record', label,
+                              fromAt: new Date(now).toISOString(),
+                              toAt: new Date(now + HOUR).toISOString(),
+                              requestedBy: 'owner',
+                            });
                           }}>
-                    Go live
+                    Record the next hour
                   </button>
-                )}
-                <button className="small" data-testid="request-recording"
-                        title={'The other one. A channel records only what somebody '
-                          + 'asks it to keep.'}
-                        onClick={() => {
-                          const label = window.prompt('What should it be called?');
-                          if (!label) return;
-                          void patch({
-                            action: 'record', label,
-                            fromAt: new Date(now).toISOString(),
-                            toAt: new Date(now + HOUR).toISOString(),
-                            requestedBy: 'owner',
-                          });
-                        }}>
-                  Record the next hour
-                </button>
-              </div>
+                </div>
+              )}
 
               {violations.length > 0 && (
                 <p className="small" data-testid="violations"
@@ -426,7 +528,7 @@ export default function ChannelStudio({
                 padding: '8px 10px',
               }}>
                 <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.5 }}>
-                  THE DAY
+                  FIXED TIMES
                 </div>
                 <div className="small muted" style={{ fontSize: 10 }}>
                   {new Date(dayStart).toLocaleDateString('en-GB', {
@@ -436,7 +538,8 @@ export default function ChannelStudio({
                 </div>
                 <div className="small muted" style={{ fontSize: 10, marginTop: 4 }}>
                   {/* The number D-18 is about, where somebody will see it. */}
-                  {listing.length} programmes, {assets} files
+                  {listing.length} fixed, {channel.rotation.length} in the loop,{' '}
+                  {assets} {assets === 1 ? 'file' : 'files'}
                 </div>
               </div>
 
@@ -512,6 +615,95 @@ export default function ChannelStudio({
             </div>
           </div>
 
+          {/* ---- the loop (§4) ------------------------------------------ */}
+          {/*
+            * THE BRIEF'S LISTING, with the column it is written in:
+            *
+            *     00:00  Music Video — Everlasting Love
+            *     04:17  History Discussion
+            *     28:42  Music Video — Performance 2
+            *
+            * Those are offsets into one turn, not times of day, and they are
+            * derived from the durations — which is why moving an entry moves
+            * everything after it and nobody edits a number. [§4]
+            */}
+          <div data-testid="rotation-strip" style={{
+            gridArea: 'loop', border: '1px solid var(--line)', borderRadius: 10,
+            background: 'var(--panel)', overflow: 'hidden',
+          }}>
+            <div style={{ display: 'flex' }}>
+              <div style={{
+                width: 190, flex: '0 0 auto', borderRight: '1px solid var(--line)',
+                padding: '8px 10px',
+              }}>
+                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.5 }}>
+                  THE LOOP
+                </div>
+                <div className="small muted" style={{ fontSize: 10 }}>
+                  {turn > 0
+                    ? `${offsetLabel(turn)} round, then again`
+                    : 'Empty — the channel is off between programmes'}
+                </div>
+              </div>
+              <div className="shell-scroll" style={{
+                flex: 1, minWidth: 0, maxHeight: 156, padding: 6,
+              }}>
+                {channel.rotation.length === 0 ? (
+                  <p className="small muted" style={{ margin: 4, fontSize: 11 }}>
+                    Put something in the loop and the channel is never off air.
+                  </p>
+                ) : channel.rotation.map((entry, index) => {
+                  const playing = on.kind === 'rotation' && on.entry.id === entry.id;
+                  return (
+                    <div
+                      key={entry.id} data-testid="rotation-entry"
+                      data-entry-id={entry.id} data-playing={playing ? 'true' : 'false'}
+                      style={{
+                        display: 'flex', gap: 9, alignItems: 'center',
+                        padding: '3px 6px', borderRadius: 5, fontSize: 11,
+                        background: playing ? 'rgba(45,110,200,0.22)' : 'transparent',
+                      }}
+                    >
+                      <span className="muted" style={{
+                        fontFamily: 'ui-monospace, monospace', flex: '0 0 auto',
+                        width: 52,
+                      }}>{offsetLabel(offsets[index] ?? 0)}</span>
+                      <span style={{
+                        flex: 1, minWidth: 0, overflow: 'hidden',
+                        textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        fontWeight: playing ? 700 : 500,
+                      }}>{entry.title ?? nameOf(entry.source)}</span>
+                      <span className="muted" style={{ flex: '0 0 auto', fontSize: 10 }}>
+                        {offsetLabel(entry.durationMs)}
+                      </span>
+                      <button
+                        className="small" data-testid="rotation-up"
+                        disabled={index === 0}
+                        title="Earlier in the loop"
+                        onClick={() => void patch({
+                          action: 'move-in-rotation', entryId: entry.id,
+                          position: index - 1,
+                        })}
+                        style={{ border: 0, background: 'none', padding: '0 4px' }}
+                      >&#8593;</button>
+                      <button
+                        className="small" data-testid="rotation-out"
+                        title="Take it out of the loop. The video is untouched."
+                        onClick={() => void patch({
+                          action: 'unrotate', entryId: entry.id,
+                        })}
+                        style={{
+                          border: 0, background: 'none', padding: '0 4px',
+                          color: 'var(--bad)',
+                        }}
+                      >&times;</button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
           {/* ---- the transport (§7) ------------------------------------- */}
           <div data-testid="channel-transport" style={{
             gridArea: 'transport', display: 'grid', alignItems: 'center', gap: 12,
@@ -555,8 +747,14 @@ export default function ChannelStudio({
               <span className="small muted" data-testid="asset-count" style={{
                 fontSize: 11,
               }}>
-                {/* The claim, on screen, where it is checked by looking. */}
-                {listing.length} programmes · {assets} {assets === 1 ? 'file' : 'files'}
+                {/*
+                  * THE CLAIM, ON SCREEN. Everything scheduled — the loop and
+                  * the fixed slots together — against the number of files
+                  * behind it. Six turns of two films is the number D-18 is
+                  * about, and it is here rather than in a document.
+                  */}
+                {channel.rotation.length + listing.length} scheduled ·{' '}
+                {assets} {assets === 1 ? 'file' : 'files'}
               </span>
             </div>
           </div>
@@ -567,6 +765,18 @@ export default function ChannelStudio({
 }
 
 /* ------------------------------------------------------------------------ */
+
+/** `04:17` — the brief's column. Hours only once there are any. */
+function offsetLabel(ms: number): string {
+  const total = Math.max(0, Math.round(ms / 1000));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const seconds = total % 60;
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return hours > 0
+    ? `${hours}:${pad(minutes)}:${pad(seconds)}`
+    : `${pad(minutes)}:${pad(seconds)}`;
+}
 
 function Section({ text, aside }: { text: string; aside?: React.ReactNode }) {
   return (
@@ -587,10 +797,11 @@ function Section({ text, aside }: { text: string; aside?: React.ReactNode }) {
  * asking for an ISO instant is a text field somebody gets a zone wrong in.
  */
 function Scheduler({
-  now, onSchedule,
+  now, onSchedule, onRotate,
 }: {
   now: number;
   onSchedule: (startsAt: string, durationMs: number, loop: boolean) => void;
+  onRotate: (durationMs: number, loop: boolean) => void;
 }) {
   const [minutes, setMinutes] = useState(60);
   const [loop, setLoop] = useState(false);
@@ -619,8 +830,20 @@ function Scheduler({
                onChange={(event) => setLoop(event.target.checked)} />
         Play it again until the slot is over
       </label>
+      {/*
+        * TWO WAYS ON, and the loop is the first because it is the one that
+        * keeps the channel online. Adding to the loop asks for no time at
+        * all: the entry's place is the sum of what comes before it, and the
+        * channel plays round and round forever. A fixed time is the second,
+        * for the thing that has to be at nine. [§2, §4]
+        */}
+      <button className="primary small" data-testid="add-to-loop"
+              onClick={() => onRotate(minutes * MINUTE, loop)}
+              style={{ width: '100%' }}>
+        Add to the loop
+      </button>
       <div className="row" style={{ gap: 5 }}>
-        <button className="primary small" data-testid="schedule-next-hour"
+        <button className="small" data-testid="schedule-next-hour"
                 onClick={() => onSchedule(
                   new Date(topOfHour).toISOString(), minutes * MINUTE, loop)}
                 style={{ flex: '1 1 0' }}>
@@ -647,41 +870,58 @@ function Scheduler({
  * is the reference and the video follows — exactly the relationship Studio
  * Two's player has with the song, and for the same reason: a video element's
  * clock is a suggestion.
+ *
+ * It is handed `OnAir` rather than a programme, so it does not have to know
+ * whether what it is showing came from the loop, a fixed slot or the red
+ * button. One function decides that, and this draws whatever it said.
  */
-function Monitor({
-  channel, programme, now,
-}: {
-  channel: Channel; programme: Programme; now: number;
-}) {
-  const source = programme.source;
-  const url = source.kind === 'render'
-    ? `/api/${source.document === 'performance' ? 'performances' : 'conversations'}`
-      + `/${source.documentId}/renders/${source.planHash}/file`
-    : undefined;
+function Monitor({ on, channel }: { on: OnAir; channel: Channel }) {
+  if (on.kind === 'off') return null;
+  const source = on.source;
 
-  /** Where in the media this instant is, by the same arithmetic the engine uses. */
-  const intoSlot = now - programmeStart(programme);
-  const from = (programme.fromMs ?? 0) / 1000;
+  if (source.kind === 'live') {
+    const ingest = channel.ingests.find((entry) => entry.id === source.ingestId);
+    return (
+      <div className="small muted" style={{
+        position: 'absolute', inset: 0, display: 'grid', placeItems: 'center',
+        textAlign: 'center', padding: 20,
+      }}>
+        {ingest?.label ?? 'The live studio'}
+        <br />
+        {/* Honest: the feed's encoder writes to the channel's asset, and a
+            monitor of a feed that has not started is a monitor of nothing. */}
+        <span style={{ fontSize: 11 }}>
+          {on.kind === 'live' && on.session.roomId
+            ? 'Coming out of the room' : 'Waiting for the feed'}
+        </span>
+      </div>
+    );
+  }
 
-  return url ? (
+  const url = source.kind === 'media'
+    ? `/api/library/${source.assetId}`
+    : `/api/${source.document === 'performance' ? 'performances' : 'conversations'}`
+      + `/${source.documentId}/renders/${source.planHash}/file`;
+
+  if (source.kind === 'media' && source.form === 'image') {
+    return (
+      <img alt="" src={url} data-testid="monitor-still"
+           style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+    );
+  }
+
+  return (
     <video
       data-testid="monitor-video" src={url} autoPlay muted playsInline
       ref={(element) => {
         if (!element) return;
-        const want = from + (intoSlot / 1000);
+        const want = on.fromMs / 1000;
         if (Number.isFinite(element.duration) && element.duration > 0) {
-          const target = programme.loop ? want % element.duration : want;
+          const target = want % element.duration;
           if (Math.abs(element.currentTime - target) > 1) element.currentTime = target;
         }
       }}
       style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
     />
-  ) : (
-    <div className="small muted" style={{
-      position: 'absolute', inset: 0, display: 'grid', placeItems: 'center',
-    }}>
-      {channel.ingests.find((ingest) => ingest.id === (source as { ingestId: string })
-        .ingestId)?.label ?? 'A live feed'} — arriving
-    </div>
   );
 }

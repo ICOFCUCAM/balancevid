@@ -52,7 +52,13 @@ A scheduled programme names:
 - which document,
 - which render of it, by plan hash.
 
-Or it names a live ingest.
+Or it names a live ingest. Or it names **other media** — the third branch of
+the brief's library diagram: an ident, a caption card, a photograph, an
+announcement slide. Real channels are half made of these, and a schedule that
+could not hold one would send somebody back to a video editor to make a
+ten-second title. It lives in `var/library/`, beside the two studios' work
+rather than inside whichever channel used it first, because the second channel
+that wants the same ident must reference it too.
 
 That is the whole of it. There is no field for a path, a copy, or a staged
 file, and there is no operation that creates one. Scheduling one film into
@@ -66,7 +72,47 @@ performance its author spent a week on.
 looking at a screen — not in the domain, which does not read files, and not in
 the playout engine, which is too late because by then it is nine o'clock.
 
-## §4 — Filler, and the holes it covers
+## §4 — The rotation, which is why the channel is always online
+
+> *When the schedule reaches the end: it continues from the beginning. So your
+> channel is always online.*
+
+    00:00  Music Video — Everlasting Love
+    04:17  History Discussion
+    28:42  Music Video — Performance 2
+    33:10  Documentary Response
+    ...
+
+**Those are not times of day.** They are where each item falls in a sequence
+that plays back to back and then starts again — so a rotation entry carries a
+DURATION and no start at all. Its start is the sum of what comes before it,
+derived on every read. Moving an entry to the top moves everything after it,
+and nobody edits a clock.
+
+**The wrap is a modulus**, `(now − anchor) % turn`, and expressing it that way
+is what makes the channel correct after a restart: there is no cursor to lose,
+so a process that comes back up computes the same answer the old one would
+have. A cursor would be a second clock, and a second clock is a thing that
+stops.
+
+**A rotation cannot have a gap**, because there is nothing between the end of
+one entry and the start of the next. That is the brief's promise, and it is
+stated in code as the function that would have to return something for it to
+be untrue: `deadAir` returns nothing at all for a channel with a rotation.
+
+**Three layers, in this order:**
+
+| | beats | because |
+|---|---|---|
+| **live** | everything | the one thing a red button is for is interrupting what was going out |
+| **programme** | the rotation | the nine o'clock news is at nine |
+| **rotation** | — | it is always there |
+
+One function decides it — `whatIsOn` — because "what is on air" asked in three
+places is three places that can disagree, and the one that matters is the
+playout engine, which is the only one nobody is watching.
+
+## §5 — Filler, and the holes it covers
 
 Dead air is the one thing a channel must never broadcast by accident, and a
 schedule with a hole in it looks exactly like a schedule without one until the
@@ -81,7 +127,41 @@ moment it goes out. So:
   so rather than papering over it. Unless it is set to loop, which is what a
   ten-minute film in a thirty-minute slot is for.
 
-## §5 — Live ingest
+## §6 — Going live
+
+> *You press GO LIVE. The scheduled programming stops or pauses. You appear in
+> the live studio... Then End Live, and the scheduled channel automatically
+> resumes.*
+
+**It pre-empts; it does not edit.** The schedule goes on being the schedule and
+`whatIsOn` simply stops consulting it while the red light is on. A broadcast
+that rewrote its listings to go live would be a broadcast whose listings were
+wrong afterwards.
+
+**"You can bring people into the room" is the room that already exists.** The
+Conversation Room — invitation by link, participants in the room and on the
+stage, automatic speaker switching with hysteresis (ROOM, D-17) — is named by
+the live session rather than rebuilt. A second room would be a second place
+invitations, staging and speaker detection could disagree.
+
+**Rolling something in is a reference like every other reference.** A Studio
+One conversation, a Studio Two performance, an ident, a caption card: while it
+is up it is what goes out and the feed is underneath it. Taking it down
+returns to the room with nothing re-cued, because nothing was ever cued — the
+feed never stopped, the channel just stopped looking at it.
+
+**It resumes where the clock says, not where it paused.** An hour of live
+television means the rotation has moved an hour on, exactly as it does on any
+broadcast channel, where the nine o'clock film starts at nine whether or not
+the news overran. Resuming where it paused would make the channel drift
+further from its own listings after every live show — and the listing is what
+viewers were told.
+
+**And the feed becomes an ordinary asset.** What went out live can be
+scheduled afterwards like anything else: a repeat of last night's live show is
+a reference, not a copy.
+
+## §7 — Live ingest
 
 The first of exactly two things that make media here, because it is the one
 kind of programme that did not exist until it was broadcast.
@@ -99,13 +179,13 @@ camera is a second channel, or it is a mix made upstream.
 **Its length is measured, not subtracted.** A feed that dropped for ninety
 seconds was open for an hour and is fifty-eight and a half minutes long.
 
-## §6 — Recordings somebody asked for
+## §8 — Recordings somebody asked for
 
 The second and last thing that makes media. A recording names **who asked**,
 because a channel that quietly kept everything would break the duplication
 rule from the other end and nobody would be able to say who decided that.
 
-## §7 — The playout engine
+## §9 — The playout engine
 
 > *The playout engine continuously reads scheduled assets and produces the
 > broadcast stream.*
@@ -137,7 +217,7 @@ stream and stops. Black and silence — which is also the honest picture.
 
 **And the engine is a process, not a job.** See D-18.
 
-## §8 — What is published
+## §10 — What is published
 
 A channel publishes its **stream**, not its schedule and not its media. The
 programmes it references belong to the documents that made them, and their own
@@ -218,3 +298,55 @@ confidence check — and prints the transmission's URL beside it.
 navigation bar is a place for the tabs to go out of date; three would have
 guaranteed it, and the first symptom would be one studio knowing about another
 that the others do not.
+
+## C-2 — Stage 2: the loop, the red button, and the third branch
+
+**Measured against the brief, three gaps and no rewrites.** The storage rule,
+the reference model, INV-17, the engine and the wire were already what the
+brief describes and are untouched. What was missing was the part the brief
+liked most.
+
+**The schedule I built was a grid; the brief describes a rotation.** Fixed
+wall-clock slots with gaps and filler is how broadcast scheduling is usually
+modelled, and it is the wrong default for "so your channel is always online" —
+a grid's natural state is a hole. The rotation is now the base layer and the
+grid is an overlay on top of it: `live` beats `programme` beats `rotation`.
+That is how real playout works, it makes dead air structurally impossible, and
+it made `filler` almost redundant on the day it arrived.
+
+**The offsets are derived, and that is the feature.** `00:00 / 04:17 / 28:42`
+is a column somebody would otherwise have to keep in agreement by hand. Moving
+an entry to the top moves everything after it and nobody edits a number.
+
+**The modulus is what survives a restart.** A cursor that ticks is a second
+clock, and a second clock stops when a process does. `(now − anchor) % turn`
+means a playout engine that comes back up computes the same answer the one
+that died would have — which is also why the anchor is set once, when the
+first entry goes in, and never moved: moving it would jump every viewer to a
+different programme.
+
+**And `%` keeps the sign of the dividend.** An instant before the rotation was
+created landed on a negative offset and index −1. A channel is a loop with no
+beginning as far as a viewer is concerned, so the modulus is made positive and
+the rotation is treated as having always been running.
+
+**Going live is pre-emption, not an edit**, and that distinction is the whole
+design. The first sketch cleared the schedule; the second paused it. Both are
+wrong for the same reason: the listing is what viewers were told, and a live
+show must not change it. `whatIsOn` stops consulting it, and afterwards the
+rotation is where the clock says — an hour of live television means the loop
+has moved an hour on, exactly as it does on any channel where the nine o'clock
+film starts at nine whether or not the news overran.
+
+**"Bring people into the room" was already built.** The Conversation Room has
+invitations, staging, speaker detection and a WebRTC mesh. A live session
+names one. Building a second room would have meant a second place invitations
+and staging could disagree, and the failure would have surfaced live.
+
+**A still needed its own branch in the encoder.** A caption card has no clock,
+so seeking a JPEG four seconds in produces nothing at all — which on air is
+black where a station ident should be. `-loop 1` holds the frame for the slot
+with silence underneath. The probe cache needed the same exception, or an
+image cached as "unmeasurable" and went out as black.
+
+---

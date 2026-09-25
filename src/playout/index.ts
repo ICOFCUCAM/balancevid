@@ -111,6 +111,12 @@ export async function advance(channel: Channel, nowMs = Date.now()): Promise<num
    * the critical path of a segment that has four seconds to be ready.
    */
   for (const source of referencedAssets(channel)) {
+    /*
+     * A still has no duration to measure and probing one would cache an
+     * `undefined` that then reads as "unplayable" and puts black on air where
+     * a caption card should be. Its slot says how long it is held. [§3]
+     */
+    if (source.kind === 'media' && source.form === 'image') continue;
     const path = pathFor(channel, source);
     if (path) await factsFor(path);
   }

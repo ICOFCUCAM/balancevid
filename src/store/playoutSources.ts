@@ -43,6 +43,17 @@ export function pathFor(
       : paths.renders(source.documentId);
     return join(dir, safe(source.planHash), 'master.mp4');
   }
+  if (source.kind === 'media') {
+    /*
+     * OTHER MEDIA lives in the library, not in the channel. A station ident
+     * uploaded once is one file that every channel may schedule, so it sits
+     * beside the two studios' work rather than inside whichever channel
+     * happened to use it first — which is the same rule as everything else
+     * here, applied to the one kind of asset that has no studio. [§3, D-18]
+     */
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(source.assetId)) return undefined;
+    return paths.libraryMedia(source.assetId, source.form === 'image' ? 'jpg' : 'mp4');
+  }
   const ingest = ingestById(channel, source.ingestId);
   if (!ingest) return undefined;
   /*
