@@ -409,6 +409,23 @@ log('checking the composition rails…');
   const clips = page.locator('[data-testid="clip-card"]');
   const count = await clips.count();
   check(count > 0, 'every response is a card in the clip rail', `${count} clips`);
+
+  /*
+   * People and responses are two lists, not one.  [D-17, ROOM §4]
+   *
+   * A solo conversation shows no PEOPLE heading — a list of the author's own
+   * name is noise — but it does show the invitation, because that is how a
+   * conversation stops having one voice in it. And no card is stamped with a
+   * name it would be repeating eleven times.
+   */
+  check(await page.locator('[data-testid="people-rail"]').count() === 1,
+    'the rail offers to bring somebody else in (D-17)');
+  check(await page.locator('[data-testid="rail-invite"]').count() === 1,
+    'with one link to the room, rather than an invite flow of its own');
+  check(await page.locator('[data-testid="rail-person"]').count() === 0,
+    'and names nobody while the author is alone in it');
+  check(await page.locator('[data-testid="clip-speaker"]').count() === 0,
+    'nor stamps a name on every one of their own responses (U-20)');
   check(await page.locator('[data-testid="clip-poster"]').count() > 0,
     'showing the author\'s own face rather than a row of text');
 

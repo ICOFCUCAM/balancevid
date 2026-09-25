@@ -17,6 +17,7 @@ import SignOut from '../../SignOut.js';
 import SearchPanel from './SearchPanel.js';
 import Stage, { StageStatus, type Stance } from './Stage.js';
 import ClipRail, { type ClipRailItem } from './ClipRail.js';
+import PeopleRail, { type RailPerson } from './PeopleRail.js';
 import CompositionRail, { type ExplainTool } from './CompositionRail.js';
 import ExplainSurface from './ExplainSurface.js';
 import CompositionStage from './CompositionStage.js';
@@ -742,6 +743,42 @@ export default function Studio({ conversationId }: { conversationId: string }) {
     if (!held || job.createdAt > held.createdAt) assemblyJobs.set(forId, job);
   }
 
+  /*
+   * Who is in this conversation, and who said what.  [D-17, ROOM §4]
+   *
+   * Derived here, beside the clips, from the same document — the author is a
+   * participant like anyone else, and where the document stores nothing the
+   * resolver supplies them. Names appear on the cards only when there is more
+   * than one voice, which is the same test the lower third and the captions
+   * use, so the rail and the finished video cannot disagree.
+   */
+  const participants: any[] = (conversation as any)?.participants ?? [];
+  const authorName = (conversation as any)?.publication?.author ?? 'You';
+  const whoOf = (iv: any) =>
+    participants.find((p: any) => p.id === iv.participantId)
+    ?? { id: 'author', displayName: authorName, accent: '#a35a34', role: 'host' };
+  const voices = new Map<string, RailPerson>();
+  for (const iv of interventions) {
+    const who = whoOf(iv);
+    const existing = voices.get(who.id);
+    if (existing) existing.responses += 1;
+    else voices.set(who.id, {
+      id: who.id, displayName: who.displayName, accent: who.accent,
+      role: who.role, responses: 1,
+      ...(who.presence ? { presence: who.presence } : {}),
+    });
+  }
+  // The author leads the list even before they have answered: it is theirs.
+  if (!voices.has('author') && !participants.some((p: any) => p.role === 'host')) {
+    voices.set('author', {
+      id: 'author', displayName: authorName, accent: '#a35a34',
+      role: 'host', responses: 0,
+    });
+  }
+  const people = [...voices.values()].sort((a, b) =>
+    a.role === 'host' ? -1 : b.role === 'host' ? 1 : 0);
+  const severalVoices = people.length > 1;
+
   const clips: ClipRailItem[] = [...interventions]
     .sort((a: any, b: any) => a.anchor.tSourceFrame - b.anchor.tSourceFrame)
     .map((iv: any, index: number) => {
@@ -761,6 +798,7 @@ export default function Studio({ conversationId }: { conversationId: string }) {
         durationFrames: take?.durationFrames ?? 0,
         label: presentation?.lowerThird ?? iv.type,
         accent: presentation?.accent ?? '#8A8F98',
+        ...(severalVoices ? { speakerName: whoOf(iv).displayName } : {}),
         ...(ready
           ? { posterUrl: `/api/conversations/${conversationId}/takes/${take.id}/media?kind=poster` }
           : {}),
@@ -912,6 +950,14 @@ export default function Studio({ conversationId }: { conversationId: string }) {
         ...(mode === 'live' ? {} : { padding: '14px 20px' }),
       }}>
         {mode === 'studio' && (
+          <div className="shell-scroll" style={{ paddingRight: 4 }}>
+            {/* People, then what was said: two lists, because a person and a
+                response are two things. [D-17] */}
+            <PeopleRail
+              people={people}
+              roomHref={`/c/${conversationId}/room`}
+              canInvite={Boolean(conversation)}
+            />
           <ClipRail
             items={clips}
             selectedId={selectedResponse}
@@ -924,6 +970,7 @@ export default function Studio({ conversationId }: { conversationId: string }) {
             onRetry={(jobId) => { void call(`/api/jobs/${jobId}`, { method: 'POST' }); }}
             canAdd={phase === 'armed'}
           />
+          </div>
         )}
         <div className={mode === 'live' ? undefined : 'shell-scroll'}
              style={mode === 'live'

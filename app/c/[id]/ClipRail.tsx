@@ -29,6 +29,14 @@ export interface ClipRailItem {
   /** The lower-third label — the kind of move this response is. [U-11] */
   label: string;
   accent: string;
+  /**
+   * Whose response this is, where naming them tells the author something.
+   *
+   * Absent in a conversation with one voice — a rail of the author's own name
+   * eleven times is noise, and the same test decides it here as decides the
+   * lower third, so the rail and the finished video agree. [D-17, U-20]
+   */
+  speakerName?: string;
   posterUrl?: string;
   /** The source sentence this answers, when one is bound. */
   quote?: string;
@@ -63,8 +71,12 @@ export default function ClipRail({
   return (
     <aside
       data-testid="clip-rail"
-      className="shell-scroll"
-      style={{ paddingRight: 4 }}
+      /*
+       * NOT a scroll container any more. The left column now holds people and
+       * then responses, and it scrolls as one — two nested scrollers in one
+       * column give a list you can scroll to the bottom of while the thing
+       * above it stays put and the scrollbar you grabbed was the wrong one.
+       */
       aria-label="Your responses"
     >
       <div className="small muted" style={{
@@ -122,6 +134,19 @@ export default function ClipRail({
               }}>
                 {item.label}
               </span>
+              {/* And whose it is, where the conversation has more than one
+                  voice. Opposite corner from the move, so the two read as
+                  two facts rather than one long label. [D-17] */}
+              {item.speakerName && (
+                <span data-testid="clip-speaker" style={{
+                  position: 'absolute', right: 0, bottom: 0,
+                  padding: '2px 6px', fontSize: 9, letterSpacing: 0.4,
+                  background: 'rgba(14,15,17,0.82)', color: '#e8eaed',
+                  borderTopLeftRadius: 4,
+                }}>
+                  {item.speakerName}
+                </span>
+              )}
               {/* A statement is bound to this one. Not a badge that judges the
                   source — a mark that says this answer has a subject. */}
               {item.quote && (

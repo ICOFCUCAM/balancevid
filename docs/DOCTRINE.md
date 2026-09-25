@@ -3273,6 +3273,7 @@ quietly left in the code.
   same object as one with a single voice *(ROOM §4, §9, U-20)*
 - Capabilities per participant — respond, edit own, edit conversation, invite,
   publish — granted, never assumed *(ROOM §3, D-03)*
+- People and responses as two lists in the Studio rail *(ROOM §4, D-17)*
 
 ---
 
@@ -3371,6 +3372,15 @@ marks is exactly as strong and exactly as wrong. They are set as the body, the
 way the article already prints them. **A quotation mark is a claim about
 provenance, not a typographic choice, and the test that a representation is
 honest is whether it is still honest with the conversation removed.**
+
+**A person and a response are two things, so they are two lists.** The
+Studio rail was "what I said". With more than one voice in the conversation
+the temptation is to make it "who said what" — one list — and it is wrong in
+both directions: Sarah is one participant and three of the eleven responses,
+so a merged rail shows her once or three times and neither is the truth. The
+people sit above the clips rather than instead of them, and the column scrolls
+as one. **When two things have different cardinalities they are two lists,
+however much the drawing looks like one.**
 
 **The default that means "me" leaves me as the one voice with no name.**
 `Intervention.participantId` absent meant the author, which is right and was
