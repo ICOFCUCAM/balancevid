@@ -118,14 +118,14 @@ export default function MasterRender({ performance }: { performance: Performance
   const blocked = timeline.spans.length === 0 || timeline.gaps.length > 0;
 
   return (
-    <section style={{ marginTop: 20 }} data-testid="master-render">
-      <h2 style={{ fontSize: 15, marginBottom: 2 }}>Make the video</h2>
-      <p className="small muted" style={{ marginTop: 0, maxWidth: 640 }}>
-        Your takes stay separate files until you press this. Everything you have
-        decided — which performance is on screen when, in what arrangement — is
-        played out into one video here, and you can press it again after
-        changing your mind without losing anything.
-      </p>
+    <section style={{ marginTop: 18 }} data-testid="master-render">
+      {/* What this does is said on the button that does it. A paragraph over
+          a control is a lecture before a question. */}
+      <h2 style={{ fontSize: 14, margin: '0 0 7px' }}
+          title={'Your takes stay separate files until you press this. You can '
+            + 'press it again after changing your mind without losing anything.'}>
+        Make the video
+      </h2>
 
       <div className="row" style={{ gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
         {SHAPES.map((profileId) => (

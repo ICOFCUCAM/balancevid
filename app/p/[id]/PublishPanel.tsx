@@ -103,13 +103,13 @@ export default function PublishPanel({
   };
 
   return (
-    <section style={{ marginTop: 20 }} data-testid="publish">
-      <h2 style={{ fontSize: 15, marginBottom: 2 }}>Share it</h2>
-      <p className="small muted" style={{ marginTop: 0, maxWidth: 640 }}>
-        A clip is the same video with a window on it — the same arrangement,
-        the same backgrounds, the same sound — cut vertical for the places
-        people watch one.
-      </p>
+    <section style={{ marginTop: 18 }} data-testid="publish">
+      <h2 style={{ fontSize: 14, margin: '0 0 7px' }}
+          title={'A clip is the same video with a window on it \u2014 the same '
+            + 'arrangement, the same backgrounds, the same sound \u2014 cut '
+            + 'vertical for the places people watch one.'}>
+        Share it
+      </h2>
 
       {candidates.length === 0 ? (
         <p className="small muted" data-testid="no-clips">

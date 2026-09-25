@@ -60,6 +60,18 @@ const FOOTAGE_RIGHTS: Record<MasterClass, string> = {
 };
 
 /**
+ * The effects, in the words that fit a tile.  [benchmark]
+ *
+ * Same reason the arrangements are shortened: five tiles across a 320-pixel
+ * panel is sixty pixels each, and "Monochrome" set in that is two lines of
+ * seven-point type or a word with its end cut off. The look keeps its real
+ * name, which is what the hint and the document use.
+ */
+const EFFECT_TILES: Record<string, string> = {
+  monochrome: 'Mono',
+};
+
+/**
  * The arrangements, in the words a vision mixer uses.  [§5, §6]
  *
  * Short on purpose: a square tile is as wide as it is tall, and "One large,
@@ -71,17 +83,107 @@ const FOOTAGE_RIGHTS: Record<MasterClass, string> = {
 const ARRANGEMENT_TILES: Record<string, string> = {
   performance_full: 'Full',
   performance_half: 'Half',
+  performance_thirds: 'Thirds',
   performance_quad: 'Quad',
+  performance_six: 'Six',
   performance_pip: 'PiP',
   performance_focus: 'Focus',
+  performance_lead: 'Lead',
   performance_beside_master: 'Master',
 };
 
 /** The arrangements an author can reach with a key, in the order they appear. */
+/**
+ * EIGHT, which is four across and two down.
+ *
+ * `performance_half_stacked` is not among them and that is deliberate: it is
+ * what Half BECOMES in a tall frame, not a separate thing to choose (U-22).
+ * Offering both would put a decision in front of the author that the reframe
+ * already makes correctly — and would make the ninth tile.
+ *
+ * `performance_beside_master` is a ninth only when the master brought a
+ * picture to stand beside, which is the one case where there is something
+ * else on screen to arrange. [§3, §5]
+ */
 const ARRANGEMENTS = [
-  'performance_full', 'performance_half', 'performance_quad',
-  'performance_pip', 'performance_focus', 'performance_beside_master',
+  'performance_full', 'performance_half', 'performance_thirds',
+  'performance_quad', 'performance_six', 'performance_pip',
+  'performance_focus', 'performance_lead',
+  'performance_beside_master',
 ] as const;
+
+/**
+ * A tile's diagram.  [benchmark]
+ *
+ * The benchmark's composition tiles show the ARRANGEMENT rather than naming
+ * it, which is the right way round: "One large, two small" is a sentence you
+ * have to parse and a picture of one large and two small is not. Drawn from
+ * the layout's own rects, so a layout whose panels move takes its diagram
+ * with it and a diagram can never disagree with what it renders.
+ */
+function LayoutGlyph({ layoutId }: { layoutId: string }) {
+  const layout = LAYOUTS[layoutId];
+  const panels = (layout?.layers ?? []).filter(
+    (layer) => layer.source === 'take' || layer.source === 'master');
+  return (
+    <svg width="26" height="17" viewBox="0 0 26 17" aria-hidden="true">
+      <rect x="0.5" y="0.5" width="25" height="16" rx="2"
+            fill="none" stroke="currentColor" strokeOpacity="0.45" />
+      {panels.map((panel, index) => (
+        <rect
+          key={index}
+          x={1 + panel.rect.x * 24} y={1 + panel.rect.y * 15}
+          width={Math.max(2, panel.rect.w * 24 - 1)}
+          height={Math.max(2, panel.rect.h * 15 - 1)}
+          rx="1" fill="currentColor"
+          fillOpacity={panel.source === 'master' ? 0.35 : 0.9}
+        />
+      ))}
+    </svg>
+  );
+}
+
+/** The effects' glyphs: a mark each, in the benchmark's order. */
+function EffectGlyph({ id }: { id: string }) {
+  const common = {
+    width: 16, height: 16, viewBox: '0 0 16 16', fill: 'none',
+    stroke: 'currentColor', strokeWidth: 1.4, strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const, 'aria-hidden': true,
+  };
+  if (id === 'none') {
+    return <svg {...common}><circle cx="8" cy="8" r="6" /><path d="M4 12 12 4" /></svg>;
+  }
+  if (id === 'lighting') {
+    return (
+      <svg {...common}>
+        <circle cx="8" cy="8" r="3" />
+        <path d="M8 1v1.6M8 13.4V15M1 8h1.6M13.4 8H15M3 3l1.1 1.1M11.9 11.9 13 13M13 3l-1.1 1.1M4.1 11.9 3 13" />
+      </svg>
+    );
+  }
+  if (id === 'colour') {
+    return (
+      <svg {...common}>
+        <circle cx="8" cy="8" r="6" />
+        <path d="M8 2a6 6 0 0 1 0 12z" fill="currentColor" stroke="none" />
+      </svg>
+    );
+  }
+  if (id === 'spotlight') {
+    return (
+      <svg {...common}><circle cx="8" cy="8" r="6" /><circle cx="8" cy="8" r="2.2"
+        fill="currentColor" stroke="none" /></svg>
+    );
+  }
+  /* monochrome: a square half filled, which is what it does. */
+  return (
+    <svg {...common}>
+      <rect x="2" y="2" width="12" height="12" rx="2" />
+      <path d="M8 2v12" /><path d="M8 2h4a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H8z"
+        fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
 
 /**
  * Where one monitor goes in a wall of them.  [§6, §7]
@@ -138,7 +240,6 @@ export default function SwitchingStage({
   const [arrangement, setArrangement] = useState<string>('performance_full');
   const [pending, setPending] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [live, setLive] = useState(false);
   /** Snapping is OFF until the author turns it on, which is the acceptance. */
   const [snap, setSnap] = useState(false);
   const [snapped, setSnapped] = useState<number | null>(null);
@@ -243,11 +344,27 @@ export default function SwitchingStage({
     }
   }, [arrangement, pending, player, slots, usable, write]);
 
+  /*
+   * THE KEYS ARE ALWAYS LIVE.  [benchmark, §7]
+   *
+   * There used to be a button that armed them, which is a mode — and a mode
+   * is a thing you have to remember you are in. The benchmark has no such
+   * button: the numbers are on the transport in the takes' colours and
+   * pressing one cuts to that take, always, which is how every vision mixer
+   * that has ever existed behaves.
+   *
+   * What the mode was really protecting was typing: a "3" meant for a take's
+   * name must not cut to take three. That is a question about where the
+   * keystroke went, not about a mode, so it is answered by asking. Modifier
+   * combinations are left alone for the same reason — Cmd-1 belongs to the
+   * browser.
+   */
   useEffect(() => {
-    if (!live) return;
     const onKey = (event: KeyboardEvent) => {
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
       const target = event.target as HTMLElement | null;
-      if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
+      if (target && (/^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)
+        || target.isContentEditable)) return;
       if (event.key >= '1' && event.key <= '9') {
         event.preventDefault();
         choose(Number(event.key) - 1);
@@ -261,7 +378,7 @@ export default function SwitchingStage({
     // Capture, so the page's other keys never swallow a switch mid-song.
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, [choose, live, player]);
+  }, [choose, player]);
 
   const duration = performance.master.durationSamples;
   /*
@@ -317,37 +434,55 @@ export default function SwitchingStage({
   const [allSpaces, setAllSpaces] = useState(false);
   const subject = usable.find((t) => t.id === chosen) ?? usable[0];
 
+  /**
+   * One tile in one of the three pickers.  [benchmark, §4, §5, §6]
+   *
+   * A FIXED HEIGHT PER GROUP, not a square and not whatever the label needed.
+   * The benchmark's three groups are different heights on purpose — a
+   * composition tile carries a diagram, an environment tile carries a picture
+   * of the place, an effect tile carries a small glyph — and forcing them all
+   * to one aspect made the effects as tall as the environments and pushed the
+   * transport off the bottom of the screen.
+   */
   const tile = (
     key: string, label: string, isChosen: boolean, onPick: () => void,
-    testid: string, disabled?: boolean, swatch?: string, fullLabel?: string,
+    testid: string, opts: {
+      disabled?: boolean; swatch?: string; glyph?: React.ReactNode;
+      height: number; title?: string;
+      /** Set in a FLEX row, where a tile has to say how wide it is. */
+      basis?: string;
+    },
   ) => (
     <button
       key={key} type="button" data-testid={testid} data-option={key}
-      data-chosen={isChosen ? 'true' : 'false'} disabled={disabled}
-      onClick={onPick} title={fullLabel ?? label}
+      data-chosen={isChosen ? 'true' : 'false'} disabled={opts.disabled}
+      onClick={onPick} title={opts.title ?? label}
       style={{
-        /*
-         * SQUARE. The three pickers are one kind of control — pick one of
-         * these — and a grid of squares says so at a glance; rectangles of
-         * whatever height their label happened to need said the three groups
-         * were three different things. The aspect ratio does the work, so a
-         * one-word tile and a three-word tile are the same tile.
-         */
-        aspectRatio: '1 / 1',
+        height: opts.height,
         display: 'flex', flexDirection: 'column', alignItems: 'center',
-        justifyContent: 'center', gap: 4, padding: '6px 4px',
-        borderRadius: 7, cursor: disabled ? 'not-allowed' : 'pointer',
+        justifyContent: opts.swatch ? 'flex-start' : 'center',
+        gap: 4, padding: opts.swatch ? 4 : '4px 3px',
+        borderRadius: 8, cursor: opts.disabled ? 'not-allowed' : 'pointer',
         border: `1px solid ${isChosen ? '#3d7fd6' : 'var(--line)'}`,
         background: isChosen ? 'rgba(45,110,200,0.22)' : 'var(--panel-2)',
-        color: 'inherit', font: 'inherit', fontSize: 11, lineHeight: 1.25,
-        opacity: disabled ? 0.4 : 1, textAlign: 'center', width: '100%',
+        color: 'inherit', font: 'inherit', fontSize: 10, lineHeight: 1.2,
+        opacity: opts.disabled ? 0.4 : 1, textAlign: 'center',
+        ...(opts.basis ? { flex: `0 0 ${opts.basis}`, minWidth: 0 }
+          : { width: '100%' }),
+        overflow: 'hidden',
       }}
     >
-      {swatch && (
+      {opts.swatch && (
         <span aria-hidden="true" style={{
-          width: '100%', flex: '1 1 auto', minHeight: 0, borderRadius: 4,
-          background: swatch,
+          width: '100%', flex: '1 1 auto', minHeight: 0, borderRadius: 5,
+          background: opts.swatch,
         }} />
+      )}
+      {opts.glyph && (
+        <span aria-hidden="true" style={{
+          flex: '0 0 auto', display: 'grid', placeItems: 'center',
+          color: isChosen ? '#7fb2ee' : 'var(--muted)',
+        }}>{opts.glyph}</span>
       )}
       <span style={{ flex: '0 0 auto' }}>{label}</span>
     </button>
@@ -599,65 +734,33 @@ export default function SwitchingStage({
                  border: '1px solid var(--line)', borderRadius: 10,
                  padding: '4px 12px 8px', background: 'var(--panel)',
                }}>
-          {/*
-            * WHAT IS CHOSEN, AND WHAT CAN BE DONE TO IT.  [§2, U-06]
-            *
-            * The rail became rows, which is what let five takes fit — and
-            * renaming and deleting went with the cards. They belong here
-            * rather than back on the row: the panel is already the place that
-            * edits whichever take is chosen, and a delete button on every row
-            * of a list is the one you press by accident.
-            *
-            * The name is committed on blur and on Enter, not on every
-            * keystroke: a PATCH per letter is a document written fifteen
-            * times to record one rename.
-            */}
-          {subject && (
-            <>
-              {sectionTitle('Take', (
-                <button type="button" className="small" data-testid="remove-take"
-                        title={`Remove ${subject.label} from this performance`}
-                        onClick={() => {
-                          if (!window.confirm(
-                            `Remove "${subject.label}"? Its scenes go with it.`)) return;
-                          void patch({ action: 'remove-take', takeId: subject.id });
-                        }}
-                        style={{
-                          border: 0, background: 'none', padding: 0,
-                          cursor: 'pointer', color: 'var(--bad)', fontSize: 11,
-                        }}>
-                  Remove
-                </button>
-              ))}
-              <input
-                data-testid="take-name" defaultValue={subject.label} key={subject.id}
-                aria-label="What this take is called"
-                onBlur={(event) => {
-                  const next = event.target.value.trim();
-                  if (next && next !== subject.label) {
-                    void patch({ action: 'rename-take', takeId: subject.id, label: next });
-                  }
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') event.currentTarget.blur();
-                }}
-                style={{ width: '100%', fontSize: 12, padding: '5px 8px' }}
-              />
-            </>
-          )}
-
           {sectionTitle('Composition')}
-          {/* Five across: one row when the master has no picture to show, two
-              when it has. Squares, like the other two groups, because they
-              are all the same kind of control. */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 5 }}>
+          {/* Four across, as the benchmark draws it. A fifth arrangement
+              wraps rather than squeezing the row — the column count is the
+              shape of the group, not a budget for how many there may be. */}
+          {/*
+            * Flex rather than grid, so a fifth arrangement makes a CENTRED
+            * second row instead of one tile pinned to the left with three
+            * empty cells beside it. Four per row either way — the basis is a
+            * quarter of the width less its share of the gaps.
+            */}
+          <div style={{
+            display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center',
+          }}>
             {ARRANGEMENTS
               .filter((a) => a !== 'performance_beside_master'
                 || Boolean(performance.master.videoAssetId))
               .map((a) => tile(
                 a, ARRANGEMENT_TILES[a] ?? LAYOUTS[a]!.label, arrangement === a,
                 () => { setArrangement(a); setPending([]); },
-                'arrangement', false, undefined, LAYOUTS[a]!.label))}
+                'arrangement',
+                {
+                  height: 62, glyph: <LayoutGlyph layoutId={a} />,
+                  title: LAYOUTS[a]!.label,
+                  // Four per row: a quarter of the width, less this tile's
+                  // share of the three gaps between four.
+                  basis: 'calc(25% - 4.5px)',
+                }))}
           </div>
 
           {/*
@@ -678,15 +781,15 @@ export default function SwitchingStage({
               {sectionTitle('Footage', (
                 <span className="small muted" style={{ fontSize: 10 }}>{subject.label}</span>
               ))}
-              {/* Five across like every other group, so two choices are two
-                  tiles rather than two slabs. */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 5 }}>
+              {/* Four across, the environment group's shape, because this
+                  group stands where that one would. */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
                 {tile('loop', 'Loops', subject.loop === true, () => void patch({
                   action: 'set-loop', takeId: subject.id, loop: true,
-                }), 'footage-loop')}
+                }), 'footage-loop', { height: 48 })}
                 {tile('once', 'Plays once', subject.loop !== true, () => void patch({
                   action: 'set-loop', takeId: subject.id, loop: false,
-                }), 'footage-loop')}
+                }), 'footage-loop', { height: 48 })}
               </div>
 
               {sectionTitle('Whose footage', (
@@ -700,7 +803,7 @@ export default function SwitchingStage({
               ))}
               {/* The same four the master answers, because it is the same
                   question with the same consequence. [INV-15] */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 5 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
                 {MASTER_CLASSES.map((cls: MasterClass) => tile(
                   cls, FOOTAGE_RIGHTS[cls]!, subject.rights === cls,
                   () => {
@@ -722,7 +825,7 @@ export default function SwitchingStage({
                       rights: cls, rightsNote: note,
                     });
                   },
-                  'footage-rights'))}
+                  'footage-rights', { height: 48 }))}
               </div>
               {subject.rightsNote && (
                 <p className="small muted" style={{ fontSize: 10, margin: '6px 0 0' }}>
@@ -755,17 +858,22 @@ export default function SwitchingStage({
               Record or upload a take first.
             </p>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 5 }}>
+            /* Four across and two rows, as the benchmark draws it: their own
+               room, softened, and six places. */
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
               {tile('original', 'Original',
                 subject.environment.kind === 'original', () => void patch({
                   action: 'set-environment', takeId: subject.id,
                   environment: { kind: 'original' },
-                }), 'environment-option', false, 'var(--panel-2)')}
+                }), 'environment-option',
+                { height: 66, swatch: 'var(--panel-2)', title: 'The room you are in' })}
               {tile('blur', 'Blur',
                 subject.environment.kind === 'blur', () => void patch({
                   action: 'set-environment', takeId: subject.id,
                   environment: { kind: 'blur' },
-                }), 'environment-option', !subject.plateAssetId, '#2a3038')}
+                }), 'environment-option',
+                { height: 66, swatch: '#2a3038', disabled: !subject.plateAssetId,
+                  title: 'The room you are in, softened' })}
               {(allSpaces ? SPACES : SPACES.slice(0, 6)).map((space) => tile(
                 space.id, space.label,
                 subject.environment.kind === 'space'
@@ -775,10 +883,13 @@ export default function SwitchingStage({
                   environment: { kind: 'space', spaceId: space.id },
                 }),
                 'environment-option',
-                // Everything but their own room needs a measured plate, and
-                // a tile that cannot do anything looks like a fault. [INV-16]
-                !subject.plateAssetId,
-                SPACE_SWATCHES[space.id] ?? '#1b2028',
+                {
+                  height: 66,
+                  swatch: SPACE_SWATCHES[space.id] ?? '#1b2028',
+                  // Everything but their own room needs a measured plate, and
+                  // a tile that cannot do anything looks like a fault. [INV-16]
+                  disabled: !subject.plateAssetId,
+                },
               ))}
             </div>
           )}
@@ -788,16 +899,22 @@ export default function SwitchingStage({
 
           {sectionTitle('Effects')}
           {!subject ? null : (
-            /* Five across: None and the four treatments, one row, no gap. */
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 5 }}>
+            /* Five across, one row: None and the four treatments, exactly as
+               the benchmark draws them. Shorter than the other two groups —
+               a glyph and a word, where an environment needs a picture. */
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6 }}>
               {tile('none', 'None', !subject.effect, () => void patch({
                 action: 'set-effect', takeId: subject.id, effect: null,
-              }), 'effect-option')}
+              }), 'effect-option',
+              { height: 48, glyph: <EffectGlyph id="none" />, title: 'No treatment' })}
               {Object.values(EFFECT_LOOKS).map((look) => tile(
-                look.id, look.label, subject.effect === look.id,
+                look.id, EFFECT_TILES[look.id] ?? look.label,
+                subject.effect === look.id,
                 () => void patch({
                   action: 'set-effect', takeId: subject.id, effect: look.id,
-                }), 'effect-option'))}
+                }), 'effect-option',
+                { height: 48, glyph: <EffectGlyph id={look.id} />,
+                  title: `${look.label} \u2014 ${look.hint}` }))}
             </div>
           )}
 
@@ -821,9 +938,34 @@ export default function SwitchingStage({
               <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.5 }}>
                 MASTER SONG
               </div>
-              <div className="small muted" style={{ fontSize: 10 }}>
+              <div className="small muted" style={{ fontSize: 10, overflow: 'hidden',
+                textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {performance.master.title}
               </div>
+              {/*
+                * Half and double time live ON the song's own lane, because a
+                * tempo is a fact about the song. A detector that hears a
+                * pulse at twice or half what a person counts is the usual way
+                * beat detection is wrong, and the correction belongs beside
+                * the thing it is about rather than in the transport, which
+                * the benchmark keeps for playing and directing. [§11]
+                */}
+              {beats?.acceptedBy && (
+                <span className="row" data-testid="tempo"
+                      style={{ gap: 4, marginTop: 2 }}>
+                  <span className="small muted" style={{ fontSize: 10 }}>
+                    {Math.round(beats.bpm)} BPM
+                  </span>
+                  <button className="small" data-testid="halve-tempo"
+                          title={`Half time \u2014 ${Math.round(beats.bpm / 2)} BPM`}
+                          onClick={() => void tempo(beats.bpm / 2)}
+                          style={{ padding: '0 5px', fontSize: 10 }}>&frac12;</button>
+                  <button className="small" data-testid="double-tempo"
+                          title={`Double time \u2014 ${Math.round(beats.bpm * 2)} BPM`}
+                          onClick={() => void tempo(beats.bpm * 2)}
+                          style={{ padding: '0 5px', fontSize: 10 }}>2&times;</button>
+                </span>
+              )}
             </div>
             {usable.map((take) => (
               <button key={take.id} type="button" data-testid="lane-label"
@@ -846,11 +988,27 @@ export default function SwitchingStage({
               </button>
             ))}
             <div style={{
-              height: 44, display: 'flex', alignItems: 'center', padding: '0 10px',
-              borderTop: '1px solid var(--line)', fontSize: 11, fontWeight: 700,
-              letterSpacing: 0.5,
+              height: 44, display: 'flex', alignItems: 'center', gap: 8,
+              padding: '0 10px', borderTop: '1px solid var(--line)',
+              fontSize: 11, fontWeight: 700, letterSpacing: 0.5,
             }}>
-              MASTER VIDEO
+              <span className="grow">MASTER VIDEO</span>
+              {/* Starting the edit again belongs on the edit, not on the
+                  transport: it is the one control here that destroys
+                  something, and it should be where that something is. */}
+              {ordered.length > 0 && (
+                <button className="small" data-testid="clear-scenes"
+                        title="Remove every cut and start the edit again"
+                        onClick={() => {
+                          if (window.confirm('Remove every cut and start again?')) {
+                            void patch({ action: 'clear-scenes' });
+                          }
+                        }}
+                        style={{
+                          border: 0, background: 'none', padding: 0, fontSize: 10,
+                          fontWeight: 500, color: 'var(--muted)', cursor: 'pointer',
+                        }}>Clear</button>
+              )}
             </div>
           </div>
 
@@ -1057,15 +1215,6 @@ export default function SwitchingStage({
               {index + 1}
             </button>
           ))}
-          <button className="small" data-testid="live-switching"
-                  onClick={() => { setLive(!live); setPending([]); }}
-                  style={{
-                    marginLeft: 6,
-                    background: live ? 'rgba(45,110,200,0.28)' : undefined,
-                    borderColor: live ? '#3d7fd6' : undefined,
-                  }}>
-            {live ? 'Directing \u2014 press 1\u20139' : 'Direct with the keys'}
-          </button>
         </div>
 
         {/* ---- right: what acts on the whole edit -------------------- */}
@@ -1087,26 +1236,6 @@ export default function SwitchingStage({
               Snap{beats.bpm ? ` \u00b7 ${Math.round(beats.bpm)} BPM` : ' to beat'}
             </button>
           )}
-          {/*
-            * Half and double time sit ON the snap control, because they are
-            * the same fact: a detector that hears a pulse at twice or half
-            * what a person counts is the usual way beat detection is wrong,
-            * and the correction belongs where the number it corrects is
-            * printed — not in a row underneath the transport, where it was
-            * the only thing below the bar and fell off the bottom. [§11]
-            */}
-          {beats?.acceptedBy && (
-            <span className="row" data-testid="tempo" style={{ gap: 3 }}>
-              <button className="small" data-testid="halve-tempo"
-                      title={`Half time \u2014 ${Math.round(beats.bpm / 2)} BPM`}
-                      onClick={() => void tempo(beats.bpm / 2)}
-                      style={{ padding: '6px 8px' }}>&frac12;</button>
-              <button className="small" data-testid="double-tempo"
-                      title={`Double time \u2014 ${Math.round(beats.bpm * 2)} BPM`}
-                      onClick={() => void tempo(beats.bpm * 2)}
-                      style={{ padding: '6px 8px' }}>2&times;</button>
-            </span>
-          )}
           <button className="small" data-testid="show-transitions"
                   disabled={ordered.length < 2}
                   onClick={() => setShowTransitions(!showTransitions)}
@@ -1115,12 +1244,6 @@ export default function SwitchingStage({
                     borderColor: showTransitions ? '#3d7fd6' : undefined,
                   }}>
             Transitions{ordered.length > 1 ? ` \u00b7 ${ordered.length - 1}` : ''}
-          </button>
-          <button className="small" data-testid="clear-scenes"
-                  disabled={ordered.length === 0}
-                  title="Remove every cut and start the edit again"
-                  onClick={() => void patch({ action: 'clear-scenes' })}>
-            Clear
           </button>
           {/*
             * Takes you to the render, rather than starting one.

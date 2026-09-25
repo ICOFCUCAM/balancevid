@@ -79,6 +79,24 @@ export default function PerformanceStudio(
     if (response.ok) setPerformance((await response.json()).performance);
   }, [id]);
 
+  /**
+   * An edit to the document, and the document that came back.
+   *
+   * The same door the directing surface uses, for the same reason: one place
+   * that writes and one place that reads the answer, so the rail and the
+   * stage can never be looking at two versions of one performance.
+   */
+  const patch = useCallback(async (body: Record<string, unknown>) => {
+    const response = await fetch(`/api/performances/${id}`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) { setWarning(data.error ?? 'that change was refused'); return; }
+    setWarning(null);
+    setPerformance(data.performance);
+  }, [id]);
+
   /* The song is still being decoded when the studio first opens. */
   useEffect(() => {
     if (ready) return;
@@ -171,66 +189,129 @@ export default function PerformanceStudio(
 
   const songLength = formatMasterPosition(performance.master.durationSamples);
 
+  /**
+   * The five tabs, and where each of them actually goes.  [benchmark, §13]
+   *
+   * Written as data so the bar is a loop rather than five hand-placed
+   * buttons — and so a tab with nowhere to go is a row with no href rather
+   * than a special case in the middle of the markup.
+   */
+  const studioTabs: {
+    id: string; label: string; glyph: string; href?: string;
+    onClick?: () => void; hint?: string;
+  }[] = [
+    { id: 'conversations', label: 'Conversations', glyph: '\u25a2',
+      href: '/#conversations' },
+    studioOneId
+      ? { id: 'studio-one', label: 'Studio One', glyph: '\u25a3',
+        href: `/c/${studioOneId}` }
+      : { id: 'studio-one', label: 'Studio One', glyph: '\u25a3',
+        hint: 'No conversations yet — start one from the library' },
+    { id: 'studio-two', label: 'Studio Two', glyph: '\u266a' },
+    { id: 'library', label: 'Library', glyph: '\u2637', href: '/#performances' },
+    {
+      id: 'publish',
+      label: 'Publish',
+      glyph: '\u2191',
+      hint: performance.scenes.length === 0
+        ? 'Direct some scenes first — there is nothing to publish yet' : undefined,
+      ...(performance.scenes.length > 0
+        ? {
+          onClick: () => document.querySelector('[data-testid="publish"]')
+            ?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+        }
+        : {}),
+    },
+  ];
+
   return (
     <div className="shell">
-      <header className="shell-bar">
-        <div style={{ minWidth: 0, maxWidth: 340 }}>
-          <h1 style={{ fontSize: 17, margin: 0, whiteSpace: 'nowrap',
-            overflow: 'hidden', textOverflow: 'ellipsis' }}>{performance.title}</h1>
-          <div className="small muted" data-testid="master-summary">
-            {performance.master.title}
-            {performance.master.artist ? ` · ${performance.master.artist}` : ''}
-            {ready ? ` · ${songLength}` : ' · preparing…'}
-            {` · ${performance.takes.length} `}
-            {performance.takes.length === 1 ? 'take' : 'takes'}
-          </div>
-        </div>
-        {/*
-          * THE PLACES THERE ARE.  [§1, §13]
-          *
-          * Library is the page that lists what you have made — conversations
-          * AND performances, since it started listing both. Studio One is
-          * /c/[id], where a source is answered and people are invited into
-          * the room; it is a real place, so the tab points at the most recent
-          * conversation, and when there is none it says so rather than
-          * offering a door onto nothing. A tab that goes nowhere is a menu
-          * that lies — the rule that keeps unmeasured spaces out of the
-          * environment picker (INV-16).
-          */}
+      {/*
+        * THE APPLICATION BAR.  [benchmark, §1, §13]
+        *
+        * Brand, then the five places, then who you are — which is the shape
+        * the benchmark draws and the shape every tool of this kind uses. It
+        * replaces a bar that carried the performance's title and three
+        * buttons, because a studio is a room inside an application and the
+        * bar at the top of the screen is the application's, not the room's.
+        *
+        * CONVERSATIONS and LIBRARY are the same page and different places in
+        * it: the library lists conversations and performances, and the two
+        * tabs land on the two lists. STUDIO ONE is `/c/[id]` — a real place,
+        * where a source is answered and people are invited into the room —
+        * so it points at the most recent conversation and says so when there
+        * is none. A tab that goes nowhere is a menu that lies, which is the
+        * rule that keeps unmeasured spaces out of the environment picker
+        * (INV-16).
+        */}
+      <header className="shell-bar" style={{ gap: 18, padding: '0 18px', minHeight: 52 }}>
+        <a href="/" className="row" style={{
+          gap: 9, textDecoration: 'none', color: 'inherit', flex: '0 0 auto',
+        }}>
+          <span aria-hidden="true" style={{
+            width: 26, height: 26, borderRadius: 7, display: 'grid',
+            placeItems: 'center', background: '#2f7fe0', color: '#fff',
+            fontSize: 12, paddingLeft: 2,
+          }}>&#9654;</span>
+          <strong style={{ fontSize: 15, whiteSpace: 'nowrap' }}>Prof Class</strong>
+        </a>
+
         <nav className="row" data-testid="studio-nav"
-             style={{ gap: 4, flexWrap: 'nowrap' }}>
-          <a className="btn small" href="/" style={{ padding: '6px 12px' }}>
-            Library
-          </a>
-          {studioOneId ? (
-            <a className="btn small" href={`/c/${studioOneId}`}
-               data-testid="to-studio-one" style={{ padding: '6px 12px' }}>
-              Studio One
-            </a>
-          ) : (
-            <span className="btn small" data-testid="to-studio-one"
-                  title="No conversations yet — start one from the library"
-                  style={{ padding: '6px 12px', opacity: 0.45, cursor: 'default' }}>
-              Studio One
-            </span>
-          )}
-          <span className="btn small" aria-current="page" style={{
-            padding: '6px 12px', cursor: 'default',
-            borderColor: '#3d7fd6', background: 'rgba(45,110,200,0.18)',
-          }}>
-            Studio Two
-          </span>
-          <button
-            className="small" data-testid="to-publish" style={{ padding: '6px 12px' }}
-            disabled={performance.scenes.length === 0}
-            onClick={() => document.querySelector('[data-testid="publish"]')
-              ?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-          >
-            Publish
-          </button>
+             style={{ gap: 2, flexWrap: 'nowrap' }}>
+          {studioTabs.map((tab) => {
+            const current = tab.id === 'studio-two';
+            const body = (
+              <>
+                <span aria-hidden="true" style={{ opacity: current ? 1 : 0.7 }}>
+                  {tab.glyph}
+                </span>
+                <span>{tab.label}</span>
+              </>
+            );
+            const style = {
+              display: 'flex', alignItems: 'center', gap: 7,
+              padding: '14px 12px', fontSize: 13,
+              textDecoration: 'none', whiteSpace: 'nowrap' as const,
+              background: 'none', border: 0, borderRadius: 0,
+              borderBottom: `2px solid ${current ? '#2f7fe0' : 'transparent'}`,
+              color: current ? '#6fa9ea' : 'var(--text)',
+              fontWeight: current ? 700 : 500,
+              opacity: tab.href || tab.onClick ? 1 : 0.4,
+              cursor: tab.href || tab.onClick ? 'pointer' : 'default',
+            };
+            if (current) {
+              return (
+                <span key={tab.id} data-testid={`tab-${tab.id}`} aria-current="page"
+                      style={style}>{body}</span>
+              );
+            }
+            if (tab.href) {
+              return (
+                <a key={tab.id} data-testid={`tab-${tab.id}`} href={tab.href}
+                   style={style}>{body}</a>
+              );
+            }
+            return (
+              <button key={tab.id} data-testid={`tab-${tab.id}`} type="button"
+                      disabled={!tab.onClick} onClick={tab.onClick}
+                      title={tab.hint} style={style}>{body}</button>
+            );
+          })}
         </nav>
+
         <span className="grow" />
-        <a className="btn small" href="/" style={{ padding: '6px 12px' }}>Leave</a>
+        {/* What this room is, since the bar no longer says it in a heading. */}
+        <span className="small muted" data-testid="master-summary" style={{
+          minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap', textAlign: 'right',
+        }}>
+          {performance.title}
+          {performance.master.artist ? ` \u00b7 ${performance.master.artist}` : ''}
+          {ready ? ` \u00b7 ${songLength}` : ' \u00b7 preparing\u2026'}
+        </span>
+        <a className="btn small" href="/" style={{ padding: '6px 12px', flex: '0 0 auto' }}>
+          Leave
+        </a>
       </header>
 
       {/*
@@ -256,117 +337,112 @@ export default function PerformanceStudio(
               flexDirection: 'column', gap: 8,
             }}>
               {/*
-                * THE TAKES COLUMN.  [Doctrine STUDIO-TWO §2, §5, §7]
+                * THE TAKES COLUMN.  [benchmark, §2, §5, §7]
                 *
-                * "Take 1 — Living room. Take 2 — Virtual recording studio.
-                *  Take 3 — Beach. Take 4 — Concert stage. Take 5 — Outdoor
-                *  landscape. All five are synchronized to the same song."
+                * A heading with the count, one button that adds a take, and
+                * the takes. That is all the benchmark has and it was right to
+                * have only that: the column had grown five numbered empty
+                * slots, three buttons and a paragraph, none of which is a
+                * take, and all of which was in the way of the four that were.
                 *
-                * So the column is FIVE SLOTS, filled or not. An empty studio
-                * that shows a sentence saying there is nothing here tells you
-                * what you already know; five numbered slots tell you what the
-                * work is — and the numbers are the keys you will press in the
-                * transport to direct with them, so the rail and the keyboard
-                * agree before there is anything to press.
-                *
-                * More than five takes is fine and the column grows. Fewer
-                * than five still shows five, because the shape of a
-                * performance does not depend on how much of it exists yet.
+                * ADDING AND REMOVING ARE BOTH HERE. Record is the header
+                * button; the other two ways in — a film of a performance, and
+                * footage that is not a performance at all — are one row under
+                * it, small, because they are the same decision made less
+                * often. Removing is on the take itself, where the take is.
                 */}
               <div className="row" style={{
-                justifyContent: 'space-between', alignItems: 'baseline',
+                justifyContent: 'space-between', alignItems: 'center', gap: 8,
               }}>
-                <span className="small muted" style={{
-                  textTransform: 'uppercase', letterSpacing: 0.8,
-                  fontSize: 11, fontWeight: 700,
-                }}>Takes</span>
-                <span className="small muted" data-testid="take-count"
-                      style={{ fontSize: 11 }}>
-                  {performance.takes.length} of {Math.max(TAKE_SLOTS, performance.takes.length)}
+                <span className="row" style={{ gap: 7, alignItems: 'center' }}>
+                  <span style={{ fontSize: 15, fontWeight: 700 }}>Takes</span>
+                  <span className="small muted" data-testid="take-count" style={{
+                    fontSize: 11, padding: '1px 7px', borderRadius: 9,
+                    background: 'var(--panel-2)', border: '1px solid var(--line)',
+                  }}>{performance.takes.length}</span>
                 </span>
+                {recording.phase === 'idle' && (
+                  <button
+                    className="primary" data-testid="arm" disabled={!ready}
+                    title={'Opens the camera and loads the song into your headphones. '
+                      + 'Wear them — a song out loud goes into the microphone with your '
+                      + 'voice, and the video then carries it twice.'}
+                    onClick={() => void recording.arm()}
+                    style={{ padding: '6px 11px', fontSize: 12, flex: '0 0 auto' }}
+                  >
+                    {ready ? '+ Record Take' : 'Preparing\u2026'}
+                  </button>
+                )}
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {Array.from(
-                  { length: Math.max(TAKE_SLOTS, performance.takes.length) },
-                  (_unused, slot) => {
-                    const take = performance.takes[slot];
-                    if (!take) {
-                      return (
-                        <div key={`empty-${slot}`} data-testid="take-slot"
-                             data-filled="false"
-                             style={{
-                               display: 'flex', gap: 8, alignItems: 'center',
-                               padding: 5, borderRadius: 8, minHeight: 42,
-                               border: '1px dashed var(--line)', opacity: 0.55,
-                             }}>
-                          <span className="small muted" aria-hidden="true" style={{
-                            width: 22, height: 22, borderRadius: 6, flex: '0 0 auto',
-                            display: 'grid', placeItems: 'center', fontSize: 11,
-                            border: '1px dashed var(--line)',
-                          }}>{slot + 1}</span>
-                          <span className="small muted" style={{ fontSize: 11 }}>
-                            Empty — record or upload
-                          </span>
-                        </div>
-                      );
-                    }
-                    const placed = take.alignment.method !== 'unplaced';
-                    /*
-                     * A row says what its take IS.  [§2, §5, S-29]
-                     *
-                     * For a performance that is where it looks like it was
-                     * shot. For footage it is neither a room nor a space —
-                     * there is nobody in it to put anywhere — so it says the
-                     * one thing that governs how it behaves: whether it
-                     * repeats to fill whatever it is cut into.
-                     */
-                    const footage = take.kind === 'footage';
-                    const where = footage
-                      ? (take.loop ? 'Footage · loops' : 'Footage')
-                      : take.environment.kind === 'space'
-                        ? SPACES.find((sp) => sp.id === take.environment.spaceId)?.label
-                          ?? 'a space'
-                        : take.environment.kind === 'blur' ? 'Blurred'
-                          : 'Original';
-                    /*
-                     * The number is the KEY, so it is the position among the
-                     * takes that can actually go on screen — not the position
-                     * in the list. A take still assembling has no key, and
-                     * printing one next to it would be an instruction that
-                     * does nothing when followed.
-                     */
-                    const key = take.durationSamples > 0
-                      ? performance.takes.filter((t) => t.durationSamples > 0)
-                        .findIndex((t) => t.id === take.id) + 1
-                      : null;
-                    const chosen = chosenTake === take.id;
-                    return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                {performance.takes.length === 0 && recording.phase === 'idle' && (
+                  <p className="small muted" style={{ margin: 0, fontSize: 11 }}>
+                    Record against the song, or bring in something you filmed.
+                  </p>
+                )}
+                {performance.takes.map((take) => {
+                  const placed = take.alignment.method !== 'unplaced';
+                  /*
+                   * A row says what its take IS. For a performance that is
+                   * where it looks like it was shot; for footage it is
+                   * neither a room nor a space — there is nobody in it to put
+                   * anywhere — so it says the one thing that governs how it
+                   * behaves: whether it repeats to fill what it is cut into.
+                   */
+                  const footage = take.kind === 'footage';
+                  const where = footage
+                    ? (take.loop ? 'Footage \u00b7 loops' : 'Footage')
+                    : take.environment.kind === 'space'
+                      ? SPACES.find((sp) => sp.id === take.environment.spaceId)?.label
+                        ?? 'a space'
+                      : take.environment.kind === 'blur' ? 'Blurred'
+                        : 'Original';
+                  /*
+                   * The number is the KEY, so it is the position among the
+                   * takes that can actually go on screen — not the position
+                   * in the list. A take still assembling has no key, and
+                   * printing one next to it would be an instruction that does
+                   * nothing when followed.
+                   */
+                  const key = take.durationSamples > 0
+                    ? performance.takes.filter((t) => t.durationSamples > 0)
+                      .findIndex((t) => t.id === take.id) + 1
+                    : null;
+                  const chosen = chosenTake === take.id;
+                  return (
+                    <div
+                      key={take.id} data-testid="take-row" data-take-id={take.id}
+                      data-filled="true" data-offset={take.alignment.offsetSamples}
+                      style={{
+                        display: 'flex', gap: 8, alignItems: 'center',
+                        minWidth: 0, position: 'relative',
+                      }}
+                    >
+                      {/* The colour, outside the card, as the benchmark puts
+                          it: a take's identity is not part of its card, it is
+                          the thread that runs through the stage badge, the
+                          timeline lane and every block of the master video. */}
+                      <span aria-hidden="true" style={{
+                        width: 9, height: 9, borderRadius: '50%', flex: '0 0 auto',
+                        background: take.accent ?? '#3e7ca6',
+                        opacity: placed || footage ? 1 : 0.4,
+                      }} />
                       <button
-                        key={take.id} type="button"
-                        data-testid="take-row" data-take-id={take.id}
-                        data-slot={slot + 1} data-filled="true"
-                        data-offset={take.alignment.offsetSamples}
+                        type="button" data-testid="take-card"
                         onClick={() => setChosenTake(take.id)}
+                        title={key ? `${take.label} \u2014 key ${key}` : take.label}
                         style={{
-                          display: 'flex', gap: 8, alignItems: 'center', width: '100%',
-                          padding: 5, borderRadius: 8, textAlign: 'left',
-                          font: 'inherit', color: 'inherit', cursor: 'pointer',
-                          background: chosen ? 'rgba(45,110,200,0.16)' : 'var(--panel-2)',
+                          flex: '1 1 auto', minWidth: 0, display: 'flex',
+                          gap: 9, alignItems: 'center', padding: 7,
+                          borderRadius: 9, textAlign: 'left', font: 'inherit',
+                          color: 'inherit', cursor: 'pointer',
+                          background: chosen
+                            ? 'rgba(45,110,200,0.16)' : 'var(--panel-2)',
                           border: `1px solid ${chosen
                             ? (take.accent ?? '#3d7fd6') : 'var(--line)'}`,
                         }}
                       >
-                        {/* The key, in the take's own colour — the same colour
-                            the stage badge, the timeline lane and every block
-                            of the master video carry. */}
-                        <span aria-hidden="true" style={{
-                          width: 22, height: 22, borderRadius: 6, flex: '0 0 auto',
-                          display: 'grid', placeItems: 'center',
-                          fontSize: 12, fontWeight: 700, color: '#0a0c10',
-                          background: take.accent ?? '#3e7ca6',
-                          opacity: key ? 1 : 0.4,
-                        }}>{key ?? '·'}</span>
                         {/*
                           * A background rather than an <img>: a take assembled
                           * before posters existed has none, and a background
@@ -376,12 +452,11 @@ export default function PerformanceStudio(
                         <span
                           data-testid="take-poster" aria-hidden="true"
                           style={{
-                            flex: '0 0 auto', width: 52, height: 30, borderRadius: 4,
+                            flex: '0 0 auto', width: 64, height: 38, borderRadius: 6,
                             backgroundColor: `${take.accent ?? '#3e7ca6'}33`,
                             backgroundImage: `url(/api/performances/${performance.id}`
                               + `/takes/${take.id}/media?kind=poster)`,
                             backgroundSize: 'cover', backgroundPosition: 'center',
-                            border: `1px solid ${take.accent ?? 'var(--line)'}`,
                           }}
                         />
                         <span style={{ minWidth: 0, flex: 1 }}>
@@ -390,175 +465,209 @@ export default function PerformanceStudio(
                             overflow: 'hidden', textOverflow: 'ellipsis',
                             whiteSpace: 'nowrap',
                           }}>{take.label}</span>
-                          <span className="small muted"
-                                style={{ fontSize: 11, display: 'block' }}>
+                          <span className="small muted" style={{
+                            fontSize: 11, display: 'block', overflow: 'hidden',
+                            textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                          }}>
                             {footage || placed ? where : 'not placed yet'}
                           </span>
-                        </span>
-                        <span className="small muted" style={{
-                          flex: '0 0 auto', fontSize: 11,
-                          fontFamily: 'ui-monospace, monospace',
-                        }}>
-                          {take.durationSamples > 0
-                            ? formatMasterPosition(take.durationSamples).slice(0, 5)
-                            : '…'}
+                          <span className="small muted" style={{
+                            fontSize: 11, display: 'block',
+                            fontFamily: 'ui-monospace, monospace',
+                          }}>
+                            {take.durationSamples > 0
+                              ? formatMasterPosition(take.durationSamples).slice(0, 5)
+                              : '\u2026'}
+                          </span>
                         </span>
                       </button>
-                    );
-                  },
-                )}
+                      {/*
+                        * What can be done to this take, on this take.
+                        *
+                        * A <details> rather than a floating menu: it needs no
+                        * outside-click handling, no focus trap and no portal,
+                        * and it closes when another one opens because only one
+                        * `name` group may be open at a time. Rename and remove
+                        * live here because they belong to a take rather than
+                        * to the composition — and not as two buttons on every
+                        * row, because a delete button on every row of a list
+                        * is the one you press by accident.
+                        */}
+                      <details data-testid="take-menu" name="take-menu"
+                               style={{ flex: '0 0 auto', position: 'relative' }}>
+                        <summary
+                          aria-label={`What to do with ${take.label}`}
+                          style={{
+                            listStyle: 'none', cursor: 'pointer', padding: '2px 5px',
+                            borderRadius: 6, color: 'var(--muted)', fontSize: 15,
+                            lineHeight: 1,
+                          }}
+                        >&#8943;</summary>
+                        <div className="panel" style={{
+                          position: 'absolute', right: 0, top: '100%', zIndex: 5,
+                          padding: 5, minWidth: 148, display: 'flex',
+                          flexDirection: 'column', gap: 2,
+                        }}>
+                          <button
+                            className="small" data-testid="rename-take"
+                            onClick={(event) => {
+                              const next = window.prompt(
+                                'What is this take called?', take.label);
+                              if (next?.trim() && next.trim() !== take.label) {
+                                void patch({
+                                  action: 'rename-take', takeId: take.id,
+                                  label: next.trim(),
+                                });
+                              }
+                              event.currentTarget.closest('details')
+                                ?.removeAttribute('open');
+                            }}
+                            style={{ border: 0, background: 'none', textAlign: 'left' }}
+                          >Rename</button>
+                          <button
+                            className="small" data-testid="remove-take"
+                            onClick={(event) => {
+                              event.currentTarget.closest('details')
+                                ?.removeAttribute('open');
+                              if (!window.confirm(
+                                `Remove "${take.label}"? Its scenes go with it.`)) return;
+                              void patch({ action: 'remove-take', takeId: take.id });
+                            }}
+                            style={{
+                              border: 0, background: 'none', textAlign: 'left',
+                              color: 'var(--bad)',
+                            }}
+                          >Remove</button>
+                        </div>
+                      </details>
+                    </div>
+                  );
+                })}
               </div>
+
+              {/* ---- the camera, when it is on ------------------------- */}
+              {recording.phase !== 'idle' && (
+                <section data-testid="record" style={{
+                  display: 'flex', flexDirection: 'column', gap: 8,
+                  borderTop: '1px solid var(--line)', paddingTop: 8,
+                }}>
+                  <video
+                    ref={recording.videoRef} autoPlay muted playsInline
+                    data-testid="performer-camera"
+                    style={{
+                      width: '100%', aspectRatio: '16 / 9', objectFit: 'cover',
+                      borderRadius: 8, background: '#0d1319',
+                      border: `2px solid ${recording.phase === 'recording'
+                        ? '#e0674f' : 'var(--line)'}`,
+                      display: recording.stream ? 'block' : 'none',
+                    }}
+                  />
+                  {recording.phase === 'arming'
+                    && <div className="small muted">Loading\u2026</div>}
+
+                  {(recording.phase === 'ready' || recording.phase === 'finishing') && (
+                    <>
+                      <div className="field" style={{ maxWidth: '100%' }}>
+                        <label htmlFor="take-label">Call this take</label>
+                        <input id="take-label" data-testid="take-label" value={label}
+                               placeholder={`Take ${performance.takes.length + 1}`}
+                               onChange={(e) => setLabel(e.target.value)} />
+                      </div>
+                      <div className="field" style={{ maxWidth: '100%' }}>
+                        <label htmlFor="take-space">Where it should look like</label>
+                        <select
+                          id="take-space" data-testid="take-environment" value={environment}
+                          title={'Stored with the take, not burned into it \u2014 change '
+                            + 'it afterwards without singing the song again.'}
+                          onChange={(e) => setEnvironment(e.target.value)}
+                        >
+                          <option value="original">The room you are in</option>
+                          {/* Anything else needs a plate, and a menu that offers
+                              what it cannot do is a menu that lies. [§4, INV-16] */}
+                          {measured
+                            && <option value="blur">The room you are in, softened</option>}
+                          {measured && SPACES.map((sp) => (
+                            <option key={sp.id} value={sp.id}>{sp.label}</option>
+                          ))}
+                        </select>
+                        {!measured && (
+                          <span className="small muted" style={{ fontSize: 11 }}>
+                            Measure your room in Set up to stand anywhere else.
+                          </span>
+                        )}
+                      </div>
+                      <div className="row" style={{ gap: 6 }}>
+                        <button
+                          className="primary" data-testid="start-take"
+                          disabled={recording.phase === 'finishing'}
+                          onClick={() => void recording.start(label,
+                            environment === 'original'
+                              ? { kind: 'original' }
+                              : environment === 'blur'
+                                ? { kind: 'blur' }
+                                : { kind: 'space', spaceId: environment })}
+                          style={{ flex: '1 1 auto' }}
+                        >
+                          {recording.phase === 'finishing' ? 'Saving\u2026' : 'Record a take'}
+                        </button>
+                        <button className="small" data-testid="disarm"
+                                onClick={recording.disarm}>Turn off</button>
+                      </div>
+                    </>
+                  )}
+
+                  {recording.phase === 'counting' && (
+                    <div data-testid="count-in" style={{ fontWeight: 600, fontSize: 18 }}>
+                      Get ready\u2026
+                    </div>
+                  )}
+
+                  {recording.phase === 'recording' && (
+                    <>
+                      <div data-testid="recording-now"
+                           style={{ fontWeight: 600, color: '#e0674f', fontSize: 15 }}>
+                        Recording \u00b7 {formatMasterPosition(
+                          Math.round(recording.position * HOUSE_SAMPLE_RATE))} of {songLength}
+                      </div>
+                      <button className="primary" data-testid="stop-take"
+                              onClick={recording.stop}>Stop</button>
+                    </>
+                  )}
+
+                  {recording.error && (
+                    <p className="small" style={{ color: 'var(--bad)' }}>{recording.error}</p>
+                  )}
+                </section>
+              )}
 
               {/*
-                * HOW A SLOT GETS FILLED, under the slots.
-                *
-                * Recording used to be inside the Set up fold, which said a
-                * take is something you arrange once. It is the thing you do
-                * five times. Uploading sits beside it because a take filmed
-                * on a real camera is still a take. [§2, §10]
+                * The other two ways a slot gets filled, one line. A take
+                * filmed on a real camera is still a take, and a clip of the
+                * sea is not a take at all but occupies the same slot. [§2,
+                * §5, §10]
                 */}
-              <div style={{ borderTop: '1px solid var(--line)', paddingTop: 8 }}>
-                  <section data-testid="record" style={{ marginTop: 4 }}>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <video
-                ref={recording.videoRef} autoPlay muted playsInline
-                data-testid="performer-camera"
-                style={{
-                  width: '100%', aspectRatio: '16 / 9', objectFit: 'cover', borderRadius: 8,
-                  border: `2px solid ${recording.phase === 'recording' ? '#e0674f' : 'var(--line)'}`,
-                  background: '#0d1319',
-                  display: recording.stream ? 'block' : 'none',
-                }}
-              />
-              <div style={{ minWidth: 0 }}>
-                {recording.phase === 'idle' && (
-                  /*
-                    * Two ways to fill a slot, side by side, because they are
-                    * the same decision: this take comes from this camera, or
-                    * from a file. Stacked they read as a step and an
-                    * afterthought. [§2, §10]
-                    */
-                  /*
-                    * THREE WAYS TO FILL A SLOT, and they are one decision:
-                    * where this picture comes from. Perform it now, bring a
-                    * film of somebody performing it, or bring something that
-                    * is not a performance at all — the sea, birds, a city.
-                    * [§2, §5, §10, S-29]
-                    *
-                    * The instruction about headphones lives on the Record
-                    * button rather than under it. It is the one sentence that
-                    * decides whether a take is usable, and it is read once,
-                    * before the first take — after that it is a line in a
-                    * column that has a screen to fit into.
-                    */
-                  <div style={{ display: 'flex', gap: 5, alignItems: 'stretch' }}>
-                    <button className="primary" data-testid="arm" disabled={!ready}
-                            title={'Opens the camera and loads the song into your '
-                              + 'headphones. Wear them — a song out loud goes into '
-                              + 'the microphone with your voice, and the video then '
-                              + 'carries it twice.'}
-                            onClick={() => void recording.arm()}
-                            style={{ flex: '1 1 0', minWidth: 0, padding: '7px 6px' }}>
-                      {ready ? 'Record' : 'Preparing…'}
-                    </button>
-                    <UploadTake
-                      compact
-                      performanceId={performance.id}
-                      environment={{
-                        kind: environment.startsWith('space:') ? 'space' : environment,
-                        ...(environment.startsWith('space:')
-                          ? { spaceId: environment.slice(6) } : {}),
-                      }}
-                      onFinished={(jobId) => { void watchJob(jobId); }}
-                    />
-                    <UploadTake
-                      compact footage
-                      performanceId={performance.id}
-                      onFinished={(jobId) => { void watchJob(jobId); }}
-                    />
-                  </div>
-                )}
-                {recording.phase === 'arming' && <div className="small muted">Loading…</div>}
-
-                {(recording.phase === 'ready' || recording.phase === 'finishing') && (
-                  <>
-                    <div className="field" style={{ maxWidth: '100%' }}>
-                      <label htmlFor="take-label">Call this take</label>
-                      <input id="take-label" data-testid="take-label" value={label}
-                             placeholder={`Take ${performance.takes.length + 1}`}
-                             onChange={(e) => setLabel(e.target.value)} />
-                    </div>
-                    <div className="field" style={{ maxWidth: '100%' }}>
-                      <label htmlFor="take-space">Where it should look like</label>
-                      <select id="take-space" data-testid="take-environment" value={environment}
-                              title={'Stored with the take, not burned into it — change '
-                                + 'it afterwards without singing the song again.'}
-                              onChange={(e) => setEnvironment(e.target.value)}>
-                        <option value="original">The room you are in</option>
-                        {/* Anything else needs a plate, and a menu that offers
-                            what it cannot do is a menu that lies. [§4, INV-16] */}
-                        {measured && <option value="blur">The room you are in, softened</option>}
-                        {measured && SPACES.map((s) => (
-                          <option key={s.id} value={s.id}>{s.label}</option>
-                        ))}
-                      </select>
-                      {/* Only the sentence that changes what they can DO. The
-                          reassurance that none of this is baked into the
-                          recording lives on the select itself — read once by
-                          whoever wonders, and not a paragraph in a column
-                          that has a screen to fit into. [§4, S-6] */}
-                      {!measured && (
-                        <span className="small muted" style={{ fontSize: 11 }}>
-                          Measure your room in Set up to stand anywhere else.
-                        </span>
-                      )}
-                    </div>
-                    <button
-                      className="primary" data-testid="start-take"
-                      disabled={recording.phase === 'finishing'}
-                      onClick={() => void recording.start(label, environment === 'original'
-                        ? { kind: 'original' }
-                        : environment === 'blur'
-                          ? { kind: 'blur' }
-                          : { kind: 'space', spaceId: environment })}
-                    >
-                      {recording.phase === 'finishing' ? 'Saving…' : 'Record a take'}
-                    </button>
-                    <button className="small" data-testid="disarm"
-                            onClick={recording.disarm} style={{ marginLeft: 8 }}>
-                      Turn off
-                    </button>
-                  </>
-                )}
-
-                {recording.phase === 'counting' && (
-                  <div data-testid="count-in" style={{ fontWeight: 600, fontSize: 18 }}>
-                    Get ready…
-                  </div>
-                )}
-
-                {recording.phase === 'recording' && (
-                  <>
-                    <div data-testid="recording-now"
-                         style={{ fontWeight: 600, color: '#e0674f', fontSize: 16 }}>
-                      Recording · {formatMasterPosition(
-                        Math.round(recording.position * HOUSE_SAMPLE_RATE))} of {songLength}
-                    </div>
-                    <button className="primary" data-testid="stop-take"
-                            onClick={recording.stop} style={{ marginTop: 8 }}>
-                      Stop
-                    </button>
-                  </>
-                )}
-
-                {recording.error && (
-                  <p className="small" style={{ color: 'var(--bad)' }}>{recording.error}</p>
-                )}
-              </div>
-            </div>
-                  </section>
-              </div>
+              {recording.phase === 'idle' && (
+                <div style={{
+                  display: 'flex', gap: 6, alignItems: 'stretch',
+                  borderTop: '1px solid var(--line)', paddingTop: 8,
+                }}>
+                  <UploadTake
+                    compact
+                    performanceId={performance.id}
+                    environment={{
+                      kind: environment.startsWith('space:') ? 'space' : environment,
+                      ...(environment.startsWith('space:')
+                        ? { spaceId: environment.slice(6) } : {}),
+                    }}
+                    onFinished={(jobId) => { void watchJob(jobId); }}
+                  />
+                  <UploadTake
+                    compact footage
+                    performanceId={performance.id}
+                    onFinished={(jobId) => { void watchJob(jobId); }}
+                  />
+                </div>
+              )}
             </div>
           )}
         />

@@ -2002,6 +2002,89 @@ are back, in the panel, where the chosen take is already being edited — and
 not on every row, because a delete button on every row of a list is the one
 you press by accident.
 
+## S-30 — The studio, rebuilt against the picture
+
+The benchmark arrived as an image rather than a description, which makes it a
+measurement. What follows is what it measured.
+
+**THE BAR AT THE TOP OF THE SCREEN IS THE APPLICATION'S, NOT THE ROOM'S.** It
+had been carrying the performance's title as a heading and three buttons on
+the right, which is a room labelling itself. It now reads brand, then the five
+places, then who you are. CONVERSATIONS and LIBRARY are the same page and two
+places in it — the library lists both kinds of work and the tabs land on the
+two lists. STUDIO ONE points at the most recent conversation.
+
+**THE TAKES COLUMN LOST EVERYTHING THAT WAS NOT A TAKE.** Five numbered empty
+slots, three buttons and a paragraph, none of which is a take and all of which
+was in the way of the four that were. It is now a heading with the count, one
+button that adds a take, and the takes — with the two less common ways in
+(a film of a performance, footage that is not a performance) on one small row
+underneath. Removing is on the take, in a `⋯` menu beside it, with renaming:
+a `<details>` rather than a floating menu, because that needs no
+outside-click handling, no focus trap and no portal, and only one may be open
+at a time. Not two buttons on every row — a delete button on every row of a
+list is the one you press by accident.
+
+**THE EMPTY SLOTS WERE MY IDEA AND THEY WERE WRONG.** They were meant to state
+the shape of the work before the work existed. What they actually did was fill
+a column with four rows of nothing next to four rows of something. The
+benchmark shows four takes and a count of four, and the count is the honest
+version of the same thing.
+
+**EIGHT ARRANGEMENTS, FOUR ACROSS AND TWO DOWN.** There were five, which is a
+row of four and a lone tile. Three were added, each of which is a thing a
+performance actually does and none of which the picker could express: THREE
+ACROSS, for a trio, which is a different statement from one large and two
+small; SIX WAYS, the quad's argument one row further; and LEAD AND COLUMN, a
+lead with the rest of the band beside them, distinct from `performance_focus`
+because nothing overlaps. `performance_half_stacked` is deliberately NOT among
+them — it is what Half *becomes* in a tall frame (U-22), not a separate thing
+to choose, and offering both would put a decision in front of the author that
+the reframe already makes correctly.
+
+**They are drawn rather than named.** A composition tile shows its
+arrangement, built from the layout's own rects — so a layout whose panels move
+takes its diagram with it, and a diagram can never disagree with what it
+renders. "One large, two small" is a sentence you have to parse; a picture of
+one large and two small is not.
+
+**And the tests check what the mockup cannot.** The five tiling layouts sum to
+exactly one frame and no two of their panels overlap; every reframe target
+exists and holds at least as many takes as the arrangement it replaces; no
+rect lands outside the frame; slots are numbered from zero with nothing
+missing. A seam of backdrop where two panels should meet is invisible in a
+picture and obvious in an export.
+
+**Four columns and two rows for the environments, five columns and one row for
+the effects**, as the benchmark draws them — and the tiles are a fixed height
+per group rather than a forced square. The three groups are different heights
+on purpose: a composition tile carries a diagram, an environment tile carries
+a picture of the place, an effect tile carries a glyph. Forcing one aspect on
+all three made the effects as tall as the environments and pushed the
+transport off the bottom of the screen.
+
+**THE TRANSPORT LOST ITS MODE.** There was a button that armed the number
+keys, and a mode is a thing you have to remember you are in. The keys are
+always live now, which is how every vision mixer that has ever existed
+behaves. What the mode was really protecting was typing — a "3" meant for a
+take's name must not cut to take three — and that is a question about where
+the keystroke went, not about a mode, so it is answered by asking.
+
+**And the two controls that were not transport went to what they are about.**
+Half and double time sit on the MASTER SONG lane, because a tempo is a fact
+about the song. Starting the edit again sits on the MASTER VIDEO lane, because
+it is the one control here that destroys something and it should be where that
+something is. What is left is the benchmark's bar: play, where the song is,
+how loud it is in the room, the numbered takes, snap, transitions, and the
+render.
+
+**A PARAGRAPH OVER A CONTROL IS A LECTURE BEFORE A QUESTION.** Sound had one
+explaining that the picture cuts and the sound does not, above three buttons
+whose own second lines say the same thing in the words of the choice being
+made. Make the video and Share it had the same. All three are gone; what they
+said is on the heading that replaced them, for whoever wonders. A studio is a
+room you work in, not a page you read.
+
 ---
 
 *Appendix S ends. The brief above it is unedited.*

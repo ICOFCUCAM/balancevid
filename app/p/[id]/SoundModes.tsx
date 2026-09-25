@@ -17,6 +17,12 @@ import { formatMasterPosition } from '../../../src/domain/time.js';
  * twice — sing it once properly, then perform it five times to camera — and an
  * author who does not know the vocal survives the cut will record the song
  * five more times instead.
+ *
+ * It is said BY THE OPTIONS rather than above them. There was a paragraph
+ * here explaining the idea, over three buttons whose own second lines explain
+ * the same idea in the words of the choice being made — so the paragraph was
+ * a lecture before a question that answers it. A studio is a room you work
+ * in, not a page you read.
  */
 
 const MODES: { id: AudioMode; label: string; hint: string }[] = [
@@ -72,15 +78,16 @@ export default function SoundModes({
   const mode = performance.audio.mode;
 
   return (
-    <section style={{ marginTop: 20 }} data-testid="sound">
-      <h2 style={{ fontSize: 15, marginBottom: 2 }}>Sound</h2>
-      <p className="small muted" style={{ marginTop: 0, maxWidth: 640 }}>
-        The picture cuts wherever you said. The sound does not cut with it —
-        that is the whole point of recording the song once and performing it
-        five times.
-      </p>
+    <section style={{ marginTop: 18 }} data-testid="sound">
+      <h2 style={{ fontSize: 14, margin: '0 0 7px' }}>Sound</h2>
 
-      <div style={{ display: 'grid', gap: 6, maxWidth: 560, marginTop: 8 }}>
+      {/* Three across, because they are three answers to one question and a
+          column of three makes the third look like an afterthought. */}
+      <div style={{
+        display: 'grid', gap: 7,
+        gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))',
+        maxWidth: 900,
+      }}>
         {MODES.map((option) => (
           <button
             key={option.id}
@@ -108,7 +115,11 @@ export default function SoundModes({
 
       {mode === 'master_vocal' && (
         <div className="field" style={{ maxWidth: 280, marginTop: 10 }}>
-          <label htmlFor="vocal-take">The vocal</label>
+          <label htmlFor="vocal-take"
+                 title={'A take like any other — recorded against the same song, '
+                   + 'placed the same way. Its picture need never appear.'}>
+            The vocal
+          </label>
           <select
             id="vocal-take" data-testid="vocal-take" disabled={busy}
             value={performance.audio.vocalTakeId ?? ''}
@@ -120,11 +131,6 @@ export default function SoundModes({
               <option key={take.id} value={take.id}>{take.label}</option>
             ))}
           </select>
-          <span className="small muted" style={{ fontSize: 11 }}>
-            {/* The master vocal is a take like any other. [S-7] */}
-            A take like any other — recorded against the same song, placed the
-            same way. Its picture need never appear.
-          </span>
         </div>
       )}
 
@@ -138,14 +144,12 @@ export default function SoundModes({
       )}
 
       {scenes.length > 0 && (
-        <details style={{ marginTop: 12 }} data-testid="scene-audio">
-          <summary className="small muted" style={{ cursor: 'pointer' }}>
+        <details style={{ marginTop: 10 }} data-testid="scene-audio">
+          <summary className="small muted" style={{ cursor: 'pointer', fontSize: 12 }}
+                   title={'For the chorus that should carry the crowd from the stage '
+                     + 'take while everything else stays on the studio vocal.'}>
             One section at a time
           </summary>
-          <p className="small muted" style={{ maxWidth: 560, marginTop: 6 }}>
-            For the chorus that should carry the crowd from the stage take while
-            everything else stays on the studio vocal.
-          </p>
           {scenes.map((scene) => (
             <div key={scene.id} className="row"
                  style={{ gap: 8, alignItems: 'center', marginTop: 4 }}>

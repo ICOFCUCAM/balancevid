@@ -402,6 +402,86 @@ const PERFORMANCE_LAYOUTS: Record<string, Layout> = {
       { source: 'take', slot: 3, rect: { x: 0.5, y: 0.5, w: 0.5, h: 0.5 }, fit: 'cover', z: 3 },
     ],
   },
+  /*
+   * THREE ACROSS.  [§5, §6, U-18, U-22]
+   *
+   * The arrangement a trio needs and a quad cannot give: three panels of
+   * equal weight, which is a different statement from one large and two
+   * small. Letterboxed top and bottom against the blurred backdrop, because
+   * three 16:9 panels side by side in a 16:9 frame are three tall strips and
+   * filling the height would crop everybody to a nose.
+   */
+  performance_thirds: {
+    id: 'performance_thirds', label: 'Three across',
+    backdrop: 'blur',
+    layers: [
+      { source: 'take', slot: 0, rect: { x: 0, y: 0.17, w: 0.3333, h: 0.66 }, fit: 'cover', z: 0 },
+      { source: 'take', slot: 1, rect: { x: 0.3333, y: 0.17, w: 0.3334, h: 0.66 }, fit: 'cover', z: 1 },
+      { source: 'take', slot: 2, rect: { x: 0.6667, y: 0.17, w: 0.3333, h: 0.66 }, fit: 'cover', z: 2 },
+    ],
+    // Three beside each other in a tall frame are three slivers. [U-22]
+    reframe: {
+      square: 'performance_thirds_stacked',
+      portrait: 'performance_thirds_stacked',
+      tall: 'performance_thirds_stacked',
+    },
+  },
+  performance_thirds_stacked: {
+    id: 'performance_thirds_stacked', label: 'Three, one above another',
+    layers: [
+      { source: 'take', slot: 0, rect: { x: 0, y: 0, w: 1, h: 0.3333 }, fit: 'cover', z: 0 },
+      { source: 'take', slot: 1, rect: { x: 0, y: 0.3333, w: 1, h: 0.3334 }, fit: 'cover', z: 1 },
+      { source: 'take', slot: 2, rect: { x: 0, y: 0.6667, w: 1, h: 0.3333 }, fit: 'cover', z: 2 },
+    ],
+  },
+  /*
+   * SIX WAYS. The quad's argument, one row further: six equal panels tile a
+   * frame exactly, so this needs no letterbox and no backdrop. It is what a
+   * chorus looks like when every take is singing it.
+   */
+  performance_six: {
+    id: 'performance_six', label: 'Six ways',
+    layers: [
+      { source: 'take', slot: 0, rect: { x: 0, y: 0, w: 0.3333, h: 0.5 }, fit: 'cover', z: 0 },
+      { source: 'take', slot: 1, rect: { x: 0.3333, y: 0, w: 0.3334, h: 0.5 }, fit: 'cover', z: 1 },
+      { source: 'take', slot: 2, rect: { x: 0.6667, y: 0, w: 0.3333, h: 0.5 }, fit: 'cover', z: 2 },
+      { source: 'take', slot: 3, rect: { x: 0, y: 0.5, w: 0.3333, h: 0.5 }, fit: 'cover', z: 3 },
+      { source: 'take', slot: 4, rect: { x: 0.3333, y: 0.5, w: 0.3334, h: 0.5 }, fit: 'cover', z: 4 },
+      { source: 'take', slot: 5, rect: { x: 0.6667, y: 0.5, w: 0.3333, h: 0.5 }, fit: 'cover', z: 5 },
+    ],
+    // Three columns of a tall frame are three slivers; two of three are not.
+    reframe: {
+      portrait: 'performance_six_tall',
+      tall: 'performance_six_tall',
+    },
+  },
+  performance_six_tall: {
+    id: 'performance_six_tall', label: 'Six, two across',
+    layers: [
+      { source: 'take', slot: 0, rect: { x: 0, y: 0, w: 0.5, h: 0.3333 }, fit: 'cover', z: 0 },
+      { source: 'take', slot: 1, rect: { x: 0.5, y: 0, w: 0.5, h: 0.3333 }, fit: 'cover', z: 1 },
+      { source: 'take', slot: 2, rect: { x: 0, y: 0.3333, w: 0.5, h: 0.3334 }, fit: 'cover', z: 2 },
+      { source: 'take', slot: 3, rect: { x: 0.5, y: 0.3333, w: 0.5, h: 0.3334 }, fit: 'cover', z: 3 },
+      { source: 'take', slot: 4, rect: { x: 0, y: 0.6667, w: 0.5, h: 0.3333 }, fit: 'cover', z: 4 },
+      { source: 'take', slot: 5, rect: { x: 0.5, y: 0.6667, w: 0.5, h: 0.3333 }, fit: 'cover', z: 5 },
+    ],
+  },
+  /*
+   * ONE AND A COLUMN. A lead with the rest of the band beside them, which is
+   * the shape a chorus takes when one voice is carrying it — distinct from
+   * `performance_focus`, where the small panels float OVER the large one.
+   * Here nothing overlaps: the large panel is two thirds of the frame and the
+   * column is the other third.
+   */
+  performance_lead: {
+    id: 'performance_lead', label: 'Lead and column',
+    layers: [
+      { source: 'take', slot: 0, rect: { x: 0, y: 0, w: 0.6667, h: 1 }, fit: 'cover', z: 0 },
+      { source: 'take', slot: 1, rect: { x: 0.6667, y: 0, w: 0.3333, h: 0.3333 }, fit: 'cover', z: 1 },
+      { source: 'take', slot: 2, rect: { x: 0.6667, y: 0.3333, w: 0.3333, h: 0.3334 }, fit: 'cover', z: 2 },
+      { source: 'take', slot: 3, rect: { x: 0.6667, y: 0.6667, w: 0.3333, h: 0.3333 }, fit: 'cover', z: 3 },
+    ],
+  },
   performance_pip: {
     id: 'performance_pip', label: 'Picture in picture',
     layers: [
