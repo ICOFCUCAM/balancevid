@@ -12,6 +12,8 @@ import {
   PODCAST_LOUDNESS_LUFS, audioChapters, listeningCost, pointsAtPicture,
 } from '../../src/domain/audioExport.js';
 import { chapterMetadata } from '../../src/render/audioFile.js';
+import { buildBundle, conversationChapters } from '../../src/publish/bundle.js';
+import { projectTimeline } from '../../src/domain/timeline.js';
 import { HOUSE_FPS } from '../../src/domain/time.js';
 import { addAnnotation } from '../../src/domain/edit.js';
 import { S, makeConversation, makeIntervention, makeTake } from './fixtures.js';
@@ -75,6 +77,51 @@ describe('the metadata file', () => {
   it('and never lets a newline end the line early', () => {
     const meta = chapterMetadata([{ startMs: 0, endMs: 1, title: 'One\nTwo' }]);
     expect(meta).toContain('title=One Two');
+  });
+});
+
+/*
+ * A chapter list has two audiences and one of them has rules.
+ *
+ * The bundle emits no chapters at all when the list would be under three
+ * entries or would not begin at zero, because YouTube silently ignores such a
+ * list. That is a fact about a description box. An MP3's chapter list has no
+ * minimum, and a two-chapter conversation is exactly the one a listener most
+ * wants to skip around — so the audio export takes the list, not the veto.
+ * Found by the browser run, which made an audio file with no chapters in it.
+ */
+describe('whose rule is whose (D-16)', () => {
+  function shortConversation(): ReturnType<typeof makeConversation> {
+    // One interruption, at the end: two chapters, which YouTube will not accept.
+    const conversation = makeConversation(S(600), [makeIntervention(S(600), S(20))]);
+    for (const intervention of conversation.interventions) {
+      intervention.takes = [makeTake(S(20))];
+      intervention.selectedTakeId = intervention.takes[0]!.id;
+    }
+    return conversation;
+  }
+
+  it('the bundle withholds a list the platform would ignore, and says why', () => {
+    const bundle = buildBundle({
+      conversation: shortConversation(),
+      generatedAt: '2026-01-01T00:00:00.000Z',
+      attribution: 'Source: something',
+    });
+    expect(bundle.chapters).toHaveLength(0);
+    expect(bundle.chaptersNote).toMatch(/fewer than/);
+  });
+
+  it('and the audio keeps it, because a player has no such rule', () => {
+    const conversation = shortConversation();
+    const timeline = projectTimeline(conversation);
+    const chapters = audioChapters(
+      conversationChapters(conversation), timeline.totalOutputFrames);
+    expect(chapters.length).toBeGreaterThanOrEqual(2);
+    expect(chapters[0]!.startMs).toBe(0);
+    // Each one ends where the next begins, with no gap for a player to fall in.
+    for (let i = 1; i < chapters.length; i++) {
+      expect(chapters[i]!.startMs).toBe(chapters[i - 1]!.endMs);
+    }
   });
 });
 

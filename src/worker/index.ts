@@ -34,7 +34,7 @@ import {
 import { buildCues } from '../render/cues.js';
 import { archiveUpload, archiveWeb, type ArchiveResult } from '../evidence/archive.js';
 import { projectTimeline } from '../domain/timeline.js';
-import { buildBundle } from '../publish/bundle.js';
+import { buildBundle, conversationChapters } from '../publish/bundle.js';
 import { buildShareCard } from '../publish/card.js';
 import { HOUSE_FPS, HOUSE_SAMPLE_RATE, samplesToSeconds } from '../domain/time.js';
 import { measureAlignment } from '../domain/align.js';
@@ -594,14 +594,19 @@ async function renderAudio(job: Job): Promise<Job> {
     artist = document.master.artist;
   } else {
     const document = await loadConversation(id);
-    const summary = buildBundle({
-      conversation: document,
-      sourceTranscript: (await loadTranscript(id))?.transcript ?? null,
-      generatedAt: new Date().toISOString(),
-      // The same generated credit the video carries. [U-21, INV-07]
-      attribution: buildAttribution(document).text,
-    });
-    chapters = audioChapters(summary.chapters, projectTimeline(document).totalOutputFrames);
+    /*
+     * The conversation's own chapters, not the bundle's.  [D-16]
+     *
+     * The bundle emits NOTHING when the list would be under three entries or
+     * would not start at zero, because YouTube silently ignores such a list
+     * and something ignored is worse than nothing. That is a fact about a
+     * description box: an ID3 chapter list has no minimum, and a two-chapter
+     * conversation is exactly the one a listener most wants to skip around.
+     * Taking the bundle's answer here produced an MP3 with no chapters at all.
+     */
+    chapters = audioChapters(
+      conversationChapters(document, (await loadTranscript(id))?.transcript ?? null),
+      projectTimeline(document).totalOutputFrames);
     title = document.title;
     artist = document.publication?.author;
   }

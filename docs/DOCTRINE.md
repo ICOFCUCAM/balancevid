@@ -3348,6 +3348,20 @@ count comes from the document, so it is a measurement. **A warning about
 content in general is decoration; the same warning about the thing in front of
 you is information.**
 
+**A rule belongs to the medium that has it.** The publication bundle emits NO
+chapters when the list would be under three entries or would not begin at zero,
+because YouTube silently ignores such a list and something ignored is worse
+than nothing. The audio export read its chapters from the bundle, inherited
+that veto, and produced an MP3 with no chapters in it — for a conversation that
+had two perfectly good ones, which is exactly the length a listener most wants
+to skip around. The chapter list and the platform's opinion of it are now two
+functions: `mergedChapters` is the conversation's own answer, and the
+description box is the only caller that has to satisfy anybody. **D-16 says
+representations derive from one source of truth; it does not say they inherit
+each other's constraints, and a shared helper is where the two get confused.**
+Found by the browser run, not by a unit test, because every unit test agreed
+with the bundle.
+
 **Believed formats are not formats.** ID3 chapters were going to be written on
 the strength of knowing that ffmpeg supports `-f ffmetadata`. What that
 actually requires is the metadata file as a second input, `-map_metadata 1`,

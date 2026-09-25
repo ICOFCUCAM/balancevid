@@ -138,6 +138,64 @@ function buildChapters(
   conversation: Conversation,
   transcript?: Transcript | null,
 ): { chapters: Chapter[]; note?: string } {
+  const merged = mergedChapters(timeline, byId, conversation, transcript);
+
+  /*
+   * THE VETO BELOW IS YOUTUBE'S, NOT THE CONVERSATION'S.
+   *
+   * A list the platform silently ignores is worse than none, so the bundle
+   * emits nothing rather than something that will not appear. That is a fact
+   * about a description box, and `mergedChapters` above it is the list itself
+   * — which is why it is separate: an MP3's chapter list has no minimum and
+   * no requirement to begin at zero, and borrowing this rule for it produced
+   * an audio file with no chapters at all. [D-16]
+   */
+  if (merged.length === 0 || merged[0]!.startFrame !== 0) {
+    return { chapters: [], note: 'chapters must start at 00:00, and this export does not' };
+  }
+  if (merged.length < MIN_CHAPTERS) {
+    return {
+      chapters: [],
+      note: `platforms ignore a list of fewer than ${MIN_CHAPTERS} chapters, ` +
+        'and merging the short ones left too few — a longer conversation will have them',
+    };
+  }
+  return { chapters: merged };
+}
+
+/**
+ * The same list, for anything that is not a description box.
+ *
+ * Takes a Conversation rather than a projected timeline, because that is what
+ * every caller outside this file has.
+ */
+export function conversationChapters(
+  conversation: Conversation,
+  sourceTranscript?: Transcript | null,
+  timeline?: Timeline,
+): Chapter[] {
+  return mergedChapters(
+    timeline ?? projectTimeline(conversation),
+    new Map(orderedInterventions(conversation).map((i) => [i.id, i])),
+    conversation,
+    sourceTranscript,
+  );
+}
+
+/**
+ * The conversation's own chapter list, before any platform has an opinion.
+ *
+ * One entry per run of source and per response, with anything too short to be
+ * usable merged into the one before it. This is what a player's chapter menu
+ * gets and what the description box gets; only the description box then has
+ * to satisfy YouTube.
+ */
+export function mergedChapters(
+  timeline: Timeline,
+  byId: Map<string, Intervention>,
+  conversation: Conversation,
+  transcript?: Transcript | null,
+): Chapter[] {
   const raw: Chapter[] = [];
 
   for (const item of timeline.items) {
@@ -178,18 +236,7 @@ function buildChapters(
     }
     merged.push({ ...chapter });
   }
-
-  if (merged.length === 0 || merged[0]!.startFrame !== 0) {
-    return { chapters: [], note: 'chapters must start at 00:00, and this export does not' };
-  }
-  if (merged.length < MIN_CHAPTERS) {
-    return {
-      chapters: [],
-      note: `platforms ignore a list of fewer than ${MIN_CHAPTERS} chapters, ` +
-        'and merging the short ones left too few — a longer conversation will have them',
-    };
-  }
-  return { chapters: merged };
+  return merged;
 }
 
 /**
