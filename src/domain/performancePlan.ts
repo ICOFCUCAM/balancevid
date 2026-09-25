@@ -27,7 +27,7 @@ import { assertPerformanceRenderable } from './invariants.js';
 import { sha256 } from './ids.js';
 import {
   type Performance, type PerformanceSpan, type PerformanceTake, type PerformanceWindow,
-  coversSpan, mayPublish, plateFor, projectPerformance,
+  coversSpan, mayPublish, mayShowMasterPicture, plateFor, projectPerformance,
 } from './performance.js';
 import { overlapSplit, transitionFor } from './transitions.js';
 import { matteFeather, matteThreshold, needsMatte } from './environment.js';
@@ -372,6 +372,30 @@ function performanceShot(
       ...(take.alignment.rateRatio !== 1 ? { rateRatio: take.alignment.rateRatio } : {}),
       ...(backdropFor(performance, take) ?? {}),
     })),
+    /*
+     * The master's picture, only where the chosen layout asks for it AND the
+     * rights allow it.  [§5, INV-15, D-08]
+     *
+     * Asked of the layout so a performance whose master happens to be a video
+     * does not start showing it in Full Mode; asked of the class because
+     * putting somebody's music video on screen is a reproduction of the
+     * audiovisual work, which is at least as strong a claim as the sound.
+     *
+     * Refused rather than substituted: a layout that wants the master's
+     * picture and cannot have it renders its panel empty, and the plan's own
+     * check below says so, rather than quietly showing a second take in its
+     * place. The author chose an arrangement; the product does not choose a
+     * different one on their behalf.
+     */
+    ...(layout.layers.some((layer) => layer.source === 'master')
+      && mayShowMasterPicture(performance.master)
+      ? {
+        master: {
+          assetId: performance.master.videoAssetId as AssetId,
+          fromSample: span.fromSample,
+        },
+      }
+      : {}),
     ...(span.scene.label ? { label: span.scene.label } : {}),
   };
 }

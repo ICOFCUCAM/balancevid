@@ -44,7 +44,9 @@ import { measureAlignment } from '../domain/align.js';
 import {
   MIN_DRIFT_SPAN_SAMPLES, captureRateError, measureDrift,
 } from '../domain/drift.js';
-import { decodeToAnalysis, normaliseMaster, readAnalysis } from '../render/audio.js';
+import {
+  decodeToAnalysis, normaliseMaster, normaliseMasterPicture, readAnalysis,
+} from '../render/audio.js';
 import {
   auditPerformance, loadPerformance, mutatePerformance,
 } from '../store/performances.js';
@@ -114,7 +116,31 @@ async function ingestMaster(job: Job): Promise<Job> {
 
   const normalised = paths.performanceAsset(id, `${job.payload['assetId']}mezz`, 'webm');
   await normaliseMaster(originalPath, normalised);
-  job.progress = 50;
+  job.progress = 40;
+  await update(job);
+
+  /*
+   * And its picture, when it brought one.  [§3, §5]
+   *
+   * "A music video, or another video to perform against." Kept as a second
+   * file rather than muxed with the sound: the sound is the clock and is
+   * decoded and analysed as samples, while the picture is a layer some
+   * layouts use. Failing to keep it does not fail the ingest — a performance
+   * whose accompaniment lost its picture is still a performance, and losing
+   * the song would be a different matter.
+   */
+  const pictureId = `${job.payload['assetId']}pic`;
+  const picturePath = paths.performanceAsset(id, pictureId, 'mp4');
+  let picture: { width: number; height: number } | null = null;
+  try {
+    picture = await normaliseMasterPicture(originalPath, picturePath);
+  } catch (error) {
+    await auditPerformance(id, {
+      action: 'master.picture-failed',
+      detail: { error: String(error).slice(0, 200) },
+    });
+  }
+  job.progress = 55;
   await update(job);
 
   /*
@@ -140,19 +166,30 @@ async function ingestMaster(job: Job): Promise<Job> {
 
   await mutatePerformance(id, (draft) => {
     draft.master.durationSamples = durationSamples;
+    if (picture) {
+      // Measured from the file, never assumed from its extension.
+      draft.master.videoAssetId = pictureId as never;
+      draft.master.videoWidth = picture.width;
+      draft.master.videoHeight = picture.height;
+    }
     if (beats) recordBeats(draft, beats, BEAT_DETECTOR, new Date().toISOString());
   });
   await auditPerformance(id, {
     action: 'master.ingested',
     detail: {
       durationSamples, seconds: Number(samplesToSeconds(durationSamples).toFixed(3)),
+      ...(picture ? { picture: `${picture.width}x${picture.height}` } : {}),
       ...(beats ? { bpm: beats.bpm, beatConfidence: beats.confidence } : {}),
     },
   });
 
   return finish(job, 'done', {
     progress: 100,
-    result: { durationSamples, ...(beats ? { bpm: beats.bpm } : {}) },
+    result: {
+      durationSamples,
+      ...(beats ? { bpm: beats.bpm } : {}),
+      ...(picture ? { picture: true } : {}),
+    },
   });
 }
 

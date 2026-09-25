@@ -154,6 +154,14 @@ export default function BundlePanel({ conversationId, ready }: { conversationId:
            href={`/c/${conversationId}/explore`} target="_blank" rel="noreferrer">
           Interactive
         </a>
+        {/* And the same conversation to stand up and deliver. It lives here,
+            beside the other representations, rather than in ExportPanel —
+            which is a different surface and not the one the publish stage
+            shows. */}
+        <a className="btn small" data-testid="open-present"
+           href={`/c/${conversationId}/present`} target="_blank" rel="noreferrer">
+          Present
+        </a>
         <a className="btn small"
            href={`/api/conversations/${conversationId}/representations?id=captions.srt`}
            target="_blank" rel="noreferrer">Captions</a>

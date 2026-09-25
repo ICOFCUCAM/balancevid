@@ -184,6 +184,19 @@ export interface PerformanceShot extends ShotBase {
      */
     backdrop?: PerformanceBackdrop;
   }[];
+  /**
+   * The master's own picture, when the layout puts it on screen. [§3, §5]
+   *
+   * Carried on the shot rather than looked up from the document by the
+   * renderer, for the reason everything else here is: a plan is a complete
+   * description of an export, and a renderer that reads the document is a
+   * second place the export gets decided.
+   *
+   * `fromSample` is where this stretch sits on the music clock, which is
+   * where the picture must be seeked to — the master's sound and its picture
+   * are two files cut from one original, so one number places both.
+   */
+  master?: { assetId: AssetId; fromSample: number };
   /** The author's name for this stretch — "Chorus". [§15] */
   label?: string;
 }

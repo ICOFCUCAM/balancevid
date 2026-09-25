@@ -25,7 +25,7 @@ import { lookFor } from '../domain/environment.js';
 import { mixExpression, transitionFor } from '../domain/transitions.js';
 import { backdropChain, blurBackdropChain, matteChain } from './matte.js';
 import { mixPerformanceAudio } from './mix.js';
-import { type Frames, framesToSamples } from '../domain/time.js';
+import { HOUSE_SAMPLE_RATE, type Frames, framesToSamples } from '../domain/time.js';
 import { ffmpeg, type RunOptions } from './ffmpeg.js';
 import { HOUSE, matchGainDb, measureLoudness, measureLoudnorm } from './ingest.js';
 import { buildAss, buildSrt, buildVtt, type Cue } from './subtitles.js';
@@ -249,6 +249,15 @@ async function renderPerformanceShot(
   const total = shot.durationFrames;
   const seconds = frameSeconds(total, fps);
   const panels = layout.layers.filter((layer) => layer.source === 'take');
+  /*
+   * Only when the PLAN carried one. A layout can ask for the master's picture
+   * and not get it — the rights may not allow it, or the master may be a song
+   * with no picture to show — and the renderer must not go looking for what
+   * the plan declined to give it. [INV-15]
+   */
+  const masterLayer = shot.master
+    ? layout.layers.find((layer) => layer.source === 'master')
+    : undefined;
 
   const inputs: string[] = [];
   for (const take of shot.takes) {
@@ -264,8 +273,24 @@ async function renderPerformanceShot(
       '-i', resolveAsset(take.assetId),
     );
   }
-  /** Stills come after every take, so a take's index is still its slot. */
-  let nextInput = shot.takes.length;
+  /*
+   * The master's picture, after the takes so a take's index is still its
+   * slot. Seeked to where this stretch sits on the music clock — the sound
+   * and the picture are two files cut from one original, so the same number
+   * places both, and no drift correction applies: the master IS the clock.
+   */
+  let masterInput: number | undefined;
+  if (shot.master) {
+    masterInput = shot.takes.length;
+    inputs.push(
+      '-accurate_seek', '-ss', (shot.master.fromSample / HOUSE_SAMPLE_RATE).toFixed(6),
+      '-t', (total / fps + 0.2).toFixed(6),
+      '-i', resolveAsset(shot.master.assetId),
+    );
+  }
+
+  /** Stills come after the takes and the master, so indices stay stable. */
+  let nextInput = shot.takes.length + (shot.master ? 1 : 0);
   const still = (assetId: AssetId): number => {
     if (!opts.resolveStill) {
       throw new Error('this render needs a room plate and was given no way to find one');
@@ -349,10 +374,46 @@ async function renderPerformanceShot(
       filters.push(`[${composed}]format=yuv420p[${panel}]`);
     }
 
-    const next = index === panels.length - 1 ? 'vout' : `s${index}`;
+    /*
+     * The master's panel, where there is one, is composited after every take
+     * — so `vout` is named by whichever is genuinely last rather than by the
+     * take loop assuming it is.
+     */
+    const isLast = index === panels.length - 1 && !masterLayer;
+    const next = isLast ? 'vout' : `s${index}`;
     filters.push(`[${last}][${panel}]overlay=${box.x}:${box.y}:shortest=0[${next}]`);
     last = next;
   });
+
+  /*
+   * What is being performed against.  [§5]
+   *
+   * `contain` where the layout says so, and the layout does say so: a take is
+   * a person and cropping their edges is fine, while the master is somebody
+   * else's composed frame and cropping it shows them something they did not
+   * make. No drift correction — the master IS the clock, so there is nothing
+   * for it to drift against.
+   *
+   * A layout that asks for the master on a performance whose rights do not
+   * allow its picture leaves the panel as the backdrop shows it, rather than
+   * substituting a take. The plan's own check says so out loud; quietly
+   * filling the hole would be the product choosing an arrangement the author
+   * did not.
+   */
+  if (masterLayer && masterInput !== undefined) {
+    const box = pixelRect(masterLayer.rect, width, height);
+    filters.push(
+      `[${masterInput}:v]${fitFilter(masterLayer.fit, box.w, box.h)},`
+      + `setsar=1,fps=${fps},trim=end=${seconds},setpts=PTS-STARTPTS,`
+      + `format=yuv420p[mstr]`,
+    );
+    filters.push(`[${last}][mstr]overlay=${box.x}:${box.y}:shortest=0[vout]`);
+    last = 'vout';
+  } else if (!panels.some((_, index) => index === panels.length - 1) || last === 'bg') {
+    // Nothing was composited at all — a layout with no usable panel. The
+    // canvas is the output rather than a dangling label ffmpeg cannot map.
+    filters.push(`[${last}]null[vout]`);
+  }
 
   /*
    * A take that ran out mid-shot would leave its panel showing its last frame

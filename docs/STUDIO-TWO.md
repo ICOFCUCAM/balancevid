@@ -1746,6 +1746,59 @@ it for exactly the same reason. [INV-15, U-01]
 stated zero; an upload for `custom` backgrounds; §12's interface. Zoom, Swipe,
 Match movement and Chorus remain unbuilt on purpose (S-8).
 
+## S-27 — The thing you are performing against
+
+**§3 lists what a master may be: "a song, instrumental, backing track,
+original audio, music video, another video to perform against."** Five of
+those six are sound. The sixth was being thrown away.
+
+`normaliseMaster` ingested with `-vn`. Upload a music video and the product
+kept its sound and discarded its picture — which meant §5's Half Mode had only
+one of its two forms. "TAKE 1 | TAKE 2" worked, because that needs only slots.
+"YOU | BACKGROUND / OTHER VIDEO" could not exist at all, because there was no
+other video left to put there.
+
+**TWO FILES, NOT ONE.** The sound is the CLOCK: every take is aligned against
+it, and it is decoded, measured and analysed as samples. The picture is a
+layer that some layouts use. Muxing them would carry video frames through
+every decode the alignment pipeline does and never read them, and would make
+"this master has no picture" a property of a stream inside a file rather than
+of whether a file exists. The picture is kept silent for the same reason a
+take's audio is kept separate: a second copy of the song is a second thing
+that can drift.
+
+**A cover-art JPEG inside an MP3 is a video stream.** ffprobe says so, and it
+is not a picture to perform against — a Half Mode showing an album cover for
+four minutes would be a feature arriving by accident. One frame is not a
+video, and the check counts packets rather than trusting the stream's
+existence.
+
+**The rights govern the picture at least as strictly as the sound.** Putting a
+commercial music video on screen is a reproduction of the audiovisual work,
+which is a distinct right from the mechanical and synchronisation rights over
+the song. It would be incoherent for a product that refuses to publish the
+sound to publish the picture that came with it, so `mayShowMasterPicture` is
+`mayPublish` plus "there is a picture" — and a `third_party` master's picture
+never reaches a frame, not even in a private copy.
+
+**Refused, never substituted.** A layout that asks for the master's picture
+and cannot have it renders that panel as the backdrop shows it. Quietly
+putting a second take there would be the product choosing an arrangement the
+author did not.
+
+**And the master is contained, never cropped**, in both the wide and the tall
+form — asserted over the whole layout table rather than on the two rows that
+exist today. A take is a person and cropping their edges is fine; the master
+is somebody else's composed frame, and cropping it shows them something they
+did not make.
+
+**Everything else in §2 and §5–§8 was already built** and was measured rather
+than assumed: the quad, Full and Half, live switching on the number keys
+(capture-phase, so nothing on the page can swallow a switch mid-song), scenes
+as the one primitive that live switching appends to and timeline editing
+moves, the three audio modes, alignment against the song, and cutting on the
+beat.
+
 ---
 
 *Appendix S ends. The brief above it is unedited.*

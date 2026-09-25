@@ -234,7 +234,19 @@ export interface Rect { x: number; y: number; w: number; h: number }
  * WHICH of them goes where without knowing what they are. So a `take` layer
  * names a SLOT, and the scene fills the slots in order. [STUDIO-TWO §5, §6]
  */
-export type LayerSource = 'source' | 'user' | 'still' | 'screen' | 'evidence' | 'take';
+export type LayerSource =
+  | 'source' | 'user' | 'still' | 'screen' | 'evidence' | 'take'
+  /**
+   * Studio Two's master, where it brought a picture.  [STUDIO-TWO §3, §5]
+   *
+   * Distinct from `source`, which is Studio One's video and the thing being
+   * argued with. A master is the thing being performed ALONGSIDE: a music
+   * video the performer is covering, a lecture they are responding to in
+   * song, a film they are scoring. Naming it `source` would have saved a
+   * union member and made two different relationships to somebody else's work
+   * look like one.
+   */
+  | 'master';
 
 export interface Layer {
   source: LayerSource;
@@ -346,6 +358,39 @@ const PERFORMANCE_LAYOUTS: Record<string, Layout> = {
     layers: [
       { source: 'take', slot: 0, rect: { x: 0, y: 0.06, w: 1, h: 0.44 }, fit: 'cover', z: 0 },
       { source: 'take', slot: 1, rect: { x: 0, y: 0.50, w: 1, h: 0.44 }, fit: 'cover', z: 1 },
+    ],
+  },
+  /*
+   * §5's Half Mode has two forms and this is the one that needs a second
+   * kind of thing on screen: the performer beside what they are performing
+   * against. The other form — two takes of the performer — is
+   * `performance_half`, which needs only slots.
+   */
+  performance_beside_master: {
+    id: 'performance_beside_master', label: 'Beside the video',
+    backdrop: 'blur',
+    layers: [
+      { source: 'take', slot: 0, rect: { x: 0, y: 0.25, w: 0.5, h: 0.5 }, fit: 'cover', z: 0 },
+      { source: 'master', rect: { x: 0.5, y: 0.25, w: 0.5, h: 0.5 }, fit: 'contain', z: 1 },
+    ],
+    reframe: {
+      square: 'performance_over_master',
+      portrait: 'performance_over_master',
+      tall: 'performance_over_master',
+    },
+  },
+  performance_over_master: {
+    id: 'performance_over_master', label: 'Above the video',
+    backdrop: 'blur',
+    layers: [
+      { source: 'take', slot: 0, rect: { x: 0, y: 0.06, w: 1, h: 0.44 }, fit: 'cover', z: 0 },
+      /*
+       * `contain` rather than `cover` for the master, in both shapes. A take
+       * is a person and cropping their edges is fine; the master is somebody
+       * else's composed frame, and cropping it is showing them something they
+       * did not make. [D-08]
+       */
+      { source: 'master', rect: { x: 0, y: 0.50, w: 1, h: 0.44 }, fit: 'contain', z: 1 },
     ],
   },
   performance_quad: {

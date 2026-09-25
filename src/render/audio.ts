@@ -22,7 +22,7 @@ import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 import { HOUSE_SAMPLE_RATE, type Samples } from '../domain/time.js';
-import { ffmpeg, type RunOptions } from './ffmpeg.js';
+import { ffmpeg, ffprobe, type RunOptions } from './ffmpeg.js';
 
 /**
  * Decode to one channel of raw floats at the house rate, and count them.
@@ -103,6 +103,64 @@ export async function normaliseMaster(
     '-f', 'webm',
     outPath,
   ], run);
+}
+
+/**
+ * The master's picture, kept apart from its sound.  [STUDIO-TWO §3, §5]
+ *
+ * "A music video, or another video to perform against."
+ *
+ * TWO FILES, NOT ONE, and that is the point rather than an inconvenience. The
+ * sound is the CLOCK — every take is aligned against it, and it is decoded,
+ * measured and analysed as samples. The picture is a layer some layouts use.
+ * Muxing them would mean the alignment pipeline carried video frames it never
+ * reads through every decode, and would make "this master has no picture" a
+ * property of a stream inside a file rather than of whether a file exists.
+ *
+ * Silent on purpose: the sound comes from the normalised master, and a second
+ * copy of it inside the picture is a second thing that can drift.
+ *
+ * Returns the measured shape, or null when the file had no video to keep —
+ * which is every song, and is not a failure.
+ */
+export async function normaliseMasterPicture(
+  originalPath: string, outPath: string, run?: RunOptions,
+): Promise<{ width: number; height: number } | null> {
+  const shape = await probeVideoShape(originalPath);
+  if (!shape) return null;
+  await mkdir(dirname(outPath), { recursive: true });
+  await ffmpeg([
+    '-y', '-i', originalPath,
+    '-an',
+    '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20',
+    '-pix_fmt', 'yuv420p',
+    outPath,
+  ], run);
+  return shape;
+}
+
+/** What shape the picture is, or nothing when there is no picture. */
+async function probeVideoShape(
+  path: string,
+): Promise<{ width: number; height: number } | null> {
+  const raw = await ffprobe([
+    '-v', 'error', '-select_streams', 'v:0',
+    '-show_entries', 'stream=width,height', '-of', 'json', path,
+  ]);
+  const stream = (JSON.parse(raw) as { streams?: { width?: number; height?: number }[] })
+    .streams?.[0];
+  /*
+   * A cover-art JPEG inside an MP3 is a video stream by ffprobe's reckoning,
+   * and it is not a picture to perform against. One frame is not a video.
+   */
+  if (!stream?.width || !stream.height) return null;
+  const frames = await ffprobe([
+    '-v', 'error', '-select_streams', 'v:0',
+    '-count_packets', '-show_entries', 'stream=nb_read_packets',
+    '-of', 'csv=p=0', path,
+  ]);
+  if (Number(frames.trim()) <= 1) return null;
+  return { width: stream.width, height: stream.height };
 }
 
 /** Write samples out as an analysis file, for tests and for synthetic fixtures. */

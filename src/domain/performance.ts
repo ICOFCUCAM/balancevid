@@ -132,6 +132,43 @@ export interface MasterTrack {
   countInSamples?: Samples;
   /** Detected, and therefore a suggestion until used. [§11, INV-06] */
   bpm?: number;
+  /**
+   * The master's own picture, where it brought one.  [§3, §5, INV-15]
+   *
+   * "A music video, or another video to perform against." A master arrives as
+   * a song most of the time and the pipeline treats it as sound — but when it
+   * is a video, throwing the picture away means Half Mode can only ever be two
+   * takes of the performer, never the performer beside the thing they are
+   * performing against.
+   *
+   * MEASURED, NOT ASSUMED. Present only when the file actually decoded to a
+   * video stream, which is a fact about the file rather than about its
+   * extension. Absent for every song, and for a video whose picture failed to
+   * normalise — in which case the performance still works and is audio only,
+   * because losing the accompaniment must not lose the song.
+   */
+  videoAssetId?: AssetId;
+  /** The picture's own shape, for laying it out without decoding it again. */
+  videoWidth?: number;
+  videoHeight?: number;
+}
+
+/**
+ * May the master's PICTURE be shown?  [INV-15, U-01, D-08]
+ *
+ * The same allowlist as its sound, and deliberately not a laxer one. Putting a
+ * commercial music video on screen is a reproduction of the audiovisual work,
+ * which is a distinct right from the mechanical and synchronisation rights
+ * over the song — so if anything it is the stronger claim, and it would be
+ * incoherent for a product that refuses to publish the sound to publish the
+ * picture that came with it.
+ *
+ * Asked separately from `mayPublish` because the two questions are asked at
+ * different moments — one when planning a render, one when publishing — and a
+ * caller reaching for the wrong one should be reading the wrong name.
+ */
+export function mayShowMasterPicture(master: MasterTrack): boolean {
+  return Boolean(master.videoAssetId) && mayPublish(master);
 }
 
 /* ------------------------------------------------------------------------ *

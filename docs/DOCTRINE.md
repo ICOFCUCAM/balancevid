@@ -3303,6 +3303,8 @@ quietly left in the code.
 - Capabilities per participant — respond, edit own, edit conversation, invite,
   publish — granted, never assumed *(ROOM §3, D-03)*
 - People and responses as two lists in the Studio rail *(ROOM §4, D-17)*
+- A master that keeps its picture, so a performance can be beside the work
+  it is performed against *(STUDIO-TWO §3, §5, INV-15)*
 
 ---
 
@@ -3401,6 +3403,24 @@ marks is exactly as strong and exactly as wrong. They are set as the body, the
 way the article already prints them. **A quotation mark is a claim about
 provenance, not a typographic choice, and the test that a representation is
 honest is whether it is still honest with the conversation removed.**
+
+**A list of six things where five are sound, and the sixth was discarded.**
+Studio Two's brief says a master may be "a song, instrumental, backing track,
+original audio, music video, another video to perform against". Ingest ran
+`-vn` over all six. Nothing failed, nothing warned, and the consequence showed
+up one clause away: Half Mode's "you beside the other video" could not exist
+because there was no other video left. **When a specification lists kinds and
+the implementation handles the common one, the check is not whether it works —
+it is whether the uncommon kinds still exist afterwards.**
+
+**And the rights follow the picture, not just the sound.** Putting a
+commercial music video on screen reproduces the audiovisual work, which is a
+different right from the sync and mechanical rights over the song — so the
+allowlist that governs publishing the sound governs showing the picture, and
+a third-party master's picture reaches no frame at all. A layout that asks for
+it and cannot have it renders empty rather than substituting a take: the
+author chose an arrangement, and the product does not quietly choose a
+different one.
 
 **A person and a response are two things, so they are two lists.** The
 Studio rail was "what I said". With more than one voice in the conversation
