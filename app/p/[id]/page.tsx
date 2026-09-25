@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { isOwner } from '../../../src/auth/request.js';
 import { loadPerformance } from '../../../src/store/performances.js';
 import { listConversations } from '../../../src/store/repository.js';
+import { listChannels } from '../../../src/store/channels.js';
 import PerformanceStudio from './PerformanceStudio.js';
 
 export const dynamic = 'force-dynamic';
@@ -38,7 +39,13 @@ export default async function PerformancePage(
    * offering a door onto nothing.
    */
   const conversations = await listConversations().catch(() => []);
-  const latest = conversations[0]?.id;
+  const channels = await listChannels().catch(() => []);
 
-  return <PerformanceStudio initial={performance!} studioOneId={latest} />;
+  return (
+    <PerformanceStudio
+      initial={performance!}
+      studioOneId={conversations[0]?.id}
+      studioThreeId={channels[0]?.id}
+    />
+  );
 }

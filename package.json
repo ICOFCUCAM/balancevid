@@ -13,6 +13,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "start:worker": "tsx src/worker/index.ts",
+    "start:playout": "tsx src/playout/index.ts",
     "passwd": "tsx scripts/passwd.ts",
     "backfill-posters": "tsx scripts/backfill-posters.ts"
   },

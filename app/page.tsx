@@ -2,10 +2,12 @@ import Link from 'next/link';
 import { isRespondable, orderedInterventions } from '../src/domain/document.js';
 import { listConversations, loadConversation } from '../src/store/repository.js';
 import { listPerformances } from '../src/store/performances.js';
+import { listChannels } from '../src/store/channels.js';
 import { formatMasterPosition } from '../src/domain/time.js';
 import { formatTimecode } from '../src/domain/time.js';
 import StartConversation from './StartConversation.js';
 import StartPerformance from './StartPerformance.js';
+import StartChannel from './StartChannel.js';
 import SignOut from './SignOut.js';
 
 export const dynamic = 'force-dynamic';
@@ -30,6 +32,9 @@ export default async function Home() {
    * have made is a library that teaches you to keep your own bookmarks.
    */
   const performances = (await listPerformances().catch(() => []))
+    .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
+  /* Studio Three's work, which is a schedule rather than a video. [CHANNEL §1] */
+  const channels = (await listChannels().catch(() => []))
     .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
 
   // One still per conversation, so the library is recognisable rather than
@@ -60,7 +65,7 @@ export default async function Home() {
       }}>
         {/* ---- carry on with something -------------------------------- */}
         <section className="shell-scroll" style={{ paddingRight: 6 }}>
-          <div className="row" style={{ marginBottom: 2 }}>
+          <div className="row" id="conversations" style={{ marginBottom: 2 }}>
             <strong className="grow">Conversations</strong>
             <span className="small muted">{summaries.length}</span>
           </div>
@@ -106,7 +111,8 @@ export default async function Home() {
 
           {/* ---- the other studio's work ----------------------------- */}
           {performances.length > 0 && (
-            <div data-testid="performance-library" style={{ marginTop: 22 }}>
+            <div data-testid="performance-library" id="performances"
+                 style={{ marginTop: 22 }}>
               <div className="row" style={{ marginBottom: 2 }}>
                 <strong className="grow">Performances</strong>
                 <span className="small muted">{performances.length}</span>
@@ -160,6 +166,58 @@ export default async function Home() {
               })}
             </div>
           )}
+
+          {/* ---- and what is being broadcast (CHANNEL §1) ------------- */}
+          {channels.length > 0 && (
+            <div data-testid="channel-library" id="channels" style={{ marginTop: 22 }}>
+              <div className="row" style={{ marginBottom: 2 }}>
+                <strong className="grow">Channels</strong>
+                <span className="small muted">{channels.length}</span>
+              </div>
+              <p className="small muted" style={{ marginTop: 0 }}>
+                Scheduled from what is above, never copied
+              </p>
+              {channels.map((channel) => {
+                const now = Date.now();
+                const live = channel.programmes.find((programme) => {
+                  const start = Date.parse(programme.startsAt);
+                  return now >= start && now < start + programme.durationMs;
+                });
+                return (
+                  <Link key={channel.id} href={`/t/${channel.id}`}
+                        style={{ textDecoration: 'none', color: 'inherit' }}>
+                    <div className="panel" data-testid="channel-card"
+                         style={{ marginBottom: 8, padding: 10, display: 'flex', gap: 12 }}>
+                      <div style={{
+                        width: 76, height: 44, borderRadius: 5, flex: '0 0 auto',
+                        background: '#0d1319', border: '1px solid var(--line)',
+                        display: 'grid', placeItems: 'center',
+                      }}>
+                        <span style={{
+                          fontSize: 9, fontWeight: 700, letterSpacing: 0.5,
+                          padding: '2px 6px', borderRadius: 3,
+                          background: live ? '#c0392b' : 'transparent',
+                          color: live ? '#fff' : 'var(--muted)',
+                        }}>{live ? 'ON AIR' : 'OFF AIR'}</span>
+                      </div>
+                      <div className="grow" style={{ minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, whiteSpace: 'nowrap',
+                          overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {channel.name}
+                        </div>
+                        <div className="small muted">
+                          {channel.programmes.length}
+                          {channel.programmes.length === 1 ? ' programme' : ' programmes'}
+                          {` · ${channel.timezone}`}
+                          {live ? ` · ${live.title ?? 'on air'}` : ''}
+                        </div>
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
         </section>
 
         {/* ---- or start something ------------------------------------- */}
@@ -172,6 +230,12 @@ export default async function Home() {
               job: one answers media, the other makes it. [STUDIO-TWO §13] */}
           <div className="panel" style={{ padding: 28, marginTop: 16 }}>
             <StartPerformance />
+          </div>
+
+          {/* The third studio. It asks for no media at all, because a channel
+              holds none — it schedules what the other two finished. [D-18] */}
+          <div className="panel" style={{ padding: 28, marginTop: 16 }}>
+            <StartChannel />
           </div>
 
           {/* A published conversation is itself a source, so answering one is

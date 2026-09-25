@@ -13,6 +13,7 @@ import {
   mayPublish, needsLicenceNote, plateFor, projectPerformance,
 } from './performance.js';
 import { needsMatte } from './environment.js';
+import type { Channel, ProgrammeSource } from './channel.js';
 // One definition of "too far to be drift", shared by the invariant that
 // refuses it and the measurement that produces it. Two copies of a threshold
 // are two thresholds.
@@ -301,4 +302,70 @@ export function assertMattable(
   if (take.environment.kind === 'custom' && !take.environment.assetId) {
     fail('INV-16', `"${take.label}" names a custom background with no picture behind it`);
   }
+}
+
+/* ------------------------------------------------------------------------ *
+ *  Studio Three: the channel.  [CHANNEL §2–§7, D-18]
+ * ------------------------------------------------------------------------ */
+
+/**
+ * INV-17 — a schedule references; it never duplicates.  [D-18, CHANNEL §3]
+ *
+ * "Online TV must never duplicate media merely because it is scheduled for
+ *  broadcast. A scheduled programme references an existing media asset. Only
+ *  live ingest and explicitly requested recordings create new media assets."
+ *
+ * ASSERTED AGAINST WHAT IS ON DISK, not against the document. The document
+ * cannot express a copy — a `ProgrammeSource` has no field for one — so
+ * checking the document would prove only that TypeScript works. What can go
+ * wrong is a *writer*: some future job that "prepares" a programme by putting
+ * a file somewhere the schedule owns. So the check is handed the set of
+ * assets the channel's own directory holds, and it insists that every one of
+ * them belongs to a live ingest or to a recording somebody asked for.
+ *
+ * `ownedAssetIds` is passed rather than read, for the reason the rest of this
+ * module takes its facts as arguments: an invariant that reads the filesystem
+ * is an invariant that cannot run in a test.
+ */
+export function assertChannelOwnsNoScheduledMedia(
+  channel: Channel, ownedAssetIds: readonly string[],
+): void {
+  const allowed = new Map<string, string>();
+  for (const ingest of channel.ingests) {
+    allowed.set(ingest.assetId, `the live feed "${ingest.label}"`);
+  }
+  for (const recording of channel.recordings) {
+    allowed.set(recording.assetId,
+      `the recording "${recording.label}" that ${recording.requestedBy} asked for`);
+  }
+  for (const assetId of ownedAssetIds) {
+    if (!allowed.has(assetId)) {
+      fail('INV-17',
+        `channel "${channel.name}" is holding media (${assetId}) that no live feed `
+        + 'and no requested recording accounts for — a schedule references what '
+        + 'already exists and never makes a copy of it');
+    }
+  }
+}
+
+/**
+ * INV-17, the other half — nothing is scheduled that does not exist.
+ *
+ * The complement of the rule, and the fault it actually produces. A programme
+ * whose render has been deleted is not a copy; it is a slot that will go out
+ * as black, and it will do so at whatever hour it was scheduled for with
+ * nobody watching. `missing` is resolved by the caller, which is the layer
+ * that may look at disk.
+ */
+export function assertScheduleResolves(
+  channel: Channel, missing: readonly ProgrammeSource[],
+): void {
+  if (missing.length === 0) return;
+  const named = missing.map((source) => (source.kind === 'live'
+    ? `a live feed (${source.ingestId})`
+    : `${source.document} ${source.documentId} render ${source.planHash.slice(0, 8)}`));
+  fail('INV-17',
+    `${named.join(', ')} ${missing.length === 1 ? 'is' : 'are'} scheduled on `
+    + `"${channel.name}" but no longer on disk — a programme references media, so `
+    + 'media that has gone takes its programmes with it');
 }

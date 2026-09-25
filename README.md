@@ -62,7 +62,14 @@ npm install
 npm run build
 npm start                   # web tier      → http://localhost:3000
 npm run worker              # worker        (separate process — see U-23)
+npm run start:playout       # playout       (only if a channel is on air)
 ```
+
+The playout engine is a third process rather than a queued job, because a
+broadcast does not finish: a job that never completes would hold the worker's
+single consumer forever and no render would ever run again (CHANNEL §7, D-18).
+Nothing else needs it — Studios One and Two work with the web tier and the
+worker alone.
 
 Transcription runs locally. A product whose users record unpublished opinions
 should not have to ship every take to a third party to get a transcript (D-03),
@@ -75,7 +82,7 @@ rendering are all queued to the worker, so one long export cannot make the
 application unusable for everyone else.
 
 ```bash
-npm test           # 860 tests, including real renders through real ffmpeg
+npm test           # 901 tests, including real renders through real ffmpeg
 npm run typecheck
 ```
 
@@ -325,11 +332,13 @@ Stated plainly, because a status table that overstates is worse than none.
 docs/DOCTRINE.md    the constitution
 docs/ROOM.md        the Conversation Room brief, and what building it taught
 docs/STUDIO-TWO.md  the Performance Studio brief, and what building it taught
+docs/CHANNEL.md     the Channel brief, and what building it taught
 src/domain/         the Conversation and its projections — pure, no I/O
 src/render/         ffmpeg: ingest, compositor, subtitles — worker only
 src/store/          document, chunks, queue — split so the web tier
                     cannot import anything that reaches ffmpeg
-src/worker/         the only process permitted to run ffmpeg
+src/worker/         one of two processes permitted to run ffmpeg
+src/playout/        the other: the broadcast stream, which never finishes
 src/knowledge/      claim detection, behind a swappable detector interface
 src/search/         research mode: find a moment, jump to it, answer it
 src/auth/           one owner; the wall around what is not published

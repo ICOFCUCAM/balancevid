@@ -4442,3 +4442,71 @@ citations, and chapters live *in* the Conversation, not in the article. The
 article is a rendering of them, exactly as the MP4 is a rendering of the media
 timeline. The two faces of the Conversation in Part 0's diagram are projections,
 not stores.
+
+---
+
+## D-18 · Broadcast
+
+Added to the doctrine as written by the product's author, because the
+paragraph below is the architectural decision and paraphrasing it would soften
+it:
+
+> **Online TV must never duplicate media merely because it is scheduled for
+> broadcast. A scheduled programme references an existing media asset. Only
+> live ingest and explicitly requested recordings create new media assets. The
+> playout engine continuously reads scheduled assets and produces the
+> broadcast stream.**
+
+**What this settles, before anything is built.** A channel is a THIRD ROOT
+DOCUMENT beside the Conversation and the Performance, and it is the one that
+owns nothing. Its clock is neither a source's timecode nor a song's samples:
+it is the wall clock, which is the only clock in this product that keeps
+running when nobody is looking at it. Everything below the document — assets,
+the queue, layouts, export profiles, the publication system — is shared, as it
+already is between the first two.
+
+**The rule is enforced by the types, not by care.** A `Programme` has no field
+that could hold media. Its `source` is a union and every member is a
+reference: a document plus the hash of a render that document already
+produced, or the id of a live ingest. There is nowhere for a scheduled copy to
+be put, so no amount of future carelessness can put one there.
+
+**Why it matters more here than anywhere else.** A conversation is rendered
+once and watched. A channel schedules the same forty-minute programme into a
+breakfast slot, a lunchtime repeat and an overnight loop. A system that copied
+on schedule would hold three copies of one video by Tuesday and thirty by the
+end of the month — and the first symptom would be a disk filling rather than a
+wrong picture, which is the kind of fault that gets found late and fixed
+expensively.
+
+**Two things make media, and they say so in their names.** `openIngest`,
+because a live feed did not exist until it was broadcast; and
+`requestRecording`, because somebody asked. The second carries who asked, for
+the reason the first carries a label: a channel that quietly kept everything
+would break this rule from the other end, and nobody would be able to say who
+decided that.
+
+**The stream is not an archive.** The playout engine writes transport
+segments — four seconds of MPEG-TS, named by an epoch-aligned index, served
+for half a minute and deleted. They live in `stream/`, never in `assets/`, and
+the sweeper is what makes them not a copy: a file you cannot go back and watch
+is the wire, not the work. An accumulating segment directory would be the
+whole schedule re-encoded forever with nobody having asked for it, which is
+D-18 broken by a housekeeping omission.
+
+**And the playout engine is a process, not a job.** Everything else that
+shells out to ffmpeg is a unit of work that finishes, and the queue exists to
+run those one at a time without blocking the web tier (U-23). A broadcast does
+not finish. Putting it in the queue would mean either a job that never
+completes — holding the single consumer forever, so no render ever runs
+again — or nine hundred jobs an hour whose only purpose is to not be that.
+
+```
+INV-17  A scheduled programme references media that already exists; a
+        channel's own asset directory holds nothing but live ingests
+        and recordings somebody asked for.            [D-18, CHANNEL §3]
+```
+
+CHANNEL.md holds the brief. Its Appendix C records what implementation taught,
+as Appendix S does for Studio Two.
+

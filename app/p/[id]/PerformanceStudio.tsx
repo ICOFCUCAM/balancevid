@@ -15,6 +15,7 @@ import RoomPlate from './RoomPlate.js';
 import { useCalibration } from './useCalibration.js';
 import SoundModes from './SoundModes.js';
 import PublishPanel from './PublishPanel.js';
+import StudioBar from '../../StudioBar.js';
 
 /**
  * The Performance Studio.  [Doctrine STUDIO-TWO §1, §3, §4, §10, §13]
@@ -52,7 +53,9 @@ const CLASS_LABELS: Record<string, { label: string; hint: string }> = {
 };
 
 export default function PerformanceStudio(
-  { initial, studioOneId }: { initial: Performance; studioOneId?: string },
+  { initial, studioOneId, studioThreeId }: {
+    initial: Performance; studioOneId?: string; studioThreeId?: string;
+  },
 ) {
   const [performance, setPerformance] = useState(initial);
   const [notice, setNotice] = useState<string | null>(null);
@@ -189,130 +192,41 @@ export default function PerformanceStudio(
 
   const songLength = formatMasterPosition(performance.master.durationSamples);
 
-  /**
-   * The five tabs, and where each of them actually goes.  [benchmark, §13]
-   *
-   * Written as data so the bar is a loop rather than five hand-placed
-   * buttons — and so a tab with nowhere to go is a row with no href rather
-   * than a special case in the middle of the markup.
-   */
-  const studioTabs: {
-    id: string; label: string; glyph: string; href?: string;
-    onClick?: () => void; hint?: string;
-  }[] = [
-    { id: 'conversations', label: 'Conversations', glyph: '\u25a2',
-      href: '/#conversations' },
-    studioOneId
-      ? { id: 'studio-one', label: 'Studio One', glyph: '\u25a3',
-        href: `/c/${studioOneId}` }
-      : { id: 'studio-one', label: 'Studio One', glyph: '\u25a3',
-        hint: 'No conversations yet — start one from the library' },
-    { id: 'studio-two', label: 'Studio Two', glyph: '\u266a' },
-    { id: 'library', label: 'Library', glyph: '\u2637', href: '/#performances' },
-    {
-      id: 'publish',
-      label: 'Publish',
-      glyph: '\u2191',
-      hint: performance.scenes.length === 0
-        ? 'Direct some scenes first — there is nothing to publish yet' : undefined,
-      ...(performance.scenes.length > 0
-        ? {
-          onClick: () => document.querySelector('[data-testid="publish"]')
-            ?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
-        }
-        : {}),
-    },
-  ];
+
 
   return (
     <div className="shell">
       {/*
-        * THE APPLICATION BAR.  [benchmark, §1, §13]
-        *
-        * Brand, then the five places, then who you are — which is the shape
-        * the benchmark draws and the shape every tool of this kind uses. It
-        * replaces a bar that carried the performance's title and three
-        * buttons, because a studio is a room inside an application and the
-        * bar at the top of the screen is the application's, not the room's.
-        *
-        * CONVERSATIONS and LIBRARY are the same page and different places in
-        * it: the library lists conversations and performances, and the two
-        * tabs land on the two lists. STUDIO ONE is `/c/[id]` — a real place,
-        * where a source is answered and people are invited into the room —
-        * so it points at the most recent conversation and says so when there
-        * is none. A tab that goes nowhere is a menu that lies, which is the
-        * rule that keeps unmeasured spaces out of the environment picker
-        * (INV-16).
+        * The application's bar, which every studio shares. It used to be
+        * written out here; a second copy of it in Studio Three would have
+        * been a second place the tabs go out of date.
         */}
-      <header className="shell-bar" style={{ gap: 18, padding: '0 18px', minHeight: 52 }}>
-        <a href="/" className="row" style={{
-          gap: 9, textDecoration: 'none', color: 'inherit', flex: '0 0 auto',
-        }}>
-          <span aria-hidden="true" style={{
-            width: 26, height: 26, borderRadius: 7, display: 'grid',
-            placeItems: 'center', background: '#2f7fe0', color: '#fff',
-            fontSize: 12, paddingLeft: 2,
-          }}>&#9654;</span>
-          <strong style={{ fontSize: 15, whiteSpace: 'nowrap' }}>Prof Class</strong>
-        </a>
-
-        <nav className="row" data-testid="studio-nav"
-             style={{ gap: 2, flexWrap: 'nowrap' }}>
-          {studioTabs.map((tab) => {
-            const current = tab.id === 'studio-two';
-            const body = (
-              <>
-                <span aria-hidden="true" style={{ opacity: current ? 1 : 0.7 }}>
-                  {tab.glyph}
-                </span>
-                <span>{tab.label}</span>
-              </>
-            );
-            const style = {
-              display: 'flex', alignItems: 'center', gap: 7,
-              padding: '14px 12px', fontSize: 13,
-              textDecoration: 'none', whiteSpace: 'nowrap' as const,
-              background: 'none', border: 0, borderRadius: 0,
-              borderBottom: `2px solid ${current ? '#2f7fe0' : 'transparent'}`,
-              color: current ? '#6fa9ea' : 'var(--text)',
-              fontWeight: current ? 700 : 500,
-              opacity: tab.href || tab.onClick ? 1 : 0.4,
-              cursor: tab.href || tab.onClick ? 'pointer' : 'default',
-            };
-            if (current) {
-              return (
-                <span key={tab.id} data-testid={`tab-${tab.id}`} aria-current="page"
-                      style={style}>{body}</span>
-              );
+      <StudioBar
+        current="studio-two"
+        studioOneId={studioOneId}
+        studioThreeId={studioThreeId}
+        extra={[{
+          id: 'publish' as const,
+          label: 'Publish',
+          glyph: '\u2191',
+          ...(performance.scenes.length > 0
+            ? {
+              onClick: () => document.querySelector('[data-testid="publish"]')
+                ?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
             }
-            if (tab.href) {
-              return (
-                <a key={tab.id} data-testid={`tab-${tab.id}`} href={tab.href}
-                   style={style}>{body}</a>
-              );
-            }
-            return (
-              <button key={tab.id} data-testid={`tab-${tab.id}`} type="button"
-                      disabled={!tab.onClick} onClick={tab.onClick}
-                      title={tab.hint} style={style}>{body}</button>
-            );
-          })}
-        </nav>
-
-        <span className="grow" />
-        {/* What this room is, since the bar no longer says it in a heading. */}
-        <span className="small muted" data-testid="master-summary" style={{
-          minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap', textAlign: 'right',
-        }}>
-          {performance.title}
-          {performance.master.artist ? ` \u00b7 ${performance.master.artist}` : ''}
-          {ready ? ` \u00b7 ${songLength}` : ' \u00b7 preparing\u2026'}
-        </span>
-        <a className="btn small" href="/" style={{ padding: '6px 12px', flex: '0 0 auto' }}>
-          Leave
-        </a>
-      </header>
+            : { hint: 'Direct some scenes first — there is nothing to publish yet' }),
+        }]}
+        trailing={(
+          <span className="small muted" data-testid="master-summary" style={{
+            minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap', textAlign: 'right',
+          }}>
+            {performance.title}
+            {performance.master.artist ? ` \u00b7 ${performance.master.artist}` : ''}
+            {ready ? ` \u00b7 ${songLength}` : ' \u00b7 preparing\u2026'}
+          </span>
+        )}
+      />
 
       {/*
         * ONE GRID, not a grid inside a grid.

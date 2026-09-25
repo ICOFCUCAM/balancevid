@@ -107,6 +107,35 @@ export const paths = {
   performanceChunks: (id: string, takeId: string) =>
     join(paths.performanceAssets(id), 'chunks', safe(takeId)),
   performanceRenders: (id: string) => join(paths.performance(id), 'renders'),
+
+  /* ---- Studio Three: the channel.  [CHANNEL §1, D-18, INV-17] ---------- *
+   *
+   *   var/channels/<id>/
+   *     channel.json     the document — the canonical artifact (INV-00)
+   *     audit.log
+   *     assets/          live ingests and requested recordings, AND NOTHING
+   *                      ELSE. A scheduled programme puts nothing here: it
+   *                      references a render that already exists in the
+   *                      conversation or performance that made it. INV-17 is
+   *                      asserted against the contents of this directory.
+   *     stream/          the broadcast stream's segments — a rolling window
+   *                      of transport, produced ahead of the playhead and
+   *                      deleted behind it. Deliberately NOT under assets/:
+   *                      a segment you cannot go back and watch is the wire,
+   *                      not a copy of the work.
+   */
+  channels: () => join(VAR_ROOT, 'channels'),
+  channel: (id: string) => join(VAR_ROOT, 'channels', safe(id)),
+  channelDocument: (id: string) => join(paths.channel(id), 'channel.json'),
+  channelAudit: (id: string) => join(paths.channel(id), 'audit.log'),
+  /** Live feeds and recordings somebody asked for. Nothing scheduled. */
+  channelAssets: (id: string) => join(paths.channel(id), 'assets'),
+  channelAsset: (id: string, assetId: string, ext: string) =>
+    join(paths.channelAssets(id), `${safe(assetId)}.${ext.replace(/[^a-z0-9]/gi, '')}`),
+  /** The wire. Windowed and swept, never archived. */
+  channelStream: (id: string) => join(paths.channel(id), 'stream'),
+  channelSegment: (id: string, index: number) =>
+    join(paths.channelStream(id), `${Math.max(0, Math.floor(index))}.ts`),
   /** Clips and the link preview of a performance. [STUDIO-TWO §14] */
   performanceClips: (id: string) => join(paths.performance(id), 'clips'),
   performanceCard: (id: string) => join(paths.performance(id), 'share-card.png'),
@@ -151,6 +180,7 @@ export function safe(id: string): string {
 
 export async function ensureDirs(): Promise<void> {
   await mkdir(paths.conversations(), { recursive: true });
+  await mkdir(paths.channels(), { recursive: true });
   for (const state of ['pending', 'running', 'done', 'failed'] as const) {
     await mkdir(paths.queueState(state), { recursive: true });
   }
