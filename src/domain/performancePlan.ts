@@ -30,7 +30,7 @@ import {
   coversSpan, mayPublish, mayShowMasterPicture, plateFor, projectPerformance,
 } from './performance.js';
 import { overlapSplit, transitionFor } from './transitions.js';
-import { matteFeather, matteThreshold, needsMatte } from './environment.js';
+import { effectFor, matteFeather, matteThreshold, needsMatte } from './environment.js';
 import { planPerformanceAudio } from './performanceAudio.js';
 import {
   type ExportProfile, EXPORT_PROFILES, LAYOUTS, captionStyleFor,
@@ -370,6 +370,17 @@ function performanceShot(
       mediaInFrame: takeFrameAt(performance, take.id, span.fromSample),
       label: take.label,
       ...(take.alignment.rateRatio !== 1 ? { rateRatio: take.alignment.rateRatio } : {}),
+      ...(take.accent ? { accent: take.accent } : {}),
+      /*
+       * Resolved here, not named. A plan made against a look that is later
+       * removed renders exactly as it did — and an unknown name renders
+       * ungraded rather than refusing, because the take is the work and the
+       * grade is a decision about it. [§4, U-16]
+       */
+      ...(() => {
+        const effect = effectFor(take.effect);
+        return effect ? { effect } : {};
+      })(),
       ...(backdropFor(performance, take) ?? {}),
     })),
     /*

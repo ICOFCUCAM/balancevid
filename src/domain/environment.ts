@@ -262,3 +262,75 @@ export const SPACES_ARE_DRAWN =
 
 export const ENVIRONMENT_KINDS: readonly EnvironmentKind[] =
   ['original', 'blur', 'space', 'custom'];
+
+/* ------------------------------------------------------------------------ *
+ *  Treatments over the picture.  [Doctrine STUDIO-TWO §4, U-18]
+ * ------------------------------------------------------------------------ */
+
+/**
+ * What an effect may do, as data rather than as a branch.
+ *
+ * The same discipline as the spaces above and as layouts (U-18): adding one is
+ * a row, and the renderer never learns an effect's name. Each is a short
+ * description of a grade, and the renderer turns it into filters — so the
+ * table can be read by somebody deciding whether a look is worth having
+ * without reading any ffmpeg.
+ *
+ * WHAT IS NOT HERE is a slider. These are checked looks, the same position
+ * the caption styles take: a brightness control and a saturation control are
+ * a way to produce a performance nobody can see, offered by the product that
+ * composited it.
+ */
+export interface EffectLook {
+  id: string;
+  label: string;
+  /** What it is for, in the author's language. */
+  hint: string;
+  /** Multipliers on the picture, 1 meaning unchanged. */
+  brightness?: number;
+  contrast?: number;
+  saturation?: number;
+  /** Warmth, in the same units the space looks use: positive is warmer. */
+  warmth?: number;
+  /** A darkened edge, 0 for none. Sends the eye to the middle. */
+  vignette?: number;
+  /**
+   * A bright pool over the performer, as a fraction of the panel's width.
+   *
+   * Distinct from the vignette rather than a stronger version of it: a
+   * vignette darkens the edges of whatever is there, and a spotlight adds
+   * light in one place. On a performance with a drawn space behind it the two
+   * read completely differently.
+   */
+  spotlight?: number;
+}
+
+export const EFFECT_LOOKS: Record<string, EffectLook> = {
+  lighting: {
+    id: 'lighting', label: 'Lighting',
+    hint: 'A key light on you and the edges pulled down. For a flat room.',
+    brightness: 1.06, contrast: 1.12, vignette: 0.9,
+  },
+  colour: {
+    id: 'colour', label: 'Colour',
+    hint: 'Warmer and richer. For footage that came out grey.',
+    contrast: 1.08, saturation: 1.22, warmth: 0.06,
+  },
+  spotlight: {
+    id: 'spotlight', label: 'Spotlight',
+    hint: 'A pool of light around you, the rest in shadow. For a stage.',
+    brightness: 0.94, contrast: 1.1, vignette: 1.4, spotlight: 0.55,
+  },
+};
+
+/**
+ * The effect a take asks for, or nothing.
+ *
+ * Nothing is the answer for a take that asked for none AND for one naming an
+ * effect this build does not have — a performance made against a look that
+ * was later removed renders ungraded rather than refusing to render, because
+ * the take is the work and the grade is a decision about it.
+ */
+export function effectFor(id: string | undefined): EffectLook | undefined {
+  return id ? EFFECT_LOOKS[id] : undefined;
+}

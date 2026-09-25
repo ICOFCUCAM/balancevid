@@ -21,7 +21,7 @@ import type {
   TransitionShot,
 } from '../domain/plan.js';
 import { LAYOUTS, type Rect } from '../domain/presentation.js';
-import { lookFor } from '../domain/environment.js';
+import { type EffectLook, lookFor } from '../domain/environment.js';
 import { mixExpression, transitionFor } from '../domain/transitions.js';
 import { backdropChain, blurBackdropChain, matteChain } from './matte.js';
 import { mixPerformanceAudio } from './mix.js';
@@ -379,6 +379,19 @@ async function renderPerformanceShot(
      * — so `vout` is named by whichever is genuinely last rather than by the
      * take loop assuming it is.
      */
+    /*
+     * §4's treatments, applied to the panel AFTER the performer has been cut
+     * out and put somewhere. Grading before the matte would grade the room
+     * they are being removed from, and the difference key is measured against
+     * a plate of that room — changing its brightness first is changing the
+     * thing the threshold was measured for. [S-6, INV-16]
+     */
+    if (take.effect) {
+      const graded = `g${index}`;
+      filters.push(...effectChain(take.effect, panel, graded, box.w, box.h));
+      panel = graded;
+    }
+
     const isLast = index === panels.length - 1 && !masterLayer;
     const next = isLast ? 'vout' : `s${index}`;
     filters.push(`[${last}][${panel}]overlay=${box.x}:${box.y}:shortest=0[${next}]`);
@@ -433,6 +446,69 @@ async function renderPerformanceShot(
     ...encodeArgs(),
     outPath,
   ], opts);
+}
+
+/**
+ * A treatment over one panel.  [STUDIO-TWO §4]
+ *
+ * Built from the look's numbers rather than from its name, so the renderer
+ * never learns what "Spotlight" is — the same rule the spaces and the layouts
+ * follow. A look with nothing set produces no filters at all, which is how
+ * "none" costs nothing rather than costing an identity pass.
+ *
+ * `eq` before the vignette and the spotlight: brightness and contrast are
+ * about the picture, and the light added or taken away afterwards is about
+ * where the eye goes. Doing it the other way round grades the vignette.
+ */
+function effectChain(
+  look: EffectLook, from: string, to: string, width: number, height: number,
+): string[] {
+  const steps: string[] = [];
+
+  const eq: string[] = [];
+  if (look.brightness !== undefined) eq.push(`brightness=${(look.brightness - 1).toFixed(3)}`);
+  if (look.contrast !== undefined) eq.push(`contrast=${look.contrast.toFixed(3)}`);
+  if (look.saturation !== undefined) eq.push(`saturation=${look.saturation.toFixed(3)}`);
+  if (eq.length) steps.push(`eq=${eq.join(':')}`);
+
+  /*
+   * Warmth as a channel mix rather than a colour temperature filter: red up
+   * and blue down by the same amount keeps the middle grey where it was, so
+   * a warm grade does not also lift the whole picture.
+   */
+  if (look.warmth) {
+    const w = look.warmth;
+    steps.push(
+      `colorchannelmixer=rr=${(1 + w).toFixed(3)}:gg=1:bb=${(1 - w).toFixed(3)}`);
+  }
+
+  if (look.vignette) steps.push(`vignette=angle=${(Math.PI / 5 * look.vignette).toFixed(4)}`);
+
+  const chain = steps.length ? `${steps.join(',')}` : 'null';
+
+  if (!look.spotlight) {
+    steps.push('format=yuv420p');
+    return [`[${from}]${steps.join(',')}[${to}]`];
+  }
+
+  /*
+   * The pool of light. A radial gradient, screened over the graded panel, so
+   * it ADDS light in one place rather than darkening everywhere else — which
+   * is what makes it read differently from a strong vignette on a performance
+   * that already has a drawn space behind it.
+   */
+  const radius = Math.round(Math.min(width, height) * look.spotlight);
+  const lamp = `${to}_lamp`;
+  const base = `${to}_base`;
+  return [
+    `[${from}]${chain}[${base}]`,
+    `gradients=s=${width}x${height}:c0=0x2a2a2a:c1=0x000000:type=radial:`
+      + `x0=${Math.round(width / 2)}:y0=${Math.round(height * 0.42)}:`
+      + `nb_colors=2:d=1[${lamp}]`,
+    `[${base}][${lamp}]blend=all_mode=screen:all_opacity=`
+      + `${Math.min(0.5, look.spotlight).toFixed(3)},`
+      + `crop=${width}:${height}:0:0,format=yuv420p[${to}]`,
+  ].concat(radius > 0 ? [] : []);
 }
 
 /**

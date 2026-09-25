@@ -402,6 +402,19 @@ const PERFORMANCE_LAYOUTS: Record<string, Layout> = {
       { source: 'take', slot: 3, rect: { x: 0.5, y: 0.5, w: 0.5, h: 0.5 }, fit: 'cover', z: 3 },
     ],
   },
+  performance_pip: {
+    id: 'performance_pip', label: 'Picture in picture',
+    layers: [
+      { source: 'take', slot: 0, rect: FULL, fit: 'cover', z: 0 },
+      /*
+       * Top-right and small. The inset goes where a performer's face least
+       * often is — a corner over somebody's head is a corner over nothing,
+       * and the bottom of a vertical frame belongs to whichever app it is
+       * being watched in (PLATFORM_CHROME_FRACTION).
+       */
+      { source: 'take', slot: 1, rect: { x: 0.70, y: 0.06, w: 0.26, h: 0.22 }, fit: 'cover', z: 1 },
+    ],
+  },
   performance_focus: {
     id: 'performance_focus', label: 'One large, two small',
     layers: [

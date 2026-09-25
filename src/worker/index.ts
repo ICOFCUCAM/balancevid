@@ -374,12 +374,24 @@ async function assemblePerformanceTake(job: Job): Promise<Job> {
        * correlate against. It went unnoticed because recording always starts
        * at the top of the song, so the placeholder was nearly right.
        */
-      target.alignment = {
-        ...target.alignment,
-        offsetSamples: hintSamples,
-        method: latencySamples > 0 ? 'calibrated' : 'measured',
-        ...(latencySamples > 0 ? { latencySamples } : {}),
-      };
+      /*
+       * UNLESS THERE WAS NOTHING TO KEEP.  [§2, §10]
+       *
+       * A take uploaded from a camera declared no hint and no latency: it was
+       * never recorded against the song, so the browser measured nothing and
+       * there is nothing here to preserve. Writing `measured` over it would
+       * describe zero as a measurement of where a performance sits, on a file
+       * that has never been near the song. It stays unplaced until somebody
+       * puts it somewhere.
+       */
+      target.alignment = target.alignment.method === 'unplaced'
+        ? target.alignment
+        : {
+          ...target.alignment,
+          offsetSamples: hintSamples,
+          method: latencySamples > 0 ? 'calibrated' : 'measured',
+          ...(latencySamples > 0 ? { latencySamples } : {}),
+        };
     }
   });
 

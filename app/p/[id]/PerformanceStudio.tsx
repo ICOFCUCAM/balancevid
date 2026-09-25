@@ -8,6 +8,7 @@ import { describeCalibration } from '../../../src/domain/calibration.js';
 import { describeDrift } from '../../../src/domain/drift.js';
 import { HOUSE_SAMPLE_RATE, formatMasterPosition } from '../../../src/domain/time.js';
 import { useMasterRecording } from './useMasterRecording.js';
+import UploadTake from './UploadTake.js';
 import SwitchingStage from './SwitchingStage.js';
 import MasterRender from './MasterRender.js';
 import RoomPlate from './RoomPlate.js';
@@ -397,10 +398,24 @@ export default function PerformanceStudio({ initial }: { initial: Performance })
         {/* ---- the takes, all on one clock --------------------------- */}
         <section style={{ marginTop: 20 }} data-testid="takes">
           <h2 style={{ fontSize: 15, marginBottom: 2 }}>Takes</h2>
+          {/*
+            * A take is not only something recorded here. Somebody films a
+            * verse on a proper camera on a beach; the product's job is to put
+            * it on the song, not to tell them to perform it again into a
+            * webcam. It goes through the recording path exactly, so it is
+            * assembled, measured and aligned by the same code. [§2, §10]
+            */}
+          <UploadTake
+            performanceId={performance.id}
+            environment={{ kind: environment.startsWith('space:') ? 'space' : environment,
+              ...(environment.startsWith('space:')
+                ? { spaceId: environment.slice(6) } : {}) }}
+            onFinished={(jobId) => { void watchJob(jobId); }}
+          />
           {performance.takes.length === 0 ? (
-            <p className="small muted">
-              None yet. Every take you record is placed on the same song, so you
-              can cut between them later.
+            <p className="small muted" style={{ marginTop: 8 }}>
+              None yet. Every take you record or upload is placed on the same
+              song, so you can cut between them later.
             </p>
           ) : (
             performance.takes.map((take) => (

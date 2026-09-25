@@ -244,7 +244,37 @@ export type AlignmentMethod =
    */
   | 'heard'
   /** The author placed it. Always wins, never overwritten. */
-  | 'manual';
+  | 'manual'
+  /**
+   * NOBODY HAS PLACED IT.  [§2, §10]
+   *
+   * The state a take is in when it was not recorded against the song at all —
+   * footage filmed on a camera that knew nothing about the music, uploaded
+   * afterwards, with no song audible in it to find. It sits at zero because
+   * something has to, and zero is not a measurement.
+   *
+   * This exists because the alternative was calling it `manual`, which reads
+   * as "the author placed it" on a take the author has never touched. That is
+   * exactly the kind of small lie that makes somebody stop believing the
+   * other messages — and the other messages here are about where their
+   * performance is in time, which they cannot check by eye.
+   *
+   * It becomes `manual` the moment they move it, and `heard` if the song
+   * turns out to be audible after all.
+   */
+  | 'unplaced';
+
+/**
+ * Is this take's position a fact about anything?
+ *
+ * False for a take nobody has placed and nothing has measured. Asked before
+ * showing an offset, before reporting drift, and before rendering a scene
+ * that uses it — three places that would otherwise each decide for
+ * themselves what zero means.
+ */
+export function isPlaced(alignment: Alignment): boolean {
+  return alignment.method !== 'unplaced';
+}
 
 /** Offset plus the author's nudge: where the take really starts. */
 export function effectiveOffset(alignment: Alignment): Samples {
@@ -327,6 +357,35 @@ export interface PerformanceTake {
   /** What the author calls it: "Living room", "Beach". [§1] */
   label: string;
   environment: Environment;
+  /**
+   * The colour that identifies this take everywhere.  [§2, §7, U-20]
+   *
+   * The same idea participants have, for the same reason: in a four-take
+   * performance the rail, the badge on the stage, the timeline row and every
+   * block on the master video are all talking about the same take, and a
+   * colour is what says so at a glance. A label alone means reading four
+   * words to find out which strip of the timeline is the beach.
+   *
+   * Assigned when the take is added and never reassigned. A take that changed
+   * colour because another was deleted would relabel the whole timeline
+   * underneath somebody mid-edit.
+   */
+  accent?: string;
+  /**
+   * A treatment over this take's picture.  [§4]
+   *
+   * SEPARATE FROM THE ENVIRONMENT, because they answer different questions.
+   * The environment is what is BEHIND the performer — their own room, a
+   * drawn space, their own picture — and blurring it is a statement about
+   * the room, which is why `blur` is an environment and not an effect. An
+   * effect is a treatment over the composed panel: how it is lit, how it is
+   * graded, where the eye is sent.
+   *
+   * Absent means none, which is the default and the honest one: a product
+   * whose takes arrive pre-graded is deciding how somebody's performance
+   * looks before they have seen it.
+   */
+  effect?: string;
   /**
    * Which plate this take is matted against. [§4, S-6, INV-16]
    *

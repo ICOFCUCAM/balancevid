@@ -13,6 +13,7 @@ import {
   type Intervention, type InterventionId, type Point, type TakeId,
   evidenceCapture, hasSeveralVoices, orderedInterventions, participantFor, selectedTake,
 } from './document.js';
+import type { EffectLook } from './environment.js';
 import { sha256 } from './ids.js';
 import { InvariantViolation } from './invariants.js';
 import {
@@ -173,6 +174,16 @@ export interface PerformanceShot extends ShotBase {
      * point alone would leave a four-minute scene sliding apart inside itself.
      */
     rateRatio?: number;
+    /** The colour this take is identified by, for a badge on the stage. [§2] */
+    accent?: string;
+    /**
+     * A treatment over this take's picture.  [§4]
+     *
+     * Carried resolved — the look itself, not its name — so the renderer
+     * applies a description rather than looking one up. A plan made against
+     * an effect that is later removed still renders exactly as it did.
+     */
+    effect?: EffectLook;
     /**
      * What to put behind this performer, and how to cut them out. [§4, S-6]
      *

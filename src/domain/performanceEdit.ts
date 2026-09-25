@@ -73,8 +73,30 @@ const fail = (message: string): never => { throw new PerformanceEditError(messag
  * ------------------------------------------------------------------------ */
 
 /** A recording arrives. It is never merged into anything. [§1] */
+/**
+ * The colours takes are identified by, in the order they are handed out.
+ *
+ * Distinct from the participant palette on purpose: a room's colours separate
+ * PEOPLE, and a performance's separate TAKES OF ONE PERSON. Sharing a table
+ * would eventually put Sarah and Take 3 in the same colour in a product that
+ * shows both, which is a worse confusion than having two short lists.
+ */
+export const TAKE_ACCENTS = [
+  '#3e7ca6', '#4f8a5b', '#c99a2e', '#b5553f', '#8a6fb0', '#5f8f8f', '#c2794f',
+];
+
 export function addTake(performance: Performance, take: PerformanceTake): void {
   if (takeById(performance, take.id)) fail(`take ${take.id} is already in this performance`);
+  /*
+   * A colour, unless the caller brought one. Assigned from how many takes
+   * there ARE rather than from a counter, so it is a pure function of the
+   * document — and never reassigned afterwards, because a take that changed
+   * colour when another was deleted would relabel the whole timeline
+   * underneath somebody mid-edit. [§2, §7]
+   */
+  if (!take.accent) {
+    take.accent = TAKE_ACCENTS[performance.takes.length % TAKE_ACCENTS.length]!;
+  }
   performance.takes.push(take);
 }
 
