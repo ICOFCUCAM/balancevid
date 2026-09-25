@@ -127,7 +127,44 @@ moment it goes out. So:
   so rather than papering over it. Unless it is set to loop, which is what a
   ten-minute film in a thirty-minute slot is for.
 
-## §6 — Going live
+## §6 — Two modes, and the step between them
+
+    PROGRAM                    LIVE
+    Scheduled                  PROGRAM → TAKE LIVE → YOU → GUEST
+       ↓                               → VIDEO → YOU → END LIVE
+    Content                            → PROGRAM RESUMES
+       ↓
+    Repeat
+
+**PROGRAM is the ordinary condition of a channel**: the loop is running, a
+fixed slot pre-empts it when one is due, and nobody touches anything.
+
+**LIVE is somebody taking control**, and it is reached in two steps, not one.
+
+| | | |
+|---|---|---|
+| **GO LIVE** | arms | the camera comes up, the encoder starts, the operator sees their own preview — and the wire is still showing the schedule |
+| **TAKE LIVE** | cuts | this is the frame the channel changes |
+| **END LIVE** | returns | PROGRAM resumes, where the clock says |
+
+*"That transition needs to be extremely reliable."* Which is exactly why there
+are three states and not two. A single button that opened a camera AND put it
+to air would broadcast the first second of every live show as a black frame
+while a device negotiated. This is the preset/program discipline every vision
+mixer has had for sixty years, and it is here for the same reason it is there.
+
+**The rest of the control bar:**
+
+- **NEXT** cuts to the next item in the loop now. It moves the rotation's
+  anchor rather than editing anything, so the loop is intact behind it. It
+  jumps every viewer, which is what pressing Next in a control room does.
+- **EMERGENCY** beats everything, **including the red button**. That is the
+  one ordering decision worth arguing about, and it is not close: the moment
+  you need this button is the moment the thing on air must stop being on air,
+  and more often than not the thing on air is somebody live. It does not end
+  the live session — it is a cut away, and clearing it is a cut back.
+
+## §7 — Going live
 
 > *You press GO LIVE. The scheduled programming stops or pauses. You appear in
 > the live studio... Then End Live, and the scheduled channel automatically
@@ -161,7 +198,42 @@ viewers were told.
 scheduled afterwards like anything else: a repeat of last night's live show is
 a reference, not a copy.
 
-## §7 — Live ingest
+## §8 — Live media is temporary unless you say otherwise
+
+    Camera → Microphone → Live ingest → Broadcast encoder → Online TV
+
+> *If you choose "Save this live session", it becomes an archived recording.
+> If you don't, the temporary live buffers are discarded after the broadcast.*
+
+| | |
+|---|---|
+| Scheduled content | stored once |
+| Live broadcast | temporarily processed |
+| Live recording | saved only if you choose |
+
+**A live ingest writes to a BUFFER, not an asset.** The buffer lives under
+`live/`, never `assets/`; INV-17 does not count it, because it is not an asset
+until somebody says so. This was wrong in the first version — an ingest minted
+an asset id the moment the red button was pressed, which made every live
+broadcast a permanent file whether or not anybody wanted one. A channel that
+keeps every second it ever transmitted is the duplication rule broken from the
+other end, arriving by a different door.
+
+**Save is a decision, not an action.** It can be pressed before the cut,
+halfway through, or in the last minute, and what happens because of it happens
+when the broadcast ends — so pressing it at 20:40 keeps the whole show, not
+the twenty minutes that are left. It can be un-pressed.
+
+**Promotion is a rename, not a copy.** The bytes do not move and are not
+re-encoded; the file crosses from `live/` into `assets/` and acquires an asset
+id. The alternative is an hour of video being copied at the exact moment
+somebody has just finished presenting and wants to see whether it worked.
+
+**And the ingest stays in the document either way**, because it happened — but
+without an asset there is nothing to schedule against it, which is correct:
+there is nothing left to play.
+
+## §9 — Live ingest
 
 The first of exactly two things that make media here, because it is the one
 kind of programme that did not exist until it was broadcast.
@@ -179,13 +251,13 @@ camera is a second channel, or it is a mix made upstream.
 **Its length is measured, not subtracted.** A feed that dropped for ninety
 seconds was open for an hour and is fifty-eight and a half minutes long.
 
-## §8 — Recordings somebody asked for
+## §10 — Recordings somebody asked for
 
 The second and last thing that makes media. A recording names **who asked**,
 because a channel that quietly kept everything would break the duplication
 rule from the other end and nobody would be able to say who decided that.
 
-## §9 — The playout engine
+## §11 — The playout engine
 
 > *The playout engine continuously reads scheduled assets and produces the
 > broadcast stream.*
@@ -217,7 +289,7 @@ stream and stops. Black and silence — which is also the honest picture.
 
 **And the engine is a process, not a job.** See D-18.
 
-## §10 — What is published
+## §12 — What is published
 
 A channel publishes its **stream**, not its schedule and not its media. The
 programmes it references belong to the documents that made them, and their own
@@ -348,5 +420,43 @@ so seeking a JPEG four seconds in produces nothing at all — which on air is
 black where a station ident should be. `-loop 1` holds the frame for the slot
 with silence underneath. The probe cache needed the same exception, or an
 image cached as "unmeasurable" and went out as black.
+
+---
+
+## C-3 — Stage 3: the buffer, and the control room
+
+**The live model was wrong and the brief caught it.** `openIngest` minted an
+`assetId` the instant the red button went down, which made every live
+broadcast a permanent file. Nobody had asked for that; it was a default. It is
+now a `bufferId` under `live/`, and an `assetId` appears only when somebody
+chooses to keep it — at which point the buffer is *renamed* into `assets/`,
+which costs nothing and is the whole difference between a buffer and an
+archive.
+
+**INV-17 got stricter without changing its sentence.** Its allowed set used to
+be "every ingest's asset"; it is now "every ingest that was SAVED". A channel
+still holding the buffer of a session nobody kept now fails the invariant,
+which is the brief's rule enforced rather than described.
+
+**Two steps to air, not one.** ARM and TAKE are separate because *"that
+transition needs to be extremely reliable"*, and one button that opens a
+camera and cuts it to air broadcasts the first second of every live show as a
+black frame while a device negotiates. Sixty years of vision mixers agree.
+
+**EMERGENCY beats live**, and that is the ordering decision in this stage
+worth writing down. Every other pre-emption in this document is about what was
+planned; this one is about what has gone wrong, and a button that could not
+interrupt a live broadcast would be a button that did not work when it was
+needed.
+
+**NEXT moves the anchor.** The loop's position is `(now − anchor) % turn`, so
+pulling the anchor back by whatever is left of the current entry puts the next
+one at this instant and leaves the loop intact. No entry is edited, nothing is
+reordered, and the channel is still the channel afterwards.
+
+**The document is written before the bytes are touched.** If the process dies
+between them, the document says what should have happened and a sweep can
+finish it. The other way round, the bytes would be gone and the document would
+still be promising a recording.
 
 ---

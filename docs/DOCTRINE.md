@@ -4486,6 +4486,16 @@ the reason the first carries a label: a channel that quietly kept everything
 would break this rule from the other end, and nobody would be able to say who
 decided that.
 
+**And a live feed writes to a BUFFER, not an asset.** *"If you choose Save
+this live session, it becomes an archived recording. If you don't, the
+temporary live buffers are discarded after the broadcast."* The buffer lives
+under `live/`, INV-17 does not count it, and an asset id appears only when
+somebody chooses to keep it — at which point the file is renamed into
+`assets/`. The first version minted the asset when the red button went down,
+which made every live broadcast a permanent file nobody had asked for: the
+duplication rule broken from the other end, arriving as a default rather than
+as a decision.
+
 **The stream is not an archive.** The playout engine writes transport
 segments — four seconds of MPEG-TS, named by an epoch-aligned index, served
 for half a minute and deleted. They live in `stream/`, never in `assets/`, and
@@ -4503,8 +4513,9 @@ again — or nine hundred jobs an hour whose only purpose is to not be that.
 
 ```
 INV-17  A scheduled programme references media that already exists; a
-        channel's own asset directory holds nothing but live ingests
-        and recordings somebody asked for.            [D-18, CHANNEL §3]
+        channel's own asset directory holds nothing but SAVED live
+        sessions and recordings somebody asked for. A live buffer is
+        not an asset.                            [D-18, CHANNEL §3, §8]
 ```
 
 CHANNEL.md holds the brief. Its Appendix C records what implementation taught,

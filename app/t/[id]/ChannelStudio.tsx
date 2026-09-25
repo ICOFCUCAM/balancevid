@@ -116,7 +116,14 @@ export default function ChannelStudio({
    * without a round trip every second. [§4, §5]
    */
   const on: OnAir = whatIsOn(channel, now);
-  const onAir = channel.live && !channel.live.endedAt;
+  /** Armed, on air, or neither. The two modes and the step between. [§6] */
+  const session = channel.live && channel.live.phase !== 'ended'
+    ? channel.live : undefined;
+  const onAir = Boolean(session);
+  const armed = session?.phase === 'armed';
+  const emergency = Boolean(channel.emergency);
+  const keeping = Boolean(
+    channel.ingests.find((ingest) => ingest.id === session?.ingestId)?.keep);
   const turn = rotationLengthMs(channel);
   const offsets = rotationOffsets(channel);
   const live = onAirAt(channel, now);
@@ -126,7 +133,7 @@ export default function ChannelStudio({
   const missingKeys = new Set(missing.map(sourceKey));
 
   /** A label for a reference, from the library if it is still there. */
-  const nameOf = useCallback((source: ProgrammeSource): string => {
+  const nameOf: (source: ProgrammeSource) => string = useCallback((source) => {
     if (source.kind === 'live') {
       return channel.ingests.find((ingest) => ingest.id === source.ingestId)?.label
         ?? 'a live feed';
@@ -137,6 +144,21 @@ export default function ChannelStudio({
     return source.kind === 'media'
       ? 'a picture' : `${source.document} ${source.documentId.slice(0, 12)}`;
   }, [channel.ingests, library]);
+
+  /**
+   * WHAT IS NEXT, which in a channel with a loop is rarely the next fixed
+   * slot. It is whichever comes sooner: the programme that pre-empts, or the
+   * turn of the rotation that follows this one. [§4, §6]
+   */
+  const upNext = (() => {
+    const soonest = coming ? programmeStart(coming) : Infinity;
+    if (on.kind === 'rotation' && channel.rotation.length > 0) {
+      const index = channel.rotation.findIndex((e) => e.id === on.entry.id);
+      const after = channel.rotation[(index + 1) % channel.rotation.length]!;
+      if (on.untilMs <= soonest) return after.title ?? nameOf(after.source);
+    }
+    return coming ? (coming.title ?? nameOf(coming.source)) : null;
+  })();
 
   /* ---- the day the listing is drawn over --------------------------- */
   const dayStart = useMemo(() => {
@@ -306,11 +328,14 @@ export default function ChannelStudio({
                 position: 'absolute', left: 10, bottom: 10, padding: '3px 8px',
                 borderRadius: 4, background: 'rgba(5,7,10,0.85)', fontSize: 11,
               }}>
-                {on.kind === 'live'
-                  ? (on.session.segment ? nameOf(on.session.segment) : 'The live studio')
-                  : (on.kind === 'programme'
-                    ? on.programme.title : on.entry.title) ?? nameOf(on.source)}
-                {on.kind !== 'live' && ` \u00b7 until ${clock(on.untilMs)}`}
+                {on.kind === 'emergency' ? `Emergency \u00b7 ${nameOf(on.source)}`
+                  : on.kind === 'live'
+                    ? (on.session.segment
+                      ? nameOf(on.session.segment) : 'The live studio')
+                    : (on.kind === 'programme'
+                      ? on.programme.title : on.entry.title) ?? nameOf(on.source)}
+                {(on.kind === 'programme' || on.kind === 'rotation')
+                  && ` \u00b7 until ${clock(on.untilMs)}`}
               </span>
             )}
           </div>
@@ -325,6 +350,53 @@ export default function ChannelStudio({
               border: '1px solid var(--line)', borderRadius: 10,
               background: 'var(--panel)',
             }}>
+              {/*
+                * PROGRAM — NOW PLAYING / NEXT, which is the first thing a
+                * control room's right-hand column says and the first thing
+                * anybody walking up to it needs to know. [§6]
+                */}
+              <Section text="Program" aside={(
+                <span className="small" data-testid="program-mode" style={{
+                  fontSize: 10, fontWeight: 700,
+                  color: on.kind === 'emergency' ? '#e07a6b'
+                    : on.kind === 'live' ? '#e07a6b' : '#6fa9ea',
+                }}>
+                  {on.kind === 'emergency' ? 'EMERGENCY'
+                    : on.kind === 'live' ? 'LIVE' : 'AUTO'}
+                </span>
+              )} />
+              <div className="panel" data-testid="now-next" style={{
+                padding: 9, display: 'flex', flexDirection: 'column', gap: 8,
+              }}>
+                <div>
+                  <div className="small muted" style={{
+                    fontSize: 9, letterSpacing: 0.8, fontWeight: 700,
+                  }}>NOW PLAYING</div>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>
+                    {on.kind === 'off' ? 'Nothing'
+                      : on.kind === 'emergency' ? nameOf(on.source)
+                        : on.kind === 'live'
+                          ? (on.session.segment
+                            ? nameOf(on.session.segment) : 'The live studio')
+                          : (on.kind === 'programme'
+                            ? on.programme.title : on.entry.title) ?? nameOf(on.source)}
+                  </div>
+                  {(on.kind === 'programme' || on.kind === 'rotation') && (
+                    <div className="small muted" style={{ fontSize: 11 }}>
+                      until {clock(on.untilMs)}
+                    </div>
+                  )}
+                </div>
+                <div style={{ borderTop: '1px solid var(--line)', paddingTop: 7 }}>
+                  <div className="small muted" style={{
+                    fontSize: 9, letterSpacing: 0.8, fontWeight: 700,
+                  }}>NEXT</div>
+                  <div style={{ fontSize: 13 }}>
+                    {upNext ?? '\u2014'}
+                  </div>
+                </div>
+              </div>
+
               <Section text="Schedule it" />
               {!picked ? (
                 <p className="small muted" style={{ fontSize: 11, margin: 0 }}>
@@ -400,8 +472,15 @@ export default function ChannelStudio({
                 </p>
               )}
 
-              {/* ---- the red button (§5) --------------------------------- */}
-              <Section text={onAir ? 'On air, live' : 'Go live'} />
+              {/* ---- the live chain (§6, §8) ----------------------------- */}
+              <Section
+                text={armed ? 'Armed \u2014 not on air' : onAir ? 'On air, live' : 'Live'}
+                aside={armed ? (
+                  <span className="small" style={{ fontSize: 10, color: '#e0c14f' }}>
+                    preview
+                  </span>
+                ) : undefined}
+              />
               {onAir ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {/*
@@ -435,6 +514,37 @@ export default function ChannelStudio({
                       Back to the room
                     </button>
                   </div>
+                  {/*
+                    * SAVE THIS LIVE SESSION.  [§8]
+                    *
+                    * A decision, not an action, and it can be taken at any
+                    * point: pressing it at 20:40 keeps the whole show. Off by
+                    * default, which is the brief's rule — a channel that kept
+                    * everything by default would be the duplication rule
+                    * broken from the other end.
+                    */}
+                  <label className="row" data-testid="keep-live" style={{
+                    gap: 7, fontSize: 12, padding: '6px 8px', borderRadius: 7,
+                    border: `1px solid ${keeping ? '#c0392b' : 'var(--line)'}`,
+                    background: keeping ? 'rgba(192,57,43,0.14)' : 'var(--panel-2)',
+                  }}>
+                    <input
+                      type="checkbox" checked={keeping}
+                      onChange={(event) => void patch({
+                        action: 'keep-live', keep: event.target.checked,
+                      })}
+                    />
+                    <span style={{ minWidth: 0 }}>
+                      <span style={{ fontWeight: 600 }}>Save this live session</span>
+                      <span className="small muted" style={{
+                        display: 'block', fontSize: 10,
+                      }}>
+                        {keeping
+                          ? 'It becomes an archived recording when you end it.'
+                          : 'Off: the live buffer is discarded after the broadcast.'}
+                      </span>
+                    </span>
+                  </label>
                   {channel.live?.roomId ? (
                     <a className="btn small" data-testid="to-room"
                        href={`/c/${channel.live.roomId}/room`}
@@ -461,29 +571,12 @@ export default function ChannelStudio({
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <button
-                    className="primary" data-testid="go-live"
-                    title={'Interrupts whatever is going out. The schedule is not '
-                      + 'touched — it resumes where the clock says when you stop.'}
-                    onClick={() => {
-                      const label = window.prompt(
-                        'What is the live show called?', 'Live');
-                      if (!label) return;
-                      /*
-                       * The room is asked for because it already exists.
-                       * "Bring people into the room" is the Conversation Room
-                       * — invitations, staging, speaker switching — and a
-                       * channel names one rather than growing a second.
-                       */
-                      const roomId = window.prompt(
-                        'Which conversation\u2019s room are the people in? '
-                        + '(blank for a feed with nobody)', '') || undefined;
-                      void patch({ action: 'go-live', label, roomId });
-                    }}
-                    style={{ background: '#c0392b', borderColor: '#c0392b' }}
-                  >
-                    &#9679; GO LIVE
-                  </button>
+                  {/* The button itself is on the control bar, where a control
+                      room keeps it. This says what it will do. */}
+                  <p className="small muted" style={{ margin: 0, fontSize: 11 }}>
+                    GO LIVE brings the camera up and shows it to you. Nothing
+                    reaches the wire until you press TAKE LIVE.
+                  </p>
                   <button className="small" data-testid="request-recording"
                           title={'A channel records only what somebody asks it to '
                             + 'keep. It is the other of the two things that make a '
@@ -704,10 +797,19 @@ export default function ChannelStudio({
             </div>
           </div>
 
-          {/* ---- the transport (§7) ------------------------------------- */}
+          {/* ---- the control bar (§6) ----------------------------------- */}
+          {/*
+            * [▶ PLAY] [● GO LIVE] [TAKE LIVE] [NEXT] [EMERGENCY]
+            *
+            * A control room's bottom rail, and the order matters: what the
+            * channel is doing on the left, the live chain in the middle, and
+            * the button you hit when something has gone wrong at the far
+            * right where nothing else is — because the one thing worse than
+            * needing it is pressing it by accident.
+            */}
           <div data-testid="channel-transport" style={{
             gridArea: 'transport', display: 'grid', alignItems: 'center', gap: 12,
-            gridTemplateColumns: '1fr auto 1fr',
+            gridTemplateColumns: 'minmax(0, 1fr) auto auto',
             border: '1px solid var(--line)', borderRadius: 10,
             background: 'var(--panel)', padding: '10px 14px',
           }}>
@@ -715,32 +817,73 @@ export default function ChannelStudio({
               <span style={{
                 fontFamily: 'ui-monospace, monospace', fontSize: 14, fontWeight: 700,
               }}>{clock(now)}</span>
-              <span className="small muted" style={{ fontSize: 11 }}>
-                {live
-                  ? `${live.title ?? nameOf(live.source)} until ${clock(programmeEnd(live))}`
-                  : coming ? `Next: ${coming.title ?? nameOf(coming.source)} `
-                    + `at ${clock(programmeStart(coming))}`
-                    : 'Nothing scheduled'}
+              <span className="small muted" style={{
+                fontSize: 11, minWidth: 0, overflow: 'hidden',
+                textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              }}>
+                {/*
+                  * WHICH MODE, in words, because the two modes are the point:
+                  * PROGRAM is the channel running itself and LIVE is somebody
+                  * having taken control. [§6]
+                  */}
+                {on.kind === 'emergency' ? 'EMERGENCY \u2014 cut away'
+                  : on.kind === 'live' ? 'LIVE \u2014 you have the channel'
+                    : 'PROGRAM \u2014 the channel is running itself'}
               </span>
             </div>
 
-            {/*
-              * THE TRANSMISSION, which is not what the monitor is showing.
-              * Printed rather than played: a live HLS stream needs a player
-              * library in every browser but Safari, and a studio that pretended
-              * its monitor was the transmission would be the one place in this
-              * product where what you see is not what goes out.
-              */}
-            <div className="row" style={{ gap: 6, justifyContent: 'center' }}>
-              <span className="small muted" style={{ fontSize: 11 }}>Transmission</span>
-              <code className="small" data-testid="playlist-url" style={{
-                fontSize: 11, padding: '4px 8px', borderRadius: 6,
-                background: 'var(--panel-2)', border: '1px solid var(--line)',
-              }}>{`/api/channels/${id}/playlist`}</code>
-              <button className="small" data-testid="copy-playlist"
-                      onClick={() => void navigator.clipboard?.writeText(
-                        `${window.location.origin}/api/channels/${id}/playlist`)}
-                      style={{ padding: '4px 9px' }}>Copy</button>
+            <div className="row" data-testid="control-bar" style={{ gap: 6 }}>
+              {/* PLAY is where the loop is, because in PROGRAM there is
+                  nothing to start — the channel is already running. It jumps
+                  the studio's clock back to live instead. */}
+              <button className="small" data-testid="next-item"
+                      disabled={channel.rotation.length === 0}
+                      title="Cut to the next item in the loop now"
+                      onClick={() => void patch({ action: 'next' })}>
+                NEXT &#9654;&#9654;
+              </button>
+              {!onAir ? (
+                <button
+                  className="primary" data-testid="go-live"
+                  title={'Brings the camera up and shows it to you. Nothing '
+                    + 'reaches the wire until you press TAKE LIVE.'}
+                  onClick={() => {
+                    const label = window.prompt('What is the live show called?', 'Live');
+                    if (!label) return;
+                    const roomId = window.prompt(
+                      'Which conversation\u2019s room are the people in? '
+                      + '(blank for a feed with nobody)', '') || undefined;
+                    void patch({ action: 'go-live', label, roomId });
+                  }}
+                  style={{ background: '#8e2f24', borderColor: '#8e2f24' }}
+                >
+                  &#9679; GO LIVE
+                </button>
+              ) : armed ? (
+                <button
+                  className="primary" data-testid="take-live"
+                  title="Cut the live feed to air"
+                  onClick={() => void patch({ action: 'take-live' })}
+                  style={{ background: '#c0392b', borderColor: '#c0392b' }}
+                >
+                  TAKE LIVE
+                </button>
+              ) : (
+                <button
+                  className="small" data-testid="end-live"
+                  title="Back to PROGRAM. The schedule resumes where the clock says."
+                  onClick={() => {
+                    if (!window.confirm(keeping
+                      ? 'End the broadcast? It will be saved as a recording.'
+                      : 'End the broadcast? It is NOT being saved, so the live '
+                        + 'buffer is discarded.')) return;
+                    void patch({ action: 'end-live' });
+                  }}
+                  style={{ borderColor: '#c0392b', color: '#e07a6b' }}
+                >
+                  END LIVE
+                </button>
+              )}
             </div>
 
             <div className="row" style={{ gap: 6, justifyContent: 'flex-end' }}>
@@ -750,12 +893,33 @@ export default function ChannelStudio({
                 {/*
                   * THE CLAIM, ON SCREEN. Everything scheduled — the loop and
                   * the fixed slots together — against the number of files
-                  * behind it. Six turns of two films is the number D-18 is
-                  * about, and it is here rather than in a document.
+                  * behind it.
                   */}
                 {channel.rotation.length + listing.length} scheduled ·{' '}
                 {assets} {assets === 1 ? 'file' : 'files'}
               </span>
+              <button
+                className="small" data-testid="emergency"
+                title={emergency
+                  ? 'Cut back to whatever the channel would be showing'
+                  : 'Cut away immediately. Beats live.'}
+                disabled={!emergency && !picked}
+                onClick={() => {
+                  if (emergency) { void patch({ action: 'emergency', source: null }); return; }
+                  const item = library.find(
+                    (entry) => sourceKey(entry.source) === picked);
+                  if (!item) return;
+                  if (!window.confirm(
+                    `Cut away to "${item.title}" now? This interrupts whatever is `
+                    + 'on air, including a live broadcast.')) return;
+                  void patch({ action: 'emergency', source: item.source });
+                }}
+                style={emergency
+                  ? { background: '#c0392b', borderColor: '#c0392b', color: '#fff' }
+                  : { borderColor: '#8e2f24', color: '#e07a6b' }}
+              >
+                {emergency ? 'CLEAR EMERGENCY' : 'EMERGENCY'}
+              </button>
             </div>
           </div>
         </div>

@@ -149,6 +149,20 @@ export const paths = {
     join(paths.channelAssets(id), `${safe(assetId)}.${ext.replace(/[^a-z0-9]/gi, '')}`),
   /** The wire. Windowed and swept, never archived. */
   channelStream: (id: string) => join(paths.channel(id), 'stream'),
+  /**
+   * THE LIVE BUFFER, which is not an asset. [CHANNEL §7, §8, D-18]
+   *
+   *   var/channels/<id>/live/<bufferId>.mp4
+   *
+   * What the camera is writing while the red light is on. Deliberately
+   * outside `assets/`: it is temporary by construction, it is swept when the
+   * broadcast ends, and INV-17 does not count it — because it is not an asset
+   * until somebody chooses to keep it, at which point it is PROMOTED into
+   * `assets/` and becomes an archived recording like any other.
+   */
+  channelLive: (id: string) => join(paths.channel(id), 'live'),
+  channelLiveBuffer: (id: string, bufferId: string) =>
+    join(paths.channelLive(id), `${safe(bufferId)}.mp4`),
   channelSegment: (id: string, index: number) =>
     join(paths.channelStream(id), `${Math.max(0, Math.floor(index))}.ts`),
   /** Clips and the link preview of a performance. [STUDIO-TWO §14] */

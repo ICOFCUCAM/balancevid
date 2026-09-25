@@ -82,7 +82,7 @@ rendering are all queued to the worker, so one long export cannot make the
 application unusable for everyone else.
 
 ```bash
-npm test           # 925 tests, including real renders through real ffmpeg
+npm test           # 940 tests, including real renders through real ffmpeg
 npm run typecheck
 ```
 

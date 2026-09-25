@@ -25,9 +25,10 @@ import {
 } from '../../src/domain/channel.js';
 import {
   ChannelEditError,
-  addToRotation, closeIngest, endLive, goLive, moveInRotation, moveProgramme,
-  newChannel, openIngest, removeFromRotation, removeProgramme, requestRecording,
-  rollIn, scheduleProgramme, setFiller,
+  addToRotation, closeIngest, endLive, goLive, keepLive, moveInRotation,
+  moveProgramme, newChannel, openIngest, removeFromRotation, removeProgramme,
+  requestRecording, rollIn, scheduleProgramme, setEmergency, setFiller,
+  skipToNext, takeLive,
 } from '../../src/domain/channelEdit.js';
 import {
   SEGMENT_MS, WINDOW_SEGMENTS,
@@ -161,11 +162,18 @@ describe('only two things make media (§5, §6, D-18)', () => {
     expect(c.recordings).toHaveLength(0);
   });
 
-  it('opening a live feed mints exactly one, and it belongs to the feed', () => {
+  /*
+   * A LIVE FEED MINTS A BUFFER, NOT AN ASSET. This was the other way round in
+   * the first version, which made every live broadcast a permanent file
+   * whether or not anybody wanted one — the duplication rule broken from the
+   * other end. [§8]
+   */
+  it('opening a live feed mints a buffer, and no asset at all', () => {
     const c = channel();
     const ingest = openIngest(c, 'The nine o\'clock news', AT);
     expect(c.ingests).toHaveLength(1);
-    expect(ingest.assetId).toMatch(/^asset_/);
+    expect(ingest.bufferId).toMatch(/^buf_/);
+    expect(ingest.assetId).toBeUndefined();
     expect(ingest.closedAt).toBeUndefined();
   });
 
@@ -434,15 +442,33 @@ describe('INV-17, asserted against what is on disk', () => {
    * only that TypeScript works. What can go wrong is a WRITER, so the check
    * is handed the channel's own assets and insists each one is accounted for.
    */
-  it('a channel holding nothing but its live feed and its recording passes', () => {
+  it('a channel holding nothing but a saved session and a recording passes', () => {
     const c = channel();
-    const ingest = openIngest(c, 'Studio', AT);
-    closeIngest(c, ingest.id, AT, HOUR);
+    goLive(c, 'Studio', at(20));
+    keepLive(c, true);
+    const ended = endLive(c, at(21), HOUR);
     const recording = requestRecording(c, {
       label: 'The debate', fromAt: at(20), toAt: at(22), requestedBy: 'James',
     }, AT);
+    expect(ended.keep).toBe(true);
     expect(() => assertChannelOwnsNoScheduledMedia(
-      c, [ingest.assetId, recording.assetId])).not.toThrow();
+      c, [c.ingests[0]!.assetId!, recording.assetId])).not.toThrow();
+  });
+
+  /*
+   * THE BRIEF'S RULE, as the invariant that catches breaking it. A session
+   * nobody kept leaves no asset behind, so a channel still holding its buffer
+   * is a channel that failed to discard — and that is the duplication rule
+   * broken from the other end.
+   */
+  it('and a channel still holding the buffer of a session nobody kept does not', () => {
+    const c = channel();
+    goLive(c, 'Studio', at(20));
+    const ended = endLive(c, at(21), HOUR);
+    expect(ended.keep).toBe(false);
+    expect(c.ingests[0]!.assetId).toBeUndefined();
+    expect(() => assertChannelOwnsNoScheduledMedia(c, [c.ingests[0]!.bufferId]))
+      .toThrow(InvariantViolation);
   });
 
   it('and one holding a file that no feed and no request accounts for does not', () => {
@@ -580,11 +606,31 @@ describe('the red button (§5)', () => {
     return c;
   }
 
-  it('going live pre-empts a scheduled programme, which is what it is for', () => {
+  /*
+   * ARMED IS NOT ON AIR. "That transition needs to be extremely reliable" —
+   * so the camera comes up while the wire is still showing the schedule, and
+   * the cut is a second, separate decision. A single button would broadcast
+   * the first second of every live show as a black frame while a device
+   * negotiated. [§6]
+   */
+  it('arming does not put anything on air', () => {
     const c = ready();
+    const session = goLive(c, 'Studio', at(20, 10));
+    expect(session.phase).toBe('armed');
     expect(whatIsOn(c, Date.parse(at(20, 30))).kind).toBe('programme');
+  });
+
+  it('and taking it is the cut', () => {
+    const c = ready();
     goLive(c, 'Studio', at(20, 10));
+    takeLive(c, at(20, 12));
     expect(whatIsOn(c, Date.parse(at(20, 30))).kind).toBe('live');
+    expect(c.live!.takenAt).toBe(at(20, 12));
+  });
+
+  it('taking something that was never armed is refused', () => {
+    const c = ready();
+    expect(() => takeLive(c, at(20))).toThrow(ChannelEditError);
   });
 
   it('and it opens a feed, which is one of the two things that make media', () => {
@@ -615,6 +661,7 @@ describe('the red button (§5)', () => {
   it('something rolled in is what goes out, and the feed is underneath it', () => {
     const c = ready();
     goLive(c, 'Studio', at(20));
+    takeLive(c, at(20));
     rollIn(c, DEBATE, 90_000);
     const on = whatIsOn(c, Date.parse(at(20, 10)));
     expect(on.kind).toBe('live');
@@ -625,6 +672,7 @@ describe('the red button (§5)', () => {
   it('and taking it down returns to the room with nothing re-cued', () => {
     const c = ready();
     const session = goLive(c, 'Studio', at(20));
+    takeLive(c, at(20));
     rollIn(c, DEBATE);
     rollIn(c, null);
     const on = whatIsOn(c, Date.parse(at(20, 10)));
@@ -645,6 +693,7 @@ describe('the red button (§5)', () => {
   it('ending it resumes where the clock says, not where it paused', () => {
     const c = ready();
     goLive(c, 'Studio', at(20));
+    takeLive(c, at(20));
     endLive(c, at(21), HOUR);
     const on = whatIsOn(c, Date.parse(at(21, 10)));
     expect(on.kind).toBe('rotation');
@@ -652,9 +701,11 @@ describe('the red button (§5)', () => {
     expect(on.kind === 'rotation' && on.fromMs).toBe(10 * MINUTE);
   });
 
-  it('and the feed it opened becomes an ordinary asset, schedulable like any other', () => {
+  it('and a SAVED feed becomes an ordinary asset, schedulable like any other', () => {
     const c = ready();
     const session = goLive(c, 'Studio', at(20));
+    takeLive(c, at(20));
+    keepLive(c, true);
     endLive(c, at(21), 58 * MINUTE);
     expect(c.ingests[0]!.closedAt).toBe(at(21));
     expect(c.ingests[0]!.durationMs).toBe(58 * MINUTE);
@@ -698,5 +749,154 @@ describe('other media — the library\'s third branch (§3)', () => {
     }
     expect(c.rotation).toHaveLength(40);
     expect(referencedAssets(c)).toHaveLength(2);
+  });
+});
+
+
+describe('live media is temporary unless you say otherwise (§8)', () => {
+  /*
+   *     Camera → Microphone → Live ingest → Broadcast encoder → Online TV
+   *
+   * "If you choose Save this live session, then it becomes an archived
+   *  recording. If you don't choose that, the temporary live buffers are
+   *  discarded after the broadcast."
+   */
+  function live(): Channel {
+    const c = newChannel('Always On', 'UTC', AT);
+    addToRotation(c, { source: FILM, durationMs: 30 * MINUTE }, AT);
+    goLive(c, 'The live studio', at(20));
+    takeLive(c, at(20));
+    return c;
+  }
+
+  it('a session nobody saved is discarded, and leaves no asset behind', () => {
+    const c = live();
+    const ended = endLive(c, at(21), HOUR);
+    expect(ended.keep).toBe(false);
+    expect(ended.bufferId).toBe(c.ingests[0]!.bufferId);
+    expect(c.ingests[0]!.assetId).toBeUndefined();
+    expect(c.recordings).toHaveLength(0);
+    /* Nothing was kept, so there is nothing to reference. */
+    expect(referencedAssets(c).filter((s) => s.kind === 'live')).toHaveLength(0);
+  });
+
+  it('and one that was saved is promoted into an archived recording', () => {
+    const c = live();
+    keepLive(c, true);
+    const ended = endLive(c, at(21), 58 * MINUTE);
+    expect(ended.keep).toBe(true);
+    expect(ended.keep && ended.assetId).toBe(c.ingests[0]!.assetId);
+    expect(c.recordings).toHaveLength(1);
+    expect(c.recordings[0]!.assetId).toBe(c.ingests[0]!.assetId);
+    expect(c.recordings[0]!.requestedBy).toContain('operator');
+  });
+
+  /*
+   * The decision and the promotion happen at different moments: pressing Save
+   * at 20:40 must keep the whole show, not the twenty minutes that are left.
+   */
+  it('saving halfway through keeps the whole session, not the rest of it', () => {
+    const c = live();
+    keepLive(c, true);
+    const ended = endLive(c, at(21), HOUR);
+    expect(ended.keep).toBe(true);
+    expect(c.recordings[0]!.fromAt).toBe(at(20));
+    expect(c.recordings[0]!.toAt).toBe(at(21));
+  });
+
+  it('and un-saving before the end discards it after all', () => {
+    const c = live();
+    keepLive(c, true);
+    keepLive(c, false);
+    expect(endLive(c, at(21), HOUR).keep).toBe(false);
+    expect(c.recordings).toHaveLength(0);
+  });
+
+  it('the ingest stays in the document either way, because it happened', () => {
+    const c = live();
+    endLive(c, at(21), HOUR);
+    expect(c.ingests).toHaveLength(1);
+    expect(c.ingests[0]!.closedAt).toBe(at(21));
+    expect(c.ingests[0]!.durationMs).toBe(HOUR);
+  });
+});
+
+describe('the rest of the control bar (§6)', () => {
+  function running(): Channel {
+    const c = newChannel('Always On', 'UTC', AT);
+    c.rotationFrom = at(0);
+    addToRotation(c, { source: FILM, durationMs: 30 * MINUTE, title: 'A' }, AT);
+    addToRotation(c, { source: DEBATE, durationMs: 30 * MINUTE, title: 'B' }, AT);
+    return c;
+  }
+
+  /*
+   * NEXT moves the anchor rather than editing anything, so the loop is intact
+   * behind it and the next item starts at this instant.
+   */
+  it('NEXT cuts to the next item now, and leaves the loop alone', () => {
+    const c = running();
+    const when = Date.parse(at(20, 10));
+    expect(rotationAt(c, when)?.entry.title).toBe('A');
+    const before = JSON.stringify(c.rotation);
+    skipToNext(c, at(20, 10));
+    const after = rotationAt(c, when)!;
+    expect(after.entry.title).toBe('B');
+    expect(after.intoMs).toBe(0);
+    expect(JSON.stringify(c.rotation)).toBe(before);
+  });
+
+  it('and pressing it twice moves two along', () => {
+    const c = running();
+    skipToNext(c, at(20, 10));
+    skipToNext(c, at(20, 10));
+    expect(rotationAt(c, Date.parse(at(20, 10)))?.entry.title).toBe('A');
+  });
+
+  it('NEXT on an empty loop is refused rather than silently doing nothing', () => {
+    const c = newChannel('Empty', 'UTC', AT);
+    expect(() => skipToNext(c, at(20))).toThrow(ChannelEditError);
+  });
+
+  /*
+   * THE ONE ORDERING DECISION WORTH ARGUING ABOUT. The moment you need this
+   * button is the moment the thing on air must stop being on air, and more
+   * often than not the thing on air is somebody live.
+   */
+  it('EMERGENCY beats the loop, a fixed programme AND the red button', () => {
+    const c = running();
+    scheduleProgramme(c, {
+      startsAt: at(20), durationMs: HOUR, source: DEBATE, title: 'Fixed',
+    }, AT);
+    goLive(c, 'Studio', at(20, 5));
+    takeLive(c, at(20, 5));
+    expect(whatIsOn(c, Date.parse(at(20, 10))).kind).toBe('live');
+    setEmergency(c, FILM, at(20, 10));
+    expect(whatIsOn(c, Date.parse(at(20, 12))).kind).toBe('emergency');
+  });
+
+  it('and clearing it cuts back to whatever the channel would have been showing', () => {
+    const c = running();
+    setEmergency(c, FILM, at(20));
+    expect(whatIsOn(c, Date.parse(at(20, 1))).kind).toBe('emergency');
+    setEmergency(c, null, at(20, 5));
+    expect(whatIsOn(c, Date.parse(at(20, 6))).kind).toBe('rotation');
+  });
+
+  it('it does not end the live session — it is a cut away, not a stop', () => {
+    const c = running();
+    goLive(c, 'Studio', at(20));
+    takeLive(c, at(20));
+    setEmergency(c, FILM, at(20, 5));
+    expect(c.live!.phase).toBe('on_air');
+    setEmergency(c, null, at(20, 10));
+    expect(whatIsOn(c, Date.parse(at(20, 11))).kind).toBe('live');
+  });
+
+  it('a live feed cannot be the emergency source — it has to always be there', () => {
+    const c = running();
+    const session = goLive(c, 'Studio', at(20));
+    expect(() => setEmergency(
+      c, { kind: 'live', ingestId: session.ingestId }, at(20))).toThrow(ChannelEditError);
   });
 });

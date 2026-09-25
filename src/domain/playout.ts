@@ -133,11 +133,14 @@ export function playoutWindow(
       continue;
     }
 
-    if (on.kind === 'live') {
+    if (on.kind === 'live' || on.kind === 'emergency') {
       /*
        * A live feed has no end until somebody presses the button, so it is
        * read to the end of the window. Nothing else can be scheduled over it:
-       * that is what pre-emption means.
+       * that is what pre-emption means. The emergency source is the same
+       * shape — it stays up until an operator clears it — and is read the
+       * same way, from its own beginning, because an apology slide starts at
+       * the start. [§6]
        */
       reads.push({
         atMs: cursor, durationMs: toAt - cursor, source: on.source, fromMs: on.fromMs,

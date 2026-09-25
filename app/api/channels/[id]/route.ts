@@ -1,9 +1,10 @@
 import { isOwner } from '../../../../src/auth/request.js';
 import {
   ChannelEditError,
-  addToRotation, closeIngest, endLive, goLive, moveInRotation, moveProgramme,
-  openIngest, removeFromRotation, removeProgramme, requestRecording,
-  retitleProgramme, rollIn, scheduleProgramme, setFiller,
+  addToRotation, closeIngest, endLive, goLive, keepLive, moveInRotation,
+  moveProgramme, openIngest, removeFromRotation, removeProgramme,
+  requestRecording, retitleProgramme, rollIn, scheduleProgramme, setEmergency,
+  setFiller, skipToNext, takeLive,
 } from '../../../../src/domain/channelEdit.js';
 import {
   gaps, nextAfter, onAirAt, orderedProgrammes, overlaps, referencedAssets,
@@ -16,6 +17,7 @@ import {
   auditChannel, channelAssetIds, loadChannel, mutateChannel,
 } from '../../../../src/store/channels.js';
 import { missingSources, resolves } from '../../../../src/store/playoutSources.js';
+import { discardBuffer, keepBuffer } from '../../../../src/store/liveBuffer.js';
 import { fail, json } from '../../../../src/web/http.js';
 
 export const dynamic = 'force-dynamic';
@@ -102,6 +104,12 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
   const body = await request.json().catch(() => ({})) as Record<string, any>;
   const at = new Date().toISOString();
 
+  /** What to do with the live buffer once the document has been written. */
+  let afterwards:
+    | { bufferId: string; keep: false }
+    | { bufferId: string; keep: true; assetId: string; recordingId: string }
+    | undefined;
+
   let channel;
   try {
     channel = await mutateChannel(id, async (draft) => {
@@ -168,6 +176,21 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
         case 'go-live':
           goLive(draft, body['label'] ?? 'Live', at, body['roomId']);
           break;
+        case 'take-live':
+          takeLive(draft, at);
+          break;
+        case 'keep-live':
+          keepLive(draft, body['keep'] !== false);
+          break;
+        case 'next':
+          skipToNext(draft, at);
+          break;
+        case 'emergency':
+          if (body['source'] && !await resolves(draft, body['source'])) {
+            throw new ChannelEditError('there is no such render');
+          }
+          setEmergency(draft, body['source'] ?? null, at);
+          break;
         case 'roll-in':
           if (body['source'] && !await resolves(draft, body['source'])) {
             throw new ChannelEditError('there is no such render');
@@ -175,10 +198,18 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
           rollIn(draft, body['source'] ?? null,
             body['fromMs'] === undefined ? undefined : Number(body['fromMs']));
           break;
-        case 'end-live':
-          endLive(draft, at,
+        case 'end-live': {
+          /*
+           * The domain decides what happens to the buffer and this layer does
+           * it, because the domain does not touch disk. Kept means move the
+           * bytes into `assets/` where INV-17 allows them; not kept means
+           * delete them, which is the brief's rule. [§8, D-18]
+           */
+          const outcome = endLive(draft, at,
             body['durationMs'] === undefined ? undefined : Number(body['durationMs']));
+          afterwards = outcome;
           break;
+        }
         case 'filler':
           if (body['source'] && !await resolves(draft, body['source'])) {
             throw new ChannelEditError('there is no such render');
@@ -211,6 +242,24 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
       return fail(404, 'channel not found');
     }
     throw error;
+  }
+
+  /*
+   * THE BUFFER, AFTER THE DOCUMENT. In this order deliberately: if the
+   * process dies between them, the document says what should have happened
+   * and a sweep can finish it. The other way round, the bytes would be gone
+   * and the document would still promise a recording.
+   */
+  if (afterwards) {
+    try {
+      if (afterwards.keep) await keepBuffer(id, afterwards.bufferId, afterwards.assetId);
+      else await discardBuffer(id, afterwards.bufferId);
+    } catch (error) {
+      await auditChannel(id, {
+        action: 'channel.buffer-failed',
+        detail: { ...afterwards, error: String(error).slice(0, 200) },
+      });
+    }
   }
 
   await auditChannel(id, { action: `channel.${body['action']}`, detail: body });

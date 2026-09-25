@@ -253,11 +253,13 @@ describe('the loop, on the wire (§4, §5)', () => {
    */
   let channel: Channel;
   let goLive: typeof import('../../src/domain/channelEdit.js').goLive;
+  let takeLive: typeof import('../../src/domain/channelEdit.js').takeLive;
   let endLive: typeof import('../../src/domain/channelEdit.js').endLive;
   let addToRotation: typeof import('../../src/domain/channelEdit.js').addToRotation;
 
   beforeAll(async () => {
-    ({ addToRotation, goLive, endLive } = await import('../../src/domain/channelEdit.js'));
+    ({ addToRotation, goLive, takeLive, endLive } = await import(
+      '../../src/domain/channelEdit.js'));
     await makeFilm('perf_loop_a', 'hash_a');
     await makeFilm('perf_loop_b', 'hash_b');
     channel = newChannel('Always On', 'UTC', AT);
@@ -316,7 +318,10 @@ describe('the loop, on the wire (§4, §5)', () => {
   it('going live interrupts the loop without editing it', async () => {
     const { whatIsOn } = await import('../../src/domain/channel.js');
     const before = JSON.stringify(channel.rotation);
+    /* Armed is not on air — the wire is still showing the loop. [§6] */
     goLive(channel, 'The live studio', new Date().toISOString());
+    expect(whatIsOn(channel, Date.now()).kind).toBe('rotation');
+    takeLive(channel, new Date().toISOString());
     expect(whatIsOn(channel, Date.now()).kind).toBe('live');
     expect(JSON.stringify(channel.rotation)).toBe(before);
 
@@ -334,11 +339,17 @@ describe('the loop, on the wire (§4, §5)', () => {
 
   it('and ending it puts the loop back where the clock says', async () => {
     const { whatIsOn } = await import('../../src/domain/channel.js');
-    endLive(channel, new Date().toISOString(), 60_000);
+    const ended = endLive(channel, new Date().toISOString(), 60_000);
     const on = whatIsOn(channel, Date.now());
     expect(on.kind).toBe('rotation');
-    /* The feed it opened is now an ordinary asset, referenced not copied. */
     expect(channel.ingests[0]!.closedAt).toBeDefined();
+    /*
+     * Nobody pressed Save, so the buffer is discarded and the channel is left
+     * holding nothing at all — which is the brief's rule, checked against
+     * disk rather than against the document. [§8]
+     */
+    expect(ended.keep).toBe(false);
+    expect(channel.ingests[0]!.assetId).toBeUndefined();
     expect(await filesUnder(paths.channelAssets(channel.id))).toEqual([]);
   });
 });

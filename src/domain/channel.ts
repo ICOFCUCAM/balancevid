@@ -155,14 +155,74 @@ export interface Programme {
 export interface LiveIngest {
   id: IngestId;
   label: string;
-  /** The asset the arriving media is being written to. */
-  assetId: string;
+  /**
+   * WHERE THE ARRIVING MEDIA IS BEING WRITTEN, WHICH IS NOT AN ASSET.
+   * [§7, D-18]
+   *
+   *     Camera → Microphone → Live ingest → Broadcast encoder → Online TV
+   *
+   * "If you don't choose to save this live session, the temporary live
+   *  buffers are discarded after the broadcast."
+   *
+   * This was wrong in the first version and it is worth saying so: an ingest
+   * minted an `assetId` the moment the red button was pressed, which made
+   * every live broadcast a permanent file whether or not anybody wanted one.
+   * A channel that keeps every second it ever transmitted is the duplication
+   * rule broken from the other end — the same fault as a schedule that
+   * copies, arriving by a different door.
+   *
+   * A buffer is transient by construction: it lives under `live/`, never
+   * `assets/`, it is swept when the broadcast ends, and INV-17 does not count
+   * it because it is not an asset until somebody says so.
+   */
+  bufferId: string;
+  /**
+   * SET ONLY IF SOMEBODY CHOSE TO KEEP IT.  [§8]
+   *
+   * "If you choose Save this live session, then it becomes an archived
+   *  recording."
+   *
+   * Absent while it is only a broadcast. Present once the buffer has been
+   * promoted, at which point it is an ordinary asset that can be scheduled,
+   * repeated and referenced like anything else — and the one file the channel
+   * owns that INV-17 allows.
+   */
+  assetId?: string;
+  /**
+   * Whether the operator has asked for it to be kept.
+   *
+   * SEPARATE FROM `assetId`, because the decision and the promotion happen at
+   * different moments: you press Save halfway through, and the buffer becomes
+   * a recording when the broadcast ends. Storing only the outcome would make
+   * "am I recording?" unanswerable during the thing it is a question about.
+   */
+  keep?: boolean;
   openedAt: string;
   /** Absent while it is still arriving. */
   closedAt?: string;
   /** Measured when it closes, never assumed. [U-02] */
   durationMs?: number;
 }
+
+/**
+ * THE TWO MODES, AND THE STEP BETWEEN THEM.  [§6]
+ *
+ *     PROGRAM  →  TAKE LIVE  →  YOU  →  GUEST  →  VIDEO  →  YOU
+ *              →  END LIVE   →  PROGRAM RESUMES
+ *
+ * "That transition needs to be extremely reliable."
+ *
+ * Which is why there are three states and not two. ARMED is the camera on,
+ * the encoder up, the operator looking at their own preview — and nothing on
+ * the wire. ON AIR is the cut. A single button that opened a camera AND put
+ * it to air is exactly the unreliable transition the brief is warning about:
+ * the first second of every live show would be a black frame while a device
+ * negotiated, broadcast to everybody watching.
+ *
+ * It is the preset/program discipline every vision mixer has had for sixty
+ * years, and it is here for the same reason it is there.
+ */
+export type LivePhase = 'armed' | 'on_air' | 'ended';
 
 /**
  * A recording of the channel's own output.  [§6]
@@ -241,6 +301,10 @@ export interface RotationEntry {
 export interface LiveSession {
   /** The media arriving. Always present: live is the one thing that is new. */
   ingestId: IngestId;
+  /** Armed and previewing, cut to air, or over. [§6] */
+  phase: LivePhase;
+  /** When it was taken to air, which is not when it was armed. */
+  takenAt?: string;
   /** The room the people are in, where there are people. [ROOM §1, D-17] */
   roomId?: string;
   /**
@@ -301,6 +365,15 @@ export interface Channel {
   ingests: LiveIngest[];
   /** Set while the red light is on, and only then. [§5] */
   live?: LiveSession;
+  /**
+   * WHAT IS ON AIR INSTEAD, because something has gone wrong.  [§6]
+   *
+   * The button that beats everything, including the red one — because the
+   * moment you need it is the moment the thing on air must stop being on air,
+   * and more often than not the thing on air is somebody live. Cleared by the
+   * operator; nothing clears it on its own.
+   */
+  emergency?: { source: ProgrammeSource; atMs: number };
   recordings: BroadcastRecording[];
   /**
    * What goes out when nothing is scheduled.  [§4]
@@ -423,6 +496,7 @@ export function referencedAssets(channel: Channel): ProgrammeSource[] {
   for (const entry of channel.rotation) add(entry.source);
   add(channel.filler);
   add(channel.live?.segment);
+  add(channel.emergency?.source);
   return [...seen.values()];
 }
 
@@ -550,6 +624,7 @@ export function rotationAt(channel: Channel, at: number): {
  * engine, which is the only one nobody is watching.
  */
 export type OnAir =
+  | { kind: 'emergency'; source: ProgrammeSource; fromMs: number }
   | { kind: 'live'; session: LiveSession; source: ProgrammeSource; fromMs: number }
   | { kind: 'programme'; programme: Programme; source: ProgrammeSource; fromMs: number;
     untilMs: number }
@@ -557,9 +632,24 @@ export type OnAir =
     untilMs: number }
   | { kind: 'off' };
 
+export type OnAirKind = OnAir['kind'];
+
 export function whatIsOn(channel: Channel, at: number): OnAir {
+  /*
+   * EMERGENCY FIRST. Above live, deliberately: see the note on the field.
+   */
+  if (channel.emergency) {
+    return {
+      kind: 'emergency', source: channel.emergency.source, fromMs: 0,
+    };
+  }
   const live = channel.live;
-  if (live && !live.endedAt) {
+  /*
+   * ARMED IS NOT ON AIR. The camera is up and the operator is previewing
+   * themselves; the wire is still showing the schedule until somebody takes
+   * it. [§6]
+   */
+  if (live && live.phase === 'on_air') {
     /*
      * A segment rolled into the live show is what goes out while it is up;
      * the feed is underneath it. Taking it down returns to the room without

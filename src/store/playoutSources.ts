@@ -57,10 +57,15 @@ export function pathFor(
   const ingest = ingestById(channel, source.ingestId);
   if (!ingest) return undefined;
   /*
-   * A live feed IS the channel's, because the channel is what it arrived at.
-   * This is the one path under `channelAssets`, and INV-17 allows it by name.
+   * WHILE IT IS LIVE, IT IS A BUFFER. Afterwards, if somebody kept it, it is
+   * an asset — and a repeat of last night's live show reads the asset, not
+   * the buffer, which by then has been swept. A session nobody kept resolves
+   * to nothing at all once it is over, which is correct: there is nothing
+   * left to play. [§7, §8]
    */
-  return paths.channelAsset(channel.id, ingest.assetId, 'mp4');
+  return ingest.assetId
+    ? paths.channelAsset(channel.id, ingest.assetId, 'mp4')
+    : paths.channelLiveBuffer(channel.id, ingest.bufferId);
 }
 
 /** Which of these references have nothing behind them any more. */

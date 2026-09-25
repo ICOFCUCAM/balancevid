@@ -332,7 +332,17 @@ export function assertChannelOwnsNoScheduledMedia(
 ): void {
   const allowed = new Map<string, string>();
   for (const ingest of channel.ingests) {
-    allowed.set(ingest.assetId, `the live feed "${ingest.label}"`);
+    /*
+     * ONLY A KEPT SESSION. A live buffer is not an asset — it lives under
+     * `live/`, it is swept when the broadcast ends, and it appears here only
+     * once somebody chose to save it, at which point it was promoted into
+     * `assets/` and is an archived recording like any other. A channel
+     * holding the buffer of a session nobody kept is exactly the fault this
+     * invariant is for. [§8, D-18]
+     */
+    if (ingest.assetId) {
+      allowed.set(ingest.assetId, `the saved live session "${ingest.label}"`);
+    }
   }
   for (const recording of channel.recordings) {
     allowed.set(recording.assetId,

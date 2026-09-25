@@ -16,6 +16,7 @@ import {
   type Channel, type LiveIngest, type LiveSession, type Programme,
   type ProgrammeSource, type RotationEntry,
   ingestById, isOpen, orderedProgrammes, programmeById, programmeEnd, programmeStart,
+  rotationAt, rotationLengthMs,
 } from './channel.js';
 import { newId } from './ids.js';
 
@@ -282,10 +283,18 @@ export function removeFromRotation(channel: Channel, entryId: string): void {
 export function goLive(
   channel: Channel, label: string, at: string, roomId?: string,
 ): LiveSession {
-  if (channel.live && !channel.live.endedAt) fail('this channel is already live');
+  if (channel.live && channel.live.phase !== 'ended') {
+    fail('this channel is already live');
+  }
   const ingest = openIngest(channel, label, at);
+  /*
+   * ARMED, NOT ON AIR. The camera comes up and the operator sees their own
+   * preview; the wire is still showing the schedule. `takeLive` is the cut.
+   * [§6]
+   */
   channel.live = {
     ingestId: ingest.id,
+    phase: 'armed',
     ...(roomId ? { roomId } : {}),
     startedAt: at,
   };
@@ -324,7 +333,53 @@ export function rollIn(
 }
 
 /**
- * END LIVE.  [§5]
+ * TAKE LIVE.  [§6]
+ *
+ * The cut. Everything before this was preview: the camera was on, the encoder
+ * was up, the operator was looking at themselves, and the wire was still
+ * showing the schedule. This is the frame where that changes.
+ *
+ * Separate from `goLive` because the brief's control bar has both buttons and
+ * is right to: "that transition needs to be extremely reliable", and a single
+ * button that opens a camera and cuts it to air broadcasts the first second
+ * of every live show as a black frame while a device negotiates.
+ */
+export function takeLive(channel: Channel, at: string): LiveSession {
+  const live = channel.live;
+  if (!live || live.phase === 'ended') return fail('this channel is not armed');
+  if (live.phase === 'on_air') return fail('it is already on air');
+  live.phase = 'on_air';
+  live.takenAt = at;
+  return live;
+}
+
+/**
+ * SAVE THIS LIVE SESSION.  [§8]
+ *
+ * "If you choose Save this live session, then it becomes an archived
+ *  recording. If you don't choose that, the temporary live buffers are
+ *  discarded after the broadcast."
+ *
+ * A decision, not an action: it can be made before the cut, halfway through,
+ * or in the last minute, and what happens because of it happens when the
+ * broadcast ends. That separation is why it is a flag and not a call to
+ * `requestRecording` — the operator pressing Save at 20:40 wants the whole
+ * show, not the forty minutes that are left.
+ *
+ * `false` un-chooses it, which has to be possible: somebody who pressed Save
+ * on the wrong show must be able to say so before the buffer is promoted.
+ */
+export function keepLive(channel: Channel, keep: boolean): void {
+  const live = channel.live;
+  if (!live || live.phase === 'ended') return fail('this channel is not live');
+  const ingest = ingestById(channel, live.ingestId);
+  if (!ingest) return fail('that live feed is not on this channel');
+  if (keep) ingest.keep = true;
+  else delete ingest.keep;
+}
+
+/**
+ * END LIVE.  [§6, §8]
  *
  * "and the scheduled channel automatically resumes."
  *
@@ -337,19 +392,117 @@ export function rollIn(
  * its own listings after every live show, and the listing is what viewers
  * were told.
  *
- * The feed is closed with it, so what was broadcast live becomes an ordinary
- * asset that can be scheduled like anything else. [§5]
+ * AND THE BUFFER IS DECIDED HERE. If Save was chosen it is promoted: the
+ * ingest gets an asset id, a recording is written naming who asked, and the
+ * worker moves the bytes. If it was not, the buffer is discarded — which is
+ * the brief's rule and the reason a live broadcast does not quietly cost a
+ * gigabyte a time.
+ *
+ * Returns what to do with the buffer, because the domain does not touch
+ * disk: `keep` means promote it to this asset id, `discard` means delete it.
  */
 export function endLive(
   channel: Channel, at: string, durationMs?: number,
-): void {
+): { bufferId: string; keep: false } | { bufferId: string; keep: true;
+  assetId: string; recordingId: string } {
   const live = channel.live;
-  if (!live || live.endedAt) return fail('this channel is not live');
+  if (!live || live.phase === 'ended') return fail('this channel is not live');
+  live.phase = 'ended';
   live.endedAt = at;
   delete live.segment;
   delete live.segmentFromMs;
+
   const ingest = ingestById(channel, live.ingestId);
-  if (ingest && isOpen(ingest)) closeIngest(channel, ingest.id, at, durationMs);
+  if (!ingest) return fail('that live feed is not on this channel');
+  if (isOpen(ingest)) closeIngest(channel, ingest.id, at, durationMs);
+
+  if (!ingest.keep) {
+    /*
+     * "The temporary live buffers are discarded after the broadcast." The
+     * ingest stays in the document — it happened, and the audit should say so
+     * — but it has no asset, so nothing can be scheduled against it and
+     * INV-17 does not count it. The bytes go.
+     */
+    return { bufferId: ingest.bufferId, keep: false };
+  }
+
+  const assetId = newId('asset');
+  ingest.assetId = assetId;
+  const recording = {
+    id: newId('rec'),
+    label: ingest.label,
+    assetId,
+    fromAt: ingest.openedAt,
+    toAt: at,
+    /*
+     * Somebody pressed Save, and the document says a person did. It is the
+     * same rule `requestRecording` keeps and for the same reason: a channel
+     * that quietly kept things would leave nobody able to say who decided.
+     */
+    requestedBy: 'the operator, live',
+    requestedAt: at,
+    ...(durationMs !== undefined ? { durationMs: Math.round(durationMs) } : {}),
+  };
+  channel.recordings.push(recording);
+  return { bufferId: ingest.bufferId, keep: true, assetId, recordingId: recording.id };
+}
+
+/* ------------------------------------------------------------------------ *
+ *  The rest of the control bar.  [§6]
+ * ------------------------------------------------------------------------ */
+
+/**
+ * NEXT.  [§6]
+ *
+ * Cut to the next item in the loop, now, without waiting for the current one
+ * to finish. It moves the ROTATION'S ANCHOR rather than editing anything: the
+ * loop's position is `(now − anchor) % turn`, so pulling the anchor back by
+ * whatever is left of the current entry puts the next one at this instant and
+ * leaves the whole loop intact behind it.
+ *
+ * It jumps every viewer, which is exactly what pressing Next in a control
+ * room does. It is an operator's decision, taken deliberately, and it is not
+ * available by accident — nothing in the automatic path calls it.
+ */
+export function skipToNext(channel: Channel, at: string): void {
+  const turn = rotationLengthMs(channel);
+  if (turn <= 0) fail('there is nothing in the loop to skip to');
+  const turning = rotationAt(channel, Date.parse(at))
+    ?? fail('there is nothing in the loop to skip to');
+  const left = turning.entry.durationMs - turning.intoMs;
+  const anchor = channel.rotationFrom
+    ? Date.parse(channel.rotationFrom)
+    : Date.parse(channel.createdAt);
+  channel.rotationFrom = new Date(anchor - left).toISOString();
+}
+
+/**
+ * EMERGENCY.  [§6]
+ *
+ * The button that beats everything, including the red one. A caption card, an
+ * apology slide, an ident — whatever the channel has agreed it shows when
+ * something has gone wrong — and it goes out immediately, over live, over a
+ * fixed programme, over the loop.
+ *
+ * IT BEATS LIVE, which is the whole point and the one ordering decision worth
+ * arguing about. The moment you need this button is the moment the thing on
+ * air must stop being on air, and more often than not the thing on air is
+ * somebody live. A button that could not interrupt a live broadcast would be
+ * a button that did not work when it was needed.
+ *
+ * It does not end the live session or touch the schedule. It is a cut away,
+ * and clearing it is a cut back to whatever the channel would have been
+ * showing all along.
+ */
+export function setEmergency(
+  channel: Channel, source: ProgrammeSource | null, at: string,
+): void {
+  if (source === null) { delete channel.emergency; return; }
+  assertSource(source, channel);
+  if (source.kind === 'live') {
+    fail('an emergency source has to be something that is always there');
+  }
+  channel.emergency = { source, atMs: Date.parse(at) };
 }
 
 /* ------------------------------------------------------------------------ *
@@ -380,7 +533,11 @@ export function openIngest(
   const ingest: LiveIngest = {
     id: newId('ing'),
     label: (label.trim() || 'Live').slice(0, 120),
-    assetId: newId('asset'),
+    /*
+     * A BUFFER, NOT AN ASSET. The camera writes somewhere transient; whether
+     * any of it is kept is a separate decision, made later, by a person. [§8]
+     */
+    bufferId: newId('buf'),
     openedAt: at,
   };
   channel.ingests.push(ingest);
