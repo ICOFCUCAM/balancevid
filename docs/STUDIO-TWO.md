@@ -1799,6 +1799,89 @@ as the one primitive that live switching appends to and timeline editing
 moves, the three audio modes, alignment against the song, and cutting on the
 beat.
 
+## S-28 — The studio, laid out against a benchmark
+
+**A mockup is a measurement, so it was measured.** Three attempts at "match
+the benchmark" failed by eye and the fourth succeeded with Playwright bounding
+boxes, which named the actual fault in one line: the takes rail sat in an
+*outer* grid while the stage and the composition panel sat in an *inner* one,
+so the three were never three columns of one row and the timeline **could
+not** span the width. Named grid areas fixed it —
+`"takes stage panel" / "timeline timeline timeline" / "notes notes notes" /
+"transport transport transport"` — and the rail is handed *into* the directing
+surface to be placed, because a rail built elsewhere still has to live in this
+grid.
+
+**Five slots, filled or not.** The brief names five takes: living room,
+studio, beach, stage, landscape. An empty studio used to answer with a
+sentence saying there was nothing in it, which tells an author what they
+already know. Five numbered slots tell them what the work *is*, and the
+numbers are the keys they will press in the transport — so the rail and the
+keyboard agree before there is anything to press. More than five and the
+column grows; fewer and it still shows five, because the shape of a
+performance does not depend on how much of it exists yet.
+
+**A row, not a form.** Each take used to carry its own environment and
+treatment pickers, which made a card a hundred and forty pixels tall — five
+takes and the rail was a scrolling page. They were also the *second* place to
+change the same two fields, and the composition panel is the first. The row
+now says what a row is for (who, where, how long) and choosing it points the
+panel at that take. Which take that is moved up to the studio, because the
+rail is what points at it and two copies of "which take" is two answers to one
+question.
+
+**Recording was inside a fold called Set up**, which said a take is something
+you arrange once. It is the thing you do five times. It now sits under the
+slots beside Upload, because those are the same decision — this take comes
+from this camera, or from a file — and stacked they read as a step and an
+afterthought.
+
+**The stage was five posters, and you cannot direct with posters.** §7 says
+you play the song and switch takes in real time; a still frame of a chorus
+tells you nothing about whether it is the chorus you want. `player.attach`
+had existed since the player was written and nothing had ever called it. Each
+visible panel now registers a `<video>` on mount and unregisters on unmount,
+so what is on screen is exactly what is being kept in time with the song and
+an off-screen take is not quietly decoding. The poster stays behind it: a take
+still assembling has no media, and a black rectangle where a performance
+should be reads as a fault. All of them are muted — which audio the finished
+video carries is a decision §9 makes at render, and a monitor that mixed the
+takes' microphones in would answer that question with the speakers instead of
+with the document.
+
+**The volume slider is monitoring, not mixing.** It is a gain node between
+the master source and the destination, ramped rather than set so a drag does
+not click on every pixel. It is never written to the document and changes
+nothing about the render: turning the song down to hear yourself think must
+not turn it down in the finished video.
+
+**The transport is three groups, and the middle one is centred in the bar.**
+Matching the studio's own column widths would not have centred it — the rail
+is 330 and the panel 360, and a centre computed from unequal sides is not one
+— so the bar is `1fr auto 1fr` and the keys land under the stage. Half and
+double time moved *onto* the snap control, where the number they correct is
+printed; they had been the only thing below the transport, which on a laptop
+is the first thing off the bottom. Everything else that is said rather than
+shown moved above the bar for the same reason.
+
+**Create master takes you to the render rather than starting one.** A master
+carries a shape, a rights posture and a list of past renders, and the panel
+that holds those is the one place that knows them. A second button that
+started a render would be a second place the rights gate could be got wrong.
+
+**Two tabs the benchmark draws are not there.** There is no library page, and
+Studio One is a particular conversation rather than a place. A tab that goes
+nowhere is a menu that lies, which is the rule that already keeps unmeasured
+spaces out of the environment picker (INV-16). What the bar has is where you
+came from, where you are, and the one thing at the end of this studio it can
+actually reach.
+
+**What this container cannot show.** The take mezzanine is H.264 and the
+Chromium here has no H.264 decoder — the stage videos report
+`DEMUXER_ERROR_NO_SUPPORTED_STREAMS` while the route answers 206 with
+`video/mp4`. The wiring is verified by measurement rather than by picture;
+the pictures appear in any ordinary browser.
+
 ---
 
 *Appendix S ends. The brief above it is unedited.*

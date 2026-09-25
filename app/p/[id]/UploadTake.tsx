@@ -34,7 +34,7 @@ import { useRef, useState } from 'react';
 const CHUNK_BYTES = 4 * 1024 * 1024;
 
 export default function UploadTake({
-  performanceId, environment, plateAssetId, onFinished, disabled,
+  performanceId, environment, plateAssetId, onFinished, disabled, compact,
 }: {
   performanceId: string;
   /** Whatever the studio currently has selected, same as a recorded take. */
@@ -42,6 +42,13 @@ export default function UploadTake({
   plateAssetId?: string;
   onFinished: (jobId: string) => void;
   disabled?: boolean;
+  /**
+   * In the takes rail, beside Record, where there is room for a button and
+   * not for a paragraph. What the paragraph said moves to the button's own
+   * title — it is worth reading once, before the first upload, and after
+   * that it is a line you scroll past in a column that has to fit a screen.
+   */
+  compact?: boolean;
 }) {
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -105,8 +112,12 @@ export default function UploadTake({
     }
   };
 
+  const explain = 'Filmed elsewhere? If the song was playing while you filmed, '
+    + 'it will be heard in the recording and lined up for you.';
+
   return (
-    <div data-testid="upload-take" style={{ marginTop: 6 }}>
+    <div data-testid="upload-take" style={compact ? { flex: '1 1 0', minWidth: 0 }
+      : { marginTop: 6 }}>
       <input
         ref={input}
         type="file"
@@ -122,17 +133,19 @@ export default function UploadTake({
         className="small"
         data-testid="upload-take-button"
         disabled={busy || disabled}
+        title={explain}
         onClick={() => input.current?.click()}
-        style={{ width: '100%' }}
+        style={{ width: '100%', ...(compact ? { padding: '7px 8px' } : {}) }}
       >
         {busy ? `Uploading… ${sent}%` : 'Upload a take'}
       </button>
-      <p className="small muted" style={{ fontSize: 11, margin: '4px 0 0' }}>
-        {/* Said before they choose, because it decides whether the take lands
-            in the right place or has to be dragged there. */}
-        Filmed elsewhere? If the song was playing while you filmed, it will be
-        heard in the recording and lined up for you.
-      </p>
+      {!compact && (
+        <p className="small muted" style={{ fontSize: 11, margin: '4px 0 0' }}>
+          {/* Said before they choose, because it decides whether the take
+              lands in the right place or has to be dragged there. */}
+          {explain}
+        </p>
+      )}
       {error && <p className="small" style={{ color: 'var(--bad)' }}>{error}</p>}
     </div>
   );

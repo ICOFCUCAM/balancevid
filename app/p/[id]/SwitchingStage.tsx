@@ -49,10 +49,19 @@ const ARRANGEMENTS = [
 ] as const;
 
 export default function SwitchingStage({
-  performance, onChanged, takesPanel,
+  performance, onChanged, takesPanel, chosenTake, onChooseTake,
 }: {
   performance: Performance;
   onChanged: (next: Performance) => void;
+  /**
+   * Which take the Background and Effects panels are editing.
+   *
+   * Held by the studio rather than here because the takes rail is what
+   * points at it — clicking a row is the choosing — and the rail is rendered
+   * up there. Two copies of "which take" is two answers to one question.
+   */
+  chosenTake?: string | null;
+  onChooseTake?: (id: string) => void;
   /**
    * The takes rail, rendered by the studio and placed by this component.
    *
@@ -72,6 +81,8 @@ export default function SwitchingStage({
   /** Snapping is OFF until the author turns it on, which is the acceptance. */
   const [snap, setSnap] = useState(false);
   const [snapped, setSnapped] = useState<number | null>(null);
+  /** The transitions row is asked for from the transport, not always on. */
+  const [showTransitions, setShowTransitions] = useState(false);
 
   const ordered = orderedScenes(performance);
   const usable = performance.takes.filter((t) => t.durationSamples > 0);
@@ -214,8 +225,10 @@ export default function SwitchingStage({
     return `${String(Math.floor(total / 60)).padStart(2, '0')}:${
       String(total % 60).padStart(2, '0')}`;
   };
-  /** Which take the Background and Effects panels are talking about. */
-  const [chosen, setChosen] = useState<string | null>(null);
+  /** Falls back to its own when nobody above is holding the choice. */
+  const [ownChoice, setOwnChoice] = useState<string | null>(null);
+  const chosen = chosenTake !== undefined ? chosenTake : ownChoice;
+  const setChosen = onChooseTake ?? setOwnChoice;
   /*
    * Six spaces, then the rest on request. Eleven tiles is a panel somebody
    * scrolls past to reach the effects underneath, which is how a choice they
@@ -272,7 +285,7 @@ export default function SwitchingStage({
       display: 'grid', minHeight: 0, gap: 12,
       gridTemplateColumns: 'minmax(250px, 330px) minmax(0, 1fr) minmax(290px, 360px)',
       gridTemplateAreas: '"takes stage panel" "timeline timeline timeline" '
-        + '"transport transport transport"',
+        + '"notes notes notes" "transport transport transport"',
       alignItems: 'start',
     }}>
       <div style={{ gridArea: 'takes', minWidth: 0 }}>{takesPanel}</div>
@@ -320,6 +333,44 @@ export default function SwitchingStage({
                      backgroundSize: 'cover', backgroundPosition: 'center',
                      borderRadius: 6, overflow: 'hidden',
                    }}>
+                {/*
+                  * THE TAKE, MOVING.  [§7, S-2]
+                  *
+                  * The stage used to be five posters. You cannot direct with
+                  * posters: "you play the song and switch takes in real time"
+                  * means watching the performances while you choose between
+                  * them, and a still frame of a chorus tells you nothing
+                  * about whether that is the chorus you want.
+                  *
+                  * The player steers these — it does not own them. Each one
+                  * registers itself on mount and unregisters on unmount, so
+                  * whatever is on screen is exactly what is being kept in
+                  * time with the song, and a take that is off screen is not
+                  * quietly decoding in the background.
+                  *
+                  * MUTED, ALL OF THEM. The song comes out of the player, and
+                  * which audio the finished video carries is a decision the
+                  * Sound modes make at render (§9). A monitor that mixed the
+                  * takes' own microphones in would be answering that question
+                  * with the speakers instead of with the document.
+                  *
+                  * The poster stays behind it as the background: a take still
+                  * assembling has no media to show, and a black rectangle
+                  * where a performance should be reads as a fault.
+                  */}
+                <video
+                  data-testid="stage-video" data-take-id={take.id}
+                  ref={(element) => { player.attach(take.id, element); }}
+                  muted playsInline preload="auto"
+                  /* No `type` on a source: the server's content type decides,
+                     and a declared one the browser disagrees with is refused
+                     without a request ever being made. */
+                  src={`/api/performances/${performance.id}/takes/${take.id}/media`}
+                  style={{
+                    width: '100%', height: '100%', objectFit: 'cover',
+                    display: 'block',
+                  }}
+                />
                 {/* The take's name, in the take's colour, where the benchmark
                     puts it: bottom left of its own panel. */}
                 <span style={{
@@ -597,36 +648,85 @@ export default function SwitchingStage({
       </div>
 
       {/* ---- the transport (§7) ---------------------------------------- */}
-      <div className="row" data-testid="transport" style={{
+      {/*
+        * THREE GROUPS, LEFT TO CENTRE TO RIGHT.
+        *
+        * Transport on the left — play, where the song is, how loud it is in
+        * the room. Directing in the middle — the number keys, which are the
+        * one control you use while it is running, so they sit under the
+        * stage rather than off at an edge. Everything that acts on the WHOLE
+        * edit on the right: beats, transitions, and the render.
+        *
+        * It is a grid rather than a flex row with `marginLeft: auto`, because
+        * the keys have to stay centred under the stage whether there is one
+        * of them or nine — and an auto margin centres nothing, it just pushes.
+        */}
+      <div data-testid="transport" style={{
         gridArea: 'transport',
-        gap: 12, alignItems: 'center', flexWrap: 'wrap',
+        display: 'grid', alignItems: 'center', gap: 12,
+        /*
+         * Equal outer columns so the middle one is centred in the BAR, and
+         * therefore under the stage. Matching the studio's own column widths
+         * would not centre it: the takes rail is 330 and the composition
+         * panel 360, and a centre computed from unequal sides is not one.
+         */
+        gridTemplateColumns: '1fr auto 1fr',
         border: '1px solid var(--line)', borderRadius: 10,
         background: 'var(--panel)', padding: '10px 14px',
       }}>
-        <button className="primary" data-testid="player-play" disabled={!player.ready}
-                onClick={() => (player.playing ? player.pause() : void player.play())}
-                style={{
-                  width: 42, height: 42, borderRadius: '50%', padding: 0,
-                  fontSize: 15, flex: '0 0 auto',
-                }}>
-          {player.playing ? '❚❚' : '▶'}
-        </button>
-        <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: 13 }}>
-          {formatMasterPosition(Math.round(player.position))}
-          <span className="muted"> / {clock(duration)}</span>
-        </span>
+        {/* ---- left: play, position, monitoring level ---------------- */}
+        <div className="row" style={{ gap: 10, alignItems: 'center', minWidth: 0 }}>
+          <button className="primary" data-testid="player-play" disabled={!player.ready}
+                  onClick={() => (player.playing ? player.pause() : void player.play())}
+                  title={player.playing ? 'Pause' : 'Play the song'}
+                  style={{
+                    width: 40, height: 40, borderRadius: '50%', padding: 0,
+                    fontSize: 14, flex: '0 0 auto',
+                  }}>
+            {player.playing ? '\u275a\u275a' : '\u25b6'}
+          </button>
+          <span style={{
+            fontFamily: 'ui-monospace, monospace', fontSize: 13, flex: '0 0 auto',
+          }}>
+            {formatMasterPosition(Math.round(player.position))}
+            <span className="muted"> / {clock(duration)}</span>
+          </span>
+          {/*
+            * MONITORING, NOT MIXING. This is how loud the song is in the room
+            * while somebody directs. It is not written to the document and it
+            * changes nothing about the render — turning the song down to hear
+            * yourself think must not turn it down in the finished video. [§9]
+            */}
+          <label className="row" style={{ gap: 5, alignItems: 'center', minWidth: 0 }}
+                 title="How loud the song is here. The render is unaffected.">
+            <span aria-hidden="true" style={{ fontSize: 12, opacity: 0.7 }}>
+              {player.volume === 0 ? '\ud83d\udd07' : '\ud83d\udd0a'}
+            </span>
+            <input
+              type="range" min={0} max={100} step={1}
+              data-testid="monitor-volume"
+              aria-label="Monitoring volume"
+              value={Math.round(player.volume * 100)}
+              onChange={(e) => player.setVolume(Number(e.target.value) / 100)}
+              style={{ width: 74, accentColor: '#3d7fd6' }}
+            />
+          </label>
+        </div>
 
+        {/* ---- centre: the number keys, under the stage -------------- */}
         {/*
-          * The number keys, as buttons in the takes' own colours. Pressing
-          * them and clicking them write the same scene through the same
-          * function — the keyboard is faster, not different. [§7]
+          * As buttons in the takes' own colours. Pressing them and clicking
+          * them write the same scene through the same function — the keyboard
+          * is faster, not different. [§7]
           */}
-        <div className="row" data-testid="take-keys" style={{ gap: 6, marginLeft: 8 }}>
+        <div className="row" data-testid="take-keys" style={{
+          gap: 6, justifyContent: 'center', flexWrap: 'wrap',
+        }}>
           {usable.slice(0, 9).map((take, index) => (
             <button key={take.id} type="button" data-testid="take-key"
                     data-take-id={take.id}
                     onClick={() => choose(index)}
-                    title={`${take.label} — key ${index + 1}`}
+                    title={`${take.label} \u2014 key ${index + 1}`}
                     style={{
                       width: 34, height: 34, borderRadius: 7, padding: 0,
                       fontWeight: 700, fontSize: 13, cursor: 'pointer',
@@ -638,17 +738,22 @@ export default function SwitchingStage({
               {index + 1}
             </button>
           ))}
-        </div>
-
-        <div className="row" style={{ gap: 8, marginLeft: 'auto' }}>
           <button className="small" data-testid="live-switching"
                   onClick={() => { setLive(!live); setPending([]); }}
                   style={{
+                    marginLeft: 6,
                     background: live ? 'rgba(45,110,200,0.28)' : undefined,
                     borderColor: live ? '#3d7fd6' : undefined,
                   }}>
-            {live ? 'Directing — press 1–9' : 'Direct with the number keys'}
+            {live ? 'Directing \u2014 press 1\u20139' : 'Direct with the keys'}
           </button>
+        </div>
+
+        {/* ---- right: what acts on the whole edit -------------------- */}
+        <div className="row" style={{
+          gap: 6, justifyContent: 'flex-end', flexWrap: 'nowrap',
+          fontSize: 12, whiteSpace: 'nowrap',
+        }}>
           {beats && (
             <button className="small" data-testid="snap-to-beat"
                     disabled={!beats.acceptedBy && !snap}
@@ -660,20 +765,72 @@ export default function SwitchingStage({
                       background: snap ? 'rgba(224,193,79,0.22)' : undefined,
                       borderColor: snap ? '#e0c14f' : undefined,
                     }}>
-              Snap to beat{beats.bpm ? ` · ${Math.round(beats.bpm)} BPM` : ''}
+              Snap{beats.bpm ? ` \u00b7 ${Math.round(beats.bpm)} BPM` : ' to beat'}
             </button>
           )}
+          {/*
+            * Half and double time sit ON the snap control, because they are
+            * the same fact: a detector that hears a pulse at twice or half
+            * what a person counts is the usual way beat detection is wrong,
+            * and the correction belongs where the number it corrects is
+            * printed — not in a row underneath the transport, where it was
+            * the only thing below the bar and fell off the bottom. [§11]
+            */}
+          {beats?.acceptedBy && (
+            <span className="row" data-testid="tempo" style={{ gap: 3 }}>
+              <button className="small" data-testid="halve-tempo"
+                      title={`Half time \u2014 ${Math.round(beats.bpm / 2)} BPM`}
+                      onClick={() => void tempo(beats.bpm / 2)}
+                      style={{ padding: '6px 8px' }}>&frac12;</button>
+              <button className="small" data-testid="double-tempo"
+                      title={`Double time \u2014 ${Math.round(beats.bpm * 2)} BPM`}
+                      onClick={() => void tempo(beats.bpm * 2)}
+                      style={{ padding: '6px 8px' }}>2&times;</button>
+            </span>
+          )}
+          <button className="small" data-testid="show-transitions"
+                  disabled={ordered.length < 2}
+                  onClick={() => setShowTransitions(!showTransitions)}
+                  style={{
+                    background: showTransitions ? 'rgba(45,110,200,0.22)' : undefined,
+                    borderColor: showTransitions ? '#3d7fd6' : undefined,
+                  }}>
+            Transitions{ordered.length > 1 ? ` \u00b7 ${ordered.length - 1}` : ''}
+          </button>
           <button className="small" data-testid="clear-scenes"
                   disabled={ordered.length === 0}
+                  title="Remove every cut and start the edit again"
                   onClick={() => void patch({ action: 'clear-scenes' })}>
-            Start again
+            Clear
+          </button>
+          {/*
+            * Takes you to the render, rather than starting one.
+            *
+            * A master carries a shape, a rights posture and a list of past
+            * renders, and the panel that holds those is the one place that
+            * knows them. A second button that started a render would be a
+            * second place the rights gate could be got wrong. [§14, INV-15]
+            */}
+          <button className="primary" data-testid="to-master"
+                  disabled={ordered.length === 0}
+                  onClick={() => document.querySelector('[data-testid="master-render"]')
+                    ?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>
+            Create master
           </button>
         </div>
       </div>
 
       {/* ---- everything that is said rather than shown ----------------- */}
+      {/*
+        * ABOVE the transport, not below it.
+        *
+        * Under the bar these were the last thing on the page, which on a
+        * laptop is the first thing off it — a hint you have to scroll for is
+        * a hint nobody reads. The row only exists when it has something in
+        * it, so the transport keeps its place until there is news.
+        */}
       <div style={{
-        gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: 8,
+        gridArea: 'notes', display: 'flex', flexDirection: 'column', gap: 6,
       }}>
       {beats && !beats.acceptedBy && (
         <p className="small muted" data-testid="beats-suggestion" style={{ margin: 0 }}>
@@ -682,17 +839,6 @@ export default function SwitchingStage({
           accepts it — nothing moves a cut until you do. [§11]
         </p>
       )}
-      {beats?.acceptedBy && (
-        <div className="row" data-testid="tempo" style={{ gap: 8, alignItems: 'center' }}>
-          <span className="small muted" style={{ fontSize: 11 }}>
-            {Math.round(beats.bpm)} BPM
-          </span>
-          <button className="small" data-testid="halve-tempo"
-                  onClick={() => void tempo(beats.bpm / 2)}>Half time</button>
-          <button className="small" data-testid="double-tempo"
-                  onClick={() => void tempo(beats.bpm * 2)}>Double time</button>
-        </div>
-      )}
       {snapped !== null && (
         <p className="small" data-testid="snapped-note" style={{ margin: 0 }}>
           Moved to the nearest beat.
@@ -700,7 +846,7 @@ export default function SwitchingStage({
       )}
 
       {/* ---- how one scene becomes the next (§11) ---------------------- */}
-      {ordered.length > 1 && (
+      {ordered.length > 1 && showTransitions && (
         <div className="row" data-testid="transitions" style={{ gap: 8, flexWrap: 'wrap' }}>
           <span className="small muted" style={{ fontSize: 11 }}>Transitions</span>
           {ordered.slice(1).map((scene) => (

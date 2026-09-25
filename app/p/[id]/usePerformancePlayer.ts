@@ -63,6 +63,17 @@ export interface PerformancePlayer {
   seek: (samples: number) => void;
   /** Register a take's video element so the player can steer it. */
   attach: (takeId: string, element: HTMLVideoElement | null) => void;
+  /**
+   * How loud the song is, 0 to 1.
+   *
+   * MONITORING ONLY. This is the volume of the speakers in the room while
+   * somebody directs — it is not a property of the performance, it is not
+   * written to the document, and it changes nothing about the render. Turning
+   * the song down to hear yourself think must not quietly turn it down in the
+   * finished video. [§9]
+   */
+  volume: number;
+  setVolume: (level: number) => void;
 }
 
 /**
@@ -79,8 +90,10 @@ export function usePerformancePlayer(performance: Performance): PerformancePlaye
   const [position, setPosition] = useState(0);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [volume, setVolumeState] = useState(1);
 
   const contextRef = useRef<AudioContext | null>(null);
+  const gainRef = useRef<GainNode | null>(null);
   const bufferRef = useRef<AudioBuffer | null>(null);
   const sourceRef = useRef<AudioBufferSourceNode | null>(null);
   /** Where the song was when playback began, and when that was. */
@@ -102,11 +115,14 @@ export function usePerformancePlayer(performance: Performance): PerformancePlaye
     void (async () => {
       try {
         const context = new AudioContext({ sampleRate: HOUSE_SAMPLE_RATE });
+        const gain = context.createGain();
+        gain.connect(context.destination);
         const response = await fetch(`/api/performances/${id}/master`);
         if (!response.ok) throw new Error('the song is not ready yet');
         const buffer = await context.decodeAudioData(await response.arrayBuffer());
         if (cancelled) { void context.close(); return; }
         contextRef.current = context;
+        gainRef.current = gain;
         bufferRef.current = buffer;
         setReady(true);
       } catch (e) {
@@ -136,7 +152,7 @@ export function usePerformancePlayer(performance: Performance): PerformancePlaye
     sourceRef.current?.stop();
     const source = context.createBufferSource();
     source.buffer = buffer;
-    source.connect(context.destination);
+    source.connect(gainRef.current ?? context.destination);
     source.start(0, Math.max(0, samples) / HOUSE_SAMPLE_RATE);
     sourceRef.current = source;
     originRef.current = { atSample: Math.max(0, samples), atContextTime: context.currentTime };
@@ -169,6 +185,19 @@ export function usePerformancePlayer(performance: Performance): PerformancePlaye
       if (alignment) element.currentTime = takeSeconds(alignment, pausedAtRef.current);
     }
   }, [performance.master.durationSamples, startAt]);
+
+  const setVolume = useCallback((level: number) => {
+    const clamped = Math.max(0, Math.min(1, level));
+    setVolumeState(clamped);
+    /*
+     * Ramped rather than set. A gain that jumps discontinuously clicks, and a
+     * click on every pixel of a drag is a slider that sounds broken.
+     */
+    const gain = gainRef.current;
+    if (gain && contextRef.current) {
+      gain.gain.setTargetAtTime(clamped, contextRef.current.currentTime, 0.01);
+    }
+  }, []);
 
   const attach = useCallback((takeId: string, element: HTMLVideoElement | null) => {
     if (element) elements.current.set(takeId, element);
@@ -238,7 +267,10 @@ export function usePerformancePlayer(performance: Performance): PerformancePlaye
     return () => { stopped = true; };
   }, [playing, now, pause, performance.master.durationSamples]);
 
-  return { playing, position, positionNow: now, ready, error, play, pause, seek, attach };
+  return {
+    playing, position, positionNow: now, ready, error,
+    play, pause, seek, attach, volume, setVolume,
+  };
 }
 
 /** Where this take's own media is, at this moment of the song. [S-2] */
