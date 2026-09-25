@@ -122,6 +122,12 @@ export const paths = {
    * only form the measurement wants. [S-3]
    */
   masterAnalysis: (id: string) => join(paths.performanceAssets(id), 'master.f32'),
+  /** A take's first frame, for the rail. */
+  performanceTakePoster: (id: string, takeId: string) =>
+    join(paths.performanceAssets(id), `${safe(takeId)}.poster.jpg`),
+  /** The same take as a strip of frames, for its row on the timeline. */
+  performanceTakeStrip: (id: string, takeId: string) =>
+    join(paths.performanceAssets(id), `${safe(takeId)}.strip.jpg`),
   takeAnalysis: (id: string, assetId: string) =>
     join(paths.performanceAssets(id), `${safe(assetId)}.f32`),
   queue: () => join(VAR_ROOT, 'queue'),

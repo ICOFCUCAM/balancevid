@@ -1,5 +1,5 @@
 import { createReadStream } from 'node:fs';
-import { stat } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { Readable } from 'node:stream';
 
 import { paths, safe } from '../../../../../../../src/store/paths.js';
@@ -30,6 +30,32 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
   }
   const take = performance.takes.find((t) => t.id === safe(takeId));
   if (!take) return fail(404, 'no such take');
+
+  /*
+   * A picture of the take, rather than the take.  [§2, §8]
+   *
+   * Served from the same route because it is the same object seen differently
+   * — and answered before the mezzanine is looked for, so a strip can be
+   * shown for a take whose media is still assembling.
+   */
+  const kind = new URL(request.url).searchParams.get('kind');
+  if (kind === 'poster' || kind === 'strip') {
+    const picture = kind === 'poster'
+      ? paths.performanceTakePoster(id, safe(takeId))
+      : paths.performanceTakeStrip(id, safe(takeId));
+    try {
+      const bytes = await readFile(picture);
+      return new Response(new Uint8Array(bytes), {
+        headers: {
+          'content-type': 'image/jpeg',
+          // It is a picture of a file that does not change once assembled.
+          'cache-control': 'private, max-age=3600',
+        },
+      });
+    } catch {
+      return fail(404, 'that picture has not been made yet');
+    }
+  }
 
   const path = paths.performanceAsset(id, `${take.assetId}mezz`, 'mp4');
   let size: number;

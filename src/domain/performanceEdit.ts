@@ -22,7 +22,7 @@
  */
 
 import { LAYOUTS, takeSlots } from './presentation.js';
-import { type RoomPlate, SPACE_LOOKS, needsMatte } from './environment.js';
+import { EFFECT_LOOKS, type RoomPlate, SPACE_LOOKS, needsMatte } from './environment.js';
 import { DEFAULT_TRANSITION, isTransition } from './transitions.js';
 import { newId } from './ids.js';
 import type { TakeId } from './document.js';
@@ -578,3 +578,28 @@ function take(performance: Performance, takeId: string): PerformanceTake {
 
 /** Exported for a panel that wants to show the scenes in order. */
 export { orderedScenes };
+
+/**
+ * What is done to a take's picture.  [Doctrine STUDIO-TWO §4, INV-00]
+ *
+ * Stored on the take rather than baked into it, exactly as the environment
+ * is: the grade is a decision about the recording and the recording is the
+ * work. Changing it re-renders and never re-records.
+ *
+ * An unknown id is refused here rather than silently kept, because this is
+ * the door a person comes through — the RENDERER is lenient with an id it
+ * does not recognise, since a plan made against a look that was later removed
+ * should still render. Strict at the door, forgiving downstream.
+ */
+export function setEffect(
+  performance: Performance, takeId: string, effect: string | null,
+): void {
+  const take = takeById(performance, takeId);
+  if (!take) throw new PerformanceEditError(`no take ${takeId} in this performance`);
+  if (effect === null || effect === 'none') {
+    delete take.effect;
+    return;
+  }
+  if (!EFFECT_LOOKS[effect]) throw new PerformanceEditError(`unknown treatment: ${effect}`);
+  take.effect = effect;
+}

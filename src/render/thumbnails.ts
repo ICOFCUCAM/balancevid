@@ -385,3 +385,38 @@ export function claimCardAss(card: ClaimCard): string {
     `Dialogue: 0,0:00:00.00,0:00:10.00,Foot,,0,0,0,,${escapeAss(card.attribution)}`,
   ].join('\n')}\n`;
 }
+
+/**
+ * A take as a strip of frames.  [Doctrine STUDIO-TWO §2, §8, U-23]
+ *
+ * The timeline shows four takes across four minutes, and a row of grey would
+ * tell an author nothing about which one is the beach. A filmstrip is what
+ * makes the rows distinguishable at a glance, before any colour or label is
+ * read.
+ *
+ * ONE IMAGE, NOT N REQUESTS. Tiled horizontally in a single pass, so a row is
+ * one `background-image` stretched to the row's width rather than twenty-four
+ * elements the browser lays out and fetches separately. The strip is
+ * deliberately coarse — these are forty pixels tall on screen.
+ *
+ * Rendered where every other decode of this take happens: in the worker, at
+ * assembly, when the mezzanine is already on disk and already being read.
+ */
+export async function renderTakeStrip(
+  mediaPath: string, outPath: string, seconds: number,
+  frames = 24, run?: RunOptions,
+): Promise<void> {
+  await mkdir(dirname(outPath), { recursive: true });
+  /*
+   * One frame per slice of the take, however long it is. Asking for a fixed
+   * frame rate would give a strip of the first few seconds on a long take and
+   * a strip with gaps on a short one.
+   */
+  const rate = Math.max(0.05, frames / Math.max(1, seconds));
+  await ffmpeg([
+    '-y', '-i', mediaPath,
+    '-vf', `fps=${rate.toFixed(6)},scale=96:54,tile=${frames}x1`,
+    '-frames:v', '1', '-q:v', '6',
+    outPath,
+  ], run);
+}

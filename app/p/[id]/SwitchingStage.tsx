@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Performance } from '../../../src/domain/performance.js';
-import { orderedScenes, sceneAt } from '../../../src/domain/performance.js';
+import { SPACES, orderedScenes, sceneAt } from '../../../src/domain/performance.js';
+import { EFFECT_LOOKS, SPACE_LOOKS } from '../../../src/domain/environment.js';
 import { LAYOUTS, takeSlots } from '../../../src/domain/presentation.js';
 import {
   BEATS_USABLE_CONFIDENCE, beatPositions, snapToBeat,
@@ -26,9 +27,25 @@ import { usePerformancePlayer } from './usePerformancePlayer.js';
  * The song never moves. Everything here decides what occupies each part of it.
  */
 
+/**
+ * A swatch per space, taken from the look the renderer actually draws.
+ *
+ * Not a photograph and not a guess: the spaces are DRAWN (S-6), so the tile
+ * shows the gradient the export will contain. A stock photograph of a beach
+ * on a tile whose render is a drawn sky would be the product promising
+ * something it does not make.
+ */
+const SPACE_SWATCHES: Record<string, string> = Object.fromEntries(
+  Object.values(SPACE_LOOKS).map((look) => [
+    look.id,
+    `linear-gradient(180deg, #${look.top.replace('0x', '')}, #${look.bottom.replace('0x', '')})`,
+  ]),
+);
+
 /** The arrangements an author can reach with a key, in the order they appear. */
 const ARRANGEMENTS = [
-  'performance_full', 'performance_half', 'performance_quad', 'performance_focus',
+  'performance_full', 'performance_half', 'performance_quad',
+  'performance_pip', 'performance_focus', 'performance_beside_master',
 ] as const;
 
 export default function SwitchingStage({
@@ -155,203 +172,523 @@ export default function SwitchingStage({
     : [];
   const pct = (samples: number) => `${Math.max(0, Math.min(100, (samples / duration) * 100))}%`;
 
+  /*
+   * The song's own shape.  [§2]
+   *
+   * Peaks rather than samples: a four-minute song is eleven million of them
+   * and this lane is a thousand pixels wide. The server reduces it where the
+   * data already lives, and a song still being decoded simply has none —
+   * the lane draws scenes and a flat line, which is what it did before.
+   */
+  const [peaks, setPeaks] = useState<number[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    void fetch(`/api/performances/${performance.id}/waveform`, { cache: 'no-store' })
+      .then((response) => (response.ok ? response.json() : { peaks: [] }))
+      .then((data) => { if (!cancelled) setPeaks(data.peaks ?? []); })
+      .catch(() => { /* a timeline without a waveform is still a timeline */ });
+    return () => { cancelled = true; };
+  }, [performance.id]);
+
+  /** Every take's own colour, so four rows are told apart before they are read. */
+  const accentOf = (takeId: string | undefined) =>
+    performance.takes.find((t) => t.id === takeId)?.accent ?? '#6fb3e0';
+
+  /** A tick every thirty seconds, or every five when the song is short. */
+  const tickStep = duration / HOUSE_SAMPLE_RATE > 150 ? 30 : 5;
+  const ticks: number[] = [];
+  for (let at = 0; at * HOUSE_SAMPLE_RATE <= duration; at += tickStep) ticks.push(at);
+  const clock = (samples: number) => {
+    const total = Math.max(0, Math.round(samples / HOUSE_SAMPLE_RATE));
+    return `${String(Math.floor(total / 60)).padStart(2, '0')}:${
+      String(total % 60).padStart(2, '0')}`;
+  };
+  /** Which take the Background and Effects panels are talking about. */
+  const [chosen, setChosen] = useState<string | null>(null);
+  /*
+   * Six spaces, then the rest on request. Eleven tiles is a panel somebody
+   * scrolls past to reach the effects underneath, which is how a choice they
+   * make every take ends up below the fold.
+   */
+  const [allSpaces, setAllSpaces] = useState(false);
+  const subject = usable.find((t) => t.id === chosen) ?? usable[0];
+
+  const tile = (
+    key: string, label: string, isChosen: boolean, onPick: () => void,
+    testid: string, disabled?: boolean, swatch?: string,
+  ) => (
+    <button
+      key={key} type="button" data-testid={testid} data-option={key}
+      data-chosen={isChosen ? 'true' : 'false'} disabled={disabled}
+      onClick={onPick} title={label}
+      style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        justifyContent: 'center', gap: 4, padding: '9px 4px', minHeight: 56,
+        borderRadius: 7, cursor: disabled ? 'not-allowed' : 'pointer',
+        border: `1px solid ${isChosen ? '#3d7fd6' : 'var(--line)'}`,
+        background: isChosen ? 'rgba(45,110,200,0.22)' : 'var(--panel-2)',
+        color: 'inherit', font: 'inherit', fontSize: 11, lineHeight: 1.25,
+        opacity: disabled ? 0.4 : 1, textAlign: 'center', width: '100%',
+      }}
+    >
+      {swatch && (
+        <span aria-hidden="true" style={{
+          width: '100%', height: 22, borderRadius: 4, background: swatch,
+        }} />
+      )}
+      <span>{label}</span>
+    </button>
+  );
+
+  const sectionTitle = (text: string, aside?: React.ReactNode) => (
+    <div className="row" style={{
+      alignItems: 'baseline', justifyContent: 'space-between', margin: '14px 0 7px',
+    }}>
+      <span style={{ fontSize: 13, fontWeight: 700 }}>{text}</span>
+      {aside}
+    </div>
+  );
+
   return (
-    <div data-testid="switching-stage">
-      {/* ---- what the viewer would see --------------------------------- */}
-      <div
-        data-testid="performance-stage"
-        data-layout={current?.layoutId ?? 'none'}
-        style={{
-          position: 'relative', aspectRatio: '16 / 9', background: '#08090b',
-          borderRadius: 10, border: '1px solid var(--line)', overflow: 'hidden',
-        }}
-      >
-        {performance.takes.map((take) => {
-          const layout = current ? LAYOUTS[current.layoutId] : undefined;
-          const slot = current?.takeIds.indexOf(take.id) ?? -1;
-          const layer = layout?.layers.filter((l) => l.source === 'take')[slot];
-          const shown = slot >= 0 && Boolean(layer);
-          return (
-            <video
-              key={take.id}
-              ref={(el) => player.attach(take.id, el)}
-              src={`/api/performances/${performance.id}/takes/${take.id}/media`}
-              /*
-               * MUTED, all of them. The song is the sound; §9's audio modes
-               * decide what else is heard, and until they are built playing
-               * four takes' microphones over the master would be noise.
-               */
-              muted
-              playsInline
-              preload="auto"
-              data-testid="stage-take"
-              data-take-id={take.id}
-              data-shown={shown ? 'true' : 'false'}
-              style={{
-                position: 'absolute',
-                display: shown ? 'block' : 'none',
-                left: `${(layer?.rect.x ?? 0) * 100}%`,
-                top: `${(layer?.rect.y ?? 0) * 100}%`,
-                width: `${(layer?.rect.w ?? 1) * 100}%`,
-                height: `${(layer?.rect.h ?? 1) * 100}%`,
-                objectFit: 'cover',
-                background: '#0d1319',
-              }}
-            />
-          );
-        })}
-
-        {!current && (
-          <div className="small muted" style={{
-            position: 'absolute', inset: 0, display: 'grid', placeItems: 'center',
-            textAlign: 'center', padding: 20,
+    <div data-testid="switching-stage" style={{
+      display: 'flex', flexDirection: 'column', gap: 12, minHeight: 0,
+    }}>
+      {/* ---- stage and composition, side by side (§5, §6) -------------- */}
+      <div style={{
+        display: 'grid', gap: 12, minHeight: 0,
+        gridTemplateColumns: 'minmax(0, 1fr) minmax(300px, 360px)',
+      }}>
+        {/*
+          * WHAT THE VIEWER WOULD SEE. Every take on screen at once when the
+          * arrangement holds several, laid out as the arrangement lays them
+          * out — this is a preview of the composition, not a contact sheet.
+          */}
+        <div
+          data-testid="performance-stage"
+          data-layout={current?.layoutId ?? 'none'}
+          style={{
+            position: 'relative', aspectRatio: '16 / 9', background: '#05070a',
+            borderRadius: 10, border: '1px solid var(--line)', overflow: 'hidden',
+          }}
+        >
+          {visible.length === 0 && (
+            <div className="small muted" style={{
+              position: 'absolute', inset: 0, display: 'flex',
+              alignItems: 'center', justifyContent: 'center', textAlign: 'center',
+              padding: 20,
+            }}>
+              Nothing is on screen at this moment. Press a number while the
+              song plays, or pick a take below.
+            </div>
+          )}
+          {visible.map((takeId, index) => {
+            const take = performance.takes.find((t) => t.id === takeId);
+            if (!take) return null;
+            const layout = LAYOUTS[current?.layoutId ?? arrangement]
+              ?? LAYOUTS['performance_full']!;
+            const layer = layout.layers.filter((l) => l.source === 'take')[index];
+            const rect = layer?.rect ?? { x: 0, y: 0, w: 1, h: 1 };
+            return (
+              <div key={takeId} data-testid="stage-take" data-take-id={takeId}
+                   style={{
+                     position: 'absolute',
+                     left: `${rect.x * 100}%`, top: `${rect.y * 100}%`,
+                     width: `${rect.w * 100}%`, height: `${rect.h * 100}%`,
+                     backgroundColor: `${take.accent ?? '#3e7ca6'}22`,
+                     backgroundImage:
+                       `url(/api/performances/${performance.id}/takes/${take.id}/media?kind=poster)`,
+                     backgroundSize: 'cover', backgroundPosition: 'center',
+                     borderRadius: 6, overflow: 'hidden',
+                   }}>
+                {/* The take's name, in the take's colour, where the benchmark
+                    puts it: bottom left of its own panel. */}
+                <span style={{
+                  position: 'absolute', left: 8, bottom: 8, padding: '3px 8px',
+                  borderRadius: 4, fontSize: 11, fontWeight: 600,
+                  background: take.accent ?? '#3e7ca6', color: '#0a0c10',
+                }}>
+                  {take.label}
+                </span>
+              </div>
+            );
+          })}
+          <div style={{
+            position: 'absolute', left: 10, top: 10, padding: '3px 8px',
+            borderRadius: 4, background: 'rgba(5,7,10,0.78)', fontSize: 11,
+            fontFamily: 'ui-monospace, monospace',
           }}>
-            Nothing on this part of the song yet. Play it and press a number to
-            put somebody there.
+            {formatMasterPosition(Math.round(player.position))} / {clock(duration)}
+            {current?.label ? ` · ${current.label}` : ''}
           </div>
-        )}
+        </div>
 
-        <div className="small" style={{
-          position: 'absolute', left: 0, bottom: 0, padding: '3px 9px',
-          background: 'rgba(8,9,11,0.72)', fontSize: 11, fontWeight: 600,
-        }}>
-          {formatMasterPosition(Math.round(player.position))} / {formatMasterPosition(duration)}
-          {current?.label ? ` · ${current.label}` : ''}
+        {/* ---- composition, background, effects (§4, §5, §6) ----------- */}
+        <aside data-testid="composition-panel" className="shell-scroll"
+               style={{
+                 border: '1px solid var(--line)', borderRadius: 10,
+                 padding: '4px 12px 14px', background: 'var(--panel)',
+               }}>
+          {sectionTitle('Composition')}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 5 }}>
+            {ARRANGEMENTS
+              .filter((a) => a !== 'performance_beside_master'
+                || Boolean(performance.master.videoAssetId))
+              .map((a) => tile(
+                a, LAYOUTS[a]!.label, arrangement === a,
+                () => { setArrangement(a); setPending([]); },
+                'arrangement'))}
+          </div>
+
+          {sectionTitle(
+            'Background / Environment',
+            <span className="row" style={{ gap: 8, alignItems: 'baseline' }}>
+              {subject && (
+                <span className="small muted" style={{ fontSize: 10 }}>{subject.label}</span>
+              )}
+              {SPACES.length > 6 && (
+                <button type="button" className="small" data-testid="view-all-spaces"
+                        onClick={() => setAllSpaces(!allSpaces)}
+                        style={{
+                          border: 0, background: 'none', padding: 0, cursor: 'pointer',
+                          color: '#5c9ee0', fontSize: 11,
+                        }}>
+                  {allSpaces ? 'Show fewer' : 'View all'}
+                </button>
+              )}
+            </span>,
+          )}
+          {!subject ? (
+            <p className="small muted" style={{ fontSize: 11, margin: 0 }}>
+              Record or upload a take first.
+            </p>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 5 }}>
+              {tile('original', 'Original',
+                subject.environment.kind === 'original', () => void patch({
+                  action: 'set-environment', takeId: subject.id,
+                  environment: { kind: 'original' },
+                }), 'environment-option', false, 'var(--panel-2)')}
+              {tile('blur', 'Blur',
+                subject.environment.kind === 'blur', () => void patch({
+                  action: 'set-environment', takeId: subject.id,
+                  environment: { kind: 'blur' },
+                }), 'environment-option', !subject.plateAssetId, '#2a3038')}
+              {(allSpaces ? SPACES : SPACES.slice(0, 6)).map((space) => tile(
+                space.id, space.label,
+                subject.environment.kind === 'space'
+                  && subject.environment.spaceId === space.id,
+                () => void patch({
+                  action: 'set-environment', takeId: subject.id,
+                  environment: { kind: 'space', spaceId: space.id },
+                }),
+                'environment-option',
+                // Everything but their own room needs a measured plate, and
+                // a tile that cannot do anything looks like a fault. [INV-16]
+                !subject.plateAssetId,
+                SPACE_SWATCHES[space.id] ?? '#1b2028',
+              ))}
+            </div>
+          )}
+
+          {sectionTitle('Effects')}
+          {!subject ? null : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 5 }}>
+              {tile('none', 'None', !subject.effect, () => void patch({
+                action: 'set-effect', takeId: subject.id, effect: null,
+              }), 'effect-option')}
+              {Object.values(EFFECT_LOOKS).map((look) => tile(
+                look.id, look.label, subject.effect === look.id,
+                () => void patch({
+                  action: 'set-effect', takeId: subject.id, effect: look.id,
+                }), 'effect-option'))}
+            </div>
+          )}
+          {subject && (
+            <p className="small muted" style={{ fontSize: 10, marginTop: 8 }}>
+              {/* Said once, because it is the thing that makes all of this
+                  safe to change: none of it is in the recording. [§4] */}
+              Stored with the take, never burned into it. Change any of it
+              afterwards without performing again.
+            </p>
+          )}
+        </aside>
+      </div>
+
+      {/* ---- the song, the takes on it, and the edit (§2, §7, §8) ------ */}
+      <div data-testid="performance-timeline" style={{
+        border: '1px solid var(--line)', borderRadius: 10,
+        background: 'var(--panel)', overflow: 'hidden',
+      }}>
+        <div style={{ display: 'flex' }}>
+          {/* The names, in a fixed column, so every lane starts at one x. */}
+          <div style={{
+            width: 190, flex: '0 0 auto', borderRight: '1px solid var(--line)',
+          }}>
+            <div style={{ height: 18 }} />
+            <div style={{ height: 52, padding: '6px 10px' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.5 }}>
+                MASTER SONG
+              </div>
+              <div className="small muted" style={{ fontSize: 10 }}>
+                {performance.master.title}
+              </div>
+            </div>
+            {usable.map((take) => (
+              <button key={take.id} type="button" data-testid="lane-label"
+                      data-take-id={take.id}
+                      onClick={() => setChosen(take.id)}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 7, width: '100%',
+                        height: 30, padding: '0 10px', border: 0, font: 'inherit',
+                        fontSize: 11, textAlign: 'left', cursor: 'pointer',
+                        color: 'inherit',
+                        background: subject?.id === take.id
+                          ? 'rgba(45,110,200,0.16)' : 'transparent',
+                      }}>
+                <span aria-hidden="true" style={{
+                  width: 8, height: 8, borderRadius: '50%', flex: '0 0 auto',
+                  background: take.accent ?? '#3e7ca6',
+                  opacity: take.alignment.method === 'unplaced' ? 0.4 : 1,
+                }} />
+                <span style={{ fontWeight: 600 }}>{take.label}</span>
+              </button>
+            ))}
+            <div style={{
+              height: 44, display: 'flex', alignItems: 'center', padding: '0 10px',
+              borderTop: '1px solid var(--line)', fontSize: 11, fontWeight: 700,
+              letterSpacing: 0.5,
+            }}>
+              MASTER VIDEO
+            </div>
+          </div>
+
+          {/* Every lane, the same four minutes, one x per sample. */}
+          <div style={{ position: 'relative', flex: 1, minWidth: 0 }}
+               onClick={(e) => {
+                 const box = e.currentTarget.getBoundingClientRect();
+                 player.seek(Math.round(((e.clientX - box.left) / box.width) * duration));
+               }}>
+            <div data-testid="master-ruler" style={{ height: 18, position: 'relative' }}>
+              {ticks.map((at) => (
+                <span key={at} className="muted" style={{
+                  position: 'absolute', left: pct(at * HOUSE_SAMPLE_RATE), top: 2,
+                  fontSize: 9, fontFamily: 'ui-monospace, monospace',
+                  transform: at === 0 ? 'none' : 'translateX(-50%)',
+                }}>{clock(at * HOUSE_SAMPLE_RATE)}</span>
+              ))}
+            </div>
+
+            <div data-testid="master-waveform" style={{ height: 52, position: 'relative' }}>
+              {ordered.filter((s) => s.label).map((scene) => (
+                <span key={scene.id} style={{
+                  position: 'absolute', left: pct(scene.fromSample), top: 0,
+                  fontSize: 10, paddingLeft: 5, color: 'rgba(255,255,255,0.72)',
+                }}>{scene.label}</span>
+              ))}
+              <svg width="100%" height="36" style={{ position: 'absolute', top: 14 }}
+                   preserveAspectRatio="none" aria-hidden="true">
+                {peaks.length === 0 ? (
+                  <line x1="0" y1="18" x2="100%" y2="18"
+                        stroke="var(--line)" strokeWidth="1" />
+                ) : peaks.map((peak, index) => {
+                  const w = 100 / peaks.length;
+                  const h = Math.max(1, peak * 32);
+                  return (
+                    <rect key={index} x={`${index * w}%`} y={(36 - h) / 2}
+                          width={`${w}%`} height={h} fill="#8a6fd0" opacity={0.9} />
+                  );
+                })}
+              </svg>
+            </div>
+
+            {usable.map((take) => {
+              const placed = take.alignment.method !== 'unplaced';
+              const from = Math.max(0, take.alignment.offsetSamples);
+              const to = Math.min(duration, from + take.durationSamples);
+              return (
+                <div key={take.id} data-testid="take-lane" data-take-id={take.id}
+                     data-placed={placed ? 'true' : 'false'}
+                     style={{ position: 'relative', height: 30 }}>
+                  <div style={{
+                    position: 'absolute', left: pct(from),
+                    width: pct(Math.max(0, to - from)), top: 2, bottom: 2,
+                    borderRadius: 3,
+                    border: `1px solid ${take.accent ?? '#3e7ca6'}`,
+                    backgroundColor: `${take.accent ?? '#3e7ca6'}22`,
+                    backgroundImage:
+                      `url(/api/performances/${performance.id}/takes/${take.id}/media?kind=strip)`,
+                    backgroundSize: '100% 100%',
+                    // A take nobody has placed is drawn faint: it is at zero
+                    // because something had to be. [§10]
+                    opacity: placed ? 1 : 0.4,
+                  }} />
+                </div>
+              );
+            })}
+
+            <div data-testid="master-timeline" style={{
+              position: 'relative', height: 44, borderTop: '1px solid var(--line)',
+            }}>
+              {ordered.map((scene, i) => {
+                const to = ordered[i + 1]?.fromSample ?? duration;
+                const take = performance.takes.find((t) => t.id === scene.takeIds[0]);
+                return (
+                  <div key={scene.id} data-testid="timeline-scene"
+                       data-scene-id={scene.id} data-from={scene.fromSample}
+                       title={scene.label ?? LAYOUTS[scene.layoutId]?.label ?? scene.layoutId}
+                       style={{
+                         position: 'absolute', top: 4, bottom: 4,
+                         left: pct(scene.fromSample), width: pct(to - scene.fromSample),
+                         // The take's own colour, so this strip and the lanes
+                         // above it are plainly about the same takes. [§2]
+                         background: `${take?.accent ?? '#3e7ca6'}33`,
+                         borderLeft: `3px solid ${take?.accent ?? '#3e7ca6'}`,
+                         borderRadius: 4, padding: '3px 6px', fontSize: 10,
+                         overflow: 'hidden',
+                       }}>
+                    <span style={{ display: 'block', fontWeight: 600 }}>
+                      {scene.takeIds.map((tid) =>
+                        performance.takes.find((t) => t.id === tid)?.label ?? '?').join(' + ')}
+                    </span>
+                    <span className="muted" style={{ fontSize: 9 }}>
+                      {clock(scene.fromSample)} – {clock(to)}
+                    </span>
+                  </div>
+                );
+              })}
+              {beats && marks.map((at) => (
+                <div key={at} data-testid="beat-mark" style={{
+                  position: 'absolute', top: 0, height: 5, width: 1,
+                  background: beats.acceptedBy
+                    ? 'rgba(224,193,79,0.85)' : 'rgba(255,255,255,0.28)',
+                  left: pct(at),
+                }} />
+              ))}
+            </div>
+
+            <div aria-hidden="true" style={{
+              position: 'absolute', top: 14, bottom: 0, width: 2,
+              background: '#e0674f', left: pct(player.position), pointerEvents: 'none',
+            }} />
+          </div>
         </div>
       </div>
 
-      {/* ---- the song, and the scenes cut into it (§2, §8) -------------- */}
-      <div
-        data-testid="master-timeline"
-        onClick={(e) => {
-          const box = e.currentTarget.getBoundingClientRect();
-          player.seek(Math.round(((e.clientX - box.left) / box.width) * duration));
-        }}
-        style={{
-          position: 'relative', height: 44, marginTop: 10, cursor: 'pointer',
-          background: 'var(--panel-2)', borderRadius: 6, border: '1px solid var(--line)',
-          overflow: 'hidden',
-        }}
-      >
-        {ordered.map((scene, i) => {
-          const to = ordered[i + 1]?.fromSample ?? duration;
-          return (
-            <div
-              key={scene.id}
-              data-testid="timeline-scene"
-              data-scene-id={scene.id}
-              data-from={scene.fromSample}
-              title={`${scene.label ?? LAYOUTS[scene.layoutId]?.label ?? scene.layoutId}`}
-              style={{
-                position: 'absolute', top: 0, bottom: 0,
-                left: pct(scene.fromSample), width: pct(to - scene.fromSample),
-                background: 'rgba(43,95,138,0.35)',
-                borderLeft: '2px solid #6fb3e0',
-                padding: '4px 6px', fontSize: 10, overflow: 'hidden',
-              }}
-            >
-              {scene.takeIds.map((tid) =>
-                performance.takes.find((t) => t.id === tid)?.label ?? '?').join(' + ')}
-            </div>
-          );
-        })}
-        {/* The pulse, drawn faintly. A grid nobody accepted is still worth
-            seeing — it is how an author decides whether to trust it. [S-8] */}
-        {beats && marks.map((at) => (
-          <div key={at} data-testid="beat-mark" style={{
-            position: 'absolute', top: 0, height: 6, width: 1,
-            background: beats.acceptedBy ? 'rgba(224,193,79,0.85)' : 'rgba(255,255,255,0.28)',
-            left: pct(at),
-          }} />
-        ))}
-        <div style={{
-          position: 'absolute', top: 0, bottom: 0, width: 2, background: '#e0674f',
-          left: pct(player.position),
-        }} />
-      </div>
-
-      {/* ---- the controls ---------------------------------------------- */}
-      <div className="row" style={{ gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
+      {/* ---- the transport (§7) ---------------------------------------- */}
+      <div className="row" data-testid="transport" style={{
+        gap: 12, alignItems: 'center', flexWrap: 'wrap',
+        border: '1px solid var(--line)', borderRadius: 10,
+        background: 'var(--panel)', padding: '10px 14px',
+      }}>
         <button className="primary" data-testid="player-play" disabled={!player.ready}
-                onClick={() => (player.playing ? player.pause() : void player.play())}>
-          {player.playing ? 'Pause' : 'Play the song'}
+                onClick={() => (player.playing ? player.pause() : void player.play())}
+                style={{
+                  width: 42, height: 42, borderRadius: '50%', padding: 0,
+                  fontSize: 15, flex: '0 0 auto',
+                }}>
+          {player.playing ? '❚❚' : '▶'}
         </button>
-        <button
-          className="small" data-testid="live-switching"
-          data-on={live ? 'true' : 'false'}
-          onClick={() => { setLive(!live); setPending([]); }}
-          style={{ background: live ? 'rgba(224,103,79,0.3)' : undefined,
-            borderColor: live ? '#e0674f' : undefined }}
-        >
-          {live ? 'Directing — press 1–9' : 'Direct with the number keys'}
-        </button>
-        <select
-          data-testid="arrangement"
-          value={arrangement}
-          onChange={(e) => { setArrangement(e.target.value); setPending([]); }}
-          style={{ width: 'auto', padding: '4px 8px' }}
-        >
-          {ARRANGEMENTS.map((a) => (
-            <option key={a} value={a}>
-              {LAYOUTS[a]!.label} · {takeSlots(LAYOUTS[a]!)}
-            </option>
+        <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: 13 }}>
+          {formatMasterPosition(Math.round(player.position))}
+          <span className="muted"> / {clock(duration)}</span>
+        </span>
+
+        {/*
+          * The number keys, as buttons in the takes' own colours. Pressing
+          * them and clicking them write the same scene through the same
+          * function — the keyboard is faster, not different. [§7]
+          */}
+        <div className="row" data-testid="take-keys" style={{ gap: 6, marginLeft: 8 }}>
+          {usable.slice(0, 9).map((take, index) => (
+            <button key={take.id} type="button" data-testid="take-key"
+                    data-take-id={take.id}
+                    onClick={() => choose(index)}
+                    title={`${take.label} — key ${index + 1}`}
+                    style={{
+                      width: 34, height: 34, borderRadius: 7, padding: 0,
+                      fontWeight: 700, fontSize: 13, cursor: 'pointer',
+                      color: '#0a0c10',
+                      background: take.accent ?? '#3e7ca6',
+                      border: pending.includes(take.id)
+                        ? '2px solid #fff' : '1px solid rgba(0,0,0,0.35)',
+                    }}>
+              {index + 1}
+            </button>
           ))}
-        </select>
-        {beats && (
-          <button
-            className="small" data-testid="snap-to-beat"
-            data-on={snap ? 'true' : 'false'}
-            title={`${beats.bpm} BPM, ${beats.confidence >= BEATS_USABLE_CONFIDENCE
-              ? 'clearly' : 'not clearly'} heard`}
-            onClick={() => {
-              const turningOn = !snap;
-              setSnap(turningOn);
-              // Turning it on IS the acceptance, and it is recorded on the
-              // document with who made it. [INV-06, S-8]
-              if (turningOn && !beats.acceptedBy) void accept();
-            }}
-            style={{ background: snap ? 'rgba(224,193,79,0.25)' : undefined,
-              borderColor: snap ? '#e0c14f' : undefined }}
-          >
-            {`Snap to the beat · ${Math.round(beats.bpm)} BPM`}
+        </div>
+
+        <div className="row" style={{ gap: 8, marginLeft: 'auto' }}>
+          <button className="small" data-testid="live-switching"
+                  onClick={() => { setLive(!live); setPending([]); }}
+                  style={{
+                    background: live ? 'rgba(45,110,200,0.28)' : undefined,
+                    borderColor: live ? '#3d7fd6' : undefined,
+                  }}>
+            {live ? 'Directing — press 1–9' : 'Direct with the number keys'}
           </button>
-        )}
-        {beats && snap && (
-          <>
-            <button className="small" data-testid="halve-tempo"
-                    onClick={() => void tempo(beats.bpm / 2)}>÷2</button>
-            <button className="small" data-testid="double-tempo"
-                    onClick={() => void tempo(beats.bpm * 2)}>×2</button>
-          </>
-        )}
-        <button className="small" data-testid="clear-scenes"
-                onClick={() => void fetch(`/api/performances/${performance.id}`, {
-                  method: 'PATCH', headers: { 'content-type': 'application/json' },
-                  body: JSON.stringify({ action: 'clear-scenes' }),
-                }).then((r) => r.json()).then((d) => d.performance && onChanged(d.performance))}>
-          Start the edit again
-        </button>
+          {beats && (
+            <button className="small" data-testid="snap-to-beat"
+                    disabled={!beats.acceptedBy && !snap}
+                    onClick={() => {
+                      if (!beats.acceptedBy) { void accept(); setSnap(true); return; }
+                      setSnap(!snap);
+                    }}
+                    style={{
+                      background: snap ? 'rgba(224,193,79,0.22)' : undefined,
+                      borderColor: snap ? '#e0c14f' : undefined,
+                    }}>
+              Snap to beat{beats.bpm ? ` · ${Math.round(beats.bpm)} BPM` : ''}
+            </button>
+          )}
+          <button className="small" data-testid="clear-scenes"
+                  disabled={ordered.length === 0}
+                  onClick={() => void patch({ action: 'clear-scenes' })}>
+            Start again
+          </button>
+        </div>
       </div>
 
-      {/* ---- how each section arrives (§11) ---------------------------- */}
+      {/* ---- the beat grid, and the cuts it may move (§11, S-8) -------- */}
+      {beats && !beats.acceptedBy && (
+        <p className="small muted" data-testid="beats-suggestion" style={{ margin: 0 }}>
+          A pulse of about {Math.round(beats.bpm)} BPM was detected, at{' '}
+          {Math.round(beats.confidence * 100)}% confidence. Turning on snapping
+          accepts it — nothing moves a cut until you do. [§11]
+        </p>
+      )}
+      {beats?.acceptedBy && (
+        <div className="row" data-testid="tempo" style={{ gap: 8, alignItems: 'center' }}>
+          <span className="small muted" style={{ fontSize: 11 }}>
+            {Math.round(beats.bpm)} BPM
+          </span>
+          <button className="small" data-testid="halve-tempo"
+                  onClick={() => void tempo(beats.bpm / 2)}>Half time</button>
+          <button className="small" data-testid="double-tempo"
+                  onClick={() => void tempo(beats.bpm * 2)}>Double time</button>
+        </div>
+      )}
+      {snapped !== null && (
+        <p className="small" data-testid="snapped-note" style={{ margin: 0 }}>
+          Moved to the nearest beat.
+        </p>
+      )}
+
+      {/* ---- how one scene becomes the next (§11) ---------------------- */}
       {ordered.length > 1 && (
-        <div className="row" data-testid="transitions"
-             style={{ gap: 8, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-          <span className="small muted">Arriving at</span>
+        <div className="row" data-testid="transitions" style={{ gap: 8, flexWrap: 'wrap' }}>
+          <span className="small muted" style={{ fontSize: 11 }}>Transitions</span>
           {ordered.slice(1).map((scene) => (
-            <select
-              key={scene.id}
-              data-testid="scene-transition" data-scene-id={scene.id}
-              value={scene.transition ?? 'cut'}
-              onChange={(e) => void patch({
-                action: 'scene-transition', sceneId: scene.id, transition: e.target.value,
-              })}
-              style={{ width: 'auto', padding: '3px 6px', fontSize: 11 }}
-              title={TRANSITIONS[scene.transition ?? 'cut']?.hint}
-            >
-              {Object.values(TRANSITIONS).map((option) => (
-                <option key={option.id} value={option.id}>
-                  {formatMasterPosition(scene.fromSample)} · {option.label}
+            <select key={scene.id} className="small" data-testid="scene-transition"
+                    data-scene-id={scene.id}
+                    value={scene.transition ?? 'cut'}
+                    onChange={(e) => void patch({
+                      action: 'set-transition', sceneId: scene.id,
+                      transition: e.target.value === 'cut' ? null : e.target.value,
+                    })}
+                    style={{ width: 'auto', fontSize: 11, padding: '2px 6px' }}>
+              {Object.values(TRANSITIONS).map((t) => (
+                <option key={t.id} value={t.id}>
+                  {clock(scene.fromSample)} · {t.label}
                 </option>
               ))}
             </select>
@@ -359,53 +696,12 @@ export default function SwitchingStage({
         </div>
       )}
 
-      {snapped !== null && (
-        <p className="small" data-testid="snapped-note"
-           style={{ marginTop: 6, color: '#e0c14f' }}>
-          {/* Visible, and reversible: the boundary can be dragged like any
-              other afterwards. [S-8] */}
-          Moved that cut onto the nearest beat. Drag it if that is not where
-          you wanted it.
+      {pending.length > 0 && (
+        <p className="small muted" data-testid="pending-hint" style={{ margin: 0 }}>
+          {pending.length} of {slots} chosen. Pick {slots - pending.length} more.
         </p>
       )}
-
-      {slots > 1 && (
-        <p className="small muted" data-testid="pending-hint" style={{ marginTop: 6 }}>
-          {/* Half and quad need more than one key before a scene exists. */}
-          {`"${LAYOUTS[arrangement]!.label}" holds ${slots}. `}
-          {pending.length > 0
-            ? `Chosen ${pending.length} of ${slots}.`
-            : 'Press that many numbers to place a scene.'}
-        </p>
-      )}
-
-      {/* ---- the takes, numbered as the keys are ------------------------ */}
-      <div className="row" data-testid="take-rail" style={{ gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-        {usable.map((take, i) => (
-          <button
-            key={take.id}
-            className="small"
-            data-testid="rail-take"
-            data-take-id={take.id}
-            data-visible={visible.includes(take.id) ? 'true' : 'false'}
-            onClick={() => choose(i)}
-            style={{
-              padding: '6px 10px', fontSize: 12,
-              background: pending.includes(take.id)
-                ? 'rgba(224,103,79,0.3)'
-                : visible.includes(take.id) ? 'rgba(43,95,138,0.30)' : undefined,
-              borderColor: visible.includes(take.id) ? '#6fb3e0' : undefined,
-            }}
-          >
-            <strong>{i + 1}</strong> · {take.label}
-          </button>
-        ))}
-        {usable.length === 0 && (
-          <span className="small muted">Record a take first — then you can cut between them.</span>
-        )}
-      </div>
-
-      {error && <p className="small" style={{ color: 'var(--bad)' }}>{error}</p>}
+      {error && <p className="small" style={{ color: 'var(--bad)', margin: 0 }}>{error}</p>}
     </div>
   );
 }

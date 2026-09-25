@@ -15,3 +15,7 @@ companion-player.png
 annotation-frame.png
 thread.png
 /var.bak/
+
+# Screenshots taken while checking a layout against its benchmark.
+# Useful to look at, not a thing the build depends on.
+.screenshots/

@@ -1,5 +1,5 @@
 import { acceptBeats, setTempo,
-  classifyMaster, usePlate, setAudioMode, setSceneAudio, setTransition, setScene, moveScene, removeScene, labelScene, clearScenes, nudgeTake, trimTake, renameTake, setEnvironment, removeTake, PerformanceEditError } from '../../../../src/domain/performanceEdit.js';
+  classifyMaster, usePlate, setAudioMode, setSceneAudio, setTransition, setScene, moveScene, removeScene, labelScene, clearScenes, nudgeTake, trimTake, renameTake, setEffect, setEnvironment, removeTake, PerformanceEditError } from '../../../../src/domain/performanceEdit.js';
 import { projectPerformance, covered } from '../../../../src/domain/performance.js';
 import { assertAlignmentInvariants } from '../../../../src/domain/invariants.js';
 import { listJobs } from '../../../../src/store/queue.js';
@@ -100,6 +100,9 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
         case 'rename-take': renameTake(draft, body['takeId'], body['label']); break;
         case 'set-environment':
           setEnvironment(draft, body['takeId'], body['environment']);
+          break;
+        case 'set-effect':
+          setEffect(draft, body['takeId'], body['effect'] ?? null);
           break;
         case 'use-plate':
           usePlate(draft, body['takeId'], body['plateAssetId'] ?? null);

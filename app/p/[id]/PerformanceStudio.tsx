@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Performance } from '../../../src/domain/performance.js';
 import { MASTER_CLASSES, SPACES, mayPublish } from '../../../src/domain/performance.js';
-import { SPACES_ARE_DRAWN } from '../../../src/domain/environment.js';
+import { EFFECT_LOOKS, SPACES_ARE_DRAWN } from '../../../src/domain/environment.js';
 import { describeCalibration } from '../../../src/domain/calibration.js';
 import { describeDrift } from '../../../src/domain/drift.js';
 import { HOUSE_SAMPLE_RATE, formatMasterPosition } from '../../../src/domain/time.js';
@@ -168,7 +168,225 @@ export default function PerformanceStudio({ initial }: { initial: Performance })
         <a className="btn" href="/" style={{ padding: '7px 14px' }}>Leave</a>
       </header>
 
-      <div className="shell-body shell-scroll" style={{ padding: '16px 20px' }}>
+      {/*
+        * Three panels and a timeline, which is the shape the work has.
+        * [Doctrine STUDIO-TWO §2, §5, §7]
+        *
+        * LEFT is what you have recorded, CENTRE is what is on screen and when,
+        * RIGHT is how it is set up. The same division Studio One arrived at
+        * for a different job — and the reason it is a division at all is that
+        * directing needs the takes and the timeline visible at once, which a
+        * single scrolling column cannot do.
+        *
+        * The panels scroll independently so the stage and the timeline stay
+        * where they are while somebody reads down a list of environments.
+        */}
+      <div className="shell-body" style={{
+        display: 'grid', gap: 14, padding: '14px 18px', minHeight: 0,
+        /*
+         * TWO columns, not three. The directing surface carries its own
+         * stage-and-composition split, so a third column here would be a
+         * fourth panel — and the setting-up (rights, device, room) is done
+         * once and then never again, which is not what a permanent column is
+         * for. It folds away below.
+         */
+        gridTemplateColumns: 'minmax(250px, 330px) minmax(0, 1fr)',
+      }}>
+        <div className="shell-scroll" style={{ minWidth: 0 }}>
+        {/* ---- the takes, all on one clock --------------------------- */}
+        <section style={{ marginTop: 20 }} data-testid="takes">
+          <h2 style={{ fontSize: 15, marginBottom: 2 }}>Takes</h2>
+          {/*
+            * A take is not only something recorded here. Somebody films a
+            * verse on a proper camera on a beach; the product's job is to put
+            * it on the song, not to tell them to perform it again into a
+            * webcam. It goes through the recording path exactly, so it is
+            * assembled, measured and aligned by the same code. [§2, §10]
+            */}
+          <UploadTake
+            performanceId={performance.id}
+            environment={{ kind: environment.startsWith('space:') ? 'space' : environment,
+              ...(environment.startsWith('space:')
+                ? { spaceId: environment.slice(6) } : {}) }}
+            onFinished={(jobId) => { void watchJob(jobId); }}
+          />
+          {performance.takes.length === 0 ? (
+            <p className="small muted" style={{ marginTop: 8 }}>
+              None yet. Every take you record or upload is placed on the same
+              song, so you can cut between them later.
+            </p>
+          ) : (
+            performance.takes.map((take) => (
+              <div key={take.id} className="panel" data-testid="take-row"
+                   data-take-id={take.id}
+                   data-offset={take.alignment.offsetSamples}
+                   style={{ padding: 9, marginBottom: 7 }}>
+                {/*
+                  * A face, a name, and what is known about it — in a column
+                  * three hundred pixels wide. The first version put the name
+                  * and the timing on one row with `nowrap`, which was fine
+                  * across a page and collides in a rail.
+                  */}
+                <div style={{ display: 'flex', gap: 9, alignItems: 'flex-start' }}>
+                  {/*
+                    * A background rather than an <img>, because a take
+                    * assembled before posters existed has none — and a
+                    * background that 404s shows the colour underneath, while
+                    * an <img> that 404s shows a broken-image icon. An empty
+                    * frame in the take's own colour is honest; a broken icon
+                    * says something is wrong when nothing is.
+                    */}
+                  <div
+                    data-testid="take-poster"
+                    aria-hidden="true"
+                    style={{
+                      flex: '0 0 auto', width: 64, height: 36, borderRadius: 3,
+                      backgroundColor: `${take.accent ?? '#3e7ca6'}33`,
+                      backgroundImage:
+                        `url(/api/performances/${performance.id}/takes/${take.id}/media?kind=poster)`,
+                      backgroundSize: 'cover', backgroundPosition: 'center',
+                      // The take's own colour, so the rail, the lane and the
+                      // scene blocks are plainly about the same take. [§2]
+                      border: `1px solid ${take.accent ?? 'var(--line)'}`,
+                    }}
+                  />
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                  <span style={{ fontWeight: 600, display: 'block' }}>
+                    {take.label}
+                  </span>
+                  <span className="small muted" style={{ display: 'block', fontSize: 11 }}>
+                    {take.durationSamples > 0
+                      ? `${take.alignment.offsetSamples < 0
+                        ? 'starts just before the song'
+                        : `starts at ${formatMasterPosition(take.alignment.offsetSamples)}`} · `
+                        + `${formatMasterPosition(take.durationSamples)} long`
+                      : 'saving…'}
+                  </span>
+                  </div>
+                </div>
+                <div className="small muted" style={{ marginTop: 3, fontSize: 11 }}>
+                  {/* How it was placed, said plainly: a measurement and a
+                      guess are different things. [S-3] */}
+                  {take.alignment.method === 'heard'
+                    ? 'placed by listening to the song in the recording'
+                    : take.alignment.method === 'calibrated'
+                      ? 'placed by the clock, less this device’s measured delay'
+                      : take.alignment.method === 'unplaced'
+                        /* Nobody has. Saying "placed by you" of a take the
+                           author has never touched is the kind of small lie
+                           that makes them stop believing the rest. [§10] */
+                        ? 'not placed yet — drag it to where it belongs'
+                        : take.alignment.method === 'manual'
+                        ? 'placed by you'
+                        : 'placed from your browser’s audio clock'}
+                  {/* Drift, where it was measured. A ratio of exactly one is
+                      not mentioned, because it is the absence of a finding
+                      rather than a finding. [§10, S-3] */}
+                  {describeDrift(take.alignment.rateRatio)
+                    && ` · ${describeDrift(take.alignment.rateRatio)}`}
+                </div>
+                {/*
+                  * Bedroom → Studio, afterwards and without singing it again.
+                  * This select IS the promise of §4: the environment is a
+                  * field, so changing it costs a re-render and nothing else.
+                  */}
+                <div className="row" style={{ gap: 6, marginTop: 5, alignItems: 'center' }}>
+                  <label className="small muted" style={{ fontSize: 11 }}
+                         htmlFor={`env-${take.id}`}>Show this take in</label>
+                  <select
+                    id={`env-${take.id}`} data-testid="take-environment-after"
+                    data-take-id={take.id}
+                    disabled={busy || (!measured && take.environment.kind === 'original')}
+                    value={take.environment.kind === 'space'
+                      ? take.environment.spaceId ?? 'original'
+                      : take.environment.kind}
+                    onChange={(e) => void act({
+                      action: 'set-environment', takeId: take.id,
+                      environment: e.target.value === 'original' ? { kind: 'original' }
+                        : e.target.value === 'blur' ? { kind: 'blur' }
+                          : { kind: 'space', spaceId: e.target.value },
+                    })}
+                    style={{ fontSize: 11, padding: '2px 6px', width: 'auto' }}
+                  >
+                    <option value="original">the room it was shot in</option>
+                    {(measured || take.plateAssetId) && (
+                      <option value="blur">that room, softened</option>
+                    )}
+                    {(measured || take.plateAssetId) && SPACES.map((s) => (
+                      <option key={s.id} value={s.id}>{s.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/*
+                  * And what is done to the picture.  [§4]
+                  *
+                  * A separate row from the environment because they answer
+                  * separate questions: one is what is behind you, the other
+                  * is how the panel is lit and graded. Stored on the take
+                  * like everything else here, so changing it costs nothing
+                  * and re-renders rather than re-records.
+                  */}
+                <div className="row" style={{ gap: 6, marginTop: 4, alignItems: 'center' }}>
+                  <label className="small muted" style={{ fontSize: 11 }}
+                         htmlFor={`fx-${take.id}`}>Treatment</label>
+                  <select
+                    id={`fx-${take.id}`} data-testid="take-effect" data-take-id={take.id}
+                    disabled={busy}
+                    value={take.effect ?? 'none'}
+                    onChange={(e) => void act({
+                      action: 'set-effect', takeId: take.id,
+                      effect: e.target.value === 'none' ? null : e.target.value,
+                    })}
+                    style={{ fontSize: 11, padding: '2px 6px', width: 'auto' }}
+                  >
+                    <option value="none">none</option>
+                    {Object.values(EFFECT_LOOKS).map((look) => (
+                      <option key={look.id} value={look.id}>{look.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            ))
+          )}
+        </section>
+        </div>
+
+        <div className="shell-scroll" style={{ minWidth: 0 }}>
+        {/* ---- directing: many takes, one song (§2, §7, §8, §15) ------ */}
+        {performance.takes.some((t) => t.durationSamples > 0) && (
+          <section style={{ marginTop: 20 }}>
+            <h2 style={{ fontSize: 15, marginBottom: 2 }}>Direct</h2>
+            <p className="small muted" style={{ marginTop: 0, maxWidth: 640 }}>
+              Play the song and press a number to put that take on screen. The
+              song never moves — you are deciding which performance occupies
+              each part of it, and you can drag the boundaries afterwards.
+            </p>
+            <SwitchingStage performance={performance} onChanged={setPerformance} />
+          </section>
+        )}
+        {/* ---- where the sound comes from (§9, S-7) ------------------ */}
+        {performance.takes.some((t) => t.durationSamples > 0)
+          && <SoundModes performance={performance} onChanged={setPerformance} />}
+
+        {/* ---- one video, when they are ready (§14) ------------------ */}
+        {performance.takes.some((t) => t.durationSamples > 0)
+          && <MasterRender performance={performance} />}
+
+        {/* ---- the short one, and the link preview (§14) -------------- */}
+        {performance.scenes.length > 0
+          && <PublishPanel performance={performance} onChanged={setPerformance} />}
+        {/*
+          * Setting up: done once, then never again. Open by default until
+          * there is a take, because an empty studio's only useful action is
+          * in here — and folded once there is, because a rail is for what you
+          * have made.
+          */}
+        <details data-testid="setup" open={performance.takes.length === 0}
+                 style={{ marginTop: 14, borderTop: '1px solid var(--line)', paddingTop: 10 }}>
+          <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
+            Set up
+          </summary>
         {/* ---- what may be done with this music ---------------------- */}
         <section className="panel" data-testid="master-rights" style={{ padding: 12 }}>
           <div className="small muted" style={{ textTransform: 'uppercase',
@@ -210,7 +428,6 @@ export default function PerformanceStudio({ initial }: { initial: Performance })
                 + 'this product can put your name to.'}
           </p>
         </section>
-
         {/* ---- record against it ------------------------------------- */}
         <section style={{ marginTop: 16 }} data-testid="record">
           <h2 style={{ fontSize: 15, marginBottom: 2 }}>Perform</h2>
@@ -312,7 +529,6 @@ export default function PerformanceStudio({ initial }: { initial: Performance })
             </div>
           </div>
         </section>
-
         {/* ---- what this device adds (§10, S-3) ---------------------- */}
         <section className="panel" data-testid="calibration"
                  data-latency={latencySamples}
@@ -353,7 +569,6 @@ export default function PerformanceStudio({ initial }: { initial: Performance })
             <p className="small" style={{ color: 'var(--bad)' }}>{device.error}</p>
           )}
         </section>
-
         {/* ---- the room, measured (§4, S-6) -------------------------- */}
         <RoomPlate performance={performance} stream={recording.stream}
                    onChanged={setPerformance} />
@@ -369,125 +584,8 @@ export default function PerformanceStudio({ initial }: { initial: Performance })
             {notice}
           </p>
         )}
-
-        {/* ---- directing: many takes, one song (§2, §7, §8, §15) ------ */}
-        {performance.takes.some((t) => t.durationSamples > 0) && (
-          <section style={{ marginTop: 20 }}>
-            <h2 style={{ fontSize: 15, marginBottom: 2 }}>Direct</h2>
-            <p className="small muted" style={{ marginTop: 0, maxWidth: 640 }}>
-              Play the song and press a number to put that take on screen. The
-              song never moves — you are deciding which performance occupies
-              each part of it, and you can drag the boundaries afterwards.
-            </p>
-            <SwitchingStage performance={performance} onChanged={setPerformance} />
-          </section>
-        )}
-
-        {/* ---- where the sound comes from (§9, S-7) ------------------ */}
-        {performance.takes.some((t) => t.durationSamples > 0)
-          && <SoundModes performance={performance} onChanged={setPerformance} />}
-
-        {/* ---- one video, when they are ready (§14) ------------------ */}
-        {performance.takes.some((t) => t.durationSamples > 0)
-          && <MasterRender performance={performance} />}
-
-        {/* ---- the short one, and the link preview (§14) -------------- */}
-        {performance.scenes.length > 0
-          && <PublishPanel performance={performance} onChanged={setPerformance} />}
-
-        {/* ---- the takes, all on one clock --------------------------- */}
-        <section style={{ marginTop: 20 }} data-testid="takes">
-          <h2 style={{ fontSize: 15, marginBottom: 2 }}>Takes</h2>
-          {/*
-            * A take is not only something recorded here. Somebody films a
-            * verse on a proper camera on a beach; the product's job is to put
-            * it on the song, not to tell them to perform it again into a
-            * webcam. It goes through the recording path exactly, so it is
-            * assembled, measured and aligned by the same code. [§2, §10]
-            */}
-          <UploadTake
-            performanceId={performance.id}
-            environment={{ kind: environment.startsWith('space:') ? 'space' : environment,
-              ...(environment.startsWith('space:')
-                ? { spaceId: environment.slice(6) } : {}) }}
-            onFinished={(jobId) => { void watchJob(jobId); }}
-          />
-          {performance.takes.length === 0 ? (
-            <p className="small muted" style={{ marginTop: 8 }}>
-              None yet. Every take you record or upload is placed on the same
-              song, so you can cut between them later.
-            </p>
-          ) : (
-            performance.takes.map((take) => (
-              <div key={take.id} className="panel" data-testid="take-row"
-                   data-take-id={take.id}
-                   data-offset={take.alignment.offsetSamples}
-                   style={{ padding: 9, marginBottom: 7 }}>
-                <div className="row" style={{ gap: 8, flexWrap: 'nowrap' }}>
-                  <span className="grow" style={{ fontWeight: 600, minWidth: 0 }}>
-                    {take.label}
-                  </span>
-                  <span className="small muted" style={{ flex: '0 0 auto' }}>
-                    {take.durationSamples > 0
-                      ? `${take.alignment.offsetSamples < 0
-                        ? 'starts just before the song'
-                        : `starts at ${formatMasterPosition(take.alignment.offsetSamples)}`} · `
-                        + `${formatMasterPosition(take.durationSamples)} long`
-                      : 'saving…'}
-                  </span>
-                </div>
-                <div className="small muted" style={{ marginTop: 3, fontSize: 11 }}>
-                  {/* How it was placed, said plainly: a measurement and a
-                      guess are different things. [S-3] */}
-                  {take.alignment.method === 'heard'
-                    ? 'placed by listening to the song in the recording'
-                    : take.alignment.method === 'calibrated'
-                      ? 'placed by the clock, less this device’s measured delay'
-                      : take.alignment.method === 'manual'
-                        ? 'placed by you'
-                        : 'placed from your browser’s audio clock'}
-                  {/* Drift, where it was measured. A ratio of exactly one is
-                      not mentioned, because it is the absence of a finding
-                      rather than a finding. [§10, S-3] */}
-                  {describeDrift(take.alignment.rateRatio)
-                    && ` · ${describeDrift(take.alignment.rateRatio)}`}
-                </div>
-                {/*
-                  * Bedroom → Studio, afterwards and without singing it again.
-                  * This select IS the promise of §4: the environment is a
-                  * field, so changing it costs a re-render and nothing else.
-                  */}
-                <div className="row" style={{ gap: 6, marginTop: 5, alignItems: 'center' }}>
-                  <label className="small muted" style={{ fontSize: 11 }}
-                         htmlFor={`env-${take.id}`}>Show this take in</label>
-                  <select
-                    id={`env-${take.id}`} data-testid="take-environment-after"
-                    data-take-id={take.id}
-                    disabled={busy || (!measured && take.environment.kind === 'original')}
-                    value={take.environment.kind === 'space'
-                      ? take.environment.spaceId ?? 'original'
-                      : take.environment.kind}
-                    onChange={(e) => void act({
-                      action: 'set-environment', takeId: take.id,
-                      environment: e.target.value === 'original' ? { kind: 'original' }
-                        : e.target.value === 'blur' ? { kind: 'blur' }
-                          : { kind: 'space', spaceId: e.target.value },
-                    })}
-                    style={{ fontSize: 11, padding: '2px 6px', width: 'auto' }}
-                  >
-                    <option value="original">the room it was shot in</option>
-                    {(measured || take.plateAssetId) && (
-                      <option value="blur">that room, softened</option>
-                    )}
-                    {(measured || take.plateAssetId) && SPACES.map((s) => (
-                      <option key={s.id} value={s.id}>{s.label}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            ))
-          )}
-        </section>
+        </details>
+        </div>
       </div>
     </div>
   );

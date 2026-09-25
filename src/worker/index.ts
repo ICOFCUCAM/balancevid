@@ -20,7 +20,7 @@ import { buildReelPlan, buildReelTimeline } from '../domain/reel.js';
 import { compose } from '../render/compose.js';
 import { ingest, makeProxy } from '../render/ingest.js';
 import {
-  renderClaimCard, renderShareCard, renderThumbnail, renderTakePoster,
+  renderClaimCard, renderShareCard, renderTakeStrip, renderThumbnail, renderTakePoster,
 } from '../render/thumbnails.js';
 import { ensureDirs, paths, safe } from '../store/paths.js';
 import { claim, finish, update, type Job } from '../store/queue.js';
@@ -273,6 +273,27 @@ async function assemblePerformanceTake(job: Job): Promise<Job> {
 
   const analysisPath = paths.takeAnalysis(id, assetId);
   const durationSamples = await decodeToAnalysis(mezzanine, analysisPath);
+  job.progress = 65;
+  await update(job);
+
+  /*
+   * A face for the rail and a strip for the timeline. [§2, §8]
+   *
+   * Neither failing fails the take: a performance whose thumbnail did not
+   * render is a performance, and losing somebody's recording because a
+   * picture of it could not be made would be the tail wagging the dog.
+   */
+  try {
+    await renderTakePoster(mezzanine, paths.performanceTakePoster(id, takeId), 1);
+    await renderTakeStrip(
+      mezzanine, paths.performanceTakeStrip(id, takeId),
+      durationSamples / HOUSE_SAMPLE_RATE);
+  } catch (error) {
+    await auditPerformance(id, {
+      action: 'take.thumbnails-failed',
+      detail: { takeId, error: String(error).slice(0, 200) },
+    });
+  }
   job.progress = 70;
   await update(job);
 
