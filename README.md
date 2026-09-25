@@ -75,7 +75,7 @@ rendering are all queued to the worker, so one long export cannot make the
 application unusable for everyone else.
 
 ```bash
-npm test           # 695 tests, including real renders through real ffmpeg
+npm test           # 697 tests, including real renders through real ffmpeg
 npm run typecheck
 ```
 
@@ -119,7 +119,7 @@ structural rather than a matter of configuration.
 
 ```bash
 npx tsx scripts/make-fixture.ts /tmp/bv          # a source whose frames carry their index
-npx tsx scripts/e2e.mjs /tmp/bv/source.mp4       # 502 checks, driven with the spacebar
+npx tsx scripts/e2e.mjs /tmp/bv/source.mp4       # 513 checks, driven with the spacebar
 ```
 
 Chrome's fake media device stands in for a camera, so this exercises the actual
