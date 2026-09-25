@@ -350,11 +350,15 @@ export default function ChannelStudio({
               <span data-testid="on-air-lamp" data-mode={on.kind} style={{
                 padding: '3px 9px', borderRadius: 4, fontSize: 11, fontWeight: 700,
                 background: on.kind === 'live' ? '#c0392b'
-                  : on.kind === 'off' ? 'rgba(5,7,10,0.78)' : 'rgba(45,110,200,0.55)',
+                  : on.kind === 'backup' || on.kind === 'emergency' ? '#8e6a1f'
+                    : on.kind === 'off' ? 'rgba(5,7,10,0.78)'
+                      : 'rgba(45,110,200,0.55)',
                 color: on.kind === 'off' ? 'var(--muted)' : '#fff',
               }}>
                 {on.kind === 'live' ? '\u25cf LIVE'
-                  : on.kind === 'off' ? 'OFF AIR' : 'ON AIR'}
+                  : on.kind === 'backup' ? 'BACKUP'
+                    : on.kind === 'emergency' ? 'EMERGENCY'
+                      : on.kind === 'off' ? 'OFF AIR' : 'ON AIR'}
               </span>
               <span style={{
                 padding: '3px 8px', borderRadius: 4,
@@ -368,7 +372,9 @@ export default function ChannelStudio({
                 borderRadius: 4, background: 'rgba(5,7,10,0.85)', fontSize: 11,
               }}>
                 {on.kind === 'emergency' ? `Emergency \u00b7 ${nameOf(on.source)}`
-                  : on.kind === 'live'
+                  : on.kind === 'backup'
+                    ? `Backup \u00b7 ${nameOf(on.source)}`
+                    : on.kind === 'live'
                     ? (on.session.segment
                       ? nameOf(on.session.segment) : 'The live studio')
                     : (on.kind === 'programme'
@@ -397,11 +403,12 @@ export default function ChannelStudio({
               <Section text="Program" aside={(
                 <span className="small" data-testid="program-mode" style={{
                   fontSize: 10, fontWeight: 700,
-                  color: on.kind === 'emergency' ? '#e07a6b'
-                    : on.kind === 'live' ? '#e07a6b' : '#6fa9ea',
+                  color: on.kind === 'emergency' || on.kind === 'backup'
+                    || on.kind === 'live' ? '#e07a6b' : '#6fa9ea',
                 }}>
                   {on.kind === 'emergency' ? 'EMERGENCY'
-                    : on.kind === 'live' ? 'LIVE' : 'AUTO'}
+                    : on.kind === 'backup' ? 'BACKUP'
+                      : on.kind === 'live' ? 'LIVE' : 'AUTO'}
                 </span>
               )} />
               <div className="panel" data-testid="now-next" style={{
@@ -413,7 +420,8 @@ export default function ChannelStudio({
                   }}>NOW PLAYING</div>
                   <div style={{ fontSize: 13, fontWeight: 600 }}>
                     {on.kind === 'off' ? 'Nothing'
-                      : on.kind === 'emergency' ? nameOf(on.source)
+                      : on.kind === 'emergency' || on.kind === 'backup'
+                        ? nameOf(on.source)
                         : on.kind === 'live'
                           ? (on.session.segment
                             ? nameOf(on.session.segment) : 'The live studio')
@@ -894,8 +902,9 @@ export default function ChannelStudio({
                   * having taken control. [§6]
                   */}
                 {on.kind === 'emergency' ? 'EMERGENCY \u2014 cut away'
-                  : on.kind === 'live' ? 'LIVE \u2014 you have the channel'
-                    : 'PROGRAM \u2014 the channel is running itself'}
+                  : on.kind === 'backup' ? 'BACKUP \u2014 the feed failed'
+                    : on.kind === 'live' ? 'LIVE \u2014 you have the channel'
+                      : 'PROGRAM \u2014 the channel is running itself'}
               </span>
             </div>
 
@@ -950,7 +959,7 @@ export default function ChannelStudio({
                   }}
                   style={{ borderColor: '#c0392b', color: '#e07a6b' }}
                 >
-                  RETURN TO PROGRAM
+                  TAKE PROGRAM
                 </button>
               )}
             </div>
@@ -967,6 +976,30 @@ export default function ChannelStudio({
                 {channel.rotation.length + listing.length} scheduled ·{' '}
                 {assets} {assets === 1 ? 'file' : 'files'}
               </span>
+              {/*
+                * THE SAFE PLAYLIST, so the automatic failover has somewhere
+                * to go. Without one a lost feed falls through to the loop,
+                * which is already something — but a channel that has said
+                * what it shows when things go wrong is a channel that has
+                * thought about it. [§9]
+                */}
+              <button
+                className="small" data-testid="set-backup"
+                disabled={!picked && !channel.backup}
+                title={channel.backup
+                  ? `Backup: ${nameOf(channel.backup)} — click to clear`
+                  : 'Set the picked item as the safe playlist'}
+                onClick={() => {
+                  if (channel.backup) { void patch({ action: 'backup', source: null }); return; }
+                  const item = library.find(
+                    (entry) => sourceKey(entry.source) === picked);
+                  if (item) void patch({ action: 'backup', source: item.source });
+                }}
+                style={channel.backup
+                  ? { borderColor: '#8e6a1f', color: '#e0c14f' } : {}}
+              >
+                {channel.backup ? 'BACKUP SET' : 'SET BACKUP'}
+              </button>
               <button
                 className="small" data-testid="emergency"
                 title={emergency

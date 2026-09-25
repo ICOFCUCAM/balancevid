@@ -538,3 +538,78 @@ describe('a segment is never empty, whatever the feed does (§7)', () => {
       .toEqual(['audio', 'video']);
   }, 120_000);
 });
+
+describe('the engine notices when the feed goes away (§9)', () => {
+  /*
+   * The domain can be TOLD a feed has failed; this is the part that has to
+   * work out that it has. "The viewer should never see your FFmpeg error or a
+   * dead screen" is only true if something is watching while nobody is.
+   */
+  it('a buffer that stops growing is faulted, and the backup takes the air', async () => {
+    const { goLive, takeLive, setBackup } = await import(
+      '../../src/domain/channelEdit.js');
+    const { whatIsOn } = await import('../../src/domain/channel.js');
+    const { pass } = await import('../../src/playout/index.js');
+    const { loadChannel } = await import('../../src/store/channels.js');
+
+    await makeFilm('perf_backup', 'hash_backup');
+    const c = newChannel('Falls Over', 'UTC', AT);
+    setBackup(c, {
+      kind: 'render', document: 'performance', documentId: 'perf_backup',
+      planHash: 'hash_backup',
+    });
+    const opened = new Date(Date.now() - 20_000).toISOString();
+    goLive(c, 'Evening Discussion', opened);
+    takeLive(c, opened);
+    await saveChannel(c);
+
+    const buffer = paths.channelLiveBuffer(c.id, c.ingests[0]!.bufferId);
+    await mkdir(paths.channelLive(c.id), { recursive: true });
+    await writeFile(buffer, 'some bytes that arrived');
+
+    /* First pass: the buffer was seen. Nothing is wrong yet. */
+    const now = Date.now();
+    await pass(now);
+    expect((await loadChannel(c.id)).live!.faultedAt).toBeUndefined();
+
+    /*
+     * Eleven seconds later and not one byte more. The engine gives up on the
+     * feed — without ending the session, because nobody decided anything.
+     */
+    await pass(now + 11_000);
+    const faulted = await loadChannel(c.id);
+    expect(faulted.live!.faultedAt).toBeDefined();
+    expect(faulted.live!.phase).toBe('on_air');
+    expect(whatIsOn(faulted, now + 11_000).kind).toBe('backup');
+  }, 180_000);
+
+  it('and when the bytes come back, so does the broadcast', async () => {
+    const { goLive, takeLive } = await import('../../src/domain/channelEdit.js');
+    const { whatIsOn } = await import('../../src/domain/channel.js');
+    const { pass } = await import('../../src/playout/index.js');
+    const { loadChannel } = await import('../../src/store/channels.js');
+
+    const c = newChannel('Comes Back', 'UTC', AT);
+    const opened = new Date(Date.now() - 20_000).toISOString();
+    goLive(c, 'Evening Discussion', opened);
+    takeLive(c, opened);
+    await saveChannel(c);
+
+    const buffer = paths.channelLiveBuffer(c.id, c.ingests[0]!.bufferId);
+    await mkdir(paths.channelLive(c.id), { recursive: true });
+    await writeFile(buffer, 'first');
+
+    const now = Date.now();
+    await pass(now);
+    await pass(now + 11_000);
+    expect((await loadChannel(c.id)).live!.faultedAt).toBeDefined();
+
+    /* The presenter reconnects. */
+    const { appendFile } = await import('node:fs/promises');
+    await appendFile(buffer, 'and more');
+    await pass(now + 13_000);
+    const back = await loadChannel(c.id);
+    expect(back.live!.faultedAt).toBeUndefined();
+    expect(whatIsOn(back, now + 13_000).kind).toBe('live');
+  }, 180_000);
+});

@@ -378,7 +378,7 @@ export function segmentName(index: number): string {
 function titleOf(channel: Channel, on: ReturnType<typeof whatIsOn>): string {
   if (on.kind === 'off') return channel.name;
   if (on.kind === 'live') return on.session.segment ? channel.name : 'Live';
-  if (on.kind === 'emergency') return channel.name;
+  if (on.kind === 'emergency' || on.kind === 'backup') return channel.name;
   if (on.kind === 'programme') return on.programme.title ?? channel.name;
   return on.entry.title ?? channel.name;
 }

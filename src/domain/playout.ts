@@ -155,7 +155,7 @@ export function playoutWindow(
       continue;
     }
 
-    if (on.kind === 'live' || on.kind === 'emergency') {
+    if (on.kind === 'live' || on.kind === 'emergency' || on.kind === 'backup') {
       /*
        * A live feed has no end until somebody presses the button, so it is
        * read to the end of the window. Nothing else can be scheduled over it:

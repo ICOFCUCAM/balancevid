@@ -491,6 +491,39 @@ whose channel they have joined.
 
 ---
 
+## §9 — When the feed fails
+
+    LIVE FAILURE → BACKUP VIDEO → MUSIC LOOP → NEXT SCHEDULED PROGRAM
+
+> *The viewer should never see your FFmpeg error or a dead screen.*
+
+**The failover is automatic, and it switches nothing.** The playout engine
+watches the live buffer; when it stops growing for ten seconds the session is
+MARKED faulted, and `whatIsOn` stops consulting it. The channel then resolves
+what it would have resolved anyway — the backup, then the loop, then the next
+scheduled programme. There is no state machine, no timer and nothing to reset,
+because the chain is only the ordinary resolution happening again.
+
+**It watches the file, not the network.** The encoder is in somebody's browser
+on the other side of the world and cannot be asked; what can be observed is
+whether bytes are landing. A connection that is up and delivering nothing is a
+failure with a green light on it.
+
+**Ten seconds, inside the twelve-second delay.** The failover happens before
+the last of the good buffer has gone out, so the cut to backup lands on a
+picture rather than after one has frozen.
+
+**It marks, it does not end.** A presenter whose wifi dropped for twenty
+seconds has not finished their programme, so the moment bytes resume the fault
+clears and they are back on air. The backup holds for a minute: long enough to
+come back to your own broadcast, short enough that one nobody is coming back
+to becomes an ordinary channel again.
+
+**TAKE PROGRAM** is the operator's version of the same thing — an immediate,
+deliberate return to the schedule.
+
+---
+
 ## C-4 — Stage 4: the pipe, the station, and the marks
 
 **The gap was the pipe and it is closed.** A live session was modelled,
@@ -544,5 +577,36 @@ demuxer over MPEG-TS, `signalstats`, a one-pixel scale, and rawvideo output.
 The test that asks "is there a picture on the wire" ended up comparing the
 live segment against a slate encoded by the same encoder in the same second,
 which needs none of them and answers the actual question.
+
+---
+
+## C-5 — Stage 5: what was already there
+
+Measured against the architecture brief before anything was written, which is
+D-19 applied to the message that produced D-19.
+
+**"The browser is the control panel; the server is the broadcaster" was
+already true**, and not by luck — it is U-23 ("the web tier never runs
+ffmpeg") plus the decision in C-1 to make playout a process rather than a
+queued job. Close the laptop and the channel continues, because nothing the
+channel needs is in the page. Going live makes the browser an INPUT, which is
+why the live buffer is a file on the server rather than a stream the page owns.
+
+**The five seams were already open.** `paths.ts` is one module for storage,
+the playout engine holds no state, segments are static files under a plain
+URL, and live ingest is one route that shares nothing with the rest of the web
+tier. None of the separation is built; nothing has been welded shut. They are
+written down in D-20 so the next person does not have to rediscover them.
+
+**The one real gap was automatic failover.** EMERGENCY existed and was manual,
+which is a button for a person who is watching — and the case that matters is
+the one where nobody is. That is now `faultLive`, driven by the playout engine
+watching a file stop growing.
+
+**And the failover resolves rather than switches**, which is why it is four
+lines in `whatIsOn` and not a state machine. A faulted feed is simply not
+consulted; everything after that is the channel doing what it always does.
+The brief's chain — backup, loop, next programme — needed no sequencing code
+at all, because it was already the order of resolution.
 
 ---

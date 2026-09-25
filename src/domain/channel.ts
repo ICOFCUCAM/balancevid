@@ -320,6 +320,26 @@ export interface LiveSession {
   ingestId: IngestId;
   /** Armed and previewing, cut to air, or over. [§6] */
   phase: LivePhase;
+  /**
+   * THE FEED WENT AWAY.  [§9]
+   *
+   *     LIVE FAILURE → BACKUP VIDEO → MUSIC LOOP → NEXT SCHEDULED PROGRAM
+   *
+   * "The viewer should never see your FFmpeg error or a dead screen."
+   *
+   * Set by the playout engine when nothing has arrived in the buffer for
+   * long enough that something is wrong — a laptop that slept, a phone that
+   * lost signal, a browser tab that was closed mid-sentence. The session is
+   * not ended, because the presenter has not decided anything: it is marked,
+   * the channel falls through to the backup chain, and the moment bytes start
+   * arriving again it clears itself and the broadcast resumes.
+   *
+   * IT IS ON THE DOCUMENT rather than in the engine's memory, so the studio,
+   * the playlist and the audit log all see the same thing. A failover the
+   * operator could not see on their own screen would be a failover they found
+   * out about from a viewer.
+   */
+  faultedAt?: string;
   /** When it was taken to air, which is not when it was armed. */
   takenAt?: string;
   /** The room the people are in, where there are people. [ROOM §1, D-17] */
@@ -437,6 +457,19 @@ export interface Channel {
    * operator; nothing clears it on its own.
    */
   emergency?: { source: ProgrammeSource; atMs: number };
+  /**
+   * THE SAFE PLAYLIST.  [§9]
+   *
+   * What goes out when a live feed fails and nobody has pressed anything —
+   * an ident, a caption card, a music loop, whatever the channel has agreed
+   * it shows rather than a dead screen. Distinct from `emergency`, which is
+   * an operator cutting away on purpose, and from `filler`, which covers a
+   * hole in a schedule nobody is watching for.
+   *
+   * Absent is legitimate: a channel with a rotation falls through to the loop
+   * instead, which is already something rather than nothing.
+   */
+  backup?: ProgrammeSource;
   /**
    * How the channel looks.  [§13, D-16]
    *
@@ -583,6 +616,7 @@ export function referencedAssets(channel: Channel): ProgrammeSource[] {
   add(channel.filler);
   add(channel.live?.segment);
   add(channel.emergency?.source);
+  add(channel.backup);
   return [...seen.values()];
 }
 
@@ -713,6 +747,8 @@ export function rotationAt(channel: Channel, at: number): {
  */
 export type OnAir =
   | { kind: 'emergency'; source: ProgrammeSource; fromMs: number }
+  /** A live feed failed and the safe playlist took the air. [§9] */
+  | { kind: 'backup'; source: ProgrammeSource; fromMs: number }
   | { kind: 'live'; session: LiveSession; source: ProgrammeSource; fromMs: number }
   | { kind: 'programme'; programme: Programme; source: ProgrammeSource; fromMs: number;
     untilMs: number }
@@ -723,6 +759,20 @@ export type OnAir =
   | { kind: 'off' };
 
 export type OnAirKind = OnAir['kind'];
+
+/**
+ * How long the backup holds the air after a live feed fails.
+ *
+ * A minute. Long enough that a presenter whose wifi dropped for twenty
+ * seconds comes back to their own broadcast rather than to the middle of a
+ * music loop; short enough that a broadcast nobody is coming back to becomes
+ * an ordinary channel again rather than a caption card all evening.
+ *
+ * After it, the chain carries on by itself — the loop, and then whatever the
+ * schedule had next — which is the brief's sequence and needs no timer,
+ * because it is only ever the ordinary resolution happening again.
+ */
+export const BACKUP_HOLD_MS = 60_000;
 
 export function whatIsOn(channel: Channel, at: number): OnAir {
   /*
@@ -735,11 +785,24 @@ export function whatIsOn(channel: Channel, at: number): OnAir {
   }
   const live = channel.live;
   /*
+   * A FAULTED FEED IS NOT ON AIR EITHER, and this is the whole of the
+   * automatic failover: nothing switches, nothing is rewritten, the channel
+   * simply stops looking at a feed that has stopped arriving and resolves
+   * what it would have resolved anyway — backup, then the loop, then the next
+   * scheduled programme. The viewer sees a channel, not an error. [§9]
+   */
+  if (live && live.phase === 'on_air' && live.faultedAt) {
+    const since = at - Date.parse(live.faultedAt);
+    if (channel.backup && since < BACKUP_HOLD_MS) {
+      return { kind: 'backup', source: channel.backup, fromMs: 0 };
+    }
+  }
+  /*
    * ARMED IS NOT ON AIR. The camera is up and the operator is previewing
    * themselves; the wire is still showing the schedule until somebody takes
    * it. [§6]
    */
-  if (live && live.phase === 'on_air') {
+  if (live && live.phase === 'on_air' && !live.faultedAt) {
     /*
      * A segment rolled into the live show is what goes out while it is up;
      * the feed is underneath it. Taking it down returns to the room without

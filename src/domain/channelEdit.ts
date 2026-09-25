@@ -821,3 +821,60 @@ export function setIdentity(
   }
   channel.identity = next;
 }
+
+/* ------------------------------------------------------------------------ *
+ *  Failure, and what the viewer sees instead.  [§9]
+ * ------------------------------------------------------------------------ */
+
+/**
+ * The safe playlist.  [§9]
+ *
+ *     LIVE FAILURE → BACKUP VIDEO → MUSIC LOOP → NEXT SCHEDULED PROGRAM
+ *
+ * What goes out when a live feed fails and nobody has pressed anything.
+ * Distinct from `filler`, which covers a hole in a schedule nobody is
+ * watching for, and from `emergency`, which is an operator cutting away on
+ * purpose. This is the one that runs when there is nobody there to run it.
+ */
+export function setBackup(
+  channel: Channel, source: ProgrammeSource | null,
+): void {
+  if (source === null) { delete channel.backup; return; }
+  assertSource(source, channel);
+  if (source.kind === 'live' || source.kind === 'live_event') {
+    fail('a backup has to be something that is already there');
+  }
+  channel.backup = source;
+}
+
+/**
+ * The feed has stopped arriving.  [§9]
+ *
+ * Called by the playout engine, not by a person: it is the one transition in
+ * this document that a machine decides, and it decides it by watching a file
+ * stop growing. The session is NOT ended, because nothing has been decided —
+ * a presenter whose wifi dropped has not finished their programme.
+ *
+ * Idempotent, because the engine will notice again on the next pass and a
+ * fault that kept moving its own timestamp would never let the backup expire.
+ */
+export function faultLive(channel: Channel, at: string): boolean {
+  const live = channel.live;
+  if (!live || live.phase !== 'on_air' || live.faultedAt) return false;
+  live.faultedAt = at;
+  return true;
+}
+
+/**
+ * It came back.
+ *
+ * Also the engine's to call. A broadcast that resumed because the bytes
+ * resumed is the behaviour a presenter expects — they reconnected, so they
+ * are back on — and it is why the fault marks rather than ends.
+ */
+export function recoverLive(channel: Channel): boolean {
+  const live = channel.live;
+  if (!live?.faultedAt) return false;
+  delete live.faultedAt;
+  return true;
+}

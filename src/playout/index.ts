@@ -24,13 +24,16 @@
  * only correct behaviour for a thing whose job is to agree with the time.
  */
 
-import { readdir, rm } from 'node:fs/promises';
+import { readdir, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { access } from 'node:fs/promises';
 import type { Channel } from '../domain/channel.js';
 import { SEGMENT_MS, WINDOW_SEGMENTS, segmentIndexAt } from '../domain/playout.js';
 import { referencedAssets } from '../domain/channel.js';
-import { listChannels, loadChannel } from '../store/channels.js';
+import {
+  auditChannel, listChannels, loadChannel, saveChannel,
+} from '../store/channels.js';
+import { faultLive, recoverLive } from '../domain/channelEdit.js';
 import { paths } from '../store/paths.js';
 import { pathFor } from '../store/playoutSources.js';
 import { ffprobe } from '../render/ffmpeg.js';
@@ -177,6 +180,12 @@ export async function pass(nowMs = Date.now()): Promise<number> {
      * has just cancelled.
      */
     const fresh = await loadChannel(channel.id).catch(() => channel);
+    /*
+     * BEFORE THE SEGMENTS, because a faulted feed changes what they contain.
+     * Checked every pass rather than on a timer: the pass IS the timer, and a
+     * second one would be a second thing that can stop.
+     */
+    await watchTheFeed(fresh, nowMs);
     made += await advance(fresh, nowMs).catch(() => 0);
   }
   return made;
@@ -221,4 +230,78 @@ async function main(): Promise<void> {
 if (process.argv[1]?.endsWith('playout/index.ts')
   || process.argv[1]?.endsWith('playout/index.js')) {
   void main();
+}
+
+/* ------------------------------------------------------------------------ *
+ *  Watching the feed.  [Doctrine CHANNEL §9]
+ * ------------------------------------------------------------------------ */
+
+/**
+ * How long a live buffer may stop growing before the channel gives up on it.
+ *
+ * Ten seconds: five chunks. Shorter and a presenter on a slow connection
+ * would be cut off for a hiccup; longer and the viewer watches a frozen
+ * frame for a quarter of a minute, which is the thing this exists to prevent.
+ *
+ * It is comfortably inside the twelve-second broadcast delay, which matters:
+ * the failover happens before the last of the good buffer has gone out, so
+ * the cut to backup lands on a picture rather than after one has frozen.
+ */
+const STALE_MS = 10_000;
+
+/** The last size we saw each live buffer at, and when. */
+const watched = new Map<string, { size: number; at: number }>();
+
+/**
+ * Is the feed still arriving?
+ *
+ * By watching the FILE, not the network. The encoder is in somebody's
+ * browser on the other side of the world and cannot be asked; what can be
+ * observed is whether bytes are landing, which is the only thing that
+ * actually matters — a connection that is up and delivering nothing is a
+ * failure with a green light on it.
+ */
+async function watchTheFeed(channel: Channel, nowMs: number): Promise<void> {
+  const live = channel.live;
+  if (!live || live.phase !== 'on_air') { watched.delete(channel.id); return; }
+  const ingest = channel.ingests.find((entry) => entry.id === live.ingestId);
+  if (!ingest) return;
+
+  const path = paths.channelLiveBuffer(channel.id, ingest.bufferId);
+  let size = 0;
+  try {
+    size = (await stat(path)).size;
+  } catch {
+    /* Not created yet is not a fault — the first chunk is still in flight. */
+    if (!watched.has(channel.id)) {
+      watched.set(channel.id, { size: 0, at: nowMs });
+      return;
+    }
+  }
+
+  const seen = watched.get(channel.id);
+  if (!seen || size > seen.size) {
+    watched.set(channel.id, { size, at: nowMs });
+    if (live.faultedAt && recoverLive(channel)) {
+      /*
+       * IT CAME BACK. Saved at once, because the studio and the playlist both
+       * read this and a presenter who has reconnected should see themselves
+       * on air rather than a caption card.
+       */
+      await saveChannel(channel);
+      await auditChannel(channel.id, {
+        action: 'channel.feed-recovered',
+        detail: { ingestId: ingest.id, bytes: size },
+      });
+    }
+    return;
+  }
+
+  if (nowMs - seen.at >= STALE_MS && faultLive(channel, new Date(nowMs).toISOString())) {
+    await saveChannel(channel);
+    await auditChannel(channel.id, {
+      action: 'channel.feed-lost',
+      detail: { ingestId: ingest.id, silentMs: nowMs - seen.at, bytes: size },
+    });
+  }
 }

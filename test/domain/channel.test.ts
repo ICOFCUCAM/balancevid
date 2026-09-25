@@ -28,8 +28,8 @@ import {
   addBlock, addToBlock, addToRotation, bookLiveEvent, closeIngest, endLive,
   goLive, keepLive, moveInRotation, setIdentity,
   moveProgramme, newChannel, openIngest, removeFromRotation, removeProgramme,
-  requestRecording, rollIn, scheduleProgramme, setEmergency, setFiller,
-  skipToNext, takeLive,
+  faultLive, recoverLive, requestRecording, rollIn, scheduleProgramme,
+  setBackup, setEmergency, setFiller, skipToNext, takeLive,
 } from '../../src/domain/channelEdit.js';
 import {
   SEGMENT_MS, WINDOW_SEGMENTS,
@@ -1119,5 +1119,90 @@ describe('the channel identity is drawn, never burned in (§13, D-16)', () => {
     /* Merged, not replaced: the second change did not forget the first. */
     expect(c.identity!.bug!.text).toBe('PC');
     expect(c.identity!.ink).toBe('#ffcc00');
+  });
+});
+
+describe('the viewer never sees a dead screen (§9)', () => {
+  /*
+   *     LIVE FAILURE → BACKUP VIDEO → MUSIC LOOP → NEXT SCHEDULED PROGRAM
+   *
+   * "The viewer should never see your FFmpeg error or a dead screen."
+   *
+   * The whole chain, and none of it switches anything: a faulted feed is
+   * simply not consulted, and the channel resolves what it would have
+   * resolved anyway.
+   */
+  function broadcasting(): Channel {
+    const c = newChannel('Prof Class TV', 'UTC', AT);
+    c.rotationFrom = at(0);
+    addToRotation(c, { source: FILM, durationMs: 30 * MINUTE, title: 'Music loop' }, AT);
+    setBackup(c, DEBATE);
+    goLive(c, 'Evening Discussion', at(20));
+    takeLive(c, at(20));
+    return c;
+  }
+
+  it('a lost feed cuts to the backup, without ending the session', () => {
+    const c = broadcasting();
+    expect(whatIsOn(c, Date.parse(at(20, 10))).kind).toBe('live');
+    expect(faultLive(c, at(20, 10))).toBe(true);
+    const on = whatIsOn(c, Date.parse(at(20, 10)));
+    expect(on.kind).toBe('backup');
+    expect(on.kind === 'backup' && sourceKey(on.source)).toBe(sourceKey(DEBATE));
+    /* Not ended: the presenter has not decided anything. */
+    expect(c.live!.phase).toBe('on_air');
+  });
+
+  it('then the music loop, once the backup has held its minute', () => {
+    const c = broadcasting();
+    faultLive(c, at(20, 10));
+    const later = Date.parse(at(20, 10)) + 90_000;
+    const on = whatIsOn(c, later);
+    expect(on.kind).toBe('rotation');
+    expect(on.kind === 'rotation' && on.entry.title).toBe('Music loop');
+  });
+
+  it('and then whatever the schedule had next, with nothing to reset', () => {
+    const c = broadcasting();
+    scheduleProgramme(c, {
+      startsAt: at(21), durationMs: HOUR, source: FILM, title: 'The nine o’clock',
+    }, AT);
+    faultLive(c, at(20, 10));
+    const on = whatIsOn(c, Date.parse(at(21, 10)));
+    expect(on.kind).toBe('programme');
+    expect(on.kind === 'programme' && on.programme.title).toBe('The nine o’clock');
+  });
+
+  /*
+   * A presenter whose wifi dropped for twenty seconds comes back to their own
+   * broadcast, which is why the fault marks rather than ends.
+   */
+  it('and the moment it comes back, so does the broadcast', () => {
+    const c = broadcasting();
+    faultLive(c, at(20, 10));
+    expect(whatIsOn(c, Date.parse(at(20, 10))).kind).toBe('backup');
+    expect(recoverLive(c)).toBe(true);
+    expect(whatIsOn(c, Date.parse(at(20, 10))).kind).toBe('live');
+  });
+
+  it('a channel with no backup falls to the loop rather than to nothing', () => {
+    const c = broadcasting();
+    setBackup(c, null);
+    faultLive(c, at(20, 10));
+    expect(whatIsOn(c, Date.parse(at(20, 10))).kind).toBe('rotation');
+  });
+
+  it('faulting is idempotent, so the backup does actually expire', () => {
+    const c = broadcasting();
+    expect(faultLive(c, at(20, 10))).toBe(true);
+    expect(faultLive(c, at(20, 11))).toBe(false);
+    expect(c.live!.faultedAt).toBe(at(20, 10));
+  });
+
+  it('and a backup cannot be a live feed or a slot nobody has filled', () => {
+    const c = broadcasting();
+    expect(() => setBackup(c, { kind: 'live', ingestId: c.live!.ingestId }))
+      .toThrow(ChannelEditError);
+    expect(() => setBackup(c, { kind: 'live_event' })).toThrow(ChannelEditError);
   });
 });

@@ -4521,3 +4521,90 @@ INV-17  A scheduled programme references media that already exists; a
 CHANNEL.md holds the brief. Its Appendix C records what implementation taught,
 as Appendix S does for Studio Two.
 
+---
+
+## D-19 · Check before you build
+
+Added to the doctrine as the product's author gave it, because it is a rule
+about how this codebase is worked on rather than about what it contains:
+
+> **Always check before coding, to avoid duplication.**
+
+It has been said three times in this project's life and each time it was
+because something had already been built. A composition panel and a timeline
+were written from scratch beside a directing surface that already had both. A
+second navigation bar appeared the day there was a third studio. A live room
+was nearly rebuilt beside the Conversation Room, which already had
+invitations, staging and speaker detection.
+
+**What it means in practice, in order:**
+
+1. **Grep for the noun before writing the verb.** "Room", "playlist", "proxy",
+   "chunk" — the thing usually exists under the name the brief used.
+2. **Read the module that owns the concept**, not the one nearest the feature.
+   Alignment belongs to the take, rights belong to the master, order belongs
+   to the clock.
+3. **Ask what already crosses this boundary.** A new studio needing a way to
+   list finished work should find the store that lists finished work.
+4. **Prefer extending a table to adding a branch.** U-18 says layouts are
+   data; the same is true of caption looks, spaces, effects, export profiles
+   and arrangements. A new one of any of those is a row.
+5. **When something genuinely is new, say why in the file.** The comment that
+   explains why a second thing exists is what stops a third.
+
+The failure this prevents is not wasted effort, which is recoverable. It is
+TWO PLACES THAT ANSWER THE SAME QUESTION, which is how a product starts
+disagreeing with itself — and the disagreement always surfaces in front of a
+user, never in a test.
+
+---
+
+## D-20 · Where this will come apart, and the seams left for it
+
+The three studios share one library, one composition engine, one renderer and
+one publication system, and they run today as three processes on one machine:
+the web tier, the worker, and the playout engine. That is the right first
+shape and it will not be the last one.
+
+```
+                    PROF CLASS
+                        │
+       ┌────────────────┼────────────────┐
+   STUDIO ONE       STUDIO TWO       ONLINE TV
+       │                │                │
+       └────────────────┼────────────────┘
+                  MEDIA LIBRARY
+                        │
+                 TV PLAYOUT ENGINE
+              ┌─────────┴─────────┐
+       SCHEDULED MEDIA        LIVE INPUT
+              └─────────┬─────────┘
+                   BROADCAST  →  HLS  →  VIEWERS
+```
+
+**The browser is the control panel; the server is the broadcaster.** This is
+already true and it is load-bearing: the playout engine is its own process, it
+reads the document from disk, and the playlist is a function of the clock.
+Close the laptop and the channel continues. Going live makes a browser an
+INPUT to the broadcast system, not the broadcaster — which is why the live
+buffer is a file on the server and not a stream the page is responsible for.
+
+**The five things that will eventually want their own machines**, and the seam
+each one already has:
+
+| | seam today |
+|---|---|
+| Web application | `npm start`; never runs ffmpeg (U-23) |
+| Media storage | `src/store/paths.ts` — every path goes through one module, so object storage replaces one file |
+| Live ingest | one route that appends bytes; it shares nothing with the rest of the web tier but that module |
+| Broadcast encoder | `npm run start:playout` — already a separate process, already holding no state of its own |
+| Viewer delivery | segments are static files under a plain URL; a CDN in front needs no code |
+
+None of that separation is built and none of it should be. What matters is
+that no seam has been welded shut: the playout engine holds no state, the
+storage adapter is one module, and nothing in the web tier knows how a segment
+is made.
+
+**What is not built and is honest to name:** DASH (HLS only), a second
+playout machine (the engine assumes it is the only writer of a channel's
+stream directory), and hardware encoding.

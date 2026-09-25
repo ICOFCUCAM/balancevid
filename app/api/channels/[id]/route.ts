@@ -5,7 +5,7 @@ import {
   goLive, keepLive, moveInRotation, moveProgramme, openIngest, removeBlock,
   removeFromBlock, removeFromRotation, removeProgramme, requestRecording,
   retitleProgramme, rollIn, scheduleProgramme, setEmergency, setFiller,
-  setIdentity, skipToNext, takeLive,
+  setBackup, setIdentity, skipToNext, takeLive,
 } from '../../../../src/domain/channelEdit.js';
 import {
   gaps, nextAfter, onAirAt, orderedProgrammes, overlaps, referencedAssets,
@@ -226,6 +226,13 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
           break;
         case 'next':
           skipToNext(draft, at);
+          break;
+        /* ---- the safe playlist (§9) ----------------------------------- */
+        case 'backup':
+          if (body['source'] && !await resolves(draft, body['source'])) {
+            throw new ChannelEditError('there is no such render');
+          }
+          setBackup(draft, body['source'] ?? null);
           break;
         case 'emergency':
           if (body['source'] && !await resolves(draft, body['source'])) {
