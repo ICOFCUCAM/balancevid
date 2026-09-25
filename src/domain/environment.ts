@@ -321,6 +321,21 @@ export const EFFECT_LOOKS: Record<string, EffectLook> = {
     hint: 'A pool of light around you, the rest in shadow. For a stage.',
     brightness: 0.94, contrast: 1.1, vignette: 1.4, spotlight: 0.55,
   },
+  /*
+   * MONOCHROME, not "black and white".  [§4]
+   *
+   * The one treatment that is a decision about the WHOLE picture rather than
+   * a correction to it, which is why it belongs here and not among the
+   * spaces: a black-and-white verse against colour choruses is an edit, and
+   * cutting between the two is something a performance does. Contrast is
+   * lifted with it because a desaturated picture reads flat — taking the
+   * colour out and changing nothing else looks like a fault in the camera.
+   */
+  monochrome: {
+    id: 'monochrome', label: 'Monochrome',
+    hint: 'The colour taken out. For a verse that should feel older.',
+    saturation: 0, contrast: 1.14,
+  },
 };
 
 /**

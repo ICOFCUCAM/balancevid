@@ -103,6 +103,44 @@ export function mayPublish(master: MasterTrack): boolean {
   return master.class === 'own' || master.class === 'licensed' || master.class === 'open';
 }
 
+/**
+ * Footage, rather than somebody performing.  [§2, S-29]
+ *
+ * The one place `kind` is read, so the absent-means-performance rule is
+ * stated once and every caller gets it right by not having a choice.
+ */
+export function isFootage(take: PerformanceTake): boolean {
+  return take.kind === 'footage';
+}
+
+/**
+ * Whether this whole performance may be published.  [INV-15, §14]
+ *
+ * The master AND every piece of footage in it, because a clip nobody has the
+ * rights to is exactly as publishable as a song nobody has the rights to. It
+ * is written as "every one of them permits it" rather than "none of them
+ * forbids it", so a class this build does not recognise refuses — the same
+ * way round `mayPublish` is written, and for the same reason.
+ *
+ * Takes are not asked: a performance is the author performing. If that ever
+ * stops being true it will be because somebody else recorded a take, and
+ * that is a participation question (D-17), not a rights class.
+ */
+export function everythingMayBePublished(performance: Performance): boolean {
+  if (!mayPublish(performance.master)) return false;
+  return performance.takes.filter(isFootage).every(
+    (take) => take.rights === 'own' || take.rights === 'licensed' || take.rights === 'open',
+  );
+}
+
+/** The footage that is stopping this performance being published, if any. */
+export function unpublishableFootage(performance: Performance): PerformanceTake[] {
+  return performance.takes.filter(
+    (take) => isFootage(take)
+      && !(take.rights === 'own' || take.rights === 'licensed' || take.rights === 'open'),
+  );
+}
+
 /** Which classes have to say what permits them. */
 export function needsLicenceNote(master: MasterTrack): boolean {
   return master.class === 'licensed' || master.class === 'open';
@@ -351,9 +389,67 @@ export const SPACES: readonly { id: string; label: string }[] = [
  *  A take.
  * ------------------------------------------------------------------------ */
 
+/**
+ * What a take IS.  [§2, §5, S-29]
+ *
+ * "Sometimes we would upload videos of the waves in the sea, birds moving and
+ *  animals running to add with the music."
+ *
+ * Two different things share a slot on the stage. A PERFORMANCE is somebody
+ * singing the song: it was recorded against the master, it has an offset that
+ * was measured, it may carry the vocal, and it is the author's own work.
+ * FOOTAGE is the sea: nobody performed it, nothing about it can be measured
+ * against the song, its audio is not part of this record, and it may very
+ * well belong to somebody else.
+ *
+ * WHY ONE TYPE AND NOT TWO. They occupy the same slots in the same layouts,
+ * take the same number keys, sit in the same timeline lanes and are cut into
+ * the same scenes. A second entity would mean a second branch at every one of
+ * those places, which is precisely what U-18 forbids — layouts are data, and
+ * a slot that had to ask what kind of thing was filling it would be a code
+ * branch wearing a layout's clothes.
+ *
+ * So the differences live in FIELDS, and every one of them is checked where
+ * it matters: footage never carries the vocal (§9), never claims a measured
+ * alignment (§10), and never publishes without saying whose it is (INV-15).
+ */
+export type TakeKind = 'performance' | 'footage';
+
 export interface PerformanceTake {
   id: TakeId;
   assetId: AssetId;
+  /**
+   * Absent means a performance.  [§2, S-29]
+   *
+   * Absent rather than defaulted in the writer, because every performance
+   * made before footage existed is a performance and no migration should have
+   * to say so. `isFootage` is the only thing that reads it.
+   */
+  kind?: TakeKind;
+  /**
+   * Footage only: play it again until the scene is over.  [§5, S-29]
+   *
+   * Ten seconds of waves against a thirty-second chorus is the normal case,
+   * not the exception — stock scenery is short and songs are not. Without
+   * this the panel goes black two thirds of the way through a chorus, which
+   * is the product showing an author a fault and calling it their edit.
+   *
+   * A performance is never looped: a singer who stopped singing has stopped,
+   * and playing them again would put a second chorus under the first.
+   */
+  loop?: boolean;
+  /**
+   * Footage only: whose it is.  [INV-15, §14]
+   *
+   * The same question the master answers, asked again because it has the same
+   * answer-shape and the same consequence. A performance needs no class — it
+   * is the author performing — but a clip of the sea came from somewhere, and
+   * a product that refuses to publish somebody else's SONG while publishing
+   * somebody else's PICTURE is not being careful, it is being inconsistent.
+   */
+  rights?: MasterClass;
+  /** For `licensed` and `open` footage: what permits this use. [INV-15] */
+  rightsNote?: string;
   /** What the author calls it: "Living room", "Beach". [§1] */
   label: string;
   environment: Environment;
@@ -420,9 +516,22 @@ export interface PerformanceTake {
  * Not stored, for the reason nothing derivable is stored: two numbers that
  * must agree eventually do not.
  */
-export function coverage(take: PerformanceTake): { fromSample: Samples; toSample: Samples } {
+export function coverage(
+  take: PerformanceTake, songSamples?: Samples,
+): { fromSample: Samples; toSample: Samples } {
   const naturalFrom = Math.max(0, effectiveOffset(take.alignment));
-  const naturalTo = takeToMaster(take.alignment, take.durationSamples);
+  /*
+   * Looping footage covers the whole song.  [§5, S-29]
+   *
+   * Its own length says nothing about where it can go: ten seconds of waves
+   * can fill a four-minute song, and asking "how long is the clip" to decide
+   * "which part of the song may show it" is asking the wrong file. The song's
+   * length is passed rather than read off the take, because a take does not
+   * know what it is part of.
+   */
+  const naturalTo = take.loop && songSamples !== undefined
+    ? songSamples
+    : takeToMaster(take.alignment, take.durationSamples);
   return {
     fromSample: Math.max(naturalFrom, take.useFromSample ?? naturalFrom),
     toSample: Math.min(naturalTo, take.useToSample ?? naturalTo),
@@ -443,9 +552,18 @@ export function plateFor(
   return performance.plates.find((plate) => plate.assetId === take.plateAssetId);
 }
 
-/** Does this take have picture at this moment of the song? */
-export function covers(take: PerformanceTake, masterSample: Samples): boolean {
-  const { fromSample, toSample } = coverage(take);
+/**
+ * Does this take have picture at this moment of the song?
+ *
+ * `songSamples` is how looping footage is asked about: ten seconds of waves
+ * has picture for the whole song, and its own duration says nothing about it.
+ * Optional so the ordinary caller, asking about a performance, is unchanged.
+ * [§5, S-29]
+ */
+export function covers(
+  take: PerformanceTake, masterSample: Samples, songSamples?: Samples,
+): boolean {
+  const { fromSample, toSample } = coverage(take, songSamples);
   return masterSample >= fromSample && masterSample < toSample;
 }
 
@@ -460,8 +578,9 @@ export function covers(take: PerformanceTake, masterSample: Samples): boolean {
  */
 export function coversSpan(
   take: PerformanceTake, fromSample: Samples, toSample: Samples,
+  songSamples?: Samples,
 ): boolean {
-  const own = coverage(take);
+  const own = coverage(take, songSamples);
   /*
    * ASKED IN FRAMES, because frames are what gets rendered.
    *
@@ -723,7 +842,8 @@ export function projectPerformance(
        * leaves the rest of it black, and a timeline that reported that as
        * fine would be reporting the author's mistake as their intention.
        */
-      if (take && coversSpan(take, fromSample, toSample)) takes.push(take);
+      if (take && coversSpan(take, fromSample, toSample,
+        performance.master.durationSamples)) takes.push(take);
       else missing.push(id as TakeId);
     }
 

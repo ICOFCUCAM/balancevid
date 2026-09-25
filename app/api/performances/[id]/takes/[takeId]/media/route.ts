@@ -57,7 +57,35 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
     }
   }
 
-  const path = paths.performanceAsset(id, `${take.assetId}mezz`, 'mp4');
+  /*
+   * WHAT THE BROWSER ASKED FOR, IF IT IS THERE.  [U-39, §7, S-29]
+   *
+   * The mezzanine is H.264, which a Chromium built without proprietary codecs
+   * will not decode — and the directing stage is five video elements, so the
+   * consequence is five black rectangles and a studio that cannot be used for
+   * the thing it is for.
+   *
+   * `?kind=proxy` answers with the VP9/WebM copy the worker makes alongside
+   * it. Falling back to the mezzanine rather than 404ing, because a take
+   * assembled before proxies existed still has to play, and a browser that
+   * asked for the proxy can certainly play the original if that is all there
+   * is. The content type is set from what is actually being sent, never from
+   * what was asked for: a `video/mp4` label on WebM bytes is refused by the
+   * element without a request ever being made.
+   */
+  const wantsProxy = kind === 'proxy';
+  const proxyPath = paths.performanceAsset(id, `${take.assetId}proxy`, 'webm');
+  const mezzPath = paths.performanceAsset(id, `${take.assetId}mezz`, 'mp4');
+  let path = mezzPath;
+  let type = 'video/mp4';
+  if (wantsProxy) {
+    try {
+      await stat(proxyPath);
+      path = proxyPath;
+      type = 'video/webm';
+    } catch { /* not made, or not made yet: the mezzanine below. */ }
+  }
+
   let size: number;
   try {
     size = (await stat(path)).size;
@@ -67,7 +95,7 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
 
   const range = request.headers.get('range');
   const common = {
-    'content-type': 'video/mp4',
+    'content-type': type,
     'accept-ranges': 'bytes',
     'cache-control': 'private, max-age=3600',
   };

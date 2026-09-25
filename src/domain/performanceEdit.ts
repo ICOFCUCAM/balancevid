@@ -247,7 +247,7 @@ export function trimTake(
   if (useToSample === null) delete target.useToSample;
   else { assertSamples(useToSample); target.useToSample = useToSample; }
 
-  const { fromSample, toSample } = coverage(target);
+  const { fromSample, toSample } = coverage(target, performance.master.durationSamples);
   if (toSample <= fromSample) {
     fail('that trim leaves nothing of the take');
   }
@@ -382,7 +382,18 @@ export function setAudioMode(
   if (mode === 'master_vocal') {
     const id = vocalTakeId ?? performance.audio.vocalTakeId ?? null;
     if (!id) fail('the master vocal mode needs a take to use as the vocal');
-    take(performance, id!);
+    const voice = take(performance, id!);
+    /*
+     * The waves cannot be the vocal.  [§9, S-29]
+     *
+     * Mode C is one performance of the song carried across every picture
+     * change; footage is not a performance of the song. Refused here rather
+     * than left to sound wrong, because a whole export would go out with surf
+     * where the voice should be and nothing in the document would say why.
+     */
+    if (voice.kind === 'footage') {
+      fail('footage cannot be the vocal — pick a take of somebody performing');
+    }
     performance.audio = { mode, vocalTakeId: id as TakeId };
     return;
   }
@@ -602,4 +613,50 @@ export function setEffect(
   }
   if (!EFFECT_LOOKS[effect]) throw new PerformanceEditError(`unknown treatment: ${effect}`);
   take.effect = effect;
+}
+
+/* ------------------------------------------------------------------------ *
+ *  Footage.  [§2, §5, §14, S-29]
+ * ------------------------------------------------------------------------ */
+
+/**
+ * Whether this footage plays again until the scene is over.
+ *
+ * Only footage. A performance that is played twice is a singer singing the
+ * chorus over themselves, which is not an edit anybody asked for — and
+ * refusing it here means the renderer never has to wonder.
+ */
+export function setLoop(performance: Performance, takeId: string, loop: boolean): void {
+  const target = take(performance, takeId);
+  if (target.kind !== 'footage') {
+    fail('only footage loops — a performance plays once');
+  }
+  if (loop) target.loop = true;
+  else delete target.loop;
+}
+
+/**
+ * Whose footage this is.  [INV-15, §14]
+ *
+ * Written the same way the master's class is, through the same table, because
+ * it is the same question with the same consequence: without an answer this
+ * performance does not publish. A `licensed` or `open` clip must say what
+ * permits it, for the reason INV-15 gives — a claim with nothing behind it is
+ * worse than no claim, because it looks like one.
+ */
+export function setFootageRights(
+  performance: Performance, takeId: string, rights: string, note?: string | null,
+): void {
+  const target = take(performance, takeId);
+  if (target.kind !== 'footage') {
+    fail('a take is the author performing — it has no rights class to set');
+  }
+  if (!MASTER_CLASSES.includes(rights as never)) fail(`unknown rights class: ${rights}`);
+  target.rights = rights as never;
+  const trimmed = (note ?? '').trim();
+  if (trimmed) target.rightsNote = trimmed.slice(0, 300);
+  else delete target.rightsNote;
+  if ((rights === 'licensed' || rights === 'open') && !target.rightsNote) {
+    fail('say what permits this footage — a licence, or where it is from');
+  }
 }

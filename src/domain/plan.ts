@@ -177,6 +177,15 @@ export interface PerformanceShot extends ShotBase {
     /** The colour this take is identified by, for a badge on the stage. [§2] */
     accent?: string;
     /**
+     * Read this input round and round until the shot is over.  [§5, S-29]
+     *
+     * Footage only, and carried as a fact about THIS SHOT rather than as the
+     * take's `loop` flag repeated: the renderer is told what to do with an
+     * input, not what kind of thing the input is. A ten-second clip of waves
+     * under a thirty-second chorus is the ordinary case.
+     */
+    loop?: boolean;
+    /**
      * A treatment over this take's picture.  [§4]
      *
      * Carried resolved — the look itself, not its name — so the renderer

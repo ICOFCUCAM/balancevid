@@ -294,6 +294,32 @@ async function assemblePerformanceTake(job: Job): Promise<Job> {
       detail: { takeId, error: String(error).slice(0, 200) },
     });
   }
+  /*
+   * A COPY THE BROWSER CAN PLAY.  [U-39, §7, S-29]
+   *
+   * The mezzanine is H.264 in MP4, which is the right format to CUT from and
+   * the wrong one to count on a browser decoding: Chromium builds without
+   * proprietary codecs refuse it outright, and the directing stage — where
+   * you watch five takes against the song and press a number — then shows
+   * five black rectangles. §7 does not work if you cannot see the takes.
+   *
+   * So the same proxy Studio One has already made for every response since
+   * U-39: VP9/Opus in WebM, 854 wide, same frames. Offered ALONGSIDE the
+   * mezzanine rather than instead of it, because the render still cuts from
+   * the mezzanine and a proxy is a picture of a take, not the take.
+   *
+   * Its failure is not the take's. A performance whose proxy did not encode
+   * is still a performance, and the stage falls back to the mezzanine — which
+   * is exactly right on a browser that can play it.
+   */
+  try {
+    await makeProxy(mezzanine, paths.performanceAsset(id, `${assetId}proxy`, 'webm'));
+  } catch (error) {
+    await auditPerformance(id, {
+      action: 'take.proxy-failed',
+      detail: { takeId, error: String(error).slice(0, 200) },
+    });
+  }
   job.progress = 70;
   await update(job);
 

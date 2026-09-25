@@ -1,8 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Performance } from '../../../src/domain/performance.js';
-import { SPACES, orderedScenes, sceneAt } from '../../../src/domain/performance.js';
+import type { MasterClass, Performance } from '../../../src/domain/performance.js';
+import {
+  MASTER_CLASSES, SPACES, isFootage, orderedScenes, sceneAt,
+} from '../../../src/domain/performance.js';
 import { EFFECT_LOOKS, SPACE_LOOKS } from '../../../src/domain/environment.js';
 import { LAYOUTS, takeSlots } from '../../../src/domain/presentation.js';
 import {
@@ -42,11 +44,70 @@ const SPACE_SWATCHES: Record<string, string> = Object.fromEntries(
   ]),
 );
 
+/**
+ * Whose footage this is, in the author's language.  [INV-15, §14]
+ *
+ * The same four the master's rights use and deliberately the same words: a
+ * person answering this question about a clip is answering the question they
+ * already answered about the song, and two vocabularies for one question is
+ * how one of them gets answered carelessly.
+ */
+const FOOTAGE_RIGHTS: Record<MasterClass, string> = {
+  own: 'I filmed it',
+  licensed: 'Licensed',
+  open: 'Openly licensed',
+  third_party: "Somebody else's",
+};
+
+/**
+ * The arrangements, in the words a vision mixer uses.  [§5, §6]
+ *
+ * Short on purpose: a square tile is as wide as it is tall, and "One large,
+ * two small" set across five columns wraps to three lines of six-point type.
+ * The full label is on the tile's title, so nothing is lost — the layout
+ * table keeps its own names, which are the ones the doctrine and the renderer
+ * use, and this is only what fits on a button.
+ */
+const ARRANGEMENT_TILES: Record<string, string> = {
+  performance_full: 'Full',
+  performance_half: 'Half',
+  performance_quad: 'Quad',
+  performance_pip: 'PiP',
+  performance_focus: 'Focus',
+  performance_beside_master: 'Master',
+};
+
 /** The arrangements an author can reach with a key, in the order they appear. */
 const ARRANGEMENTS = [
   'performance_full', 'performance_half', 'performance_quad',
   'performance_pip', 'performance_focus', 'performance_beside_master',
 ] as const;
+
+/**
+ * Where one monitor goes in a wall of them.  [§6, §7]
+ *
+ * Squarest-first: the columns are the square root rounded up, so two takes
+ * are side by side, four are a quad, five are a 3x2 with one space, and nine
+ * are a 3x3. Deliberately NOT one of the layouts — a layout is a description
+ * of an export, and this is a description of a desk. Reusing `performance_quad`
+ * here would mean a fifth take either vanished or silently changed the
+ * arrangement the author had chosen.
+ */
+function monitorRect(index: number, count: number): {
+  x: number; y: number; w: number; h: number;
+} {
+  const columns = Math.max(1, Math.ceil(Math.sqrt(count)));
+  const rows = Math.max(1, Math.ceil(count / columns));
+  const column = index % columns;
+  const row = Math.floor(index / columns);
+  /* The last row is centred when it is short, so a gap is not a hole at one
+     edge — five monitors read as five, not as four and a missing one. */
+  const onThisRow = Math.min(columns, count - row * columns);
+  const indent = (columns - onThisRow) / 2;
+  return {
+    x: (column + indent) / columns, y: row / rows, w: 1 / columns, h: 1 / rows,
+  };
+}
 
 export default function SwitchingStage({
   performance, onChanged, takesPanel, chosenTake, onChooseTake,
@@ -90,7 +151,26 @@ export default function SwitchingStage({
 
   const player = usePerformancePlayer(performance);
   const current = sceneAt(performance, Math.round(player.position));
-  const visible = current?.takeIds ?? [];
+  /*
+   * TWO THINGS TO LOOK AT, AND THEY ARE NOT THE SAME THING.  [§6, §7]
+   *
+   * PROGRAM is what the viewer would see: the scene at the playhead, in the
+   * layout it names. ALL TAKES is the multiview a director works from —
+   * every take at once, on one clock, numbered, so you can see what you are
+   * about to cut to before you cut to it. "You could have multiple
+   * synchronized takes visible simultaneously... you choose which one is
+   * visible at each moment" is a description of the second one, and the
+   * studio only had the first.
+   *
+   * It opens on the multiview whenever there is more than one take, because
+   * directing is what this studio is for and a single panel showing a scene
+   * you already made is not the view you need to make the next one.
+   */
+  const usableIds = performance.takes
+    .filter((t) => t.durationSamples > 0).map((t) => t.id);
+  const [multiview, setMultiview] = useState<boolean | null>(null);
+  const allTakes = multiview ?? usableIds.length > 1;
+  const visible = allTakes ? usableIds : (current?.takeIds ?? []);
 
   const beats = performance.beats;
 
@@ -239,15 +319,23 @@ export default function SwitchingStage({
 
   const tile = (
     key: string, label: string, isChosen: boolean, onPick: () => void,
-    testid: string, disabled?: boolean, swatch?: string,
+    testid: string, disabled?: boolean, swatch?: string, fullLabel?: string,
   ) => (
     <button
       key={key} type="button" data-testid={testid} data-option={key}
       data-chosen={isChosen ? 'true' : 'false'} disabled={disabled}
-      onClick={onPick} title={label}
+      onClick={onPick} title={fullLabel ?? label}
       style={{
+        /*
+         * SQUARE. The three pickers are one kind of control — pick one of
+         * these — and a grid of squares says so at a glance; rectangles of
+         * whatever height their label happened to need said the three groups
+         * were three different things. The aspect ratio does the work, so a
+         * one-word tile and a three-word tile are the same tile.
+         */
+        aspectRatio: '1 / 1',
         display: 'flex', flexDirection: 'column', alignItems: 'center',
-        justifyContent: 'center', gap: 4, padding: '9px 4px', minHeight: 56,
+        justifyContent: 'center', gap: 4, padding: '6px 4px',
         borderRadius: 7, cursor: disabled ? 'not-allowed' : 'pointer',
         border: `1px solid ${isChosen ? '#3d7fd6' : 'var(--line)'}`,
         background: isChosen ? 'rgba(45,110,200,0.22)' : 'var(--panel-2)',
@@ -257,16 +345,17 @@ export default function SwitchingStage({
     >
       {swatch && (
         <span aria-hidden="true" style={{
-          width: '100%', height: 22, borderRadius: 4, background: swatch,
+          width: '100%', flex: '1 1 auto', minHeight: 0, borderRadius: 4,
+          background: swatch,
         }} />
       )}
-      <span>{label}</span>
+      <span style={{ flex: '0 0 auto' }}>{label}</span>
     </button>
   );
 
   const sectionTitle = (text: string, aside?: React.ReactNode) => (
     <div className="row" style={{
-      alignItems: 'baseline', justifyContent: 'space-between', margin: '14px 0 7px',
+      alignItems: 'baseline', justifyContent: 'space-between', margin: '9px 0 5px',
     }}>
       <span style={{ fontSize: 13, fontWeight: 700 }}>{text}</span>
       {aside}
@@ -288,7 +377,23 @@ export default function SwitchingStage({
         + '"notes notes notes" "transport transport transport"',
       alignItems: 'start',
     }}>
-      <div style={{ gridArea: 'takes', minWidth: 0 }}>{takesPanel}</div>
+      {/*
+        * The rail is as tall as the stage too, and scrolls inside that.
+        *
+        * Same reason as the panel on the other side: arming the camera adds a
+        * preview and two fields to this column, and a column that grows when
+        * you turn the camera on would push the timeline and the transport
+        * down at the exact moment you are about to perform. The three columns
+        * are one row, and one row is the stage's height.
+        */}
+      <div style={{
+        gridArea: 'takes', minWidth: 0, position: 'relative',
+        alignSelf: 'stretch', minHeight: 0,
+      }}>
+        <div className="shell-scroll" style={{ position: 'absolute', inset: 0 }}>
+          {takesPanel}
+        </div>
+      </div>
       <>
         {/*
           * WHAT THE VIEWER WOULD SEE. Every take on screen at once when the
@@ -317,10 +422,19 @@ export default function SwitchingStage({
           {visible.map((takeId, index) => {
             const take = performance.takes.find((t) => t.id === takeId);
             if (!take) return null;
-            const layout = LAYOUTS[current?.layoutId ?? arrangement]
-              ?? LAYOUTS['performance_full']!;
-            const layer = layout.layers.filter((l) => l.source === 'take')[index];
-            const rect = layer?.rect ?? { x: 0, y: 0, w: 1, h: 1 };
+            /*
+             * In PROGRAM the layout places the panel, because the layout is
+             * what the export will use. In the multiview nothing is being
+             * composed — it is a wall of monitors — so the panels are an even
+             * grid, squarest first, and a fifth take makes a 3x2 rather than
+             * five slivers.
+             */
+            const rect = allTakes
+              ? monitorRect(index, visible.length)
+              : (LAYOUTS[current?.layoutId ?? arrangement] ?? LAYOUTS['performance_full']!)
+                .layers.filter((l) => l.source === 'take')[index]?.rect
+                ?? { x: 0, y: 0, w: 1, h: 1 };
+            const key = usableIds.indexOf(takeId) + 1;
             return (
               <div key={takeId} data-testid="stage-take" data-take-id={takeId}
                    style={{
@@ -332,6 +446,16 @@ export default function SwitchingStage({
                        `url(/api/performances/${performance.id}/takes/${take.id}/media?kind=poster)`,
                      backgroundSize: 'cover', backgroundPosition: 'center',
                      borderRadius: 6, overflow: 'hidden',
+                     /* A gutter between monitors, so five panels read as
+                        five and not as one wide picture. A border rather than
+                        an inset shadow, because a shadow draws under the
+                        video and a video fills its panel. Only on the
+                        multiview: in Program the layout's rects ARE the
+                        composition, and a gap the renderer will not draw
+                        would be a preview that lies. */
+                     ...(allTakes
+                       ? { border: '2px solid #05070a', boxSizing: 'border-box' as const }
+                       : {}),
                    }}>
                 {/*
                   * THE TAKE, MOVING.  [§7, S-2]
@@ -362,24 +486,53 @@ export default function SwitchingStage({
                   data-testid="stage-video" data-take-id={take.id}
                   ref={(element) => { player.attach(take.id, element); }}
                   muted playsInline preload="auto"
-                  /* No `type` on a source: the server's content type decides,
-                     and a declared one the browser disagrees with is refused
-                     without a request ever being made. */
-                  src={`/api/performances/${performance.id}/takes/${take.id}/media`}
+                  /*
+                    * The proxy, not the mezzanine. [U-39]
+                    *
+                    * The mezzanine is H.264 and a Chromium without
+                    * proprietary codecs will not decode it; the route serves
+                    * the VP9/WebM copy here and falls back to the mezzanine
+                    * when there is no proxy, setting the content type from
+                    * what it actually sends. No `type` is declared on this
+                    * end for that reason — a declared type the browser
+                    * disagrees with is refused without a request being made.
+                    */
+                  src={`/api/performances/${performance.id}/takes/${take.id}`
+                    + '/media?kind=proxy'}
                   style={{
                     width: '100%', height: '100%', objectFit: 'cover',
                     display: 'block',
                   }}
                 />
                 {/* The take's name, in the take's colour, where the benchmark
-                    puts it: bottom left of its own panel. */}
+                    puts it: bottom left of its own panel — with the key in
+                    front of it on the multiview, because that is the whole
+                    point of looking at them all at once. */}
                 <span style={{
-                  position: 'absolute', left: 8, bottom: 8, padding: '3px 8px',
+                  position: 'absolute', left: 6, bottom: 6, padding: '3px 7px',
                   borderRadius: 4, fontSize: 11, fontWeight: 600,
                   background: take.accent ?? '#3e7ca6', color: '#0a0c10',
+                  maxWidth: 'calc(100% - 12px)', overflow: 'hidden',
+                  textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                 }}>
-                  {take.label}
+                  {allTakes && key > 0 ? `${key} · ` : ''}{take.label}
                 </span>
+                {/*
+                  * Clicking a monitor is pressing its number. The same
+                  * function the key presses and the transport button call —
+                  * three ways in, one scene written. [§7]
+                  */}
+                {allTakes && key > 0 && (
+                  <button type="button" data-testid="monitor-pick"
+                          data-take-id={take.id}
+                          title={`Cut to ${take.label} — key ${key}`}
+                          onClick={() => choose(key - 1)}
+                          style={{
+                            position: 'absolute', inset: 0, padding: 0,
+                            background: 'transparent', border: 0,
+                            cursor: 'pointer',
+                          }} />
+                )}
               </div>
             );
           })}
@@ -389,28 +542,196 @@ export default function SwitchingStage({
             fontFamily: 'ui-monospace, monospace',
           }}>
             {formatMasterPosition(Math.round(player.position))} / {clock(duration)}
-            {current?.label ? ` · ${current.label}` : ''}
+            {current?.label ? ` \u00b7 ${current.label}` : ''}
           </div>
+          {/*
+            * Which of the two you are looking at, and how to change it. On
+            * the stage rather than in a settings panel, because it is a
+            * statement about what is in front of you. [§6, §7]
+            */}
+          {usableIds.length > 1 && (
+            <div className="row" data-testid="stage-view" data-mode={allTakes ? 'all' : 'program'}
+                 style={{
+                   position: 'absolute', right: 10, top: 10, gap: 0,
+                   borderRadius: 6, overflow: 'hidden',
+                   border: '1px solid rgba(255,255,255,0.18)',
+                   background: 'rgba(5,7,10,0.78)',
+                 }}>
+              {([['program', 'Program'], ['all', 'All takes']] as const).map(([id, text]) => {
+                const on = (id === 'all') === allTakes;
+                return (
+                  <button key={id} type="button" data-testid="stage-view-option"
+                          data-option={id} data-chosen={on ? 'true' : 'false'}
+                          onClick={() => setMultiview(id === 'all')}
+                          style={{
+                            border: 0, borderRadius: 0, padding: '4px 10px',
+                            fontSize: 11, cursor: 'pointer', color: 'inherit',
+                            background: on ? 'rgba(45,110,200,0.55)' : 'transparent',
+                          }}>
+                    {text}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* ---- composition, background, effects (§4, §5, §6) ----------- */}
+        {/*
+          * THE PANEL IS AS TALL AS THE STAGE, AND SCROLLS INSIDE THAT.
+          *
+          * Square tiles are taller than the rectangles they replaced, and the
+          * panel grew past the stage — which pushed the timeline down and the
+          * transport off the bottom of the screen. A picker cannot be allowed
+          * to decide how tall the studio is.
+          *
+          * So the wrapper stretches to the row (whose height is the stage's,
+          * since the stage is the thing with a fixed 16:9) and contributes no
+          * height of its own: the panel inside is absolutely positioned, so
+          * however many environments there are, the row stays the row.
+          */}
+        <div style={{
+          gridArea: 'panel', position: 'relative', alignSelf: 'stretch', minHeight: 0,
+        }}>
         <aside data-testid="composition-panel" className="shell-scroll"
                style={{
-                 gridArea: 'panel',
+                 position: 'absolute', inset: 0,
                  border: '1px solid var(--line)', borderRadius: 10,
-                 padding: '4px 12px 14px', background: 'var(--panel)',
+                 padding: '4px 12px 8px', background: 'var(--panel)',
                }}>
+          {/*
+            * WHAT IS CHOSEN, AND WHAT CAN BE DONE TO IT.  [§2, U-06]
+            *
+            * The rail became rows, which is what let five takes fit — and
+            * renaming and deleting went with the cards. They belong here
+            * rather than back on the row: the panel is already the place that
+            * edits whichever take is chosen, and a delete button on every row
+            * of a list is the one you press by accident.
+            *
+            * The name is committed on blur and on Enter, not on every
+            * keystroke: a PATCH per letter is a document written fifteen
+            * times to record one rename.
+            */}
+          {subject && (
+            <>
+              {sectionTitle('Take', (
+                <button type="button" className="small" data-testid="remove-take"
+                        title={`Remove ${subject.label} from this performance`}
+                        onClick={() => {
+                          if (!window.confirm(
+                            `Remove "${subject.label}"? Its scenes go with it.`)) return;
+                          void patch({ action: 'remove-take', takeId: subject.id });
+                        }}
+                        style={{
+                          border: 0, background: 'none', padding: 0,
+                          cursor: 'pointer', color: 'var(--bad)', fontSize: 11,
+                        }}>
+                  Remove
+                </button>
+              ))}
+              <input
+                data-testid="take-name" defaultValue={subject.label} key={subject.id}
+                aria-label="What this take is called"
+                onBlur={(event) => {
+                  const next = event.target.value.trim();
+                  if (next && next !== subject.label) {
+                    void patch({ action: 'rename-take', takeId: subject.id, label: next });
+                  }
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') event.currentTarget.blur();
+                }}
+                style={{ width: '100%', fontSize: 12, padding: '5px 8px' }}
+              />
+            </>
+          )}
+
           {sectionTitle('Composition')}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 5 }}>
+          {/* Five across: one row when the master has no picture to show, two
+              when it has. Squares, like the other two groups, because they
+              are all the same kind of control. */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 5 }}>
             {ARRANGEMENTS
               .filter((a) => a !== 'performance_beside_master'
                 || Boolean(performance.master.videoAssetId))
               .map((a) => tile(
-                a, LAYOUTS[a]!.label, arrangement === a,
+                a, ARRANGEMENT_TILES[a] ?? LAYOUTS[a]!.label, arrangement === a,
                 () => { setArrangement(a); setPending([]); },
-                'arrangement'))}
+                'arrangement', false, undefined, LAYOUTS[a]!.label))}
           </div>
 
+          {/*
+            * WHAT THE SECOND GROUP IS ABOUT DEPENDS ON WHAT IS CHOSEN.
+            * [§4, §5, §14, S-29]
+            *
+            * A performance is a person in a room, and the question is which
+            * room the viewer sees. Footage is the sea: there is nobody to cut
+            * out of it, no plate to key it against, and the two questions it
+            * DOES raise — does it repeat, and whose is it — have no home in a
+            * background picker. Offering an environment tile for a clip of
+            * waves would be the product promising a matte it cannot make
+            * (INV-16); offering nothing would leave the panel half empty next
+            * to the one thing that stops the performance publishing.
+            */}
+          {subject && isFootage(subject) ? (
+            <>
+              {sectionTitle('Footage', (
+                <span className="small muted" style={{ fontSize: 10 }}>{subject.label}</span>
+              ))}
+              {/* Five across like every other group, so two choices are two
+                  tiles rather than two slabs. */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 5 }}>
+                {tile('loop', 'Loops', subject.loop === true, () => void patch({
+                  action: 'set-loop', takeId: subject.id, loop: true,
+                }), 'footage-loop')}
+                {tile('once', 'Plays once', subject.loop !== true, () => void patch({
+                  action: 'set-loop', takeId: subject.id, loop: false,
+                }), 'footage-loop')}
+              </div>
+
+              {sectionTitle('Whose footage', (
+                <span className="small" style={{
+                  fontSize: 10,
+                  color: subject.rights && subject.rights !== 'third_party'
+                    ? 'var(--muted)' : 'var(--warn)',
+                }}>
+                  {subject.rights ? '' : 'needed to publish'}
+                </span>
+              ))}
+              {/* The same four the master answers, because it is the same
+                  question with the same consequence. [INV-15] */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 5 }}>
+                {MASTER_CLASSES.map((cls: MasterClass) => tile(
+                  cls, FOOTAGE_RIGHTS[cls]!, subject.rights === cls,
+                  () => {
+                    /*
+                     * A licence has to say what it is, so the one that needs
+                     * a note asks for it here rather than letting the domain
+                     * refuse a click with an error nobody expected.
+                     */
+                    const note = cls === 'licensed' || cls === 'open'
+                      ? window.prompt(
+                        cls === 'licensed'
+                          ? 'What licence permits this footage?'
+                          : 'Where is it from, and what permits it?',
+                        subject.rightsNote ?? '')
+                      : null;
+                    if ((cls === 'licensed' || cls === 'open') && !note?.trim()) return;
+                    void patch({
+                      action: 'set-footage-rights', takeId: subject.id,
+                      rights: cls, rightsNote: note,
+                    });
+                  },
+                  'footage-rights'))}
+              </div>
+              {subject.rightsNote && (
+                <p className="small muted" style={{ fontSize: 10, margin: '6px 0 0' }}>
+                  {subject.rightsNote}
+                </p>
+              )}
+            </>
+          ) : (
+            <>
           {sectionTitle(
             'Background / Environment',
             <span className="row" style={{ gap: 8, alignItems: 'baseline' }}>
@@ -462,9 +783,13 @@ export default function SwitchingStage({
             </div>
           )}
 
+            </>
+          )}
+
           {sectionTitle('Effects')}
           {!subject ? null : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 5 }}>
+            /* Five across: None and the four treatments, one row, no gap. */
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 5 }}>
               {tile('none', 'None', !subject.effect, () => void patch({
                 action: 'set-effect', takeId: subject.id, effect: null,
               }), 'effect-option')}
@@ -475,15 +800,9 @@ export default function SwitchingStage({
                 }), 'effect-option'))}
             </div>
           )}
-          {subject && (
-            <p className="small muted" style={{ fontSize: 10, marginTop: 8 }}>
-              {/* Said once, because it is the thing that makes all of this
-                  safe to change: none of it is in the recording. [§4] */}
-              Stored with the take, never burned into it. Change any of it
-              afterwards without performing again.
-            </p>
-          )}
+
         </aside>
+        </div>
       </>
 
       {/* ---- the song, the takes on it, and the edit (§2, §7, §8) ------ */}

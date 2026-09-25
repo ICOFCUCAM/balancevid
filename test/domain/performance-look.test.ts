@@ -111,8 +111,20 @@ describe('the arrangements (§5, §6)', () => {
 });
 
 describe('effects, and what they are not (§4)', () => {
-  it('offers the three the benchmark names', () => {
-    expect(Object.keys(EFFECT_LOOKS).sort()).toEqual(['colour', 'lighting', 'spotlight']);
+  it('offers four treatments, which is five tiles with None', () => {
+    expect(Object.keys(EFFECT_LOOKS).sort())
+      .toEqual(['colour', 'lighting', 'monochrome', 'spotlight']);
+  });
+
+  /*
+   * Monochrome is the one treatment that is a decision about the whole
+   * picture rather than a correction to it, and it is still an effect: it
+   * happens over the composed panel, after the matte, like the other three.
+   */
+  it('and monochrome takes the colour out without flattening the picture', () => {
+    const look = EFFECT_LOOKS['monochrome']!;
+    expect(look.saturation).toBe(0);
+    expect(look.contrast).toBeGreaterThan(1);
   });
 
   /*

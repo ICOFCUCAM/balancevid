@@ -1,5 +1,5 @@
 import { acceptBeats, setTempo,
-  classifyMaster, usePlate, setAudioMode, setSceneAudio, setTransition, setScene, moveScene, removeScene, labelScene, clearScenes, nudgeTake, trimTake, renameTake, setEffect, setEnvironment, removeTake, PerformanceEditError } from '../../../../src/domain/performanceEdit.js';
+  classifyMaster, usePlate, setAudioMode, setSceneAudio, setTransition, setScene, moveScene, removeScene, labelScene, clearScenes, nudgeTake, trimTake, renameTake, setEffect, setEnvironment, removeTake, setLoop, setFootageRights, PerformanceEditError } from '../../../../src/domain/performanceEdit.js';
 import { projectPerformance, covered } from '../../../../src/domain/performance.js';
 import { assertAlignmentInvariants } from '../../../../src/domain/invariants.js';
 import { listJobs } from '../../../../src/store/queue.js';
@@ -108,6 +108,14 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
           usePlate(draft, body['takeId'], body['plateAssetId'] ?? null);
           break;
         case 'remove-take': removeTake(draft, body['takeId']); break;
+        /* Footage, which is a take that nobody performed. [§5, S-29] */
+        case 'set-loop':
+          setLoop(draft, body['takeId'], body['loop'] !== false);
+          break;
+        case 'set-footage-rights':
+          setFootageRights(
+            draft, body['takeId'], body['rights'], body['rightsNote'] ?? null);
+          break;
         default: throw new PerformanceEditError(`unknown action: ${body['action']}`);
       }
     });

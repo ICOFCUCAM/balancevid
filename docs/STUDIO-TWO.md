@@ -1882,6 +1882,126 @@ Chromium here has no H.264 decoder — the stage videos report
 `video/mp4`. The wiring is verified by measurement rather than by picture;
 the pictures appear in any ordinary browser.
 
+## S-29 — Footage, and five things the studio could not show
+
+**"Sometimes we would upload videos of the waves in the sea, birds moving and
+animals running to add with the music. How do we integrate those ones then?"**
+
+FOOTAGE IS A TAKE, AND THAT IS THE WHOLE DESIGN. A performance is somebody
+singing the song; footage is the sea. They share nothing except the thing that
+matters: they occupy the same slots in the same layouts, take the same number
+keys, sit in the same timeline lanes and are cut into the same scenes. A
+second entity would mean a second branch at every one of those places, which
+is exactly what U-18 forbids — a slot that had to ask what kind of thing was
+filling it would be a code branch wearing a layout's clothes. So the
+differences live in fields, and each is enforced where it matters.
+
+**It loops, and that is what makes it usable.** Ten seconds of waves against a
+thirty-second chorus is the normal case, not the exception: stock scenery is
+short and songs are not. `coverage` takes the song's length and returns all of
+it for looping footage, because its own duration says nothing about where it
+can go — asking "how long is the clip" to decide "which part of the song may
+show it" is asking the wrong file. The renderer gets `-stream_loop -1` before
+the input, bounded by the `-t` that follows.
+
+**And the plan gives it an IN point of zero.** Asking where a scene at 1:30
+sits inside a ten-second clip gives a frame long past the end of the file.
+Scenery is not on the song's clock; it starts when you cut to it. Zero also
+makes two scenes on the same footage identical rather than mysteriously
+different.
+
+**INV-03 did not know any of this, and said so.** The first plan built over
+looping footage was refused: *"take_waves do not reach all of it"*. The
+coverage check is the invariant, so the invariant had to learn the song's
+length. Found by a test that expected a plan and got a violation — which is
+the right way round.
+
+**It is never heard, in any mode.** A clip of the sea has surf on it, a clip
+of birds has birds, and a clip of a stadium has a crowd cheering a different
+song. Mode B says "the audio captured with the selected video take" and means
+the performer's microphone; taking it to mean the seagulls would put them over
+the chorus the first time anybody cut to a beach, with no control saying it
+had happened. Refused in `audible()` rather than at the picker, because the
+picker is not the only way a scene gets a take — a keypress writes one. And
+footage can never be the master vocal: mode C is one performance of the song
+carried across every picture change, and footage is not a performance.
+
+**It answers the rights question the master answers.** A clip came from
+somewhere. A product that refuses to publish somebody else's SONG while
+publishing somebody else's PICTURE is not being careful, it is being
+inconsistent. `everythingMayBePublished` is `mayPublish` plus every piece of
+footage, written as "every one of them permits it" rather than "none forbids
+it", so an unrecognised class refuses. The gate is in `buildPerformancePlan`,
+where an exportable artefact is described — a check in an interface is one
+refactor away from not being in the path.
+
+**And it is matted against nothing.** A plate measures the room a PERFORMER
+stands in so they can be cut out of it. There is nobody to cut out of the sea,
+and handing footage the room's plate would let somebody composite a beach onto
+a beach, keyed against a measurement of their living room (INV-16).
+
+---
+
+**THE STAGE NOW SHOWS THE TAKES, WHICH IS WHAT IT IS FOR.** It had two faults
+at once. It drew posters rather than video, and it drew only the scene at the
+playhead — so a five-take performance showed one still frame. §7 describes
+directing: *"you could have multiple synchronized takes visible
+simultaneously... you choose which one is visible at each moment."* There are
+now two views. PROGRAM is what the viewer would see. ALL TAKES is the
+multiview: every take at once, numbered, on one clock, and clicking a monitor
+is pressing its number — the same function the key and the transport button
+call. It opens on the multiview whenever there is more than one take, because
+a single panel showing a scene you already made is not the view you need to
+make the next one. The monitor grid is squarest-first and deliberately NOT one
+of the layouts: a layout describes an export, and this describes a desk.
+Reusing `performance_quad` would mean a fifth take either vanished or silently
+changed the arrangement the author had chosen.
+
+**THE CHROMIUM GAP WAS THE PRODUCT'S, NOT THE CONTAINER'S.** The take
+mezzanine is H.264 in MP4, which Chromium built without proprietary codecs
+refuses outright. That was reported as an environment quirk and it was not:
+Studio One has made a VP9/WebM proxy for every response since U-39, and
+Studio Two was serving the mezzanine to five video elements. The worker now
+makes the same proxy for every take and `?kind=proxy` serves it, falling back
+to the mezzanine when there is none — with the content type set from what is
+actually being sent, never from what was asked for. Proved by making proxies
+for two existing takes and watching the multiview come up in pictures.
+
+**AND STUDIO ONE IS A PLACE.** It was called "a conversation rather than a
+place" in a list of honest gaps, and that was wrong — `/c/[id]` is the
+Conversation Studio, with the room people are invited into. The bar now reads
+Library / Studio One / Studio Two / Publish, Studio One pointing at the most
+recent conversation and saying so when there is none. The library gained a
+Performances list at the same time, which was a real gap: start a performance,
+lose the tab, lose the performance.
+
+**Three pickers, one shape.** Composition, Background and Effects were
+rectangles of whatever height their labels needed, which said three groups
+were three different things. They are squares now, and the arrangements carry
+short names on the tile with the layout's real label on its title — "One
+large, two small" set across five columns wraps to three lines of six-point
+type. Effects gained MONOCHROME, the one treatment that is a decision about
+the whole picture rather than a correction to it: a black-and-white verse
+against colour choruses is an edit, and cutting between the two is something a
+performance does.
+
+**A picker may not decide how tall the studio is.** Square tiles are taller
+than the rectangles they replaced, and the panel grew past the stage, pushed
+the timeline down and put the transport off the bottom of the screen. Both
+side columns now stretch to the row — whose height is the stage's, since the
+stage is the thing with a fixed 16:9 — and hold their contents in an
+absolutely positioned scroller. Arming the camera adds a preview and two
+fields to the left column and the timeline does not move.
+
+**What was taken out.** Two paragraphs of reassurance and one instruction. The
+headphones warning is the one sentence that decides whether a take is usable,
+so it moved onto the Record button's title, where it is read once before the
+first take instead of occupying a column that has a screen to fit into. The
+rail's compaction had also quietly dropped renaming and deleting a take; both
+are back, in the panel, where the chosen take is already being edited — and
+not on every row, because a delete button on every row of a list is the one
+you press by accident.
+
 ---
 
 *Appendix S ends. The brief above it is unedited.*

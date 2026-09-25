@@ -28,6 +28,7 @@ import { sha256 } from './ids.js';
 import {
   type Performance, type PerformanceSpan, type PerformanceTake, type PerformanceWindow,
   coversSpan, mayPublish, mayShowMasterPicture, plateFor, projectPerformance,
+  unpublishableFootage,
 } from './performance.js';
 import { overlapSplit, transitionFor } from './transitions.js';
 import { effectFor, matteFeather, matteThreshold, needsMatte } from './environment.js';
@@ -112,6 +113,25 @@ export function buildPerformancePlan(
     throw new PerformancePlanError(
       `"${performance.master.title}" is not marked as something you may publish. `
       + 'You can still export a private copy.');
+  }
+  /*
+   * And the footage, for the same reason at the same place.  [INV-15, S-29]
+   *
+   * A clip of the sea came from somewhere. Gating the song and not the
+   * picture would be a product that is careful about one kind of somebody
+   * else's work and not the other — and the gate is here, where an
+   * exportable artefact is described, rather than on a button, because a
+   * check in an interface is one refactor away from not being in the path.
+   */
+  if (!options.allowUnpublishable) {
+    const unnamed = unpublishableFootage(performance);
+    if (unnamed.length > 0) {
+      throw new PerformancePlanError(
+        `${unnamed.map((t) => `"${t.label}"`).join(', ')} `
+        + `${unnamed.length === 1 ? 'is footage that has' : 'are footage that have'} `
+        + 'not been marked as something you may publish. '
+        + 'You can still export a private copy.');
+    }
   }
 
   const exportProfileId = options.exportProfileId ?? 'youtube_16x9';
@@ -280,7 +300,8 @@ function withTransitions(
     for (const [side, takes] of [['leaving', shot.takes], ['arriving', next.takes]] as const) {
       for (const entry of takes) {
         const take = performance.takes.find((t) => t.id === entry.takeId);
-        if (!take || !coversSpan(take, fromSample, toSample)) {
+        if (!take || !coversSpan(take, fromSample, toSample,
+          performance.master.durationSamples)) {
           throw new PerformancePlanError(
             `the ${style.label.toLowerCase()} at ${where} needs "${entry.label}" on `
             + `screen either side of it, and the ${side} performance does not reach `
@@ -367,10 +388,20 @@ function performanceShot(
        * Converted to frames here, once, so the renderer never does clock
        * arithmetic — the plan is a complete description of the export.
        */
-      mediaInFrame: takeFrameAt(performance, take.id, span.fromSample),
+      /*
+       * Looping footage starts at its own beginning.  [§5, S-29]
+       *
+       * Asking where a scene at 1:30 sits inside a ten-second clip of waves
+       * gives a frame long past the end of the file. The clip is not on the
+       * song's clock at all — it is scenery, and scenery starts when you cut
+       * to it. So: zero, every time, which is also what makes two scenes on
+       * the same footage identical rather than mysteriously different.
+       */
+      mediaInFrame: take.loop ? 0 : takeFrameAt(performance, take.id, span.fromSample),
       label: take.label,
       ...(take.alignment.rateRatio !== 1 ? { rateRatio: take.alignment.rateRatio } : {}),
       ...(take.accent ? { accent: take.accent } : {}),
+      ...(take.loop ? { loop: true } : {}),
       /*
        * Resolved here, not named. A plan made against a look that is later
        * removed renders exactly as it did — and an unknown name renders

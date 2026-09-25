@@ -2,6 +2,7 @@ import {
   PerformanceEditError, addTake, setEnvironment,
 } from '../../../../../src/domain/performanceEdit.js';
 import type { AssetId, TakeId } from '../../../../../src/domain/document.js';
+import { MASTER_CLASSES } from '../../../../../src/domain/performance.js';
 import { newId } from '../../../../../src/domain/ids.js';
 import {
   auditPerformance, loadPerformance, mutatePerformance,
@@ -30,7 +31,19 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
   const body = await request.json().catch(() => ({})) as {
     label?: string;
     offsetSamples?: number;
-    method?: 'measured' | 'calibrated' | 'manual';
+    method?: 'measured' | 'calibrated' | 'manual' | 'unplaced';
+    /**
+     * Footage rather than a performance.  [§2, §5, S-29]
+     *
+     * Waves, birds, a city at night — something to cut to, which nobody
+     * performed and which is not on the song's clock.
+     */
+    kind?: 'performance' | 'footage';
+    /** Footage only: play it again until the scene is over. */
+    loop?: boolean;
+    /** Footage only: whose it is. Without one it may not be published. */
+    rights?: string;
+    rightsNote?: string;
     /** What the browser measured this device to add. [§10, S-3] */
     latencySamples?: number;
     environment?: { kind: string; spaceId?: string; assetId?: string };
@@ -65,10 +78,35 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
    * says otherwise, because plates are recorded in order and the latest one
    * is the light they are standing in now. [§4, S-6]
    */
-  const plate = body.plateAssetId
-    ? performance.plates.find((p) => p.assetId === body.plateAssetId)
-    : performance.plates[performance.plates.length - 1];
-  if (body.plateAssetId && !plate) return fail(400, 'no such plate');
+  const footage = body.kind === 'footage';
+  /*
+   * Footage is matted against nothing.  [§4, §5, INV-16, S-29]
+   *
+   * A plate is a measurement of the room a PERFORMER is standing in, so that
+   * they can be cut out of it. There is nobody to cut out of a clip of the
+   * sea, and handing it the room's plate would let it be given an
+   * environment — a beach composited onto a beach, keyed against a
+   * measurement of somebody's living room.
+   */
+  const plate = footage ? undefined
+    : body.plateAssetId
+      ? performance.plates.find((p) => p.assetId === body.plateAssetId)
+      : performance.plates[performance.plates.length - 1];
+  if (!footage && body.plateAssetId && !plate) return fail(400, 'no such plate');
+
+  /*
+   * The method is taken at its word.  [§10, S-3, S-29]
+   *
+   * It used to read "calibrated, or else measured", which turned every
+   * declared `manual` into a claim that a clock had measured it — the exact
+   * dishonesty §10 exists to prevent, on the one path (uploading) where
+   * nothing was measured at all. An upload declares `unplaced` and looks
+   * unplaced until the worker either hears the song in it or does not.
+   */
+  const method = body.method === 'calibrated' ? 'calibrated'
+    : body.method === 'manual' ? 'manual'
+      : body.method === 'unplaced' || footage ? 'unplaced'
+        : 'measured';
 
   try {
     await mutatePerformance(id, (draft) => {
@@ -81,10 +119,29 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
         // that was briefly invalid, which is a document that can be saved.
         environment: { kind: 'original' },
         ...(plate ? { plateAssetId: plate.assetId } : {}),
+        ...(footage ? {
+          kind: 'footage' as const,
+          /*
+           * Looping unless told otherwise. Stock scenery is seconds long and
+           * a chorus is not; the default that leaves a panel black two thirds
+           * of the way through is not a default, it is a trap.
+           */
+          loop: body.loop !== false,
+          ...(typeof body.rights === 'string' && MASTER_CLASSES.includes(
+            body.rights as never) ? { rights: body.rights as never } : {}),
+          ...(typeof body.rightsNote === 'string' && body.rightsNote.trim()
+            ? { rightsNote: body.rightsNote.trim().slice(0, 300) } : {}),
+          /*
+           * Silent as far as this record is concerned, before a single byte
+           * has arrived. The measurement that runs when the media lands says
+           * whether there IS sound on it; this says it is not ours to use.
+           */
+          hasAudio: false,
+        } : {}),
         alignment: {
           offsetSamples,
           rateRatio: 1,
-          method: body.method === 'calibrated' ? 'calibrated' : 'measured',
+          method,
           ...(Number.isFinite(body.latencySamples) && Number(body.latencySamples) > 0
             ? { latencySamples: Math.round(Number(body.latencySamples)) }
             : {}),
@@ -93,7 +150,7 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
         durationSamples: 0,
         createdAt: new Date().toISOString(),
       });
-      if (body.environment && body.environment.kind !== 'original') {
+      if (!footage && body.environment && body.environment.kind !== 'original') {
         setEnvironment(draft, takeId, body.environment as never);
       }
     });
@@ -103,7 +160,9 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
   }
 
   await auditPerformance(id, {
-    action: 'take.started', detail: { takeId, assetId, label, offsetSamples },
+    action: footage ? 'footage.started' : 'take.started',
+    detail: { takeId, assetId, label, offsetSamples, method },
   });
-  return json({ takeId, assetId, label, offsetSamples }, { status: 201 });
+  return json({ takeId, assetId, label, offsetSamples, method,
+    ...(footage ? { kind: 'footage' } : {}) }, { status: 201 });
 }

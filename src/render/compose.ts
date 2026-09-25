@@ -267,7 +267,18 @@ async function renderPerformanceShot(
      * shot's length would run the input out before the end. [§10, S-3]
      */
     const ratio = take.rateRatio ?? 1;
+    /*
+     * FOOTAGE PLAYS AGAIN.  [§5, S-29]
+     *
+     * `-stream_loop -1` before the input, bounded by the `-t` that follows
+     * it: infinite in the demuxer, finite in the graph. It goes BEFORE `-i`
+     * because it is an input option. The plan gives looping footage an IN
+     * point of zero, so there is no interaction between the seek and the
+     * loop to reason about: it plays from the top, round and round, until
+     * `-t` runs out.
+     */
     inputs.push(
+      ...(take.loop ? ['-stream_loop', '-1'] : []),
       '-accurate_seek', '-ss', frameSeconds(take.mediaInFrame, fps),
       '-t', ((total / fps) * Math.max(1, ratio) + 0.2).toFixed(6),
       '-i', resolveAsset(take.assetId),

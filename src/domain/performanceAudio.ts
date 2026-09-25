@@ -211,6 +211,20 @@ export function audioTakes(pieces: AudioPiece[]): AssetId[] {
  * recording rather than an assumption about the author's microphone.
  */
 function audible(take: PerformanceTake): boolean {
+  /*
+   * FOOTAGE IS NEVER HEARD.  [§9, S-29]
+   *
+   * A clip of the sea has surf on it, a clip of birds has birds, and a clip
+   * of a stadium has a crowd cheering a different song. Mode B says "the
+   * audio captured with the selected video take" and means the performer's
+   * microphone; taking it to mean the seagulls would put them over the
+   * chorus the first time anybody cut to a beach, with no control saying it
+   * had happened.
+   *
+   * Refused here rather than at the picker, because the picker is not the
+   * only way a scene gets a take — live switching writes one on a keypress.
+   */
+  if (take.kind === 'footage') return false;
   return take.hasAudio !== false;
 }
 
@@ -219,7 +233,7 @@ function clip(
   take: PerformanceTake, from: Samples, to: Samples,
   emit: (from: Samples, to: Samples) => void,
 ): void {
-  const own = coverage(take);
+  const own = coverage(take);  // no song length: footage is silent anyway
   const start = Math.max(from, own.fromSample);
   const end = Math.min(to, own.toSample);
   if (end > start) emit(start, end);

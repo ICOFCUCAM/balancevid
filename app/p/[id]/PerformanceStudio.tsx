@@ -51,7 +51,9 @@ const CLASS_LABELS: Record<string, { label: string; hint: string }> = {
   },
 };
 
-export default function PerformanceStudio({ initial }: { initial: Performance }) {
+export default function PerformanceStudio(
+  { initial, studioOneId }: { initial: Performance; studioOneId?: string },
+) {
   const [performance, setPerformance] = useState(initial);
   const [notice, setNotice] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
@@ -184,23 +186,34 @@ export default function PerformanceStudio({ initial }: { initial: Performance })
           </div>
         </div>
         {/*
-          * THE PLACES THERE ARE.  [§1]
+          * THE PLACES THERE ARE.  [§1, §13]
           *
-          * The benchmark's bar reads Conversations / Studio One / Studio Two
-          * / Library / Publish. Two of those have nowhere to go: there is no
-          * library page, and Studio One is a particular conversation rather
-          * than a place — you reach one from the list. A tab that goes
-          * nowhere is a menu that lies, which is the same rule that keeps
-          * unmeasured spaces out of the environment picker (INV-16).
-          *
-          * So: where you came from, where you are, and the one thing at the
-          * end of this studio that the bar can actually take you to.
+          * Library is the page that lists what you have made — conversations
+          * AND performances, since it started listing both. Studio One is
+          * /c/[id], where a source is answered and people are invited into
+          * the room; it is a real place, so the tab points at the most recent
+          * conversation, and when there is none it says so rather than
+          * offering a door onto nothing. A tab that goes nowhere is a menu
+          * that lies — the rule that keeps unmeasured spaces out of the
+          * environment picker (INV-16).
           */}
         <nav className="row" data-testid="studio-nav"
              style={{ gap: 4, flexWrap: 'nowrap' }}>
           <a className="btn small" href="/" style={{ padding: '6px 12px' }}>
-            Conversations
+            Library
           </a>
+          {studioOneId ? (
+            <a className="btn small" href={`/c/${studioOneId}`}
+               data-testid="to-studio-one" style={{ padding: '6px 12px' }}>
+              Studio One
+            </a>
+          ) : (
+            <span className="btn small" data-testid="to-studio-one"
+                  title="No conversations yet — start one from the library"
+                  style={{ padding: '6px 12px', opacity: 0.45, cursor: 'default' }}>
+              Studio One
+            </span>
+          )}
           <span className="btn small" aria-current="page" style={{
             padding: '6px 12px', cursor: 'default',
             borderColor: '#3d7fd6', background: 'rgba(45,110,200,0.18)',
@@ -299,11 +312,23 @@ export default function PerformanceStudio({ initial }: { initial: Performance })
                       );
                     }
                     const placed = take.alignment.method !== 'unplaced';
-                    const where = take.environment.kind === 'space'
-                      ? SPACES.find((sp) => sp.id === take.environment.spaceId)?.label
-                        ?? 'a space'
-                      : take.environment.kind === 'blur' ? 'Blurred'
-                        : 'Original';
+                    /*
+                     * A row says what its take IS.  [§2, §5, S-29]
+                     *
+                     * For a performance that is where it looks like it was
+                     * shot. For footage it is neither a room nor a space —
+                     * there is nobody in it to put anywhere — so it says the
+                     * one thing that governs how it behaves: whether it
+                     * repeats to fill whatever it is cut into.
+                     */
+                    const footage = take.kind === 'footage';
+                    const where = footage
+                      ? (take.loop ? 'Footage · loops' : 'Footage')
+                      : take.environment.kind === 'space'
+                        ? SPACES.find((sp) => sp.id === take.environment.spaceId)?.label
+                          ?? 'a space'
+                        : take.environment.kind === 'blur' ? 'Blurred'
+                          : 'Original';
                     /*
                      * The number is the KEY, so it is the position among the
                      * takes that can actually go on screen — not the position
@@ -367,7 +392,7 @@ export default function PerformanceStudio({ initial }: { initial: Performance })
                           }}>{take.label}</span>
                           <span className="small muted"
                                 style={{ fontSize: 11, display: 'block' }}>
-                            {placed ? where : 'not placed yet'}
+                            {footage || placed ? where : 'not placed yet'}
                           </span>
                         </span>
                         <span className="small muted" style={{
@@ -414,13 +439,28 @@ export default function PerformanceStudio({ initial }: { initial: Performance })
                     * from a file. Stacked they read as a step and an
                     * afterthought. [§2, §10]
                     */
-                  <div style={{ display: 'flex', gap: 6, alignItems: 'stretch' }}>
+                  /*
+                    * THREE WAYS TO FILL A SLOT, and they are one decision:
+                    * where this picture comes from. Perform it now, bring a
+                    * film of somebody performing it, or bring something that
+                    * is not a performance at all — the sea, birds, a city.
+                    * [§2, §5, §10, S-29]
+                    *
+                    * The instruction about headphones lives on the Record
+                    * button rather than under it. It is the one sentence that
+                    * decides whether a take is usable, and it is read once,
+                    * before the first take — after that it is a line in a
+                    * column that has a screen to fit into.
+                    */
+                  <div style={{ display: 'flex', gap: 5, alignItems: 'stretch' }}>
                     <button className="primary" data-testid="arm" disabled={!ready}
-                            title={'Opens the camera and loads the song into '
-                              + 'your headphones, ready to record.'}
+                            title={'Opens the camera and loads the song into your '
+                              + 'headphones. Wear them — a song out loud goes into '
+                              + 'the microphone with your voice, and the video then '
+                              + 'carries it twice.'}
                             onClick={() => void recording.arm()}
-                            style={{ flex: '1 1 0', minWidth: 0, padding: '7px 8px' }}>
-                      {ready ? 'Record a take' : 'Preparing…'}
+                            style={{ flex: '1 1 0', minWidth: 0, padding: '7px 6px' }}>
+                      {ready ? 'Record' : 'Preparing…'}
                     </button>
                     <UploadTake
                       compact
@@ -430,6 +470,11 @@ export default function PerformanceStudio({ initial }: { initial: Performance })
                         ...(environment.startsWith('space:')
                           ? { spaceId: environment.slice(6) } : {}),
                       }}
+                      onFinished={(jobId) => { void watchJob(jobId); }}
+                    />
+                    <UploadTake
+                      compact footage
+                      performanceId={performance.id}
                       onFinished={(jobId) => { void watchJob(jobId); }}
                     />
                   </div>
@@ -447,6 +492,8 @@ export default function PerformanceStudio({ initial }: { initial: Performance })
                     <div className="field" style={{ maxWidth: '100%' }}>
                       <label htmlFor="take-space">Where it should look like</label>
                       <select id="take-space" data-testid="take-environment" value={environment}
+                              title={'Stored with the take, not burned into it — change '
+                                + 'it afterwards without singing the song again.'}
                               onChange={(e) => setEnvironment(e.target.value)}>
                         <option value="original">The room you are in</option>
                         {/* Anything else needs a plate, and a menu that offers
@@ -456,13 +503,16 @@ export default function PerformanceStudio({ initial }: { initial: Performance })
                           <option key={s.id} value={s.id}>{s.label}</option>
                         ))}
                       </select>
-                      <span className="small muted" style={{ fontSize: 11 }}>
-                        {measured
-                          /* The recording is kept whatever this says. [§4, S-6] */
-                          ? 'Stored with the take, not burned into it — you can change '
-                            + 'it afterwards without singing the song again.'
-                          : 'Measure your room below to put yourself anywhere else.'}
-                      </span>
+                      {/* Only the sentence that changes what they can DO. The
+                          reassurance that none of this is baked into the
+                          recording lives on the select itself — read once by
+                          whoever wonders, and not a paragraph in a column
+                          that has a screen to fit into. [§4, S-6] */}
+                      {!measured && (
+                        <span className="small muted" style={{ fontSize: 11 }}>
+                          Measure your room in Set up to stand anywhere else.
+                        </span>
+                      )}
                     </div>
                     <button
                       className="primary" data-testid="start-take"
@@ -508,12 +558,6 @@ export default function PerformanceStudio({ initial }: { initial: Performance })
               </div>
             </div>
                   </section>
-                {/* The one line that decides whether a take is usable: a song
-                    playing out loud is recorded twice. [§9, S-7] */}
-                <p className="small muted" style={{ margin: '6px 0 0', fontSize: 11 }}>
-                  Wear headphones — a song out loud goes into the microphone with
-                  your voice.
-                </p>
               </div>
             </div>
           )}

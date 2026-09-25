@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { isRespondable, orderedInterventions } from '../src/domain/document.js';
 import { listConversations, loadConversation } from '../src/store/repository.js';
+import { listPerformances } from '../src/store/performances.js';
+import { formatMasterPosition } from '../src/domain/time.js';
 import { formatTimecode } from '../src/domain/time.js';
 import StartConversation from './StartConversation.js';
 import StartPerformance from './StartPerformance.js';
@@ -20,6 +22,15 @@ export const dynamic = 'force-dynamic';
 export default async function Home() {
   const summaries = await listConversations();
   const respondable = summaries.filter(isRespondable);
+  /*
+   * The other studio's work, listed.  [STUDIO-TWO §13]
+   *
+   * It was not, and there was no other way back to a performance: start one,
+   * lose the tab, lose the performance. A library that lists half of what you
+   * have made is a library that teaches you to keep your own bookmarks.
+   */
+  const performances = (await listPerformances().catch(() => []))
+    .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
 
   // One still per conversation, so the library is recognisable rather than
   // a column of titles. Read from the document; absent ones simply have none.
@@ -92,6 +103,63 @@ export default async function Home() {
               </div>
             </Link>
           ))}
+
+          {/* ---- the other studio's work ----------------------------- */}
+          {performances.length > 0 && (
+            <div data-testid="performance-library" style={{ marginTop: 22 }}>
+              <div className="row" style={{ marginBottom: 2 }}>
+                <strong className="grow">Performances</strong>
+                <span className="small muted">{performances.length}</span>
+              </div>
+              <p className="small muted" style={{ marginTop: 0 }}>
+                One song, many takes
+              </p>
+              {performances.map((performance) => {
+                const usable = performance.takes.filter((t) => t.durationSamples > 0);
+                const poster = usable[0]
+                  ? `/api/performances/${performance.id}/takes/${usable[0].id}`
+                    + '/media?kind=poster'
+                  : null;
+                return (
+                  <Link key={performance.id} href={`/p/${performance.id}`}
+                        style={{ textDecoration: 'none', color: 'inherit' }}>
+                    <div className="panel" data-testid="performance-card"
+                         style={{ marginBottom: 8, padding: 10, display: 'flex', gap: 12 }}>
+                      <div style={{
+                        width: 76, height: 44, borderRadius: 5, overflow: 'hidden',
+                        flex: '0 0 auto', background: '#0d1319',
+                        border: '1px solid var(--line)', display: 'grid',
+                        placeItems: 'center',
+                        ...(poster ? {
+                          backgroundImage: `url(${poster})`,
+                          backgroundSize: 'cover', backgroundPosition: 'center',
+                        } : {}),
+                      }}>
+                        {!poster && <span className="small muted"
+                                          style={{ fontSize: 10 }}>&mdash;</span>}
+                      </div>
+                      <div className="grow" style={{ minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, whiteSpace: 'nowrap',
+                          overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {performance.title}
+                        </div>
+                        <div className="small muted">
+                          {performance.takes.length}
+                          {performance.takes.length === 1 ? ' take' : ' takes'}
+                          {performance.master.durationSamples > 0
+                            ? ` · ${formatMasterPosition(
+                              performance.master.durationSamples).slice(0, 5)}`
+                            : ' · preparing'}
+                          {performance.publication && !performance.publication.unpublishedAt
+                            && ' · published'}
+                        </div>
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
         </section>
 
         {/* ---- or start something ------------------------------------- */}

@@ -34,7 +34,7 @@ import { useRef, useState } from 'react';
 const CHUNK_BYTES = 4 * 1024 * 1024;
 
 export default function UploadTake({
-  performanceId, environment, plateAssetId, onFinished, disabled, compact,
+  performanceId, environment, plateAssetId, onFinished, disabled, compact, footage,
 }: {
   performanceId: string;
   /** Whatever the studio currently has selected, same as a recorded take. */
@@ -42,6 +42,18 @@ export default function UploadTake({
   plateAssetId?: string;
   onFinished: (jobId: string) => void;
   disabled?: boolean;
+  /**
+   * Footage rather than a performance.  [§2, §5, S-29]
+   *
+   * "Sometimes we would upload videos of the waves in the sea, birds moving
+   *  and animals running to add with the music."
+   *
+   * Same path, same chunks, same assembler — what changes is what the
+   * document is told it has received. Footage is declared `unplaced` with no
+   * environment and no plate: there is nobody in it to cut out of a room, and
+   * there is nothing in it that was performed against the song.
+   */
+  footage?: boolean;
   /**
    * In the takes rail, beside Record, where there is room for a button and
    * not for a paragraph. What the paragraph said moves to the button's own
@@ -68,10 +80,18 @@ export default function UploadTake({
       const declared = await fetch(`/api/performances/${performanceId}/takes`, {
         method: 'POST', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          label: file.name.replace(/\.[^.]+$/, '').slice(0, 60) || 'Uploaded take',
-          method: 'manual',
-          ...(environment ? { environment } : {}),
-          ...(plateAssetId ? { plateAssetId } : {}),
+          label: file.name.replace(/\.[^.]+$/, '').slice(0, 60)
+            || (footage ? 'Footage' : 'Uploaded take'),
+          /*
+           * `unplaced`, not `manual`. Nobody placed it — it landed at zero
+           * because something had to, and zero is not a measurement. The
+           * worker then listens for the song in it, and either finds it or
+           * says it did not. [§10, S-3]
+           */
+          method: 'unplaced',
+          ...(footage ? { kind: 'footage' } : {}),
+          ...(footage || !environment ? {} : { environment }),
+          ...(footage || !plateAssetId ? {} : { plateAssetId }),
         }),
       });
       const takeBody = await declared.json().catch(() => ({}));
@@ -112,17 +132,21 @@ export default function UploadTake({
     }
   };
 
-  const explain = 'Filmed elsewhere? If the song was playing while you filmed, '
-    + 'it will be heard in the recording and lined up for you.';
+  const explain = footage
+    ? 'Waves, birds, a city at night — anything to cut to. It loops to fill '
+      + 'whatever part of the song you put it on, and its own sound is not used.'
+    : 'Filmed elsewhere? If the song was playing while you filmed, '
+      + 'it will be heard in the recording and lined up for you.';
 
   return (
-    <div data-testid="upload-take" style={compact ? { flex: '1 1 0', minWidth: 0 }
+    <div data-testid={footage ? 'add-footage' : 'upload-take'}
+      style={compact ? { flex: '1 1 0', minWidth: 0 }
       : { marginTop: 6 }}>
       <input
         ref={input}
         type="file"
         accept="video/*"
-        data-testid="upload-take-input"
+        data-testid={footage ? 'add-footage-input' : 'upload-take-input'}
         style={{ display: 'none' }}
         onChange={(event) => {
           const file = event.target.files?.[0];
@@ -131,13 +155,13 @@ export default function UploadTake({
       />
       <button
         className="small"
-        data-testid="upload-take-button"
+        data-testid={footage ? 'add-footage-button' : 'upload-take-button'}
         disabled={busy || disabled}
         title={explain}
         onClick={() => input.current?.click()}
         style={{ width: '100%', ...(compact ? { padding: '7px 8px' } : {}) }}
       >
-        {busy ? `Uploading… ${sent}%` : 'Upload a take'}
+        {busy ? `Uploading… ${sent}%` : footage ? 'Add footage' : 'Upload a take'}
       </button>
       {!compact && (
         <p className="small muted" style={{ fontSize: 11, margin: '4px 0 0' }}>
