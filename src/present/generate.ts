@@ -24,7 +24,7 @@
  */
 
 import {
-  type Conversation, type Intervention, orderedInterventions, selectedTake,
+  type Conversation, type Intervention, acceptedInterventions, selectedTake,
   takeUsableFrames,
 } from '../domain/document.js';
 import { TYPE_PRESENTATION } from '../domain/presentation.js';
@@ -149,7 +149,7 @@ export function generatePresentation(inputs: PresentationInputs): Presentation {
    * lecture, and the one place this must agree with the author is where the
    * source stops.
    */
-  const stops = orderedInterventions(conversation).map((intervention, position) =>
+  const stops = acceptedInterventions(conversation).map((intervention, position) =>
     stopFor(intervention, position + 1, sourceTranscript, takeTranscripts, conversation.id));
 
   const recordedSeconds = stops.reduce(

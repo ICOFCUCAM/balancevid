@@ -374,6 +374,26 @@ export interface Intervention {
    * screen, a three-person cut — without asking anyone to say it again.
    */
   participantId?: ParticipantId;
+  /**
+   * How this response came to be in the conversation.  [D-17, D-03]
+   *
+   * ABSENT MEANS THE OWNER PUT IT THERE, which is every response in every
+   * conversation today and every one an author records themselves. It is not
+   * migrated onto them: a field that says "accepted" on a response nobody
+   * ever submitted is a record of a decision that was never made.
+   *
+   * Present, it names somebody who offered a response to a conversation that
+   * is not theirs, and whether the owner has taken it. This exists now, unused
+   * by any route, because the alternative is worse: with acceptance implicit,
+   * every query in the system means "everything", and the day a response can
+   * be submitted is the day all of them silently start including responses
+   * nobody agreed to publish. That is the expensive rewrite this clause is
+   * meant to prevent, and it costs one optional field to avoid. [D-17]
+   *
+   * The conversation belongs to whoever opened it. A submitted response is an
+   * offer, not a contribution, until they say so.
+   */
+  submission?: Submission;
   note?: string;
   /** [§44] Attached evidence, in the order the author added it. */
   evidence?: Evidence[];
@@ -680,9 +700,53 @@ export function hasSeveralVoices(conversation: Conversation): boolean {
   return speakingParticipants(conversation).length > 1;
 }
 
+/**
+ * An offer of a response to somebody else's conversation.  [D-17, D-03]
+ */
+export interface Submission {
+  by: ParticipantId;
+  at: string;
+  /**
+   * `pending`  offered, and the owner has not decided
+   * `accepted` part of the conversation, and of every export of it
+   * `declined` kept, and in nothing — a declined response is not deleted,
+   *            because the person who recorded it should be able to see what
+   *            happened to it, and because deleting somebody's work on their
+   *            behalf is not a thing this product does
+   */
+  state: 'pending' | 'accepted' | 'declined';
+  decidedAt?: string;
+}
+
+/**
+ * Is this response part of the conversation?
+ *
+ * True unless somebody submitted it and the owner has not taken it. Asked in
+ * one place so that "everything" and "everything that was agreed to" cannot
+ * quietly become the same query. [D-17]
+ */
+export function isAccepted(intervention: Intervention): boolean {
+  const submission = intervention.submission;
+  return !submission || submission.state === 'accepted';
+}
+
+/**
+ * Everything the owner has agreed to, in source order.
+ *
+ * What every EXPORT is made of. `orderedInterventions` keeps everything,
+ * because the studio has to show an author the offers they have not answered
+ * yet — the distinction between the two is the whole point of the field.
+ */
+export function acceptedInterventions(conversation: Conversation): Intervention[] {
+  return orderedInterventions(conversation).filter(isAccepted);
+}
+
 /** Only interventions with a usable selected take reach a render. */
 export function renderableInterventions(conversation: Conversation): Intervention[] {
-  return orderedInterventions(conversation).filter((ivn) => {
+  // Accepted, not merely present: a response nobody agreed to must not reach
+  // a render, and putting the filter here means every export inherits it
+  // rather than each one remembering. [D-17]
+  return acceptedInterventions(conversation).filter((ivn) => {
     const take = selectedTake(ivn);
     return take !== null && takeUsableFrames(take) > 0;
   });

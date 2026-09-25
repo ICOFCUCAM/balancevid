@@ -14,7 +14,7 @@
  */
 
 import type { Conversation, Intervention } from '../domain/document.js';
-import { orderedInterventions, selectedTake, takeUsableFrames } from '../domain/document.js';
+import { acceptedInterventions, selectedTake, takeUsableFrames } from '../domain/document.js';
 import { TYPE_PRESENTATION } from '../domain/presentation.js';
 import { HOUSE_FPS, formatTimecode, type Frames } from '../domain/time.js';
 import { projectTimeline, type Timeline } from '../domain/timeline.js';
@@ -98,7 +98,7 @@ export interface BundleInputs {
 export function buildBundle(inputs: BundleInputs): PublicationBundle {
   const { conversation, sourceTranscript, generatedAt, attribution } = inputs;
   const timeline = inputs.timeline ?? projectTimeline(conversation);
-  const byId = new Map(orderedInterventions(conversation).map((i) => [i.id, i]));
+  const byId = new Map(acceptedInterventions(conversation).map((i) => [i.id, i]));
 
   const { chapters, note } = buildChapters(timeline, byId, conversation, sourceTranscript);
   const suggestedTitles = suggestTitles(conversation, sourceTranscript);
@@ -176,7 +176,7 @@ export function conversationChapters(
 ): Chapter[] {
   return mergedChapters(
     timeline ?? projectTimeline(conversation),
-    new Map(orderedInterventions(conversation).map((i) => [i.id, i])),
+    new Map(acceptedInterventions(conversation).map((i) => [i.id, i])),
     conversation,
     sourceTranscript,
   );
@@ -250,7 +250,7 @@ function suggestTitles(conversation: Conversation, transcript?: Transcript | nul
   const titles: string[] = [];
   const source = conversation.source.title;
 
-  for (const intervention of orderedInterventions(conversation)) {
+  for (const intervention of acceptedInterventions(conversation)) {
     const claim = claimFor(intervention, transcript);
     if (!claim) continue;
     const label = TYPE_PRESENTATION[intervention.type].lowerThird.toLocaleLowerCase();
@@ -299,7 +299,7 @@ function thumbnailCandidates(
   conversation: Conversation, transcript?: Transcript | null,
 ): ThumbnailCandidate[] {
   const candidates: ThumbnailCandidate[] = [];
-  for (const intervention of orderedInterventions(conversation)) {
+  for (const intervention of acceptedInterventions(conversation)) {
     candidates.push({
       id: `frame_${intervention.id}`,
       kind: 'frame',

@@ -4270,6 +4270,63 @@ layouts, export profiles, the publication system — is shared.
 
 ---
 
+## D-17 · Participation
+
+Added to the doctrine as written by the product's author, because the sentence
+below is the architectural decision and paraphrasing it would soften it:
+
+> **A Conversation may contain one or many participants. Every intervention
+> belongs to a participant. Participants may respond synchronously or
+> asynchronously. The conversation owner controls participation and
+> publication permissions. The canonical Conversation Record preserves speaker
+> identity, response order, source binding, and provenance for every
+> intervention.**
+
+**What this forbids.** Modelling the Conversation as belonging to a single
+speaker, with other people bolted on later as a second kind of thing. The
+shape is `Conversation → Participants → Interventions`, and the single-author
+experience is that shape with one participant in it — not a different shape
+that a multi-person one would have to be migrated out of. There is no
+"multi-person conversation"; there is a conversation, and sometimes more than
+one person is in it.
+
+**What follows mechanically.**
+
+*Every intervention belongs to a participant.* Asking whose a response is
+always returns somebody. Where the document stores no participant the answer
+is the author, resolved at the point of asking rather than migrated into
+every existing file — an implicit default is a value no surface can render,
+and making it explicit on the way out costs nothing.
+
+*Response order is one order.* Responses are numbered over the whole argument,
+not per person, because an argument has one sequence. Derived from source
+order (U-08), never stored: a stored number disagrees with the timeline the
+first time somebody moves an anchor.
+
+*Speaker identity reaches every representation.* The timeline projection
+carries who and which; the render carries the name and that person's colour;
+the caption sidecars carry the name always, and the burned-in captions carry
+it where naming distinguishes. A representation that cannot say who spoke is
+not a representation of a conversation.
+
+*The owner controls participation and publication.* Capabilities are granted
+per participant — respond, edit own, edit conversation, invite, publish — and
+they NARROW what the transport layer already permits rather than widening it.
+Publishing is in nobody's defaults but the host's: it is the one act that
+cannot be taken back.
+
+**Where this is going, and what is already true.** One person answering a
+video; two; several discussing it; an open call for responses to a claim. The
+last of those is not built — there is no way for somebody to submit a response
+to a conversation that is not theirs, and no moderation for it if there were.
+But the SHAPE is already true: several responses to the same claim compose
+into `source → answer → answer → answer → source`, each attributed to its own
+speaker in its own colour, frame-exact, with no special case anywhere. That is
+the test of whether this clause has been honoured, and it is asserted in
+`test/domain/participation.test.ts` rather than promised here.
+
+---
+
 ## D-16 · The Representation Rule, Applied
 
 `INV-00` (Part 0) is the master invariant. This section is how it is enforced

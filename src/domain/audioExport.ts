@@ -24,7 +24,7 @@
  */
 
 import type { Conversation, Intervention } from './document.js';
-import { orderedInterventions, selectedTake, takeUsableFrames } from './document.js';
+import { acceptedInterventions, selectedTake, takeUsableFrames } from './document.js';
 import { HOUSE_FPS, type Frames } from './time.js';
 
 /**
@@ -107,7 +107,7 @@ export interface ListeningCost {
  * nothing at all by being heard rather than watched.
  */
 export function listeningCost(conversation: Conversation): ListeningCost {
-  const responses = orderedInterventions(conversation).filter((intervention) => {
+  const responses = acceptedInterventions(conversation).filter((intervention) => {
     const take = selectedTake(intervention);
     return take && takeUsableFrames(take) > 0;
   });

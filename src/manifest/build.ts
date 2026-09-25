@@ -17,7 +17,7 @@
  */
 
 import type { Conversation } from '../domain/document.js';
-import { isRespondable, orderedInterventions, selectedTake } from '../domain/document.js';
+import { isRespondable, acceptedInterventions, selectedTake } from '../domain/document.js';
 import { TYPE_PRESENTATION } from '../domain/presentation.js';
 import type { ProviderId } from '../domain/providers.js';
 import { chainAttribution } from '../domain/publish.js';
@@ -103,7 +103,7 @@ export interface ManifestInputs {
 export function buildManifest(inputs: ManifestInputs): ConversationManifest {
   const { conversation, generatedAt } = inputs;
   const timeline = inputs.timeline ?? projectTimeline(conversation);
-  const byId = new Map(orderedInterventions(conversation).map((i) => [i.id, i]));
+  const byId = new Map(acceptedInterventions(conversation).map((i) => [i.id, i]));
 
   const segments: ManifestSegment[] = timeline.items.map((item): ManifestSegment => {
     if (item.kind === 'source') {

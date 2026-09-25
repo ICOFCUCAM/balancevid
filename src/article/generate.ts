@@ -13,7 +13,7 @@
  */
 
 import type { Conversation, Take } from '../domain/document.js';
-import { orderedInterventions, selectedTake } from '../domain/document.js';
+import { acceptedInterventions, selectedTake } from '../domain/document.js';
 import { TYPE_PRESENTATION } from '../domain/presentation.js';
 import { formatTimecode, type Frames } from '../domain/time.js';
 import { chainAttribution } from '../domain/publish.js';
@@ -44,7 +44,7 @@ export function generateArticle(inputs: ArticleInputs): Article {
     if (item.kind === 'response') outputStarts.set(item.interventionId, item.outputStartFrame);
   }
 
-  const exchanges: ArticleExchange[] = orderedInterventions(conversation).map((ivn, index) => {
+  const exchanges: ArticleExchange[] = acceptedInterventions(conversation).map((ivn, index) => {
     const take = selectedTake(ivn);
     const presentation = TYPE_PRESENTATION[ivn.type];
     const outputStartFrame = outputStarts.get(ivn.id);

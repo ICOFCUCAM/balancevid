@@ -86,6 +86,12 @@ export function searchConversation(query: string, inputs: SearchInputs): Convers
     }
   }
 
+  /*
+   * EVERYTHING, including a response the owner has not accepted yet. Search
+   * is how an author finds things in their own conversation, and an offer
+   * they have been sent is exactly the thing they need to find. Exports
+   * filter; the studio does not. [D-17]
+   */
   for (const intervention of orderedInterventions(conversation)) {
     const at = intervention.anchor.tSourceFrame;
 

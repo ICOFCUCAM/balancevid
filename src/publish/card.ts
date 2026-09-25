@@ -37,7 +37,7 @@
  */
 
 import {
-  type Conversation, orderedInterventions, selectedTake, takeUsableFrames,
+  type Conversation, acceptedInterventions, selectedTake, takeUsableFrames,
 } from '../domain/document.js';
 import { formatTimecode, type Frames } from '../domain/time.js';
 
@@ -93,7 +93,7 @@ export interface ShareCardInputs {
 export function buildShareCard(inputs: ShareCardInputs): ShareCard {
   const { conversation, attribution } = inputs;
   const source = conversation.source;
-  const responses = orderedInterventions(conversation)
+  const responses = acceptedInterventions(conversation)
     .filter((intervention) => {
       const take = selectedTake(intervention);
       return take && takeUsableFrames(take) > 0;

@@ -36,7 +36,7 @@
  */
 
 import {
-  type Conversation, type Intervention, orderedInterventions, selectedTake,
+  type Conversation, type Intervention, acceptedInterventions, selectedTake,
   takeUsableFrames, type Take,
 } from '../domain/document.js';
 import { TYPE_PRESENTATION } from '../domain/presentation.js';
@@ -107,7 +107,7 @@ export function buildClaimCards(inputs: ClaimCardInputs): ClaimCard[] {
   const { conversation, attribution, takeTranscripts } = inputs;
   const source = conversation.source;
 
-  const answered = orderedInterventions(conversation).filter((intervention) => {
+  const answered = acceptedInterventions(conversation).filter((intervention) => {
     const take = selectedTake(intervention);
     return take && takeUsableFrames(take) > 0;
   });

@@ -20,7 +20,7 @@
 import {
   CARD_SECONDS, MAX_CARD_SECONDS, MAX_HOOK_LENGTH, MIN_CARD_SECONDS,
   type Conversation, type Intervention, type OpeningOrder,
-  orderedInterventions, participantFor, responseNumbers, selectedTake, takeUsableFrames,
+  acceptedInterventions, participantFor, responseNumbers, selectedTake, takeUsableFrames,
 } from './document.js';
 import { planFromTimeline, type PlanOptions, type RenderPlan } from './plan.js';
 import { TYPE_PRESENTATION } from './presentation.js';
@@ -173,7 +173,9 @@ export interface ClipCandidate {
 export function clipCandidates(
   conversation: Conversation, transcript?: Transcript | null,
 ): ClipCandidate[] {
-  return orderedInterventions(conversation).map((intervention, index) => {
+  // Accepted only: a clip is an export, and a response the owner has not
+  // taken must not be offered as one to publish. [D-17]
+  return acceptedInterventions(conversation).map((intervention, index) => {
     const take = selectedTake(intervention);
     const responseFrames = take ? takeUsableFrames(take) : 0;
     const opening = openingFor(conversation, intervention, transcript);
