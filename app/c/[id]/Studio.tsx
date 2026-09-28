@@ -1017,7 +1017,7 @@ export default function Studio({ conversationId }: { conversationId: string }) {
           <button role="tab" data-testid="mode-live"
                   aria-selected={mode === 'live'} className={mode === 'live' ? 'selected' : undefined}
                   onClick={() => setMode('live')}
-                  style={{ borderRadius: '8px 0 0 8px', padding: '7px 14px' }}>
+                  style={{ borderRadius: '3px 0 0 3px', padding: '7px 14px' }}>
             Live
           </button>
           <button role="tab" data-testid="mode-studio"
@@ -1029,7 +1029,7 @@ export default function Studio({ conversationId }: { conversationId: string }) {
           <button role="tab" data-testid="mode-publish"
                   aria-selected={mode === 'publish'} className={mode === 'publish' ? 'selected' : undefined}
                   onClick={() => setMode('publish')}
-                  style={{ borderRadius: '0 8px 8px 0', padding: '7px 14px' }}>
+                  style={{ borderRadius: '0 3px 3px 0', padding: '7px 14px' }}>
             Publish
           </button>
         </div>

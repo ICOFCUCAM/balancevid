@@ -1029,7 +1029,7 @@ export default function SwitchingStage({
       <div data-testid="performance-timeline" style={{
         gridArea: 'timeline',
         border: 'var(--border) solid var(--line)',
-        borderRadius: 'var(--radius-lg)',
+        borderRadius: 'var(--radius-module)',
         background: 'var(--ink-850)', overflow: 'hidden',
         boxShadow: 'var(--elev-1)',
       }}>

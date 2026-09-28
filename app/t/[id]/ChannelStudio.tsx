@@ -633,7 +633,7 @@ export default function ChannelStudio({
                 flex: '0 0 auto', width: 32, padding: 0, height: 30,
                 background: filter === null ? 'var(--panel-2)' : 'rgba(45,110,200,0.22)',
                 border: `1px solid ${filter === null ? 'var(--line)' : 'var(--accent)'}`,
-                borderRadius: 8, cursor: 'pointer', color: 'inherit',
+                borderRadius: 3, cursor: 'pointer', color: 'inherit',
               }}
             >&#9906;</button>
           </div>
@@ -1091,7 +1091,7 @@ export default function ChannelStudio({
                 <Head text="Preview" sub="Next" />
                 <div style={{
                   position: 'relative', flex: '1 1 auto', minHeight: 96,
-                  margin: 9, background: 'var(--ink-900)', borderRadius: 8,
+                  margin: 9, background: '#000', borderRadius: 2,
                   overflow: 'hidden',
                   border: `1px solid ${armed ? 'var(--ink-on-armed)' : 'var(--line)'}`,
                 }}>
@@ -1332,7 +1332,7 @@ export default function ChannelStudio({
               onClick={() => setDeskTab('graphics')}
               style={{
                 flex: '0 0 auto', width: 32, height: 32, padding: 0,
-                borderRadius: 8, border: '1px solid var(--line)',
+                borderRadius: 3, border: '1px solid var(--console-seam)',
                 background: 'var(--panel-2)', color: 'inherit', cursor: 'pointer',
               }}
             >&#9881;</button>
@@ -1363,7 +1363,7 @@ export default function ChannelStudio({
                 */
               <div data-testid="mixer-panel" style={{
                 display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 9,
-                padding: 7, borderRadius: 8, background: 'var(--panel-2)',
+                padding: 7, borderRadius: 3, background: 'var(--console-control)',
                 border: '1px solid var(--line)',
               }}>
                 {(['auto', 'performance_full', 'performance_half',
@@ -1833,7 +1833,7 @@ export default function ChannelStudio({
           <details data-testid="stream-output" style={{ position: 'relative' }}>
             <summary className="small" style={{
               listStyle: 'none', cursor: 'pointer', padding: '6px 10px',
-              borderRadius: 8, border: '1px solid var(--line)',
+              borderRadius: 3, border: '1px solid var(--console-seam)',
               background: 'var(--panel-2)', fontSize: 11, whiteSpace: 'nowrap',
             }}>
               Stream Output
@@ -2048,7 +2048,7 @@ export default function ChannelStudio({
           <details data-testid="channel-settings" style={{ position: 'relative' }}>
             <summary aria-label="Channel settings" style={{
               listStyle: 'none', cursor: 'pointer', padding: '5px 8px',
-              borderRadius: 8, border: '1px solid var(--line)',
+              borderRadius: 3, border: '1px solid var(--console-seam)',
               background: 'var(--panel-2)', fontSize: 13,
             }}>&#9881;</summary>
             <div className="panel" style={{
@@ -3755,7 +3755,7 @@ function CameraTab({
       <div className="row" style={{ gap: 9, alignItems: 'stretch' }}>
         <div style={{
           flex: 1, minWidth: 0, position: 'relative', aspectRatio: '16 / 9',
-          borderRadius: 8, overflow: 'hidden', background: 'var(--ink-900)',
+          borderRadius: 2, overflow: 'hidden', background: '#000',
           border: `1px solid ${armed ? 'var(--ink-on-armed)' : onAir ? 'var(--state-live-dim)' : 'var(--line)'}`,
         }}>
           {feed ? (

@@ -287,7 +287,8 @@ export default function RoomView({
             )}
           </div>
           <div data-testid="room-stage" style={{
-            background: '#08090b', borderRadius: 10, border: '1px solid var(--line)',
+            background: '#000', borderRadius: 2,
+            border: '1px solid var(--console-edge)',
             display: 'grid', placeItems: 'center', padding: 16, minHeight: 0,
           }}>
             {onStage.length === 0 ? (

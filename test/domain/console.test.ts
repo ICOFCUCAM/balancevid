@@ -166,21 +166,36 @@ describe('the legend', () => {
  * be deleted tomorrow. Lower it when a surface is converted.
  */
 describe('rounding', () => {
-  const BUDGET = 96;
+  /*
+   * "Avoid excessive rounded corners. Use corner radii consistently and
+   * modestly." A 10px radius repeated across eight panels is the
+   * strongest "web app" signal an interface can emit, and the control
+   * room was emitting it eight times.
+   *
+   * THE DESKS ARE AT ZERO NOW, so this is a ban rather than a budget —
+   * for the five operating surfaces only. A circle is exempt, which
+   * the first version of this was not: `'50%'` on an avatar and a lamp
+   * matched the pattern, and a round thing being round is not a
+   * rounded corner.
+   */
+  const LARGE = /borderRadius:\s*'?(?:(?:[89]|[1-9]\d)(?:px)?|var\(--radius-(?:lg|xl)\))(?!%)'?/g;
 
-  it(`is at or below ${BUDGET} large radii, and falling`, () => {
-    const counts = components()
-      .map((file) => ({
-        file: named(file),
-        n: (code(file).match(
-          /borderRadius:\s*(?:'?(?:[89]|[1-9]\d+)(?:px)?'?|'?var\(--radius-(?:lg|xl)\))/g)
-          ?? []).length,
-      }))
-      .filter((row) => row.n > 0)
-      .sort((a, b) => b.n - a.n);
-    const total = counts.reduce((sum, row) => sum + row.n, 0);
-    expect(total, `worst: ${counts.slice(0, 3)
-      .map((row) => `${row.file} (${row.n})`).join(', ')}`)
-      .toBeLessThanOrEqual(BUDGET);
+  it.each(DESKS)('%s rounds nothing like a card', (file) => {
+    const found = [...code(join(ROOT, file)).matchAll(LARGE)]
+      .map(([hit]) => hit);
+    expect(found, `${file}: ${found.join(', ')}`).toEqual([]);
+  });
+
+  /*
+   * AND THE BUILDING KEEPS ITS ROUNDING, deliberately. The lit lobby is
+   * made of cards because on a lit page a card is the right object —
+   * the argument in this pass is about what a CONSOLE is made of, not
+   * about radii being bad. A rule that pushed 2px corners onto the home
+   * page would be cargo-culting the conclusion past its reason.
+   */
+  it('leaves the lit building alone', () => {
+    const building = code(join(ROOT, 'app', 'Workspace.tsx'));
+    expect([...building.matchAll(LARGE)].length,
+      'the building stopped being made of cards').toBeGreaterThan(5);
   });
 });
