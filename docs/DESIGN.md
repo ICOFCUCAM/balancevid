@@ -1,0 +1,190 @@
+# The look of it
+
+This is the companion to `DOCTRINE.md` for the part of the product a person
+looks at. It is short on purpose: a design document nobody finishes reading
+is a design document nobody follows, and the tokens themselves are in
+`app/styles/` with the reasoning beside each one.
+
+Three tests enforce what follows — `test/domain/contrast.test.ts`,
+`test/domain/design-system.test.ts` and `test/domain/confirm.test.ts`. Where
+this document and those tests disagree, the tests are right, because they
+are the ones that run.
+
+One thing they enforce that is not a decision so much as a trap: **you cannot
+put an alpha on a token by gluing two characters to the end of it.**
+`` `${colour}22` `` is the obvious way to get a translucent version of a
+colour you were handed, and it works right up until the caller passes
+`var(--state-ok)` — at which point the value is not a colour, the browser
+drops the declaration, and the border or the glow is simply not drawn. Two of
+these were live and invisible: every notice in the product had been
+borderless since the day it was written. Use
+`color-mix(in srgb, X 20%, transparent)`.
+
+---
+
+## What the product is trying to look like
+
+A broadcast desk, operated by somebody under time pressure, often in a dark
+room, sometimes on a laptop, occasionally in front of an audience.
+
+That single sentence decides most of the rest:
+
+- **Dark, and never pure black outside the picture.** A monitor shows true
+  black; furniture that also shows true black gives the eye no edge between
+  the programme and the room around it.
+- **Dense without being cramped.** Six tiles, four lanes and a transport on
+  one screen is the job. A roomy layout would mean scrolling to see whether
+  you are on air.
+- **Nothing on the broadcast path moves.** The monitor, the multi-view and
+  the on-air lamp change state in the frame it happened. Motion is for
+  furniture. The one exception is the live lamp's pulse, which carries no
+  information about *when* and is what a tally light has looked like for
+  seventy years.
+- **No information carried by colour alone** (U-20, U-19). Every state
+  carries a shape or a word as well.
+
+---
+
+## The five decisions
+
+### 1. Depth, before labels
+
+A control room is read by depth first: the eye finds the thing nearest the
+front before it reads a single word. Five surfaces, each a fixed step
+lighter than the one behind it — `sunk`, `base`, `raised`, `float`, `lift` —
+and borders that lighten with them, because a hairline at one tone across
+all five flattens the stack it is drawn on.
+
+**On a dark ground the light edge does the work, not the shadow.** A black
+shadow on a nearly-black surface is invisible, and more opacity produces a
+smudge rather than height. One pixel of white at four per cent along the top
+lifts a panel further than forty pixels of blur.
+
+A well is elevation pointing the other way. The programme sits *below* the
+surface of the desk; so do timeline tracks, meters and every input.
+
+### 2. One scale for each dimension
+
+Type is a minor third from 10px to 27px. Spacing is a 4px grid. Radius nests
+concentrically. Before this there were eleven ad-hoc font sizes and fifteen
+gap values, several one pixel apart.
+
+The eye cannot measure an absolute size and is excellent at detecting an
+inconsistent ratio, which is why a scale looks deliberate at every step and a
+sediment never does.
+
+**Tabular figures wherever a number changes.** A timecode in a proportional
+face re-flows every tenth of a second, and on a clock somebody is watching to
+make a cut, that shimmer is the difference between reading a number and
+re-finding it.
+
+### 3. Contrast is measured, not judged
+
+Light text on dark *reads* as higher contrast than it *measures*. Two tones
+in the first draft of this system scored 2.3:1 and 3.7:1 while looking
+perfectly fine.
+
+Every tone is checked against the **lightest** surface it can appear on,
+because that is the only one that matters — the reader does not know which
+surface they are looking at. Text reaches 4.5:1. Non-text (a row's ordinal, a
+lane's legend) may sit at 3:1 and is documented as non-text.
+
+**And the bar follows what is drawn on the colour, not what the colour is.**
+A lamp is a non-text element at 3:1. The moment the same colour becomes a
+filled chip with ON AIR written across it, it is measured against the ink it
+carries and the bar is 4.5:1 — which the live red does not clear, so the lamp
+keeps the bright red and the chip takes the deep one. Two of these were
+failing when the rule was written, both chosen against the dark ground by
+somebody who never thought about the white on top.
+
+### 4. A control says what it is about to do
+
+- It acknowledges the press **within the frame**, on `:active`, before any
+  request returns.
+- Its states are distinguishable **without colour** — hover, focus, active,
+  disabled and selected each change something structural.
+- It does not move the layout when it changes; emphasis comes from an inset
+  shadow, never a thicker border.
+- A field is **recessed** and a button is **raised**. Oldest convention
+  there is, and it works without being taught.
+- Focus is visible, always, via `:focus-visible`, with two rings so it
+  survives every surface including live video.
+- **Chosen is one rule, and it is announced.** The fill on a selected
+  control is almost invisible on purpose (1.09:1); the lit border and the
+  two-pixel marker on the leading edge are the signal, because those are
+  what survive greyscale. A control that stores its state only in a
+  `data-` attribute is a control whose state nobody can hear — eighteen of
+  them did.
+
+### 5. Asking before the irreversible
+
+No `window.confirm`, `window.prompt` or `alert` anywhere — a test walks
+`app/` and names the file if one returns. They are unstyleable, they arrive
+in the OS's typography far from the control that raised them, and on a dark
+desk they are a white box at the moment somebody is deciding whether to cut
+the air.
+
+The product's own dialog (`app/Confirm.tsx`) exists because three things make
+a confirmation safe, and native dialogs do none of them:
+
+1. **The verb is on the button.** Never "OK".
+2. **Focus lands on Cancel** for a destructive action — a reflexive Return
+   must not end a broadcast.
+3. **The sentence says what is lost**, not just what is being asked.
+
+---
+
+## Where things live
+
+```
+app/styles/tokens.css      the neutral ramp and the five surfaces
+app/styles/type.css        the type scale
+app/styles/space.css       spacing, radius, border widths
+app/styles/focus.css       :focus-visible, the skip link
+app/styles/motion.css      durations, curves, reduced-motion
+app/styles/controls.css    buttons and fields
+app/styles/elevation.css   the four levels and the well
+app/styles/status.css      on air / armed / off, and the accent
+app/styles/studios.css     which of the three rooms a thing belongs to
+app/styles/surfaces.css    scrollbars, selection, empty slots, breakpoints
+app/Confirm.tsx            asking before something irreversible
+app/Notice.tsx             saying something went wrong, out loud
+```
+
+---
+
+## The ratchet
+
+142 raw hex colours remain in components. The token system arrived after the
+product did, and surfaces are converted as each is worked on.
+
+It read 244 until the regex was corrected: `&#9654;` is a play triangle, and
+a pattern looking for `#` followed by hex digits finds `9654` inside it very
+happily. Thirty of the counted colours were glyphs. A budget inflated by a
+tenth is a budget with a tenth of a free pass in it.
+
+Most of what came out after that was one idea written many times: a sixth
+blue for "this one is chosen", in fifteen borders and eight fills, beside a
+selection wash written thirteen times at four strengths. A design system is
+mostly this — not new values, but finding that a hundred lines were all
+trying to say the same thing.
+
+`design-system.test.ts` holds that number as a budget. **Lower it when you
+convert a surface; never raise it.** If it fails on a new feature the fix is
+a token, not a bigger number.
+
+A ratchet is an uncomfortable kind of test and the honest one here: it says
+where we are, which direction we are going, and that you may not go backwards
+without noticing.
+
+---
+
+## What is deliberately not done
+
+- **No phone layout.** There is a floor for laptops and `pointer: coarse`
+  gets larger targets, but a broadcast desk is operated at a desk. Pretending
+  otherwise would mean six unusable panels.
+- **No light theme** in the application. The published article and
+  interactive player have one, and declare the speaker identities darkened
+  for white; the studios do not.
+- **The remaining 142.** They are not wrong, they are just not yet named.

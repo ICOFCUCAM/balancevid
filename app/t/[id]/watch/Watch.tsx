@@ -68,16 +68,24 @@ export default function Watch({
     <div className="shell">
       <header className="shell-bar" style={{ gap: 12 }}>
         <span aria-hidden="true" style={{
-          width: 26, height: 26, borderRadius: 7, display: 'grid',
-          placeItems: 'center', background: '#2f7fe0', color: '#fff',
-          fontSize: 12, paddingLeft: 2, flex: '0 0 auto',
+          width: 26, height: 26, borderRadius: 'var(--radius-md)',
+          display: 'grid', placeItems: 'center',
+          background: 'linear-gradient(180deg, #3f8ee8 0%, #2a6fcc 100%)',
+          color: '#fff', fontSize: 11, paddingLeft: 2, flex: '0 0 auto',
+          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3),'
+            + ' 0 1px 3px rgba(26,78,150,0.5)',
         }}>&#9654;</span>
         <div className="grow" style={{ minWidth: 0 }}>
           <h1 style={{
-            fontSize: 17, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden',
-            textOverflow: 'ellipsis',
+            fontSize: 'var(--text-lg)', margin: 0, whiteSpace: 'nowrap',
+            overflow: 'hidden', textOverflow: 'ellipsis',
+            letterSpacing: 'var(--tracking-tight)',
           }}>{now?.name ?? name}</h1>
-          {author && <div className="small muted">by {author}</div>}
+          {author && (
+            <div style={{
+              fontSize: 'var(--text-sm)', color: 'var(--text-faint)',
+            }}>by {author}</div>
+          )}
         </div>
         {/*
           * THE LAMP IS DRAWN ONLY WHILE THE CHANNEL IS ACTUALLY LIVE, which
@@ -85,13 +93,26 @@ export default function Watch({
           * its logo is a channel lying to its viewers. [§13]
           */}
         {now?.live && (
+          /*
+            * THE ONE MARK A VIEWER TRUSTS. It is drawn only while the
+            * channel is genuinely transmitting (§13), so it should look
+            * like a tally light and not like a badge: a lit surface, a
+            * halo in its own red, and a dot that breathes the way the
+            * operator's own lamp does. The two ends of the product
+            * showing the same light is the point.
+            */
           <span className="row" data-testid="viewer-live" style={{
-            gap: 6, flex: '0 0 auto', padding: '4px 10px', borderRadius: 5,
-            background: '#c0392b', color: '#fff', fontSize: 11, fontWeight: 800,
-            letterSpacing: 0.5,
+            gap: 'var(--space-3)', flex: '0 0 auto',
+            padding: '4px var(--space-5)', borderRadius: 'var(--radius-sm)',
+            background: 'linear-gradient(180deg, #e8483a, #c33327)',
+            border: '1px solid rgba(255,140,128,0.5)',
+            color: '#fff', fontSize: 'var(--text-2xs)',
+            fontWeight: 'var(--weight-bold)', letterSpacing: '0.09em',
+            boxShadow: '0 0 14px rgba(226,59,46,0.45),'
+              + ' inset 0 1px 0 rgba(255,255,255,0.22)',
           }}>
-            <span aria-hidden="true" style={{
-              width: 7, height: 7, borderRadius: '50%', background: '#fff',
+            <span className="lamp is-live" style={{
+              width: 6, height: 6, background: '#fff', boxShadow: 'none',
             }} />
             LIVE
           </span>
@@ -112,10 +133,21 @@ export default function Watch({
             * died, which is none of a stranger's business.
             */}
           {now && !now.transmitting && (
-            <p className="small" data-testid="viewer-off-air" style={{
-              margin: '10px 0 0', padding: '9px 12px', borderRadius: 8,
-              background: 'rgba(201,154,46,0.12)', border: '1px solid #8e6a1f',
-              color: '#e0c14f',
+            /*
+              * A NOTICE A STRANGER READS ONCE, so it leads with a marker
+              * on its edge rather than shouting in colour: somebody who
+              * arrived to watch something is being told they cannot, and
+              * the tone of that matters more than its visibility.
+              */
+            <p data-testid="viewer-off-air" style={{
+              margin: 'var(--space-5) 0 0',
+              padding: 'var(--space-4) var(--space-5)',
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--state-armed-wash)',
+              border: 'var(--border) solid rgba(232,179,60,0.36)',
+              boxShadow: 'inset 3px 0 0 var(--state-armed)',
+              fontSize: 'var(--text-base)',
+              color: '#f0c66a',
             }}>
               {now.says ?? 'This channel is not transmitting right now.'}
             </p>
@@ -125,10 +157,15 @@ export default function Watch({
             marginTop: 12, gap: 12, alignItems: 'baseline',
           }}>
             <div className="grow" style={{ minWidth: 0 }}>
-              <div className="muted" style={{
-                fontSize: 9, letterSpacing: 0.8, fontWeight: 700,
+              <div style={{
+                fontSize: 'var(--text-2xs)', letterSpacing: '0.09em',
+                fontWeight: 'var(--weight-bold)', color: 'var(--text-faint)',
               }}>NOW PLAYING</div>
-              <div style={{ fontSize: 17, fontWeight: 600 }}>
+              <div style={{
+                fontSize: 'var(--text-lg)', fontWeight: 'var(--weight-semi)',
+                letterSpacing: 'var(--tracking-tight)',
+                marginTop: 'var(--space-1)',
+              }}>
                 {now?.title ?? '—'}
               </div>
             </div>

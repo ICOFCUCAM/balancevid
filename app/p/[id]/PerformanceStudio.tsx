@@ -7,6 +7,8 @@ import { EFFECT_LOOKS, SPACES_ARE_DRAWN } from '../../../src/domain/environment.
 import { describeCalibration } from '../../../src/domain/calibration.js';
 import { describeDrift } from '../../../src/domain/drift.js';
 import { HOUSE_SAMPLE_RATE, formatMasterPosition } from '../../../src/domain/time.js';
+import { useConfirm } from '../../Confirm.js';
+import { MenuButton, RightClickHint, useMenu, type MenuEntry } from '../../Menu.js';
 import { useMasterRecording } from './useMasterRecording.js';
 import UploadTake from './UploadTake.js';
 import SwitchingStage from './SwitchingStage.js';
@@ -58,6 +60,8 @@ export default function PerformanceStudio(
   },
 ) {
   const [performance, setPerformance] = useState(initial);
+  /* The product's own dialog, in place of the browser's. [Confirm.tsx] */
+  const { confirm, dialog: confirmDialog } = useConfirm();
   const [notice, setNotice] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
   const [label, setLabel] = useState('');
@@ -192,10 +196,136 @@ export default function PerformanceStudio(
 
   const songLength = formatMasterPosition(performance.master.durationSamples);
 
+  /*
+   * ONE MENU FOR THE WHOLE STUDIO. The take rail had its own `<details>`
+   * and nothing else in here had anything; now the rail, the song and
+   * whatever comes next all raise the same list by right-click or by
+   * their `⋯`. [D-19]
+   */
+  const { menu, onRow, fromButton } = useMenu();
+
+  /**
+   * DELETING THE SONG IS DELETING THE PERFORMANCE, and saying anything
+   * else would be a lie about what the button does.
+   *
+   * Studio Two is one song and the takes performed over it — the song is
+   * the root document, not an attachment to it, so there is no state in
+   * which the song is gone and the takes remain. Until now the only way
+   * to remove an uploaded song was to leave the studio, find the card on
+   * the home page and delete it from there, which is a long way round for
+   * the commonest mistake in this room: uploading the wrong file.
+   *
+   * The question names every consequence rather than the immediate one,
+   * and the count of takes is in it, because "delete the song" reads as
+   * far smaller than it is when you have recorded nine takes over it.
+   */
+  const askDeleteSong = () => {
+    const takes = performance.takes.length;
+    confirm({
+      question: `Delete \u201c${performance.title}\u201d? The song goes, and `
+        + `with it ${takes === 0 ? 'this whole performance'
+          : `${takes} ${takes === 1 ? 'take' : 'takes'} recorded over it, `
+            + 'every scene you have directed and every render made from '
+            + 'them'}. It cannot be undone.`,
+      verb: 'Delete the song',
+      danger: true,
+      go: () => { void deleteSong(); },
+    });
+  };
+
+  const deleteSong = async () => {
+    setBusy(true);
+    try {
+      const response = await fetch(`/api/performances/${id}`, { method: 'DELETE' });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error ?? 'that could not be deleted');
+      /*
+       * The studio it was showing no longer exists, so there is nowhere
+       * to stay. A full navigation rather than a router push, because
+       * every hook in here is holding a performance that is now gone.
+       */
+      window.location.href = '/';
+    } catch (e) {
+      setWarning(e instanceof Error ? e.message : String(e));
+      setBusy(false);
+    }
+  };
+
+  const songItems = (): MenuEntry[] => [
+    {
+      label: 'Rename the song\u2026',
+      onSelect: () => confirm({
+        question: 'This is what the rail, the home page and the published '
+          + 'page will call it. The file\u2019s own tags are left alone.',
+        field: { label: 'What is this song called?', initial: performance.title },
+        verb: 'Rename it',
+        go: (next) => {
+          if (next && next !== performance.title) {
+            void act({ action: 'rename', title: next });
+          }
+        },
+      }),
+    },
+    {
+      label: 'Download the prepared audio',
+      href: `/api/performances/${id}/master`,
+      disabled: ready ? false : 'It is still being prepared',
+      hint: 'The normalised master the takes were performed against',
+    },
+    {
+      label: 'Delete the song\u2026',
+      danger: true,
+      disabled: busy,
+      onSelect: askDeleteSong,
+    },
+  ];
+
+  const takeItems = (take: Performance['takes'][number]): MenuEntry[] => [
+    {
+      label: 'Make this the chosen take',
+      disabled: chosenTake === take.id ? 'It already is' : false,
+      onSelect: () => setChosenTake(take.id),
+    },
+    {
+      label: 'Rename\u2026',
+      onSelect: () => confirm({
+        question: 'A take\u2019s name is what the rail, the timeline and the '
+          + 'lower third will all call it.',
+        field: { label: 'What is this take called?', initial: take.label },
+        verb: 'Rename it',
+        go: (next) => {
+          if (next && next !== take.label) {
+            void patch({ action: 'rename-take', takeId: take.id, label: next });
+          }
+        },
+      }),
+    },
+    {
+      label: take.loop ? 'Stop looping it' : 'Loop it',
+      hint: 'A looped take fills a scene longer than the take itself',
+      onSelect: () => void patch({
+        action: 'set-loop', takeId: take.id, loop: !take.loop,
+      }),
+    },
+    {
+      label: 'Remove\u2026',
+      danger: true,
+      onSelect: () => confirm({
+        question: `Remove \u201c${take.label}\u201d? Every scene cut from it `
+          + 'goes with it, and it cannot be undone.',
+        verb: 'Remove the take',
+        danger: true,
+        go: () => void patch({ action: 'remove-take', takeId: take.id }),
+      }),
+    },
+  ];
+
 
 
   return (
     <div className="shell">
+      {confirmDialog}
+      {menu}
       {/*
         * The application's bar, which every studio shares. It used to be
         * written out here; a second copy of it in Studio Three would have
@@ -328,6 +458,7 @@ export default function PerformanceStudio(
                     <div
                       key={take.id} data-testid="take-row" data-take-id={take.id}
                       data-filled="true" data-offset={take.alignment.offsetSamples}
+                      {...onRow(take.label, () => takeItems(take))}
                       style={{
                         display: 'flex', gap: 8, alignItems: 'center',
                         minWidth: 0, position: 'relative',
@@ -396,67 +527,28 @@ export default function PerformanceStudio(
                         </span>
                       </button>
                       {/*
-                        * What can be done to this take, on this take.
+                        * What can be done to this take, reached two ways.
                         *
-                        * A <details> rather than a floating menu: it needs no
-                        * outside-click handling, no focus trap and no portal,
-                        * and it closes when another one opens because only one
-                        * `name` group may be open at a time. Rename and remove
-                        * live here because they belong to a take rather than
-                        * to the composition — and not as two buttons on every
-                        * row, because a delete button on every row of a list
-                        * is the one you press by accident.
+                        * This was a `<details>` — which needs no outside-click
+                        * handling and no portal, and is also not a menu: it is
+                        * a disclosure widget, so it announced itself as one,
+                        * had no arrow keys, and left the next person to add
+                        * right-click here writing the list out a second time.
+                        *
+                        * Rename, loop and remove belong to a take rather than
+                        * to the composition, and they are not three buttons on
+                        * every row, because a delete button on every row of a
+                        * list is the one you press by accident. [D-19]
                         */}
-                      <details data-testid="take-menu" name="take-menu"
-                               style={{ flex: '0 0 auto', position: 'relative' }}>
-                        <summary
-                          aria-label={`What to do with ${take.label}`}
-                          style={{
-                            listStyle: 'none', cursor: 'pointer', padding: '2px 5px',
-                            borderRadius: 6, color: 'var(--muted)', fontSize: 15,
-                            lineHeight: 1,
-                          }}
-                        >&#8943;</summary>
-                        <div className="panel" style={{
-                          position: 'absolute', right: 0, top: '100%', zIndex: 5,
-                          padding: 5, minWidth: 148, display: 'flex',
-                          flexDirection: 'column', gap: 2,
-                        }}>
-                          <button
-                            className="small" data-testid="rename-take"
-                            onClick={(event) => {
-                              const next = window.prompt(
-                                'What is this take called?', take.label);
-                              if (next?.trim() && next.trim() !== take.label) {
-                                void patch({
-                                  action: 'rename-take', takeId: take.id,
-                                  label: next.trim(),
-                                });
-                              }
-                              event.currentTarget.closest('details')
-                                ?.removeAttribute('open');
-                            }}
-                            style={{ border: 0, background: 'none', textAlign: 'left' }}
-                          >Rename</button>
-                          <button
-                            className="small" data-testid="remove-take"
-                            onClick={(event) => {
-                              event.currentTarget.closest('details')
-                                ?.removeAttribute('open');
-                              if (!window.confirm(
-                                `Remove "${take.label}"? Its scenes go with it.`)) return;
-                              void patch({ action: 'remove-take', takeId: take.id });
-                            }}
-                            style={{
-                              border: 0, background: 'none', textAlign: 'left',
-                              color: 'var(--bad)',
-                            }}
-                          >Remove</button>
-                        </div>
-                      </details>
+                      <MenuButton about={take.label} small
+                                  items={() => takeItems(take)}
+                                  open={fromButton} />
                     </div>
                   );
                 })}
+                {performance.takes.length > 0 && (
+                  <RightClickHint what="a take" />
+                )}
               </div>
 
               {/* ---- the camera, when it is on ------------------------- */}
@@ -615,6 +707,48 @@ export default function PerformanceStudio(
             letterSpacing: 0.8, fontSize: 11, marginBottom: 6 }}>
             This music
           </div>
+          {/*
+            * THE SONG, AS A THING YOU CAN DO SOMETHING TO. This section
+            * was four buttons about the song's licence with no song on
+            * it: the only place the uploaded file appeared was a line of
+            * grey text in the bar at the top, and the only way to get rid
+            * of one uploaded by mistake was to leave, find the card on
+            * the home page, and delete it from there.
+            */}
+          <div className="row" data-testid="song-row"
+               {...onRow(performance.title, songItems)}
+               style={{
+                 gap: 'var(--space-3)', flexWrap: 'nowrap', marginBottom: 10,
+                 padding: 'var(--space-3)', borderRadius: 'var(--radius-md)',
+                 background: 'var(--surface-sunk)',
+                 border: 'var(--border) solid var(--line)',
+               }}>
+            <span aria-hidden="true" style={{
+              flex: '0 0 auto', width: 30, height: 30,
+              display: 'grid', placeItems: 'center',
+              borderRadius: 'var(--radius-sm)',
+              background: 'var(--studio-two-wash)',
+              color: 'var(--studio-two)', fontSize: 'var(--text-md)',
+            }}>&#9834;</span>
+            <span className="grow" style={{ minWidth: 0 }}>
+              <span style={{
+                display: 'block', fontWeight: 'var(--weight-semi)',
+                fontSize: 'var(--text-base)', overflow: 'hidden',
+                textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              }}>{performance.title}</span>
+              <span className="muted" style={{
+                display: 'block', fontSize: 'var(--text-2xs)',
+              }}>
+                {performance.master.artist ? `${performance.master.artist} \u00b7 ` : ''}
+                {ready ? songLength : 'preparing\u2026'}
+                {' \u00b7 '}
+                {performance.takes.length} {performance.takes.length === 1
+                  ? 'take' : 'takes'} over it
+              </span>
+            </span>
+            <MenuButton about={performance.title} items={songItems}
+                        open={fromButton} />
+          </div>
           <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
             {MASTER_CLASSES.map((cls) => (
               <button
@@ -623,6 +757,7 @@ export default function PerformanceStudio(
                 data-testid="master-class"
                 data-class={cls}
                 data-chosen={performance.master.class === cls ? 'true' : 'false'}
+                aria-pressed={performance.master.class === cls}
                 disabled={busy}
                 title={CLASS_LABELS[cls]!.hint}
                 onClick={() => void act({
@@ -632,8 +767,8 @@ export default function PerformanceStudio(
                 style={{
                   padding: '5px 10px', fontSize: 12,
                   background: performance.master.class === cls
-                    ? 'rgba(43,95,138,0.30)' : undefined,
-                  borderColor: performance.master.class === cls ? '#6fb3e0' : undefined,
+                    ? 'var(--accent-wash)' : undefined,
+                  borderColor: performance.master.class === cls ? 'var(--accent)' : undefined,
                 }}
               >
                 {CLASS_LABELS[cls]!.label}

@@ -14,6 +14,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import SignOut from '../../SignOut.js';
+import { useConfirm } from '../../Confirm.js';
+import { useMenu, type MenuEntry } from '../../Menu.js';
 import SearchPanel from './SearchPanel.js';
 import Stage, { StageStatus, type Stance } from './Stage.js';
 import ClipRail, { type ClipRailItem } from './ClipRail.js';
@@ -45,6 +47,24 @@ const PREROLL_SEGMENTS = 2; // ~8 seconds
  * only hand the worker a stub to throw away.
  */
 const MIN_SEGMENT_BYTES = 1024;
+
+/**
+ * THE AUTHOR IS THE RESPONDER, ON A DARK GROUND.  [Doctrine U-20]
+ *
+ * This was #a35a34 in both places it appears, and #a35a34 is the
+ * responder's colour DARKENED FOR WHITE — the value the published
+ * article and the interactive player declare inside their light theme.
+ * Studio One has no light theme. So the one person guaranteed to be in
+ * every conversation was drawn, in the only place they are drawn, in a
+ * colour belonging to a page this studio never renders.
+ *
+ * It is a hex rather than `var(--user-accent)` because it travels as
+ * data — into `RailPerson.accent`, and from there into places that mix
+ * an alpha into it — and `design-system.test.ts` now refuses the
+ * light-ground pair anywhere in `app/`, which is what stops it coming
+ * back.
+ */
+const AUTHOR_ACCENT = '#c2794f';
 
 type Phase = 'cold' | 'arming' | 'armed' | 'starting' | 'recording' | 'stopping' | 'denied';
 
@@ -142,6 +162,10 @@ export default function Studio({ conversationId }: { conversationId: string }) {
   }, []);
 
   const isEmbedded = snapshot?.conversation?.source?.class === 'B';
+
+  /* One menu and one dialog for the whole studio. [D-19] */
+  const { confirm, dialog: confirmDialog } = useConfirm();
+  const { menu, onRow } = useMenu();
 
   const refresh = useCallback(async () => {
     const response = await fetch(`/api/conversations/${conversationId}`, { cache: 'no-store' });
@@ -756,7 +780,8 @@ export default function Studio({ conversationId }: { conversationId: string }) {
   const authorName = (conversation as any)?.publication?.author ?? 'You';
   const whoOf = (iv: any) =>
     participants.find((p: any) => p.id === iv.participantId)
-    ?? { id: 'author', displayName: authorName, accent: '#a35a34', role: 'host' };
+    ?? { id: 'author', displayName: authorName, accent: AUTHOR_ACCENT,
+      role: 'host' };
   const voices = new Map<string, RailPerson>();
   for (const iv of interventions) {
     const who = whoOf(iv);
@@ -771,7 +796,7 @@ export default function Studio({ conversationId }: { conversationId: string }) {
   // The author leads the list even before they have answered: it is theirs.
   if (!voices.has('author') && !participants.some((p: any) => p.role === 'host')) {
     voices.set('author', {
-      id: 'author', displayName: authorName, accent: '#a35a34',
+      id: 'author', displayName: authorName, accent: AUTHOR_ACCENT,
       role: 'host', responses: 0,
     });
   }
@@ -833,6 +858,73 @@ export default function Studio({ conversationId }: { conversationId: string }) {
   const annotationBase = composing
     ? `/api/conversations/${conversationId}/interventions/${composing.id}/annotations`
     : '';
+  /*
+   * WHAT CAN BE DONE TO A RESPONSE, reached from the response.
+   *
+   * Studio One had no menu of any kind. Changing what kind of move a
+   * response is meant scrolling to the composer and finding a select;
+   * deleting one was not possible from this screen at all, so the way to
+   * undo a mistaken interruption was to leave the studio and delete the
+   * whole conversation. [D-19]
+   */
+  const clipItems = (clip: ClipRailItem): MenuEntry[] => [
+    {
+      label: 'Watch from here',
+      onSelect: () => { setSelectedResponse(clip.id); seekTo(clip.tSourceFrame); },
+    },
+    {
+      label: 'Change what kind of move this is\u2026',
+      hint: 'The lower third, and how the article reads it',
+      onSelect: () => confirm({
+        question: 'This is the label the finished video puts under your '
+          + 'face, and the word the article uses for what you did here.',
+        field: {
+          label: 'What kind of move is this?',
+          initial: (interventions.find((iv: any) => iv.id === clip.id)?.type
+            ?? 'explain') as string,
+          choices: INTERVENTION_TYPES.map((kind) => ({
+            value: kind, label: TYPE_PRESENTATION[kind].lowerThird,
+          })),
+        },
+        verb: 'Change it',
+        go: (kind) => {
+          void call(`/api/conversations/${conversationId}/interventions/${clip.id}`,
+            { method: 'PATCH', body: JSON.stringify({ type: kind }) });
+        },
+      }),
+    },
+    clip.state === 'failed' && clip.jobId
+      ? {
+        label: 'Try assembling it again',
+        hint: clip.error ?? undefined,
+        onSelect: () => { void call(`/api/jobs/${clip.jobId}`, { method: 'POST' }); },
+      }
+      : null,
+    {
+      label: 'Delete this response\u2026',
+      danger: true,
+      onSelect: () => confirm({
+        /*
+         * WHAT SURVIVES IS THE POINT. The recordings stay on disk — the
+         * route's own comment says so — and somebody deleting a response
+         * should know they are removing it from the film rather than
+         * shredding the footage. [D-13]
+         */
+        question: `Remove \u201c${clip.label}\u201d from this conversation? `
+          + 'The point in the video, the claim it answers and the cut all '
+          + 'go. The recording itself stays on disk.',
+        verb: 'Remove the response',
+        danger: true,
+        go: () => {
+          void call(
+            `/api/conversations/${conversationId}/interventions/${clip.id}`,
+            { method: 'DELETE' });
+          setSelectedResponse(null);
+        },
+      }),
+    },
+  ];
+
   const call = async (path: string, init: RequestInit) => {
     const response = await fetch(path, {
       headers: { 'content-type': 'application/json' }, ...init,
@@ -863,21 +955,55 @@ export default function Studio({ conversationId }: { conversationId: string }) {
      * instead of floating in a band of empty page.
      */
     <div className="shell">
+      {confirmDialog}
+      {menu}
       {/* ---- header: the conversation, and the two things you do with it ---- */}
       <header className="shell-bar">
+        {/*
+          * THE MARK, WHICH THIS BAR ALONE WAS MISSING.
+          *
+          * Studio Two and Online TV both open with it; Studio One
+          * opened with the conversation's title against the window
+          * edge. Three studios in one product should agree about where
+          * the product's name is, and the mark is also the way back to
+          * the workspace — which this room had no visible route to.
+          * [D-24]
+          */}
+        <a href="/" aria-label="BalanceVid" className="row" style={{
+          gap: 'var(--space-3)', textDecoration: 'none', color: 'inherit',
+          flex: '0 0 auto',
+        }}>
+          <span aria-hidden="true" style={{
+            width: 26, height: 26, borderRadius: 'var(--radius-md)',
+            display: 'grid', placeItems: 'center',
+            background: 'linear-gradient(180deg, #3f8ee8 0%, #2a6fcc 100%)',
+            color: '#fff', fontSize: 11, paddingLeft: 2,
+            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3),'
+              + ' 0 1px 3px rgba(26,78,150,0.5)',
+          }}>&#9654;</span>
+        </a>
+
         <div className="grow" style={{ minWidth: 0 }}>
-          <h1 style={{ marginBottom: 0, fontSize: 17, whiteSpace: 'nowrap',
-            overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <h1 style={{
+            marginBottom: 0, fontSize: 'var(--text-lg)', whiteSpace: 'nowrap',
+            overflow: 'hidden', textOverflow: 'ellipsis',
+            letterSpacing: 'var(--tracking-tight)',
+          }}>
             {conversation?.title ?? 'Conversation'}
           </h1>
-          <div className="small muted" style={{ whiteSpace: 'nowrap',
-            overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <div style={{
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            fontSize: 'var(--text-sm)', color: 'var(--text-faint)',
+          }}>
             {conversation?.source?.title}
             {ready && <> · {formatTimecode(conversation.source.durationFrames).slice(0, 8)}</>}
             {isEmbedded && ' · plays on its own platform'}
           </div>
           {conversation?.lineage && (
-            <div className="small" style={{ color: 'var(--user-accent)' }}>
+            /* The chain back, in the responder's own colour. [U-20] */
+            <div style={{
+              fontSize: 'var(--text-sm)', color: 'var(--user-accent)',
+            }}>
               Answering{' '}
               <a href={`/c/${conversation.lineage.parentConversationId}/watch`}>
                 “{conversation.lineage.chain.at(-1)?.title}”
@@ -888,21 +1014,21 @@ export default function Studio({ conversationId }: { conversationId: string }) {
 
         <div className="row" style={{ gap: 0, flexWrap: 'nowrap' }} role="tablist" aria-label="Mode">
           <button role="tab" data-testid="mode-live"
-                  aria-selected={mode === 'live'} onClick={() => setMode('live')}
-                  style={{ borderRadius: '8px 0 0 8px', padding: '7px 14px',
-                    background: mode === 'live' ? '#2b5f8a' : undefined }}>
+                  aria-selected={mode === 'live'} className={mode === 'live' ? 'selected' : undefined}
+                  onClick={() => setMode('live')}
+                  style={{ borderRadius: '8px 0 0 8px', padding: '7px 14px' }}>
             Live
           </button>
           <button role="tab" data-testid="mode-studio"
-                  aria-selected={mode === 'studio'} onClick={() => setMode('studio')}
-                  style={{ borderRadius: 0, padding: '7px 14px',
-                    background: mode === 'studio' ? '#2b5f8a' : undefined }}>
+                  aria-selected={mode === 'studio'} className={mode === 'studio' ? 'selected' : undefined}
+                  onClick={() => setMode('studio')}
+                  style={{ borderRadius: 0, padding: '7px 14px' }}>
             Studio
           </button>
           <button role="tab" data-testid="mode-publish"
-                  aria-selected={mode === 'publish'} onClick={() => setMode('publish')}
-                  style={{ borderRadius: '0 8px 8px 0', padding: '7px 14px',
-                    background: mode === 'publish' ? '#2b5f8a' : undefined }}>
+                  aria-selected={mode === 'publish'} className={mode === 'publish' ? 'selected' : undefined}
+                  onClick={() => setMode('publish')}
+                  style={{ borderRadius: '0 8px 8px 0', padding: '7px 14px' }}>
             Publish
           </button>
         </div>
@@ -959,6 +1085,8 @@ export default function Studio({ conversationId }: { conversationId: string }) {
               canInvite={Boolean(conversation)}
             />
           <ClipRail
+            rowMenu={(clip) => onRow(
+              clip.label || `Response ${clip.index}`, () => clipItems(clip))}
             items={clips}
             selectedId={selectedResponse}
             onSelect={(id) => {
@@ -1303,17 +1431,55 @@ export default function Studio({ conversationId }: { conversationId: string }) {
               currentFrame={currentFrame}
               durationFrames={conversation?.source?.durationFrames ?? 0}
             />
-            <span aria-hidden style={{ width: 1, alignSelf: 'stretch',
-              background: 'var(--line)', margin: '0 2px' }} />
+            {/*
+              * A DIVIDER IN A BAR FADES AT ITS ENDS. A hard 1px rule
+              * meeting the bar's own edges makes a cross, and the eye
+              * finds the junction rather than the separation.
+              */}
+            <span aria-hidden style={{
+              width: 1, alignSelf: 'stretch', margin: '0 var(--space-1)',
+              background: 'linear-gradient(180deg, transparent,'
+                + ' var(--line) 25%, var(--line) 75%, transparent)',
+            }} />
             {picked && !boundResponse ? (
               <span className="grow" />
             ) : (
               <>
+                {/*
+                  * THE ONE KEY IN THE PRODUCT, drawn as a key.
+                  *
+                  * It was a bordered rectangle with a faint wash, which
+                  * is a chip. A keycap has a top face and a front edge:
+                  * a light hairline along the top, a dark one along the
+                  * bottom, and the label sitting on the face. That is
+                  * two shadows, and it is the difference between a
+                  * label that says "space" and an object that says
+                  * "press me".
+                  *
+                  * It matters here more than anywhere else in the
+                  * product, because SPACE is the whole interaction of
+                  * Studio One — the interrupt is the product (U-04),
+                  * and this is the only place it is taught.
+                  */}
                 <kbd style={{
-                  padding: '8px 18px', borderRadius: 6, border: '1px solid var(--line)',
-                  background: 'rgba(255,255,255,0.06)', fontSize: 14, letterSpacing: 1,
+                  padding: 'var(--space-4) var(--space-7)',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1px solid var(--ink-500)',
+                  borderBottomColor: 'var(--ink-900)',
+                  borderBottomWidth: 2,
+                  background: 'linear-gradient(180deg,'
+                    + ' var(--ink-600), var(--ink-700))',
+                  fontSize: 'var(--text-md)',
+                  fontWeight: 'var(--weight-semi)',
+                  letterSpacing: '0.1em',
+                  color: 'var(--ink-050)',
+                  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.1),'
+                    + ' 0 1px 2px rgba(0,0,0,0.45)',
+                  fontFamily: 'inherit',
                 }}>SPACE</kbd>
-                <span className="grow small">
+                <span className="grow" style={{
+                  fontSize: 'var(--text-base)', color: 'var(--text-dim)',
+                }}>
                   {stance === 'yours' ? 'to continue the video' : 'to interrupt and respond'}
                 </span>
               </>
@@ -1339,11 +1505,11 @@ export default function Studio({ conversationId }: { conversationId: string }) {
             <button
               data-testid="toggle-reader"
               data-open={readerOpen ? 'true' : 'false'}
+              aria-pressed={readerOpen}
               onClick={() => setReaderOpen(!readerOpen)}
               title={hasReading
                 ? 'Read your notes or slides while you speak'
                 : 'Attach a PDF or write a note on a response to read it here'}
-              style={{ background: readerOpen ? '#2b5f8a' : undefined }}
             >
               Notes
             </button>

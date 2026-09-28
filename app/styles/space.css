@@ -1,0 +1,58 @@
+/*
+ * THE SPACING RHYTHM.  [Doctrine D-04]
+ *
+ * A count of the gaps and paddings written across the three studios: 3, 4,
+ * 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 18, 20, 24. Fifteen values, almost all
+ * inline, several of them one pixel apart. Nothing is wrong with any single
+ * one and the whole is why the interface reads as assembled rather than
+ * designed.
+ *
+ * WHAT A RHYTHM BUYS THAT CORRECT NUMBERS DO NOT. Spacing is the only part
+ * of an interface the eye measures against itself rather than against the
+ * world: nobody knows whether a gap is 9 or 10 pixels, everybody sees that
+ * this gap is not the same as that one. A scale makes every space a
+ * multiple of one unit, so distances become comparable — and comparable
+ * distances are what let somebody glance at a panel and see its structure
+ * without reading a word of it.
+ *
+ * FOUR PIXELS, not eight. Eight is the common choice and it is a choice for
+ * roomy layouts; a control room is dense by necessity — six tiles, four
+ * lanes and a transport on one screen — and an eight-grid forces every
+ * small gap to round to 8 and every tight one to 0. Four gives the half
+ * step that dense work needs while still being a grid.
+ */
+
+:root {
+  --space-0: 0;
+  --space-1: 2px;   /* a hairline nudge: between a dot and its label */
+  --space-2: 4px;   /* inside a chip */
+  --space-3: 6px;   /* between controls in a cluster */
+  --space-4: 8px;   /* the default gap between siblings */
+  --space-5: 12px;  /* between a label and its field */
+  --space-6: 16px;  /* panel padding */
+  --space-7: 20px;  /* between panels */
+  --space-8: 24px;  /* page gutter */
+  --space-9: 32px;  /* between sections */
+  --space-10: 48px; /* around an empty state */
+
+  /*
+   * RADIUS IS A SCALE TOO, and it has to agree with the spacing or corners
+   * look wrong at the joins. The rule: a radius nests inside another by the
+   * padding between them, so a 6px control inside a 16px-padded 12px panel
+   * has concentric corners rather than two arcs fighting.
+   */
+  --radius-xs: 4px;   /* a chip, a meter cap */
+  --radius-sm: 6px;   /* an input, a small button */
+  --radius-md: 8px;   /* a button, a tile */
+  --radius-lg: 10px;  /* a panel */
+  --radius-xl: 14px;  /* a card standing on its own */
+  --radius-full: 999px;
+
+  /*
+   * BORDER WIDTH. One hairline and one emphasis, and nothing between: a
+   * 1.5px border renders as 1 or 2 depending on the display and the
+   * difference is visible when two of them sit side by side.
+   */
+  --border: 1px;
+  --border-emphasis: 2px;
+}

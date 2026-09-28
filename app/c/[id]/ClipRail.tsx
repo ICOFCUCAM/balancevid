@@ -1,6 +1,7 @@
 'use client';
 
 import { formatTimecode } from '../../../src/domain/time.js';
+import { RightClickHint } from '../../Menu.js';
 
 /**
  * What I said.  [Doctrine §40, U-08]
@@ -59,7 +60,7 @@ export interface ClipRailItem {
 }
 
 export default function ClipRail({
-  items, selectedId, onSelect, onAdd, onRetry, canAdd,
+  items, selectedId, onSelect, onAdd, onRetry, canAdd, rowMenu,
 }: {
   items: ClipRailItem[];
   selectedId: string | null;
@@ -67,6 +68,15 @@ export default function ClipRail({
   onAdd: () => void;
   onRetry: (jobId: string) => void;
   canAdd: boolean;
+  /*
+   * WHAT CAN BE DONE TO A CLIP IS THE STUDIO'S QUESTION, NOT THE RAIL'S.
+   * The rail knows how a clip looks; deleting one, moving it or changing
+   * what kind of move it is all go through the conversation, which the
+   * rail has never had and should not be given in order to grow a menu.
+   * So it takes the handler and attaches it. [D-20]
+   */
+  rowMenu: (item: ClipRailItem) => {
+    onContextMenu: (event: React.MouseEvent) => void };
 }) {
   return (
     <aside
@@ -100,11 +110,12 @@ export default function ClipRail({
             data-clip-id={item.id}
             data-selected={chosen ? 'true' : 'false'}
             onClick={() => onSelect(item.id)}
+            {...rowMenu(item)}
             style={{
               display: 'block', width: '100%', textAlign: 'left', marginBottom: 8,
               padding: 8, borderRadius: 8,
-              background: chosen ? 'rgba(43,95,138,0.28)' : 'var(--panel)',
-              border: `1px solid ${chosen ? '#6fb3e0' : 'var(--line)'}`,
+              background: chosen ? 'var(--accent-wash)' : 'var(--panel)',
+              border: `1px solid ${chosen ? 'var(--accent)' : 'var(--line)'}`,
             }}
           >
             <div style={{
@@ -153,8 +164,9 @@ export default function ClipRail({
                 <span data-testid="clip-has-claim" title={item.quote} style={{
                   position: 'absolute', right: 5, top: 5,
                   width: 9, height: 9, transform: 'rotate(45deg)', borderRadius: 2,
-                  background: 'var(--source-accent, #6fb3e0)',
-                  boxShadow: '0 0 6px rgba(111,179,224,0.9)',
+                  background: 'var(--source-accent)',
+                  boxShadow: '0 0 6px color-mix(in srgb,'
+                    + ' var(--source-accent) 90%, transparent)',
                 }} />
               )}
             </div>
@@ -240,6 +252,7 @@ export default function ClipRail({
       >
         + Add response
       </button>
+      {items.length > 0 && <RightClickHint what="a clip" />}
     </aside>
   );
 }

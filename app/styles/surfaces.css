@@ -1,0 +1,243 @@
+/*
+ * THE THINGS THE BROWSER DRAWS FOR YOU.  [Doctrine D-04]
+ *
+ * Everything in this file is something a browser supplies a default for,
+ * and every one of those defaults was designed for a white page. On a dark
+ * interface they are the parts that give it away: a light grey scrollbar
+ * down the side of a black panel, a highlight colour from 1995, a text
+ * cursor you cannot find.
+ *
+ * None of this is noticed when it is right. All of it is noticed when it
+ * is wrong, and it is the specific kind of wrong that makes an expensive
+ * product feel like a web page with a dark theme bolted on.
+ */
+
+/* ---- scrollbars ------------------------------------------------------
+ *
+ * A control room has five or six independently scrolling regions on one
+ * screen. With the platform default that is five or six pale bars in the
+ * field of view, each one brighter than the content it belongs to.
+ *
+ * THIN, AND THE SAME TONE AS A BORDER. The rail is invisible until there
+ * is something to scroll, and the thumb is a hairline darker than the
+ * surface it sits on rather than lighter — a scrollbar is a mark ON the
+ * panel, not a thing floating above it.
+ */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ink-550) transparent;
+}
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: var(--ink-550);
+  border-radius: var(--radius-full);
+  /* The inset border is what makes a 10px bar read as a 6px thumb. */
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover { background-clip: content-box; background-color: var(--ink-450); }
+*::-webkit-scrollbar-corner { background: transparent; }
+
+/* ---- selection -------------------------------------------------------
+ *
+ * The default is a saturated blue chosen to sit under black text on white.
+ * Under light text on near-black it is a bruise, and the text inside it
+ * becomes harder to read than it was unselected — which is the opposite of
+ * what selecting is for.
+ */
+::selection {
+  background: rgba(79, 138, 214, 0.32);
+  color: var(--ink-000);
+}
+
+/* ---- the caret -------------------------------------------------------
+ *
+ * Black by default, and on a dark field that is an invisible cursor. It
+ * takes the accent rather than the text colour so it can be found in a
+ * long line without hunting.
+ */
+input, textarea, [contenteditable] { caret-color: var(--line-focus); }
+
+/* ---- the picture -----------------------------------------------------
+ *
+ * A video element with no source is a white rectangle in most engines for
+ * the moment before its first frame, and in a dark control room that is a
+ * flash in the corner of the eye every time a source is switched.
+ */
+video, img { background-color: #000; }
+video {
+  width: 100%; display: block;
+  border-radius: var(--radius-md);
+  /*
+   * The frame is a hairline of light on the inside, not a border on the
+   * outside: a border around a picture crops it by a pixel and on a
+   * composited broadcast frame that pixel is somebody's forehead.
+   */
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+/* ---- dividers --------------------------------------------------------
+ *
+ * A 1px line at the same colour everywhere reads as heavier the longer it
+ * runs. A rule crossing a whole control room is visually much stronger
+ * than the same rule inside a panel, so the long ones fade at their ends
+ * and the short ones do not.
+ */
+hr, .rule {
+  border: 0; height: 1px; margin: var(--space-6) 0;
+  background: linear-gradient(90deg,
+    transparent, var(--line) 12%, var(--line) 88%, transparent);
+}
+
+/* ---- text that is really a number ------------------------------------
+ *
+ * Timecodes, counters, bitrates and clocks. Slightly tighter and slightly
+ * dimmer than prose: a number being watched is read as a shape, and the
+ * tracking that makes words legible makes a digit group harder to take in
+ * at a glance. [U-08]
+ */
+.mono, .tabular {
+  letter-spacing: var(--tracking-tight);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- an empty region should say what goes in it ----------------------
+ *
+ * Several panels in this product show nothing at all when they hold
+ * nothing, and an empty dark rectangle is indistinguishable from one that
+ * has failed to load. This is the shape they share.
+ */
+.empty {
+  display: grid; place-items: center; gap: var(--space-3);
+  padding: var(--space-10) var(--space-6);
+  color: var(--text-faint);
+  font-size: var(--text-base);
+  text-align: center;
+  line-height: var(--leading-snug);
+}
+
+/* ---- a scrollable region says it has more ----------------------------
+ *
+ * A control room has five or six regions that scroll, and none of them
+ * said so. A list that ends exactly at the bottom edge of its panel is
+ * indistinguishable from a list that ends — so the rail looked like nine
+ * items when it held twenty, and the only way to find out was to try.
+ *
+ * THE FIX IS NOT A SCROLLBAR. A scrollbar appears on hover on most
+ * platforms and is absent on trackpads entirely; it answers the question
+ * only for somebody already reaching. A mask that fades the content into
+ * the panel's edge answers it at a glance, and it disappears on its own
+ * when there is nothing more — because `scroll-timeline` drives it from
+ * the actual scroll position rather than from a guess.
+ *
+ * The fallback for engines without scroll-driven animations is a
+ * permanent soft edge, which is wrong only in the one case where a list
+ * exactly fits, and is honest in every other.
+ */
+.shell-scroll,
+.scroll-fade {
+  --fade: 18px;
+  mask-image: linear-gradient(180deg,
+    transparent 0, #000 var(--fade),
+    #000 calc(100% - var(--fade)), transparent 100%);
+  -webkit-mask-image: linear-gradient(180deg,
+    transparent 0, #000 var(--fade),
+    #000 calc(100% - var(--fade)), transparent 100%);
+}
+
+/*
+ * AT THE TOP THERE IS NOTHING ABOVE, so fading the first line is a lie
+ * that costs a row of legibility. `animation-timeline: scroll()` runs the
+ * fade in as the region leaves its start and out as it reaches its end,
+ * with no JavaScript and no scroll listener on the frame budget.
+ */
+@supports (animation-timeline: scroll()) {
+  .shell-scroll, .scroll-fade {
+    animation: scroll-fade-edges linear both;
+    animation-timeline: scroll(self block);
+  }
+  @keyframes scroll-fade-edges {
+    0% {
+      mask-image: linear-gradient(180deg, #000 0, #000 calc(100% - 18px), transparent 100%);
+      -webkit-mask-image: linear-gradient(180deg, #000 0, #000 calc(100% - 18px), transparent 100%);
+    }
+    1%, 99% {
+      mask-image: linear-gradient(180deg, transparent 0, #000 18px, #000 calc(100% - 18px), transparent 100%);
+      -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 18px, #000 calc(100% - 18px), transparent 100%);
+    }
+    100% {
+      mask-image: linear-gradient(180deg, transparent 0, #000 18px, #000 100%);
+      -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 18px, #000 100%);
+    }
+  }
+}
+
+/* ---- what happens on a smaller window --------------------------------
+ *
+ * There was no breakpoint anywhere in this product. The control room is a
+ * three-column grid with fixed outer columns, so on a 13" laptop — which
+ * is what most people editing a conversation are actually using — the
+ * centre column, the one holding the programme, got whatever was left.
+ * Below about 1200px that is narrower than the rail beside it.
+ *
+ * THE RULE IS NOT "MAKE IT SMALLER", IT IS "DECIDE WHAT MATTERS". A
+ * control room narrowed proportionally is six unusable panels. What a
+ * narrow control room needs is the same as what a narrow gallery needs:
+ * the thing on air stays, and the furniture gives way.
+ *
+ * These are written as a floor rather than a redesign — enough that the
+ * product is usable on a laptop, without pretending a broadcast desk
+ * belongs on a phone. A channel is operated at a desk. [CHANNEL §9]
+ */
+
+@media (max-width: 1280px) {
+  /* The rails narrow before the programme does. */
+  :root { --rail-width: 240px; }
+  .shell-bar { padding-left: var(--space-5); padding-right: var(--space-5); }
+}
+
+@media (max-width: 1040px) {
+  /*
+   * Below this the bar's labels are what costs the most and gives the
+   * least: the glyphs alone are still five distinct shapes, and anybody
+   * on a window this size has been here before.
+   */
+  [data-testid='studio-nav'] span:last-child:not([aria-hidden]) {
+    position: absolute; width: 1px; height: 1px;
+    overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+  }
+  [data-testid='studio-nav'] a,
+  [data-testid='studio-nav'] span[aria-current],
+  [data-testid='studio-nav'] button { padding-left: 10px; padding-right: 10px; }
+}
+
+/*
+ * A TOUCH POINTER GETS BIGGER TARGETS, and this is a pointer question
+ * rather than a width question — a small tablet with a stylus wants the
+ * dense layout and a large touchscreen does not. `pointer: coarse` asks
+ * the right thing.
+ */
+@media (pointer: coarse) {
+  button, .btn, select, input[type='checkbox'], input[type='radio'] {
+    min-height: 40px;
+  }
+  button.sm, .btn.sm { min-height: 32px; }
+}
+
+/* ---- the backdrop behind a dialog ------------------------------------
+ *
+ * The default is a light grey wash designed for a white page. Behind a
+ * dark panel it lightens the room rather than dimming it, which is the
+ * exact opposite of what a backdrop is for.
+ *
+ * Dark, and blurred: the blur is not decoration but the thing that makes
+ * the page behind read as OUT OF REACH rather than merely tinted — and
+ * on a control room full of moving video, a tint alone leaves six
+ * animated rectangles competing with the question being asked.
+ */
+dialog::backdrop {
+  background: rgba(4, 6, 9, 0.62);
+  backdrop-filter: blur(3px) saturate(0.85);
+  -webkit-backdrop-filter: blur(3px) saturate(0.85);
+}

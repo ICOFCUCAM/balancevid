@@ -13,6 +13,9 @@ import { SPACES } from '../../../src/domain/performance.js';
 import { SPACE_LOOKS } from '../../../src/domain/environment.js';
 import { PLATFORMS } from '../../../src/domain/distribution.js';
 import StudioBar from '../../StudioBar.js';
+import {
+  MenuButton, MenuHost, RightClickHint, useRowMenu, type MenuEntry,
+} from '../../Menu.js';
 import { useLiveEncoder } from './useLiveEncoder.js';
 import { useBroadcastGuests } from './useBroadcastGuests.js';
 import { arrangementFor, useBroadcastMixer } from './useBroadcastMixer.js';
@@ -24,6 +27,7 @@ import {
   type Devices, cameraConstraints, microphoneConstraints, useDevices,
 } from '../../useDevices.js';
 import { useQuality } from '../../useQuality.js';
+import { useConfirm } from '../../Confirm.js';
 import {
   type Quality, type QualityId, QUALITIES, QUALITY_ORDER, aboveTransmission,
   qualityFor, rateSentence, rateVerdict, targetBytesPerSecond,
@@ -219,6 +223,15 @@ export default function ChannelStudio({
    * this is a preset and not three menus.
    */
   const quality = useQuality();
+  /*
+   * ASKING BEFORE THE IRREVERSIBLE ONES. [Confirm.tsx]
+   *
+   * These replace `window.confirm`, which on a dark desk is a white box
+   * in the operating system's typography, arriving at the top of the
+   * window far from the control that raised it — and whose only buttons
+   * are OK and Cancel, neither of which says what is about to happen.
+   */
+  const { confirm, dialog: confirmDialog } = useConfirm();
   const liveNow = channel.live && channel.live.phase !== 'ended';
   const guests = useBroadcastGuests({
     roomId: channel.live?.roomId,
@@ -503,8 +516,12 @@ export default function ChannelStudio({
   /* ---------------------------------------------------------------- */
 
   const goLive = () => {
-    const label = window.prompt('What is the live show called?', 'Live');
-    if (!label) return;
+    confirm({
+      question: 'Going live opens your camera and puts it in PREVIEW. '
+        + 'Nothing reaches the wire until you press TAKE LIVE.',
+      field: { label: 'What is the live show called?', initial: 'Live' },
+      verb: 'Go live',
+      go: (label) => {
     /*
      * IT NO LONGER ASKS WHICH ROOM. It used to, through a second prompt
      * wanting a raw `conv_…` identifier typed from memory — which is why
@@ -512,17 +529,27 @@ export default function ChannelStudio({
      * Arming opens the camera; the Guests tab is where a room is chosen and
      * people are invited, and nothing reaches the wire until TAKE LIVE. [§6]
      */
-    void patch({ action: 'go-live', label });
+        void patch({ action: 'go-live', label });
+      },
+    });
   };
-  const endLive = () => {
-    if (!window.confirm(keeping
+  const endLive = () => confirm({
+    question: keeping
       ? 'End the broadcast? It will be saved as a recording.'
-      : 'End the broadcast? It is NOT being saved, so the live buffer is '
-        + 'discarded.')) return;
-    void patch({ action: 'end-live' });
-  };
+      : 'End the broadcast? It is not being saved, so the live buffer is '
+        + 'discarded.',
+    verb: 'End the broadcast',
+    danger: true,
+    go: () => void patch({ action: 'end-live' }),
+  });
 
   return (
+    /*
+      * ONE MENU FOR THE CONTROL ROOM. The rails that want one are three
+      * components deep, so the host is here and they reach it through
+      * `useRowMenu` rather than through four intermediate props. [D-19]
+      */
+    <MenuHost>
     <div className="shell">
       <StudioBar
         current="online-tv"
@@ -533,11 +560,11 @@ export default function ChannelStudio({
             gap: 7, padding: '4px 10px', borderRadius: 5, flex: '0 0 auto',
             background: on.kind === 'live' ? 'rgba(192,57,43,0.18)'
               : on.kind === 'off' ? 'transparent' : 'rgba(45,110,200,0.14)',
-            border: `1px solid ${on.kind === 'live' ? '#c0392b'
+            border: `1px solid ${on.kind === 'live' ? 'var(--state-live-dim)'
               : on.kind === 'off' ? 'var(--line)' : 'rgba(45,110,200,0.45)'}`,
           }}>
-            <Dot on={on.kind !== 'off'} colour={on.kind === 'live' ? '#e04b37'
-              : on.kind === 'emergency' || on.kind === 'backup' ? '#e0c14f' : '#4f8ad6'} />
+            <Dot on={on.kind !== 'off'} colour={on.kind === 'live' ? 'var(--state-live)'
+              : on.kind === 'emergency' || on.kind === 'backup' ? 'var(--ink-on-armed)' : 'var(--accent)'} />
             <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.4 }}>
               {on.kind === 'off' ? 'OFF AIR' : 'ON AIR'}
             </span>
@@ -588,7 +615,7 @@ export default function ChannelStudio({
               onClick={() => { setAdding((open) => !open); setRailTab('library'); }}
               style={{
                 flex: 1, padding: '7px 10px', fontSize: 12,
-                background: '#2f6fd0', borderColor: '#2f6fd0',
+                background: 'var(--accent-deep)', borderColor: 'var(--accent-deep)',
               }}
             >
               + Add to Playlist
@@ -599,7 +626,7 @@ export default function ChannelStudio({
               style={{
                 flex: '0 0 auto', width: 32, padding: 0, height: 30,
                 background: filter === null ? 'var(--panel-2)' : 'rgba(45,110,200,0.22)',
-                border: `1px solid ${filter === null ? 'var(--line)' : '#3d7fd6'}`,
+                border: `1px solid ${filter === null ? 'var(--line)' : 'var(--accent)'}`,
                 borderRadius: 8, cursor: 'pointer', color: 'inherit',
               }}
             >&#9906;</button>
@@ -675,6 +702,63 @@ export default function ChannelStudio({
                 items={library} listing={listing} picked={picked}
                 keep={railRows.keep}
                 onPick={(key) => setPicked(picked === key ? null : key)}
+                /*
+                  * WHAT A FINISHED RENDER CAN BE DONE WITH, on the render.
+                  * All four of these already existed and all four needed
+                  * the item to be SELECTED first, then a control found
+                  * somewhere else on the screen — the emergency cut-away
+                  * is four hundred lines away from the list it acts on.
+                  * Right-clicking the thing is the shortest way there,
+                  * and it selects it on the way so the rest of the screen
+                  * agrees about what you meant. [§3]
+                  */
+                itemsFor={(item) => [
+                  {
+                    label: 'Add to the loop',
+                    hint: 'Fifteen minutes, adjustable afterwards',
+                    onSelect: () => {
+                      setPicked(sourceKey(item.source));
+                      void patch({
+                        action: 'rotate', source: item.source,
+                        durationMs: 15 * MINUTE, title: item.title,
+                      });
+                      setRailTab('playlist');
+                    },
+                  },
+                  {
+                    label: 'Give it a time\u2026',
+                    onSelect: () => {
+                      setPicked(sourceKey(item.source));
+                      setAdding(true);
+                    },
+                  },
+                  {
+                    label: 'Make it the backup',
+                    hint: 'What goes out if the live feed fails',
+                    onSelect: () => {
+                      setPicked(sourceKey(item.source));
+                      void patch({ action: 'backup', source: item.source });
+                    },
+                  },
+                  {
+                    label: 'Cut away to it now\u2026',
+                    danger: true,
+                    disabled: onAir ? false : 'The channel is not on air',
+                    onSelect: () => {
+                      setPicked(sourceKey(item.source));
+                      confirm({
+                        question: `Cut away to \u201c${item.title}\u201d now? `
+                          + 'Whatever is on air stops mid-programme and the '
+                          + 'audience sees the change immediately.',
+                        verb: 'Cut away now',
+                        danger: true,
+                        go: () => void patch({
+                          action: 'emergency', source: item.source,
+                        }),
+                      });
+                    },
+                  },
+                ]}
               />
             )}
             {railTab === 'schedules' && (
@@ -684,25 +768,64 @@ export default function ChannelStudio({
                 keep={railRows.keep}
                 onChoose={setChosen}
                 onUnschedule={(entry) => {
-                  if (!window.confirm(
-                    'Take it off the schedule? The video itself is untouched.')) return;
-                  void patch({ action: 'unschedule', programmeId: entry.id });
-                }}
-                onAddBlock={() => {
-                  const name = window.prompt('What is the day-part called?', 'Morning');
-                  if (!name) return;
-                  const at = window.prompt('It starts at (HH:MM, this channel’s time)', '07:00');
-                  if (!at) return;
-                  const [hours, minutes] = at.split(':').map(Number);
-                  void patch({
-                    action: 'add-block', name,
-                    fromMinute: (hours ?? 0) * 60 + (minutes ?? 0),
+                  confirm({
+                    question: 'Take it off the schedule? The video itself is '
+                      + 'untouched — it stays in the library.',
+                    verb: 'Unschedule',
+                    danger: true,
+                    go: () => void patch({
+                      action: 'unschedule', programmeId: entry.id,
+                    }),
                   });
                 }}
-                onRemoveBlock={(block) => {
-                  if (!window.confirm(`Remove the ${block.name} block?`)) return;
-                  void patch({ action: 'remove-block', blockId: block.id });
+                onAddBlock={() => {
+                  /*
+                   * TWO PROMPTS IN A ROW WAS THE WORST OF THEM. A native
+                   * dialog cannot hold two fields, so adding a day-part
+                   * meant answering a question, having it vanish, and
+                   * answering a second one with no way back to the first
+                   * — and cancelling the second silently discarded the
+                   * name you had already typed.
+                   *
+                   * One dialog, asked in one breath. The name is the
+                   * field; the time comes with it in the same question
+                   * because the two are one decision.
+                   */
+                  confirm({
+                    question: 'A day-part is a named stretch of the day '
+                      + '\u2014 Morning, Evening \u2014 that programmes '
+                      + 'can be scheduled inside.',
+                    field: {
+                      label: 'What is it called, and when does it start?',
+                      placeholder: 'Morning 07:00',
+                      initial: 'Morning 07:00',
+                    },
+                    verb: 'Add the day-part',
+                    go: (answer) => {
+                      /*
+                       * "Morning 07:00" — the time is the last word, and
+                       * anything before it is the name. Parsed leniently
+                       * because a person typing a name with a number in
+                       * it should not be punished for it.
+                       */
+                      const match = /^(.*?)\s*(\d{1,2}):(\d{2})\s*$/.exec(answer);
+                      const name = (match?.[1] ?? answer).trim() || 'Day-part';
+                      const hours = Number(match?.[2] ?? 0);
+                      const minutes = Number(match?.[3] ?? 0);
+                      void patch({
+                        action: 'add-block', name,
+                        fromMinute: hours * 60 + minutes,
+                      });
+                    },
+                  });
                 }}
+                onRemoveBlock={(block) => confirm({
+                  question: `Remove the ${block.name} block? The programmes `
+                    + 'inside it stay where they are — only the block goes.',
+                  verb: 'Remove the block',
+                  danger: true,
+                  go: () => void patch({ action: 'remove-block', blockId: block.id }),
+                })}
               />
             )}
           </div>
@@ -744,11 +867,11 @@ export default function ChannelStudio({
                 right={(
                   <span data-testid="program-mode" data-mode={on.kind} style={{
                     padding: '3px 9px', borderRadius: 4, fontSize: 10,
-                    fontWeight: 800, letterSpacing: 0.6, color: '#fff',
-                    background: on.kind === 'live' ? '#c0392b'
+                    fontWeight: 800, letterSpacing: 0.6, color: 'var(--ink-000)',
+                    background: on.kind === 'live' ? 'var(--state-live-dim)'
                       : on.kind === 'emergency' ? '#b3431f'
-                        : on.kind === 'backup' ? '#8e6a1f'
-                          : on.kind === 'off' ? '#2a3038' : '#2f6fd0',
+                        : on.kind === 'backup' ? 'var(--state-armed-dim)'
+                          : on.kind === 'off' ? 'var(--ink-500)' : 'var(--accent-deep)',
                   }}>
                     {on.kind === 'live' ? '● ON AIR'
                       : on.kind === 'emergency' ? 'EMERGENCY'
@@ -770,7 +893,7 @@ export default function ChannelStudio({
                 data-mode={on.kind}
                 style={{
                   position: 'relative', flex: '1 1 auto', minHeight: 150,
-                  margin: 9, background: '#05070a', borderRadius: 8,
+                  margin: 9, background: 'var(--ink-900)', borderRadius: 8,
                   border: '1px solid var(--line)', overflow: 'hidden',
                 }}
               >
@@ -815,19 +938,53 @@ export default function ChannelStudio({
                   * (§10); the monitor shows them in the same corners so the
                   * desk sees what a viewer sees. [D-16]
                   */}
+                {/*
+                  * OVERLAYS ON A PICTURE ARE GLASS, NOT PAINT. A flat
+                  * 80%-black plate is a hole cut in the programme; a
+                  * blurred, slightly translucent plate with a hairline of
+                  * light on its top edge sits ON the picture and lets the
+                  * frame continue underneath. Every broadcast interface
+                  * does this and it is the single biggest difference
+                  * between a monitor that looks professional and one that
+                  * looks like a web page with labels on it.
+                  */}
                 <span data-testid="monitor-clock" className="mono" style={{
-                  position: 'absolute', right: 9, top: 9, padding: '3px 8px',
-                  borderRadius: 4, background: 'rgba(5,7,10,0.8)', fontSize: 11,
+                  position: 'absolute', right: 10, top: 10,
+                  padding: '3px var(--space-3)',
+                  borderRadius: 'var(--radius-xs)',
+                  background: 'rgba(8,10,14,0.62)',
+                  backdropFilter: 'blur(10px) saturate(1.1)',
+                  WebkitBackdropFilter: 'blur(10px) saturate(1.1)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.08)',
+                  fontSize: 'var(--text-xs)',
+                  fontVariantNumeric: 'tabular-nums',
+                  color: 'rgba(255,255,255,0.92)',
                 }}>{clock(now)}</span>
 
                 <span data-testid="on-air-lamp" data-mode={on.kind} style={{
-                  position: 'absolute', left: 9, top: 9,
-                  padding: '3px 9px', borderRadius: 4, fontSize: 11, fontWeight: 700,
-                  background: on.kind === 'live' ? '#c0392b'
-                    : on.kind === 'backup' || on.kind === 'emergency' ? '#8e6a1f'
-                      : on.kind === 'off' ? 'rgba(5,7,10,0.78)'
-                        : 'rgba(45,110,200,0.55)',
-                  color: on.kind === 'off' ? 'var(--muted)' : '#fff',
+                  position: 'absolute', left: 10, top: 10,
+                  padding: '3px var(--space-3)',
+                  borderRadius: 'var(--radius-xs)',
+                  fontSize: 'var(--text-2xs)',
+                  fontWeight: 'var(--weight-bold)',
+                  letterSpacing: '0.08em',
+                  background: on.kind === 'live'
+                    ? 'linear-gradient(180deg, #e8483a, #c33327)'
+                    : on.kind === 'backup' || on.kind === 'emergency'
+                      ? 'linear-gradient(180deg, #a8821f, #8e6a1f)'
+                      : on.kind === 'off' ? 'rgba(8,10,14,0.62)'
+                        : 'rgba(45,110,200,0.62)',
+                  backdropFilter: 'blur(10px)',
+                  WebkitBackdropFilter: 'blur(10px)',
+                  border: `1px solid ${on.kind === 'live'
+                    ? 'rgba(255,140,128,0.55)' : 'rgba(255,255,255,0.12)'}`,
+                  boxShadow: on.kind === 'live'
+                    ? '0 0 12px rgba(226,59,46,0.45),'
+                      + ' inset 0 1px 0 rgba(255,255,255,0.22)'
+                    : 'inset 0 1px 0 rgba(255,255,255,0.08)',
+                  color: on.kind === 'off'
+                    ? 'rgba(255,255,255,0.6)' : 'var(--ink-000)',
                 }}>
                   {on.kind === 'live' ? '● LIVE'
                     : on.kind === 'backup' ? 'BACKUP'
@@ -837,13 +994,25 @@ export default function ChannelStudio({
 
                 {on.kind !== 'off' && (
                   <span data-testid="now-playing-chip" style={{
-                    position: 'absolute', left: 9, bottom: 9, maxWidth: '60%',
-                    padding: '4px 9px', borderRadius: 5,
-                    background: 'rgba(5,7,10,0.85)', fontSize: 11,
+                    position: 'absolute', left: 10, bottom: 10, maxWidth: '62%',
+                    padding: '4px var(--space-4)',
+                    borderRadius: 'var(--radius-sm)',
+                    background: 'rgba(8,10,14,0.62)',
+                    backdropFilter: 'blur(12px) saturate(1.1)',
+                    WebkitBackdropFilter: 'blur(12px) saturate(1.1)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.08)',
+                    fontSize: 'var(--text-xs)',
+                    color: 'rgba(255,255,255,0.94)',
                     overflow: 'hidden', textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap',
                   }}>
-                    <span className="muted" style={{ fontSize: 9, marginRight: 6 }}>
+                    <span style={{
+                      fontSize: 'var(--text-2xs)', marginRight: 'var(--space-3)',
+                      letterSpacing: '0.09em',
+                      fontWeight: 'var(--weight-bold)',
+                      color: 'rgba(255,255,255,0.5)',
+                    }}>
                       NOW PLAYING
                     </span>
                     {titleOf(on)}
@@ -853,18 +1022,35 @@ export default function ChannelStudio({
                 )}
 
                 {/* The station lockup, bottom right, where a channel's is. */}
+                {/*
+                  * THE STATION LOCKUP GETS NO PLATE. A channel's bug is
+                  * composited onto the outgoing frame with no box behind
+                  * it (§10), so a box here would show the desk something
+                  * no viewer sees. What keeps it legible over a bright
+                  * frame instead is a soft dark shadow behind the letters
+                  * themselves — which is exactly what the renderer does.
+                  */}
                 <span className="row" data-testid="station-lockup" style={{
-                  position: 'absolute', right: 9, bottom: 9, gap: 6,
-                  padding: '4px 9px', borderRadius: 5,
-                  background: 'rgba(5,7,10,0.72)', fontSize: 11, fontWeight: 700,
-                  color: channel.identity?.ink ?? '#fff',
-                  opacity: channel.identity?.bug?.opacity ?? 0.85,
+                  position: 'absolute', right: 10, bottom: 10,
+                  gap: 'var(--space-3)',
+                  fontSize: 'var(--text-xs)',
+                  fontWeight: 'var(--weight-bold)',
+                  letterSpacing: 'var(--tracking-tight)',
+                  color: channel.identity?.ink ?? 'var(--ink-000)',
+                  textShadow: '0 1px 6px rgba(0,0,0,0.85), 0 0 2px rgba(0,0,0,0.9)',
+                  opacity: channel.identity?.bug?.opacity ?? 0.9,
                 }}>
                   {channel.identity?.bug?.text ?? channel.name}
                   {on.kind === 'live' && (
                     <span style={{
-                      padding: '1px 6px', borderRadius: 3, background: '#c0392b',
-                      color: '#fff', fontSize: 9, letterSpacing: 0.6,
+                      padding: '1px var(--space-3)',
+                      borderRadius: 'var(--radius-xs)',
+                      background: 'var(--state-live)',
+                      color: 'var(--ink-000)', fontSize: 'var(--text-2xs)',
+                      letterSpacing: '0.09em',
+                      fontWeight: 'var(--weight-bold)',
+                      boxShadow: '0 0 10px rgba(226,59,46,0.5)',
+                      textShadow: 'none',
                     }}>{channel.identity?.liveLamp?.text ?? 'LIVE'}</span>
                   )}
                 </span>
@@ -887,9 +1073,9 @@ export default function ChannelStudio({
                 <Head text="Preview" sub="(Next)" />
                 <div style={{
                   position: 'relative', flex: '1 1 auto', minHeight: 96,
-                  margin: 9, background: '#05070a', borderRadius: 8,
+                  margin: 9, background: 'var(--ink-900)', borderRadius: 8,
                   overflow: 'hidden',
-                  border: `1px solid ${armed ? '#e0c14f' : 'var(--line)'}`,
+                  border: `1px solid ${armed ? 'var(--ink-on-armed)' : 'var(--line)'}`,
                 }}>
                   {/*
                     * IN A GALLERY, PREVIEW IS WHAT YOU ARE ABOUT TO CUT TO.
@@ -929,7 +1115,7 @@ export default function ChannelStudio({
                     <span style={{
                       position: 'absolute', left: 8, top: 8, padding: '2px 7px',
                       borderRadius: 3, fontSize: 9, fontWeight: 800,
-                      background: '#8e6a1f', color: '#fff', letterSpacing: 0.6,
+                      background: 'var(--state-armed-dim)', color: 'var(--ink-000)', letterSpacing: 0.6,
                     }}>ARMED</span>
                   )}
                 </div>
@@ -1071,7 +1257,7 @@ export default function ChannelStudio({
                 onClick={() => setMixerOpen((open) => !open)}
                 style={{
                   border: 0, background: 'none', padding: 0, fontSize: 14,
-                  cursor: 'pointer', color: mixerOpen ? '#6fa9ea' : 'var(--muted)',
+                  cursor: 'pointer', color: mixerOpen ? 'var(--accent-soft)' : 'var(--muted)',
                 }}
               >&#9776;</button>
             )}
@@ -1089,8 +1275,8 @@ export default function ChannelStudio({
               onClick={goLive}
               style={{
                 flex: 1, padding: '8px 10px', fontSize: 12,
-                background: onAir ? 'var(--panel-2)' : '#8e2f24',
-                borderColor: onAir ? 'var(--line)' : '#8e2f24',
+                background: onAir ? 'var(--panel-2)' : 'var(--state-live-dim)',
+                borderColor: onAir ? 'var(--line)' : 'var(--state-live-dim)',
                 opacity: onAir ? 0.5 : 1,
               }}
             >
@@ -1103,7 +1289,7 @@ export default function ChannelStudio({
               onClick={endLive}
               style={{
                 flex: 1, padding: '8px 10px', fontSize: 12,
-                borderColor: onAir ? '#c0392b' : 'var(--line)',
+                borderColor: onAir ? 'var(--state-live-dim)' : 'var(--line)',
                 color: onAir ? '#e07a6b' : 'var(--muted)',
               }}
             >
@@ -1156,10 +1342,11 @@ export default function ChannelStudio({
                     <button
                       key={option} type="button" data-testid="stage-arrangement"
                       data-option={option} data-chosen={chosenOne ? 'true' : 'false'}
+                      aria-pressed={chosenOne}
                       onClick={() => setArrangement(option === 'auto' ? undefined : option)}
                       style={{
                         padding: '3px 7px', fontSize: 10, borderRadius: 5,
-                        border: `1px solid ${chosenOne ? '#3d7fd6' : 'var(--line)'}`,
+                        border: `1px solid ${chosenOne ? 'var(--accent)' : 'var(--line)'}`,
                         background: chosenOne ? 'rgba(45,110,200,0.22)' : 'transparent',
                       }}
                     >
@@ -1248,7 +1435,7 @@ export default function ChannelStudio({
                     height: '100%',
                     width: totalMs > 0
                       ? `${Math.min(100, (intoMs / totalMs) * 100)}%` : '100%',
-                    background: on.kind === 'live' ? '#c0392b' : '#2f6fd0',
+                    background: on.kind === 'live' ? 'var(--state-live-dim)' : 'var(--accent-deep)',
                   }} />
                 </div>
                 <div className="row mono muted" style={{ fontSize: 10 }}>
@@ -1311,11 +1498,35 @@ export default function ChannelStudio({
         * wrong at the right where nothing else is — because the one thing
         * worse than needing it is pressing it by accident.
         */}
+      {/*
+        * THE TRANSPORT IS THE EDGE OF THE DESK. [§9]
+        *
+        * Everything above it is a view of something; everything on it
+        * changes the air. That distinction is worth a surface of its own —
+        * darker than the room, with a light hairline along the top — so a
+        * hand knows it has reached the part where pressing something is
+        * consequential, before the eye has read a single label.
+        */}
       <footer className="shell-foot" data-testid="channel-transport" style={{
-        display: 'grid', alignItems: 'center', gap: 12, padding: '8px 14px',
-        gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)',
+        display: 'grid', alignItems: 'center', gap: 'var(--space-5)',
+        padding: 'var(--space-4) var(--space-6)',
+        /*
+          * `max-content` AND NOT `auto` FOR THE MIDDLE. An `auto` grid
+          * track will shrink below the width of what is in it when its
+          * neighbours want the room, which is why EMERGENCY was arriving
+          * clipped to "⚠ Eme" and sliding under the control beside it.
+          * `max-content` refuses, and the two `minmax(0, 1fr)` columns
+          * either side give way instead — which is correct, because what
+          * they hold is a channel name and a destination count, and both
+          * of those can truncate without anybody being harmed.
+          */
+        gridTemplateColumns: 'minmax(0, 1fr) max-content minmax(0, 1fr)',
+        background: 'linear-gradient(180deg, var(--ink-850), var(--ink-900))',
       }}>
-        <div className="row" style={{ gap: 10, minWidth: 0, flexWrap: 'nowrap' }}>
+        <div className="row" style={{
+          gap: 'var(--space-4)', minWidth: 0, flexWrap: 'nowrap',
+          overflow: 'hidden',
+        }}>
           {/*
             * SAVE THIS LIVE SESSION.  [§8]
             *
@@ -1337,35 +1548,74 @@ export default function ChannelStudio({
               : 'Ask the channel to record the next hour of whatever it shows.'}
             onClick={() => {
               if (onAir) { void patch({ action: 'keep-live', keep: !keeping }); return; }
-              const label = window.prompt('What should the recording be called?');
-              if (!label) return;
-              void patch({
-                action: 'record', label,
-                fromAt: new Date(now).toISOString(),
-                toAt: new Date(now + HOUR).toISOString(),
-                requestedBy: 'owner',
+              confirm({
+                question: 'Record the next hour of whatever the channel '
+                  + 'shows. It becomes a file in this channel\u2019s library.',
+                field: {
+                  label: 'What should the recording be called?',
+                  placeholder: 'Tonight\u2019s show',
+                },
+                verb: 'Record the next hour',
+                go: (label) => void patch({
+                  action: 'record', label,
+                  fromAt: new Date(now).toISOString(),
+                  toAt: new Date(now + HOUR).toISOString(),
+                  requestedBy: 'owner',
+                }),
               });
             }}
+            /*
+              * THE ONE ROUND CONTROL IN THE ROOM, and round on purpose:
+              * every other control here is a rectangle, so shape alone
+              * says this is the record decision without a label. Armed it
+              * carries the live red and its own halo; idle it is a hollow
+              * ring, the same filled-versus-hollow grammar the lamps use.
+              */
             style={{
-              flex: '0 0 auto', width: 34, height: 34, borderRadius: '50%',
+              flex: '0 0 auto', width: 34, height: 34,
+              borderRadius: 'var(--radius-full)', minHeight: 0,
               padding: 0, cursor: 'pointer', display: 'grid', placeItems: 'center',
-              background: onAir && keeping ? '#c0392b' : 'var(--panel-2)',
-              border: `2px solid ${onAir && keeping ? '#e04b37' : '#6d3129'}`,
+              background: onAir && keeping
+                ? 'radial-gradient(circle at 50% 35%, #ef5040, #c0342a)'
+                : 'var(--surface-float)',
+              border: `2px solid ${onAir && keeping
+                ? 'var(--state-live)' : 'var(--ink-500)'}`,
+              boxShadow: onAir && keeping
+                ? '0 0 0 3px var(--state-live-glow), inset 0 1px 0 rgba(255,255,255,0.2)'
+                : 'inset 0 1px 0 rgba(255,255,255,0.04)',
             }}
           >
             <span aria-hidden="true" style={{
-              width: 13, height: 13, borderRadius: '50%',
-              background: onAir && keeping ? '#fff' : '#8e2f24',
+              width: 12, height: 12, borderRadius: 'var(--radius-full)',
+              background: onAir && keeping ? 'var(--ink-000)' : 'transparent',
+              boxShadow: onAir && keeping
+                ? '0 0 4px rgba(255,255,255,0.6)'
+                : 'inset 0 0 0 2px var(--state-live-dim)',
             }} />
           </button>
 
-          <span className="row" style={{ gap: 7, flex: '0 0 auto' }}>
-            <Dot on={on.kind !== 'off'} colour={on.kind === 'live' ? '#e04b37' : '#4f8ad6'} />
-            <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.5 }}>
+          {/*
+            * THE STATE, THE WORD AND THE CLOCK, in that order and read as
+            * one object. The clock is the largest figure in the room
+            * because it is the only number here anybody reads under
+            * pressure, and it is tabular so the digits do not shimmer as
+            * the seconds turn. [U-08]
+            */}
+          <span className="row" style={{ gap: 'var(--space-3)', flex: '0 0 auto' }}>
+            <span className={`lamp${on.kind === 'live' ? ' is-live'
+              : on.kind === 'off' ? '' : ' is-ok'}`} />
+            <span style={{
+              fontSize: 'var(--text-2xs)', fontWeight: 'var(--weight-bold)',
+              letterSpacing: '0.09em',
+              color: on.kind === 'off' ? 'var(--text-faint)' : 'var(--text)',
+            }}>
               {on.kind === 'off' ? 'OFF AIR' : 'ON AIR'}
             </span>
             <span className="mono" data-testid="transport-clock" style={{
-              fontSize: 15, fontWeight: 700,
+              fontSize: 'var(--text-lg)', fontWeight: 'var(--weight-bold)',
+              letterSpacing: 'var(--tracking-tight)',
+              color: on.kind === 'off' ? 'var(--text-dim)' : 'var(--text)',
+              fontVariantNumeric: 'tabular-nums',
             }}>{hms(elapsedMs)}</span>
           </span>
 
@@ -1388,8 +1638,21 @@ export default function ChannelStudio({
           </span>
         </div>
 
+        {/*
+          * THE CONTROL CLUSTER NEVER SHRINKS. It sat in the middle of a
+          * three-column grid whose outer columns were `1fr`, so a long
+          * channel name on the left or an extra destination on the right
+          * stole width from the middle — and what got squeezed was
+          * EMERGENCY, which ended up clipped to "⚠ Eme" and overlapped
+          * by the control beside it.
+          *
+          * A control that is truncated is a control somebody hesitates
+          * over, and this is the one in the room that must never be
+          * hesitated over. It is `auto` in the grid and `0 0 auto` in the
+          * flex, so the outer columns give way instead.
+          */}
         <div className="row" data-testid="control-bar" style={{
-          gap: 6, flexWrap: 'nowrap',
+          gap: 'var(--space-3)', flexWrap: 'nowrap', flex: '0 0 auto',
         }}>
           <button
             className="small" data-testid="stop-live" disabled={!onAir}
@@ -1421,9 +1684,24 @@ export default function ChannelStudio({
               className="primary" data-testid="take-live"
               title="Cut the live feed to air"
               onClick={() => void patch({ action: 'take-live' })}
+              /*
+                * THE MOST CONSEQUENTIAL BUTTON ON THE PAGE, and the only
+                * one allowed to look it. It carries the live red as a lit
+                * surface rather than a flat fill, and a halo in its own
+                * hue — so when it is pressable it is the brightest thing
+                * in the transport and nothing else has to be dimmed to
+                * make that true.
+                */
               style={{
-                background: '#c0392b', borderColor: '#c0392b', padding: '7px 14px',
-                fontSize: 12,
+                background: 'linear-gradient(180deg, #e8483a, #c33327)',
+                borderColor: '#f05a4a',
+                color: 'var(--text-on-accent)',
+                padding: 'var(--space-3) var(--space-6)',
+                fontSize: 'var(--text-sm)',
+                fontWeight: 'var(--weight-bold)',
+                letterSpacing: '0.02em',
+                boxShadow: '0 0 0 3px var(--state-live-glow),'
+                  + ' inset 0 1px 0 rgba(255,255,255,0.22)',
               }}
             >
               Take Live
@@ -1450,17 +1728,41 @@ export default function ChannelStudio({
             onClick={() => {
               if (emergency) { void patch({ action: 'emergency', source: null }); return; }
               if (!pickedItem) return;
-              if (!window.confirm(
-                `Cut away to "${pickedItem.title}" now? This interrupts whatever `
-                + 'is on air, including a live broadcast.')) return;
-              void patch({ action: 'emergency', source: pickedItem.source });
+              confirm({
+                question: `Cut away to “${pickedItem.title}” now? This `
+                  + 'interrupts whatever is on air, including a live broadcast.',
+                verb: 'Cut away now',
+                danger: true,
+                go: () => void patch({
+                  action: 'emergency', source: pickedItem.source,
+                }),
+              });
             }}
+            /*
+              * ARMED IT IS LOUD; IDLE IT IS AN OUTLINE. A destructive
+              * control that looks destructive at rest trains the eye to
+              * ignore red, and then the red that matters is invisible.
+              * So it waits as a red-edged outline and only fills when it
+              * is actually holding the channel off its schedule.
+              */
             style={emergency
               ? {
-                background: '#c0392b', borderColor: '#c0392b', color: '#fff',
-                padding: '7px 12px', fontSize: 12,
+                background: 'linear-gradient(180deg, #d4402f, #b03327)',
+                borderColor: '#e85643', color: 'var(--ink-000)',
+                padding: 'var(--space-3) var(--space-5)',
+                fontSize: 'var(--text-sm)',
+                fontWeight: 'var(--weight-bold)',
+                boxShadow: '0 0 0 3px rgba(226,59,46,0.22),'
+                  + ' inset 0 1px 0 rgba(255,255,255,0.2)',
+                whiteSpace: 'nowrap',
               }
-              : { borderColor: '#8e2f24', color: '#e07a6b', padding: '7px 12px', fontSize: 12 }}
+              : {
+                borderColor: 'rgba(200,70,55,0.5)', color: '#e0806f',
+                background: 'rgba(200,70,55,0.07)',
+                padding: 'var(--space-3) var(--space-5)',
+                fontSize: 'var(--text-sm)',
+                whiteSpace: 'nowrap',
+              }}
           >
             {emergency ? '⚠ Clear Emergency' : '⚠ Emergency'}
           </button>
@@ -1509,15 +1811,31 @@ export default function ChannelStudio({
               <div className="row">
                 <strong className="grow" style={{ fontSize: 12 }}>Destinations</strong>
                 <button className="small" data-testid="add-destination"
-                        onClick={() => {
-                          const kind = window.prompt(
-                            'Which destination? own, tiktok, youtube, facebook, '
-                            + 'x, rtmp', 'tiktok');
-                          if (kind) void patch({ action: 'add-destination', kind });
-                        }}
+                        onClick={() => confirm({
+                          question: 'Every destination carries the same '
+                            + 'moment composed its own way \u2014 a vertical '
+                            + 'output is a vertical edit, not this programme '
+                            + 'with its sides cut off.',
+                          field: {
+                            label: 'Where does it go?',
+                            initial: 'tiktok',
+                            choices: [
+                              { value: 'own', label: 'This channel\u2019s own link' },
+                              { value: 'tiktok', label: 'TikTok \u2014 vertical' },
+                              { value: 'youtube', label: 'YouTube \u2014 16:9' },
+                              { value: 'facebook', label: 'Facebook' },
+                              { value: 'x', label: 'X' },
+                              { value: 'rtmp', label: 'Anything taking an RTMP URL' },
+                            ],
+                          },
+                          verb: 'Add the destination',
+                          go: (kind) => void patch({
+                            action: 'add-destination', kind,
+                          }),
+                        })}
                         style={{
                           border: 0, background: 'none', padding: 0,
-                          color: '#5c9ee0', fontSize: 11, cursor: 'pointer',
+                          color: 'var(--accent-soft)', fontSize: 11, cursor: 'pointer',
                         }}>
                   + Add
                 </button>
@@ -1561,9 +1879,9 @@ export default function ChannelStudio({
                       style={{
                         width: 9, height: 9, borderRadius: '50%', padding: 0,
                         border: 0, cursor: 'pointer', flex: '0 0 auto',
-                        background: state === 'ON' ? '#c0392b'
-                          : state === 'READY' ? '#4f8a5b'
-                            : state === 'NOT CONNECTED' ? '#8e6a1f' : '#2a3038',
+                        background: state === 'ON' ? 'var(--state-live-dim)'
+                          : state === 'READY' ? 'var(--state-ok)'
+                            : state === 'NOT CONNECTED' ? 'var(--state-armed-dim)' : 'var(--ink-500)',
                       }}
                     />
                     <span className="grow" style={{
@@ -1631,10 +1949,10 @@ export default function ChannelStudio({
               on
               colour={!health ? '#6a7078'
                 : health.engine !== 'running' || health.stream === 'silent'
-                  ? '#c0392b'
-                  : health.stream === 'stalled' ? '#c99a2e'
-                    : violations.length > 0 || missing.length > 0 ? '#c99a2e'
-                      : '#4f8a5b'}
+                  ? 'var(--state-live-dim)'
+                  : health.stream === 'stalled' ? 'var(--state-warn)'
+                    : violations.length > 0 || missing.length > 0 ? 'var(--state-warn)'
+                      : 'var(--state-ok)'}
             />
             <span className="muted">
               {!health ? 'Engine: \u2026'
@@ -1660,7 +1978,7 @@ export default function ChannelStudio({
                 title={published
                   ? 'Anybody with the link can watch this channel.'
                   : 'Only you can watch this. Publish it to give it an audience.'}>
-            <Dot on colour={published ? '#4f8a5b' : '#6a7078'} />
+            <Dot on colour={published ? 'var(--state-ok)' : 'var(--ink-400)'} />
             <span className="muted">{published ? 'Public' : 'Private'}</span>
           </span>
 
@@ -1706,7 +2024,7 @@ export default function ChannelStudio({
                     }
                   }}
                   style={channel.backup
-                    ? { borderColor: '#8e6a1f', color: '#e0c14f', fontSize: 11 }
+                    ? { borderColor: 'var(--state-armed-dim)', color: 'var(--ink-on-armed)', fontSize: 11 }
                     : { fontSize: 11 }}
                 >
                   {channel.backup ? 'Clear' : 'Set from pick'}
@@ -1729,20 +2047,34 @@ export default function ChannelStudio({
                   className="small" data-testid="publish-channel"
                   onClick={() => {
                     if (published) {
-                      if (!window.confirm(
-                        'Take the channel off the air for viewers? It keeps '
-                        + 'transmitting \u2014 the link simply stops working.')) return;
-                      void patch({ action: 'unpublish' });
+                      confirm({
+                        question: 'Take the channel off the air for viewers? '
+                          + 'It keeps transmitting \u2014 the link simply '
+                          + 'stops working.',
+                        verb: 'Stop the link',
+                        danger: true,
+                        go: () => void patch({ action: 'unpublish' }),
+                      });
                       return;
                     }
-                    const author = window.prompt(
-                      'Who is broadcasting? (optional)', '') ?? undefined;
-                    void patch({ action: 'publish', ...(author ? { author } : {}) });
+                    confirm({
+                      question: 'Give the channel a public link. Anyone with '
+                        + 'it can watch \u2014 they cannot change anything.',
+                      field: {
+                        label: 'Who is broadcasting?',
+                        placeholder: 'Optional',
+                        optional: true,
+                      },
+                      verb: 'Publish the link',
+                      go: (author) => void patch({
+                        action: 'publish', ...(author ? { author } : {}),
+                      }),
+                    });
                   }}
                   style={published
-                    ? { borderColor: '#8e6a1f', color: '#e0c14f', fontSize: 11 }
+                    ? { borderColor: 'var(--state-armed-dim)', color: 'var(--ink-on-armed)', fontSize: 11 }
                     : {
-                      background: '#2f6fd0', borderColor: '#2f6fd0', color: '#fff',
+                      background: 'var(--accent-deep)', borderColor: 'var(--accent-deep)', color: 'var(--ink-000)',
                       fontSize: 11,
                     }}
                 >
@@ -1801,7 +2133,19 @@ export default function ChannelStudio({
           </p>
         )}
       </footer>
+
+      {/*
+        * THE DIALOG LIVES AT THE END OF THE SHELL and is rendered on
+        * every pass whether or not anything is being asked. A <dialog>
+        * in the top layer is not positioned by where it sits in the
+        * tree, so this costs nothing and means the hook has somewhere
+        * to put its question — a `useConfirm` whose dialog is never
+        * mounted silently does nothing at all, which is the worst way
+        * for a confirmation to fail. [Confirm.tsx]
+        */}
+      {confirmDialog}
     </div>
+    </MenuHost>
   );
 }
 
@@ -1816,8 +2160,11 @@ function Frame({
   return (
     <section data-testid={testid} style={{
       display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0,
-      height: '100%', borderRadius: 10, border: '1px solid var(--line)',
-      background: 'var(--panel)', overflow: 'hidden',
+      height: '100%', borderRadius: 'var(--radius-lg)',
+      border: 'var(--border) solid var(--line)',
+      background: 'var(--surface-raised)', overflow: 'hidden',
+      /* The light edge that makes a panel sit on the room. [elevation] */
+      boxShadow: 'var(--elev-1)',
     }}>
       {children}
     </section>
@@ -1828,17 +2175,36 @@ function Head({
   text, sub, right,
 }: { text: string; sub?: string; right?: React.ReactNode }) {
   return (
+    /*
+      * A PANEL HEAD IS A SHELF, NOT A LINE OF TEXT. It was a bold word
+      * above a hairline, which reads as the first row of the content
+      * rather than as the lid of the box. Giving it its own slightly
+      * darker ground separates it from what it heads, the way a rail
+      * separates from a shelf — and then the eye finds the six panel
+      * titles in this room without reading any of them.
+      */
     <div className="row" style={{
-      gap: 7, padding: '7px 10px', borderBottom: '1px solid var(--line)',
+      gap: 'var(--space-3)', padding: 'var(--space-3) var(--space-5)',
+      borderBottom: 'var(--border) solid var(--line)',
+      background: 'linear-gradient(180deg,'
+        + ' rgba(255,255,255,0.022), rgba(255,255,255,0))',
       minHeight: 34, flexWrap: 'nowrap', flex: '0 0 auto',
     }}>
       <strong style={{
-        fontSize: 13, minWidth: 0, overflow: 'hidden',
+        fontSize: 'var(--text-base)', minWidth: 0, overflow: 'hidden',
         textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        fontWeight: 'var(--weight-semi)',
+        letterSpacing: 'var(--tracking-tight)',
       }}>{text}</strong>
       {sub && (
-        <span className="muted" style={{
-          fontSize: 11, flex: '0 0 auto', whiteSpace: 'nowrap',
+        /*
+          * The qualifier is a whisper, not a second title: it answers
+          * "which one" for somebody already looking, and competing with
+          * the name would make every head two things to read.
+          */
+        <span style={{
+          fontSize: 'var(--text-xs)', flex: '0 0 auto', whiteSpace: 'nowrap',
+          color: 'var(--text-faint)', fontWeight: 'var(--weight-normal)',
         }}>{sub}</span>
       )}
       <span className="grow" />
@@ -1864,13 +2230,26 @@ function Strip({
   compact?: boolean;
 }) {
   return (
+    /*
+      * TWO SHAPES, ONE GRAMMAR. The wide strip heads a panel and marks
+      * its place with a rule beneath, the way a tab always has. The
+      * compact one is a SEGMENTED CONTROL — a track with a slider in it
+      * — and it is a different object because it does a different job:
+      * it lives inside a panel and switches a view rather than a place.
+      *
+      * The track is recessed and the chosen segment is raised out of it,
+      * so which one is selected is legible as depth before it is legible
+      * as colour. [elevation, D-04]
+      */
     <div className="row" data-testid={testid} style={{
       gap: 0, flexWrap: 'nowrap', flex: '0 0 auto',
-      borderBottom: compact ? 0 : '1px solid var(--line)',
+      borderBottom: compact ? 0 : 'var(--border) solid var(--line)',
       ...(compact
         ? {
-          border: '1px solid var(--line)', borderRadius: 8, padding: 2,
-          background: 'var(--panel-2)',
+          border: 'var(--border) solid var(--line)',
+          borderRadius: 'var(--radius-md)', padding: 2,
+          background: 'var(--surface-sunk)',
+          boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.4)',
         }
         : {}),
     }}>
@@ -1880,16 +2259,38 @@ function Strip({
           <button
             key={option.id} type="button" data-testid={`${testid}-${option.id}`}
             data-chosen={chosen ? 'true' : 'false'}
+            aria-pressed={chosen}
             onClick={() => onChange(option.id)}
             style={{
-              flex: compact ? '0 0 auto' : '1 1 0', padding: compact ? '4px 9px' : '9px 4px',
-              font: 'inherit', fontSize: compact ? 11 : 12,
-              fontWeight: chosen ? 700 : 500, cursor: 'pointer',
-              color: chosen ? (compact ? '#fff' : '#6fa9ea') : 'var(--muted)',
+              flex: compact ? '0 0 auto' : '1 1 0',
+              padding: compact
+                ? 'var(--space-2) var(--space-4)'
+                : 'var(--space-4) var(--space-2)',
+              minHeight: compact ? 24 : 32,
+              font: 'inherit',
+              fontSize: compact ? 'var(--text-xs)' : 'var(--text-sm)',
+              fontWeight: chosen ? 'var(--weight-bold)' : 'var(--weight-medium)',
+              cursor: 'pointer',
+              color: chosen
+                ? (compact ? 'var(--ink-000)' : '#7fb4ee')
+                : 'var(--text-faint)',
               background: compact
-                ? (chosen ? '#2f6fd0' : 'transparent') : 'none',
-              border: 0, borderRadius: compact ? 6 : 0,
-              borderBottom: compact ? 0 : `2px solid ${chosen ? '#2f6fd0' : 'transparent'}`,
+                ? (chosen
+                  ? 'linear-gradient(180deg, var(--accent), var(--accent-deep))'
+                  : 'transparent')
+                : 'none',
+              border: 0,
+              borderRadius: compact ? 'var(--radius-sm)' : 0,
+              borderBottom: compact
+                ? 0
+                : `2px solid ${chosen ? 'var(--accent)' : 'transparent'}`,
+              /* The raise: only the chosen segment leaves the track. */
+              boxShadow: compact && chosen
+                ? 'inset 0 1px 0 rgba(255,255,255,0.18), 0 1px 2px rgba(0,0,0,0.4)'
+                : 'none',
+              transition: 'color var(--motion-fast) var(--ease-out),'
+                + ' background-color var(--motion-fast) var(--ease-out),'
+                + ' border-color var(--motion-fast) var(--ease-out)',
             }}
           >{option.label}</button>
         );
@@ -1900,10 +2301,22 @@ function Strip({
 
 function Section({ text, aside }: { text: string; aside?: React.ReactNode }) {
   return (
+    /*
+      * A SUB-HEAD INSIDE A PANEL. Small, tracked out and dimmed rather
+      * than large and bold: a section label is signage, and signage is
+      * read by shape. Bold at 12px in a dense column competes with the
+      * panel's own title two centimetres above it, and then neither
+      * wins. [D-04]
+      */
     <div className="row" style={{
-      alignItems: 'baseline', justifyContent: 'space-between', margin: '10px 0 5px',
+      alignItems: 'baseline', justifyContent: 'space-between',
+      margin: 'var(--space-5) 0 var(--space-2)',
     }}>
-      <span style={{ fontSize: 12, fontWeight: 700 }}>{text}</span>
+      <span style={{
+        fontSize: 'var(--text-2xs)', fontWeight: 'var(--weight-bold)',
+        letterSpacing: '0.07em', textTransform: 'uppercase',
+        color: 'var(--text-faint)',
+      }}>{text}</span>
       {aside}
     </div>
   );
@@ -1911,10 +2324,32 @@ function Section({ text, aside }: { text: string; aside?: React.ReactNode }) {
 
 function Dot({ on, colour }: { on: boolean; colour: string }) {
   return (
+    /*
+      * A LAMP, NOT A DOT. The glow was a flat 7px blur in the lamp's own
+      * colour, which on a dark ground reads as a smudge rather than as
+      * something lit. A lit object has a hard core and a soft halo: the
+      * inset dark ring gives the core its edge, and the halo is wide and
+      * faint rather than narrow and strong. [status.css]
+      */
     <span aria-hidden="true" style={{
-      width: 8, height: 8, borderRadius: '50%', flex: '0 0 auto',
-      background: on ? colour : '#2a3038',
-      boxShadow: on ? `0 0 7px ${colour}` : 'none',
+      width: 8, height: 8, borderRadius: 'var(--radius-full)', flex: '0 0 auto',
+      background: on ? colour : 'var(--ink-500)',
+      /*
+       * THE HALO IS MIXED, NOT SUFFIXED. It was `${colour}22`, which
+       * works for a hex and silently produces nothing for a token —
+       * `var(--state-ok)22` is not a colour, so the whole declaration
+       * is dropped and the lamp loses its glow. Of this component's
+       * four call sites, three already passed a token on at least one
+       * branch — including the encoder lamp, whose every state is a
+       * token — and every one of those branches has been unlit since
+       * the day it was converted. The two that still looked right were
+       * the two that had never been converted.
+       */
+      boxShadow: on
+        ? `0 0 0 2.5px color-mix(in srgb, ${colour} 13%, transparent),`
+          + ` 0 0 8px color-mix(in srgb, ${colour} 33%, transparent),`
+          + ' inset 0 0 0 1px rgba(0,0,0,0.35)'
+        : 'inset 0 0 0 1px rgba(0,0,0,0.4)',
     }} />
   );
 }
@@ -1926,14 +2361,34 @@ function Meter({ value, label }: { value: number; label: string }) {
     <span className="row" data-testid="level-meter" data-label={label}
           title={`${label} · ${Math.round(value * 100)}%`}
           style={{ gap: 2, flex: '0 0 auto' }}>
-      {Array.from({ length: 8 }, (_unused, index) => (
-        <span key={index} aria-hidden="true" style={{
-          width: 3, height: 5 + index * 1.6, borderRadius: 1,
-          background: index < lit
-            ? (index > 6 ? '#c0392b' : index > 4 ? '#c99a2e' : '#4f8a5b')
-            : 'var(--panel-2)',
-        }} />
-      ))}
+      {/*
+        * AN UNLIT SEGMENT IS STILL PART OF THE INSTRUMENT. They were
+        * drawn in the panel colour, so a quiet meter looked like an
+        * empty space where a meter should be — and on a desk the whole
+        * point of a meter is that you can see the headroom you are not
+        * using. Unlit segments now sit just above the ground they are
+        * on: present, dark, and clearly a scale.
+        *
+        * The lit ones gain a glow in their own colour. A segment that
+        * is merely filled reads as a coloured rectangle; one that is
+        * lit reads as a signal, and this is the only place in the room
+        * where a number is being read as a continuous quantity rather
+        * than as a figure. [CHANNEL §9]
+        */}
+      {Array.from({ length: 8 }, (_unused, index) => {
+        const colour = index > 6 ? 'var(--state-live)'
+          : index > 4 ? 'var(--state-warn)' : 'var(--state-ok)';
+        const on = index < lit;
+        return (
+          <span key={index} aria-hidden="true" style={{
+            width: 3, height: 5 + index * 1.6, borderRadius: 1,
+            background: on ? colour : 'rgba(255,255,255,0.09)',
+            boxShadow: on ? `0 0 4px ${index > 6 ? 'rgba(226,59,46,0.7)'
+              : index > 4 ? 'rgba(215,154,43,0.6)' : 'rgba(79,157,99,0.5)'}` : 'none',
+            transition: 'background-color 60ms linear',
+          }} />
+        );
+      })}
     </span>
   );
 }
@@ -1945,7 +2400,7 @@ function Meter({ value, label }: { value: number; label: string }) {
 /** A numbered row: index, thumbnail, title, subtitle, duration, menu. */
 function Row({
   index, source, title, subtitle, duration, badge, chosen, testid, dataset,
-  onClick, menu,
+  onClick, about, items,
 }: {
   index: number;
   source?: ProgrammeSource;
@@ -1957,20 +2412,57 @@ function Row({
   testid: string;
   dataset?: Record<string, string>;
   onClick?: () => void;
-  menu?: React.ReactNode;
+  /*
+   * WHAT CAN BE DONE TO THIS ROW, as a list rather than as a rendered
+   * menu. It used to be a `<React.ReactNode>` holding a `<details>`, so
+   * every rail built its own markup and right-clicking a row was not
+   * possible without building it a second time. The row now declares the
+   * actions and the shared menu draws them, from the `⋯` and from the
+   * right-click alike. [D-19]
+   */
+  about?: string;
+  items?: () => MenuEntry[];
 }) {
+  const { onRow, fromButton } = useRowMenu();
   return (
     <div
       data-testid={testid} {...dataset}
+      {...(items && about ? onRow(about, items) : {})}
+      /*
+        * A LIST OF ROWS IS READ AS A LIST, NOT AS A STACK OF CARDS. Every
+        * row carried its own full border, so twenty rows drew forty
+        * horizontal lines and the eye had to work out which pairs
+        * belonged together. A row is now a surface with a hairline
+        * UNDER it — one line between neighbours instead of two — and the
+        * list reads as a column rather than as a pile.
+        *
+        * The chosen row is the exception and keeps a full outline plus a
+        * marker on its leading edge, because it is no longer one of the
+        * list: it is the one you picked.
+        */
       style={{
-        display: 'flex', gap: 9, alignItems: 'center', padding: 6,
-        borderRadius: 9, marginBottom: 5,
-        background: chosen ? 'rgba(45,110,200,0.16)' : 'var(--panel-2)',
-        border: `1px solid ${chosen ? '#3d7fd6' : 'var(--line)'}`,
+        display: 'flex', gap: 'var(--space-3)', alignItems: 'center',
+        padding: 'var(--space-3)',
+        borderRadius: chosen ? 'var(--radius-md)' : 'var(--radius-sm)',
+        marginBottom: 2,
+        background: chosen ? 'rgba(63,142,232,0.14)' : 'var(--surface-float)',
+        border: `1px solid ${chosen ? 'var(--accent)' : 'transparent'}`,
+        borderBottom: chosen
+          ? '1px solid #3f8ee8'
+          : '1px solid var(--ink-700)',
+        boxShadow: chosen ? 'inset 3px 0 0 #3f8ee8' : 'none',
+        transition: 'background-color var(--motion-fast) var(--ease-out)',
       }}
     >
-      <span className="mono muted" style={{
-        flex: '0 0 auto', width: 13, fontSize: 10, textAlign: 'right',
+      {/*
+        * THE ORDINAL IS FURNITURE. It tells you where you are in a loop
+        * and is never the thing being looked for, so it sits at the
+        * faintest tone the ramp offers — present when counted, silent
+        * when scanned.
+        */}
+      <span className="mono" style={{
+        flex: '0 0 auto', width: 14, fontSize: 'var(--text-2xs)',
+        textAlign: 'right', color: 'var(--ink-400)',
       }}>{index}</span>
       <button
         type="button" onClick={onClick}
@@ -1981,72 +2473,49 @@ function Row({
           cursor: onClick ? 'pointer' : 'default',
         }}
       >
+        {/*
+          * THE THUMBNAIL IS A WELL, like every other picture in the
+          * product: recessed, 16:9, and dark inside so an empty one
+          * reads as "nothing here yet" rather than as a broken image.
+          */}
         <span style={{
-          flex: '0 0 auto', width: 62, height: 36, borderRadius: 5,
-          overflow: 'hidden', position: 'relative', background: '#0d1319',
-          border: '1px solid var(--line)',
+          flex: '0 0 auto', width: 62, height: 35,
+          borderRadius: 'var(--radius-xs)',
+          overflow: 'hidden', position: 'relative', background: '#000',
+          boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.07),'
+            + ' inset 0 1px 3px rgba(0,0,0,0.6)',
         }}>
           {source ? <Thumb source={source} /> : null}
         </span>
         <span style={{ minWidth: 0, flex: 1 }}>
           <span className="row" style={{ gap: 6 }}>
             <span style={{
-              fontWeight: 600, fontSize: 12, minWidth: 0, overflow: 'hidden',
+              fontWeight: 'var(--weight-semi)', fontSize: 'var(--text-sm)',
+              minWidth: 0, overflow: 'hidden', letterSpacing: '-0.005em',
               textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             }}>{title}</span>
             {badge}
           </span>
-          <span className="muted" style={{
-            fontSize: 10, display: 'block', overflow: 'hidden',
+          <span style={{
+            fontSize: 'var(--text-2xs)', display: 'block', overflow: 'hidden',
             textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            color: 'var(--text-faint)', marginTop: 1,
           }}>{subtitle}</span>
         </span>
       </button>
-      <span className="mono muted" style={{ flex: '0 0 auto', fontSize: 10 }}>
-        {duration}
-      </span>
-      {menu}
+      {/*
+        * THE DURATION IS A NUMBER IN A COLUMN and must line up with the
+        * ones above and below it, or a list of times reads as a ragged
+        * edge. Tabular figures and a right edge do that. [U-08]
+        */}
+      <span className="mono" style={{
+        flex: '0 0 auto', fontSize: 'var(--text-2xs)',
+        color: 'var(--text-faint)', fontVariantNumeric: 'tabular-nums',
+      }}>{duration}</span>
+      {items && about && (
+        <MenuButton about={about} items={items} open={fromButton} small />
+      )}
     </div>
-  );
-}
-
-/**
- * The ⋯ menu.
- *
- * `name` groups them so opening one closes the others, which is the browser
- * doing what a menu manager would otherwise have to — the same mechanism
- * Studio Two's take menu uses. [STUDIO-TWO §5]
- */
-function Menu({ children }: { children: React.ReactNode }) {
-  return (
-    <details name="rail-menu" data-testid="row-menu" style={{
-      position: 'relative', flex: '0 0 auto',
-    }}>
-      <summary style={{
-        listStyle: 'none', cursor: 'pointer', padding: '0 4px',
-        color: 'var(--muted)', fontSize: 13,
-      }}>&#8943;</summary>
-      <div className="panel" style={{
-        position: 'absolute', right: 0, top: '100%', zIndex: 30, padding: 5,
-        width: 170, display: 'flex', flexDirection: 'column', gap: 2,
-        boxShadow: '0 10px 28px rgba(0,0,0,0.5)',
-      }}>{children}</div>
-    </details>
-  );
-}
-
-function MenuItem({
-  label, onClick, danger, disabled,
-}: { label: string; onClick: () => void; danger?: boolean; disabled?: boolean }) {
-  return (
-    <button
-      type="button" disabled={disabled} onClick={onClick}
-      style={{
-        border: 0, background: 'none', textAlign: 'left', font: 'inherit',
-        fontSize: 11, padding: '5px 7px', borderRadius: 5, cursor: 'pointer',
-        color: danger ? 'var(--bad)' : 'inherit', opacity: disabled ? 0.4 : 1,
-      }}
-    >{label}</button>
   );
 }
 
@@ -2073,7 +2542,10 @@ function PlaylistRail({
 }) {
   if (channel.rotation.length === 0) {
     return (
-      <p className="small muted" style={{ margin: 0, fontSize: 11 }}>
+      <p className="empty" style={{
+        margin: 0, padding: 'var(--space-8) var(--space-5)',
+        fontSize: 'var(--text-xs)', maxWidth: '30ch',
+      }}>
         Nothing in the loop. Put something here and the channel is never off
         air — it plays round and round until a fixed slot pre-empts it.
       </p>
@@ -2102,29 +2574,32 @@ function PlaylistRail({
             badge={playing ? (
               <span style={{
                 flex: '0 0 auto', padding: '1px 5px', borderRadius: 3,
-                background: '#c0392b', color: '#fff', fontSize: 8,
+                background: 'var(--state-live-dim)', color: 'var(--ink-000)', fontSize: 8,
                 fontWeight: 800, letterSpacing: 0.5,
               }}>LIVE</span>
             ) : entry.loop ? (
               <span className="muted" style={{ fontSize: 9 }}>&#8635;</span>
             ) : undefined}
-            menu={(
-              <Menu>
-                <MenuItem
-                  label="Move up" disabled={index === 0}
-                  onClick={() => onMove(entry, index - 1)}
-                />
-                <MenuItem
-                  label="Move down"
-                  disabled={index === channel.rotation.length - 1}
-                  onClick={() => onMove(entry, index + 1)}
-                />
-                <MenuItem
-                  label="Remove from the loop" danger
-                  onClick={() => onRemove(entry)}
-                />
-              </Menu>
-            )}
+            about={title}
+            items={() => [
+              {
+                label: 'Move up',
+                disabled: index === 0 ? 'It is already first' : false,
+                onSelect: () => onMove(entry, index - 1),
+              },
+              {
+                label: 'Move down',
+                disabled: index === channel.rotation.length - 1
+                  ? 'It is already last' : false,
+                onSelect: () => onMove(entry, index + 1),
+              },
+              {
+                label: 'Remove from the loop',
+                danger: true,
+                hint: 'The file is untouched — a loop holds references',
+                onSelect: () => onRemove(entry),
+              },
+            ]}
           />
         );
       })}
@@ -2132,19 +2607,22 @@ function PlaylistRail({
         {/* The one sentence D-18 is about, next to the thing it is about. */}
         The loop plays round for ever. Scheduling something twice adds no file.
       </p>
+      <RightClickHint what="an entry" />
     </>
   );
 }
 
 /** THE LIBRARY — every finished render both other studios have made. [§3] */
 function LibraryRail({
-  items, listing, picked, keep, onPick,
+  items, listing, picked, keep, onPick, itemsFor,
 }: {
   items: LibraryItem[];
   listing: Programme[];
   picked: string | null;
   keep: (text: string) => boolean;
   onPick: (key: string) => void;
+  /* What to do with a finished render. The rail does not know; §3. */
+  itemsFor: (item: LibraryItem) => MenuEntry[];
 }) {
   if (items.length === 0) {
     return (
@@ -2177,6 +2655,8 @@ function LibraryRail({
             testid="library-item"
             dataset={{ 'data-source-key': key } as Record<string, string>}
             onClick={() => onPick(key)}
+            about={item.title}
+            items={() => itemsFor(item)}
           />
         );
       })}
@@ -2206,7 +2686,10 @@ function SchedulesRail({
   return (
     <>
       {listing.length === 0 ? (
-        <p className="small muted" style={{ margin: 0, fontSize: 11 }}>
+        <p className="empty" style={{
+          margin: 0, padding: 'var(--space-8) var(--space-5)',
+          fontSize: 'var(--text-xs)', maxWidth: '30ch',
+        }}>
           No fixed times. Everything comes from the loop, which is a perfectly
           good channel — a fixed slot is for the thing that has to be at nine.
         </p>
@@ -2231,20 +2714,21 @@ function SchedulesRail({
             badge={broken ? (
               <span style={{
                 flex: '0 0 auto', padding: '1px 5px', borderRadius: 3,
-                background: '#8e2f24', color: '#fff', fontSize: 8, fontWeight: 800,
+                background: 'var(--state-live-dim)', color: 'var(--ink-000)', fontSize: 8, fontWeight: 800,
               }}>NO FILE</span>
             ) : liveId === entry.id ? (
               <span style={{
                 flex: '0 0 auto', padding: '1px 5px', borderRadius: 3,
-                background: '#c0392b', color: '#fff', fontSize: 8, fontWeight: 800,
+                background: 'var(--state-live-dim)', color: 'var(--ink-000)', fontSize: 8, fontWeight: 800,
               }}>LIVE</span>
             ) : undefined}
-            menu={(
-              <Menu>
-                <MenuItem label="Unschedule" danger
-                          onClick={() => onUnschedule(entry)} />
-              </Menu>
-            )}
+            about={title}
+            items={() => [{
+              label: 'Unschedule',
+              danger: true,
+              hint: 'Takes it out of the day. The file is untouched.',
+              onSelect: () => onUnschedule(entry),
+            }]}
           />
         );
       })}
@@ -2259,7 +2743,7 @@ function SchedulesRail({
           <button className="small" data-testid="add-block" onClick={onAddBlock}
                   style={{
                     border: 0, background: 'none', padding: 0, fontSize: 11,
-                    color: '#5c9ee0', cursor: 'pointer',
+                    color: 'var(--accent-soft)', cursor: 'pointer',
                   }}>+ Add</button>
         )}
       />
@@ -2421,7 +2905,8 @@ function MultiView({
 
   return (
     <div data-testid="multiview-grid" style={{
-      display: 'grid', gap: 6, padding: 9, flex: '1 1 auto', minHeight: 0,
+      display: 'grid', gap: 'var(--space-3)', padding: 'var(--space-3)',
+      flex: '1 1 auto', minHeight: 0,
       gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
       gridTemplateRows: 'repeat(2, minmax(0, 1fr))', alignContent: 'center',
     }}>
@@ -2434,9 +2919,22 @@ function MultiView({
           onClick={tile.act}
           title={`${tile.label} — ${tile.sub}`
             + (tile.why ? `\n${tile.why}` : '')}
+          /*
+            * A TILE IS A MONITOR IN A RACK, and a rack is a row of
+            * recessed wells rather than a row of cards. The inset dark
+            * edge is what makes six of them read as one instrument
+            * instead of six floating rectangles. [elevation]
+            *
+            * THE LIVE ONE IS NOT JUST OUTLINED. An outline in a grid of
+            * outlines is found by comparison — the eye has to check all
+            * six. A tinted halo around it is found without comparison,
+            * which is the difference between reading a rack and glancing
+            * at one.
+            */
           style={{
-            position: 'relative', minHeight: 44, borderRadius: 6, padding: 0,
-            overflow: 'hidden', background: '#05070a', textAlign: 'left',
+            position: 'relative', minHeight: 44,
+            borderRadius: 'var(--radius-sm)', padding: 0, minWidth: 0,
+            overflow: 'hidden', background: '#000', textAlign: 'left',
             font: 'inherit', color: 'inherit',
             cursor: tile.act ? 'pointer' : 'default',
             /*
@@ -2445,8 +2943,14 @@ function MultiView({
              * they cannot cut to as much as the ones they can.
              */
             opacity: tile.act || tile.live ? 1 : 0.72,
-            border: `1px solid ${tile.live ? '#3d7fd6' : 'var(--line)'}`,
-            boxShadow: tile.live ? '0 0 0 1px rgba(61,127,214,0.45)' : 'none',
+            border: `1px solid ${tile.live ? 'var(--accent)' : 'var(--ink-600)'}`,
+            boxShadow: tile.live
+              ? '0 0 0 2px rgba(79,138,214,0.3), 0 2px 8px rgba(0,0,0,0.5),'
+                + ' inset 0 0 0 1px rgba(255,255,255,0.06)'
+              : 'inset 0 1px 3px rgba(0,0,0,0.6)',
+            transition: 'box-shadow var(--motion-fast) var(--ease-out),'
+              + ' border-color var(--motion-fast) var(--ease-out),'
+              + ' opacity var(--motion-fast) var(--ease-out)',
           }}
         >
           {tile.stream ? (
@@ -2467,23 +2971,42 @@ function MultiView({
               placeItems: 'center', fontSize: 16, opacity: 0.4,
             }}>{tile.glyph ?? '—'}</span>
           )}
+          {/*
+            * THE SOURCE NUMBER, which is how an operator actually refers
+            * to a tile out loud. It sits on its own plate rather than on
+            * the picture: a number over moving video is unreadable for
+            * whichever frames happen to be pale behind it.
+            */}
           <span className="mono" style={{
-            position: 'absolute', left: 3, top: 3, padding: '0 4px',
-            borderRadius: 3, background: 'rgba(5,7,10,0.8)', fontSize: 9,
-            fontWeight: 700,
+            position: 'absolute', left: 4, top: 4,
+            padding: '1px 5px', borderRadius: 'var(--radius-xs)',
+            background: 'rgba(0,0,0,0.72)',
+            border: '1px solid rgba(255,255,255,0.1)',
+            fontSize: 'var(--text-2xs)', lineHeight: 1.3,
+            fontWeight: 'var(--weight-bold)',
+            color: tile.live ? '#9cc6f5' : 'var(--ink-100)',
           }}>{tile.n}</span>
+          {/*
+            * THE NAME PLATE. A single-stop gradient leaves a visible seam
+            * where it starts; three stops with an eased middle is what
+            * makes a scrim read as light falling off rather than as a
+            * translucent box laid over the picture.
+            */}
           <span style={{
             position: 'absolute', left: 0, right: 0, bottom: 0,
-            padding: '9px 4px 3px', fontSize: 9, lineHeight: 1.25,
-            background: 'linear-gradient(180deg, transparent, rgba(5,7,10,0.92))',
+            padding: '14px var(--space-2) var(--space-2)',
+            fontSize: 'var(--text-2xs)', lineHeight: 1.3,
+            background: 'linear-gradient(180deg, transparent 0%,'
+              + ' rgba(0,0,0,0.55) 55%, rgba(0,0,0,0.9) 100%)',
           }}>
             <span style={{
-              display: 'block', fontWeight: 700, overflow: 'hidden',
-              textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              display: 'block', fontWeight: 'var(--weight-semi)',
+              overflow: 'hidden', textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap', color: 'var(--ink-000)',
             }}>{tile.label}</span>
-            <span className="muted" style={{
+            <span style={{
               display: 'block', overflow: 'hidden', textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
+              whiteSpace: 'nowrap', color: 'rgba(255,255,255,0.62)',
             }}>{tile.sub}</span>
           </span>
         </button>
@@ -2530,21 +3053,42 @@ function Timeline({
   }) => (
     <div className="row" data-testid="timeline-lane" data-lane={name}
          style={{ alignItems: 'stretch', gap: 0 }}>
+      {/*
+        * THE LANE NAMES ARE A LEGEND, NOT CONTENT. They are read once
+        * when somebody first meets the timeline and never again, so
+        * they sit at the faintest tone and in the smallest size the
+        * scale has. Anything louder and four labels compete with the
+        * programmes they are labelling, every second of every day.
+        */}
       <span style={{
-        flex: '0 0 auto', width: 96, padding: '5px 8px 0 0', textAlign: 'right',
+        flex: '0 0 auto', width: 96,
+        padding: '5px var(--space-4) 0 0', textAlign: 'right',
       }}>
-        <span className="muted" style={{
-          display: 'block', fontSize: 10, fontWeight: 600,
+        <span style={{
+          display: 'block', fontSize: 'var(--text-2xs)',
+          fontWeight: 'var(--weight-semi)', color: 'var(--text-faint)',
+          letterSpacing: '0.02em',
         }}>{name}</span>
         {note && (
-          <span className="muted" style={{
-            display: 'block', fontSize: 8, opacity: 0.7,
+          <span style={{
+            display: 'block', fontSize: 'var(--text-2xs)',
+            transform: 'scale(0.85)', transformOrigin: 'right top',
+            color: 'var(--ink-400)',
           }}>{note}</span>
         )}
       </span>
+      {/*
+        * A LANE IS A TRACK, AND A TRACK IS A GROOVE. The lanes were
+        * separated by a hairline and nothing else, so four of them read
+        * as three lines rather than as four channels. A recessed ground
+        * gives each one a floor for its blocks to sit on, which is what
+        * makes a timeline read as a timeline rather than as a table.
+        */}
       <div style={{
         position: 'relative', flex: 1, minWidth: 0, height,
-        borderTop: '1px solid var(--line)',
+        borderTop: 'var(--border) solid var(--line)',
+        background: 'rgba(0,0,0,0.22)',
+        boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.3)',
       }}>{children}</div>
     </div>
   );
@@ -2606,8 +3150,8 @@ function Timeline({
                         || segment.on.kind === 'backup' ? 'rgba(201,154,46,0.26)'
                         : segment.on.kind === 'programme' ? 'rgba(45,110,200,0.34)'
                           : 'rgba(45,110,200,0.15)',
-                  border: `1px solid ${broken ? '#c0392b'
-                    : isChosen || holds ? '#6fa9ea' : 'var(--line)'}`,
+                  border: `1px solid ${broken ? 'var(--state-live-dim)'
+                    : isChosen || holds ? 'var(--accent-soft)' : 'var(--line)'}`,
                 }}
               >
                 <span style={{
@@ -2702,16 +3246,31 @@ function Timeline({
 
         {/* ---- the playhead --------------------------------------------- */}
         {now >= windowFrom && now <= windowTo && (
+          /*
+            * THE PLAYHEAD IS NOW, AND NOW IS THE ONLY THING ON THIS PAGE
+            * THAT MOVES BY ITSELF. It was a 2px line the same red as
+            * several other things; it is now the live red with a glow,
+            * so it is found instantly in a field of blocks without
+            * being thick enough to hide what is under it.
+            */
           <div aria-hidden="true" data-testid="playhead" style={{
             position: 'absolute', top: 0, bottom: 0, width: 2,
             left: `calc(96px + (100% - 96px) * `
               + `${(now - windowFrom) / (windowTo - windowFrom)})`,
-            background: '#e0674f', pointerEvents: 'none', zIndex: 5,
+            background: 'var(--state-live)', pointerEvents: 'none', zIndex: 5,
+            boxShadow: '0 0 8px rgba(226,59,46,0.65)',
           }}>
             <span className="mono" style={{
-              position: 'absolute', top: -20, left: -34, padding: '1px 5px',
-              borderRadius: 3, background: '#c0392b', color: '#fff', fontSize: 9,
-              fontWeight: 700, whiteSpace: 'nowrap',
+              position: 'absolute', top: -20, left: -34,
+              padding: '1px var(--space-3)',
+              borderRadius: 'var(--radius-xs)',
+              background: 'linear-gradient(180deg, #e8483a, #c33327)',
+              color: 'var(--ink-000)', fontSize: 'var(--text-2xs)',
+              fontWeight: 'var(--weight-bold)', whiteSpace: 'nowrap',
+              letterSpacing: '0.05em',
+              boxShadow: '0 1px 4px rgba(0,0,0,0.5),'
+                + ' inset 0 1px 0 rgba(255,255,255,0.2)',
+              fontVariantNumeric: 'tabular-nums',
             }}>ON AIR {clock(now)}</span>
           </div>
         )}
@@ -2834,7 +3393,7 @@ function CalendarView({
             <strong className="grow" style={{ fontSize: 12 }}>{block.name}</strong>
             {block.id === holding && (
               <span style={{
-                padding: '1px 6px', borderRadius: 3, background: '#2f6fd0',
+                padding: '1px 6px', borderRadius: 3, background: 'var(--accent-deep)',
                 fontSize: 9, fontWeight: 800,
               }}>ON AIR</span>
             )}
@@ -2842,7 +3401,7 @@ function CalendarView({
                     onClick={() => onAddToBlock(block)}
                     style={{
                       border: 0, background: 'none', padding: 0, fontSize: 11,
-                      color: '#5c9ee0', cursor: 'pointer',
+                      color: 'var(--accent-soft)', cursor: 'pointer',
                     }}>+ Add pick</button>
           </div>
           {block.rotation.length === 0 ? (
@@ -2928,8 +3487,8 @@ function CameraTab({
       <div className="row" style={{ gap: 9, alignItems: 'stretch' }}>
         <div style={{
           flex: 1, minWidth: 0, position: 'relative', aspectRatio: '16 / 9',
-          borderRadius: 8, overflow: 'hidden', background: '#05070a',
-          border: `1px solid ${armed ? '#e0c14f' : onAir ? '#c0392b' : 'var(--line)'}`,
+          borderRadius: 8, overflow: 'hidden', background: 'var(--ink-900)',
+          border: `1px solid ${armed ? 'var(--ink-on-armed)' : onAir ? 'var(--state-live-dim)' : 'var(--line)'}`,
         }}>
           {feed ? (
             <video
@@ -3064,8 +3623,8 @@ function CameraTab({
         background: 'var(--panel-2)', border: '1px solid var(--line)',
       }}>
         <div className="row" style={{ gap: 8 }}>
-          <Dot on colour={encoder.running && encoder.dropped === 0 ? '#4f8a5b'
-            : encoder.running ? '#c99a2e' : '#8e2f24'} />
+          <Dot on colour={encoder.running && encoder.dropped === 0 ? 'var(--state-ok)'
+            : encoder.running ? 'var(--state-warn)' : 'var(--state-live-dim)'} />
           <span className="grow muted">
             {encoder.running
               ? `Feed · ${encoder.sent} sent`
@@ -3099,7 +3658,7 @@ function CameraTab({
                 width: `${Math.min(100, Math.round(
                   (encoder.rate / Math.max(1, targetBytesPerSecond(quality))) * 100))}%`,
                 background: rateVerdict(encoder.rate, quality) === 'capped'
-                  ? '#c99a2e' : '#4f8a5b',
+                  ? 'var(--state-warn)' : 'var(--state-ok)',
                 transition: 'width 400ms linear',
               }} />
             </div>
@@ -3134,13 +3693,14 @@ function CameraTab({
             <button
               key={space.id} type="button" data-testid="virtual-set"
               data-space={space.id} data-chosen={chosen ? 'true' : 'false'}
+              aria-pressed={chosen}
               onClick={() => onSpace(chosen ? '' : space.id)}
               title={space.label}
               style={{
                 padding: 0, aspectRatio: '1 / 1', borderRadius: 6,
                 overflow: 'hidden', cursor: 'pointer', position: 'relative',
                 background: SPACE_SWATCHES[space.id] ?? '#1b2028',
-                border: `1px solid ${chosen ? '#3d7fd6' : 'var(--line)'}`,
+                border: `1px solid ${chosen ? 'var(--accent)' : 'var(--line)'}`,
                 boxShadow: chosen ? '0 0 0 1px rgba(61,127,214,0.5)' : 'none',
               }}
             >
@@ -3158,17 +3718,32 @@ function CameraTab({
   );
 }
 
-function VMeter({ value, tint = '#4f8a5b' }: { value: number; tint?: string }) {
+function VMeter({ value, tint = 'var(--state-ok)' }: { value: number; tint?: string }) {
   const lit = Math.min(1, value * 1.6);
   return (
+    /*
+      * A VERTICAL METER IS A WELL WITH LIGHT RISING IN IT. The track is
+      * recessed rather than merely outlined, so the column has a
+      * bottom for the level to stand on — and the gradient runs green
+      * to amber to red at the points a broadcast engineer expects
+      * them, which is why the stops are at 78% and not spread evenly.
+      * An evenly-spread meter is amber at conversational speech, and
+      * then amber means nothing.
+      */
     <span aria-hidden="true" style={{
-      width: 7, height: '100%', minHeight: 54, borderRadius: 3,
-      background: 'var(--panel-2)', border: '1px solid var(--line)',
+      width: 7, height: '100%', minHeight: 54,
+      borderRadius: 'var(--radius-xs)',
+      background: 'var(--ink-900)',
+      boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.06),'
+        + ' inset 0 1px 3px rgba(0,0,0,0.6)',
       display: 'flex', alignItems: 'flex-end', overflow: 'hidden',
     }}>
       <span style={{
         width: '100%', height: `${lit * 100}%`,
-        background: `linear-gradient(0deg, ${tint}, #c99a2e 78%, #c0392b)`,
+        background: `linear-gradient(0deg, ${tint}, var(--state-warn) 78%,`
+          + ' var(--state-live))',
+        boxShadow: lit > 0.92 ? '0 0 6px rgba(226,59,46,0.7)' : 'none',
+        transition: 'height 60ms linear',
       }} />
     </span>
   );
@@ -3244,8 +3819,8 @@ function ScreensTab({
           }}>LIVE SCREEN</span>
           {share.sharing && (
             <span style={{
-              padding: '1px 6px', borderRadius: 3, background: '#1f8a70',
-              color: '#fff', fontSize: 8, fontWeight: 800, letterSpacing: 0.5,
+              padding: '1px 6px', borderRadius: 3, background: 'var(--studio-tv)',
+              color: 'var(--ink-000)', fontSize: 8, fontWeight: 800, letterSpacing: 0.5,
             }}>IN THE MIX</span>
           )}
         </div>
@@ -3256,7 +3831,7 @@ function ScreensTab({
               flexWrap: 'nowrap', background: 'var(--panel-2)',
               border: '1px solid var(--line)',
             }}>
-              <Dot on colour="#1f8a70" />
+              <Dot on colour="var(--studio-tv)" />
               <span className="grow" style={{
                 minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
@@ -3264,7 +3839,7 @@ function ScreensTab({
             </div>
             <button className="small" data-testid="stop-share"
                     onClick={share.stop}
-                    style={{ borderColor: '#8e2f24', color: '#e07a6b' }}>
+                    style={{ borderColor: 'var(--state-live-dim)', color: '#e07a6b' }}>
               Stop sharing
             </button>
           </>
@@ -3360,6 +3935,7 @@ function GraphicsTab({
               <button
                 key={corner} type="button" data-testid="bug-corner"
                 data-corner={corner} data-chosen={chosen ? 'true' : 'false'}
+                aria-pressed={chosen}
                 onClick={() => onIdentity({
                   bug: {
                     text: identity?.bug?.text ?? channel.name,
@@ -3368,7 +3944,7 @@ function GraphicsTab({
                 })}
                 style={{
                   padding: '3px 7px', fontSize: 10, borderRadius: 5,
-                  border: `1px solid ${chosen ? '#3d7fd6' : 'var(--line)'}`,
+                  border: `1px solid ${chosen ? 'var(--accent)' : 'var(--line)'}`,
                   background: chosen ? 'rgba(45,110,200,0.22)' : 'transparent',
                 }}
               >{corner.replace('-', ' ')}</button>
@@ -3384,6 +3960,7 @@ function GraphicsTab({
             <button
               key={show} type="button" data-testid="lower-third"
               data-show={show} data-chosen={chosen ? 'true' : 'false'}
+              aria-pressed={chosen}
               onClick={() => onIdentity({
                 lowerThird: {
                   show, holdMs: identity?.lowerThird?.holdMs ?? 8000,
@@ -3393,7 +3970,7 @@ function GraphicsTab({
               })}
               style={{
                 flex: 1, padding: '5px 4px', fontSize: 10, borderRadius: 6,
-                border: `1px solid ${chosen ? '#3d7fd6' : 'var(--line)'}`,
+                border: `1px solid ${chosen ? 'var(--accent)' : 'var(--line)'}`,
                 background: chosen ? 'rgba(45,110,200,0.22)' : 'transparent',
               }}
             >{show}</button>
@@ -3500,7 +4077,7 @@ function AudioTab({
       <label className="row" data-testid="keep-live-label" style={{
         gap: 8, fontSize: 12, padding: '7px 9px', borderRadius: 7, margin: 0,
         flexWrap: 'nowrap', alignItems: 'flex-start',
-        border: `1px solid ${keeping ? '#c0392b' : 'var(--line)'}`,
+        border: `1px solid ${keeping ? 'var(--state-live-dim)' : 'var(--line)'}`,
         background: keeping ? 'rgba(192,57,43,0.14)' : 'var(--panel-2)',
       }}>
         <input
@@ -3545,9 +4122,24 @@ function Thumb({ source }: { source: ProgrammeSource }) {
   const url = urlFor(source);
   if (!url) {
     return (
-      <span aria-hidden="true" className="muted" style={{
+      /*
+        * A THING WITH NO PICTURE SHOULD LOOK DELIBERATE, NOT EMPTY. A
+        * flat slab with a word on it is what a broken image looks like;
+        * fine diagonal hatching is what an EMPTY SLOT looks like, and
+        * broadcast tools have used exactly that to mean "no signal here"
+        * for as long as there have been racks.
+        *
+        * The hatch is drawn in CSS at 4px, faint enough to read as
+        * texture rather than as a pattern demanding attention, and the
+        * word sits on top of it saying which kind of nothing this is.
+        */
+      <span aria-hidden="true" style={{
         position: 'absolute', inset: 0, display: 'grid', placeItems: 'center',
-        fontSize: 9, background: '#121820',
+        fontSize: 'var(--text-2xs)',
+        fontWeight: 'var(--weight-bold)', letterSpacing: '0.08em',
+        color: 'var(--ink-400)',
+        background: 'repeating-linear-gradient(45deg,'
+          + ' var(--ink-800) 0 3px, var(--ink-750) 3px 6px)',
       }}>{source.kind === 'live' ? 'LIVE' : 'EVENT'}</span>
     );
   }
@@ -3633,10 +4225,11 @@ function Scheduler({
             key={option} type="button" data-testid="slot-length"
             data-minutes={option}
             data-chosen={minutes === option ? 'true' : 'false'}
+            aria-pressed={minutes === option}
             onClick={() => setMinutes(option)}
             style={{
               padding: '5px 4px', fontSize: 11, borderRadius: 7,
-              border: `1px solid ${minutes === option ? '#3d7fd6' : 'var(--line)'}`,
+              border: `1px solid ${minutes === option ? 'var(--accent)' : 'var(--line)'}`,
               background: minutes === option
                 ? 'rgba(45,110,200,0.22)' : 'var(--panel-2)',
             }}

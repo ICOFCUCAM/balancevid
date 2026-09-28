@@ -135,6 +135,7 @@ export default function CompositionRail({
               data-testid="layout-option"
               data-layout-id={id}
               data-chosen={chosen ? 'true' : 'false'}
+              aria-pressed={chosen}
               disabled={disabled}
               /*
                * An explicit choice is stored explicitly, even when it happens
@@ -145,8 +146,8 @@ export default function CompositionRail({
               onClick={() => onLayout(id)}
               style={{
                 padding: 6, textAlign: 'left', borderRadius: 6,
-                background: chosen ? 'rgba(43,95,138,0.30)' : 'var(--panel-2)',
-                border: `1px solid ${chosen ? '#6fb3e0' : 'var(--line)'}`,
+                background: chosen ? 'var(--accent-wash)' : 'var(--panel-2)',
+                border: `1px solid ${chosen ? 'var(--accent)' : 'var(--line)'}`,
               }}
             >
               <LayoutDiagram layoutId={id} />
@@ -172,13 +173,14 @@ export default function CompositionRail({
               data-testid="explain-tool"
               data-tool={option.kind}
               data-armed={armed ? 'true' : 'false'}
+              aria-pressed={armed}
               disabled={disabled}
               title={option.hint}
               onClick={() => onTool(armed ? null : option.kind)}
               style={{
                 padding: '8px 6px', borderRadius: 6, fontSize: 12,
-                background: armed ? '#2b5f8a' : 'var(--panel-2)',
-                border: `1px solid ${armed ? '#6fb3e0' : 'var(--line)'}`,
+                ...(armed ? {} : { background: 'var(--panel-2)',
+                  border: '1px solid var(--line)' }),
               }}
             >
               {option.label}
@@ -262,7 +264,7 @@ function LayoutDiagram({ layoutId }: { layoutId: string }) {
   const layout = LAYOUTS[layoutId];
   if (!layout) return null;
   const colour = (source: string) =>
-    source === 'user' ? 'var(--user-accent, #c2794f)' : 'var(--source-accent, #7f9bb5)';
+    source === 'user' ? 'var(--user-accent)' : 'var(--source-accent)';
 
   return (
     <div aria-hidden style={{

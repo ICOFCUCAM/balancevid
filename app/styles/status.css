@@ -1,0 +1,158 @@
+/*
+ * THE STATES A BROADCAST IS IN.  [Doctrine CHANNEL §7, §9, D-04, U-19]
+ *
+ * The three that matter are OFF AIR, ARMED and ON AIR, and until now they
+ * were written as literal hex wherever they were needed: `#c0392b` in the
+ * transport, `#8e2f24` on a border, `#e0c14f` for armed in one file and
+ * `#c99a2e` for the same idea in another. Two reds that are nearly the
+ * same are worse than one red, because the eye reads the difference as
+ * meaningful and then finds it means nothing.
+ *
+ * THE RED IS THE MOST IMPORTANT COLOUR IN THE PRODUCT and it has one job:
+ * to be unmistakable at a glance, from across a room, in peripheral
+ * vision, on a cheap panel. That rules out the obvious choices — a pure
+ * #ff0000 vibrates against dark surfaces and a muted brick reads as
+ * furniture. What works is a red with enough chroma to be unambiguous and
+ * enough luminance to survive being small.
+ *
+ * AND IT IS NEVER ONLY THE COLOUR. Somewhere between four and eight per
+ * cent of men cannot reliably separate this red from this green, and
+ * "which of these two lamps is lit" is exactly the discrimination that
+ * fails. So every state here also carries a LABEL and a SHAPE: on air is
+ * a filled circle with a ring, armed is a hollow ring, off air is a flat
+ * bar. Readable in greyscale, readable in a photograph, readable by
+ * somebody who sees no difference between the two hues at all. [U-19]
+ */
+
+:root {
+  /* ---- on air: the one that must never be mistaken ------------------ */
+  --state-live: #e23b2e;
+  /*
+   * THE DEEP ONE IS FOR A CHIP THAT CARRIES A WORD. The bright red is
+   * tuned to be seen, not read on: --ink-000 over #e23b2e measures
+   * 4.00:1, which is under the bar for the ten-pixel bold "ON AIR" the
+   * workspace draws on it. Over #b62a20 it is 5.86:1 and the red is
+   * still unmistakably the red. So: the lamp, the edge and the glow are
+   * --state-live; a filled block with text on it is --state-live-dim.
+   */
+  --state-live-dim: #b62a20;
+  --state-live-glow: rgba(226, 59, 46, 0.28);
+  --state-live-wash: rgba(226, 59, 46, 0.12);
+
+  /* ---- armed: ready, not transmitting ------------------------------- */
+  --state-armed: #e8b33c;
+  --state-armed-dim: #b98a24;
+  --state-armed-wash: rgba(232, 179, 60, 0.12);
+
+  /* ---- off air / idle ------------------------------------------------ */
+  --state-off: var(--ink-400);
+  --state-off-wash: rgba(86, 93, 103, 0.14);
+
+  /* ---- health, which is a different question from what is on air ---- */
+  --state-ok: #4f9d63;
+  --state-ok-wash: rgba(79, 157, 99, 0.12);
+  --state-warn: #d79a2b;
+  --state-bad: #d7594a;
+  --state-bad-wash: rgba(215, 89, 74, 0.12);
+
+  /*
+   * THE INK A NOTICE IS WRITTEN IN, which is not the colour of its
+   * marker. A message set in --state-bad is the same red as the edge
+   * beside it and disappears into its own wash; the text has to be a
+   * lighter tint of the same hue so the two read as one object with a
+   * bright edge rather than as red-on-red.
+   */
+  --ink-on-bad: #f0958a;
+  --ink-on-armed: #f0c66a;
+  --ink-on-ok: #84c797;
+
+  /*
+   * THE ACCENT. One blue, in the three weights the interface uses it at:
+   * the line on a chosen thing, the fill on a pressed one, and the tint
+   * a selection washes its row with. Eleven near-identical blues were
+   * counted in the control room alone — #2f6fd0, #3d7fd6, #3f8ee8,
+   * #4f8ad6, #5c9ee0 — and five blues that are almost the same blue are
+   * worse than one, because the eye reads each difference as meaning
+   * something and then finds it means nothing.
+   */
+  --accent: #3f8ee8;
+  --accent-deep: #2f6fd0;
+  --accent-soft: #7fb4ee;
+  --accent-wash: rgba(63, 142, 232, 0.16);
+
+  /* The old names, aliased, so nothing has to change at once. */
+  --ok: var(--state-ok);
+  --warn: var(--state-warn);
+  --bad: var(--state-bad);
+}
+
+/*
+ * THE LAMP. A dot whose shape says as much as its colour.
+ *
+ * The live one pulses, and that is the single exception to "nothing on
+ * the broadcast path moves": a pulse is not a transition, it carries no
+ * information about WHEN something changed, and a red light that breathes
+ * is what a studio tally has looked like for seventy years. It is also
+ * the one cue that survives being seen out of the corner of an eye.
+ */
+.lamp {
+  width: 9px; height: 9px; border-radius: var(--radius-full);
+  flex: 0 0 auto; display: inline-block;
+  background: var(--state-off);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.4);
+}
+
+.lamp.is-live {
+  background: var(--state-live);
+  box-shadow: 0 0 0 3px var(--state-live-glow),
+              inset 0 0 0 1px rgba(0, 0, 0, 0.3);
+  animation: lamp-breathe 2.4s var(--ease-in-out) infinite;
+}
+
+/* Armed is a RING: filled says transmitting, hollow says ready. */
+.lamp.is-armed {
+  background: transparent;
+  box-shadow: inset 0 0 0 2.5px var(--state-armed);
+}
+
+.lamp.is-ok { background: var(--state-ok); }
+.lamp.is-warn { background: var(--state-warn); }
+.lamp.is-bad { background: var(--state-bad); }
+
+@keyframes lamp-breathe {
+  0%, 100% { box-shadow: 0 0 0 3px var(--state-live-glow),
+                         inset 0 0 0 1px rgba(0, 0, 0, 0.3); }
+  50%      { box-shadow: 0 0 0 6px rgba(226, 59, 46, 0.08),
+                         inset 0 0 0 1px rgba(0, 0, 0, 0.3); }
+}
+
+/*
+ * A BADGE SAYS THE STATE IN WORDS, always beside the lamp and never
+ * instead of it. Uppercase and tracked out, because this is the one place
+ * in the interface where a word is being read as a signal rather than as
+ * language — the shape of the block matters more than its legibility as
+ * a sentence.
+ */
+.state-badge {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-xs);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: var(--border) solid transparent;
+  white-space: nowrap;
+}
+.state-badge.is-live {
+  background: var(--state-live-wash); color: #ff8578;
+  border-color: rgba(226, 59, 46, 0.4);
+}
+.state-badge.is-armed {
+  background: var(--state-armed-wash); color: #f0c66a;
+  border-color: rgba(232, 179, 60, 0.36);
+}
+.state-badge.is-off {
+  background: var(--state-off-wash); color: var(--ink-300);
+  border-color: var(--line);
+}

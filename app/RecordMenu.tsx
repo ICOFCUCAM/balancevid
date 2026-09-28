@@ -1,10 +1,13 @@
 'use client';
 
 import { useState } from 'react';
+
+import { useConfirm } from './Confirm.js';
+import type { MenuEntry } from './Menu.js';
 import type { WorkRecord } from './Workspace.js';
 
 /**
- * The ⋯ menu, and the only thing behind it that matters.  [Doctrine §19]
+ * What can be done to something you made.  [Doctrine §19, D-19]
  *
  * DELETING IS NOT A TOGGLE, so it is not one click. It asks, and the
  * question names what actually goes: a performance takes the song somebody
@@ -21,6 +24,12 @@ import type { WorkRecord } from './Workspace.js';
  *
  * It refuses rather than cascading. Unscheduling somebody's evening of
  * television is a decision, not a side effect of tidying up.
+ *
+ * THIS USED TO BE A COMPONENT WITH A `<details>` INSIDE IT, one per row,
+ * each carrying its own dialog and its own copy of the refusal banner. It
+ * is a hook now, and the surface owns one menu, one dialog and one banner
+ * for the whole list — which is what made right-clicking a card possible
+ * without writing the actions out a second time. [D-19]
  */
 
 const WHAT_GOES: Record<WorkRecord['kind'], string> = {
@@ -35,109 +44,119 @@ const ENDPOINT: Record<WorkRecord['kind'], string> = {
   conversation: 'conversations', performance: 'performances', channel: 'channels',
 };
 
-export default function RecordMenu({
-  record, onDeleted,
-}: { record: WorkRecord; onDeleted: () => void }) {
-  const [busy, setBusy] = useState(false);
-  const [refused, setRefused] = useState<string | null>(null);
+const WATCH: Record<WorkRecord['kind'], (id: string) => string> = {
+  conversation: (id) => `/c/${id}/watch`,
+  performance: (id) => `/p/${id}/watch`,
+  channel: (id) => `/t/${id}/watch`,
+};
 
-  const remove = async () => {
-    if (!window.confirm(
-      `Delete “${record.title}”?\n\nThis removes ${WHAT_GOES[record.kind]}.\n\n`
-      + 'It cannot be undone.')) return;
-    setBusy(true);
+const OPEN_IN: Record<WorkRecord['kind'], string> = {
+  conversation: 'Studio One', performance: 'Studio Two', channel: 'Online TV',
+};
+
+export function useRecordActions(onDeleted: (record: WorkRecord) => void) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [refused, setRefused] = useState<{ title: string; why: string } | null>(null);
+  const { confirm, dialog } = useConfirm();
+
+  const remove = async (record: WorkRecord) => {
+    setBusy(record.id);
     setRefused(null);
     try {
       const response = await fetch(
         `/api/${ENDPOINT[record.kind]}/${record.id}`, { method: 'DELETE' });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        setRefused(data.error ?? 'that could not be deleted');
+        setRefused({
+          title: record.title,
+          why: data.error ?? 'that could not be deleted',
+        });
         return;
       }
-      onDeleted();
+      onDeleted(record);
     } catch {
-      setRefused('that could not be deleted — the server did not answer');
+      setRefused({
+        title: record.title,
+        why: 'that could not be deleted — the server did not answer',
+      });
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   };
 
-  return (
-    <>
-      {/*
-        * `name` groups them, so opening one closes the others — the browser
-        * doing what a menu manager would otherwise have to. The same
-        * mechanism Studio Two's take menu and the channel rail's use.
-        */}
-      <details name="record-menu" data-testid="record-menu"
-               style={{ position: 'relative', flex: '0 0 auto' }}>
-        <summary aria-label={`Actions for ${record.title}`} style={{
-          listStyle: 'none', cursor: 'pointer', padding: '0 5px',
-          color: 'var(--muted)', fontSize: 15, lineHeight: 1,
-        }}>&#8943;</summary>
-        <div className="panel" style={{
-          position: 'absolute', right: 0, top: '100%', zIndex: 40, padding: 5,
-          width: 190, display: 'flex', flexDirection: 'column', gap: 2,
-          boxShadow: '0 12px 30px rgba(0,0,0,0.55)',
-        }}>
-          <a href={record.href} style={{
-            padding: '6px 8px', borderRadius: 6, fontSize: 12,
-            textDecoration: 'none', color: 'inherit',
-          }}>Open</a>
-          {record.published && (
-            <a href={record.kind === 'channel'
-              ? `/t/${record.id}/watch`
-              : `/${record.kind === 'performance' ? 'p' : 'c'}/${record.id}/watch`}
-               target="_blank" rel="noreferrer"
-               style={{
-                 padding: '6px 8px', borderRadius: 6, fontSize: 12,
-                 textDecoration: 'none', color: 'inherit',
-               }}>
-              View as a visitor
-            </a>
-          )}
-          <button
-            type="button" data-testid="delete-record" disabled={busy}
-            onClick={() => { void remove(); }}
-            style={{
-              border: 0, background: 'none', textAlign: 'left', font: 'inherit',
-              fontSize: 12, padding: '6px 8px', borderRadius: 6,
-              cursor: 'pointer', color: 'var(--bad)',
-              borderTop: '1px solid var(--line)', marginTop: 2,
-            }}
-          >
-            {busy ? 'Deleting…' : 'Delete…'}
-          </button>
-        </div>
-      </details>
+  /*
+   * THE MOST IRREVERSIBLE THING IN THE PRODUCT. A native confirm rendered
+   * this as three paragraphs separated by blank lines in the operating
+   * system's font, with OK and Cancel underneath — and "OK" is a word
+   * somebody presses without reading. The verb here says the noun.
+   */
+  const askRemove = (record: WorkRecord) => confirm({
+    question: `Delete “${record.title}”? This removes `
+      + `${WHAT_GOES[record.kind]}, and it cannot be undone.`,
+    verb: 'Delete it',
+    danger: true,
+    go: () => { void remove(record); },
+  });
 
-      {refused && (
-        /*
-         * Shown as a panel rather than an alert: the message names channels
-         * and programmes, and an `alert()` is not something anybody can copy
-         * a name out of or read twice.
-         */
-        <div role="alert" data-testid="delete-refused" style={{
-          position: 'fixed', left: '50%', bottom: 22, transform: 'translateX(-50%)',
-          zIndex: 90, maxWidth: 560, padding: '12px 15px', borderRadius: 10,
-          background: 'var(--panel)', border: '1px solid #8e2f24',
-          boxShadow: '0 14px 40px rgba(0,0,0,0.6)',
+  /** The one list of what can be done to a record, wherever it is asked. */
+  const itemsFor = (record: WorkRecord): MenuEntry[] => [
+    { label: `Open in ${OPEN_IN[record.kind]}`, href: record.href },
+    record.published
+      ? {
+        label: 'View as a visitor',
+        href: WATCH[record.kind](record.id),
+        external: true,
+        hint: 'Opens the published page in a new tab',
+      }
+      : {
+        label: 'View as a visitor',
+        disabled: 'It is not published yet',
+      },
+    {
+      label: busy === record.id ? 'Deleting…' : 'Delete…',
+      danger: true,
+      disabled: busy === record.id,
+      onSelect: () => askRemove(record),
+    },
+  ];
+
+  const banner = refused ? (
+    /*
+     * Shown as a panel rather than an alert: the message names channels
+     * and programmes, and an `alert()` is not something anybody can copy
+     * a name out of or read twice.
+     */
+    <div role="alert" data-testid="delete-refused" style={{
+      position: 'fixed', left: '50%', bottom: 'var(--space-8)',
+      transform: 'translateX(-50%)',
+      zIndex: 90, maxWidth: 560,
+      padding: 'var(--space-5) var(--space-6)',
+      borderRadius: 'var(--radius-xl)',
+      background: 'var(--surface-lift)',
+      border: 'var(--border) solid var(--line-strong)',
+      boxShadow: 'var(--elev-4), inset 3px 0 0 var(--state-bad)',
+    }}>
+      <div className="row" style={{
+        gap: 'var(--space-4)', alignItems: 'flex-start',
+      }}>
+        <span className="grow" style={{
+          fontSize: 'var(--text-base)', minWidth: 0,
         }}>
-          <div className="row" style={{ gap: 10, alignItems: 'flex-start' }}>
-            <span className="grow" style={{ fontSize: 12.5, minWidth: 0 }}>
-              <strong style={{ display: 'block', marginBottom: 2 }}>
-                “{record.title}” was not deleted
-              </strong>
-              <span className="muted">{refused}</span>
-            </span>
-            <button type="button" onClick={() => setRefused(null)}
-                    style={{ flex: '0 0 auto', padding: '4px 9px', fontSize: 11 }}>
-              Close
-            </button>
-          </div>
-        </div>
-      )}
-    </>
-  );
+          <strong style={{
+            display: 'block', marginBottom: 'var(--space-1)',
+            color: 'var(--ink-on-bad)',
+          }}>
+            “{refused.title}” was not deleted
+          </strong>
+          <span style={{ color: 'var(--text-dim)' }}>{refused.why}</span>
+        </span>
+        <button type="button" onClick={() => setRefused(null)}
+                style={{ flex: '0 0 auto', padding: '4px 9px', fontSize: 11 }}>
+          Close
+        </button>
+      </div>
+    </div>
+  ) : null;
+
+  return { itemsFor, dialog, banner };
 }

@@ -108,14 +108,33 @@ export default function Timeline({
         {/* How much of the source has been watched. */}
         <div style={{
           position: 'absolute', inset: 0, width: at(currentFrame),
-          background: 'rgba(120,170,220,0.18)', borderRadius: '6px 0 0 6px',
+          /* Watched source, in the source's own hue rather than a
+             fourth blue invented for the purpose. */
+          background: 'color-mix(in srgb, var(--source-accent) 22%, transparent)',
+          borderRadius: '6px 0 0 6px',
         }} />
-        {/* Where each interruption happened. */}
+        {/*
+          * WHERE EACH INTERRUPTION HAPPENED, in the colour an interruption
+          * is.  [U-20]
+          *
+          * These were drawn in #6fb3e0 — the SOURCE's blue, and not even
+          * the source's actual blue — when a response is the USER's. The
+          * selected one took `var(--user-accent, #6fb3e0)`, so the right
+          * answer was already known and the fallback beside it was the
+          * wrong speaker entirely.
+          *
+          * A mark is a response whether or not it is selected, so both
+          * take the user's accent and selection is carried by opacity.
+          * U-20 is one identity system across the editor timeline, the
+          * captions, the lower thirds and the article; two speakers
+          * sharing a colour in one of those surfaces is the failure it
+          * exists to prevent.
+          */}
         {responses.map((r) => (
           <div key={r.id} style={{
             position: 'absolute', left: at(r.tSourceFrame), top: -2, bottom: -2, width: 2,
-            background: r.selected ? 'var(--user-accent, #6fb3e0)' : '#6fb3e0',
-            opacity: r.selected ? 1 : 0.65,
+            background: 'var(--user-accent)',
+            opacity: r.selected ? 1 : 0.55,
           }} />
         ))}
         {/*
@@ -134,15 +153,17 @@ export default function Timeline({
               left: at(pendingClaim.startFrame),
               width: `calc(${at(pendingClaim.anchorFrame)} - ${at(pendingClaim.startFrame)})`,
               minWidth: 3,
-              background: 'rgba(111,179,224,0.45)',
-              border: '1px solid var(--source-accent, #6fb3e0)', borderRadius: 3,
+              background: 'color-mix(in srgb, var(--source-accent) 40%, transparent)',
+              border: '1px solid var(--source-accent)', borderRadius: 3,
             }} />
             <div aria-hidden data-testid="timeline-claim-marker" style={{
               position: 'absolute', left: at(pendingClaim.anchorFrame), top: '50%',
               width: 11, height: 11, marginLeft: -5.5, marginTop: -5.5,
-              background: 'var(--source-accent, #6fb3e0)',
+              background: 'var(--source-accent)',
               transform: 'rotate(45deg)', borderRadius: 2,
-              boxShadow: '0 0 8px rgba(111,179,224,0.9)', zIndex: 3,
+              boxShadow: '0 0 8px color-mix(in srgb,'
+                + ' var(--source-accent) 90%, transparent)',
+              zIndex: 3,
             }} />
           </>
         )}
@@ -176,13 +197,13 @@ export default function Timeline({
           }}>
             <div style={{
               width: 2, height: 8, margin: '0 auto',
-              background: 'var(--user-accent, #c2794f)',
+              background: 'var(--user-accent)',
             }} />
             <div style={{
               width: 62, height: 34, borderRadius: 5,
-              border: '1px dashed var(--user-accent, #c2794f)',
+              border: '1px dashed var(--user-accent)',
               display: 'grid', placeItems: 'center',
-              color: 'var(--user-accent, #c2794f)',
+              color: 'var(--user-accent)',
             }}>
               <span style={{ fontSize: 9, letterSpacing: 0.4, textAlign: 'center',
                 lineHeight: 1.15, padding: '0 2px' }}>
@@ -248,12 +269,14 @@ export default function Timeline({
                 than inferred from horizontal position alone. */}
             <div style={{
               width: 2, height: 8, margin: '0 auto',
-              background: r.selected ? '#6fb3e0' : 'rgba(111,179,224,0.5)',
+              /* The tether belongs to the response, so it is the user's. */
+              background: 'var(--user-accent)',
+              opacity: r.selected ? 1 : 0.5,
             }} />
             <div style={{
               width: 62, height: 34, borderRadius: 5, overflow: 'hidden',
-              border: `1px solid ${r.selected ? '#6fb3e0' : 'var(--line)'}`,
-              background: '#0d1319',
+              border: `1px solid ${r.selected ? 'var(--user-accent)' : 'var(--line)'}`,
+              background: '#000',
               display: 'grid', placeItems: 'center',
             }}>
               {r.thumbnailUrl && !failed.has(r.id) ? (

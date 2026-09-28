@@ -1,0 +1,90 @@
+/*
+ * WHERE THE KEYBOARD IS.  [Doctrine D-04, U-19]
+ *
+ * THIS IS NOT POLISH AND IT WAS NOT THERE. A search of the whole product
+ * for `focus-visible`, `:focus` or `outline` before this returned nothing.
+ * The browser's own focus ring is suppressed on styled controls in most
+ * engines, so tabbing through the control room moved an invisible cursor:
+ * the only way to find out where you were was to press the key and see
+ * what happened. In a room with TAKE LIVE and EMERGENCY in it.
+ *
+ * So this is a defect being fixed rather than a finish being applied, and
+ * it belongs in a premiumisation pass for a reason worth saying: the
+ * products that feel expensive are not the ones with the most gradients,
+ * they are the ones where every control tells you what it is about to do
+ * before you commit to it. Focus is the first of those.
+ *
+ * `:focus-visible` AND NOT `:focus`. A ring that appears when a mouse
+ * clicks a button is noise — the person already knows where they clicked,
+ * and it lingers after the press like a bug. `:focus-visible` is the
+ * browser's own judgement about whether the focus arrived by keyboard, and
+ * it is right far more often than a hand-rolled heuristic.
+ *
+ * TWO RINGS, NOT ONE. A single coloured outline vanishes against a panel
+ * of a similar tone, and this interface has surfaces from #08090b to
+ * #22262b. An inner dark ring separates the bright ring from whatever is
+ * underneath, so the same focus state is legible on every surface in the
+ * product — including on top of a live video frame, which is neither dark
+ * nor light and changes 30 times a second.
+ */
+
+:root {
+  --focus-ring: var(--line-focus);
+  --focus-ring-contrast: rgba(4, 6, 10, 0.9);
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+}
+
+/*
+ * One rule, every focusable thing. Written as a single selector list
+ * rather than per component so a control added tomorrow inherits it — the
+ * same reasoning as the gate in middleware, where the default has to be
+ * the safe one because somebody will forget.
+ */
+:where(a, button, [role='button'], input, select, textarea, summary,
+       [tabindex]:not([tabindex='-1'])):focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+  /* The dark separator, so the ring survives a light or busy backdrop. */
+  box-shadow: 0 0 0 calc(var(--focus-ring-offset) + var(--focus-ring-width))
+              var(--focus-ring-contrast);
+  border-radius: inherit;
+}
+
+/*
+ * A CONTROL THAT DOES SOMETHING IRREVERSIBLE GETS ITS OWN COLOUR, because
+ * a ring that looks the same on Cancel and on EMERGENCY teaches the hand
+ * to move before the eye has read. [D-04]
+ */
+:where(button.danger, .danger):focus-visible {
+  --focus-ring: #e0705c;
+}
+
+/*
+ * SKIP TO THE WORK. A control room has a long bar of navigation before it
+ * and somebody arriving on the keyboard should not have to walk through
+ * it to reach the desk. Hidden until focused, which is the one case where
+ * appearing on focus is the correct behaviour rather than noise.
+ */
+.skip-link {
+  position: absolute; left: var(--space-4); top: var(--space-4);
+  z-index: 100; padding: var(--space-3) var(--space-5);
+  background: var(--surface-lift); color: var(--text);
+  border: var(--border) solid var(--line-strong);
+  border-radius: var(--radius-md); font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+  transform: translateY(-200%);
+}
+.skip-link:focus-visible { transform: translateY(0); }
+
+/*
+ * WHAT A POINTER IS OVER, distinctly from what the keyboard is on. They
+ * are different questions and answering both with the same treatment is
+ * why so many interfaces feel vague: hover is "this responds", focus is
+ * "this is where you are".
+ */
+@media (hover: hover) {
+  :where(a, button, [role='button'], summary):hover:not(:disabled) {
+    transition: border-color 120ms ease, background-color 120ms ease;
+  }
+}

@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 
+import Notice from '../Notice.js';
+
 /**
  * The way in.  [Doctrine D-03, D-06]
  *
@@ -36,14 +38,59 @@ export default function SignIn({ configured, next }: { configured: boolean; next
   };
 
   return (
-    <div className="wrap" style={{ maxWidth: 420, paddingTop: 80 }}>
-      <h1 style={{ marginBottom: 4 }}>BalanceVid</h1>
-      <p className="small muted" style={{ marginTop: 0 }}>
+    /*
+      * THE FIRST PAGE ANYBODY SEES, and the only one seen by somebody
+      * who has not yet decided whether to trust the thing. It was a
+      * heading, a line and a panel jammed against the top of a 1240px
+      * column — content laid out by default, which is exactly how a
+      * sign-in page tells you nobody thought about it.
+      *
+      * Centred in the window, on its own, with the mark above it. There
+      * is nothing else on this page to compete with, so the one thing
+      * on it should sit where the eye already is.
+      */
+    <div style={{
+      minHeight: '100dvh', display: 'grid', placeItems: 'center',
+      padding: 'var(--space-8)',
+      /*
+        * A DARKER WELL BEHIND IT. A flat field makes the panel look
+        * pasted on; a very slight radial fall-off from the centre puts
+        * the card in a pool of light, which is the oldest trick there
+        * is for making one object matter.
+        */
+      background: 'radial-gradient(120% 90% at 50% 0%,'
+        + ' var(--ink-750) 0%, var(--ink-800) 45%, var(--ink-900) 100%)',
+    }}>
+    <div style={{ width: '100%', maxWidth: 380 }}>
+      <div className="row" style={{
+        gap: 'var(--space-4)', marginBottom: 'var(--space-7)',
+        justifyContent: 'center',
+      }}>
+        <span aria-hidden="true" style={{
+          width: 34, height: 34, borderRadius: 'var(--radius-md)',
+          display: 'grid', placeItems: 'center',
+          background: 'linear-gradient(180deg, #3f8ee8 0%, #2a6fcc 100%)',
+          color: '#fff', fontSize: 14, paddingLeft: 2,
+          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3),'
+            + ' 0 2px 10px rgba(26, 78, 150, 0.55)',
+        }}>&#9654;</span>
+        <h1 style={{
+          margin: 0, fontSize: 'var(--text-xl)',
+          letterSpacing: 'var(--tracking-tighter)',
+        }}>BalanceVid</h1>
+      </div>
+      <p style={{
+        marginTop: 0, textAlign: 'center', fontSize: 'var(--text-base)',
+        color: 'var(--text-faint)',
+      }}>
         A conversation editor for recorded media.
       </p>
 
       {configured ? (
-        <form className="panel" onSubmit={submit} style={{ marginTop: 24 }}>
+        <form className="panel" onSubmit={submit} style={{
+          marginTop: 'var(--space-7)', boxShadow: 'var(--elev-3)',
+          borderColor: 'var(--line-strong)',
+        }}>
           <div className="field">
             <label htmlFor="password">Password</label>
             <input
@@ -53,12 +100,21 @@ export default function SignIn({ configured, next }: { configured: boolean; next
             />
           </div>
           {error && (
-            <p className="small" style={{ color: 'var(--bad)' }} data-testid="signin-error">
-              {error}
-            </p>
+            /*
+              * ANNOUNCED, NOT MERELY SHOWN. A wrong password rendered as
+              * coloured text is invisible to a screen reader — the person
+              * presses Sign in, nothing is said, and they press it again.
+              * [Notice.tsx]
+              */
+            <div style={{ marginBottom: 'var(--space-5)' }}>
+              <Notice kind="error" testid="signin-error" word="">
+                {error}
+              </Notice>
+            </div>
           )}
-          <button className="primary" type="submit" disabled={busy || !password}
-                  data-testid="signin-submit">
+          {/* Full width: it is the only action on the page. */}
+          <button className="primary lg" type="submit" disabled={busy || !password}
+                  data-testid="signin-submit" style={{ width: '100%' }}>
             {busy ? 'Checking…' : 'Sign in'}
           </button>
           <p className="small muted" style={{ marginBottom: 0, marginTop: 12 }}>
@@ -71,7 +127,10 @@ export default function SignIn({ configured, next }: { configured: boolean; next
          * Locked, not open. An instance with no password configured serves
          * nothing, and this is the only page that says so.
          */
-        <div className="panel" style={{ marginTop: 24, borderColor: 'var(--bad)' }}>
+        <div className="panel" style={{
+          marginTop: 'var(--space-7)', borderColor: 'var(--state-bad)',
+          boxShadow: 'var(--elev-3), inset 3px 0 0 var(--state-bad)',
+        }}>
           <strong>This instance has no password.</strong>
           <p className="small" style={{ marginTop: 8 }}>
             Nothing is being served until one is set — not even published
@@ -86,6 +145,7 @@ export default function SignIn({ configured, next }: { configured: boolean; next
           </pre>
         </div>
       )}
+    </div>
     </div>
   );
 }

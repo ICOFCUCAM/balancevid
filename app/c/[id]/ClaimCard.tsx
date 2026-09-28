@@ -71,8 +71,8 @@ export default function ClaimCard({
         className="panel"
         style={{
           padding: '10px 14px',
-          borderColor: 'var(--user-accent, #c2794f)',
-          borderLeft: '3px solid var(--user-accent, #c2794f)',
+          borderColor: 'var(--user-accent)',
+          borderLeft: '3px solid var(--user-accent)',
         }}
       >
         {/* The statement has not gone anywhere; it has stopped being the
@@ -93,8 +93,8 @@ export default function ClaimCard({
         <div className="row" style={{ gap: 12 }}>
           <span aria-hidden style={{
             width: 10, height: 10, borderRadius: '50%',
-            background: 'var(--user-accent, #c2794f)',
-            boxShadow: '0 0 10px var(--user-accent, #c2794f)', flex: '0 0 auto',
+            background: 'var(--user-accent)',
+            boxShadow: '0 0 10px var(--user-accent)', flex: '0 0 auto',
           }} />
           <div className="grow">
             <div style={{ fontSize: 17, fontWeight: 600, lineHeight: 1.15 }}>
@@ -130,10 +130,16 @@ export default function ClaimCard({
       style={{
         padding: '10px 14px',
         display: 'flex', gap: 16, alignItems: 'center',
-        borderColor: bound ? 'var(--user-accent, #6fb3e0)' : 'rgba(111,179,224,0.55)',
+        /*
+         * BOUND MEANS A RESPONSE EXISTS, so the outer border is the
+         * responder's. UNBOUND IS NOT A SPEAKER — it was a blue close
+         * enough to the source's to read as one, on the card whose
+         * left edge is already the source's. [U-20]
+         */
+        borderColor: bound ? 'var(--user-accent)' : 'var(--line-strong)',
         borderLeftWidth: 3,
         borderLeftStyle: 'solid',
-        borderLeftColor: 'var(--source-accent, #6fb3e0)',
+        borderLeftColor: 'var(--source-accent)',
       }}
     >
       {/* ---- what the source said --------------------------------------- */}

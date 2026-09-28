@@ -226,6 +226,7 @@ export default function SlidesPanel({
                 key={option} type="button" data-testid="slide-layout"
                 data-layout={option}
                 data-chosen={layout === option ? 'true' : 'false'}
+                aria-pressed={layout === option}
                 onClick={() => setLayout(option)}
                 style={{
                   padding: '3px 8px', fontSize: 10, borderRadius: 5,

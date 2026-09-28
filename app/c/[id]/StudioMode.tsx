@@ -672,7 +672,8 @@ function EvidenceItem({
                   left: `${region.x * 100}%`, top: `${region.y * 100}%`,
                   width: `${region.w * 100}%`, height: `${region.h * 100}%`,
                   border: '2px solid var(--user-accent)',
-                  background: 'rgba(194,121,79,.16)', pointerEvents: 'none',
+                  background: 'color-mix(in srgb, var(--user-accent) 16%, transparent)',
+                  pointerEvents: 'none',
                 }} />
               )}
             </div>
@@ -709,11 +710,12 @@ function EvidenceItem({
           */}
           <div className="row small" style={{ gap: 8, marginTop: 8 }}>
             <button
-              className="small" data-testid="evidence-enlarge"
+              className="small"
+              data-testid="evidence-enlarge"
               data-on={enlarged ? 'true' : 'false'}
+              aria-pressed={enlarged}
               disabled={disabled}
               onClick={() => onEnlarge(!enlarged)}
-              style={{ background: enlarged ? '#2b5f8a' : undefined }}
             >
               {enlarged ? 'Showing the passage large' : 'Show the marked part large'}
             </button>
@@ -1054,9 +1056,9 @@ function AnnotationPanel({
           <button
             key={option.kind}
             className="small"
+            aria-pressed={tool === option.kind}
             disabled={disabled}
             onClick={() => setTool(option.kind)}
-            style={{ background: tool === option.kind ? '#2b5f8a' : undefined }}
           >
             {option.label}
           </button>

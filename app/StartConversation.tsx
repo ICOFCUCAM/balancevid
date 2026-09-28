@@ -225,8 +225,14 @@ export default function StartConversation() {
             onClick={() => setMode('link')}
             style={{
               flex: 1, textAlign: 'left', padding: '14px 16px',
-              background: mode === 'link' ? 'rgba(43,95,138,0.35)' : 'transparent',
-              border: `1px solid ${mode === 'link' ? 'var(--user-accent, #6fb3e0)' : 'var(--line)'}`,
+              background: mode === 'link' ? 'var(--accent-wash)' : 'transparent',
+              /*
+               * A CHOSEN CARD IS CHROME. This border was --user-accent,
+               * which is the responder's orange, drawn around a blue
+               * wash — the first screen of the product, telling a
+               * speaker-identity story about a radio button. [U-20]
+               */
+              border: `1px solid ${mode === 'link' ? 'var(--accent)' : 'var(--line)'}`,
             }}
           >
             <div style={{ fontWeight: 600 }}>Paste a video link</div>
@@ -237,8 +243,8 @@ export default function StartConversation() {
             onClick={() => { setMode('upload'); fileRef.current?.click(); }}
             style={{
               flex: 1, textAlign: 'left', padding: '14px 16px',
-              background: mode === 'upload' ? 'rgba(43,95,138,0.35)' : 'transparent',
-              border: `1px solid ${mode === 'upload' ? 'var(--user-accent, #6fb3e0)' : 'var(--line)'}`,
+              background: mode === 'upload' ? 'var(--accent-wash)' : 'transparent',
+              border: `1px solid ${mode === 'upload' ? 'var(--accent)' : 'var(--line)'}`,
             }}
           >
             <div style={{ fontWeight: 600 }}>Upload a video</div>

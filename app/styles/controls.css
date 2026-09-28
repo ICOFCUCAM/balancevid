@@ -1,0 +1,327 @@
+/*
+ * THE CONTROLS.  [Doctrine D-04, CHANNEL §9]
+ *
+ * A button had one look and three overrides — `.primary`, `.danger`, and
+ * whatever inline style the place it sat in decided on. There was no small
+ * size, so a chip in a dense panel was a normal button with the padding
+ * written over it, and there were four different such rewrites with four
+ * different paddings.
+ *
+ * WHAT MAKES A CONTROL FEEL EXPENSIVE, in order of how much it matters:
+ *
+ *   1. It acknowledges the press WITHIN THE FRAME. Not after a request
+ *      returns — immediately, on :active, before anything else happens.
+ *      An interface that waits for the server before it admits you
+ *      touched it feels broken no matter how fast the server is.
+ *   2. Its states are distinguishable WITHOUT COLOUR. Hover, focus,
+ *      active, disabled and selected each change something structural,
+ *      because a colour-only difference is invisible to some people and
+ *      illegible on a bad panel in a bright room.
+ *   3. It does not move the layout when it changes. A border that thickens
+ *      on hover shifts everything beside it; the thickness has to come
+ *      from somewhere that costs no space.
+ *
+ * ALL THREE ARE MISSING TODAY and the third is the one people feel without
+ * seeing: `button:hover` changes `border-color` only, which is correct, but
+ * `.primary` and `.danger` change `background` AND `border-color` on a
+ * different trigger, so the two kinds of button behave differently under
+ * the same hand.
+ */
+
+button, .btn {
+  font: inherit;
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-normal);
+  color: var(--text);
+  background: var(--surface-float);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-5);
+  cursor: pointer;
+  /*
+   * A control is a target before it is a rectangle. Forty pixels is the
+   * smallest a finger finds reliably and a mouse finds without aiming;
+   * the padding above sets the look, this sets the hit.
+   */
+  min-height: 34px;
+  /*
+   * CENTRED, WHICH IS RIGHT FOR A LABEL AND WRONG FOR A CARD.
+   *
+   * This rule was added to give every control a reliable hit area, and
+   * it broke five surfaces at once: a button whose content is two
+   * stacked <div>s — a name and a description underneath it — became
+   * two boxes side by side, centred, with the description crushed
+   * against the name. Studio Two's sound modes, Studio One's layouts,
+   * the room's speaker modes and both cards on the start screen.
+   *
+   * The lesson is about the rule, not the buttons. `display: flex` on
+   * EVERY button assumes every button holds a phrase, and this product
+   * has several that hold a paragraph. So the flex applies only where
+   * the content really is inline, and anything with a block child
+   * governs itself.
+   */
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: var(--space-3);
+  /*
+   * NO LAYOUT SHIFT ON HOVER. The emphasis a pressed or hovered control
+   * shows comes from an inset shadow, which costs no space, rather than
+   * from a thicker border, which costs a pixel on every side and moves
+   * whatever is next to it.
+   */
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  transition:
+    background-color var(--motion-fast) var(--ease-out),
+    border-color var(--motion-fast) var(--ease-out),
+    box-shadow var(--motion-fast) var(--ease-out),
+    transform var(--motion-fast) var(--ease-out);
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+button:hover:not(:disabled), .btn:hover:not(:disabled) {
+  background: var(--surface-lift);
+  border-color: var(--line-strong);
+}
+
+/*
+ * THE PRESS, ACKNOWLEDGED IN THE FRAME IT HAPPENS. One pixel down and the
+ * highlight gone: small enough that nobody would describe the interface as
+ * animated, large enough that the hand is certain the control took it.
+ */
+button:active:not(:disabled), .btn:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.28);
+  transition-duration: 40ms;
+}
+
+button:disabled, .btn[aria-disabled='true'] {
+  opacity: 0.42;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/*
+ * A BUTTON THAT IS A CARD. Two lines, left-aligned, stacked — a choice
+ * with an explanation rather than a control with a label. It opts out of
+ * the centring above rather than fighting it with overrides at each
+ * call site.
+ */
+button:has(> div),
+button:has(> p),
+.btn.stacked,
+button.stacked {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  text-align: left;
+  gap: var(--space-1);
+  line-height: var(--leading-snug);
+}
+
+/* ---- intent ---------------------------------------------------------- */
+
+button.primary {
+  background: linear-gradient(180deg, #316b9c 0%, #2b5f8a 100%);
+  border-color: #3c7cb2;
+  color: var(--text-on-accent);
+  font-weight: var(--weight-semi);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+button.primary:hover:not(:disabled) {
+  background: linear-gradient(180deg, #38779f, #2f6893);
+  border-color: #4a8cc4;
+}
+
+button.danger {
+  background: linear-gradient(180deg, #7a3730 0%, #6d3229 100%);
+  border-color: #94463a;
+  color: var(--text-on-accent);
+  font-weight: var(--weight-semi);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+button.danger:hover:not(:disabled) {
+  background: linear-gradient(180deg, #8a3f36, #7a382e);
+  border-color: #a85042;
+}
+
+/*
+ * QUIET. For the third and fourth action in a cluster, which should be
+ * reachable without competing with the first. It is a button that looks
+ * like text until the hand is near it — the alternative, three buttons of
+ * equal weight, makes the person read all three every time.
+ */
+button.quiet, .btn.quiet {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-dim);
+  box-shadow: none;
+}
+button.quiet:hover:not(:disabled) {
+  background: var(--surface-float);
+  border-color: var(--line-soft);
+  color: var(--text);
+}
+
+/* ---- size ------------------------------------------------------------ */
+
+button.sm, .btn.sm {
+  font-size: var(--text-xs);
+  padding: var(--space-2) var(--space-3);
+  min-height: 26px;
+  border-radius: var(--radius-sm);
+  gap: var(--space-2);
+}
+button.lg, .btn.lg {
+  font-size: var(--text-md);
+  padding: var(--space-4) var(--space-7);
+  min-height: 42px;
+}
+
+/*
+ * SELECTED IS NOT HOVER, and the difference has to survive the pointer
+ * leaving. A chosen tab or layout keeps a left-edge marker as well as its
+ * fill, so which one is chosen is legible in a screenshot, in greyscale,
+ * and to somebody who cannot see the blue.
+ */
+button[aria-pressed='true'], .btn[aria-pressed='true'],
+button.selected, .btn.selected {
+  background: var(--surface-lift);
+  border-color: var(--line-focus);
+  color: var(--text);
+  box-shadow: inset 2px 0 0 var(--line-focus);
+}
+
+/*
+ * AND IT IS THE ONLY RULE THAT MAY SAY SO.  [D-04, D-19, U-19]
+ *
+ * Eight places wrote their own: `background: '#2b5f8a'` inline, on the
+ * mode tabs, the mark tools, the pin, the notes panel and the master
+ * classes — a sixth blue, at 2.45:1 against the surface behind it, and
+ * overriding this rule wherever it landed. The fill above is
+ * deliberately almost invisible (1.09:1 against the surface it replaces)
+ * because the fill is NOT the signal: the border at 4.30:1 and the
+ * two-pixel marker on the leading edge are, and they are the two cues
+ * that survive greyscale and a screenshot. An inline fill that hides
+ * them is worse than no fill at all.
+ *
+ * AND EIGHTEEN BUTTONS HAD NO ARIA STATE AT ALL — including those.
+ * They carried `data-on`, `data-armed`, `data-chosen`, `data-open`:
+ * attributes written for this repository's tests, which announce
+ * nothing to anybody. Whether the pin was in, which mark tool was
+ * armed, which caption style was chosen, whether the notes panel was
+ * open: none of it reached a screen reader, in five files across all
+ * three studios. They carry `aria-pressed` now, which is both the
+ * announcement and the hook this rule keys on — so saying it out loud
+ * and drawing it are the same edit, and a toggle added tomorrow cannot
+ * have one without the other. [D-04]
+ */
+
+/* ---- fields ----------------------------------------------------------
+ *
+ * An input was a button that happened to accept typing: same background,
+ * same border, same radius. In a dense panel that is a real ambiguity —
+ * six rectangles in a column, three of which do something when clicked
+ * and three of which want the caret, and nothing but the cursor to say
+ * which is which until you try.
+ *
+ * SO A FIELD IS RECESSED AND A BUTTON IS RAISED, which is the oldest
+ * convention in interface design and is a convention because it works
+ * without being taught. A well you put something into; a key you press.
+ */
+
+input, select, textarea {
+  font: inherit;
+  font-size: var(--text-base);
+  color: var(--text);
+  background: var(--surface-sunk);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3) var(--space-4);
+  width: 100%;
+  min-height: 34px;
+  /* The recess: darker than the panel, with the shadow falling inward. */
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.32);
+  transition:
+    border-color var(--motion-fast) var(--ease-out),
+    background-color var(--motion-fast) var(--ease-out);
+}
+
+input:hover:not(:disabled), select:hover:not(:disabled),
+textarea:hover:not(:disabled) {
+  border-color: var(--line-strong);
+}
+
+/*
+ * ON FOCUS THE WELL LIGHTENS. The focus ring says where the keyboard is;
+ * this says the field is taking what you type, which is a different fact
+ * and the one a person typing actually watches for.
+ */
+input:focus, select:focus, textarea:focus {
+  background: var(--ink-850);
+  border-color: var(--line-focus);
+}
+
+input::placeholder, textarea::placeholder {
+  color: var(--ink-400);
+  /*
+   * A placeholder is a hint, not a value, and at the same weight as real
+   * text it gets read as one — then the field looks filled when it is
+   * empty, which is how people submit blank forms.
+   */
+  opacity: 1;
+}
+
+input:disabled, select:disabled, textarea:disabled {
+  opacity: 0.5; cursor: not-allowed; box-shadow: none;
+}
+
+textarea { min-height: 72px; line-height: var(--leading-snug); resize: vertical; }
+
+/*
+ * A SELECT IS NOT A TEXT FIELD and should not pretend to be. It does not
+ * take a caret, so it keeps the raised look of the control it actually is
+ * while staying the same size as the fields beside it.
+ */
+select {
+  background: var(--surface-float);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  cursor: pointer;
+  padding-right: var(--space-7);
+  appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--ink-300) 50%),
+    linear-gradient(135deg, var(--ink-300) 50%, transparent 50%);
+  background-position:
+    calc(100% - 14px) calc(50% + 1px),
+    calc(100% - 9px) calc(50% + 1px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+select:focus { background-color: var(--surface-lift); }
+
+/*
+ * CHECKBOXES KEEP THE BROWSER'S OWN, RE-TINTED. A hand-built checkbox is
+ * a week of work and a permanent accessibility liability; `accent-color`
+ * is two lines and keeps every native behaviour — including the ones
+ * screen readers and touch keyboards rely on.
+ */
+input[type='checkbox'], input[type='radio'] {
+  width: auto; min-height: 0; padding: 0;
+  accent-color: var(--line-focus);
+  box-shadow: none;
+  cursor: pointer;
+}
+
+input[type='range'] { accent-color: var(--line-focus); padding: 0; box-shadow: none; }
+
+label {
+  display: block;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--text-dim);
+  letter-spacing: var(--tracking-wide);
+  margin-bottom: var(--space-2);
+}

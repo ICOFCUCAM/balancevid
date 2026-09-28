@@ -2907,6 +2907,13 @@ excludes deaf and blind users has refuted itself.
 - **Respect `prefers-reduced-motion`** in the UI and offer a reduced-motion
   render profile (no Ken Burns, no animated annotations).
 
+**How this is carried out** is written down in
+[`DESIGN.md`](DESIGN.md) — the tokens, the five decisions behind them, and
+the three tests that hold them (contrast measured against the lightest
+surface, the raw-colour ratchet, and the ban on native dialogs). That
+document is a companion, not an amendment: where it and this section
+disagree, this section governs.
+
 ---
 
 ## D-05 · Performance Budgets

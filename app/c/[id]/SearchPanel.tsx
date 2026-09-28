@@ -118,7 +118,16 @@ function mark(text: string, highlights: { start: number; end: number }[]) {
   highlights.forEach((range, index) => {
     if (range.start > at) pieces.push(text.slice(at, range.start));
     pieces.push(
-      <mark key={index} style={{ background: 'var(--user-accent, #2b5f8a)', color: 'inherit' }}>
+      /*
+       * A HIT IS MARKED, NOT REPAINTED. This was a solid --user-accent
+       * behind inherited text: 2.84:1, on the panel whose whole job is
+       * to be read quickly. A wash keeps the text at full contrast and
+       * the underline means the mark survives greyscale. [D-04, U-19]
+       */
+      <mark key={index} style={{
+        background: 'var(--accent-wash)', color: 'inherit',
+        boxShadow: 'inset 0 -0.11em 0 var(--accent)',
+      }}>
         {text.slice(range.start, range.end)}
       </mark>,
     );

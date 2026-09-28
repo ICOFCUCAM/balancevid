@@ -1,0 +1,81 @@
+/*
+ * THE TYPE SCALE.  [Doctrine D-04]
+ *
+ * Before this there were two sizes in the stylesheet — 15px and 13px — and
+ * everything else was written where it was needed. A search of the three
+ * studios turns up 9, 10, 10.5, 11, 12, 12.5, 13, 14, 16, 18 and 20, most
+ * of them inline, most of them chosen because the previous number looked a
+ * bit too big. That is not a scale, it is a sediment.
+ *
+ * WHY IT SHOWS EVEN WHEN NOBODY CAN NAME IT. Two labels a pixel apart in
+ * the same panel do not read as two sizes — they read as a mistake nobody
+ * can point at. The eye is far better at detecting an inconsistent ratio
+ * than at measuring an absolute size, which is why a scale with a constant
+ * ratio looks deliberate at every step and a sediment never does.
+ *
+ * A MINOR THIRD (1.2) rather than the usual major third. This is an
+ * instrument panel, not a landing page: it has to fit six sizes between a
+ * timecode and a section head without any of them shouting. A 1.25 ratio
+ * runs out of room by the fourth step and starts skipping past the sizes a
+ * dense interface actually needs.
+ *
+ * Rounded to whole pixels, deliberately. Sub-pixel type sizes render
+ * differently on every platform and the difference lands exactly on the
+ * small sizes this interface is mostly made of.
+ */
+
+:root {
+  --text-2xs: 10px;   /* a tile's second line, a unit after a number */
+  --text-xs: 11px;    /* dense controls: chips, meters, tile labels */
+  --text-sm: 12px;    /* secondary UI: captions, notes under a field */
+  --text-base: 13px;  /* the workhorse. Most controls and most labels */
+  --text-md: 15px;    /* body prose, and anything meant to be read */
+  --text-lg: 18px;    /* a panel head */
+  --text-xl: 22px;    /* a page title */
+  --text-2xl: 27px;   /* a display figure: the clock, the counter */
+
+  /*
+   * LINE HEIGHT IS A FUNCTION OF SIZE, not one number for everything.
+   * Small text in a dense panel needs its lines close or the panel grows
+   * a third taller for no gain; prose needs air or it becomes a wall.
+   */
+  --leading-tight: 1.2;   /* headings, figures, single-line controls */
+  --leading-snug: 1.35;   /* dense multi-line UI */
+  --leading-normal: 1.55; /* prose */
+
+  /*
+   * WEIGHT CARRIES HIERARCHY BEFORE SIZE DOES, and in a dark interface it
+   * carries it further: light text on a dark ground looks heavier than the
+   * same weight dark-on-light, so the useful range sits lower. 700 on a
+   * small dark label is a smudge.
+   */
+  --weight-normal: 400;
+  --weight-medium: 520;
+  --weight-semi: 580;
+  --weight-bold: 640;
+
+  /*
+   * TIGHTER AS IT GETS BIGGER. Default tracking is set for body text; at
+   * 22px and up it reads loose, and at 10px it reads cramped. Two steps
+   * either side is enough and more starts to look styled.
+   */
+  --tracking-wide: 0.01em;
+  --tracking-normal: 0;
+  --tracking-tight: -0.011em;
+  --tracking-tighter: -0.02em;
+}
+
+/*
+ * NUMBERS THAT CHANGE MUST NOT MOVE.  [U-08]
+ *
+ * A running timecode in a proportional face re-flows every tenth of a
+ * second, because 1 is narrower than 8. On a clock somebody is watching to
+ * make a cut, that shimmer is not cosmetic — it is the difference between
+ * reading a number and re-finding it. Tabular figures everywhere a number
+ * updates, which in this product is most places a number appears.
+ */
+.mono,
+.tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1, 'zero' 1;
+}

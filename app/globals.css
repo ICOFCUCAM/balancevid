@@ -1,28 +1,57 @@
 /* One visual language for speaker identity, applied everywhere. [Doctrine U-20]
    Carried by shape and position as well as colour, so it survives greyscale
    and colour-blindness. */
+@import './styles/tokens.css';
+@import './styles/type.css';
+@import './styles/space.css';
+@import './styles/focus.css';
+@import './styles/motion.css';
+@import './styles/controls.css';
+@import './styles/elevation.css';
+@import './styles/status.css';
+@import './styles/studios.css';
+@import './styles/surfaces.css';
+
 :root {
-  --bg: #0e0f11;
-  --panel: #17191c;
-  --panel-2: #1e2125;
-  --line: #2a2e33;
-  --text: #e8eaed;
-  --muted: #9aa1aa;
+  /*
+   * THE OLD NAMES, KEPT AND POINTED AT THE RAMP. Several hundred inline
+   * styles across three studios name `--panel-2` and `--line`, and a
+   * rename would be a diff touching every component to change nothing
+   * anybody can see. They are aliases now: the ramp is the truth, these
+   * are what the existing code calls parts of it, and they can be retired
+   * a surface at a time as each is worked on.
+   */
+  --bg: var(--surface-base);
+  --panel: var(--surface-raised);
+  --panel-2: var(--surface-float);
   --source-accent: #7f9bb5;
   --user-accent: #c2794f;
-  --ok: #5c9c6b;
-  --warn: #c99a2e;
-  --bad: #d05a48;
-  --radius: 10px;
+  --radius: var(--radius-lg);
 }
 * { box-sizing: border-box; }
 html, body {
   margin: 0; padding: 0; background: var(--bg); color: var(--text);
-  font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font: var(--text-md)/var(--leading-normal) ui-sans-serif, system-ui,
+        -apple-system, "Segoe UI", Roboto, sans-serif;
+  /*
+   * ON A DARK GROUND, ANTIALIASED. Light text on dark is rendered heavier
+   * than dark-on-light by subpixel hinting, and at 11px that turns a label
+   * into a smudge. Greyscale antialiasing gives back the weight the scale
+   * was chosen at.
+   */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 html, body { height: 100%; }
 a { color: var(--source-accent); }
-h1, h2, h3 { font-weight: 620; letter-spacing: -0.01em; margin: 0 0 .5rem; }
+h1, h2, h3 {
+  font-weight: var(--weight-bold); line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight); margin: 0 0 .5rem;
+}
+h1 { font-size: var(--text-xl); letter-spacing: var(--tracking-tighter); }
+h2 { font-size: var(--text-lg); }
+h3 { font-size: var(--text-md); }
 .wrap { max-width: 1240px; margin: 0 auto; padding: 24px 20px 64px; }
 /* A workspace fills the screen it is given; only prose wants a column. */
 .wrap.full { max-width: none; padding: 18px 24px 40px; }
@@ -58,25 +87,18 @@ h1, h2, h3 { font-weight: 620; letter-spacing: -0.01em; margin: 0 0 .5rem; }
 /* A column inside the shell that scrolls on its own. */
 .shell-scroll { height: 100%; min-height: 0; overflow-y: auto; }
 .muted { color: var(--muted); }
-.small { font-size: 13px; }
-.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums; }
-.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
-.row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-.grow { flex: 1 1 auto; }
-button, .btn {
-  font: inherit; font-weight: 560; color: var(--text); background: var(--panel-2);
-  border: 1px solid var(--line); border-radius: 8px; padding: 9px 14px; cursor: pointer;
+.small { font-size: var(--text-base); }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.stage-field { background: var(--surface-sunk); }
+.panel {
+  background: var(--surface-raised); border: var(--border) solid var(--line);
+  border-radius: var(--radius-lg); padding: var(--space-6);
 }
-button:hover:not(:disabled) { border-color: #3a4048; }
-button:disabled { opacity: .45; cursor: not-allowed; }
-button.primary { background: #2b5f8a; border-color: #35719f; }
-button.danger { background: #6d3229; border-color: #8c4033; }
+.row { display: flex; gap: var(--space-5); align-items: center; flex-wrap: wrap; }
+.grow { flex: 1 1 auto; }
 input, select, textarea {
   font: inherit; color: var(--text); background: var(--panel-2);
   border: 1px solid var(--line); border-radius: 8px; padding: 9px 11px; width: 100%;
 }
-label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
-.field { margin-bottom: 12px; }
-video { width: 100%; background: #000; border-radius: 8px; display: block; }
-/* Respect reduced motion in the UI, per D-04. */
-@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+label { display: block; font-size: var(--text-base); color: var(--muted); margin-bottom: 4px; }
+.field { margin-bottom: var(--space-5); }

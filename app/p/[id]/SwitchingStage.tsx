@@ -6,6 +6,7 @@ import {
   MASTER_CLASSES, SPACES, isFootage, orderedScenes, sceneAt,
 } from '../../../src/domain/performance.js';
 import { EFFECT_LOOKS, SPACE_LOOKS } from '../../../src/domain/environment.js';
+import { useConfirm } from '../../Confirm.js';
 import { LAYOUTS, takeSlots } from '../../../src/domain/presentation.js';
 import {
   BEATS_USABLE_CONFIDENCE, beatPositions, snapToBeat,
@@ -237,6 +238,7 @@ export default function SwitchingStage({
    */
   takesPanel?: React.ReactNode;
 }) {
+  const { confirm, dialog: confirmDialog } = useConfirm();
   const [arrangement, setArrangement] = useState<string>('performance_full');
   const [pending, setPending] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -409,10 +411,6 @@ export default function SwitchingStage({
     return () => { cancelled = true; };
   }, [performance.id]);
 
-  /** Every take's own colour, so four rows are told apart before they are read. */
-  const accentOf = (takeId: string | undefined) =>
-    performance.takes.find((t) => t.id === takeId)?.accent ?? '#6fb3e0';
-
   /** A tick every thirty seconds, or every five when the song is short. */
   const tickStep = duration / HOUSE_SAMPLE_RATE > 150 ? 30 : 5;
   const ticks: number[] = [];
@@ -455,33 +453,71 @@ export default function SwitchingStage({
   ) => (
     <button
       key={key} type="button" data-testid={testid} data-option={key}
-      data-chosen={isChosen ? 'true' : 'false'} disabled={opts.disabled}
+      data-chosen={isChosen ? 'true' : 'false'}
+      aria-pressed={isChosen} disabled={opts.disabled}
       onClick={onPick} title={opts.title ?? label}
+      /*
+        * A CHOICE TILE IS A SWATCH OF THE RESULT, and the one that is
+        * chosen has to be findable in a grid of eight without reading
+        * eight labels. A tinted fill alone is not enough at this size:
+        * at 62px, eight tiles in two rows, the difference between
+        * rgba(45,110,200,0.22) and the panel behind it is a few points
+        * of luminance and the eye has to hunt.
+        *
+        * So the chosen one is RAISED as well as tinted — a real border,
+        * a highlight on its top edge and a shadow under it — while the
+        * rest stay flat in the group. Depth is found without hunting,
+        * and it survives greyscale. [D-04, U-19]
+        */
       style={{
         height: opts.height,
         display: 'flex', flexDirection: 'column', alignItems: 'center',
         justifyContent: opts.swatch ? 'flex-start' : 'center',
-        gap: 4, padding: opts.swatch ? 4 : '4px 3px',
-        borderRadius: 8, cursor: opts.disabled ? 'not-allowed' : 'pointer',
-        border: `1px solid ${isChosen ? '#3d7fd6' : 'var(--line)'}`,
-        background: isChosen ? 'rgba(45,110,200,0.22)' : 'var(--panel-2)',
-        color: 'inherit', font: 'inherit', fontSize: 10, lineHeight: 1.2,
-        opacity: opts.disabled ? 0.4 : 1, textAlign: 'center',
+        gap: 'var(--space-2)',
+        padding: opts.swatch ? 'var(--space-2)' : 'var(--space-2) 3px',
+        minHeight: 0,
+        borderRadius: 'var(--radius-md)',
+        cursor: opts.disabled ? 'not-allowed' : 'pointer',
+        border: `1px solid ${isChosen ? '#4f8ad6' : 'var(--line-soft)'}`,
+        background: isChosen
+          ? 'linear-gradient(180deg, rgba(79,138,214,0.26),'
+            + ' rgba(79,138,214,0.14))'
+          : 'var(--surface-float)',
+        boxShadow: isChosen
+          ? 'inset 0 1px 0 rgba(255,255,255,0.14), 0 2px 6px rgba(0,0,0,0.4)'
+          : 'inset 0 1px 0 rgba(255,255,255,0.025)',
+        color: 'inherit', font: 'inherit',
+        fontSize: 'var(--text-2xs)', lineHeight: 1.25,
+        fontWeight: isChosen ? 'var(--weight-semi)' : 'var(--weight-normal)',
+        opacity: opts.disabled ? 0.38 : 1, textAlign: 'center',
         ...(opts.basis ? { flex: `0 0 ${opts.basis}`, minWidth: 0 }
           : { width: '100%' }),
         overflow: 'hidden',
+        transition: 'box-shadow var(--motion-fast) var(--ease-out),'
+          + ' border-color var(--motion-fast) var(--ease-out),'
+          + ' background-color var(--motion-fast) var(--ease-out)',
       }}
     >
       {opts.swatch && (
+        /*
+          * A COLOUR SWATCH IS A SAMPLE OF A RENDERED FRAME, so it gets
+          * the same inset hairline every picture in this product gets.
+          * Without it a light swatch bleeds into the tile around it and
+          * the sample has no edge — which is the one thing a sample
+          * needs.
+          */
         <span aria-hidden="true" style={{
-          width: '100%', flex: '1 1 auto', minHeight: 0, borderRadius: 5,
+          width: '100%', flex: '1 1 auto', minHeight: 0,
+          borderRadius: 'var(--radius-xs)',
           background: opts.swatch,
+          boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.35)',
         }} />
       )}
       {opts.glyph && (
         <span aria-hidden="true" style={{
           flex: '0 0 auto', display: 'grid', placeItems: 'center',
-          color: isChosen ? '#7fb2ee' : 'var(--muted)',
+          color: isChosen ? '#9cc6f5' : 'var(--ink-400)',
+          transition: 'color var(--motion-fast) var(--ease-out)',
         }}>{opts.glyph}</span>
       )}
       <span style={{ flex: '0 0 auto' }}>{label}</span>
@@ -492,7 +528,16 @@ export default function SwitchingStage({
     <div className="row" style={{
       alignItems: 'baseline', justifyContent: 'space-between', margin: '9px 0 5px',
     }}>
-      <span style={{ fontSize: 13, fontWeight: 700 }}>{text}</span>
+      {/*
+        * The same signage treatment the control room's sub-heads take,
+        * so the two studios read as one product rather than as two
+        * projects that happen to share a bar. [D-04]
+        */}
+      <span style={{
+        fontSize: 'var(--text-2xs)', fontWeight: 'var(--weight-bold)',
+        letterSpacing: '0.07em', textTransform: 'uppercase',
+        color: 'var(--text-faint)',
+      }}>{text}</span>
       {aside}
     </div>
   );
@@ -512,6 +557,7 @@ export default function SwitchingStage({
         + '"notes notes notes" "transport transport transport"',
       alignItems: 'start',
     }}>
+      {confirmDialog}
       {/*
         * The rail is as tall as the stage too, and scrolls inside that.
         *
@@ -697,6 +743,7 @@ export default function SwitchingStage({
                 return (
                   <button key={id} type="button" data-testid="stage-view-option"
                           data-option={id} data-chosen={on ? 'true' : 'false'}
+                          aria-pressed={on}
                           onClick={() => setMultiview(id === 'all')}
                           style={{
                             border: 0, borderRadius: 0, padding: '4px 10px',
@@ -812,17 +859,35 @@ export default function SwitchingStage({
                      * a note asks for it here rather than letting the domain
                      * refuse a click with an error nobody expected.
                      */
-                    const note = cls === 'licensed' || cls === 'open'
-                      ? window.prompt(
-                        cls === 'licensed'
+                    if (cls !== 'licensed' && cls !== 'open') {
+                      void patch({
+                        action: 'set-footage-rights', takeId: subject.id,
+                        rights: cls, rightsNote: null,
+                      });
+                      return;
+                    }
+                    confirm({
+                      question: cls === 'licensed'
+                        ? 'A licence has to say what it is. This travels '
+                          + 'with the footage into the attribution block of '
+                          + 'every export.'
+                        : 'Open material still needs a source. This travels '
+                          + 'with the footage into the attribution block of '
+                          + 'every export.',
+                      field: {
+                        label: cls === 'licensed'
                           ? 'What licence permits this footage?'
                           : 'Where is it from, and what permits it?',
-                        subject.rightsNote ?? '')
-                      : null;
-                    if ((cls === 'licensed' || cls === 'open') && !note?.trim()) return;
-                    void patch({
-                      action: 'set-footage-rights', takeId: subject.id,
-                      rights: cls, rightsNote: note,
+                        placeholder: cls === 'licensed'
+                          ? 'CC BY 4.0, or the agreement it came under'
+                          : 'Public domain \u2014 NASA, 1972',
+                        initial: subject.rightsNote ?? '',
+                      },
+                      verb: 'Record the rights',
+                      go: (note) => void patch({
+                        action: 'set-footage-rights', takeId: subject.id,
+                        rights: cls, rightsNote: note,
+                      }),
                     });
                   },
                   'footage-rights', { height: 48 }))}
@@ -923,19 +988,39 @@ export default function SwitchingStage({
       </>
 
       {/* ---- the song, the takes on it, and the edit (§2, §7, §8) ------ */}
+      {/*
+        * THE EDIT SURFACE IS DARKER THAN THE ROOM AROUND IT, the way a
+        * timeline is in every editor there has ever been. The reason is
+        * not convention for its own sake: the tracks carry small bright
+        * marks — takes, transitions, a playhead — and small bright marks
+        * need a dark floor or they read as noise on a grey field.
+        */}
       <div data-testid="performance-timeline" style={{
         gridArea: 'timeline',
-        border: '1px solid var(--line)', borderRadius: 10,
-        background: 'var(--panel)', overflow: 'hidden',
+        border: 'var(--border) solid var(--line)',
+        borderRadius: 'var(--radius-lg)',
+        background: 'var(--ink-850)', overflow: 'hidden',
+        boxShadow: 'var(--elev-1)',
       }}>
         <div style={{ display: 'flex' }}>
           {/* The names, in a fixed column, so every lane starts at one x. */}
+          {/*
+            * THE TRACK HEADS ARE A FIXED COLUMN and belong to the
+            * furniture rather than to the edit, so they sit a step
+            * lighter than the tracks they label — the same relationship
+            * the control room's rail has to its lanes.
+            */}
           <div style={{
-            width: 190, flex: '0 0 auto', borderRight: '1px solid var(--line)',
+            width: 190, flex: '0 0 auto',
+            borderRight: 'var(--border) solid var(--line)',
+            background: 'var(--surface-raised)',
           }}>
             <div style={{ height: 18 }} />
             <div style={{ height: 52, padding: '6px 10px' }}>
-              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.5 }}>
+              <div style={{
+                fontSize: 'var(--text-2xs)', fontWeight: 'var(--weight-bold)',
+                letterSpacing: '0.08em', color: 'var(--text-dim)',
+              }}>
                 MASTER SONG
               </div>
               <div className="small muted" style={{ fontSize: 10, overflow: 'hidden',
@@ -989,8 +1074,10 @@ export default function SwitchingStage({
             ))}
             <div style={{
               height: 44, display: 'flex', alignItems: 'center', gap: 8,
-              padding: '0 10px', borderTop: '1px solid var(--line)',
-              fontSize: 11, fontWeight: 700, letterSpacing: 0.5,
+              padding: '0 var(--space-5)',
+              borderTop: 'var(--border) solid var(--line)',
+              fontSize: 'var(--text-2xs)', fontWeight: 'var(--weight-bold)',
+              letterSpacing: '0.08em', color: 'var(--text-dim)',
             }}>
               <span className="grow">MASTER VIDEO</span>
               {/* Starting the edit again belongs on the edit, not on the
@@ -999,11 +1086,14 @@ export default function SwitchingStage({
               {ordered.length > 0 && (
                 <button className="small" data-testid="clear-scenes"
                         title="Remove every cut and start the edit again"
-                        onClick={() => {
-                          if (window.confirm('Remove every cut and start again?')) {
-                            void patch({ action: 'clear-scenes' });
-                          }
-                        }}
+                        onClick={() => confirm({
+                          question: 'Remove every cut and start the edit '
+                            + 'again? The takes stay exactly as they are '
+                            + '\u2014 only the cuts between them go.',
+                          verb: 'Clear the edit',
+                          danger: true,
+                          go: () => void patch({ action: 'clear-scenes' }),
+                        })}
                         style={{
                           border: 0, background: 'none', padding: 0, fontSize: 10,
                           fontWeight: 500, color: 'var(--muted)', cursor: 'pointer',

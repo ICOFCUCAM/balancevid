@@ -59,6 +59,26 @@ export function newPerformance(
   };
 }
 
+/**
+ * WHAT THE SONG IS CALLED.  [STUDIO-TWO §3]
+ *
+ * The title arrives from the uploaded file's tags, or from its filename
+ * when it has none — which is how a performance ends up called
+ * "01 Track 1 (final) (2).mp3". Until now there was no way to change it:
+ * the one name on every card, every rail and every published page was
+ * whatever a stranger's encoder wrote into an ID3 frame.
+ *
+ * It renames the PERFORMANCE and not the master's metadata, because the
+ * metadata is a record of the file that arrived and altering it would lose
+ * the only evidence of where the audio came from. [U-25]
+ */
+export function renamePerformance(performance: Performance, title: string): void {
+  const next = title.trim();
+  if (!next) fail('a song needs a name');
+  if (next.length > 200) fail('that name is too long');
+  performance.title = next;
+}
+
 export class PerformanceEditError extends Error {
   constructor(message: string) {
     super(message);

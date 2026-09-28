@@ -98,12 +98,9 @@ export default function StartPerformance() {
                   data-testid="master-class-choice"
                   data-class={choice.id}
                   data-chosen={masterClass === choice.id ? 'true' : 'false'}
+                  aria-pressed={masterClass === choice.id}
                   onClick={() => setMasterClass(choice.id)}
-                  style={{
-                    padding: '5px 10px', fontSize: 12,
-                    background: masterClass === choice.id ? 'rgba(43,95,138,0.30)' : undefined,
-                    borderColor: masterClass === choice.id ? '#6fb3e0' : undefined,
-                  }}
+                  style={{ padding: '5px 10px', fontSize: 12 }}
                 >
                   {choice.label}
                 </button>
