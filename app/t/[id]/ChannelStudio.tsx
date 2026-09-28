@@ -2170,14 +2170,34 @@ function Meter({ value, label }: { value: number; label: string }) {
     <span className="row" data-testid="level-meter" data-label={label}
           title={`${label} · ${Math.round(value * 100)}%`}
           style={{ gap: 2, flex: '0 0 auto' }}>
-      {Array.from({ length: 8 }, (_unused, index) => (
-        <span key={index} aria-hidden="true" style={{
-          width: 3, height: 5 + index * 1.6, borderRadius: 1,
-          background: index < lit
-            ? (index > 6 ? '#c0392b' : index > 4 ? '#c99a2e' : '#4f8a5b')
-            : 'var(--panel-2)',
-        }} />
-      ))}
+      {/*
+        * AN UNLIT SEGMENT IS STILL PART OF THE INSTRUMENT. They were
+        * drawn in the panel colour, so a quiet meter looked like an
+        * empty space where a meter should be — and on a desk the whole
+        * point of a meter is that you can see the headroom you are not
+        * using. Unlit segments now sit just above the ground they are
+        * on: present, dark, and clearly a scale.
+        *
+        * The lit ones gain a glow in their own colour. A segment that
+        * is merely filled reads as a coloured rectangle; one that is
+        * lit reads as a signal, and this is the only place in the room
+        * where a number is being read as a continuous quantity rather
+        * than as a figure. [CHANNEL §9]
+        */}
+      {Array.from({ length: 8 }, (_unused, index) => {
+        const colour = index > 6 ? 'var(--state-live)'
+          : index > 4 ? 'var(--state-warn)' : 'var(--state-ok)';
+        const on = index < lit;
+        return (
+          <span key={index} aria-hidden="true" style={{
+            width: 3, height: 5 + index * 1.6, borderRadius: 1,
+            background: on ? colour : 'rgba(255,255,255,0.09)',
+            boxShadow: on ? `0 0 4px ${index > 6 ? 'rgba(226,59,46,0.7)'
+              : index > 4 ? 'rgba(215,154,43,0.6)' : 'rgba(79,157,99,0.5)'}` : 'none',
+            transition: 'background-color 60ms linear',
+          }} />
+        );
+      })}
     </span>
   );
 }
@@ -3539,14 +3559,29 @@ function CameraTab({
 function VMeter({ value, tint = '#4f8a5b' }: { value: number; tint?: string }) {
   const lit = Math.min(1, value * 1.6);
   return (
+    /*
+      * A VERTICAL METER IS A WELL WITH LIGHT RISING IN IT. The track is
+      * recessed rather than merely outlined, so the column has a
+      * bottom for the level to stand on — and the gradient runs green
+      * to amber to red at the points a broadcast engineer expects
+      * them, which is why the stops are at 78% and not spread evenly.
+      * An evenly-spread meter is amber at conversational speech, and
+      * then amber means nothing.
+      */
     <span aria-hidden="true" style={{
-      width: 7, height: '100%', minHeight: 54, borderRadius: 3,
-      background: 'var(--panel-2)', border: '1px solid var(--line)',
+      width: 7, height: '100%', minHeight: 54,
+      borderRadius: 'var(--radius-xs)',
+      background: 'var(--ink-900)',
+      boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.06),'
+        + ' inset 0 1px 3px rgba(0,0,0,0.6)',
       display: 'flex', alignItems: 'flex-end', overflow: 'hidden',
     }}>
       <span style={{
         width: '100%', height: `${lit * 100}%`,
-        background: `linear-gradient(0deg, ${tint}, #c99a2e 78%, #c0392b)`,
+        background: `linear-gradient(0deg, ${tint}, var(--state-warn) 78%,`
+          + ' var(--state-live))',
+        boxShadow: lit > 0.92 ? '0 0 6px rgba(226,59,46,0.7)' : 'none',
+        transition: 'height 60ms linear',
       }} />
     </span>
   );
