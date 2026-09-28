@@ -50,6 +50,19 @@ describe('what a camera is asked for', () => {
     expect(asked.height).toEqual({ ideal: 1080 });
     expect(asked.deviceId).toEqual({ exact: 'cam_1' });
   });
+
+  /*
+   * THE FRAME RATE IS A PREFERENCE FOR THE SAME REASON. The quality preset
+   * asks for 60 at Maximum; a webcam that only does 30 should give its 30
+   * rather than refuse to open. [quality.ts]
+   */
+  it('asks for the frame rate the preset wants, without insisting', () => {
+    const asked = cameraConstraints(undefined, 1920, 1080, 60) as MediaTrackConstraints;
+    expect(asked.frameRate).toEqual({ ideal: 60 });
+    /* And the default is the house rate, as it was before presets existed. */
+    expect((cameraConstraints() as MediaTrackConstraints).frameRate)
+      .toEqual({ ideal: 30 });
+  });
 });
 
 describe('what a microphone is asked for', () => {

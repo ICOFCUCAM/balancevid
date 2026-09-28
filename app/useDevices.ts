@@ -100,17 +100,20 @@ export function useDevices(enabled = true): Devices {
  * be on air with the wrong picture and no indication of it. Failing is the
  * honest outcome, and the caller says which camera could not be opened.
  *
- * The SIZE stays `ideal`, because that is a preference — a camera that only
- * does 1024×576 should be used at 1024×576 rather than refused.
+ * The SIZE AND FRAME RATE stay `ideal`, because those are preferences — a
+ * camera that only does 1024×576 should be used at 1024×576 rather than
+ * refused, and a webcam asked for 60 fps should give its 30 rather than
+ * nothing. The quality preset raises what is ASKED FOR; what arrives is
+ * whatever the camera has. [quality.ts]
  */
 export function cameraConstraints(
-  deviceId?: string, width = 1280, height = 720,
+  deviceId?: string, width = 1280, height = 720, fps = 30,
 ): MediaStreamConstraints['video'] {
   return {
     ...(deviceId ? { deviceId: { exact: deviceId } } : {}),
     width: { ideal: width },
     height: { ideal: height },
-    frameRate: { ideal: 30 },
+    frameRate: { ideal: fps },
   };
 }
 

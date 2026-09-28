@@ -2,6 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import {
+  type Quality, DEFAULT_QUALITY, QUALITIES,
+} from '../../../src/domain/quality.js';
+
 /**
  * The broadcast encoder, in the browser.  [Doctrine CHANNEL §7, §8, U-23]
  *
@@ -69,9 +73,16 @@ export interface LiveEncoder {
  * on its own with nobody else in the room. Present, it broadcasts the mixed
  * picture the composition engine produced and never touches getUserMedia,
  * because the mixer already has the camera and two of them is two red lights.
+ *
+ * `quality` is the CEILING, not the rate. A MediaRecorder given 6 Mbps does
+ * not send 6 Mbps: it sends what the picture costs, up to that. So raising
+ * the setting on a static shot changes the meter by almost nothing and
+ * changes a concert enormously, which is the correct behaviour and not an
+ * intuitive one. [quality.ts]
  */
 export function useLiveEncoder(
   channelId: string, feed?: MediaStream | null,
+  quality: Quality = QUALITIES[DEFAULT_QUALITY],
 ): LiveEncoder {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -108,7 +119,11 @@ export function useLiveEncoder(
     setError(null);
     try {
       const media = feed ?? await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } },
+        video: {
+          width: { ideal: quality.width },
+          height: { ideal: quality.height },
+          frameRate: { ideal: quality.fps },
+        },
         audio: {
           echoCancellation: true, noiseSuppression: true, autoGainControl: true,
         },
@@ -126,8 +141,8 @@ export function useLiveEncoder(
         (type) => MediaRecorder.isTypeSupported(type)) ?? '';
       const recorder = new MediaRecorder(media, {
         ...(mimeType ? { mimeType } : {}),
-        videoBitsPerSecond: 2_500_000,
-        audioBitsPerSecond: 128_000,
+        videoBitsPerSecond: quality.videoBitsPerSecond,
+        audioBitsPerSecond: quality.audioBitsPerSecond,
       });
 
       recorder.ondataavailable = (event) => {
@@ -170,7 +185,7 @@ export function useLiveEncoder(
       setError(e instanceof Error ? e.message : String(e));
       stop();
     }
-  }, [channelId, feed, stop]);
+  }, [channelId, feed, quality, stop]);
 
   return { videoRef, stream, running, sent, dropped, rate, error, start, stop };
 }

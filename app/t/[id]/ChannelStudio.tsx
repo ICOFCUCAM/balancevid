@@ -23,6 +23,11 @@ import { type ScreenShare, useScreenShare } from './useScreenShare.js';
 import {
   type Devices, cameraConstraints, microphoneConstraints, useDevices,
 } from '../../useDevices.js';
+import { useQuality } from '../../useQuality.js';
+import {
+  type Quality, type QualityId, QUALITIES, QUALITY_ORDER, aboveTransmission,
+  qualityFor, rateSentence, rateVerdict, targetBytesPerSecond,
+} from '../../../src/domain/quality.js';
 
 /**
  * The control room.  [Doctrine CHANNEL §1–§9, §15, D-18, D-19, INV-17]
@@ -112,13 +117,15 @@ interface Segment {
 /* ------------------------------------------------------------------------ */
 
 export default function ChannelStudio({
-  initial, studioOneId, studioTwoId, serverNow,
+  initial, studioOneId, studioTwoId, serverNow, transmission,
 }: {
   initial: Channel;
   studioOneId?: string;
   studioTwoId?: string;
   /** When the server drew this page. See the note where it is passed. */
   serverNow?: number;
+  /** What the channel puts on the wire, as against what this machine sends. */
+  transmission?: QualityId;
 }) {
   const [channel, setChannel] = useState(initial);
   const [library, setLibrary] = useState<LibraryItem[]>([]);
@@ -202,6 +209,16 @@ export default function ChannelStudio({
   const [cameraId, setCameraId] = useState<string | undefined>(undefined);
   const [micId, setMicId] = useState<string | undefined>(undefined);
   const devices = useDevices();
+  /*
+   * HOW GOOD, which is one setting and not four. [quality.ts]
+   *
+   * The same preset reaches the camera (what is asked of it), the mixer (the
+   * canvas everything is composited onto) and the encoder (the ceiling it
+   * may spend). Any one of them raised alone does nothing, because the
+   * encoder records the CANVAS and never sees the camera — which is why
+   * this is a preset and not three menus.
+   */
+  const quality = useQuality();
   const liveNow = channel.live && channel.live.phase !== 'ended';
   const guests = useBroadcastGuests({
     roomId: channel.live?.roomId,
@@ -227,8 +244,16 @@ export default function ChannelStudio({
     sources: mixed,
     layoutId: arrangement,
     enabled: Boolean(liveNow) && mixed.length > 0,
+    /*
+     * THE CANVAS IS THE REAL CEILING. It always took these three and the
+     * studio never passed them, so every broadcast this product has ever
+     * made was composited at 1280×720 whatever the cameras could do.
+     */
+    width: quality.quality.width,
+    height: quality.quality.height,
+    fps: quality.quality.fps,
   });
-  const encoder = useLiveEncoder(id, mixer.stream);
+  const encoder = useLiveEncoder(id, mixer.stream, quality.quality);
 
   /* The meters. Every microphone on the desk, and the mix they add up to. */
   const metered = useMemo(() => {
@@ -278,7 +303,9 @@ export default function ChannelStudio({
        */
       for (const track of camera?.getTracks() ?? []) track.stop();
       void navigator.mediaDevices.getUserMedia({
-        video: cameraConstraints(cameraId),
+        video: cameraConstraints(
+          cameraId, quality.quality.width, quality.quality.height,
+          quality.quality.fps),
         audio: microphoneConstraints(micId),
       }).then((media) => {
         if (cancelled) {
@@ -298,7 +325,7 @@ export default function ChannelStudio({
     }
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, cameraId, micId]);
+  }, [phase, cameraId, micId, quality.id]);
 
   /* The pipe follows the mix, which follows the session. */
   useEffect(() => {
@@ -1157,6 +1184,9 @@ export default function ChannelStudio({
                 devices={devices}
                 cameraId={cameraId} micId={micId}
                 onCamera={setCameraId} onMic={setMicId}
+                quality={quality.quality} onQuality={quality.choose}
+                qualityLocked={Boolean(liveNow)}
+                transmission={qualityFor(transmission)}
               />
             )}
 
@@ -2871,12 +2901,18 @@ const SPACE_SWATCHES: Record<string, string> = Object.fromEntries(
 function CameraTab({
   camera, mixer, levels, onAir, armed, encoder, spaceId, onSpace,
   devices, cameraId, micId, onCamera, onMic,
+  quality, onQuality, qualityLocked, transmission,
 }: {
   devices: Devices;
   cameraId?: string;
   micId?: string;
   onCamera: (deviceId: string | undefined) => void;
   onMic: (deviceId: string | undefined) => void;
+  quality: Quality;
+  onQuality: (id: QualityId) => void;
+  /** On air: the canvas cannot be resized without cutting the feed. */
+  qualityLocked: boolean;
+  transmission: Quality;
   camera: MediaStream | null;
   mixer: MediaStream | null;
   levels: Record<string, { energy: number; speech: number }>;
@@ -2954,6 +2990,53 @@ function CameraTab({
             </option>
           ))}
         </select>
+        {/*
+          * ---- HOW GOOD (§7, quality.ts) --------------------------------
+          *
+          * Beside the device menus because it is the same question asked
+          * twice: WHICH camera, and THEN how much of it to use. A capture
+          * card chosen above and left at Standard is a cinema camera
+          * composited onto a 720p canvas, which is the exact trap this
+          * control exists to close.
+          */}
+        <select
+          data-testid="quality-choice" value={quality.id}
+          disabled={qualityLocked}
+          onChange={(event) => onQuality(event.target.value as QualityId)}
+          style={{ fontSize: 11, padding: '6px 8px' }}
+        >
+          {QUALITY_ORDER.map((id) => (
+            <option key={id} value={id}>{QUALITIES[id]!.label}</option>
+          ))}
+        </select>
+        <p className="small muted" style={{ margin: 0, fontSize: 10 }}>
+          {qualityLocked
+            /*
+             * NOT A LIMITATION BEING APOLOGISED FOR. Resizing the canvas
+             * mid-broadcast restarts `captureStream`, and a new track in the
+             * middle of a live session is a gap in the file that becomes the
+             * archive. Waiting is the right answer; saying so is the honest
+             * way to make waiting acceptable.
+             */
+            ? `${quality.needs} Changing it cuts the feed, so it waits for the `
+              + 'next broadcast.'
+            : quality.needs}
+        </p>
+        {aboveTransmission(quality, transmission) && (
+          /*
+           * NOT A WARNING, AND IT MUST NOT READ AS ONE. The extra detail is
+           * genuinely kept: the ingest webm is the file promoted into the
+           * archive when a session is saved (INV-17), so recording above
+           * what you transmit is the ordinary broadcast practice of keeping
+           * the good copy. What would be dishonest is letting somebody
+           * choose Maximum, watch the monitor, and think nothing happened.
+           */
+          <p className="small muted" style={{ margin: 0, fontSize: 10 }}>
+            The channel transmits at {transmission.height}p, so viewers see
+            {' '}{transmission.height}p — the extra detail is kept in the
+            recording of this session.
+          </p>
+        )}
         {!devices.named && devices.cameras.length > 0 && (
           /*
            * `enumerateDevices` returns cameras with blank labels until
@@ -2976,20 +3059,54 @@ function CameraTab({
         )}
       </div>
 
-      <div className="row" data-testid="feed-health" style={{
-        gap: 8, fontSize: 11, padding: '6px 8px', borderRadius: 7, marginTop: 8,
+      <div data-testid="feed-health" style={{
+        fontSize: 11, padding: '6px 8px', borderRadius: 7, marginTop: 8,
         background: 'var(--panel-2)', border: '1px solid var(--line)',
       }}>
-        <Dot on colour={encoder.running && encoder.dropped === 0 ? '#4f8a5b'
-          : encoder.running ? '#c99a2e' : '#8e2f24'} />
-        <span className="grow muted">
-          {encoder.running
-            ? `Feed · ${encoder.sent} sent`
-              + (encoder.dropped ? ` · ${encoder.dropped} lost` : '')
-            : encoder.error ?? 'No camera'}
-        </span>
+        <div className="row" style={{ gap: 8 }}>
+          <Dot on colour={encoder.running && encoder.dropped === 0 ? '#4f8a5b'
+            : encoder.running ? '#c99a2e' : '#8e2f24'} />
+          <span className="grow muted">
+            {encoder.running
+              ? `Feed · ${encoder.sent} sent`
+                + (encoder.dropped ? ` · ${encoder.dropped} lost` : '')
+              : encoder.error ?? 'No camera'}
+          </span>
+          {encoder.running && (
+            <span className="mono muted" data-testid="feed-rate">
+              {Math.round(encoder.rate / 1000)}
+              <span style={{ opacity: 0.55 }}>
+                {' / '}{Math.round(targetBytesPerSecond(quality) / 1000)} kB/s
+              </span>
+            </span>
+          )}
+        </div>
         {encoder.running && (
-          <span className="mono muted">{Math.round(encoder.rate / 1000)} kB/s</span>
+          /*
+           * A RATE WITH NOTHING TO COMPARE IT TO IS NOT INFORMATION. This
+           * whole control exists because somebody read `62 kB/s` and could
+           * not tell whether the product was broken, throttled, or simply
+           * pointed at a still picture — which it was. A bar against the
+           * ceiling and one sentence answer that in a glance. [D-20]
+           */
+          <>
+            <div style={{
+              height: 3, borderRadius: 2, marginTop: 6, overflow: 'hidden',
+              background: 'rgba(255,255,255,0.08)',
+            }}>
+              <div style={{
+                height: '100%',
+                width: `${Math.min(100, Math.round(
+                  (encoder.rate / Math.max(1, targetBytesPerSecond(quality))) * 100))}%`,
+                background: rateVerdict(encoder.rate, quality) === 'capped'
+                  ? '#c99a2e' : '#4f8a5b',
+                transition: 'width 400ms linear',
+              }} />
+            </div>
+            <p className="small muted" data-testid="feed-rate-note" style={{
+              margin: '5px 0 0', fontSize: 10,
+            }}>{rateSentence(encoder.rate, quality)}</p>
+          </>
         )}
       </div>
 

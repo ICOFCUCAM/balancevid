@@ -4,6 +4,7 @@ import { isOwner } from '../../../src/auth/request.js';
 import { loadChannel } from '../../../src/store/channels.js';
 import { listConversations } from '../../../src/store/repository.js';
 import { listPerformances } from '../../../src/store/performances.js';
+import { streamQuality } from '../../../src/domain/quality.js';
 import ChannelStudio from './ChannelStudio.js';
 
 export const dynamic = 'force-dynamic';
@@ -54,6 +55,16 @@ export default async function ChannelPage(
        * later) is the browser's own. [§2, U-08]
        */
       serverNow={Date.now()}
+      /*
+       * WHAT THE CHANNEL TRANSMITS, which is not what this machine sends up.
+       *
+       * The engine re-encodes every piece onto one wire format, so an
+       * operator broadcasting at 1080p and watching the 720p monitor beside
+       * it would otherwise conclude the setting did nothing. It is set for
+       * the deployment and read here rather than fetched, because the web
+       * tier must never import the playout engine to find it out. [U-23]
+       */
+      transmission={streamQuality().id}
     />
   );
 }

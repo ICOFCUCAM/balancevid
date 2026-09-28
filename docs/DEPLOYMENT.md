@@ -67,6 +67,32 @@ transcript is a degraded conversation, not a broken one.
 | `BALANCEVID_PASSWORD_HASH` | *(unset)* | **Required.** The owner's password, hashed by `npm run passwd`. With nothing set the instance serves nothing. |
 | `BALANCEVID_PASSWORD` | *(unset)* | Plaintext alternative, hashed at boot. For a first run; prefer the hash. |
 | `BALANCEVID_SESSION_HOURS` | `336` | How long a session lasts. |
+| `STREAM_QUALITY` | `standard` | What Online TV transmits: `low`, `standard` (720p), `high` (1080p) or `maximum` (1080p60). One answer for the whole deployment, read once at start — see below. |
+
+### Broadcast quality
+
+Two different questions, deliberately answered in two different places.
+
+**What a channel transmits** is `STREAM_QUALITY`, above. It is set for the
+deployment rather than per channel because every segment on the wire must
+carry identical codec parameters — a stream whose resolution changed at a
+programme boundary is a stream every player stalls on — and because the
+playout engine encodes in real time, so it is the machine's ffmpeg budget
+being spent and the viewers' bandwidth. It is read once when the engine
+starts; changing it means restarting the engine.
+
+**What a broadcaster sends up** is chosen in the control room, on the Camera
+tab, and stored in that browser. It is a statement about the camera in the
+room and the building's uplink, so the same channel broadcast from a studio
+and from a hotel gets two different answers. One preset moves the camera
+request, the mixing canvas and the encoder ceiling together; raising any one
+of them alone does nothing, because the encoder records the canvas and never
+sees the camera.
+
+Sending up more than the channel transmits is not waste. The ingest file is
+what gets promoted into the archive when a live session is kept (INV-17), so
+recording at 1080p while transmitting at 720p is the ordinary practice of
+keeping the good copy.
 
 ## Fly.io
 

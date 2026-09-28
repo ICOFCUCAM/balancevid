@@ -31,18 +31,31 @@ import {
 import { whatIsOn } from '../domain/channel.js';
 import { marksFor } from '../domain/identity.js';
 import type { Mark } from '../domain/identity.js';
+import { kbps, streamQuality } from '../domain/quality.js';
 import { HOUSE } from '../render/ingest.js';
 import { ffmpeg, type RunOptions } from '../render/ffmpeg.js';
 import { paths } from '../store/paths.js';
 import { pathFor } from '../store/playoutSources.js';
 
-/** What the stream looks like. Constant across every programme. */
+/**
+ * What the stream looks like. Constant across every programme.
+ *
+ * Read once at import from the deployment's setting, and deliberately NOT
+ * per segment: the constancy above is the invariant this whole file is built
+ * around, and a value that could change between segment 4,102 and segment
+ * 4,103 is a player stalling at an unreproducible moment. Restarting the
+ * engine is the honest way to change the wire format.
+ *
+ * With nothing set this is 1280×720 at 2500k — the numbers that were written
+ * here as literals before there was a table. [quality.ts]
+ */
+const WIRE = streamQuality();
 export const STREAM = {
-  width: 1280,
-  height: 720,
-  fps: HOUSE.fps,
-  videoBitrate: '2500k',
-  audioBitrate: '128k',
+  width: WIRE.width,
+  height: WIRE.height,
+  fps: WIRE.fps,
+  videoBitrate: kbps(WIRE.videoBitsPerSecond),
+  audioBitrate: kbps(WIRE.audioBitsPerSecond),
 } as const;
 
 /**
