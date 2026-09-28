@@ -551,11 +551,11 @@ export default function ChannelStudio({
             gap: 7, padding: '4px 10px', borderRadius: 5, flex: '0 0 auto',
             background: on.kind === 'live' ? 'rgba(192,57,43,0.18)'
               : on.kind === 'off' ? 'transparent' : 'rgba(45,110,200,0.14)',
-            border: `1px solid ${on.kind === 'live' ? '#c0392b'
+            border: `1px solid ${on.kind === 'live' ? 'var(--state-live-dim)'
               : on.kind === 'off' ? 'var(--line)' : 'rgba(45,110,200,0.45)'}`,
           }}>
             <Dot on={on.kind !== 'off'} colour={on.kind === 'live' ? '#e04b37'
-              : on.kind === 'emergency' || on.kind === 'backup' ? '#e0c14f' : '#4f8ad6'} />
+              : on.kind === 'emergency' || on.kind === 'backup' ? 'var(--ink-on-armed)' : 'var(--accent)'} />
             <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.4 }}>
               {on.kind === 'off' ? 'OFF AIR' : 'ON AIR'}
             </span>
@@ -606,7 +606,7 @@ export default function ChannelStudio({
               onClick={() => { setAdding((open) => !open); setRailTab('library'); }}
               style={{
                 flex: 1, padding: '7px 10px', fontSize: 12,
-                background: '#2f6fd0', borderColor: '#2f6fd0',
+                background: 'var(--accent-deep)', borderColor: 'var(--accent-deep)',
               }}
             >
               + Add to Playlist
@@ -617,7 +617,7 @@ export default function ChannelStudio({
               style={{
                 flex: '0 0 auto', width: 32, padding: 0, height: 30,
                 background: filter === null ? 'var(--panel-2)' : 'rgba(45,110,200,0.22)',
-                border: `1px solid ${filter === null ? 'var(--line)' : '#3d7fd6'}`,
+                border: `1px solid ${filter === null ? 'var(--line)' : 'var(--accent)'}`,
                 borderRadius: 8, cursor: 'pointer', color: 'inherit',
               }}
             >&#9906;</button>
@@ -801,11 +801,11 @@ export default function ChannelStudio({
                 right={(
                   <span data-testid="program-mode" data-mode={on.kind} style={{
                     padding: '3px 9px', borderRadius: 4, fontSize: 10,
-                    fontWeight: 800, letterSpacing: 0.6, color: '#fff',
-                    background: on.kind === 'live' ? '#c0392b'
+                    fontWeight: 800, letterSpacing: 0.6, color: 'var(--ink-000)',
+                    background: on.kind === 'live' ? 'var(--state-live-dim)'
                       : on.kind === 'emergency' ? '#b3431f'
-                        : on.kind === 'backup' ? '#8e6a1f'
-                          : on.kind === 'off' ? '#2a3038' : '#2f6fd0',
+                        : on.kind === 'backup' ? 'var(--state-armed-dim)'
+                          : on.kind === 'off' ? 'var(--ink-500)' : 'var(--accent-deep)',
                   }}>
                     {on.kind === 'live' ? '● ON AIR'
                       : on.kind === 'emergency' ? 'EMERGENCY'
@@ -827,7 +827,7 @@ export default function ChannelStudio({
                 data-mode={on.kind}
                 style={{
                   position: 'relative', flex: '1 1 auto', minHeight: 150,
-                  margin: 9, background: '#05070a', borderRadius: 8,
+                  margin: 9, background: 'var(--ink-900)', borderRadius: 8,
                   border: '1px solid var(--line)', overflow: 'hidden',
                 }}
               >
@@ -918,7 +918,7 @@ export default function ChannelStudio({
                       + ' inset 0 1px 0 rgba(255,255,255,0.22)'
                     : 'inset 0 1px 0 rgba(255,255,255,0.08)',
                   color: on.kind === 'off'
-                    ? 'rgba(255,255,255,0.6)' : '#fff',
+                    ? 'rgba(255,255,255,0.6)' : 'var(--ink-000)',
                 }}>
                   {on.kind === 'live' ? '● LIVE'
                     : on.kind === 'backup' ? 'BACKUP'
@@ -970,7 +970,7 @@ export default function ChannelStudio({
                   fontSize: 'var(--text-xs)',
                   fontWeight: 'var(--weight-bold)',
                   letterSpacing: 'var(--tracking-tight)',
-                  color: channel.identity?.ink ?? '#fff',
+                  color: channel.identity?.ink ?? 'var(--ink-000)',
                   textShadow: '0 1px 6px rgba(0,0,0,0.85), 0 0 2px rgba(0,0,0,0.9)',
                   opacity: channel.identity?.bug?.opacity ?? 0.9,
                 }}>
@@ -980,7 +980,7 @@ export default function ChannelStudio({
                       padding: '1px var(--space-3)',
                       borderRadius: 'var(--radius-xs)',
                       background: 'var(--state-live)',
-                      color: '#fff', fontSize: 'var(--text-2xs)',
+                      color: 'var(--ink-000)', fontSize: 'var(--text-2xs)',
                       letterSpacing: '0.09em',
                       fontWeight: 'var(--weight-bold)',
                       boxShadow: '0 0 10px rgba(226,59,46,0.5)',
@@ -1007,9 +1007,9 @@ export default function ChannelStudio({
                 <Head text="Preview" sub="(Next)" />
                 <div style={{
                   position: 'relative', flex: '1 1 auto', minHeight: 96,
-                  margin: 9, background: '#05070a', borderRadius: 8,
+                  margin: 9, background: 'var(--ink-900)', borderRadius: 8,
                   overflow: 'hidden',
-                  border: `1px solid ${armed ? '#e0c14f' : 'var(--line)'}`,
+                  border: `1px solid ${armed ? 'var(--ink-on-armed)' : 'var(--line)'}`,
                 }}>
                   {/*
                     * IN A GALLERY, PREVIEW IS WHAT YOU ARE ABOUT TO CUT TO.
@@ -1049,7 +1049,7 @@ export default function ChannelStudio({
                     <span style={{
                       position: 'absolute', left: 8, top: 8, padding: '2px 7px',
                       borderRadius: 3, fontSize: 9, fontWeight: 800,
-                      background: '#8e6a1f', color: '#fff', letterSpacing: 0.6,
+                      background: 'var(--state-armed-dim)', color: 'var(--ink-000)', letterSpacing: 0.6,
                     }}>ARMED</span>
                   )}
                 </div>
@@ -1191,7 +1191,7 @@ export default function ChannelStudio({
                 onClick={() => setMixerOpen((open) => !open)}
                 style={{
                   border: 0, background: 'none', padding: 0, fontSize: 14,
-                  cursor: 'pointer', color: mixerOpen ? '#6fa9ea' : 'var(--muted)',
+                  cursor: 'pointer', color: mixerOpen ? 'var(--accent-soft)' : 'var(--muted)',
                 }}
               >&#9776;</button>
             )}
@@ -1209,8 +1209,8 @@ export default function ChannelStudio({
               onClick={goLive}
               style={{
                 flex: 1, padding: '8px 10px', fontSize: 12,
-                background: onAir ? 'var(--panel-2)' : '#8e2f24',
-                borderColor: onAir ? 'var(--line)' : '#8e2f24',
+                background: onAir ? 'var(--panel-2)' : 'var(--state-live-dim)',
+                borderColor: onAir ? 'var(--line)' : 'var(--state-live-dim)',
                 opacity: onAir ? 0.5 : 1,
               }}
             >
@@ -1223,7 +1223,7 @@ export default function ChannelStudio({
               onClick={endLive}
               style={{
                 flex: 1, padding: '8px 10px', fontSize: 12,
-                borderColor: onAir ? '#c0392b' : 'var(--line)',
+                borderColor: onAir ? 'var(--state-live-dim)' : 'var(--line)',
                 color: onAir ? '#e07a6b' : 'var(--muted)',
               }}
             >
@@ -1279,7 +1279,7 @@ export default function ChannelStudio({
                       onClick={() => setArrangement(option === 'auto' ? undefined : option)}
                       style={{
                         padding: '3px 7px', fontSize: 10, borderRadius: 5,
-                        border: `1px solid ${chosenOne ? '#3d7fd6' : 'var(--line)'}`,
+                        border: `1px solid ${chosenOne ? 'var(--accent)' : 'var(--line)'}`,
                         background: chosenOne ? 'rgba(45,110,200,0.22)' : 'transparent',
                       }}
                     >
@@ -1368,7 +1368,7 @@ export default function ChannelStudio({
                     height: '100%',
                     width: totalMs > 0
                       ? `${Math.min(100, (intoMs / totalMs) * 100)}%` : '100%',
-                    background: on.kind === 'live' ? '#c0392b' : '#2f6fd0',
+                    background: on.kind === 'live' ? 'var(--state-live-dim)' : 'var(--accent-deep)',
                   }} />
                 </div>
                 <div className="row mono muted" style={{ fontSize: 10 }}>
@@ -1520,7 +1520,7 @@ export default function ChannelStudio({
           >
             <span aria-hidden="true" style={{
               width: 12, height: 12, borderRadius: 'var(--radius-full)',
-              background: onAir && keeping ? '#fff' : 'transparent',
+              background: onAir && keeping ? 'var(--ink-000)' : 'transparent',
               boxShadow: onAir && keeping
                 ? '0 0 4px rgba(255,255,255,0.6)'
                 : 'inset 0 0 0 2px var(--state-live-dim)',
@@ -1681,7 +1681,7 @@ export default function ChannelStudio({
             style={emergency
               ? {
                 background: 'linear-gradient(180deg, #d4402f, #b03327)',
-                borderColor: '#e85643', color: '#fff',
+                borderColor: '#e85643', color: 'var(--ink-000)',
                 padding: 'var(--space-3) var(--space-5)',
                 fontSize: 'var(--text-sm)',
                 fontWeight: 'var(--weight-bold)',
@@ -1768,7 +1768,7 @@ export default function ChannelStudio({
                         })}
                         style={{
                           border: 0, background: 'none', padding: 0,
-                          color: '#5c9ee0', fontSize: 11, cursor: 'pointer',
+                          color: 'var(--accent-soft)', fontSize: 11, cursor: 'pointer',
                         }}>
                   + Add
                 </button>
@@ -1812,9 +1812,9 @@ export default function ChannelStudio({
                       style={{
                         width: 9, height: 9, borderRadius: '50%', padding: 0,
                         border: 0, cursor: 'pointer', flex: '0 0 auto',
-                        background: state === 'ON' ? '#c0392b'
-                          : state === 'READY' ? '#4f8a5b'
-                            : state === 'NOT CONNECTED' ? '#8e6a1f' : '#2a3038',
+                        background: state === 'ON' ? 'var(--state-live-dim)'
+                          : state === 'READY' ? 'var(--state-ok)'
+                            : state === 'NOT CONNECTED' ? 'var(--state-armed-dim)' : 'var(--ink-500)',
                       }}
                     />
                     <span className="grow" style={{
@@ -1882,10 +1882,10 @@ export default function ChannelStudio({
               on
               colour={!health ? '#6a7078'
                 : health.engine !== 'running' || health.stream === 'silent'
-                  ? '#c0392b'
-                  : health.stream === 'stalled' ? '#c99a2e'
-                    : violations.length > 0 || missing.length > 0 ? '#c99a2e'
-                      : '#4f8a5b'}
+                  ? 'var(--state-live-dim)'
+                  : health.stream === 'stalled' ? 'var(--state-warn)'
+                    : violations.length > 0 || missing.length > 0 ? 'var(--state-warn)'
+                      : 'var(--state-ok)'}
             />
             <span className="muted">
               {!health ? 'Engine: \u2026'
@@ -1911,7 +1911,7 @@ export default function ChannelStudio({
                 title={published
                   ? 'Anybody with the link can watch this channel.'
                   : 'Only you can watch this. Publish it to give it an audience.'}>
-            <Dot on colour={published ? '#4f8a5b' : '#6a7078'} />
+            <Dot on colour={published ? 'var(--state-ok)' : '#6a7078'} />
             <span className="muted">{published ? 'Public' : 'Private'}</span>
           </span>
 
@@ -1957,7 +1957,7 @@ export default function ChannelStudio({
                     }
                   }}
                   style={channel.backup
-                    ? { borderColor: '#8e6a1f', color: '#e0c14f', fontSize: 11 }
+                    ? { borderColor: 'var(--state-armed-dim)', color: 'var(--ink-on-armed)', fontSize: 11 }
                     : { fontSize: 11 }}
                 >
                   {channel.backup ? 'Clear' : 'Set from pick'}
@@ -2005,9 +2005,9 @@ export default function ChannelStudio({
                     });
                   }}
                   style={published
-                    ? { borderColor: '#8e6a1f', color: '#e0c14f', fontSize: 11 }
+                    ? { borderColor: 'var(--state-armed-dim)', color: 'var(--ink-on-armed)', fontSize: 11 }
                     : {
-                      background: '#2f6fd0', borderColor: '#2f6fd0', color: '#fff',
+                      background: 'var(--accent-deep)', borderColor: 'var(--accent-deep)', color: 'var(--ink-000)',
                       fontSize: 11,
                     }}
                 >
@@ -2203,7 +2203,7 @@ function Strip({
               fontWeight: chosen ? 'var(--weight-bold)' : 'var(--weight-medium)',
               cursor: 'pointer',
               color: chosen
-                ? (compact ? '#fff' : '#7fb4ee')
+                ? (compact ? 'var(--ink-000)' : '#7fb4ee')
                 : 'var(--text-faint)',
               background: compact
                 ? (chosen
@@ -2214,7 +2214,7 @@ function Strip({
               borderRadius: compact ? 'var(--radius-sm)' : 0,
               borderBottom: compact
                 ? 0
-                : `2px solid ${chosen ? '#3f8ee8' : 'transparent'}`,
+                : `2px solid ${chosen ? 'var(--accent)' : 'transparent'}`,
               /* The raise: only the chosen segment leaves the track. */
               boxShadow: compact && chosen
                 ? 'inset 0 1px 0 rgba(255,255,255,0.18), 0 1px 2px rgba(0,0,0,0.4)'
@@ -2354,7 +2354,7 @@ function Row({
         borderRadius: chosen ? 'var(--radius-md)' : 'var(--radius-sm)',
         marginBottom: 2,
         background: chosen ? 'rgba(63,142,232,0.14)' : 'var(--surface-float)',
-        border: `1px solid ${chosen ? '#3f8ee8' : 'transparent'}`,
+        border: `1px solid ${chosen ? 'var(--accent)' : 'transparent'}`,
         borderBottom: chosen
           ? '1px solid #3f8ee8'
           : '1px solid var(--ink-700)',
@@ -2532,7 +2532,7 @@ function PlaylistRail({
             badge={playing ? (
               <span style={{
                 flex: '0 0 auto', padding: '1px 5px', borderRadius: 3,
-                background: '#c0392b', color: '#fff', fontSize: 8,
+                background: 'var(--state-live-dim)', color: 'var(--ink-000)', fontSize: 8,
                 fontWeight: 800, letterSpacing: 0.5,
               }}>LIVE</span>
             ) : entry.loop ? (
@@ -2664,12 +2664,12 @@ function SchedulesRail({
             badge={broken ? (
               <span style={{
                 flex: '0 0 auto', padding: '1px 5px', borderRadius: 3,
-                background: '#8e2f24', color: '#fff', fontSize: 8, fontWeight: 800,
+                background: 'var(--state-live-dim)', color: 'var(--ink-000)', fontSize: 8, fontWeight: 800,
               }}>NO FILE</span>
             ) : liveId === entry.id ? (
               <span style={{
                 flex: '0 0 auto', padding: '1px 5px', borderRadius: 3,
-                background: '#c0392b', color: '#fff', fontSize: 8, fontWeight: 800,
+                background: 'var(--state-live-dim)', color: 'var(--ink-000)', fontSize: 8, fontWeight: 800,
               }}>LIVE</span>
             ) : undefined}
             menu={(
@@ -2692,7 +2692,7 @@ function SchedulesRail({
           <button className="small" data-testid="add-block" onClick={onAddBlock}
                   style={{
                     border: 0, background: 'none', padding: 0, fontSize: 11,
-                    color: '#5c9ee0', cursor: 'pointer',
+                    color: 'var(--accent-soft)', cursor: 'pointer',
                   }}>+ Add</button>
         )}
       />
@@ -2892,7 +2892,7 @@ function MultiView({
              * they cannot cut to as much as the ones they can.
              */
             opacity: tile.act || tile.live ? 1 : 0.72,
-            border: `1px solid ${tile.live ? '#4f8ad6' : 'var(--ink-600)'}`,
+            border: `1px solid ${tile.live ? 'var(--accent)' : 'var(--ink-600)'}`,
             boxShadow: tile.live
               ? '0 0 0 2px rgba(79,138,214,0.3), 0 2px 8px rgba(0,0,0,0.5),'
                 + ' inset 0 0 0 1px rgba(255,255,255,0.06)'
@@ -2951,7 +2951,7 @@ function MultiView({
             <span style={{
               display: 'block', fontWeight: 'var(--weight-semi)',
               overflow: 'hidden', textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap', color: '#fff',
+              whiteSpace: 'nowrap', color: 'var(--ink-000)',
             }}>{tile.label}</span>
             <span style={{
               display: 'block', overflow: 'hidden', textOverflow: 'ellipsis',
@@ -3099,8 +3099,8 @@ function Timeline({
                         || segment.on.kind === 'backup' ? 'rgba(201,154,46,0.26)'
                         : segment.on.kind === 'programme' ? 'rgba(45,110,200,0.34)'
                           : 'rgba(45,110,200,0.15)',
-                  border: `1px solid ${broken ? '#c0392b'
-                    : isChosen || holds ? '#6fa9ea' : 'var(--line)'}`,
+                  border: `1px solid ${broken ? 'var(--state-live-dim)'
+                    : isChosen || holds ? 'var(--accent-soft)' : 'var(--line)'}`,
                 }}
               >
                 <span style={{
@@ -3214,7 +3214,7 @@ function Timeline({
               padding: '1px var(--space-3)',
               borderRadius: 'var(--radius-xs)',
               background: 'linear-gradient(180deg, #e8483a, #c33327)',
-              color: '#fff', fontSize: 'var(--text-2xs)',
+              color: 'var(--ink-000)', fontSize: 'var(--text-2xs)',
               fontWeight: 'var(--weight-bold)', whiteSpace: 'nowrap',
               letterSpacing: '0.05em',
               boxShadow: '0 1px 4px rgba(0,0,0,0.5),'
@@ -3342,7 +3342,7 @@ function CalendarView({
             <strong className="grow" style={{ fontSize: 12 }}>{block.name}</strong>
             {block.id === holding && (
               <span style={{
-                padding: '1px 6px', borderRadius: 3, background: '#2f6fd0',
+                padding: '1px 6px', borderRadius: 3, background: 'var(--accent-deep)',
                 fontSize: 9, fontWeight: 800,
               }}>ON AIR</span>
             )}
@@ -3350,7 +3350,7 @@ function CalendarView({
                     onClick={() => onAddToBlock(block)}
                     style={{
                       border: 0, background: 'none', padding: 0, fontSize: 11,
-                      color: '#5c9ee0', cursor: 'pointer',
+                      color: 'var(--accent-soft)', cursor: 'pointer',
                     }}>+ Add pick</button>
           </div>
           {block.rotation.length === 0 ? (
@@ -3436,8 +3436,8 @@ function CameraTab({
       <div className="row" style={{ gap: 9, alignItems: 'stretch' }}>
         <div style={{
           flex: 1, minWidth: 0, position: 'relative', aspectRatio: '16 / 9',
-          borderRadius: 8, overflow: 'hidden', background: '#05070a',
-          border: `1px solid ${armed ? '#e0c14f' : onAir ? '#c0392b' : 'var(--line)'}`,
+          borderRadius: 8, overflow: 'hidden', background: 'var(--ink-900)',
+          border: `1px solid ${armed ? 'var(--ink-on-armed)' : onAir ? 'var(--state-live-dim)' : 'var(--line)'}`,
         }}>
           {feed ? (
             <video
@@ -3572,8 +3572,8 @@ function CameraTab({
         background: 'var(--panel-2)', border: '1px solid var(--line)',
       }}>
         <div className="row" style={{ gap: 8 }}>
-          <Dot on colour={encoder.running && encoder.dropped === 0 ? '#4f8a5b'
-            : encoder.running ? '#c99a2e' : '#8e2f24'} />
+          <Dot on colour={encoder.running && encoder.dropped === 0 ? 'var(--state-ok)'
+            : encoder.running ? 'var(--state-warn)' : 'var(--state-live-dim)'} />
           <span className="grow muted">
             {encoder.running
               ? `Feed · ${encoder.sent} sent`
@@ -3607,7 +3607,7 @@ function CameraTab({
                 width: `${Math.min(100, Math.round(
                   (encoder.rate / Math.max(1, targetBytesPerSecond(quality))) * 100))}%`,
                 background: rateVerdict(encoder.rate, quality) === 'capped'
-                  ? '#c99a2e' : '#4f8a5b',
+                  ? 'var(--state-warn)' : 'var(--state-ok)',
                 transition: 'width 400ms linear',
               }} />
             </div>
@@ -3648,7 +3648,7 @@ function CameraTab({
                 padding: 0, aspectRatio: '1 / 1', borderRadius: 6,
                 overflow: 'hidden', cursor: 'pointer', position: 'relative',
                 background: SPACE_SWATCHES[space.id] ?? '#1b2028',
-                border: `1px solid ${chosen ? '#3d7fd6' : 'var(--line)'}`,
+                border: `1px solid ${chosen ? 'var(--accent)' : 'var(--line)'}`,
                 boxShadow: chosen ? '0 0 0 1px rgba(61,127,214,0.5)' : 'none',
               }}
             >
@@ -3666,7 +3666,7 @@ function CameraTab({
   );
 }
 
-function VMeter({ value, tint = '#4f8a5b' }: { value: number; tint?: string }) {
+function VMeter({ value, tint = 'var(--state-ok)' }: { value: number; tint?: string }) {
   const lit = Math.min(1, value * 1.6);
   return (
     /*
@@ -3768,7 +3768,7 @@ function ScreensTab({
           {share.sharing && (
             <span style={{
               padding: '1px 6px', borderRadius: 3, background: '#1f8a70',
-              color: '#fff', fontSize: 8, fontWeight: 800, letterSpacing: 0.5,
+              color: 'var(--ink-000)', fontSize: 8, fontWeight: 800, letterSpacing: 0.5,
             }}>IN THE MIX</span>
           )}
         </div>
@@ -3787,7 +3787,7 @@ function ScreensTab({
             </div>
             <button className="small" data-testid="stop-share"
                     onClick={share.stop}
-                    style={{ borderColor: '#8e2f24', color: '#e07a6b' }}>
+                    style={{ borderColor: 'var(--state-live-dim)', color: '#e07a6b' }}>
               Stop sharing
             </button>
           </>
@@ -3891,7 +3891,7 @@ function GraphicsTab({
                 })}
                 style={{
                   padding: '3px 7px', fontSize: 10, borderRadius: 5,
-                  border: `1px solid ${chosen ? '#3d7fd6' : 'var(--line)'}`,
+                  border: `1px solid ${chosen ? 'var(--accent)' : 'var(--line)'}`,
                   background: chosen ? 'rgba(45,110,200,0.22)' : 'transparent',
                 }}
               >{corner.replace('-', ' ')}</button>
@@ -3916,7 +3916,7 @@ function GraphicsTab({
               })}
               style={{
                 flex: 1, padding: '5px 4px', fontSize: 10, borderRadius: 6,
-                border: `1px solid ${chosen ? '#3d7fd6' : 'var(--line)'}`,
+                border: `1px solid ${chosen ? 'var(--accent)' : 'var(--line)'}`,
                 background: chosen ? 'rgba(45,110,200,0.22)' : 'transparent',
               }}
             >{show}</button>
@@ -4023,7 +4023,7 @@ function AudioTab({
       <label className="row" data-testid="keep-live-label" style={{
         gap: 8, fontSize: 12, padding: '7px 9px', borderRadius: 7, margin: 0,
         flexWrap: 'nowrap', alignItems: 'flex-start',
-        border: `1px solid ${keeping ? '#c0392b' : 'var(--line)'}`,
+        border: `1px solid ${keeping ? 'var(--state-live-dim)' : 'var(--line)'}`,
         background: keeping ? 'rgba(192,57,43,0.14)' : 'var(--panel-2)',
       }}>
         <input
@@ -4174,7 +4174,7 @@ function Scheduler({
             onClick={() => setMinutes(option)}
             style={{
               padding: '5px 4px', fontSize: 11, borderRadius: 7,
-              border: `1px solid ${minutes === option ? '#3d7fd6' : 'var(--line)'}`,
+              border: `1px solid ${minutes === option ? 'var(--accent)' : 'var(--line)'}`,
               background: minutes === option
                 ? 'rgba(45,110,200,0.22)' : 'var(--panel-2)',
             }}

@@ -8,7 +8,7 @@
  * one-off values — slowly, in small correct-looking increments, by people
  * who never saw the file that says what the values should be.
  *
- * SO THIS IS A RATCHET RATHER THAN A RULE. There are still 322 raw hex
+ * SO THIS IS A RATCHET RATHER THAN A RULE. There are still 244 raw hex
  * colours in the components: the token system landed in this pass and the
  * surfaces are being converted as each is worked on, so a test demanding
  * zero would fail today and be deleted tomorrow, which is worse than no
@@ -56,7 +56,7 @@ describe('raw colour in components', () => {
    * If this fails on a new feature, the fix is a token, not a bigger
    * number — and the tokens are in `app/styles/`.
    */
-  const BUDGET = 322;
+  const BUDGET = 244;
 
   it(`is at or below ${BUDGET} occurrences, and falling`, () => {
     const counts = components()

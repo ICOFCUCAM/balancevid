@@ -57,6 +57,20 @@
   --ink-on-armed: #f0c66a;
   --ink-on-ok: #84c797;
 
+  /*
+   * THE ACCENT. One blue, in the three weights the interface uses it at:
+   * the line on a chosen thing, the fill on a pressed one, and the tint
+   * a selection washes its row with. Eleven near-identical blues were
+   * counted in the control room alone — #2f6fd0, #3d7fd6, #3f8ee8,
+   * #4f8ad6, #5c9ee0 — and five blues that are almost the same blue are
+   * worse than one, because the eye reads each difference as meaning
+   * something and then finds it means nothing.
+   */
+  --accent: #3f8ee8;
+  --accent-deep: #2f6fd0;
+  --accent-soft: #7fb4ee;
+  --accent-wash: rgba(63, 142, 232, 0.16);
+
   /* The old names, aliased, so nothing has to change at once. */
   --ok: var(--state-ok);
   --warn: var(--state-warn);
