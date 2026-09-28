@@ -2523,7 +2523,8 @@ function MultiView({
 
   return (
     <div data-testid="multiview-grid" style={{
-      display: 'grid', gap: 6, padding: 9, flex: '1 1 auto', minHeight: 0,
+      display: 'grid', gap: 'var(--space-3)', padding: 'var(--space-3)',
+      flex: '1 1 auto', minHeight: 0,
       gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
       gridTemplateRows: 'repeat(2, minmax(0, 1fr))', alignContent: 'center',
     }}>
@@ -2536,9 +2537,22 @@ function MultiView({
           onClick={tile.act}
           title={`${tile.label} — ${tile.sub}`
             + (tile.why ? `\n${tile.why}` : '')}
+          /*
+            * A TILE IS A MONITOR IN A RACK, and a rack is a row of
+            * recessed wells rather than a row of cards. The inset dark
+            * edge is what makes six of them read as one instrument
+            * instead of six floating rectangles. [elevation]
+            *
+            * THE LIVE ONE IS NOT JUST OUTLINED. An outline in a grid of
+            * outlines is found by comparison — the eye has to check all
+            * six. A tinted halo around it is found without comparison,
+            * which is the difference between reading a rack and glancing
+            * at one.
+            */
           style={{
-            position: 'relative', minHeight: 44, borderRadius: 6, padding: 0,
-            overflow: 'hidden', background: '#05070a', textAlign: 'left',
+            position: 'relative', minHeight: 44,
+            borderRadius: 'var(--radius-sm)', padding: 0, minWidth: 0,
+            overflow: 'hidden', background: '#000', textAlign: 'left',
             font: 'inherit', color: 'inherit',
             cursor: tile.act ? 'pointer' : 'default',
             /*
@@ -2547,8 +2561,14 @@ function MultiView({
              * they cannot cut to as much as the ones they can.
              */
             opacity: tile.act || tile.live ? 1 : 0.72,
-            border: `1px solid ${tile.live ? '#3d7fd6' : 'var(--line)'}`,
-            boxShadow: tile.live ? '0 0 0 1px rgba(61,127,214,0.45)' : 'none',
+            border: `1px solid ${tile.live ? '#4f8ad6' : 'var(--ink-600)'}`,
+            boxShadow: tile.live
+              ? '0 0 0 2px rgba(79,138,214,0.3), 0 2px 8px rgba(0,0,0,0.5),'
+                + ' inset 0 0 0 1px rgba(255,255,255,0.06)'
+              : 'inset 0 1px 3px rgba(0,0,0,0.6)',
+            transition: 'box-shadow var(--motion-fast) var(--ease-out),'
+              + ' border-color var(--motion-fast) var(--ease-out),'
+              + ' opacity var(--motion-fast) var(--ease-out)',
           }}
         >
           {tile.stream ? (
@@ -2569,23 +2589,42 @@ function MultiView({
               placeItems: 'center', fontSize: 16, opacity: 0.4,
             }}>{tile.glyph ?? '—'}</span>
           )}
+          {/*
+            * THE SOURCE NUMBER, which is how an operator actually refers
+            * to a tile out loud. It sits on its own plate rather than on
+            * the picture: a number over moving video is unreadable for
+            * whichever frames happen to be pale behind it.
+            */}
           <span className="mono" style={{
-            position: 'absolute', left: 3, top: 3, padding: '0 4px',
-            borderRadius: 3, background: 'rgba(5,7,10,0.8)', fontSize: 9,
-            fontWeight: 700,
+            position: 'absolute', left: 4, top: 4,
+            padding: '1px 5px', borderRadius: 'var(--radius-xs)',
+            background: 'rgba(0,0,0,0.72)',
+            border: '1px solid rgba(255,255,255,0.1)',
+            fontSize: 'var(--text-2xs)', lineHeight: 1.3,
+            fontWeight: 'var(--weight-bold)',
+            color: tile.live ? '#9cc6f5' : 'var(--ink-100)',
           }}>{tile.n}</span>
+          {/*
+            * THE NAME PLATE. A single-stop gradient leaves a visible seam
+            * where it starts; three stops with an eased middle is what
+            * makes a scrim read as light falling off rather than as a
+            * translucent box laid over the picture.
+            */}
           <span style={{
             position: 'absolute', left: 0, right: 0, bottom: 0,
-            padding: '9px 4px 3px', fontSize: 9, lineHeight: 1.25,
-            background: 'linear-gradient(180deg, transparent, rgba(5,7,10,0.92))',
+            padding: '14px var(--space-2) var(--space-2)',
+            fontSize: 'var(--text-2xs)', lineHeight: 1.3,
+            background: 'linear-gradient(180deg, transparent 0%,'
+              + ' rgba(0,0,0,0.55) 55%, rgba(0,0,0,0.9) 100%)',
           }}>
             <span style={{
-              display: 'block', fontWeight: 700, overflow: 'hidden',
-              textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              display: 'block', fontWeight: 'var(--weight-semi)',
+              overflow: 'hidden', textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap', color: '#fff',
             }}>{tile.label}</span>
-            <span className="muted" style={{
+            <span style={{
               display: 'block', overflow: 'hidden', textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
+              whiteSpace: 'nowrap', color: 'rgba(255,255,255,0.62)',
             }}>{tile.sub}</span>
           </span>
         </button>
