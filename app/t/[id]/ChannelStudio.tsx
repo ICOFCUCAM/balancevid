@@ -3250,7 +3250,17 @@ function Timeline({
                   position: 'absolute', top: 4, bottom: 4,
                   left: across(segment.fromMs),
                   width: `calc(${across(segment.toMs)} - ${across(segment.fromMs)})`,
-                  minWidth: 3, padding: '3px 5px', borderRadius: 5,
+                  /*
+                   * A PROGRAMME BLOCK IS A CLIP IN A TRACK, and a clip
+                   * has square ends. The 5px radius rounded both ends of
+                   * every block, which puts four pixels of empty track
+                   * either side of a thing whose whole meaning is
+                   * "occupies exactly this span" — and where two
+                   * programmes butt up against each other it drew a gap
+                   * that is not there. 2px, which is a cut edge rather
+                   * than a pill. [brief §11]
+                   */
+                  minWidth: 3, padding: '3px 5px', borderRadius: 2,
                   textAlign: 'left', font: 'inherit', fontSize: 10,
                   color: 'inherit', cursor: id ? 'pointer' : 'default',
                   overflow: 'hidden',
@@ -3263,10 +3273,27 @@ function Timeline({
                     : segment.on.kind === 'live' ? 'rgba(192,57,43,0.32)'
                       : segment.on.kind === 'emergency'
                         || segment.on.kind === 'backup' ? 'rgba(201,154,46,0.26)'
-                        : segment.on.kind === 'programme' ? 'rgba(45,110,200,0.34)'
-                          : 'rgba(45,110,200,0.15)',
-                  border: `1px solid ${broken ? 'var(--state-live-dim)'
-                    : isChosen || holds ? 'var(--accent-soft)' : 'var(--line)'}`,
+                        : segment.on.kind === 'programme' ? 'rgba(45,110,200,0.26)'
+                          : 'rgba(45,110,200,0.12)',
+                  /*
+                   * THE ONE ON AIR IS LIT ALONG ITS TOP EDGE, the same
+                   * tally the multi-view learned in 03. It was outlined
+                   * in the same accent as the chosen one, so "what is
+                   * going out right now" and "what I clicked" were the
+                   * same mark on a lane of forty blocks.
+                   */
+                  borderTop: holds
+                    ? '2px solid var(--state-live)'
+                    : `1px solid ${broken ? 'var(--state-live-dim)'
+                      : isChosen ? 'var(--accent-soft)' : 'var(--console-edge)'}`,
+                  borderRight: `1px solid ${broken ? 'var(--state-live-dim)'
+                    : isChosen ? 'var(--accent-soft)' : 'var(--console-edge)'}`,
+                  borderBottom: `1px solid ${broken ? 'var(--state-live-dim)'
+                    : isChosen ? 'var(--accent-soft)' : 'var(--console-edge)'}`,
+                  borderLeft: `1px solid ${broken ? 'var(--state-live-dim)'
+                    : isChosen ? 'var(--accent-soft)' : 'var(--console-edge)'}`,
+                  boxShadow: isChosen
+                    ? 'inset 0 0 0 1px rgba(127,180,238,0.35)' : 'none',
                 }}
               >
                 <span style={{
@@ -3372,20 +3399,34 @@ function Timeline({
             position: 'absolute', top: 0, bottom: 0, width: 2,
             left: `calc(96px + (100% - 96px) * `
               + `${(now - windowFrom) / (windowTo - windowFrom)})`,
+            /*
+             * THE GLOW GOES. It was an 8px bloom in the playhead's own
+             * hue, which on a lane of tinted blocks reads as the line
+             * being out of focus. A playhead is a hairline you trust to
+             * be exactly where it says — bloom is the opposite claim.
+             * 1px of solid red with a hard 1px dark edge either side is
+             * both thinner and easier to find, because the eye locks on
+             * to the edge contrast rather than the brightness.
+             */
             background: 'var(--state-live)', pointerEvents: 'none', zIndex: 5,
-            boxShadow: '0 0 8px rgba(226,59,46,0.65)',
+            boxShadow: '0 0 0 1px rgba(0,0,0,0.55)',
           }}>
-            <span className="mono" style={{
-              position: 'absolute', top: -20, left: -34,
-              padding: '1px var(--space-3)',
-              borderRadius: 'var(--radius-xs)',
-              background: 'linear-gradient(180deg, #e8483a, #c33327)',
+            {/*
+              * THE FLAG IS A FLAG, not a pill. Square-cornered, seated
+              * on the ruler, pointing at its own line — which is what a
+              * timecode marker looks like on every edit system, and
+              * what makes it read as attached to the playhead rather
+              * than floating near it.
+              */}
+            <span className="mono readout" style={{
+              position: 'absolute', top: -19, left: -1,
+              padding: '2px 6px 2px 5px',
+              borderRadius: '0 2px 2px 0',
+              background: 'var(--state-live-dim)',
+              borderLeft: '2px solid var(--state-live)',
               color: 'var(--ink-000)', fontSize: 'var(--text-2xs)',
               fontWeight: 'var(--weight-bold)', whiteSpace: 'nowrap',
-              letterSpacing: '0.05em',
-              boxShadow: '0 1px 4px rgba(0,0,0,0.5),'
-                + ' inset 0 1px 0 rgba(255,255,255,0.2)',
-              fontVariantNumeric: 'tabular-nums',
+              letterSpacing: '0.07em',
             }}>ON AIR {clock(now)}</span>
           </div>
         )}
