@@ -76,31 +76,22 @@ ENV NODE_ENV=production \
     PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers \
     PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 
-# Runtime dependencies only. tsx is one of them: the worker runs the
-# TypeScript sources directly.
-COPY package.json package-lock.json* ./
-RUN npm ci --omit=dev \
-    # ffprobe-static ships macOS and Windows binaries too — 230 MB this image
-    # will never execute.
-    && rm -rf node_modules/ffprobe-static/bin/darwin \
-              node_modules/ffprobe-static/bin/win32 \
-    && npm cache clean --force
+# ---- what does NOT depend on the lockfile goes first ------------------
+#
+# A Docker layer is invalidated by the layer above it, so ORDER IS COST. Put
+# `COPY package.json` early and every heavy install below it rebuilds when a
+# single dependency changes — which is how adding one 1 MB library turned a
+# deploy into a thirty-two minute cold build that re-downloaded a browser and
+# recompiled a speech engine it had not touched.
+#
+# So the rule here: a step is placed by WHAT INVALIDATES IT, not by where it
+# reads well. Everything that cannot possibly care about package-lock.json
+# sits above the copy of it.
 
-# The offline speech engine.
+# The offline speech engine. Nothing to do with node_modules, and several
+# hundred megabytes of wheels, so it is cached until python itself changes.
 RUN python3 -m venv /opt/venv \
     && /opt/venv/bin/pip install --no-cache-dir --quiet sherpa-onnx numpy
-
-# Chromium, for archiving a cited page at the moment it is attached (U-33).
-# The INSTALLED playwright, not a pinned copy of it. package.json allows a
-# range, so a hard-pinned `npx playwright@x.y.z` here would eventually fetch a
-# browser build the installed library does not look for — and evidence
-# archiving would fail at runtime with the browser sitting right there.
-RUN if [ "$WITH_BROWSER" = "1" ]; then \
-      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=0 ./node_modules/.bin/playwright install --with-deps chromium \
-      && rm -rf /var/lib/apt/lists/*; \
-    else \
-      echo "browser skipped: web-page evidence will record an archive error"; \
-    fi
 
 # LibreOffice, for turning a deck or a document into pages (U-33 §2).
 # Optional, and the code asks whether it is here rather than assuming: a build
@@ -112,6 +103,38 @@ RUN if [ "$WITH_OFFICE" = "1" ]; then \
       && rm -rf /var/lib/apt/lists/*; \
     else \
       echo "office converter skipped: attach PowerPoint as PDF to show its pages"; \
+    fi
+
+# ---- and what does depend on it goes after ----------------------------
+
+# Runtime dependencies only. tsx is one of them: the worker runs the
+# TypeScript sources directly.
+COPY package.json package-lock.json* ./
+RUN npm ci --omit=dev \
+    # ffprobe-static ships macOS and Windows binaries too — 230 MB this image
+    # will never execute.
+    && rm -rf node_modules/ffprobe-static/bin/darwin \
+              node_modules/ffprobe-static/bin/win32 \
+    && npm cache clean --force
+
+# Chromium, for archiving a cited page at the moment it is attached (U-33).
+# The INSTALLED playwright, not a pinned copy of it. package.json allows a
+# range, so a hard-pinned `npx playwright@x.y.z` here would eventually fetch a
+# browser build the installed library does not look for — and evidence
+# archiving would fail at runtime with the browser sitting right there.
+#
+# THIS ONE CANNOT BE HOISTED, and the paragraph above is why: it runs the
+# playwright that `npm ci` just installed, so it is downstream of the
+# lockfile by necessity rather than by accident. A dependency change still
+# re-downloads the browser. Fixing that would mean pinning a version here and
+# accepting the drift this comment exists to prevent, which is the wrong
+# trade — a slow build costs minutes, a browser the library will not look for
+# costs a feature that fails silently in production.
+RUN if [ "$WITH_BROWSER" = "1" ]; then \
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=0 ./node_modules/.bin/playwright install --with-deps chromium \
+      && rm -rf /var/lib/apt/lists/*; \
+    else \
+      echo "browser skipped: web-page evidence will record an archive error"; \
     fi
 
 
