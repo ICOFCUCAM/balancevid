@@ -116,3 +116,59 @@ hr, .rule {
   text-align: center;
   line-height: var(--leading-snug);
 }
+
+/* ---- a scrollable region says it has more ----------------------------
+ *
+ * A control room has five or six regions that scroll, and none of them
+ * said so. A list that ends exactly at the bottom edge of its panel is
+ * indistinguishable from a list that ends — so the rail looked like nine
+ * items when it held twenty, and the only way to find out was to try.
+ *
+ * THE FIX IS NOT A SCROLLBAR. A scrollbar appears on hover on most
+ * platforms and is absent on trackpads entirely; it answers the question
+ * only for somebody already reaching. A mask that fades the content into
+ * the panel's edge answers it at a glance, and it disappears on its own
+ * when there is nothing more — because `scroll-timeline` drives it from
+ * the actual scroll position rather than from a guess.
+ *
+ * The fallback for engines without scroll-driven animations is a
+ * permanent soft edge, which is wrong only in the one case where a list
+ * exactly fits, and is honest in every other.
+ */
+.shell-scroll,
+.scroll-fade {
+  --fade: 18px;
+  mask-image: linear-gradient(180deg,
+    transparent 0, #000 var(--fade),
+    #000 calc(100% - var(--fade)), transparent 100%);
+  -webkit-mask-image: linear-gradient(180deg,
+    transparent 0, #000 var(--fade),
+    #000 calc(100% - var(--fade)), transparent 100%);
+}
+
+/*
+ * AT THE TOP THERE IS NOTHING ABOVE, so fading the first line is a lie
+ * that costs a row of legibility. `animation-timeline: scroll()` runs the
+ * fade in as the region leaves its start and out as it reaches its end,
+ * with no JavaScript and no scroll listener on the frame budget.
+ */
+@supports (animation-timeline: scroll()) {
+  .shell-scroll, .scroll-fade {
+    animation: scroll-fade-edges linear both;
+    animation-timeline: scroll(self block);
+  }
+  @keyframes scroll-fade-edges {
+    0% {
+      mask-image: linear-gradient(180deg, #000 0, #000 calc(100% - 18px), transparent 100%);
+      -webkit-mask-image: linear-gradient(180deg, #000 0, #000 calc(100% - 18px), transparent 100%);
+    }
+    1%, 99% {
+      mask-image: linear-gradient(180deg, transparent 0, #000 18px, #000 calc(100% - 18px), transparent 100%);
+      -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 18px, #000 calc(100% - 18px), transparent 100%);
+    }
+    100% {
+      mask-image: linear-gradient(180deg, transparent 0, #000 18px, #000 100%);
+      -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 18px, #000 100%);
+    }
+  }
+}
