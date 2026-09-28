@@ -172,3 +172,55 @@ hr, .rule {
     }
   }
 }
+
+/* ---- what happens on a smaller window --------------------------------
+ *
+ * There was no breakpoint anywhere in this product. The control room is a
+ * three-column grid with fixed outer columns, so on a 13" laptop — which
+ * is what most people editing a conversation are actually using — the
+ * centre column, the one holding the programme, got whatever was left.
+ * Below about 1200px that is narrower than the rail beside it.
+ *
+ * THE RULE IS NOT "MAKE IT SMALLER", IT IS "DECIDE WHAT MATTERS". A
+ * control room narrowed proportionally is six unusable panels. What a
+ * narrow control room needs is the same as what a narrow gallery needs:
+ * the thing on air stays, and the furniture gives way.
+ *
+ * These are written as a floor rather than a redesign — enough that the
+ * product is usable on a laptop, without pretending a broadcast desk
+ * belongs on a phone. A channel is operated at a desk. [CHANNEL §9]
+ */
+
+@media (max-width: 1280px) {
+  /* The rails narrow before the programme does. */
+  :root { --rail-width: 240px; }
+  .shell-bar { padding-left: var(--space-5); padding-right: var(--space-5); }
+}
+
+@media (max-width: 1040px) {
+  /*
+   * Below this the bar's labels are what costs the most and gives the
+   * least: the glyphs alone are still five distinct shapes, and anybody
+   * on a window this size has been here before.
+   */
+  [data-testid='studio-nav'] span:last-child:not([aria-hidden]) {
+    position: absolute; width: 1px; height: 1px;
+    overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+  }
+  [data-testid='studio-nav'] a,
+  [data-testid='studio-nav'] span[aria-current],
+  [data-testid='studio-nav'] button { padding-left: 10px; padding-right: 10px; }
+}
+
+/*
+ * A TOUCH POINTER GETS BIGGER TARGETS, and this is a pointer question
+ * rather than a width question — a small tablet with a stylus wants the
+ * dense layout and a large touchscreen does not. `pointer: coarse` asks
+ * the right thing.
+ */
+@media (pointer: coarse) {
+  button, .btn, select, input[type='checkbox'], input[type='radio'] {
+    min-height: 40px;
+  }
+  button.sm, .btn.sm { min-height: 32px; }
+}
