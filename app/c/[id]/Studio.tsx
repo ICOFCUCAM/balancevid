@@ -865,19 +865,51 @@ export default function Studio({ conversationId }: { conversationId: string }) {
     <div className="shell">
       {/* ---- header: the conversation, and the two things you do with it ---- */}
       <header className="shell-bar">
+        {/*
+          * THE MARK, WHICH THIS BAR ALONE WAS MISSING.
+          *
+          * Studio Two and Online TV both open with it; Studio One
+          * opened with the conversation's title against the window
+          * edge. Three studios in one product should agree about where
+          * the product's name is, and the mark is also the way back to
+          * the workspace — which this room had no visible route to.
+          * [D-24]
+          */}
+        <a href="/" aria-label="BalanceVid" className="row" style={{
+          gap: 'var(--space-3)', textDecoration: 'none', color: 'inherit',
+          flex: '0 0 auto',
+        }}>
+          <span aria-hidden="true" style={{
+            width: 26, height: 26, borderRadius: 'var(--radius-md)',
+            display: 'grid', placeItems: 'center',
+            background: 'linear-gradient(180deg, #3f8ee8 0%, #2a6fcc 100%)',
+            color: '#fff', fontSize: 11, paddingLeft: 2,
+            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3),'
+              + ' 0 1px 3px rgba(26,78,150,0.5)',
+          }}>&#9654;</span>
+        </a>
+
         <div className="grow" style={{ minWidth: 0 }}>
-          <h1 style={{ marginBottom: 0, fontSize: 17, whiteSpace: 'nowrap',
-            overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <h1 style={{
+            marginBottom: 0, fontSize: 'var(--text-lg)', whiteSpace: 'nowrap',
+            overflow: 'hidden', textOverflow: 'ellipsis',
+            letterSpacing: 'var(--tracking-tight)',
+          }}>
             {conversation?.title ?? 'Conversation'}
           </h1>
-          <div className="small muted" style={{ whiteSpace: 'nowrap',
-            overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <div style={{
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            fontSize: 'var(--text-sm)', color: 'var(--text-faint)',
+          }}>
             {conversation?.source?.title}
             {ready && <> · {formatTimecode(conversation.source.durationFrames).slice(0, 8)}</>}
             {isEmbedded && ' · plays on its own platform'}
           </div>
           {conversation?.lineage && (
-            <div className="small" style={{ color: 'var(--user-accent)' }}>
+            /* The chain back, in the responder's own colour. [U-20] */
+            <div style={{
+              fontSize: 'var(--text-sm)', color: 'var(--user-accent)',
+            }}>
               Answering{' '}
               <a href={`/c/${conversation.lineage.parentConversationId}/watch`}>
                 “{conversation.lineage.chain.at(-1)?.title}”
