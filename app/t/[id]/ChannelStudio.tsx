@@ -877,6 +877,9 @@ export default function ChannelStudio({
                   channel={channel} on={on} camera={camera} guests={guests.sources}
                   library={library} nameOf={nameOf} studioOneId={studioOneId}
                   studioTwoId={studioTwoId} onAir={onAir}
+                  onTake={(source) => void patch({ action: 'roll-in', source })}
+                  onBackToRoom={() => void patch({ action: 'roll-in', source: null })}
+                  onGraphics={() => setDeskTab('graphics')}
                 />
               </Frame>
             </div>
@@ -913,11 +916,14 @@ export default function ChannelStudio({
                 ]}
               />
               {/*
-                * AUTO-PLAY. The timeline rides the clock, which is what a
-                * channel does; turning it off pins the window so an operator
-                * can look at tonight without the strip sliding away. The
-                * transmission is untouched either way — nothing on this page
-                * can stop the channel.
+                * FOLLOW CLOCK, not "auto-play".
+                *
+                * The benchmark called it Auto-play and that is what it was
+                * called here, and it was a lie in one word: it plays
+                * nothing. It pins the timeline window. Nothing on this page
+                * can stop the channel — a control room whose most
+                * prominent toggle appears to be a transport control is a
+                * control room somebody reaches for in a hurry. [D-22]
                 */}
               <label className="row" data-testid="auto-play" style={{
                 gap: 6, fontSize: 11, margin: 0, cursor: 'pointer',
@@ -926,7 +932,7 @@ export default function ChannelStudio({
                   type="checkbox" checked={pinned === null}
                   onChange={(event) => setPinned(event.target.checked ? null : now)}
                 />
-                Auto-play
+                Follow clock
               </label>
               {pinned !== null && (
                 <span className="row" style={{ gap: 4 }}>
@@ -2232,6 +2238,7 @@ function SchedulesRail({
  */
 function MultiView({
   channel, on, camera, guests, library, nameOf, studioOneId, studioTwoId, onAir,
+  onTake, onBackToRoom, onGraphics,
 }: {
   channel: Channel;
   on: OnAir;
@@ -2242,6 +2249,11 @@ function MultiView({
   studioOneId?: string;
   studioTwoId?: string;
   onAir: boolean;
+  /** Put this source over the live feed. The Screens tab's own action. */
+  onTake: (source: ProgrammeSource) => void;
+  /** Take whatever is rolled in back down. */
+  onBackToRoom: () => void;
+  onGraphics: () => void;
 }) {
   const guest = guests.find((person) => person.stream !== camera) ?? null;
   const fromStudioTwo = library.find((item) => item.document === 'performance');
@@ -2249,18 +2261,37 @@ function MultiView({
   const scheduled = on.kind === 'programme' || on.kind === 'rotation'
     ? on.source : undefined;
 
+  const rolledIn = Boolean(channel.live?.segment);
+
   const tiles: {
     n: number; label: string; sub: string; live: boolean;
     stream?: MediaStream | null; source?: ProgrammeSource; href?: string;
     glyph?: string;
+    /** What clicking it does, and what to say when it cannot. */
+    act?: () => void; why?: string;
   }[] = [
+    /*
+     * THE TWO CAMERAS ARE THE ROOM, and the room is what lies underneath
+     * anything rolled in. So clicking one takes the roll-in back down —
+     * which is the only thing "cut to camera" can honestly mean here,
+     * because who is SEEN in the mix is the Room's decision (ROOM §4) and
+     * not a gallery button's.
+     */
     {
       n: 1, label: 'Camera 1', sub: 'Host', live: onAir && Boolean(camera),
       stream: camera,
+      ...(rolledIn ? { act: onBackToRoom } : {}),
+      why: onAir
+        ? (rolledIn ? 'Back to the room' : 'The room is already on air')
+        : 'Only while you are live',
     },
     {
       n: 2, label: 'Camera 2', sub: guest?.label ?? 'Guest',
       live: onAir && Boolean(guest), stream: guest?.stream ?? null,
+      ...(rolledIn ? { act: onBackToRoom } : {}),
+      why: onAir
+        ? (rolledIn ? 'Back to the room' : 'The room is already on air')
+        : 'Only while you are live',
     },
     {
       n: 3, label: 'Studio Two', sub: fromStudioTwo?.title ?? 'Music Video',
@@ -2268,6 +2299,11 @@ function MultiView({
         && sourceKey(scheduled) === sourceKey(fromStudioTwo.source)),
       ...(fromStudioTwo ? { source: fromStudioTwo.source } : {}),
       ...(studioTwoId ? { href: `/p/${studioTwoId}` } : {}),
+      ...(onAir && fromStudioTwo
+        ? { act: () => onTake(fromStudioTwo.source) } : {}),
+      why: fromStudioTwo
+        ? (onAir ? 'Roll it in over the live feed' : 'Only while you are live')
+        : 'Nothing finished in Studio Two yet',
     },
     {
       n: 4, label: 'Studio One', sub: fromStudioOne?.title ?? 'Conversation',
@@ -2275,17 +2311,29 @@ function MultiView({
         && sourceKey(scheduled) === sourceKey(fromStudioOne.source)),
       ...(fromStudioOne ? { source: fromStudioOne.source } : {}),
       ...(studioOneId ? { href: `/c/${studioOneId}` } : {}),
+      ...(onAir && fromStudioOne
+        ? { act: () => onTake(fromStudioOne.source) } : {}),
+      why: fromStudioOne
+        ? (onAir ? 'Roll it in over the live feed' : 'Only while you are live')
+        : 'Nothing finished in Studio One yet',
     },
     {
       n: 5, label: 'Media Player', sub: scheduled ? nameOf(scheduled) : 'Idle',
       live: Boolean(scheduled),
       ...(scheduled ? { source: scheduled } : {}),
+      ...(onAir && scheduled ? { act: () => onTake(scheduled) } : {}),
+      why: scheduled
+        ? (onAir ? 'Roll the scheduled programme in over the live feed'
+          : 'Only while you are live')
+        : 'Nothing is scheduled right now',
     },
     {
       n: 6, label: 'Graphics',
       sub: channel.identity?.bug?.text ?? channel.name,
       live: Boolean(channel.identity?.bug || channel.identity?.lowerThird),
       glyph: '◰',
+      act: onGraphics,
+      why: 'Open the identity controls',
     },
   ];
 
@@ -2296,13 +2344,25 @@ function MultiView({
       gridTemplateRows: 'repeat(2, minmax(0, 1fr))', alignContent: 'center',
     }}>
       {tiles.map((tile) => (
-        <div
-          key={tile.n} data-testid="multiview-tile" data-source={tile.n}
-          data-live={tile.live ? 'true' : 'false'}
-          title={`${tile.label} — ${tile.sub}`}
+        <button
+          key={tile.n} type="button" data-testid="multiview-tile"
+          data-source={tile.n} data-live={tile.live ? 'true' : 'false'}
+          data-actionable={tile.act ? 'true' : 'false'}
+          disabled={!tile.act}
+          onClick={tile.act}
+          title={`${tile.label} — ${tile.sub}`
+            + (tile.why ? `\n${tile.why}` : '')}
           style={{
-            position: 'relative', minHeight: 44, borderRadius: 6,
-            overflow: 'hidden', background: '#05070a',
+            position: 'relative', minHeight: 44, borderRadius: 6, padding: 0,
+            overflow: 'hidden', background: '#05070a', textAlign: 'left',
+            font: 'inherit', color: 'inherit',
+            cursor: tile.act ? 'pointer' : 'default',
+            /*
+             * A DISABLED TILE IS STILL A MONITOR. It is dimmed rather than
+             * greyed: an operator watching six sources needs to see the one
+             * they cannot cut to as much as the ones they can.
+             */
+            opacity: tile.act || tile.live ? 1 : 0.72,
             border: `1px solid ${tile.live ? '#3d7fd6' : 'var(--line)'}`,
             boxShadow: tile.live ? '0 0 0 1px rgba(61,127,214,0.45)' : 'none',
           }}
@@ -2344,7 +2404,7 @@ function MultiView({
               whiteSpace: 'nowrap',
             }}>{tile.sub}</span>
           </span>
-        </div>
+        </button>
       ))}
     </div>
   );

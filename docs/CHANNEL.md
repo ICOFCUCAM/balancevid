@@ -714,7 +714,16 @@ which, while a session is armed, is the live feed. That is the whole of the
 ARM → TAKE discipline expressed as geometry, and it is why the studio has two
 monitors rather than one large one.
 
-**The multi-view is an answer, not decoration.** Six numbered tiles: the
+**The multi-view is a control surface, not decoration.** A tile does the
+thing that tile IS: a source rolls in over the live feed, a camera takes the
+roll-in back down — the only thing "cut to camera" can honestly mean here,
+because who is SEEN in the mix is the Room's decision (ROOM §4) and not a
+gallery button's — and Graphics opens the identity controls. A tile that
+cannot be used is dimmed rather than hidden and says why in its title: an
+operator watching six sources needs to see the one they cannot cut to as
+much as the ones they can.
+
+**And it is an answer.** Six numbered tiles: the
 operator's camera, the Room's staged guest, each other studio's most recent
 render, whatever the schedule has on, and the identity layer. A tile's blue
 border means CONTRIBUTING — it is computed from `whatIsOn` and the mixer's
@@ -727,6 +736,12 @@ next question goes. A lane drawn from the programme list alone would be a lane
 that lies about every gap the loop fills — and the gaps are most of a
 channel's day. Four lanes, because four things leave the building: the
 programme, the frames, the marks and the sound.
+
+**A toggle is named for what it does.** The benchmark's `Auto-play` was
+copied here and was a lie in one word: it plays nothing, it pins the
+timeline window. Nothing on this page can stop the channel, and a control
+room whose most prominent toggle looks like a transport control is one
+somebody reaches for in a hurry. It says **Follow clock**.
 
 **Every region is a picture of something that already existed.** [D-19] The
 playlist is the rotation; the library is `/api/channels/library`; the
