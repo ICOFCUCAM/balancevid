@@ -158,3 +158,110 @@ button.selected, .btn.selected {
   color: var(--text);
   box-shadow: inset 2px 0 0 var(--line-focus);
 }
+
+/* ---- fields ----------------------------------------------------------
+ *
+ * An input was a button that happened to accept typing: same background,
+ * same border, same radius. In a dense panel that is a real ambiguity —
+ * six rectangles in a column, three of which do something when clicked
+ * and three of which want the caret, and nothing but the cursor to say
+ * which is which until you try.
+ *
+ * SO A FIELD IS RECESSED AND A BUTTON IS RAISED, which is the oldest
+ * convention in interface design and is a convention because it works
+ * without being taught. A well you put something into; a key you press.
+ */
+
+input, select, textarea {
+  font: inherit;
+  font-size: var(--text-base);
+  color: var(--text);
+  background: var(--surface-sunk);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3) var(--space-4);
+  width: 100%;
+  min-height: 34px;
+  /* The recess: darker than the panel, with the shadow falling inward. */
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.32);
+  transition:
+    border-color var(--motion-fast) var(--ease-out),
+    background-color var(--motion-fast) var(--ease-out);
+}
+
+input:hover:not(:disabled), select:hover:not(:disabled),
+textarea:hover:not(:disabled) {
+  border-color: var(--line-strong);
+}
+
+/*
+ * ON FOCUS THE WELL LIGHTENS. The focus ring says where the keyboard is;
+ * this says the field is taking what you type, which is a different fact
+ * and the one a person typing actually watches for.
+ */
+input:focus, select:focus, textarea:focus {
+  background: var(--ink-850);
+  border-color: var(--line-focus);
+}
+
+input::placeholder, textarea::placeholder {
+  color: var(--ink-400);
+  /*
+   * A placeholder is a hint, not a value, and at the same weight as real
+   * text it gets read as one — then the field looks filled when it is
+   * empty, which is how people submit blank forms.
+   */
+  opacity: 1;
+}
+
+input:disabled, select:disabled, textarea:disabled {
+  opacity: 0.5; cursor: not-allowed; box-shadow: none;
+}
+
+textarea { min-height: 72px; line-height: var(--leading-snug); resize: vertical; }
+
+/*
+ * A SELECT IS NOT A TEXT FIELD and should not pretend to be. It does not
+ * take a caret, so it keeps the raised look of the control it actually is
+ * while staying the same size as the fields beside it.
+ */
+select {
+  background: var(--surface-float);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  cursor: pointer;
+  padding-right: var(--space-7);
+  appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--ink-300) 50%),
+    linear-gradient(135deg, var(--ink-300) 50%, transparent 50%);
+  background-position:
+    calc(100% - 14px) calc(50% + 1px),
+    calc(100% - 9px) calc(50% + 1px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+select:focus { background-color: var(--surface-lift); }
+
+/*
+ * CHECKBOXES KEEP THE BROWSER'S OWN, RE-TINTED. A hand-built checkbox is
+ * a week of work and a permanent accessibility liability; `accent-color`
+ * is two lines and keeps every native behaviour — including the ones
+ * screen readers and touch keyboards rely on.
+ */
+input[type='checkbox'], input[type='radio'] {
+  width: auto; min-height: 0; padding: 0;
+  accent-color: var(--line-focus);
+  box-shadow: none;
+  cursor: pointer;
+}
+
+input[type='range'] { accent-color: var(--line-focus); padding: 0; box-shadow: none; }
+
+label {
+  display: block;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--text-dim);
+  letter-spacing: var(--tracking-wide);
+  margin-bottom: var(--space-2);
+}
