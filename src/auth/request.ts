@@ -11,6 +11,8 @@
  */
 
 import type { Conversation } from '../domain/document.js';
+import { ANONYMOUS, type Principal, principalFor } from '../domain/account.js';
+import { theAccount } from '../store/accounts.js';
 import { AUTH, isLocked } from './config.js';
 import { GUEST_COOKIE, verifyGuest, type GuestClaim } from './guest.js';
 import { SESSION_COOKIE, verifySession } from './session.js';
@@ -19,6 +21,39 @@ export async function isOwner(request: Request): Promise<boolean> {
   if (isLocked()) return false;
   const token = readCookie(request.headers.get('cookie'), SESSION_COOKIE);
   return verifySession(token, AUTH.passwordHash!);
+}
+
+/**
+ * WHO is asking, rather than whether they are allowed.  [U-24, D-06]
+ *
+ * `isOwner` answers a yes-or-no about a subject it cannot name, which was
+ * the right answer while there was only one possible subject and nowhere to
+ * write its name down. There is a name now (`src/domain/account.ts`), and
+ * this is the question asked so that the answer can grow one.
+ *
+ * TODAY IT IS THE SAME QUESTION. The credential checked is the same
+ * credential, verified the same way — the single owner's session, signed
+ * from `BALANCEVID_PASSWORD_HASH`. All this adds is that a yes comes back
+ * attached to an account id instead of as a bare `true`. Nothing about who
+ * can do what changes in this step, which is deliberate: an authentication
+ * change and an authorisation change in one commit is a commit that cannot
+ * be reviewed for either.
+ *
+ * `isOwner` stays, and stays the primary check at the ninety-odd places
+ * that already call it. Rewriting them all to ask this instead would be a
+ * large diff whose only content is churn; they move when they have a reason
+ * to — the first being when store paths are scoped by account and a route
+ * needs to know WHICH one, not merely THAT one.
+ */
+export async function whoIs(request: Request): Promise<Principal> {
+  if (!(await isOwner(request))) return ANONYMOUS;
+  /*
+   * Read rather than assumed, and this is the point of the whole step: the
+   * caller is whoever the store says the owner is. When there is more than
+   * one account the lookup changes and this line does not.
+   */
+  const account = await theAccount();
+  return principalFor(account.id);
 }
 
 function readCookie(header: string | null, name: string): string | undefined {
