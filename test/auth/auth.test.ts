@@ -287,10 +287,27 @@ describe('published means published', () => {
  */
 describe('a session names its account', () => {
   it('carries the account, and hands it back on verification', async () => {
-    const { token } = await issueSession(HASH, 1);
-    expect(token.startsWith('v2.')).toBe(true);
-    const claim = await readSession(token, HASH);
+    const now = Date.now();
+    const { token } = await issueSession(HASH, 1, now);
+    expect(token.startsWith('v3.')).toBe(true);
+    const claim = await readSession(token, HASH, now);
     expect(claim?.account).toBe(OWNER_ACCOUNT_ID);
+    /* And WHEN, which is what a revocation line is compared against. */
+    expect(claim?.issuedAt).toBe(now);
+  });
+
+  /*
+   * The two older shapes still verify and still name the owner — nobody is
+   * signed out by a deploy — but neither can say when it was made, so
+   * neither can be placed after a revocation line. [account.ts]
+   */
+  it('reads the older shapes, which cannot say when they were issued', async () => {
+    const { token: v2 } = await issueV2Token(HASH, 1);
+    expect((await readSession(v2, HASH))?.account).toBe(OWNER_ACCOUNT_ID);
+    expect((await readSession(v2, HASH))?.issuedAt).toBeUndefined();
+
+    const v1 = await issueLegacyToken(HASH, 1);
+    expect((await readSession(v1, HASH))?.issuedAt).toBeUndefined();
   });
 
   /*
@@ -301,8 +318,8 @@ describe('a session names its account', () => {
    */
   it('cannot be relabelled to a different account', async () => {
     const { token } = await issueSession(HASH, 1);
-    const [, , expiry, signature] = token.split('.');
-    const forged = `v2.acct_someoneelse.${expiry}.${signature}`;
+    const [, , issued, expiry, signature] = token.split('.');
+    const forged = `v3.acct_someoneelse.${issued}.${expiry}.${signature}`;
     expect(await verifySession(forged, HASH)).toBe(false);
     expect(await readSession(forged, HASH)).toBeNull();
   });
@@ -343,7 +360,9 @@ describe('a session names its account', () => {
     const { token } = await issueSession(HASH, 1);
     const parts = token.split('.');
     expect(await verifySession(
-      `v1.${parts[2]}.${parts[3]}`, HASH)).toBe(false);
+      `v1.${parts[3]}.${parts[4]}`, HASH)).toBe(false);
+    expect(await verifySession(
+      `v2.${parts[1]}.${parts[3]}.${parts[4]}`, HASH)).toBe(false);
   });
 
   /*
@@ -363,14 +382,24 @@ describe('a session names its account', () => {
 async function issueLegacyToken(
   hash: string, hours: number, now = Date.now(),
 ): Promise<string> {
-  const { sessionKey } = await import('../../src/auth/session.js');
   const payload = `v1.${now + hours * 3600_000}`;
+  return `${payload}.${await signPayload(hash, payload)}`;
+}
+
+/** A token in the v2 format: named, but with no issue time. */
+async function issueV2Token(
+  hash: string, hours: number, now = Date.now(),
+): Promise<{ token: string }> {
+  const payload = `v2.${OWNER_ACCOUNT_ID}.${now + hours * 3600_000}`;
+  return { token: `${payload}.${await signPayload(hash, payload)}` };
+}
+
+async function signPayload(hash: string, payload: string): Promise<string> {
+  const { sessionKey } = await import('../../src/auth/session.js');
   const key = await sessionKey(hash);
-  const signature = await crypto.subtle.sign(
-    'HMAC', key, new TextEncoder().encode(payload));
-  const bytes = new Uint8Array(signature);
+  const bytes = new Uint8Array(await crypto.subtle.sign(
+    'HMAC', key, new TextEncoder().encode(payload)));
   let binary = '';
   for (const byte of bytes) binary += String.fromCharCode(byte);
-  const b64 = btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-  return `${payload}.${b64}`;
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }

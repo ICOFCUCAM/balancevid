@@ -11,16 +11,24 @@
  */
 
 import type { Conversation } from '../domain/document.js';
-import { ANONYMOUS, type Principal, principalFor } from '../domain/account.js';
+import {
+  ANONYMOUS, type Principal, isSignedIn, principalFor, sessionStillValid,
+} from '../domain/account.js';
 import { theAccount } from '../store/accounts.js';
 import { AUTH, isLocked } from './config.js';
 import { GUEST_COOKIE, verifyGuest, type GuestClaim } from './guest.js';
-import { SESSION_COOKIE, readSession, verifySession } from './session.js';
+import { SESSION_COOKIE, readSession } from './session.js';
 
+/**
+ * THIS NOW ASKS `whoIs` RATHER THAN THE OTHER WAY ROUND, and the inversion is
+ * the point of the change rather than tidying. Revocation lives on the
+ * account record, so a check that never looks at the record cannot honour
+ * it — and there are ninety-odd call sites here that must. Turning the one
+ * function they all share into a thin reading of the full answer gives every
+ * one of them the line for free, with no diff at any of them.
+ */
 export async function isOwner(request: Request): Promise<boolean> {
-  if (isLocked()) return false;
-  const token = readCookie(request.headers.get('cookie'), SESSION_COOKIE);
-  return verifySession(token, AUTH.passwordHash!);
+  return isSignedIn(await whoIs(request));
 }
 
 /**
@@ -61,6 +69,12 @@ export async function whoIs(request: Request): Promise<Principal> {
    */
   const account = await theAccount();
   if (claim.account !== account.id) return ANONYMOUS;
+  /*
+   * AND THE ACCOUNT MAY HAVE DISOWNED THIS SESSION SINCE. A signature proves
+   * the token was issued here and not edited; only the record knows whether
+   * it has since been revoked. [D-06]
+   */
+  if (!sessionStillValid(account, claim.issuedAt)) return ANONYMOUS;
   return principalFor(account.id);
 }
 

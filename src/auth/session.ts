@@ -46,9 +46,25 @@ import { OWNER_ACCOUNT_ID } from '../domain/account.js';
 
 export const SESSION_COOKIE = 'balancevid_session';
 const DOMAIN_SEPARATOR = 'balancevid.session.v1';
-/** What is issued now. */
-const VERSION = 'v2';
-/** What is still honoured, until the last one issued has expired. */
+/**
+ * What is issued now.
+ *
+ *   v3.<account>.<issued>.<expiry>.<signature>
+ *
+ * The ISSUE TIME is the addition, and it exists so an account can say "every
+ * session older than this is void" without a session table to keep. A token
+ * that does not record when it was made cannot be placed on either side of
+ * that line. [account.ts]
+ */
+const VERSION = 'v3';
+/**
+ * Still honoured, so a deploy signs nobody out. Each aged out within the
+ * session window and the acceptance can go when the last one has.
+ *
+ *   v2.<account>.<expiry>.<signature>    named, no issue time
+ *   v1.<expiry>.<signature>              the owner's, no issue time
+ */
+const NAMED_NO_ISSUE = 'v2';
 const LEGACY_VERSION = 'v1';
 
 const encoder = new TextEncoder();
@@ -98,7 +114,7 @@ export async function issueSession(
     throw new Error(`unsafe account id: ${JSON.stringify(account)}`);
   }
   const expiresAt = now + hours * 3600_000;
-  const payload = `${VERSION}.${account}.${expiresAt}`;
+  const payload = `${VERSION}.${account}.${now}.${expiresAt}`;
   const key = await sessionKey(passwordHash);
   const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(payload));
   return { token: `${payload}.${base64url(new Uint8Array(signature))}`, expiresAt };
@@ -127,6 +143,12 @@ export async function verifySession(
 export interface SessionClaim {
   account: string;
   expiresAt: number;
+  /**
+   * When it was issued, for the revocation line. Absent on the older
+   * formats, which did not record it — and absent is treated as revoked
+   * once a line exists, because it cannot be shown to be after one.
+   */
+  issuedAt?: number;
 }
 
 export async function readSession(
@@ -134,17 +156,23 @@ export async function readSession(
 ): Promise<SessionClaim | null> {
   if (!token) return null;
   const parts = token.split('.');
-  if (parts.length < 3 || parts.length > 4) return null;
+  if (parts.length < 3 || parts.length > 5) return null;
 
   /*
-   * v1: version.expiry.signature — no subject, so it is the owner's.
-   * v2: version.account.expiry.signature.
+   * Each version is matched on its name AND its exact shape. A body of one
+   * version wearing another's label must not parse, or the verifier and the
+   * signer would disagree about which fields were covered.
    */
   const version = parts[0]!;
   const signature = parts[parts.length - 1]!;
   let account: string;
   let expiry: string;
-  if (version === VERSION && parts.length === 4) {
+  let issued: string | undefined;
+  if (version === VERSION && parts.length === 5) {
+    account = parts[1]!;
+    issued = parts[2]!;
+    expiry = parts[3]!;
+  } else if (version === NAMED_NO_ISSUE && parts.length === 4) {
     account = parts[1]!;
     expiry = parts[2]!;
   } else if (version === LEGACY_VERSION && parts.length === 3) {
@@ -163,7 +191,9 @@ export async function readSession(
 
   const expiresAt = Number(expiry);
   if (!Number.isFinite(expiresAt) || expiresAt <= now) return null;
-  return { account, expiresAt };
+  const issuedAt = issued === undefined ? undefined : Number(issued);
+  if (issuedAt !== undefined && !Number.isFinite(issuedAt)) return null;
+  return { account, expiresAt, ...(issuedAt === undefined ? {} : { issuedAt }) };
 }
 
 /** Length-independent, comparison-time-independent. */
