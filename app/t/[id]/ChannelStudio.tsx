@@ -629,12 +629,9 @@ export default function ChannelStudio({
             <button
               type="button" aria-label="Search" data-testid="rail-search"
               onClick={() => setFilter((value) => (value === null ? '' : null))}
-              style={{
-                flex: '0 0 auto', width: 32, padding: 0, height: 30,
-                background: filter === null ? 'var(--panel-2)' : 'rgba(45,110,200,0.22)',
-                border: `1px solid ${filter === null ? 'var(--line)' : 'var(--accent)'}`,
-                borderRadius: 3, cursor: 'pointer', color: 'inherit',
-              }}
+              className={`ctl${filter === null ? '' : ' is-on'}`}
+              aria-pressed={filter !== null}
+              style={{ flex: '0 0 auto', width: 32, padding: 0, height: 30 }}
             >&#9906;</button>
           </div>
 
@@ -1376,11 +1373,8 @@ export default function ChannelStudio({
                       data-option={option} data-chosen={chosenOne ? 'true' : 'false'}
                       aria-pressed={chosenOne}
                       onClick={() => setArrangement(option === 'auto' ? undefined : option)}
-                      style={{
-                        padding: '3px 7px', fontSize: 10, borderRadius: 5,
-                        border: `1px solid ${chosenOne ? 'var(--accent)' : 'var(--line)'}`,
-                        background: chosenOne ? 'rgba(45,110,200,0.22)' : 'transparent',
-                      }}
+                      className={`ctl${chosenOne ? ' is-on' : ''}`}
+                      style={{ padding: '3px 8px', fontSize: 'var(--text-2xs)' }}
                     >
                       {option === 'auto'
                         ? `Auto (${arrangementFor(guests.sources.length)
@@ -4236,11 +4230,8 @@ function GraphicsTab({
                     corner, opacity: identity?.bug?.opacity ?? 0.85,
                   },
                 })}
-                style={{
-                  padding: '3px 7px', fontSize: 10, borderRadius: 5,
-                  border: `1px solid ${chosen ? 'var(--accent)' : 'var(--line)'}`,
-                  background: chosen ? 'rgba(45,110,200,0.22)' : 'transparent',
-                }}
+                className={`ctl${chosen ? ' is-on' : ''}`}
+                style={{ padding: '3px 8px', fontSize: 'var(--text-2xs)' }}
               >{corner.replace('-', ' ')}</button>
             );
           })}
@@ -4262,11 +4253,8 @@ function GraphicsTab({
                     ? { presenter: identity.lowerThird.presenter } : {}),
                 },
               })}
-              style={{
-                flex: 1, padding: '5px 4px', fontSize: 10, borderRadius: 6,
-                border: `1px solid ${chosen ? 'var(--accent)' : 'var(--line)'}`,
-                background: chosen ? 'rgba(45,110,200,0.22)' : 'transparent',
-              }}
+              className={`ctl${chosen ? ' is-on' : ''}`}
+              style={{ flex: 1, padding: '5px 4px', fontSize: 'var(--text-2xs)' }}
             >{show}</button>
           );
         })}
@@ -4572,12 +4560,8 @@ function Scheduler({
             data-chosen={minutes === option ? 'true' : 'false'}
             aria-pressed={minutes === option}
             onClick={() => setMinutes(option)}
-            style={{
-              padding: '5px 4px', fontSize: 11, borderRadius: 7,
-              border: `1px solid ${minutes === option ? 'var(--accent)' : 'var(--line)'}`,
-              background: minutes === option
-                ? 'rgba(45,110,200,0.22)' : 'var(--panel-2)',
-            }}
+            className={`ctl${minutes === option ? ' is-on' : ''}`}
+            style={{ padding: '5px 4px', fontSize: 'var(--text-2xs)' }}
           >{option} min</button>
         ))}
       </div>
