@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 
+import Notice from '../Notice.js';
+
 /**
  * The way in.  [Doctrine D-03, D-06]
  *
@@ -98,9 +100,17 @@ export default function SignIn({ configured, next }: { configured: boolean; next
             />
           </div>
           {error && (
-            <p className="small" style={{ color: 'var(--bad)' }} data-testid="signin-error">
-              {error}
-            </p>
+            /*
+              * ANNOUNCED, NOT MERELY SHOWN. A wrong password rendered as
+              * coloured text is invisible to a screen reader — the person
+              * presses Sign in, nothing is said, and they press it again.
+              * [Notice.tsx]
+              */
+            <div style={{ marginBottom: 'var(--space-5)' }}>
+              <Notice kind="error" testid="signin-error" word="">
+                {error}
+              </Notice>
+            </div>
           )}
           {/* Full width: it is the only action on the page. */}
           <button className="primary lg" type="submit" disabled={busy || !password}

@@ -134,17 +134,28 @@ export default function RecordMenu({
          * a name out of or read twice.
          */
         <div role="alert" data-testid="delete-refused" style={{
-          position: 'fixed', left: '50%', bottom: 22, transform: 'translateX(-50%)',
-          zIndex: 90, maxWidth: 560, padding: '12px 15px', borderRadius: 10,
-          background: 'var(--panel)', border: '1px solid #8e2f24',
-          boxShadow: '0 14px 40px rgba(0,0,0,0.6)',
+          position: 'fixed', left: '50%', bottom: 'var(--space-8)',
+          transform: 'translateX(-50%)',
+          zIndex: 90, maxWidth: 560,
+          padding: 'var(--space-5) var(--space-6)',
+          borderRadius: 'var(--radius-xl)',
+          background: 'var(--surface-lift)',
+          border: 'var(--border) solid var(--line-strong)',
+          boxShadow: 'var(--elev-4), inset 3px 0 0 var(--state-bad)',
         }}>
-          <div className="row" style={{ gap: 10, alignItems: 'flex-start' }}>
-            <span className="grow" style={{ fontSize: 12.5, minWidth: 0 }}>
-              <strong style={{ display: 'block', marginBottom: 2 }}>
+          <div className="row" style={{
+            gap: 'var(--space-4)', alignItems: 'flex-start',
+          }}>
+            <span className="grow" style={{
+              fontSize: 'var(--text-base)', minWidth: 0,
+            }}>
+              <strong style={{
+                display: 'block', marginBottom: 'var(--space-1)',
+                color: '#f0958a',
+              }}>
                 “{record.title}” was not deleted
               </strong>
-              <span className="muted">{refused}</span>
+              <span style={{ color: 'var(--text-dim)' }}>{refused}</span>
             </span>
             <button type="button" onClick={() => setRefused(null)}
                     style={{ flex: '0 0 auto', padding: '4px 9px', fontSize: 11 }}>
