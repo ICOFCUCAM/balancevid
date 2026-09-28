@@ -860,10 +860,10 @@ export default function ChannelStudio({
             gridTemplateColumns: 'minmax(0, 1.75fr) minmax(0, 1fr)',
           }}>
             {/* ---- PROGRAM OUTPUT (LIVE STREAM) ------------------------ */}
-            <Frame testid="program-output">
+            <Frame testid="program-output" well>
               <Head
                 text="Program Output"
-                sub="(Live Stream)"
+                sub="Live stream"
                 right={(
                   <span data-testid="program-mode" data-mode={on.kind} style={{
                     padding: '3px 9px', borderRadius: 4, fontSize: 10,
@@ -1069,8 +1069,8 @@ export default function ChannelStudio({
               display: 'grid', gap: 10, minWidth: 0, minHeight: 0,
               gridTemplateRows: 'minmax(0, 1fr) minmax(0, 1fr)',
             }}>
-              <Frame testid="preview-next">
-                <Head text="Preview" sub="(Next)" />
+              <Frame testid="preview-next" well>
+                <Head text="Preview" sub="Next" />
                 <div style={{
                   position: 'relative', flex: '1 1 auto', minHeight: 96,
                   margin: 9, background: 'var(--ink-900)', borderRadius: 8,
@@ -1124,7 +1124,7 @@ export default function ChannelStudio({
               <Frame testid="multi-view">
                 <Head
                   text="Multi-view"
-                  sub="(Sources)"
+                  sub="Sources"
                   right={(
                     <span className="muted" style={{
                       fontSize: 10, whiteSpace: 'nowrap', flex: '0 0 auto',
@@ -2154,18 +2154,42 @@ export default function ChannelStudio({
  * ======================================================================== */
 
 /** A panel with a head and a body, which is every box in the benchmark. */
+/**
+ * A MODULE OF ONE CONSOLE, not a card on a page.  [console.css]
+ *
+ * WHAT CHANGED AND WHY IT IS ONE COMPONENT. Every container in this room
+ * — Program Output, Preview, Multi-view, Live Studio, the schedule, the
+ * rail — is a `Frame`. That is the whole reason the room can be
+ * re-faced without moving anything: one component is the face of all of
+ * them, and nothing about where they sit or what they hold is touched.
+ *
+ * Three things go and one arrives:
+ *
+ *   THE 10px RADIUS GOES TO 4. Eight soft rectangles in a grid is the
+ *     strongest "web app" signal an interface can emit, and it was
+ *     emitting it eight times.
+ *   THE DROP SHADOW GOES. `--elev-1` says "floating above the page",
+ *     which is what a card does and not what a module does. A module is
+ *     machined into the desk.
+ *   THE FACE DROPS to `--console-face`, a fiftieth of a stop above the
+ *     chassis instead of a clear step above it.
+ *   A ONE-PIXEL BEVEL ARRIVES along the top edge, which is how a
+ *     physical panel catches a room light and the only depth cue that
+ *     works on a near-black surface.
+ *
+ * `is-well` is for the containers that hold a picture. A programme sits
+ * BELOW the surface of the desk, and true black belongs in exactly one
+ * place: inside the frame.
+ */
 function Frame({
-  testid, children,
-}: { testid: string; children: React.ReactNode }) {
+  testid, children, well,
+}: { testid: string; children: React.ReactNode; well?: boolean }) {
   return (
-    <section data-testid={testid} style={{
-      display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0,
-      height: '100%', borderRadius: 'var(--radius-lg)',
-      border: 'var(--border) solid var(--line)',
-      background: 'var(--surface-raised)', overflow: 'hidden',
-      /* The light edge that makes a panel sit on the room. [elevation] */
-      boxShadow: 'var(--elev-1)',
-    }}>
+    <section
+      data-testid={testid}
+      className={`module${well ? ' is-well' : ''}`}
+      style={{ minWidth: 0, height: '100%', overflow: 'hidden' }}
+    >
       {children}
     </section>
   );
@@ -2183,29 +2207,32 @@ function Head({
       * separates from a shelf — and then the eye finds the six panel
       * titles in this room without reading any of them.
       */
-    <div className="row" style={{
-      gap: 'var(--space-3)', padding: 'var(--space-3) var(--space-5)',
-      borderBottom: 'var(--border) solid var(--line)',
-      background: 'linear-gradient(180deg,'
-        + ' rgba(255,255,255,0.022), rgba(255,255,255,0))',
-      minHeight: 34, flexWrap: 'nowrap', flex: '0 0 auto',
+    <div className="row module-head" style={{
+      flexWrap: 'nowrap', minWidth: 0,
     }}>
-      <strong style={{
-        fontSize: 'var(--text-base)', minWidth: 0, overflow: 'hidden',
-        textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        fontWeight: 'var(--weight-semi)',
-        letterSpacing: 'var(--tracking-tight)',
-      }}>{text}</strong>
+      {/*
+        * THE LABEL IS TECHNICAL METADATA, NOT A HEADING. "Program
+        * Output" set as a 13px semibold sentence is a section title in
+        * a document — it competes with the one thing in the module that
+        * should be bright, which is the state. The same words at 10px,
+        * uppercase, tracked out and dim are a legend on a piece of
+        * equipment: read once, then ignored, which is what a panel
+        * label is for.
+        *
+        * The shelf goes with it. A head with its own lighter ground was
+        * a lid on a box, and a console has no boxes — a hairline under
+        * the legend is the whole separation a module needs.
+        */}
+      <span className="module-label" style={{
+        minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis',
+      }}>{text}</span>
       {sub && (
         /*
           * The qualifier is a whisper, not a second title: it answers
           * "which one" for somebody already looking, and competing with
           * the name would make every head two things to read.
           */
-        <span style={{
-          fontSize: 'var(--text-xs)', flex: '0 0 auto', whiteSpace: 'nowrap',
-          color: 'var(--text-faint)', fontWeight: 'var(--weight-normal)',
-        }}>{sub}</span>
+        <span className="module-sub" style={{ flex: '0 0 auto' }}>{sub}</span>
       )}
       <span className="grow" />
       {right}
