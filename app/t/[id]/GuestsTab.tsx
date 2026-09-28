@@ -1,6 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+
+import { useConfirm } from '../../Confirm.js';
 import InvitePanel from '../../c/[id]/room/InvitePanel.js';
 import type { Channel } from '../../../src/domain/channel.js';
 
@@ -67,6 +69,7 @@ export default function GuestsTab({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [origin, setOrigin] = useState('');
+  const { confirm, dialog } = useConfirm();
 
   useEffect(() => { setOrigin(window.location.origin); }, []);
 
@@ -178,8 +181,9 @@ export default function GuestsTab({
   const joined = room?.participants?.length ?? 0;
   return (
     <div data-testid="broadcast-stage" style={{
-      display: 'flex', flexDirection: 'column', gap: 9,
+      display: 'flex', flexDirection: 'column', gap: 'var(--space-3)',
     }}>
+      {dialog}
       <div className="row" style={{ flexWrap: 'nowrap' }}>
         <span className="muted grow" style={{
           fontSize: 9, letterSpacing: 0.8, fontWeight: 700,
@@ -261,15 +265,15 @@ export default function GuestsTab({
         )}
       </div>
 
-      <button className="small" data-testid="detach-room"
-              onClick={() => {
-                if (!window.confirm(
-                  'Take this room off the broadcast? The room keeps running '
-                  + 'and its guests stay in it — it simply stops being the '
-                  + 'one this channel is looking at.')) return;
-                onAttach(null);
-              }}
-              style={{ fontSize: 11 }}>
+      <button className="quiet sm" data-testid="detach-room"
+              onClick={() => confirm({
+                question: 'Take this room off the broadcast? The room keeps '
+                  + 'running and its guests stay in it \u2014 it simply stops '
+                  + 'being the one this channel is looking at.',
+                verb: 'Take it off the broadcast',
+                danger: true,
+                go: () => onAttach(null),
+              })}>
         Use a different room
       </button>
 

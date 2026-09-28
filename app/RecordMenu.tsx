@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+
+import { useConfirm } from './Confirm.js';
 import type { WorkRecord } from './Workspace.js';
 
 /**
@@ -40,11 +42,23 @@ export default function RecordMenu({
 }: { record: WorkRecord; onDeleted: () => void }) {
   const [busy, setBusy] = useState(false);
   const [refused, setRefused] = useState<string | null>(null);
+  const { confirm, dialog } = useConfirm();
+
+  /*
+   * THE MOST IRREVERSIBLE THING IN THE PRODUCT. A native confirm rendered
+   * this as three paragraphs separated by blank lines in the operating
+   * system's font, with OK and Cancel underneath — and "OK" is a word
+   * somebody presses without reading. The verb here says the noun.
+   */
+  const askRemove = () => confirm({
+    question: `Delete \u201c${record.title}\u201d? This removes `
+      + `${WHAT_GOES[record.kind]}, and it cannot be undone.`,
+    verb: 'Delete it',
+    danger: true,
+    go: () => { void remove(); },
+  });
 
   const remove = async () => {
-    if (!window.confirm(
-      `Delete “${record.title}”?\n\nThis removes ${WHAT_GOES[record.kind]}.\n\n`
-      + 'It cannot be undone.')) return;
     setBusy(true);
     setRefused(null);
     try {
@@ -65,6 +79,7 @@ export default function RecordMenu({
 
   return (
     <>
+      {dialog}
       {/*
         * `name` groups them, so opening one closes the others — the browser
         * doing what a menu manager would otherwise have to. The same
@@ -99,7 +114,7 @@ export default function RecordMenu({
           )}
           <button
             type="button" data-testid="delete-record" disabled={busy}
-            onClick={() => { void remove(); }}
+            onClick={askRemove}
             style={{
               border: 0, background: 'none', textAlign: 'left', font: 'inherit',
               fontSize: 12, padding: '6px 8px', borderRadius: 6,
