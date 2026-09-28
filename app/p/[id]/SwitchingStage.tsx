@@ -476,16 +476,32 @@ export default function SwitchingStage({
         gap: 'var(--space-2)',
         padding: opts.swatch ? 'var(--space-2)' : 'var(--space-2) 3px',
         minHeight: 0,
-        borderRadius: 'var(--radius-md)',
+        /*
+         * ONE RENDERER, THREE GRIDS — composition, environment and
+         * effects all come through here, which is why this is the
+         * whole of Studio Two's option language in one place.
+         *
+         * IT WAS A SAAS CARD GRID: an 8px radius, a blue gradient fill
+         * on the chosen one and a drop shadow lifting it off the page.
+         * Twenty of them in a column is twenty floating rectangles,
+         * and the chosen one announced itself by becoming a different
+         * colour of object rather than by being the lit one.
+         *
+         * Now: 3px, a seam instead of a border, and the chosen tile
+         * comes forward two per cent with a lit top edge. Same rule as
+         * the multi-view in 03, the tab strips in 05 and the virtual
+         * sets in 10 — one grammar for "this is the one", across four
+         * surfaces that used to have four. [brief §4, §10]
+         */
+        borderRadius: 3,
         cursor: opts.disabled ? 'not-allowed' : 'pointer',
-        border: `1px solid ${isChosen ? '#4f8ad6' : 'var(--line-soft)'}`,
+        border: `1px solid ${isChosen
+          ? 'var(--accent)' : 'var(--console-seam)'}`,
+        borderTopWidth: isChosen ? 2 : 1,
         background: isChosen
-          ? 'linear-gradient(180deg, rgba(79,138,214,0.26),'
-            + ' rgba(79,138,214,0.14))'
-          : 'var(--surface-float)',
+          ? 'var(--console-control-hover)' : 'var(--console-control)',
         boxShadow: isChosen
-          ? 'inset 0 1px 0 rgba(255,255,255,0.14), 0 2px 6px rgba(0,0,0,0.4)'
-          : 'inset 0 1px 0 rgba(255,255,255,0.025)',
+          ? 'var(--console-bevel-strong)' : 'var(--console-bevel)',
         color: 'inherit', font: 'inherit',
         fontSize: 'var(--text-2xs)', lineHeight: 1.25,
         fontWeight: isChosen ? 'var(--weight-semi)' : 'var(--weight-normal)',

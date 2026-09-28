@@ -107,14 +107,30 @@ export default function SoundModes({
                 ? { vocalTakeId: performance.audio.vocalTakeId ?? withSound[0]?.id }
                 : {}),
             })}
+            /*
+              * THREE MUTUALLY EXCLUSIVE CHOICES, which is a control and
+              * not three cards. They were three bordered rectangles in
+              * a row with a 13px semibold title each — the shape of a
+              * pricing table — and the chosen one turned blue. On a
+              * desk this is a bank of three positions: they share a
+              * face, the chosen one is lit, and the sentence under each
+              * is the explanation rather than a second heading.
+              */
+            className={`ctl${mode === option.id ? ' is-on' : ''}`}
             style={{
-              textAlign: 'left', padding: '7px 10px',
-              background: mode === option.id ? 'var(--accent-wash)' : undefined,
-              borderColor: mode === option.id ? 'var(--accent)' : undefined,
+              textAlign: 'left', padding: '8px 11px',
+              display: 'block', height: '100%',
             }}
           >
-            <div style={{ fontWeight: 600, fontSize: 13 }}>{option.label}</div>
-            <div className="small muted" style={{ fontSize: 11 }}>{option.hint}</div>
+            <div style={{
+              fontWeight: 'var(--weight-semi)', fontSize: 'var(--text-sm)',
+              letterSpacing: 0, textTransform: 'none',
+            }}>{option.label}</div>
+            <div style={{
+              fontSize: 'var(--text-2xs)', color: 'var(--ink-300)',
+              marginTop: 2, letterSpacing: 0, textTransform: 'none',
+              lineHeight: 'var(--leading-snug)',
+            }}>{option.hint}</div>
           </button>
         ))}
       </div>
