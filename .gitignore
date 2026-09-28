@@ -16,6 +16,13 @@ annotation-frame.png
 thread.png
 /var.bak/
 
+# TypeScript's incremental-build cache. A build artefact: it rewrites itself
+# on every `npm run typecheck`, so tracking it makes a dirty tree out of
+# having checked the types — and its contents are absolute paths from
+# whichever machine ran last, which is not a thing to share.
+tsconfig.tsbuildinfo
+*.tsbuildinfo
+
 # Screenshots taken while checking a layout against its benchmark.
 # Useful to look at, not a thing the build depends on.
 .screenshots/
