@@ -14,6 +14,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import SignOut from '../../SignOut.js';
+import { useConfirm } from '../../Confirm.js';
+import { useMenu, type MenuEntry } from '../../Menu.js';
 import SearchPanel from './SearchPanel.js';
 import Stage, { StageStatus, type Stance } from './Stage.js';
 import ClipRail, { type ClipRailItem } from './ClipRail.js';
@@ -160,6 +162,10 @@ export default function Studio({ conversationId }: { conversationId: string }) {
   }, []);
 
   const isEmbedded = snapshot?.conversation?.source?.class === 'B';
+
+  /* One menu and one dialog for the whole studio. [D-19] */
+  const { confirm, dialog: confirmDialog } = useConfirm();
+  const { menu, onRow } = useMenu();
 
   const refresh = useCallback(async () => {
     const response = await fetch(`/api/conversations/${conversationId}`, { cache: 'no-store' });
@@ -852,6 +858,73 @@ export default function Studio({ conversationId }: { conversationId: string }) {
   const annotationBase = composing
     ? `/api/conversations/${conversationId}/interventions/${composing.id}/annotations`
     : '';
+  /*
+   * WHAT CAN BE DONE TO A RESPONSE, reached from the response.
+   *
+   * Studio One had no menu of any kind. Changing what kind of move a
+   * response is meant scrolling to the composer and finding a select;
+   * deleting one was not possible from this screen at all, so the way to
+   * undo a mistaken interruption was to leave the studio and delete the
+   * whole conversation. [D-19]
+   */
+  const clipItems = (clip: ClipRailItem): MenuEntry[] => [
+    {
+      label: 'Watch from here',
+      onSelect: () => { setSelectedResponse(clip.id); seekTo(clip.tSourceFrame); },
+    },
+    {
+      label: 'Change what kind of move this is\u2026',
+      hint: 'The lower third, and how the article reads it',
+      onSelect: () => confirm({
+        question: 'This is the label the finished video puts under your '
+          + 'face, and the word the article uses for what you did here.',
+        field: {
+          label: 'What kind of move is this?',
+          initial: (interventions.find((iv: any) => iv.id === clip.id)?.type
+            ?? 'explain') as string,
+          choices: INTERVENTION_TYPES.map((kind) => ({
+            value: kind, label: TYPE_PRESENTATION[kind].lowerThird,
+          })),
+        },
+        verb: 'Change it',
+        go: (kind) => {
+          void call(`/api/conversations/${conversationId}/interventions/${clip.id}`,
+            { method: 'PATCH', body: JSON.stringify({ type: kind }) });
+        },
+      }),
+    },
+    clip.state === 'failed' && clip.jobId
+      ? {
+        label: 'Try assembling it again',
+        hint: clip.error ?? undefined,
+        onSelect: () => { void call(`/api/jobs/${clip.jobId}`, { method: 'POST' }); },
+      }
+      : null,
+    {
+      label: 'Delete this response\u2026',
+      danger: true,
+      onSelect: () => confirm({
+        /*
+         * WHAT SURVIVES IS THE POINT. The recordings stay on disk — the
+         * route's own comment says so — and somebody deleting a response
+         * should know they are removing it from the film rather than
+         * shredding the footage. [D-13]
+         */
+        question: `Remove \u201c${clip.label}\u201d from this conversation? `
+          + 'The point in the video, the claim it answers and the cut all '
+          + 'go. The recording itself stays on disk.',
+        verb: 'Remove the response',
+        danger: true,
+        go: () => {
+          void call(
+            `/api/conversations/${conversationId}/interventions/${clip.id}`,
+            { method: 'DELETE' });
+          setSelectedResponse(null);
+        },
+      }),
+    },
+  ];
+
   const call = async (path: string, init: RequestInit) => {
     const response = await fetch(path, {
       headers: { 'content-type': 'application/json' }, ...init,
@@ -882,6 +955,8 @@ export default function Studio({ conversationId }: { conversationId: string }) {
      * instead of floating in a band of empty page.
      */
     <div className="shell">
+      {confirmDialog}
+      {menu}
       {/* ---- header: the conversation, and the two things you do with it ---- */}
       <header className="shell-bar">
         {/*
@@ -1010,6 +1085,8 @@ export default function Studio({ conversationId }: { conversationId: string }) {
               canInvite={Boolean(conversation)}
             />
           <ClipRail
+            rowMenu={(clip) => onRow(
+              clip.label || `Response ${clip.index}`, () => clipItems(clip))}
             items={clips}
             selectedId={selectedResponse}
             onSelect={(id) => {

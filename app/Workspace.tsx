@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import RecordMenu from './RecordMenu.js';
+import { MenuButton, useMenu, type MenuEntry } from './Menu.js';
+import { useRecordActions } from './RecordMenu.js';
 import SignOut from './SignOut.js';
 
 /**
@@ -121,6 +122,15 @@ export default function Workspace({
    */
   const [gone, setGone] = useState<Set<string>>(new Set());
 
+  /*
+   * ONE MENU FOR THE WHOLE BUILDING, and one dialog behind it. Every card
+   * and every row raises the same list, by right-click or by its `⋯`, and
+   * the actions are written down once. [D-19]
+   */
+  const { menu, onRow, fromButton } = useMenu();
+  const { itemsFor, dialog, banner } = useRecordActions(
+    (record) => setGone((was) => new Set(was).add(record.id)));
+
   const live = useMemo(
     () => records.filter((record) => !gone.has(record.id)), [records, gone]);
 
@@ -144,6 +154,9 @@ export default function Workspace({
       display: 'grid', gridTemplateColumns: 'minmax(0, 208px) minmax(0, 1fr)',
       height: '100dvh', overflow: 'hidden',
     }}>
+      {dialog}
+      {menu}
+      {banner}
       {/* ============ THE RAIL ======================================== */}
       {/*
         * THE RAIL IS THE BUILDING AND SITS BEHIND THE ROOMS. It was the
@@ -437,7 +450,7 @@ export default function Workspace({
               }}>
                 {recent.map((record) => (
                   <Card key={record.id} record={record}
-                        onDeleted={() => setGone((was) => new Set(was).add(record.id))} />
+                        items={itemsFor} onRow={onRow} open={fromButton} />
                 ))}
               </div>
             )}
@@ -469,8 +482,7 @@ export default function Workspace({
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {mine.map((record) => (
                       <Row key={record.id} record={record}
-                           onDeleted={() => setGone(
-                             (was) => new Set(was).add(record.id))} />
+                           items={itemsFor} onRow={onRow} open={fromButton} />
                     ))}
                   </div>
                 </section>
@@ -630,11 +642,19 @@ function Poster({
   );
 }
 
-function Card({
-  record, onDeleted,
-}: { record: WorkRecord; onDeleted: () => void }) {
+interface Actioned {
+  record: WorkRecord;
+  items: (record: WorkRecord) => MenuEntry[];
+  onRow: (about: string, items: () => MenuEntry[]) => {
+    onContextMenu: (event: React.MouseEvent) => void };
+  open: (about: string, items: () => MenuEntry[], button: HTMLElement) => void;
+}
+
+function Card({ record, items, onRow, open }: Actioned) {
   return (
-    <div data-testid="recent-card" data-kind={record.kind} style={{
+    <div data-testid="recent-card" data-kind={record.kind}
+         {...onRow(record.title, () => items(record))}
+         style={{
       borderRadius: 11, overflow: 'hidden', border: '1px solid var(--line)',
       background: 'var(--panel)',
     }}>
@@ -679,17 +699,18 @@ function Card({
             {record.detail}{record.published ? ' · published' : ''}
           </span>
         </Link>
-        <RecordMenu record={record} onDeleted={onDeleted} />
+        <MenuButton about={record.title} items={() => items(record)}
+                    open={open} small />
       </div>
     </div>
   );
 }
 
-function Row({
-  record, onDeleted,
-}: { record: WorkRecord; onDeleted: () => void }) {
+function Row({ record, items, onRow, open }: Actioned) {
   return (
-    <div className="row" data-testid="library-row" data-kind={record.kind} style={{
+    <div className="row" data-testid="library-row" data-kind={record.kind}
+         {...onRow(record.title, () => items(record))}
+         style={{
       gap: 11, padding: 8, borderRadius: 9, flexWrap: 'nowrap',
       background: 'var(--panel)', border: '1px solid var(--line)',
     }}>
@@ -722,7 +743,8 @@ function Row({
           {record.duration}
         </span>
       )}
-      <RecordMenu record={record} onDeleted={onDeleted} />
+      <MenuButton about={record.title} items={() => items(record)}
+                  open={open} />
     </div>
   );
 }

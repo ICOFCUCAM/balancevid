@@ -13,6 +13,9 @@ import { SPACES } from '../../../src/domain/performance.js';
 import { SPACE_LOOKS } from '../../../src/domain/environment.js';
 import { PLATFORMS } from '../../../src/domain/distribution.js';
 import StudioBar from '../../StudioBar.js';
+import {
+  MenuButton, MenuHost, RightClickHint, useRowMenu, type MenuEntry,
+} from '../../Menu.js';
 import { useLiveEncoder } from './useLiveEncoder.js';
 import { useBroadcastGuests } from './useBroadcastGuests.js';
 import { arrangementFor, useBroadcastMixer } from './useBroadcastMixer.js';
@@ -541,6 +544,12 @@ export default function ChannelStudio({
   });
 
   return (
+    /*
+      * ONE MENU FOR THE CONTROL ROOM. The rails that want one are three
+      * components deep, so the host is here and they reach it through
+      * `useRowMenu` rather than through four intermediate props. [D-19]
+      */
+    <MenuHost>
     <div className="shell">
       <StudioBar
         current="online-tv"
@@ -693,6 +702,63 @@ export default function ChannelStudio({
                 items={library} listing={listing} picked={picked}
                 keep={railRows.keep}
                 onPick={(key) => setPicked(picked === key ? null : key)}
+                /*
+                  * WHAT A FINISHED RENDER CAN BE DONE WITH, on the render.
+                  * All four of these already existed and all four needed
+                  * the item to be SELECTED first, then a control found
+                  * somewhere else on the screen — the emergency cut-away
+                  * is four hundred lines away from the list it acts on.
+                  * Right-clicking the thing is the shortest way there,
+                  * and it selects it on the way so the rest of the screen
+                  * agrees about what you meant. [§3]
+                  */
+                itemsFor={(item) => [
+                  {
+                    label: 'Add to the loop',
+                    hint: 'Fifteen minutes, adjustable afterwards',
+                    onSelect: () => {
+                      setPicked(sourceKey(item.source));
+                      void patch({
+                        action: 'rotate', source: item.source,
+                        durationMs: 15 * MINUTE, title: item.title,
+                      });
+                      setRailTab('playlist');
+                    },
+                  },
+                  {
+                    label: 'Give it a time\u2026',
+                    onSelect: () => {
+                      setPicked(sourceKey(item.source));
+                      setAdding(true);
+                    },
+                  },
+                  {
+                    label: 'Make it the backup',
+                    hint: 'What goes out if the live feed fails',
+                    onSelect: () => {
+                      setPicked(sourceKey(item.source));
+                      void patch({ action: 'backup', source: item.source });
+                    },
+                  },
+                  {
+                    label: 'Cut away to it now\u2026',
+                    danger: true,
+                    disabled: onAir ? false : 'The channel is not on air',
+                    onSelect: () => {
+                      setPicked(sourceKey(item.source));
+                      confirm({
+                        question: `Cut away to \u201c${item.title}\u201d now? `
+                          + 'Whatever is on air stops mid-programme and the '
+                          + 'audience sees the change immediately.',
+                        verb: 'Cut away now',
+                        danger: true,
+                        go: () => void patch({
+                          action: 'emergency', source: item.source,
+                        }),
+                      });
+                    },
+                  },
+                ]}
               />
             )}
             {railTab === 'schedules' && (
@@ -2079,6 +2145,7 @@ export default function ChannelStudio({
         */}
       {confirmDialog}
     </div>
+    </MenuHost>
   );
 }
 
@@ -2333,7 +2400,7 @@ function Meter({ value, label }: { value: number; label: string }) {
 /** A numbered row: index, thumbnail, title, subtitle, duration, menu. */
 function Row({
   index, source, title, subtitle, duration, badge, chosen, testid, dataset,
-  onClick, menu,
+  onClick, about, items,
 }: {
   index: number;
   source?: ProgrammeSource;
@@ -2345,11 +2412,22 @@ function Row({
   testid: string;
   dataset?: Record<string, string>;
   onClick?: () => void;
-  menu?: React.ReactNode;
+  /*
+   * WHAT CAN BE DONE TO THIS ROW, as a list rather than as a rendered
+   * menu. It used to be a `<React.ReactNode>` holding a `<details>`, so
+   * every rail built its own markup and right-clicking a row was not
+   * possible without building it a second time. The row now declares the
+   * actions and the shared menu draws them, from the `⋯` and from the
+   * right-click alike. [D-19]
+   */
+  about?: string;
+  items?: () => MenuEntry[];
 }) {
+  const { onRow, fromButton } = useRowMenu();
   return (
     <div
       data-testid={testid} {...dataset}
+      {...(items && about ? onRow(about, items) : {})}
       /*
         * A LIST OF ROWS IS READ AS A LIST, NOT AS A STACK OF CARDS. Every
         * row carried its own full border, so twenty rows drew forty
@@ -2434,60 +2512,10 @@ function Row({
         flex: '0 0 auto', fontSize: 'var(--text-2xs)',
         color: 'var(--text-faint)', fontVariantNumeric: 'tabular-nums',
       }}>{duration}</span>
-      {menu}
+      {items && about && (
+        <MenuButton about={about} items={items} open={fromButton} small />
+      )}
     </div>
-  );
-}
-
-/**
- * The ⋯ menu.
- *
- * `name` groups them so opening one closes the others, which is the browser
- * doing what a menu manager would otherwise have to — the same mechanism
- * Studio Two's take menu uses. [STUDIO-TWO §5]
- */
-function Menu({ children }: { children: React.ReactNode }) {
-  return (
-    <details name="rail-menu" data-testid="row-menu" style={{
-      position: 'relative', flex: '0 0 auto',
-    }}>
-      <summary style={{
-        listStyle: 'none', cursor: 'pointer',
-        padding: '0 var(--space-2)', borderRadius: 'var(--radius-xs)',
-        color: 'var(--ink-400)', fontSize: 'var(--text-base)',
-        lineHeight: 1,
-      }}>&#8943;</summary>
-      {/*
-        * A MENU IS THE ONLY THING IN THIS ROOM ALLOWED TO FLOAT, so it
-        * takes the third elevation and a lighter surface than anything
-        * beneath it. Without that it opens as a panel-coloured rectangle
-        * on a panel and reads as part of the page rather than over it.
-        */}
-      <div style={{
-        position: 'absolute', right: 0, top: 'calc(100% + 4px)', zIndex: 30,
-        padding: 'var(--space-2)', width: 176,
-        display: 'flex', flexDirection: 'column', gap: 1,
-        background: 'var(--surface-lift)',
-        border: 'var(--border) solid var(--line-strong)',
-        borderRadius: 'var(--radius-md)',
-        boxShadow: 'var(--elev-3)',
-      }}>{children}</div>
-    </details>
-  );
-}
-
-function MenuItem({
-  label, onClick, danger, disabled,
-}: { label: string; onClick: () => void; danger?: boolean; disabled?: boolean }) {
-  return (
-    <button
-      type="button" disabled={disabled} onClick={onClick}
-      style={{
-        border: 0, background: 'none', textAlign: 'left', font: 'inherit',
-        fontSize: 11, padding: '5px 7px', borderRadius: 5, cursor: 'pointer',
-        color: danger ? 'var(--bad)' : 'inherit', opacity: disabled ? 0.4 : 1,
-      }}
-    >{label}</button>
   );
 }
 
@@ -2552,23 +2580,26 @@ function PlaylistRail({
             ) : entry.loop ? (
               <span className="muted" style={{ fontSize: 9 }}>&#8635;</span>
             ) : undefined}
-            menu={(
-              <Menu>
-                <MenuItem
-                  label="Move up" disabled={index === 0}
-                  onClick={() => onMove(entry, index - 1)}
-                />
-                <MenuItem
-                  label="Move down"
-                  disabled={index === channel.rotation.length - 1}
-                  onClick={() => onMove(entry, index + 1)}
-                />
-                <MenuItem
-                  label="Remove from the loop" danger
-                  onClick={() => onRemove(entry)}
-                />
-              </Menu>
-            )}
+            about={title}
+            items={() => [
+              {
+                label: 'Move up',
+                disabled: index === 0 ? 'It is already first' : false,
+                onSelect: () => onMove(entry, index - 1),
+              },
+              {
+                label: 'Move down',
+                disabled: index === channel.rotation.length - 1
+                  ? 'It is already last' : false,
+                onSelect: () => onMove(entry, index + 1),
+              },
+              {
+                label: 'Remove from the loop',
+                danger: true,
+                hint: 'The file is untouched — a loop holds references',
+                onSelect: () => onRemove(entry),
+              },
+            ]}
           />
         );
       })}
@@ -2576,19 +2607,22 @@ function PlaylistRail({
         {/* The one sentence D-18 is about, next to the thing it is about. */}
         The loop plays round for ever. Scheduling something twice adds no file.
       </p>
+      <RightClickHint what="an entry" />
     </>
   );
 }
 
 /** THE LIBRARY — every finished render both other studios have made. [§3] */
 function LibraryRail({
-  items, listing, picked, keep, onPick,
+  items, listing, picked, keep, onPick, itemsFor,
 }: {
   items: LibraryItem[];
   listing: Programme[];
   picked: string | null;
   keep: (text: string) => boolean;
   onPick: (key: string) => void;
+  /* What to do with a finished render. The rail does not know; §3. */
+  itemsFor: (item: LibraryItem) => MenuEntry[];
 }) {
   if (items.length === 0) {
     return (
@@ -2621,6 +2655,8 @@ function LibraryRail({
             testid="library-item"
             dataset={{ 'data-source-key': key } as Record<string, string>}
             onClick={() => onPick(key)}
+            about={item.title}
+            items={() => itemsFor(item)}
           />
         );
       })}
@@ -2686,12 +2722,13 @@ function SchedulesRail({
                 background: 'var(--state-live-dim)', color: 'var(--ink-000)', fontSize: 8, fontWeight: 800,
               }}>LIVE</span>
             ) : undefined}
-            menu={(
-              <Menu>
-                <MenuItem label="Unschedule" danger
-                          onClick={() => onUnschedule(entry)} />
-              </Menu>
-            )}
+            about={title}
+            items={() => [{
+              label: 'Unschedule',
+              danger: true,
+              hint: 'Takes it out of the day. The file is untouched.',
+              onSelect: () => onUnschedule(entry),
+            }]}
           />
         );
       })}
