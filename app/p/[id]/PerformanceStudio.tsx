@@ -7,6 +7,7 @@ import { EFFECT_LOOKS, SPACES_ARE_DRAWN } from '../../../src/domain/environment.
 import { describeCalibration } from '../../../src/domain/calibration.js';
 import { describeDrift } from '../../../src/domain/drift.js';
 import { HOUSE_SAMPLE_RATE, formatMasterPosition } from '../../../src/domain/time.js';
+import { useConfirm } from '../../Confirm.js';
 import { useMasterRecording } from './useMasterRecording.js';
 import UploadTake from './UploadTake.js';
 import SwitchingStage from './SwitchingStage.js';
@@ -58,6 +59,8 @@ export default function PerformanceStudio(
   },
 ) {
   const [performance, setPerformance] = useState(initial);
+  /* The product's own dialog, in place of the browser's. [Confirm.tsx] */
+  const { confirm, dialog: confirmDialog } = useConfirm();
   const [notice, setNotice] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
   const [label, setLabel] = useState('');
@@ -196,6 +199,7 @@ export default function PerformanceStudio(
 
   return (
     <div className="shell">
+      {confirmDialog}
       {/*
         * The application's bar, which every studio shares. It used to be
         * written out here; a second copy of it in Studio Three would have
@@ -425,14 +429,30 @@ export default function PerformanceStudio(
                           <button
                             className="small" data-testid="rename-take"
                             onClick={(event) => {
-                              const next = window.prompt(
-                                'What is this take called?', take.label);
-                              if (next?.trim() && next.trim() !== take.label) {
-                                void patch({
-                                  action: 'rename-take', takeId: take.id,
-                                  label: next.trim(),
-                                });
-                              }
+                              confirm({
+                                question: 'A take\u2019s name is what the '
+                                  + 'rail, the timeline and the lower third '
+                                  + 'will all call it.',
+                                field: {
+                                  label: 'What is this take called?',
+                                  initial: take.label,
+                                },
+                                verb: 'Rename it',
+                                go: (next) => {
+                                  if (next && next !== take.label) {
+                                    void patch({
+                                      action: 'rename-take', takeId: take.id,
+                                      label: next,
+                                    });
+                                  }
+                                },
+                              });
+                              /*
+                               * The menu closes as the dialog opens. It
+                               * used to close AFTER the prompt returned,
+                               * which with a modal would leave a menu
+                               * hanging open behind it.
+                               */
                               event.currentTarget.closest('details')
                                 ?.removeAttribute('open');
                             }}
@@ -443,9 +463,16 @@ export default function PerformanceStudio(
                             onClick={(event) => {
                               event.currentTarget.closest('details')
                                 ?.removeAttribute('open');
-                              if (!window.confirm(
-                                `Remove "${take.label}"? Its scenes go with it.`)) return;
-                              void patch({ action: 'remove-take', takeId: take.id });
+                              confirm({
+                                question: `Remove \u201c${take.label}\u201d? `
+                                  + 'Every scene cut from it goes with it, and '
+                                  + 'it cannot be undone.',
+                                verb: 'Remove the take',
+                                danger: true,
+                                go: () => void patch({
+                                  action: 'remove-take', takeId: take.id,
+                                }),
+                              });
                             }}
                             style={{
                               border: 0, background: 'none', textAlign: 'left',
