@@ -1816,8 +1816,11 @@ function Frame({
   return (
     <section data-testid={testid} style={{
       display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0,
-      height: '100%', borderRadius: 10, border: '1px solid var(--line)',
-      background: 'var(--panel)', overflow: 'hidden',
+      height: '100%', borderRadius: 'var(--radius-lg)',
+      border: 'var(--border) solid var(--line)',
+      background: 'var(--surface-raised)', overflow: 'hidden',
+      /* The light edge that makes a panel sit on the room. [elevation] */
+      boxShadow: 'var(--elev-1)',
     }}>
       {children}
     </section>
@@ -1828,17 +1831,36 @@ function Head({
   text, sub, right,
 }: { text: string; sub?: string; right?: React.ReactNode }) {
   return (
+    /*
+      * A PANEL HEAD IS A SHELF, NOT A LINE OF TEXT. It was a bold word
+      * above a hairline, which reads as the first row of the content
+      * rather than as the lid of the box. Giving it its own slightly
+      * darker ground separates it from what it heads, the way a rail
+      * separates from a shelf — and then the eye finds the six panel
+      * titles in this room without reading any of them.
+      */
     <div className="row" style={{
-      gap: 7, padding: '7px 10px', borderBottom: '1px solid var(--line)',
+      gap: 'var(--space-3)', padding: 'var(--space-3) var(--space-5)',
+      borderBottom: 'var(--border) solid var(--line)',
+      background: 'linear-gradient(180deg,'
+        + ' rgba(255,255,255,0.022), rgba(255,255,255,0))',
       minHeight: 34, flexWrap: 'nowrap', flex: '0 0 auto',
     }}>
       <strong style={{
-        fontSize: 13, minWidth: 0, overflow: 'hidden',
+        fontSize: 'var(--text-base)', minWidth: 0, overflow: 'hidden',
         textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        fontWeight: 'var(--weight-semi)',
+        letterSpacing: 'var(--tracking-tight)',
       }}>{text}</strong>
       {sub && (
-        <span className="muted" style={{
-          fontSize: 11, flex: '0 0 auto', whiteSpace: 'nowrap',
+        /*
+          * The qualifier is a whisper, not a second title: it answers
+          * "which one" for somebody already looking, and competing with
+          * the name would make every head two things to read.
+          */
+        <span style={{
+          fontSize: 'var(--text-xs)', flex: '0 0 auto', whiteSpace: 'nowrap',
+          color: 'var(--text-faint)', fontWeight: 'var(--weight-normal)',
         }}>{sub}</span>
       )}
       <span className="grow" />
@@ -1900,10 +1922,22 @@ function Strip({
 
 function Section({ text, aside }: { text: string; aside?: React.ReactNode }) {
   return (
+    /*
+      * A SUB-HEAD INSIDE A PANEL. Small, tracked out and dimmed rather
+      * than large and bold: a section label is signage, and signage is
+      * read by shape. Bold at 12px in a dense column competes with the
+      * panel's own title two centimetres above it, and then neither
+      * wins. [D-04]
+      */
     <div className="row" style={{
-      alignItems: 'baseline', justifyContent: 'space-between', margin: '10px 0 5px',
+      alignItems: 'baseline', justifyContent: 'space-between',
+      margin: 'var(--space-5) 0 var(--space-2)',
     }}>
-      <span style={{ fontSize: 12, fontWeight: 700 }}>{text}</span>
+      <span style={{
+        fontSize: 'var(--text-2xs)', fontWeight: 'var(--weight-bold)',
+        letterSpacing: '0.07em', textTransform: 'uppercase',
+        color: 'var(--text-faint)',
+      }}>{text}</span>
       {aside}
     </div>
   );
@@ -1911,10 +1945,20 @@ function Section({ text, aside }: { text: string; aside?: React.ReactNode }) {
 
 function Dot({ on, colour }: { on: boolean; colour: string }) {
   return (
+    /*
+      * A LAMP, NOT A DOT. The glow was a flat 7px blur in the lamp's own
+      * colour, which on a dark ground reads as a smudge rather than as
+      * something lit. A lit object has a hard core and a soft halo: the
+      * inset dark ring gives the core its edge, and the halo is wide and
+      * faint rather than narrow and strong. [status.css]
+      */
     <span aria-hidden="true" style={{
-      width: 8, height: 8, borderRadius: '50%', flex: '0 0 auto',
-      background: on ? colour : '#2a3038',
-      boxShadow: on ? `0 0 7px ${colour}` : 'none',
+      width: 8, height: 8, borderRadius: 'var(--radius-full)', flex: '0 0 auto',
+      background: on ? colour : 'var(--ink-500)',
+      boxShadow: on
+        ? `0 0 0 2.5px ${colour}22, 0 0 8px ${colour}55,`
+          + ' inset 0 0 0 1px rgba(0,0,0,0.35)'
+        : 'inset 0 0 0 1px rgba(0,0,0,0.4)',
     }} />
   );
 }
