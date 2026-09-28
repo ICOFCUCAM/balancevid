@@ -208,6 +208,19 @@ export const paths = {
     join(paths.performanceAssets(id), `${safe(takeId)}.strip.jpg`),
   takeAnalysis: (id: string, assetId: string) =>
     join(paths.performanceAssets(id), `${safe(assetId)}.f32`),
+  /**
+   * WHO OWNS THE WORK. [U-24, D-06]
+   *
+   * Beside the documents rather than above them, for now: this step gives
+   * the owner an identity, it does not yet move anything underneath it.
+   * Scoping the document directories by account is the next step and the
+   * one that makes D-06's "tenant isolation enforced at the data layer"
+   * true of this store rather than merely intended.
+   */
+  accounts: () => join(VAR_ROOT, 'accounts'),
+  account: (id: string) => join(paths.accounts(), safe(id)),
+  accountDocument: (id: string) => join(paths.account(id), 'account.json'),
+
   queue: () => join(VAR_ROOT, 'queue'),
   queueState: (state: QueueState) => join(VAR_ROOT, 'queue', state),
 };
@@ -230,6 +243,7 @@ export function safe(id: string): string {
 export async function ensureDirs(): Promise<void> {
   await mkdir(paths.conversations(), { recursive: true });
   await mkdir(paths.channels(), { recursive: true });
+  await mkdir(paths.accounts(), { recursive: true });
   for (const state of ['pending', 'running', 'done', 'failed'] as const) {
     await mkdir(paths.queueState(state), { recursive: true });
   }
