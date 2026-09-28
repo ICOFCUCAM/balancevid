@@ -105,6 +105,18 @@ start_playout() {
   pids+=($!)
 }
 
+# THE VOLUME IS MADE READY BEFORE ANY OF THEM EXISTS.  [U-25, D-06]
+#
+# Not inside the processes: they start together, the playout engine never
+# calls `ensureDirs` at all (it goes straight to what is on air), and a
+# layout migration racing three readers is a way to be off air with the
+# recordings apparently gone. Once, first, in front — and if it fails the
+# container does not come up, which is the correct outcome for "the storage
+# could not be prepared".
+prepare_storage() {
+  "$BIN/tsx" scripts/prepare-storage.ts
+}
+
 stop_all() {
   for pid in "${pids[@]}"; do
     kill -TERM -"$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true
@@ -118,6 +130,8 @@ stop_all() {
 # unreachable for the length of a download that neither of them needs. A
 # channel is the one thing here that is supposed to be running while nobody
 # is looking, so it goes up first and the transcriber catches up.
+prepare_storage
+
 case "$ROLE" in
   web)     start_web ;;
   worker)  ensure_models; start_worker ;;

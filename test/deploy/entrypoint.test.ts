@@ -67,6 +67,41 @@ describe('the entrypoint runs every process the product needs', () => {
   });
 });
 
+describe('the volume is ready before anything reads it', () => {
+  /*
+   * THE BUG THIS WOULD CATCH. Two of the three processes call `ensureDirs`
+   * themselves; the playout engine never does — its first act is to ask
+   * what is on air. So a layout migration left to the processes would race
+   * three readers, and an instance whose work still sat at the old
+   * addresses would read an empty one, find no channels, and go off air
+   * with the recordings apparently gone. [U-25, D-06]
+   */
+  it('prepares storage before it starts any process', () => {
+    expect(SERVE).toContain('prepare_storage');
+    expect(SERVE).toContain('scripts/prepare-storage.ts');
+    const start = SERVE.indexOf('\nprepare_storage\n');
+    expect(start, 'prepare_storage is never called').toBeGreaterThan(-1);
+    expect(start).toBeLessThan(SERVE.indexOf('case "$ROLE"'));
+  });
+
+  it('agrees with the npm script about where that program lives', () => {
+    expect(PACKAGE.scripts['prepare-storage'])
+      .toContain('scripts/prepare-storage.ts');
+  });
+
+  /*
+   * It runs in the FOREGROUND, unlike every other step here: the processes
+   * must not start until it has finished, and a `&` would be the whole
+   * point missed.
+   */
+  it('waits for it rather than starting it alongside', () => {
+    const line = SERVE.split('\n').find((l) => l.trim() === 'prepare_storage');
+    expect(line).toBeDefined();
+    expect(line).not.toContain('&');
+    expect(SERVE).not.toMatch(/prepare_storage\s*&/);
+  });
+});
+
 describe('what waits for what', () => {
   /*
    * `ensure_models` fetches ~600 MB on first boot, and only the worker

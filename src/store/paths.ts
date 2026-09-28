@@ -25,13 +25,52 @@
  */
 
 import { join, resolve } from 'node:path';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, readdir, rename } from 'node:fs/promises';
+import { OWNER_ACCOUNT_ID } from '../domain/account.js';
 
 export const VAR_ROOT = process.env['BALANCEVID_VAR'] ?? resolve(process.cwd(), 'var');
 
+/**
+ * WHAT AN ACCOUNT OWNS LIVES UNDER IT.  [Doctrine D-06, U-24, U-25]
+ *
+ *   var/accounts/<account>/conversations/…    the work
+ *   var/accounts/<account>/performances/…
+ *   var/accounts/<account>/channels/…
+ *   var/accounts/<account>/library/…
+ *   var/queue/…                               the instance
+ *   var/models/…
+ *   var/playout.json
+ *
+ * D-06: "Tenant isolation is enforced at the data layer, not in application
+ * code alone. One user reaching another's unpublished recordings is the worst
+ * incident this product can have." On a filesystem store the data layer IS
+ * the path, so isolation means the account is a DIRECTORY somebody else's id
+ * cannot name — not a field every query has to remember to filter on. A
+ * missed filter leaks; a missed path join cannot reach outside the tree,
+ * because `safe()` refuses anything with a separator in it.
+ *
+ * SYNCHRONOUS, AND THAT IS WHY THE FIRST ACCOUNT HAS A FIXED ID. Every path
+ * in this module is a pure function and hundreds of call sites depend on
+ * that; resolving "which account" from a request would make all of them
+ * async and the change unreviewable. With one account whose id is a
+ * constant, the root is a constant too.
+ *
+ * WHEN THERE ARE MANY, this takes an argument and these functions take one
+ * with it. That is a signature change over code, done once, with a compiler
+ * listing every site. What it is NOT is a data migration — the bytes are
+ * already where they belong, which is the expensive half and the reason it
+ * is done now rather than then.
+ */
+export function owned(account: string = OWNER_ACCOUNT_ID): string {
+  return join(VAR_ROOT, 'accounts', safe(account));
+}
+
+/** The roots that belong to an account, for the move below. */
+const OWNED_ROOTS = ['conversations', 'performances', 'channels', 'library'] as const;
+
 export const paths = {
-  conversations: () => join(VAR_ROOT, 'conversations'),
-  conversation: (id: string) => join(VAR_ROOT, 'conversations', safe(id)),
+  conversations: () => join(owned(), 'conversations'),
+  conversation: (id: string) => join(paths.conversations(), safe(id)),
   document: (id: string) => join(paths.conversation(id), 'conversation.json'),
   audit: (id: string) => join(paths.conversation(id), 'audit.log'),
   assets: (id: string) => join(paths.conversation(id), 'assets'),
@@ -97,8 +136,8 @@ export const paths = {
    * and a directory that is sometimes one and sometimes the other is a
    * directory somebody's cleanup script gets wrong.
    */
-  performances: () => join(VAR_ROOT, 'performances'),
-  performance: (id: string) => join(VAR_ROOT, 'performances', safe(id)),
+  performances: () => join(owned(), 'performances'),
+  performance: (id: string) => join(paths.performances(), safe(id)),
   performanceDocument: (id: string) => join(paths.performance(id), 'performance.json'),
   performanceAudit: (id: string) => join(paths.performance(id), 'audit.log'),
   performanceAssets: (id: string) => join(paths.performance(id), 'assets'),
@@ -135,7 +174,7 @@ export const paths = {
    * happened to use it first, and putting it inside one would make the second
    * channel that wanted it copy it. [CHANNEL §3, D-18]
    */
-  library: () => join(VAR_ROOT, 'library'),
+  library: () => join(owned(), 'library'),
   libraryMedia: (assetId: string, ext: string) =>
     join(paths.library(), `${safe(assetId)}.${ext.replace(/[^a-z0-9]/gi, '')}`),
   /**
@@ -152,8 +191,8 @@ export const paths = {
   deckUpload: (deckId: string, ext: string) =>
     join(paths.decks(), `${safe(deckId)}.src.${ext.replace(/[^a-z0-9]/gi, '')}`),
 
-  channels: () => join(VAR_ROOT, 'channels'),
-  channel: (id: string) => join(VAR_ROOT, 'channels', safe(id)),
+  channels: () => join(owned(), 'channels'),
+  channel: (id: string) => join(paths.channels(), safe(id)),
   channelDocument: (id: string) => join(paths.channel(id), 'channel.json'),
   channelAudit: (id: string) => join(paths.channel(id), 'audit.log'),
   /** Live feeds and recordings somebody asked for. Nothing scheduled. */
@@ -240,7 +279,88 @@ export function safe(id: string): string {
   return id;
 }
 
+/**
+ * Move what an existing instance already has underneath its account.
+ * [Doctrine U-25 §1, D-06]
+ *
+ * Every deployment made before accounts existed holds its work at
+ * `var/conversations`, `var/performances`, `var/channels` and `var/library`.
+ * Nothing about that data changes — only where it sits — so this is a
+ * RENAME of four directories and not a rewrite of anything inside them.
+ * A rename on one filesystem is atomic and instant whatever the directory
+ * weighs, which matters when it holds hours of recorded speech.
+ *
+ * RUN AT STARTUP RATHER THAN BY HAND. A migration somebody has to remember
+ * to run is a migration that gets skipped on the deployment nobody was
+ * watching, and the symptom — an instance that has silently forgotten every
+ * conversation — is the worst possible one for this product. [U-25]
+ *
+ * SAFE TO RUN TWICE, AND SAFE TO RUN THREE TIMES AT ONCE. The web tier, the
+ * worker and the playout engine all start together and all call this. Each
+ * root is moved independently, so a crash halfway leaves the rest to be
+ * finished next time; the process that loses the race is told the source is
+ * gone, which is not an error but the answer.
+ *
+ * BOTH PLACES POPULATED IS NOT SOMETHING TO GUESS AT. If a root exists in
+ * the old location AND in the new one with anything in it, two sets of work
+ * exist and picking one would destroy the other. It is left exactly as it
+ * is and said out loud, which is the only honest move.
+ */
+async function moveOwnedUnderAccount(): Promise<void> {
+  for (const root of OWNED_ROOTS) {
+    const from = join(VAR_ROOT, root);
+    const to = join(owned(), root);
+    let held: string[];
+    try {
+      held = await readdir(from);
+    } catch {
+      continue; /* Nothing at the old address. Already moved, or never made. */
+    }
+
+    let already: string[] = [];
+    try { already = await readdir(to); } catch { /* not there: the normal case. */ }
+    if (already.length > 0) {
+      console.warn(
+        `balancevid: ${root} exists at both var/${root} and `
+        + `var/accounts/${OWNER_ACCOUNT_ID}/${root}. Leaving both alone — `
+        + 'merge them by hand; nothing has been deleted.');
+      continue;
+    }
+    /* An empty directory at the old address is worth removing, not moving. */
+    if (held.length === 0) continue;
+
+    try {
+      await rename(from, to);
+    } catch {
+      /*
+       * Another process got there, or the two are on different filesystems.
+       * The first needs nothing; the second needs a person, and either way
+       * the data is still at one of the two addresses.
+       */
+    }
+  }
+}
+
+/**
+ * Done once per process, however many callers ask.
+ *
+ * `ensureDirs` is on the queue's hot path — every enqueue calls it — and
+ * four directory reads per job to be told four times that there is nothing
+ * to move is work with no reader. The answer cannot change while a process
+ * is running: once the roots are under the account, nothing puts them back.
+ */
+let moved: Promise<void> | null = null;
+
+/** For tests, which need a process to believe it has just started. */
+export function forgetStorageMigration(): void {
+  moved = null;
+}
+
 export async function ensureDirs(): Promise<void> {
+  await mkdir(owned(), { recursive: true });
+  moved ??= moveOwnedUnderAccount();
+  await moved;
+
   await mkdir(paths.conversations(), { recursive: true });
   await mkdir(paths.channels(), { recursive: true });
   await mkdir(paths.accounts(), { recursive: true });
