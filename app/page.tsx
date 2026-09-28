@@ -1,9 +1,15 @@
+import pkg from '../package.json' with { type: 'json' };
+
 import { orderedInterventions } from '../src/domain/document.js';
 import { listConversations, loadConversation } from '../src/store/repository.js';
 import { listPerformances } from '../src/store/performances.js';
 import { listChannels } from '../src/store/channels.js';
 import { whatIsOn } from '../src/domain/channel.js';
 import { bytesLabel, diskSpace } from '../src/store/space.js';
+import { theAccount } from '../src/store/accounts.js';
+import { listJobs } from '../src/store/queue.js';
+import { PLATFORMS, type DestinationKind } from '../src/domain/distribution.js';
+import { runtime } from '../src/web/runtime.js';
 import { formatMasterPosition, formatTimecode } from '../src/domain/time.js';
 import StartConversation from './StartConversation.js';
 import StartPerformance from './StartPerformance.js';
@@ -11,6 +17,14 @@ import StartChannel from './StartChannel.js';
 import Workspace, { type WorkRecord } from './Workspace.js';
 
 export const dynamic = 'force-dynamic';
+
+/*
+ * THE VERSION IN THE FOOTER IS THE ONE THAT SHIPPED. Typing it into the
+ * page is how a footer ends up two releases behind and nobody notices,
+ * because nobody reads a footer until they are trying to work out which
+ * build somebody is on.
+ */
+const VERSION = `v${(pkg as { version: string }).version}`;
 
 /**
  * The way in.  [Doctrine §19, §13, STUDIO-TWO §13, CHANNEL §13]
@@ -25,11 +39,13 @@ export const dynamic = 'force-dynamic';
  * are things a person does without reloading.
  */
 export default async function Home() {
-  const [summaries, performances, channels, space] = await Promise.all([
+  const [summaries, performances, channels, space, account, jobs] = await Promise.all([
     listConversations(),
     listPerformances().catch(() => []),
     listChannels().catch(() => []),
     diskSpace(),
+    theAccount(),
+    listJobs().catch(() => []),
   ]);
 
   const now = Date.now();
@@ -113,8 +129,87 @@ export default async function Home() {
   const records = [...conversationRecords, ...performanceRecords, ...channelRecords]
     .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
 
+  /*
+   * THE CHANNEL AT THE TOP OF THE PAGE.  [CHANNEL §4, §15]
+   *
+   * The newest one, because a single-channel instance has exactly one and
+   * a page that made you choose would be asking a question with one
+   * answer. Everything on it is measured: whether it is on air comes from
+   * `whatIsOn` — the same function the playout engine uses, so the badge
+   * and the transmitter cannot disagree — and the next programme is the
+   * next fixed slot that has not started, not a guess from the list.
+   */
+  const front = [...channels].sort(
+    (a, b) => (a.updatedAt < b.updatedAt ? 1 : -1))[0];
+
+  const hero = front ? (() => {
+    const on = whatIsOn(front, now);
+    const upcoming = [...front.programmes]
+      .filter((programme) => Date.parse(programme.startsAt) > now)
+      .sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt))[0];
+    const startOfDay = new Date(now);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = startOfDay.getTime() + 24 * 60 * 60 * 1000;
+    return {
+      id: front.id,
+      name: front.name,
+      href: `/t/${front.id}`,
+      timezone: front.timezone,
+      live: on.kind !== 'off',
+      /* What the audience is seeing, when anybody is. */
+      onAir: on.kind === 'programme' ? (on.programme.title ?? 'a programme')
+        : on.kind === 'rotation' ? (on.entry.title ?? 'the loop')
+          : on.kind === 'live' ? 'a live feed'
+            : on.kind === 'emergency' ? 'an emergency cut-away'
+              : on.kind === 'backup' ? 'the backup' : null,
+      next: upcoming
+        ? { title: upcoming.title ?? 'a programme', startsAt: upcoming.startsAt }
+        : null,
+      today: front.programmes.filter((programme) => {
+        const at = Date.parse(programme.startsAt);
+        return at >= startOfDay.getTime() && at < endOfDay;
+      }).length,
+      inLoop: front.rotation.length,
+      /*
+       * EVERY DESTINATION THE MODEL KNOWS ABOUT, not only the declared
+       * ones — a panel listing what you have connected tells you nothing
+       * about what you could connect, which is the question somebody
+       * looking at it is actually asking. The channel's own output is
+       * always there and always available; the rest say plainly that
+       * they are not wired up, because they are not. [§15]
+       */
+      destinations: (Object.keys(PLATFORMS) as DestinationKind[])
+        .filter((kind) => kind !== 'rtmp')
+        .map((kind) => {
+          const declared = (front.destinations ?? []).find((d) => d.kind === kind);
+          return {
+            kind,
+            label: PLATFORMS[kind].label,
+            state: kind === 'own' ? 'connected' as const
+              : declared?.enabled ? 'connected' as const
+                : declared ? 'off' as const : 'none' as const,
+          };
+        }),
+    };
+  })() : null;
+
   return (
     <Workspace
+      account={{ name: account.name, role: 'Owner' }}
+      runtime={runtime()}
+      /*
+       * WHAT IS ACTUALLY PENDING, from the queue itself. A bell with a
+       * dot on it that nothing can ever put there is furniture; this one
+       * is silent unless the worker has something in hand or something
+       * fell over. [D-07]
+       */
+      pending={{
+        working: jobs.filter((job) => job.state === 'running').length,
+        waiting: jobs.filter((job) => job.state === 'pending').length,
+        failed: jobs.filter((job) => job.state === 'failed').length,
+      }}
+      hero={hero}
+      version={VERSION}
       records={records}
       space={{
         used: bytesLabel(space.usedBytes),

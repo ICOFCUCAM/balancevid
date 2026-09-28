@@ -1,6 +1,6 @@
 import { isSignedIn } from '../../../../src/domain/account.js';
 import { whoIs } from '../../../../src/auth/request.js';
-import { theAccount } from '../../../../src/store/accounts.js';
+import { saveAccount, theAccount } from '../../../../src/store/accounts.js';
 import { fail, json } from '../../../../src/web/http.js';
 
 export const dynamic = 'force-dynamic';
@@ -36,4 +36,32 @@ export async function GET(request: Request): Promise<Response> {
    * construction (`src/domain/account.ts`) — so it goes back whole.
    */
   return json({ account });
+}
+
+/**
+ * WHAT TO CALL THEM.  [Doctrine U-24]
+ *
+ * The account is created with the name "Owner", because at the moment it
+ * is created nobody has been asked anything — it happens on the first
+ * read, before the first sign-in, from a migration or a process starting
+ * up. That default then becomes the word the whole building greets them
+ * with: "Good evening, Owner."
+ *
+ * So the name is editable, and this is the only field on the account a
+ * person may change. Nothing keys off it — `src/domain/account.ts` says
+ * so where the field is declared — which is exactly why it is safe to
+ * let them.
+ */
+export async function PATCH(request: Request): Promise<Response> {
+  const principal = await whoIs(request);
+  if (!isSignedIn(principal)) return fail(401, 'not signed in');
+
+  const body = await request.json().catch(() => ({})) as { name?: unknown };
+  const name = typeof body.name === 'string' ? body.name.trim() : '';
+  if (!name) return fail(400, 'a name is needed');
+  if (name.length > 80) return fail(400, 'that name is too long');
+
+  const account = await theAccount();
+  await saveAccount({ ...account, name });
+  return json({ account: { ...account, name } });
 }
