@@ -6,6 +6,7 @@ import {
   MASTER_CLASSES, SPACES, isFootage, orderedScenes, sceneAt,
 } from '../../../src/domain/performance.js';
 import { EFFECT_LOOKS, SPACE_LOOKS } from '../../../src/domain/environment.js';
+import { useConfirm } from '../../Confirm.js';
 import { LAYOUTS, takeSlots } from '../../../src/domain/presentation.js';
 import {
   BEATS_USABLE_CONFIDENCE, beatPositions, snapToBeat,
@@ -237,6 +238,7 @@ export default function SwitchingStage({
    */
   takesPanel?: React.ReactNode;
 }) {
+  const { confirm, dialog: confirmDialog } = useConfirm();
   const [arrangement, setArrangement] = useState<string>('performance_full');
   const [pending, setPending] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -558,6 +560,7 @@ export default function SwitchingStage({
         + '"notes notes notes" "transport transport transport"',
       alignItems: 'start',
     }}>
+      {confirmDialog}
       {/*
         * The rail is as tall as the stage too, and scrolls inside that.
         *
@@ -858,17 +861,35 @@ export default function SwitchingStage({
                      * a note asks for it here rather than letting the domain
                      * refuse a click with an error nobody expected.
                      */
-                    const note = cls === 'licensed' || cls === 'open'
-                      ? window.prompt(
-                        cls === 'licensed'
+                    if (cls !== 'licensed' && cls !== 'open') {
+                      void patch({
+                        action: 'set-footage-rights', takeId: subject.id,
+                        rights: cls, rightsNote: null,
+                      });
+                      return;
+                    }
+                    confirm({
+                      question: cls === 'licensed'
+                        ? 'A licence has to say what it is. This travels '
+                          + 'with the footage into the attribution block of '
+                          + 'every export.'
+                        : 'Open material still needs a source. This travels '
+                          + 'with the footage into the attribution block of '
+                          + 'every export.',
+                      field: {
+                        label: cls === 'licensed'
                           ? 'What licence permits this footage?'
                           : 'Where is it from, and what permits it?',
-                        subject.rightsNote ?? '')
-                      : null;
-                    if ((cls === 'licensed' || cls === 'open') && !note?.trim()) return;
-                    void patch({
-                      action: 'set-footage-rights', takeId: subject.id,
-                      rights: cls, rightsNote: note,
+                        placeholder: cls === 'licensed'
+                          ? 'CC BY 4.0, or the agreement it came under'
+                          : 'Public domain \u2014 NASA, 1972',
+                        initial: subject.rightsNote ?? '',
+                      },
+                      verb: 'Record the rights',
+                      go: (note) => void patch({
+                        action: 'set-footage-rights', takeId: subject.id,
+                        rights: cls, rightsNote: note,
+                      }),
                     });
                   },
                   'footage-rights', { height: 48 }))}
@@ -1067,11 +1088,14 @@ export default function SwitchingStage({
               {ordered.length > 0 && (
                 <button className="small" data-testid="clear-scenes"
                         title="Remove every cut and start the edit again"
-                        onClick={() => {
-                          if (window.confirm('Remove every cut and start again?')) {
-                            void patch({ action: 'clear-scenes' });
-                          }
-                        }}
+                        onClick={() => confirm({
+                          question: 'Remove every cut and start the edit '
+                            + 'again? The takes stay exactly as they are '
+                            + '\u2014 only the cuts between them go.',
+                          verb: 'Clear the edit',
+                          danger: true,
+                          go: () => void patch({ action: 'clear-scenes' }),
+                        })}
                         style={{
                           border: 0, background: 'none', padding: 0, fontSize: 10,
                           fontWeight: 500, color: 'var(--muted)', cursor: 'pointer',
