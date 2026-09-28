@@ -1311,9 +1311,20 @@ export default function ChannelStudio({
         * wrong at the right where nothing else is — because the one thing
         * worse than needing it is pressing it by accident.
         */}
+      {/*
+        * THE TRANSPORT IS THE EDGE OF THE DESK. [§9]
+        *
+        * Everything above it is a view of something; everything on it
+        * changes the air. That distinction is worth a surface of its own —
+        * darker than the room, with a light hairline along the top — so a
+        * hand knows it has reached the part where pressing something is
+        * consequential, before the eye has read a single label.
+        */}
       <footer className="shell-foot" data-testid="channel-transport" style={{
-        display: 'grid', alignItems: 'center', gap: 12, padding: '8px 14px',
+        display: 'grid', alignItems: 'center', gap: 'var(--space-5)',
+        padding: 'var(--space-4) var(--space-6)',
         gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)',
+        background: 'linear-gradient(180deg, var(--ink-850), var(--ink-900))',
       }}>
         <div className="row" style={{ gap: 10, minWidth: 0, flexWrap: 'nowrap' }}>
           {/*
@@ -1346,26 +1357,58 @@ export default function ChannelStudio({
                 requestedBy: 'owner',
               });
             }}
+            /*
+              * THE ONE ROUND CONTROL IN THE ROOM, and round on purpose:
+              * every other control here is a rectangle, so shape alone
+              * says this is the record decision without a label. Armed it
+              * carries the live red and its own halo; idle it is a hollow
+              * ring, the same filled-versus-hollow grammar the lamps use.
+              */
             style={{
-              flex: '0 0 auto', width: 34, height: 34, borderRadius: '50%',
+              flex: '0 0 auto', width: 34, height: 34,
+              borderRadius: 'var(--radius-full)', minHeight: 0,
               padding: 0, cursor: 'pointer', display: 'grid', placeItems: 'center',
-              background: onAir && keeping ? '#c0392b' : 'var(--panel-2)',
-              border: `2px solid ${onAir && keeping ? '#e04b37' : '#6d3129'}`,
+              background: onAir && keeping
+                ? 'radial-gradient(circle at 50% 35%, #ef5040, #c0342a)'
+                : 'var(--surface-float)',
+              border: `2px solid ${onAir && keeping
+                ? 'var(--state-live)' : 'var(--ink-500)'}`,
+              boxShadow: onAir && keeping
+                ? '0 0 0 3px var(--state-live-glow), inset 0 1px 0 rgba(255,255,255,0.2)'
+                : 'inset 0 1px 0 rgba(255,255,255,0.04)',
             }}
           >
             <span aria-hidden="true" style={{
-              width: 13, height: 13, borderRadius: '50%',
-              background: onAir && keeping ? '#fff' : '#8e2f24',
+              width: 12, height: 12, borderRadius: 'var(--radius-full)',
+              background: onAir && keeping ? '#fff' : 'transparent',
+              boxShadow: onAir && keeping
+                ? '0 0 4px rgba(255,255,255,0.6)'
+                : 'inset 0 0 0 2px var(--state-live-dim)',
             }} />
           </button>
 
-          <span className="row" style={{ gap: 7, flex: '0 0 auto' }}>
-            <Dot on={on.kind !== 'off'} colour={on.kind === 'live' ? '#e04b37' : '#4f8ad6'} />
-            <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.5 }}>
+          {/*
+            * THE STATE, THE WORD AND THE CLOCK, in that order and read as
+            * one object. The clock is the largest figure in the room
+            * because it is the only number here anybody reads under
+            * pressure, and it is tabular so the digits do not shimmer as
+            * the seconds turn. [U-08]
+            */}
+          <span className="row" style={{ gap: 'var(--space-3)', flex: '0 0 auto' }}>
+            <span className={`lamp${on.kind === 'live' ? ' is-live'
+              : on.kind === 'off' ? '' : ' is-ok'}`} />
+            <span style={{
+              fontSize: 'var(--text-2xs)', fontWeight: 'var(--weight-bold)',
+              letterSpacing: '0.09em',
+              color: on.kind === 'off' ? 'var(--text-faint)' : 'var(--text)',
+            }}>
               {on.kind === 'off' ? 'OFF AIR' : 'ON AIR'}
             </span>
             <span className="mono" data-testid="transport-clock" style={{
-              fontSize: 15, fontWeight: 700,
+              fontSize: 'var(--text-lg)', fontWeight: 'var(--weight-bold)',
+              letterSpacing: 'var(--tracking-tight)',
+              color: on.kind === 'off' ? 'var(--text-dim)' : 'var(--text)',
+              fontVariantNumeric: 'tabular-nums',
             }}>{hms(elapsedMs)}</span>
           </span>
 
@@ -1421,9 +1464,24 @@ export default function ChannelStudio({
               className="primary" data-testid="take-live"
               title="Cut the live feed to air"
               onClick={() => void patch({ action: 'take-live' })}
+              /*
+                * THE MOST CONSEQUENTIAL BUTTON ON THE PAGE, and the only
+                * one allowed to look it. It carries the live red as a lit
+                * surface rather than a flat fill, and a halo in its own
+                * hue — so when it is pressable it is the brightest thing
+                * in the transport and nothing else has to be dimmed to
+                * make that true.
+                */
               style={{
-                background: '#c0392b', borderColor: '#c0392b', padding: '7px 14px',
-                fontSize: 12,
+                background: 'linear-gradient(180deg, #e8483a, #c33327)',
+                borderColor: '#f05a4a',
+                color: 'var(--text-on-accent)',
+                padding: 'var(--space-3) var(--space-6)',
+                fontSize: 'var(--text-sm)',
+                fontWeight: 'var(--weight-bold)',
+                letterSpacing: '0.02em',
+                boxShadow: '0 0 0 3px var(--state-live-glow),'
+                  + ' inset 0 1px 0 rgba(255,255,255,0.22)',
               }}
             >
               Take Live
