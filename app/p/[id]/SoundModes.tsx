@@ -94,6 +94,7 @@ export default function SoundModes({
             data-testid="audio-mode"
             data-mode={option.id}
             data-chosen={mode === option.id ? 'true' : 'false'}
+            aria-pressed={mode === option.id}
             disabled={busy || (option.id === 'master_vocal' && withSound.length === 0)}
             onClick={() => void act({
               action: 'audio-mode', mode: option.id,
@@ -103,8 +104,8 @@ export default function SoundModes({
             })}
             style={{
               textAlign: 'left', padding: '7px 10px',
-              background: mode === option.id ? 'rgba(43,95,138,0.30)' : undefined,
-              borderColor: mode === option.id ? '#6fb3e0' : undefined,
+              background: mode === option.id ? 'var(--accent-wash)' : undefined,
+              borderColor: mode === option.id ? 'var(--accent)' : undefined,
             }}
           >
             <div style={{ fontWeight: 600, fontSize: 13 }}>{option.label}</div>

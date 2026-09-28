@@ -46,6 +46,24 @@ const PREROLL_SEGMENTS = 2; // ~8 seconds
  */
 const MIN_SEGMENT_BYTES = 1024;
 
+/**
+ * THE AUTHOR IS THE RESPONDER, ON A DARK GROUND.  [Doctrine U-20]
+ *
+ * This was #a35a34 in both places it appears, and #a35a34 is the
+ * responder's colour DARKENED FOR WHITE — the value the published
+ * article and the interactive player declare inside their light theme.
+ * Studio One has no light theme. So the one person guaranteed to be in
+ * every conversation was drawn, in the only place they are drawn, in a
+ * colour belonging to a page this studio never renders.
+ *
+ * It is a hex rather than `var(--user-accent)` because it travels as
+ * data — into `RailPerson.accent`, and from there into places that mix
+ * an alpha into it — and `design-system.test.ts` now refuses the
+ * light-ground pair anywhere in `app/`, which is what stops it coming
+ * back.
+ */
+const AUTHOR_ACCENT = '#c2794f';
+
 type Phase = 'cold' | 'arming' | 'armed' | 'starting' | 'recording' | 'stopping' | 'denied';
 
 interface Snapshot {
@@ -756,7 +774,8 @@ export default function Studio({ conversationId }: { conversationId: string }) {
   const authorName = (conversation as any)?.publication?.author ?? 'You';
   const whoOf = (iv: any) =>
     participants.find((p: any) => p.id === iv.participantId)
-    ?? { id: 'author', displayName: authorName, accent: '#a35a34', role: 'host' };
+    ?? { id: 'author', displayName: authorName, accent: AUTHOR_ACCENT,
+      role: 'host' };
   const voices = new Map<string, RailPerson>();
   for (const iv of interventions) {
     const who = whoOf(iv);
@@ -771,7 +790,7 @@ export default function Studio({ conversationId }: { conversationId: string }) {
   // The author leads the list even before they have answered: it is theirs.
   if (!voices.has('author') && !participants.some((p: any) => p.role === 'host')) {
     voices.set('author', {
-      id: 'author', displayName: authorName, accent: '#a35a34',
+      id: 'author', displayName: authorName, accent: AUTHOR_ACCENT,
       role: 'host', responses: 0,
     });
   }
@@ -920,21 +939,21 @@ export default function Studio({ conversationId }: { conversationId: string }) {
 
         <div className="row" style={{ gap: 0, flexWrap: 'nowrap' }} role="tablist" aria-label="Mode">
           <button role="tab" data-testid="mode-live"
-                  aria-selected={mode === 'live'} onClick={() => setMode('live')}
-                  style={{ borderRadius: '8px 0 0 8px', padding: '7px 14px',
-                    background: mode === 'live' ? '#2b5f8a' : undefined }}>
+                  aria-selected={mode === 'live'} className={mode === 'live' ? 'selected' : undefined}
+                  onClick={() => setMode('live')}
+                  style={{ borderRadius: '8px 0 0 8px', padding: '7px 14px' }}>
             Live
           </button>
           <button role="tab" data-testid="mode-studio"
-                  aria-selected={mode === 'studio'} onClick={() => setMode('studio')}
-                  style={{ borderRadius: 0, padding: '7px 14px',
-                    background: mode === 'studio' ? '#2b5f8a' : undefined }}>
+                  aria-selected={mode === 'studio'} className={mode === 'studio' ? 'selected' : undefined}
+                  onClick={() => setMode('studio')}
+                  style={{ borderRadius: 0, padding: '7px 14px' }}>
             Studio
           </button>
           <button role="tab" data-testid="mode-publish"
-                  aria-selected={mode === 'publish'} onClick={() => setMode('publish')}
-                  style={{ borderRadius: '0 8px 8px 0', padding: '7px 14px',
-                    background: mode === 'publish' ? '#2b5f8a' : undefined }}>
+                  aria-selected={mode === 'publish'} className={mode === 'publish' ? 'selected' : undefined}
+                  onClick={() => setMode('publish')}
+                  style={{ borderRadius: '0 8px 8px 0', padding: '7px 14px' }}>
             Publish
           </button>
         </div>
@@ -1409,11 +1428,11 @@ export default function Studio({ conversationId }: { conversationId: string }) {
             <button
               data-testid="toggle-reader"
               data-open={readerOpen ? 'true' : 'false'}
+              aria-pressed={readerOpen}
               onClick={() => setReaderOpen(!readerOpen)}
               title={hasReading
                 ? 'Read your notes or slides while you speak'
                 : 'Attach a PDF or write a note on a response to read it here'}
-              style={{ background: readerOpen ? '#2b5f8a' : undefined }}
             >
               Notes
             </button>

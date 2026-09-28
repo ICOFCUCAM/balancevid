@@ -179,8 +179,8 @@ export default function PublishStage({
                   onClick={() => setFormat(entry.profileId)}
                   style={{
                     textAlign: 'left', padding: 12, borderRadius: 10,
-                    background: active ? 'rgba(43,95,138,0.26)' : 'var(--panel)',
-                    border: `1px solid ${active ? '#6fb3e0' : 'var(--line)'}`,
+                    background: active ? 'var(--accent-wash)' : 'var(--panel)',
+                    border: `1px solid ${active ? 'var(--accent)' : 'var(--line)'}`,
                   }}
                 >
                   <div className="row" style={{ gap: 6, marginBottom: 8, flexWrap: 'nowrap' }}>
@@ -276,7 +276,7 @@ export default function PublishStage({
                 className="panel"
                 style={{
                   padding: 10, marginBottom: 8,
-                  borderColor: picked ? '#6fb3e0' : 'var(--line)',
+                  borderColor: picked ? 'var(--accent)' : 'var(--line)',
                 }}
               >
                 {/*
@@ -484,6 +484,7 @@ function OpeningEditor({ conversationId, candidate, onChanged }: {
                 data-testid="opening-mode"
                 data-choice={id}
                 data-chosen={mode === id ? 'true' : 'false'}
+                aria-pressed={mode === id}
                 title={hint}
                 disabled={busy}
                 onClick={() => void save(
@@ -493,8 +494,8 @@ function OpeningEditor({ conversationId, candidate, onChanged }: {
                 )}
                 style={{
                   padding: '3px 9px', fontSize: 11,
-                  background: mode === id ? 'rgba(43,95,138,0.30)' : undefined,
-                  borderColor: mode === id ? '#6fb3e0' : undefined,
+                  background: mode === id ? 'var(--accent-wash)' : undefined,
+                  borderColor: mode === id ? 'var(--accent)' : undefined,
                 }}
               >
                 {label}
@@ -574,6 +575,7 @@ function OpeningEditor({ conversationId, candidate, onChanged }: {
                 data-testid="opening-order"
                 data-choice={id}
                 data-chosen={order === id ? 'true' : 'false'}
+                aria-pressed={order === id}
                 title={hint}
                 disabled={busy}
                 onClick={() => void save({
@@ -584,8 +586,8 @@ function OpeningEditor({ conversationId, candidate, onChanged }: {
                 })}
                 style={{
                   padding: '3px 9px', fontSize: 11,
-                  background: order === id ? 'rgba(43,95,138,0.30)' : undefined,
-                  borderColor: order === id ? '#6fb3e0' : undefined,
+                  background: order === id ? 'var(--accent-wash)' : undefined,
+                  borderColor: order === id ? 'var(--accent)' : undefined,
                 }}
               >
                 {label}
@@ -670,12 +672,13 @@ function CaptionLook({ conversationId, chosen, onChanged }: {
           data-testid="caption-style"
           data-style="auto"
           data-chosen={chosen === null ? 'true' : 'false'}
+          aria-pressed={chosen === null}
           disabled={busy}
           onClick={() => void choose(null)}
           style={{
             padding: '5px 10px', fontSize: 12,
-            background: chosen === null ? 'rgba(43,95,138,0.30)' : undefined,
-            borderColor: chosen === null ? '#6fb3e0' : undefined,
+            background: chosen === null ? 'var(--accent-wash)' : undefined,
+            borderColor: chosen === null ? 'var(--accent)' : undefined,
           }}
           title="A tall clip gets larger captions, raised clear of the app's own buttons"
         >
@@ -688,13 +691,14 @@ function CaptionLook({ conversationId, chosen, onChanged }: {
             data-testid="caption-style"
             data-style={style.id}
             data-chosen={chosen === style.id ? 'true' : 'false'}
+            aria-pressed={chosen === style.id}
             disabled={busy}
             onClick={() => void choose(style.id)}
             title={style.hint}
             style={{
               padding: '5px 10px', fontSize: 12,
-              background: chosen === style.id ? 'rgba(43,95,138,0.30)' : undefined,
-              borderColor: chosen === style.id ? '#6fb3e0' : undefined,
+              background: chosen === style.id ? 'var(--accent-wash)' : undefined,
+              borderColor: chosen === style.id ? 'var(--accent)' : undefined,
             }}
           >
             {style.label}

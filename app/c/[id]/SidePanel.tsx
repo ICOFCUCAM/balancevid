@@ -42,7 +42,8 @@ export default function SidePanel({
       className="small"
       style={{
         background: 'transparent', border: 'none', padding: '8px 2px', marginRight: 16,
-        borderBottom: `2px solid ${tab === id ? 'var(--user-accent, #6fb3e0)' : 'transparent'}`,
+        /* A tab is chrome. It was wearing the responder's colour. [U-20] */
+        borderBottom: `2px solid ${tab === id ? 'var(--accent)' : 'transparent'}`,
         color: tab === id ? 'inherit' : 'var(--muted)', cursor: 'pointer',
       }}
     >
@@ -115,10 +116,12 @@ export default function SidePanel({
                     }}
                     style={{
                       display: 'block', width: '100%', textAlign: 'left', cursor: 'pointer',
-                      background: picked ? 'rgba(111,179,224,0.16)' : live ? 'rgba(255,255,255,0.05)' : 'transparent',
+                      background: picked
+                        ? 'color-mix(in srgb, var(--source-accent) 16%, transparent)'
+                        : live ? 'rgba(255,255,255,0.05)' : 'transparent',
                       border: 'none', borderRadius: 6, padding: '6px 8px', marginBottom: 2,
                       color: 'inherit',
-                      borderLeft: `3px solid ${picked ? 'var(--source-accent, #6fb3e0)' : 'transparent'}`,
+                      borderLeft: `3px solid ${picked ? 'var(--source-accent)' : 'transparent'}`,
                     }}
                   >
                     <span className="small mono muted" style={{ marginRight: 8 }}>

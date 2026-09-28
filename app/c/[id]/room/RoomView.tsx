@@ -243,13 +243,14 @@ export default function RoomView({
                       {isStaged ? 'Take off stage' : 'Bring in'}
                     </button>
                     <button
-                      className="small" data-testid="pin-toggle"
+                      className="small"
+                      data-testid="pin-toggle"
+                      aria-pressed={pinned}
                       disabled={busy}
                       onClick={() => void act({
                         action: 'pin', pinned: pinned ? null : person.id,
                       })}
-                      style={{ padding: '3px 8px', fontSize: 11,
-                        background: pinned ? '#2b5f8a' : undefined }}
+                      style={{ padding: '3px 8px', fontSize: 11 }}
                     >
                       {pinned ? 'Unpin' : 'Pin'}
                     </button>
@@ -439,15 +440,16 @@ export default function RoomView({
                     data-testid="mode-option"
                     data-mode={mode.id}
                     data-chosen={room.speakerMode === mode.id ? 'true' : 'false'}
+                    aria-pressed={room.speakerMode === mode.id}
                     disabled={busy}
                     onClick={() => void act({ action: 'speaker-mode', speakerMode: mode.id })}
                     style={{
                       display: 'block', width: '100%', textAlign: 'left', marginBottom: 5,
                       padding: '7px 10px', borderRadius: 7,
                       background: room.speakerMode === mode.id
-                        ? 'rgba(43,95,138,0.30)' : 'var(--panel-2)',
+                        ? 'var(--accent-wash)' : 'var(--panel-2)',
                       border: `1px solid ${room.speakerMode === mode.id
-                        ? '#6fb3e0' : 'var(--line)'}`,
+                        ? 'var(--accent)' : 'var(--line)'}`,
                     }}
                   >
                     <div style={{ fontWeight: 600, fontSize: 13 }}>{mode.label}</div>
@@ -459,7 +461,7 @@ export default function RoomView({
               {/* A pin outranks the microphones, and says so while it does. */}
               {room.pinnedParticipantId && (
                 <div className="panel small" data-testid="pin-notice"
-                     style={{ padding: 9, marginBottom: 10, borderColor: '#6fb3e0' }}>
+                     style={{ padding: 9, marginBottom: 10, borderColor: 'var(--accent)' }}>
                   <div style={{ marginBottom: 6 }}>
                     Held on{' '}
                     {room.participants.find((p) => p.id === room.pinnedParticipantId)

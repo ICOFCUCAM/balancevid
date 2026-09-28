@@ -650,6 +650,7 @@ export default function PerformanceStudio(
                 data-testid="master-class"
                 data-class={cls}
                 data-chosen={performance.master.class === cls ? 'true' : 'false'}
+                aria-pressed={performance.master.class === cls}
                 disabled={busy}
                 title={CLASS_LABELS[cls]!.hint}
                 onClick={() => void act({
@@ -659,8 +660,8 @@ export default function PerformanceStudio(
                 style={{
                   padding: '5px 10px', fontSize: 12,
                   background: performance.master.class === cls
-                    ? 'rgba(43,95,138,0.30)' : undefined,
-                  borderColor: performance.master.class === cls ? '#6fb3e0' : undefined,
+                    ? 'var(--accent-wash)' : undefined,
+                  borderColor: performance.master.class === cls ? 'var(--accent)' : undefined,
                 }}
               >
                 {CLASS_LABELS[cls]!.label}

@@ -194,6 +194,31 @@ button.selected, .btn.selected {
   box-shadow: inset 2px 0 0 var(--line-focus);
 }
 
+/*
+ * AND IT IS THE ONLY RULE THAT MAY SAY SO.  [D-04, D-19, U-19]
+ *
+ * Eight places wrote their own: `background: '#2b5f8a'` inline, on the
+ * mode tabs, the mark tools, the pin, the notes panel and the master
+ * classes — a sixth blue, at 2.45:1 against the surface behind it, and
+ * overriding this rule wherever it landed. The fill above is
+ * deliberately almost invisible (1.09:1 against the surface it replaces)
+ * because the fill is NOT the signal: the border at 4.30:1 and the
+ * two-pixel marker on the leading edge are, and they are the two cues
+ * that survive greyscale and a screenshot. An inline fill that hides
+ * them is worse than no fill at all.
+ *
+ * AND EIGHTEEN BUTTONS HAD NO ARIA STATE AT ALL — including those.
+ * They carried `data-on`, `data-armed`, `data-chosen`, `data-open`:
+ * attributes written for this repository's tests, which announce
+ * nothing to anybody. Whether the pin was in, which mark tool was
+ * armed, which caption style was chosen, whether the notes panel was
+ * open: none of it reached a screen reader, in five files across all
+ * three studios. They carry `aria-pressed` now, which is both the
+ * announcement and the hook this rule keys on — so saying it out loud
+ * and drawing it are the same edit, and a toggle added tomorrow cannot
+ * have one without the other. [D-04]
+ */
+
 /* ---- fields ----------------------------------------------------------
  *
  * An input was a button that happened to accept typing: same background,

@@ -1276,6 +1276,7 @@ export default function ChannelStudio({
                     <button
                       key={option} type="button" data-testid="stage-arrangement"
                       data-option={option} data-chosen={chosenOne ? 'true' : 'false'}
+                      aria-pressed={chosenOne}
                       onClick={() => setArrangement(option === 'auto' ? undefined : option)}
                       style={{
                         padding: '3px 7px', fontSize: 10, borderRadius: 5,
@@ -2191,6 +2192,7 @@ function Strip({
           <button
             key={option.id} type="button" data-testid={`${testid}-${option.id}`}
             data-chosen={chosen ? 'true' : 'false'}
+            aria-pressed={chosen}
             onClick={() => onChange(option.id)}
             style={{
               flex: compact ? '0 0 auto' : '1 1 0',
@@ -3654,6 +3656,7 @@ function CameraTab({
             <button
               key={space.id} type="button" data-testid="virtual-set"
               data-space={space.id} data-chosen={chosen ? 'true' : 'false'}
+              aria-pressed={chosen}
               onClick={() => onSpace(chosen ? '' : space.id)}
               title={space.label}
               style={{
@@ -3895,6 +3898,7 @@ function GraphicsTab({
               <button
                 key={corner} type="button" data-testid="bug-corner"
                 data-corner={corner} data-chosen={chosen ? 'true' : 'false'}
+                aria-pressed={chosen}
                 onClick={() => onIdentity({
                   bug: {
                     text: identity?.bug?.text ?? channel.name,
@@ -3919,6 +3923,7 @@ function GraphicsTab({
             <button
               key={show} type="button" data-testid="lower-third"
               data-show={show} data-chosen={chosen ? 'true' : 'false'}
+              aria-pressed={chosen}
               onClick={() => onIdentity({
                 lowerThird: {
                   show, holdMs: identity?.lowerThird?.holdMs ?? 8000,
@@ -4183,6 +4188,7 @@ function Scheduler({
             key={option} type="button" data-testid="slot-length"
             data-minutes={option}
             data-chosen={minutes === option ? 'true' : 'false'}
+            aria-pressed={minutes === option}
             onClick={() => setMinutes(option)}
             style={{
               padding: '5px 4px', fontSize: 11, borderRadius: 7,

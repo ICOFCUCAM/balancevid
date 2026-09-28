@@ -135,11 +135,12 @@ export default function MasterRender({ performance }: { performance: Performance
             data-testid="export-shape"
             data-profile={profileId}
             data-chosen={shape === profileId ? 'true' : 'false'}
+            aria-pressed={shape === profileId}
             onClick={() => setShape(profileId)}
             style={{
               padding: '5px 10px', fontSize: 12,
-              background: shape === profileId ? 'rgba(43,95,138,0.30)' : undefined,
-              borderColor: shape === profileId ? '#6fb3e0' : undefined,
+              background: shape === profileId ? 'var(--accent-wash)' : undefined,
+              borderColor: shape === profileId ? 'var(--accent)' : undefined,
             }}
           >
             {EXPORT_PROFILES[profileId]!.label}

@@ -110,7 +110,8 @@ export default function Timeline({
           position: 'absolute', inset: 0, width: at(currentFrame),
           /* Watched source, in the source's own hue rather than a
              fourth blue invented for the purpose. */
-          background: 'rgba(127,155,181,0.22)', borderRadius: '6px 0 0 6px',
+          background: 'color-mix(in srgb, var(--source-accent) 22%, transparent)',
+          borderRadius: '6px 0 0 6px',
         }} />
         {/*
           * WHERE EACH INTERRUPTION HAPPENED, in the colour an interruption
@@ -152,7 +153,7 @@ export default function Timeline({
               left: at(pendingClaim.startFrame),
               width: `calc(${at(pendingClaim.anchorFrame)} - ${at(pendingClaim.startFrame)})`,
               minWidth: 3,
-              background: 'rgba(127,155,181,0.4)',
+              background: 'color-mix(in srgb, var(--source-accent) 40%, transparent)',
               border: '1px solid var(--source-accent)', borderRadius: 3,
             }} />
             <div aria-hidden data-testid="timeline-claim-marker" style={{
@@ -160,7 +161,9 @@ export default function Timeline({
               width: 11, height: 11, marginLeft: -5.5, marginTop: -5.5,
               background: 'var(--source-accent)',
               transform: 'rotate(45deg)', borderRadius: 2,
-              boxShadow: '0 0 8px rgba(111,179,224,0.9)', zIndex: 3,
+              boxShadow: '0 0 8px color-mix(in srgb,'
+                + ' var(--source-accent) 90%, transparent)',
+              zIndex: 3,
             }} />
           </>
         )}

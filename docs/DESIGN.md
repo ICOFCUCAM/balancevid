@@ -109,6 +109,12 @@ somebody who never thought about the white on top.
   there is, and it works without being taught.
 - Focus is visible, always, via `:focus-visible`, with two rings so it
   survives every surface including live video.
+- **Chosen is one rule, and it is announced.** The fill on a selected
+  control is almost invisible on purpose (1.09:1); the lit border and the
+  two-pixel marker on the leading edge are the signal, because those are
+  what survive greyscale. A control that stores its state only in a
+  `data-` attribute is a control whose state nobody can hear — eighteen of
+  them did.
 
 ### 5. Asking before the irreversible
 
@@ -149,13 +155,19 @@ app/Notice.tsx             saying something went wrong, out loud
 
 ## The ratchet
 
-180 raw hex colours remain in components. The token system arrived after the
+142 raw hex colours remain in components. The token system arrived after the
 product did, and surfaces are converted as each is worked on.
 
 It read 244 until the regex was corrected: `&#9654;` is a play triangle, and
 a pattern looking for `#` followed by hex digits finds `9654` inside it very
 happily. Thirty of the counted colours were glyphs. A budget inflated by a
 tenth is a budget with a tenth of a free pass in it.
+
+Most of what came out after that was one idea written many times: a sixth
+blue for "this one is chosen", in fifteen borders and eight fills, beside a
+selection wash written thirteen times at four strengths. A design system is
+mostly this — not new values, but finding that a hundred lines were all
+trying to say the same thing.
 
 `design-system.test.ts` holds that number as a budget. **Lower it when you
 convert a surface; never raise it.** If it fails on a new feature the fix is
@@ -175,4 +187,4 @@ without noticing.
 - **No light theme** in the application. The published article and
   interactive player have one, and declare the speaker identities darkened
   for white; the studios do not.
-- **The remaining 180.** They are not wrong, they are just not yet named.
+- **The remaining 142.** They are not wrong, they are just not yet named.

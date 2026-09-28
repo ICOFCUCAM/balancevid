@@ -73,7 +73,7 @@ describe('raw colour in components', () => {
    * If this fails on a new feature, the fix is a token, not a bigger
    * number — and the tokens are in `app/styles/`.
    */
-  const BUDGET = 180;
+  const BUDGET = 142;
 
   it(`is at or below ${BUDGET} occurrences, and falling`, () => {
     const counts = components()
@@ -345,5 +345,176 @@ describe('translucency', () => {
     expect(offenders,
       `an alpha suffix that a token would break: ${offenders.join(', ')}`)
       .toEqual([]);
+  });
+});
+
+/**
+ * A TOKEN WITH A FALLBACK IS TWO ANSWERS.  [Doctrine D-19, U-20]
+ *
+ * `var(--user-accent, #6fb3e0)` reads as caution and is the opposite. The
+ * fallback fires only when the token is missing — which, since every
+ * surface in `app/` loads `globals.css`, is never — so it is dead code
+ * that nonetheless has to be right, and none of the thirteen in this
+ * product were. Every one named #6fb3e0, the source blue that Studio
+ * One's timeline was corrected away from, and three of those thirteen
+ * offered it as the fallback for the RESPONDER: if the token ever did go
+ * missing, the person answering would be drawn in the colour of the
+ * person being answered. Silently, and only then.
+ *
+ * The rule is: name the token, or write the value. Not both.
+ */
+describe('a custom property', () => {
+  it('is named without a second answer behind it', () => {
+    const offenders: string[] = [];
+    for (const file of components()) {
+      for (const [hit] of code(file).matchAll(/var\(\s*--[\w-]+\s*,[^)]*\)/g)) {
+        offenders.push(`${file.slice(file.indexOf('app/'))}: ${hit}`);
+      }
+    }
+    expect(offenders, `a fallback that only fires when it is wrong: `
+      + offenders.join(', ')).toEqual([]);
+  });
+});
+
+/**
+ * THE LIGHT-GROUND PAIR BELONGS TO THE PUBLISHED PAGE.  [Doctrine U-20]
+ *
+ * U-20's system has two grounds: #7f9bb5 / #c2794f on dark, and #3c5a73 /
+ * #a35a34 darkened for white. The application has no light theme — the
+ * article and the interactive player do — so a light-ground identity
+ * inside `app/` is, by construction, a speaker drawn in a colour for a
+ * page this surface never renders.
+ *
+ * ONE WAS. Studio One gave the conversation's author #a35a34, in the two
+ * places the author is ever drawn, so the one person guaranteed to be in
+ * every conversation wore the light theme's orange on a dark desk.
+ */
+describe('speaker identity in the application', () => {
+  /* Both grounds' colours, as hex and as the rgb() triples they hide in. */
+  const DARK = { source: '#7f9bb5', user: '#c2794f' };
+  const LIGHT = { source: '#3c5a73', user: '#a35a34' };
+  const OLD_SOURCE = '#6fb3e0';
+
+  const triple = (hex: string) => [1, 3, 5]
+    .map((i) => parseInt(hex.slice(i, i + 2), 16)).join(',');
+
+  it('never uses the light-theme pair, which this surface cannot show', () => {
+    const banned = [LIGHT.source, LIGHT.user];
+    const offenders: string[] = [];
+    for (const file of components()) {
+      const body = code(file);
+      for (const hex of banned) {
+        if (new RegExp(hex, 'i').test(body)) {
+          offenders.push(`${file.slice(file.indexOf('app/'))}: ${hex}`);
+        }
+      }
+    }
+    expect(offenders, `a light-ground identity on a dark surface: `
+      + offenders.join(', ')).toEqual([]);
+  });
+
+  /*
+   * NOR THE BLUE THAT WAS NEVER IN THE SYSTEM. #6fb3e0 is the colour
+   * Studio One's timeline drew the source in before U-20 was enforced,
+   * and it survived in fifteen selection borders and thirteen fallbacks
+   * long after the timeline was fixed — close enough to the source blue
+   * to read as it, and used for things that are not a speaker at all.
+   */
+  it('never uses the blue the system replaced', () => {
+    const offenders: string[] = [];
+    for (const file of components()) {
+      if (new RegExp(OLD_SOURCE, 'i').test(code(file))) {
+        offenders.push(file.slice(file.indexOf('app/')));
+      }
+    }
+    expect(offenders, `the pre-U-20 blue is still here: ${offenders.join(', ')}`)
+      .toEqual([]);
+  });
+
+  /*
+   * AND AN IDENTITY HIDDEN IN AN rgba() IS STILL AN IDENTITY. `rgba(127,
+   * 155, 181, 0.22)` is the source accent; nothing about reading it says
+   * so, and it does not move when the token does.
+   */
+  it('never writes an identity as three numbers', () => {
+    const offenders: string[] = [];
+    for (const file of components()) {
+      const body = code(file).replace(/\s/g, '');
+      for (const [which, hex] of Object.entries(DARK)) {
+        if (body.includes(`rgba(${triple(hex)},`)
+          || body.includes(`rgb(${triple(hex)})`)) {
+          offenders.push(`${file.slice(file.indexOf('app/'))}: ${which}`);
+        }
+      }
+    }
+    expect(offenders, `an identity written as an rgb triple: `
+      + offenders.join(', ')).toEqual([]);
+  });
+});
+
+/**
+ * WHICH ONE IS CHOSEN, SAID ONCE.  [Doctrine D-04, D-19, U-19]
+ *
+ * A row of identical buttons where one is chosen is the commonest
+ * control in this product — the mode tabs, the mark tools, the sound
+ * modes, the publish styles, the pin. `controls.css` has had a rule for
+ * it all along: an almost-invisible fill, a lit border at 4.30:1 and a
+ * two-pixel marker on the leading edge, because the fill is not the
+ * signal and the two structural cues are what survive greyscale.
+ *
+ * EIGHT PLACES WROTE THEIR OWN ANYWAY: `background: '#2b5f8a'` inline, a
+ * sixth blue at 2.45:1 against the surface behind it, with enough
+ * specificity to suppress the rule it was imitating. Five of those eight
+ * had no ARIA state at all — `data-on`, `data-armed`, `data-chosen`,
+ * which are for tests and announce nothing — so the state was invisible
+ * to a screen reader and nearly invisible to the eye.
+ */
+describe('a chosen control', () => {
+  it('has exactly one rule saying what chosen looks like', () => {
+    const css = readFileSync(join(ROOT, 'app', 'styles', 'controls.css'), 'utf8');
+    expect(css).toMatch(/button\[aria-pressed='true'\][\s\S]{0,300}?box-shadow:\s*inset/);
+  });
+
+  /*
+   * AND NOWHERE OVERRIDES IT WITH A COLOUR OF ITS OWN. A conditional
+   * `background` on a button is, nine times in ten, somebody
+   * re-inventing this rule — and it wins, because an inline style
+   * always does.
+   */
+  it('is never re-invented inline', () => {
+    const offenders: string[] = [];
+    for (const file of components()) {
+      for (const [hit] of code(file)
+        .matchAll(/background:\s*[\w.=!' ]+\?\s*'#[0-9a-fA-F]{3,8}'/g)) {
+        offenders.push(`${file.slice(file.indexOf('app/'))}: ${hit}`);
+      }
+    }
+    expect(offenders, `a selected state drawn by hand: ${offenders.join(', ')}`)
+      .toEqual([]);
+  });
+
+  /*
+   * A TOGGLE SAYS ITS STATE IN ARIA. `data-armed` is for this test
+   * suite; `aria-pressed` is for the person who cannot see the border.
+   * Every button in the product that stores an on/off state in a
+   * `data-` attribute must carry the ARIA one too. [D-04]
+   */
+  it('announces its state rather than only storing it for the tests', () => {
+    const offenders: string[] = [];
+    for (const file of components()) {
+      const body = code(file);
+      for (const match of body.matchAll(
+        /data-(?:on|armed|chosen|open)=\{[^}]*\?\s*'true'\s*:\s*'false'\}/g)) {
+        const open = body.lastIndexOf('<button', match.index);
+        if (open < 0) continue;
+        const tag = body.slice(open, body.indexOf('>', match.index));
+        if (!/aria-(pressed|selected|expanded)=/.test(tag)) {
+          offenders.push(`${file.slice(file.indexOf('app/'))}: ${
+            /data-testid="([^"]+)"/.exec(tag)?.[1] ?? 'a button'}`);
+        }
+      }
+    }
+    expect(offenders, `state stored for tests and not announced: ${
+      offenders.join(', ')}`).toEqual([]);
   });
 });

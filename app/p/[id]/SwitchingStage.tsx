@@ -411,10 +411,6 @@ export default function SwitchingStage({
     return () => { cancelled = true; };
   }, [performance.id]);
 
-  /** Every take's own colour, so four rows are told apart before they are read. */
-  const accentOf = (takeId: string | undefined) =>
-    performance.takes.find((t) => t.id === takeId)?.accent ?? '#6fb3e0';
-
   /** A tick every thirty seconds, or every five when the song is short. */
   const tickStep = duration / HOUSE_SAMPLE_RATE > 150 ? 30 : 5;
   const ticks: number[] = [];
@@ -457,7 +453,8 @@ export default function SwitchingStage({
   ) => (
     <button
       key={key} type="button" data-testid={testid} data-option={key}
-      data-chosen={isChosen ? 'true' : 'false'} disabled={opts.disabled}
+      data-chosen={isChosen ? 'true' : 'false'}
+      aria-pressed={isChosen} disabled={opts.disabled}
       onClick={onPick} title={opts.title ?? label}
       /*
         * A CHOICE TILE IS A SWATCH OF THE RESULT, and the one that is
@@ -746,6 +743,7 @@ export default function SwitchingStage({
                 return (
                   <button key={id} type="button" data-testid="stage-view-option"
                           data-option={id} data-chosen={on ? 'true' : 'false'}
+                          aria-pressed={on}
                           onClick={() => setMultiview(id === 'all')}
                           style={{
                             border: 0, borderRadius: 0, padding: '4px 10px',

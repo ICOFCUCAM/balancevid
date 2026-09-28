@@ -103,8 +103,8 @@ export default function ClipRail({
             style={{
               display: 'block', width: '100%', textAlign: 'left', marginBottom: 8,
               padding: 8, borderRadius: 8,
-              background: chosen ? 'rgba(43,95,138,0.28)' : 'var(--panel)',
-              border: `1px solid ${chosen ? '#6fb3e0' : 'var(--line)'}`,
+              background: chosen ? 'var(--accent-wash)' : 'var(--panel)',
+              border: `1px solid ${chosen ? 'var(--accent)' : 'var(--line)'}`,
             }}
           >
             <div style={{
@@ -153,8 +153,9 @@ export default function ClipRail({
                 <span data-testid="clip-has-claim" title={item.quote} style={{
                   position: 'absolute', right: 5, top: 5,
                   width: 9, height: 9, transform: 'rotate(45deg)', borderRadius: 2,
-                  background: 'var(--source-accent, #6fb3e0)',
-                  boxShadow: '0 0 6px rgba(111,179,224,0.9)',
+                  background: 'var(--source-accent)',
+                  boxShadow: '0 0 6px color-mix(in srgb,'
+                    + ' var(--source-accent) 90%, transparent)',
                 }} />
               )}
             </div>
