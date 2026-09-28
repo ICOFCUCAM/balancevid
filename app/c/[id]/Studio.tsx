@@ -1562,7 +1562,9 @@ export default function Studio({ conversationId }: { conversationId: string }) {
               </button>
             )}
             {recording && (
-              <button className="primary" data-testid="continue-button" onClick={() => resume()}>
+              <button className="ctl is-critical" data-testid="continue-button"
+                      style={{ padding: '8px 14px' }}
+                      onClick={() => resume()}>
                 Continue
               </button>
             )}

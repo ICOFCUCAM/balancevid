@@ -4492,7 +4492,7 @@ function Scheduler({
         * channel plays round and round forever. A fixed time is the second,
         * for the thing that has to be at nine. [§2, §4]
         */}
-      <button className="primary small" data-testid="add-to-loop"
+      <button className="ctl" data-testid="add-to-loop"
               onClick={() => onRotate(minutes * MINUTE, loop)}
               style={{ width: '100%', padding: '6px 10px' }}>
         Add to the loop

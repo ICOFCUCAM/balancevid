@@ -521,7 +521,7 @@ export default function RoomView({
                   Put my hand down
                 </button>
               ) : (
-                <button className="primary" data-testid="raise-hand" disabled={busy}
+                <button className="ctl is-critical" data-testid="raise-hand" disabled={busy}
                         onClick={() => void act({ action: 'raise-hand' }, 'room/presence')}>
                   I&rsquo;d like to speak
                 </button>

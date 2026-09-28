@@ -610,7 +610,7 @@ export default function PerformanceStudio(
                       </div>
                       <div className="row" style={{ gap: 6 }}>
                         <button
-                          className="primary" data-testid="start-take"
+                          className="ctl is-critical" data-testid="start-take"
                           disabled={recording.phase === 'finishing'}
                           onClick={() => void recording.start(label,
                             environment === 'original'
@@ -641,7 +641,7 @@ export default function PerformanceStudio(
                         Recording \u00b7 {formatMasterPosition(
                           Math.round(recording.position * HOUSE_SAMPLE_RATE))} of {songLength}
                       </div>
-                      <button className="primary" data-testid="stop-take"
+                      <button className="ctl is-critical" data-testid="stop-take"
                               onClick={recording.stop}>Stop</button>
                     </>
                   )}
