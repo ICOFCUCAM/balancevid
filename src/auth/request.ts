@@ -15,7 +15,7 @@ import { ANONYMOUS, type Principal, principalFor } from '../domain/account.js';
 import { theAccount } from '../store/accounts.js';
 import { AUTH, isLocked } from './config.js';
 import { GUEST_COOKIE, verifyGuest, type GuestClaim } from './guest.js';
-import { SESSION_COOKIE, verifySession } from './session.js';
+import { SESSION_COOKIE, readSession, verifySession } from './session.js';
 
 export async function isOwner(request: Request): Promise<boolean> {
   if (isLocked()) return false;
@@ -46,13 +46,21 @@ export async function isOwner(request: Request): Promise<boolean> {
  * needs to know WHICH one, not merely THAT one.
  */
 export async function whoIs(request: Request): Promise<Principal> {
-  if (!(await isOwner(request))) return ANONYMOUS;
+  if (isLocked()) return ANONYMOUS;
+  const claim = await readSession(
+    readCookie(request.headers.get('cookie'), SESSION_COOKIE),
+    AUTH.passwordHash!);
+  if (!claim) return ANONYMOUS;
+
   /*
-   * Read rather than assumed, and this is the point of the whole step: the
-   * caller is whoever the store says the owner is. When there is more than
-   * one account the lookup changes and this line does not.
+   * THE TOKEN SAYS WHO; THE STORE SAYS WHETHER THEY STILL EXIST. A signature
+   * proves the claim was issued by this instance and has not been edited. It
+   * cannot prove the account was not deleted afterwards — that is what the
+   * lookup is for, and it is the same reason `callerFor` re-checks that a
+   * guest is still a participant rather than trusting their cookie.
    */
   const account = await theAccount();
+  if (claim.account !== account.id) return ANONYMOUS;
   return principalFor(account.id);
 }
 
