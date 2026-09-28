@@ -2312,9 +2312,20 @@ function Strip({
             onClick={() => onChange(option.id)}
             style={{
               flex: compact ? '0 0 auto' : '1 1 0',
+              /*
+               * THEY HAVE TO FIT. Uppercasing and tracking these out in
+               * 05 widened the five Live Studio desks past their panel
+               * and clipped AUDIO to "AUDI" — a legend that does not
+               * fit is worse than the sentence case it replaced. They
+               * shrink now, and the tracking is lighter on the wide
+               * variant, which has five labels to seat rather than
+               * three.
+               */
+              minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
               padding: compact
                 ? 'var(--space-2) var(--space-4)'
-                : 'var(--space-4) var(--space-2)',
+                : 'var(--space-4) var(--space-1)',
               minHeight: compact ? 24 : 32,
               font: 'inherit',
               /*
@@ -2325,7 +2336,7 @@ function Strip({
                * with everything else on the panel.
                */
               fontSize: 'var(--text-2xs)',
-              letterSpacing: '0.08em',
+              letterSpacing: compact ? '0.08em' : '0.04em',
               textTransform: 'uppercase',
               fontWeight: chosen ? 'var(--weight-bold)' : 'var(--weight-semi)',
               cursor: 'pointer',
@@ -2900,6 +2911,25 @@ function MultiView({
 
   const rolledIn = Boolean(channel.live?.segment);
 
+  /*
+   * WHAT IS ACTUALLY GOING OUT, which is not what `live` meant.
+   *
+   * `live` was doing three jobs on this grid: "the camera is on air"
+   * (tile 1), "something is scheduled" (tile 5) and "a bug is
+   * configured" (tile 6). With a blue outline that was merely vague.
+   * With the program tally 03 gave it, it became a lie — three sources
+   * claiming the air at once, in a panel whose own header said "1 in
+   * mix".
+   *
+   * `whatIsOn` already knows the answer and is the same function the
+   * playout engine uses, so the tally cannot disagree with the
+   * transmitter. Exactly one of the first two can be true at a time.
+   */
+  const transmitting = on.kind !== 'off';
+  const roomOnProgram = on.kind === 'live';
+  const playerOnProgram = on.kind === 'programme' || on.kind === 'rotation'
+    || on.kind === 'emergency' || on.kind === 'backup';
+
   const tiles: {
     n: number; label: string; sub: string; live: boolean;
     stream?: MediaStream | null; source?: ProgrammeSource; href?: string;
@@ -2915,7 +2945,8 @@ function MultiView({
      * not a gallery button's.
      */
     {
-      n: 1, label: 'Camera 1', sub: 'Host', live: onAir && Boolean(camera),
+      n: 1, label: 'Camera 1', sub: 'Host',
+      live: roomOnProgram && Boolean(camera),
       stream: camera,
       ...(rolledIn ? { act: onBackToRoom } : {}),
       why: onAir
@@ -2956,7 +2987,7 @@ function MultiView({
     },
     {
       n: 5, label: 'Media Player', sub: scheduled ? nameOf(scheduled) : 'Idle',
-      live: Boolean(scheduled),
+      live: playerOnProgram && Boolean(scheduled),
       ...(scheduled ? { source: scheduled } : {}),
       ...(onAir && scheduled ? { act: () => onTake(scheduled) } : {}),
       why: scheduled
@@ -2967,7 +2998,9 @@ function MultiView({
     {
       n: 6, label: 'Graphics',
       sub: channel.identity?.bug?.text ?? channel.name,
-      live: Boolean(channel.identity?.bug || channel.identity?.lowerThird),
+      /* The identity layer is only ON anything while something is out. */
+      live: transmitting
+        && Boolean(channel.identity?.bug || channel.identity?.lowerThird),
       glyph: '◰',
       act: onGraphics,
       why: 'Open the identity controls',
