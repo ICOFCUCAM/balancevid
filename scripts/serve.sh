@@ -2,20 +2,31 @@
 #
 # The container entrypoint.  [Doctrine U-23, D-07]
 #
-# ROLE=all     the web tier and the worker, side by side  (default)
-# ROLE=web     the web tier only
-# ROLE=worker  the worker only
+# ROLE=all      the web tier, the worker and the playout engine  (default)
+# ROLE=web      the web tier only
+# ROLE=worker   the worker only
+# ROLE=playout  the broadcast encoder only
 #
 # They are separate processes in every case. U-23's rule is that the web tier
-# never invokes ffmpeg, and that holds whether the worker is beside it or on
+# never invokes ffmpeg, and that holds whether the others are beside it or on
 # another machine — so scaling them apart later is a ROLE change, not a code
-# change.
+# change. D-20 names the broadcast encoder as one of the seams that must not
+# be welded shut; `ROLE=playout` is that seam, usable today.
 #
-# If either process dies, this exits. That is deliberate: a container running a
+# THE PLAYOUT ENGINE WAS MISSING FROM HERE, and Online TV therefore never
+# transmitted a segment in any deployment. Everything upstream of it worked:
+# the schedule resolved, the control room was correct, the playlist named the
+# segments. Nothing wrote them. A channel is the one thing in this product
+# that is supposed to run while nobody is looking, and the process that makes
+# that true was the one the container did not start.
+#
+# If ANY of them dies, this exits. That is deliberate: a container running a
 # web tier with no worker looks healthy and quietly accepts recordings it will
-# never render. Better to fall over and let the platform restart, which is also
-# safe — an unfinished job is re-claimable and the shot cache (U-16) means a
-# re-run resumes rather than restarts.
+# never render, and one with no playout looks healthy and transmits nothing.
+# Better to fall over and let the platform restart, which is also safe — an
+# unfinished job is re-claimable, the shot cache (U-16) means a re-run resumes
+# rather than restarts, and the playout engine holds no state at all: it picks
+# up where the clock is, not where it left off.
 
 set -uo pipefail
 
@@ -79,18 +90,41 @@ start_worker() {
   pids+=($!)
 }
 
+# The broadcast encoder.  [CHANNEL §11, §18, D-20]
+#
+# A PROCESS, NOT A JOB: a broadcast does not finish, so it cannot live in the
+# queue without either holding the single consumer for ever or becoming nine
+# hundred jobs an hour whose only purpose is to not be that.
+#
+# It costs nothing on an instance with no channels — a pass over an empty list
+# makes no segments and sleeps — and on an instance with a channel it costs
+# exactly the encoding that channel asked for by being scheduled.
+start_playout() {
+  echo "serve: playout engine"
+  setsid "$BIN/tsx" src/playout/index.ts &
+  pids+=($!)
+}
+
 stop_all() {
   for pid in "${pids[@]}"; do
     kill -TERM -"$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true
   done
 }
 
-# Only the worker transcribes, so only the worker waits for models.
+# ONLY THE WORKER WAITS FOR MODELS, and in `all` it waits LAST.
+#
+# `ensure_models` fetches ~600 MB on first boot. Written the obvious way —
+# models, then the processes — it holds the channel off air and the web tier
+# unreachable for the length of a download that neither of them needs. A
+# channel is the one thing here that is supposed to be running while nobody
+# is looking, so it goes up first and the transcriber catches up.
 case "$ROLE" in
-  web)    start_web ;;
-  worker) ensure_models; start_worker ;;
-  all)    ensure_models; start_worker; start_web ;;
-  *) echo "serve: unknown ROLE '$ROLE' (want web, worker or all)" >&2; exit 64 ;;
+  web)     start_web ;;
+  worker)  ensure_models; start_worker ;;
+  playout) start_playout ;;
+  all)     start_playout; start_web; ensure_models; start_worker ;;
+  *) echo "serve: unknown ROLE '$ROLE' (want web, worker, playout or all)" >&2
+     exit 64 ;;
 esac
 
 # Exit as soon as ANY of them does, carrying its status out.

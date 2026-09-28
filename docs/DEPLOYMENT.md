@@ -58,7 +58,7 @@ transcript is a degraded conversation, not a broken one.
 
 | Variable | Default in the image | What it is |
 |---|---|---|
-| `ROLE` | `all` | `web`, `worker`, or `all` |
+| `ROLE` | `all` | `web`, `worker`, `playout`, or `all` |
 | `PORT` | `3000` | |
 | `BALANCEVID_VAR` | `/data` | The volume. Everything a user made. |
 | `BALANCEVID_MODELS` | `/models` | Baked into the image, not the volume: models are versioned with the code, conversations are not. |
@@ -165,13 +165,38 @@ Still not addressed:
 - **No quotas or render-cost metering** (D-11). Nothing caps what a signed-in
   user can consume.
 
+### The three processes
+
+| Role | What it does | Needed for |
+|---|---|---|
+| `web` | serves the application | everything |
+| `worker` | ffmpeg, transcription, rendering, rasterising decks | recording, exporting, slides |
+| `playout` | the broadcast encoder: writes the channel's segments | **Online TV transmitting at all** |
+
+`ROLE=all` runs all three, and that is the default.
+
+**Without `playout`, Online TV does not transmit.** The control room is
+correct, the schedule resolves and the playlist names its segments — and
+nothing writes them, so every segment answers 404 and a viewer's player
+never starts. The channel's own health lamp says so (CHANNEL §18), which is
+the only reason it is visible at all.
+
+It is cheap where it is idle: a pass over an instance with no channels makes
+no segments and sleeps. Where a channel *is* scheduled, it costs the
+encoding that channel asked for by being scheduled.
+
 ## Splitting the tiers
 
 When one machine stops being enough, the same image splits without a code
-change: run one service with `ROLE=web` and another with `ROLE=worker`. They
-must share `/data`, which on most hosts means a shared filesystem — and that
-is the point at which replacing the store with object storage (S3, R2, Blob)
-and the file queue with a hosted one stops being optional.
+change: run one service with `ROLE=web`, another with `ROLE=worker` and a
+third with `ROLE=playout`. They must share `/data`, which on most hosts means
+a shared filesystem — and that is the point at which replacing the store with
+object storage (S3, R2, Blob) and the file queue with a hosted one stops
+being optional.
+
+Only one machine may run `playout` for a given channel: the engine assumes it
+is the sole writer of that channel's stream directory. It holds no state of
+its own, so moving it is a restart rather than a migration.
 
 The interfaces for that already exist: `src/store/paths.ts` centralises where
 things live, `src/store/queue.ts` is the only queue, and `src/store/repository.ts`
