@@ -333,6 +333,7 @@ docs/DOCTRINE.md    the constitution
 docs/ROOM.md        the Conversation Room brief, and what building it taught
 docs/STUDIO-TWO.md  the Performance Studio brief, and what building it taught
 docs/CHANNEL.md     the Channel brief, and what building it taught
+docs/DESIGN.md      what the product is trying to look like, and why
 src/domain/         the Conversation and its projections — pure, no I/O
 src/render/         ffmpeg: ingest, compositor, subtitles — worker only
 src/store/          document, chunks, queue — split so the web tier
