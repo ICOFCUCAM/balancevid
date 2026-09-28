@@ -1,6 +1,7 @@
 import { isOwner } from '../../../../../src/auth/request.js';
 import { livePlaylist } from '../../../../../src/domain/playout.js';
 import { loadChannel } from '../../../../../src/store/channels.js';
+import { isPublished } from '../../../../../src/domain/channel.js';
 import { fail } from '../../../../../src/web/http.js';
 
 export const dynamic = 'force-dynamic';
@@ -33,8 +34,7 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
    * 404 rather than 403 for a stranger, for the reason every other route in
    * this product does it: that a draft exists is itself private. [D-03]
    */
-  const published = channel.publication && !channel.publication.unpublishedAt;
-  if (!published && !(await isOwner(request))) return fail(404, 'channel not found');
+  if (!isPublished(channel) && !(await isOwner(request))) return fail(404, 'channel not found');
 
   const body = livePlaylist(
     Date.now(), (index) => `/api/channels/${channel.id}/stream/${index}`);

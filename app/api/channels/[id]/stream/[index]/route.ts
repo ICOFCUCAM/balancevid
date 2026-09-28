@@ -1,6 +1,7 @@
 import { isOwner } from '../../../../../../src/auth/request.js';
 import { paths } from '../../../../../../src/store/paths.js';
 import { loadChannel } from '../../../../../../src/store/channels.js';
+import { isPublished } from '../../../../../../src/domain/channel.js';
 import { fail, serveFile } from '../../../../../../src/web/http.js';
 
 export const dynamic = 'force-dynamic';
@@ -30,8 +31,7 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
   } catch {
     return fail(404, 'not found');
   }
-  const published = channel.publication && !channel.publication.unpublishedAt;
-  if (!published && !(await isOwner(request))) return fail(404, 'not found');
+  if (!isPublished(channel) && !(await isOwner(request))) return fail(404, 'not found');
 
   return serveFile(
     request, paths.channelSegment(channel.id, Number(index)), 'video/mp2t');

@@ -6,7 +6,7 @@ import {
   removeFromBlock, removeFromRotation, removeProgramme, requestRecording,
   retitleProgramme, rollIn, scheduleProgramme, setEmergency, setFiller,
   addDestination, removeDestination, setBackup, setDestination, setIdentity,
-  skipToNext, takeLive,
+  skipToNext, takeLive, publishChannel, unpublishChannel,
 } from '../../../../src/domain/channelEdit.js';
 import {
   gaps, nextAfter, onAirAt, orderedProgrammes, overlaps, referencedAssets,
@@ -293,6 +293,17 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
         case 'close-ingest':
           closeIngest(draft, body['ingestId'], at,
             body['durationMs'] === undefined ? undefined : Number(body['durationMs']));
+          break;
+        /* ---- who may watch it (§17) ----------------------------------- */
+        /*
+         * Publishing moves no bytes. The playout engine was already writing
+         * segments; this decides who may fetch them. [D-18]
+         */
+        case 'publish':
+          publishChannel(draft, { at, author: body['author'] });
+          break;
+        case 'unpublish':
+          unpublishChannel(draft, at);
           break;
         case 'record':
           requestRecording(draft, {

@@ -128,6 +128,46 @@ describe('what a stranger may reach', () => {
     expect(mayBePublic('/api/published', 'GET')).toBe(true);
   });
 
+  /*
+   * A CHANNEL IS WATCHED, NOT DOWNLOADED.  [CHANNEL §17, D-18]
+   *
+   * The four paths a viewer needs, and the much longer list of things that
+   * would hand them the broadcaster's working material instead.
+   */
+  it('lets a published channel be watched', () => {
+    expect(mayBePublic('/t/chan_abc/watch', 'GET')).toBe(true);
+    expect(mayBePublic('/api/channels/chan_abc/playlist', 'GET')).toBe(true);
+    expect(mayBePublic('/api/channels/chan_abc/stream/4291', 'GET')).toBe(true);
+    expect(mayBePublic('/api/channels/chan_abc/now', 'GET')).toBe(true);
+  });
+
+  it('keeps the gallery, the schedule and the live ingest private', () => {
+    /* The document: the schedule, the ingests, the destinations, and every
+       reference on disk. */
+    expect(mayBePublic('/api/channels/chan_abc', 'GET')).toBe(false);
+    /* The control room itself. */
+    expect(mayBePublic('/t/chan_abc', 'GET')).toBe(false);
+    /* Everything that could be scheduled, which is every finished render. */
+    expect(mayBePublic('/api/channels/library', 'GET')).toBe(false);
+    expect(mayBePublic('/api/channels', 'GET')).toBe(false);
+    /* The pipe a broadcast arrives down. */
+    expect(mayBePublic('/api/channels/chan_abc/live', 'GET')).toBe(false);
+    expect(mayBePublic('/api/channels/chan_abc/live', 'POST')).toBe(false);
+    /* A segment is a number. A path pattern that took a name would be a
+       pattern somebody could walk out of. */
+    expect(mayBePublic('/api/channels/chan_abc/stream/live', 'GET')).toBe(false);
+    expect(mayBePublic('/api/channels/chan_abc/stream/../live', 'GET')).toBe(false);
+  });
+
+  it('never lets a stranger change a channel', () => {
+    for (const method of ['POST', 'PATCH', 'PUT', 'DELETE']) {
+      expect(mayBePublic('/t/chan_abc/watch', method)).toBe(false);
+      expect(mayBePublic('/api/channels/chan_abc/playlist', method)).toBe(false);
+      expect(mayBePublic('/api/channels/chan_abc/now', method)).toBe(false);
+      expect(mayBePublic('/api/channels/chan_abc', method)).toBe(false);
+    }
+  });
+
   it('keeps the studio, the drafts list and the job queue private', () => {
     expect(mayBePublic('/', 'GET')).toBe(false);
     expect(mayBePublic('/c/conv_abc', 'GET')).toBe(false);

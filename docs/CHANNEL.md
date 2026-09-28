@@ -784,3 +784,104 @@ set to `at-start` the marks are eight-second ticks at each join, not a bar
 across the day — so the lane is drawn as ticks on a dashed ground, and the
 gutter says `8s at each join`. The benchmark's single wide purple block is
 what `always` looks like, and the lane draws that too.
+
+## §17 — Who may watch
+
+> *"A published conversation is a Class A source. Anyone can open it."* [U-31]
+
+A channel gets the same clause and it needs a different shape, because the
+thing being published is not a file.
+
+**Publishing moves no bytes.** The playout engine was already writing
+segments; publishing decides who may fetch them. A channel that copied itself
+on being published would be D-18 broken at the last possible moment — after
+the schedule, the loop and the live buffer had all been careful about it.
+
+**A channel publishes as a channel, not as a render.** Every other document
+carries a `Publication` with a `planHash`, and it carries one because somebody
+following a link must watch a finished video rather than a document that may
+change under them. A channel breaks that on purpose: it has no render and
+never will — it is a clock, and changing under the viewer is the point of one.
+So it gets `ChannelPublication`, shaped so `accessTo` reads it without knowing
+which kind of document it came from. Loosening `planHash` to optional instead
+would have let a conversation be published with no render behind it and
+nothing would have caught it.
+
+**There has to be something to watch.** A performance cannot be published
+without a render; the channel's equivalent is that it must be able to fill
+airtime — a loop, a fixed slot, a day-part, filler or a safe playlist. A live
+session does not count: it ends, and what the viewer gets afterwards is the
+thing being checked.
+
+**Taking it off the air does not stop the transmission.** The engine keeps
+writing, because stopping the clock would mean the schedule resumed somewhere
+other than where the time says when it came back (§4). What stops is
+strangers being able to fetch it. And the record is set rather than deleted,
+so an audit can tell a channel that went dark from one that was never on.
+
+**Four public paths, and no more:**
+
+| Public | Private |
+| --- | --- |
+| `/t/{id}/watch` | `/t/{id}` — the control room |
+| `/api/channels/{id}/playlist` | `/api/channels/{id}` — the document |
+| `/api/channels/{id}/stream/{n}` | `/api/channels/library` |
+| `/api/channels/{id}/now` | `/api/channels/{id}/live` — the ingest |
+
+The segment index is digits in the pattern as well as in the route: a path
+rule that accepted a word would be a rule somebody could walk out of, and
+that one is the outer wall.
+
+**What is on is two sentences, not the document.** Serving the channel to a
+viewer would hand out the ingest ids, the destinations, the recordings and
+every reference in the schedule — the broadcaster's working material in
+exactly the sense a performance's takes are. `/now` returns a title, an
+instant and what is next. A slot with no title reads as the channel's name
+rather than as the document id behind it.
+
+**A failover is not announced.** An emergency or a backup reads as the
+channel's name to a viewer. They are being shown a caption card because
+something went wrong behind it, and captioning it "BACKUP" would be telling
+them about a problem they can do nothing about. [§9]
+
+**The viewer chases the live edge.** A player that buffers politely drifts
+further behind on every stall until it is a minute late to its own channel,
+so one that falls more than twelve seconds behind the last segment is pushed
+back to it. The one thing a live player must do that an on-demand one must
+not.
+
+---
+
+## C-8 — Stage 8: the last link
+
+**The gap was a dead reference, not a missing feature.** `Channel.publication`
+was declared on the type and enforced by the playlist and segment routes —
+and no edit in the codebase could ever set it. Every channel was permanently
+unpublished, so both routes 404'd for everyone but the owner. The comment in
+the playlist route saying "a published channel is public" had been true of
+nothing since it was written.
+
+**And the gate had never heard of channels.** `mayBePublic` is a default-closed
+allowlist, which is the right design and is why this was safe rather than
+leaky: the channel paths simply were not on it, so the route-level check was
+unreachable anyway. Two layers both said no, for two different reasons, and
+fixing one would not have been enough.
+
+**Nothing in the product could read an `.m3u8`.** A grep for `hls|Hls|m3u8`
+across `app/` returned nothing. Safari plays HLS natively; nothing else does,
+so `<video src="…m3u8">` is a black rectangle for most viewers. `hls.js` is
+loaded only where the browser has no native support — on an iPhone it never
+arrives.
+
+**`networkidle` never fires on a channel.** The first attempt to screenshot
+the viewer timed out waiting for the network to go quiet. It never does: a
+live stream fetches a segment every four seconds for ever. That is the test
+harness learning what a channel is.
+
+**A 30-minute slot over a 5-second render is black for 29:55**, and that is
+correct. The first end-to-end run produced byte-identical segments, which
+looked like a bug and was the seed data: a programme longer than its media
+and not marked `loop` goes black when the media ends. Marking it `loop` gave
+five distinct segments out of eight — a five-second film round a four-second
+window. The behaviour was right; the schedule was wrong, and the channel said
+so in the only way it can.

@@ -93,6 +93,30 @@ const PUBLIC_PATTERNS: RegExp[] = [
   /^\/api\/performances\/[A-Za-z0-9_-]+\/card$/,
   /^\/api\/performances\/[A-Za-z0-9_-]+\/renders\/[A-Za-z0-9_-]+\/file$/,
   /^\/api\/performances\/[A-Za-z0-9_-]+\/clips\/[A-Za-z0-9_-]+\/file$/,
+  /*
+   * A published channel.  [CHANNEL §17, U-31]
+   *
+   * Four paths, and they are the whole of what watching a channel needs: the
+   * page, the playlist, the segments it names, and what is on. Each route
+   * still checks that the channel IS published — this only decides which
+   * routes are allowed to make that call.
+   *
+   * WHAT IS NOT HERE is everything a broadcaster works with: the channel
+   * document (the schedule, the ingests, the destinations, every reference
+   * on disk), the library of things that could be scheduled, the list of
+   * channels, and the live ingest. A viewer gets the transmission, which is
+   * a stream of four-second segments and two sentences about what is in
+   * them — the same line the other two studios draw between the published
+   * artefact and the material it was made from.
+   *
+   * THE SEGMENT INDEX IS DIGITS, not a name. The route validates it again,
+   * but a path pattern that accepted a word would be a pattern somebody
+   * could walk out of, and this one is the outer wall.
+   */
+  /^\/t\/[A-Za-z0-9_-]+\/watch\/?$/,
+  /^\/api\/channels\/[A-Za-z0-9_-]+\/playlist$/,
+  /^\/api\/channels\/[A-Za-z0-9_-]+\/stream\/[0-9]{1,15}$/,
+  /^\/api\/channels\/[A-Za-z0-9_-]+\/now$/,
 ];
 
 /** Next's own assets, and the favicon. Never application data. */

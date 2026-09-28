@@ -20,8 +20,8 @@ import { describe, expect, it } from 'vitest';
 import {
   type Channel, type ProgrammeSource,
   gaps, nextAfter, onAirAt, orderedProgrammes, overlaps, programmeEnd,
-  referencedAssets, rotationAt, rotationLengthMs, rotationOffsets, sourceKey,
-  whatIsOn,
+  isPublished, referencedAssets, rotationAt, rotationLengthMs, rotationOffsets,
+  sourceKey, whatIsOn,
 } from '../../src/domain/channel.js';
 import {
   ChannelEditError,
@@ -31,6 +31,7 @@ import {
   moveProgramme, newChannel, openIngest, removeFromRotation, removeProgramme,
   faultLive, recoverLive, requestRecording, rollIn, scheduleProgramme,
   setBackup, setEmergency, setFiller, skipToNext, takeLive,
+  publishChannel, unpublishChannel,
 } from '../../src/domain/channelEdit.js';
 import {
   SEGMENT_MS, WINDOW_SEGMENTS,
@@ -1147,6 +1148,103 @@ describe('the channel identity is drawn, never burned in (§13, D-16)', () => {
     setIdentity(c, { spaceId: '  ' });
     expect(c.identity!.ink).toBe('#ffcc00');
     expect(c.identity!.spaceId).toBeUndefined();
+  });
+});
+
+describe('giving it an audience (§17, U-31, D-03)', () => {
+  /*
+   * PUBLISHING MOVES NO BYTES, which is D-18 holding at the last possible
+   * moment — after the schedule, the loop and the live buffer have all been
+   * careful about it. The playout engine was already writing segments; this
+   * decides who may fetch them.
+   */
+  it('publishes without touching a reference or an asset', () => {
+    const c = newChannel('Prof Class TV', 'UTC', AT);
+    addToRotation(c, { source: FILM, durationMs: HOUR }, AT);
+    const before = JSON.stringify({
+      r: c.rotation, p: c.programmes, i: c.ingests, rec: c.recordings,
+    });
+
+    publishChannel(c, { at: AT, author: 'Ico' });
+
+    expect(isPublished(c)).toBe(true);
+    expect(c.publication!.author).toBe('Ico');
+    expect(JSON.stringify({
+      r: c.rotation, p: c.programmes, i: c.ingests, rec: c.recordings,
+    })).toBe(before);
+    /* And the count that proves it: one file behind it, before and after. */
+    expect(referencedAssets(c)).toHaveLength(1);
+  });
+
+  /*
+   * A performance cannot be published without a render. The channel's
+   * equivalent is that it must be able to fill airtime — otherwise the link
+   * is a link to a black rectangle.
+   */
+  it('refuses a channel with nothing on it, and says which thing to do first', () => {
+    const c = newChannel('Prof Class TV', 'UTC', AT);
+    expect(() => publishChannel(c, { at: AT })).toThrow(/nothing on this channel/);
+    expect(isPublished(c)).toBe(false);
+  });
+
+  it('accepts a channel that can fill airtime any of the ways it can', () => {
+    const rotation = newChannel('A', 'UTC', AT);
+    addToRotation(rotation, { source: FILM, durationMs: HOUR }, AT);
+    expect(() => publishChannel(rotation, { at: AT })).not.toThrow();
+
+    const fixed = newChannel('B', 'UTC', AT);
+    scheduleProgramme(fixed, {
+      source: FILM, startsAt: AT, durationMs: HOUR,
+    }, AT);
+    expect(() => publishChannel(fixed, { at: AT })).not.toThrow();
+
+    /* A safe playlist is something to show, which is the whole of §9. */
+    const safe = newChannel('C', 'UTC', AT);
+    setBackup(safe, FILM);
+    expect(() => publishChannel(safe, { at: AT })).not.toThrow();
+  });
+
+  /*
+   * A station goes dark and comes back. The record should read as the same
+   * channel rather than as a new one, so the original date survives.
+   */
+  it('goes off air and back on as the same channel', () => {
+    const c = newChannel('Prof Class TV', 'UTC', AT);
+    addToRotation(c, { source: FILM, durationMs: HOUR }, AT);
+    publishChannel(c, { at: AT });
+    const first = c.publication!.publishedAt;
+
+    const later = new Date(Date.parse(AT) + 3 * HOUR).toISOString();
+    unpublishChannel(c, later);
+    expect(isPublished(c)).toBe(false);
+    /* Set rather than deleted: an audit can tell dark from never-on. */
+    expect(c.publication!.unpublishedAt).toBe(later);
+
+    const again = new Date(Date.parse(AT) + 4 * HOUR).toISOString();
+    publishChannel(c, { at: again });
+    expect(isPublished(c)).toBe(true);
+    expect(c.publication!.publishedAt).toBe(first);
+    expect(c.publication!.unpublishedAt).toBeUndefined();
+  });
+
+  it('will not take an unpublished channel off the air', () => {
+    const c = newChannel('Prof Class TV', 'UTC', AT);
+    expect(() => unpublishChannel(c, AT)).toThrow(/not published/);
+  });
+
+  /*
+   * THE CHANNEL KEEPS TRANSMITTING. Unpublishing is not a transport control:
+   * stopping the clock would mean the schedule resumed somewhere other than
+   * where the time says when it came back. [§4]
+   */
+  it('taking it off the air does not move the schedule', () => {
+    const c = newChannel('Prof Class TV', 'UTC', AT);
+    addToRotation(c, { source: FILM, durationMs: HOUR }, AT);
+    const at = Date.parse(AT) + 90 * 60 * 1000;
+    const before = whatIsOn(c, at);
+    publishChannel(c, { at: AT });
+    unpublishChannel(c, new Date(at).toISOString());
+    expect(whatIsOn(c, at)).toEqual(before);
   });
 });
 

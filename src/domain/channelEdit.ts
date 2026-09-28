@@ -961,3 +961,64 @@ export function setDestination(
   }
   return destination;
 }
+
+/* ------------------------------------------------------------------------ *
+ *  Giving it an audience.  [§17, U-31, D-03]
+ * ------------------------------------------------------------------------ */
+
+/**
+ * Put the channel on the air for other people.
+ *
+ * WHAT THIS DOES NOT DO is as much the point as what it does. It moves no
+ * bytes, writes no file and makes no render: the playout engine was already
+ * writing segments, and publishing only decides who may fetch them. A channel
+ * that copied itself on being published would be D-18 broken at the last
+ * possible moment — after the schedule, the loop and the live buffer had all
+ * been careful about it.
+ *
+ * THERE HAS TO BE SOMETHING TO WATCH. A performance cannot be published
+ * without a render; the channel's equivalent is that it must be able to fill
+ * airtime — a loop, a fixed slot, a day-part, or something to fall back on.
+ * Publishing an empty channel would hand somebody a link to a black
+ * rectangle, and the message says which thing to do first rather than
+ * reporting that something is missing.
+ *
+ * A LIVE SESSION IS NOT ENOUGH ON ITS OWN, deliberately: it ends, and what
+ * the viewer gets afterwards is the thing being checked here.
+ */
+export function publishChannel(
+  channel: Channel, options: { at: string; author?: string },
+): void {
+  const hasSomething = channel.rotation.length > 0
+    || channel.programmes.length > 0
+    || (channel.blocks ?? []).some((block) => block.rotation.length > 0)
+    || Boolean(channel.filler)
+    || Boolean(channel.backup);
+  if (!hasSomething) {
+    fail('there is nothing on this channel yet — put something in the loop, '
+      + 'or give it a time, before you publish it');
+  }
+  /*
+   * Re-publishing a channel that was taken off the air is publishing it, not
+   * an error: a station goes dark and comes back, and the record should read
+   * as the same channel rather than as a new one.
+   */
+  channel.publication = {
+    publishedAt: channel.publication?.publishedAt ?? options.at,
+    ...(options.author?.trim() ? { author: options.author.trim().slice(0, 120) } : {}),
+  };
+}
+
+/**
+ * Take it off the air.
+ *
+ * The transmission itself does not stop — the playout engine keeps writing,
+ * because a channel is a clock and stopping it would mean the schedule
+ * resumed somewhere other than where the time says when it came back (§4).
+ * What stops is strangers being able to fetch it.
+ */
+export function unpublishChannel(channel: Channel, at: string): void {
+  const publication = channel.publication
+    ?? fail('this channel is not published') as never;
+  publication.unpublishedAt = at;
+}

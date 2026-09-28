@@ -273,6 +273,9 @@ export default function ChannelStudio({
   const onAir = Boolean(session);
   const armed = session?.phase === 'armed';
   const emergency = Boolean(channel.emergency);
+  /** Whether a stranger with the link can watch this. [§17] */
+  const published = Boolean(
+    channel.publication && !channel.publication.unpublishedAt);
   const keeping = Boolean(
     channel.ingests.find((ingest) => ingest.id === session?.ingestId)?.keep);
   const turn = rotationLengthMs(channel);
@@ -352,6 +355,14 @@ export default function ChannelStudio({
   const clock = useCallback((at: number) => new Date(at).toLocaleTimeString('en-GB', {
     hour: '2-digit', minute: '2-digit', timeZone: channel.timezone,
   }), [channel.timezone]);
+
+  /*
+   * The origin, for the shareable link, and only once mounted: rendering
+   * `window.location` on the server is rendering something the server does
+   * not have, and guessing it is how a link goes out naming localhost.
+   */
+  const [origin, setOrigin] = useState('');
+  useEffect(() => { setOrigin(window.location.origin); }, []);
 
   /* ---- the timeline's window ------------------------------------------ */
   const windowNow = pinned ?? now;
@@ -1484,9 +1495,26 @@ export default function ChannelStudio({
             </span>
           </span>
 
+          {/*
+            * WHO CAN WATCH, where a broadcaster cannot miss it. An
+            * unpublished channel transmits perfectly and is reachable by
+            * nobody, and that is exactly the fault a control room full of
+            * green lamps would hide. [§17]
+            */}
+          <span className="row" data-testid="publish-lamp"
+                data-published={published ? 'true' : 'false'} style={{
+                  gap: 6, fontSize: 11, flex: '0 0 auto',
+                }}
+                title={published
+                  ? 'Anybody with the link can watch this channel.'
+                  : 'Only you can watch this. Publish it to give it an audience.'}>
+            <Dot on colour={published ? '#4f8a5b' : '#6a7078'} />
+            <span className="muted">{published ? 'Public' : 'Private'}</span>
+          </span>
+
           <a className="btn small" data-testid="view-channel"
-             href={`/api/channels/${id}/playlist`} target="_blank" rel="noreferrer"
-             title="The HLS playlist the playout engine is writing. This is the transmission."
+             href={`/t/${id}/watch`} target="_blank" rel="noreferrer"
+             title="Open the channel the way a viewer gets it: the transmission, twelve seconds behind."
              style={{ padding: '6px 11px', fontSize: 11, whiteSpace: 'nowrap' }}>
             View Channel
           </a>
@@ -1538,6 +1566,60 @@ export default function ChannelStudio({
                     + 'minute, then back to the loop.'
                   : 'Nothing set — a lost feed falls straight through to the loop.'}
               </p>
+              {/* ---- who can watch (§17, U-31) ----------------------- */}
+              <div className="row" style={{
+                borderTop: '1px solid var(--line)', paddingTop: 7,
+              }}>
+                <span className="grow" style={{ fontSize: 12, fontWeight: 600 }}>
+                  Audience
+                </span>
+                <button
+                  className="small" data-testid="publish-channel"
+                  onClick={() => {
+                    if (published) {
+                      if (!window.confirm(
+                        'Take the channel off the air for viewers? It keeps '
+                        + 'transmitting \u2014 the link simply stops working.')) return;
+                      void patch({ action: 'unpublish' });
+                      return;
+                    }
+                    const author = window.prompt(
+                      'Who is broadcasting? (optional)', '') ?? undefined;
+                    void patch({ action: 'publish', ...(author ? { author } : {}) });
+                  }}
+                  style={published
+                    ? { borderColor: '#8e6a1f', color: '#e0c14f', fontSize: 11 }
+                    : {
+                      background: '#2f6fd0', borderColor: '#2f6fd0', color: '#fff',
+                      fontSize: 11,
+                    }}
+                >
+                  {published ? 'Take off air' : 'Publish'}
+                </button>
+              </div>
+              <p className="small muted" style={{ margin: 0, fontSize: 11 }}>
+                {/*
+                  * SAID PLAINLY, because it is the one thing about publishing
+                  * a channel that is not obvious: nothing is copied and
+                  * nothing stops. [D-18, §17]
+                  */}
+                {published
+                  ? 'Anybody with the link can watch. Nothing was copied to '
+                    + 'publish it \u2014 the playout engine was already writing '
+                    + 'these segments.'
+                  : 'Only you can watch. Publishing moves no files; it decides '
+                    + 'who may fetch the segments already going out.'}
+              </p>
+              {published && (
+                <div className="row" style={{ gap: 6 }}>
+                  <input
+                    readOnly data-testid="public-link"
+                    value={`${origin}/t/${id}/watch`}
+                    onFocus={(event) => event.currentTarget.select()}
+                    style={{ fontSize: 11, padding: '5px 8px' }}
+                  />
+                </div>
+              )}
               <div className="row" style={{
                 borderTop: '1px solid var(--line)', paddingTop: 7, fontSize: 11,
               }}>

@@ -31,7 +31,6 @@
  */
 
 import type { Id } from './ids.js';
-import type { Publication } from './document.js';
 import type { ChannelIdentity } from './identity.js';
 import type { Destination } from './distribution.js';
 
@@ -501,9 +500,49 @@ export interface Channel {
    * discovered.
    */
   filler?: ProgrammeSource;
-  publication?: Publication;
+  publication?: ChannelPublication;
   createdAt: string;
   updatedAt: string;
+}
+
+/**
+ * A channel is published as a CHANNEL, not as a file.  [§17, U-31, D-03]
+ *
+ * Every other document in this product publishes a RENDER: `Publication`
+ * carries a `planHash`, and it carries it because somebody following a link
+ * must watch a finished video rather than a document that may change under
+ * them. That is a real guarantee and the other two studios depend on it.
+ *
+ * A channel breaks it on purpose. It has no render and never will — it is a
+ * clock, and changing under the viewer is the entire point of one. So a
+ * channel gets its own record rather than a loosened version of theirs: had
+ * `planHash` been made optional instead, a conversation could be published
+ * with no render behind it and nothing would catch it.
+ *
+ * It is deliberately shaped so `accessTo` reads it without knowing which kind
+ * of document it came from — that function asks one question, "is this
+ * public", and there is still only one answer to it.
+ */
+export interface ChannelPublication {
+  publishedAt: string;
+  /** Shown as the broadcaster, where one is given. */
+  author?: string;
+  /**
+   * Set rather than deleted, so an audit can tell a channel that was taken
+   * off the air from one that was never on it.
+   */
+  unpublishedAt?: string;
+}
+
+/**
+ * Is anybody allowed to watch this?
+ *
+ * One function, because the playlist route, the segment route and the viewer
+ * page each have to agree — and three copies of `publication && !unpublished`
+ * is three places to forget the second half.
+ */
+export function isPublished(channel: Channel): boolean {
+  return Boolean(channel.publication && !channel.publication.unpublishedAt);
 }
 
 /* ------------------------------------------------------------------------ *
