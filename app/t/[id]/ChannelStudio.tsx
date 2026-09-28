@@ -2274,10 +2274,10 @@ function Strip({
       borderBottom: compact ? 0 : 'var(--border) solid var(--line)',
       ...(compact
         ? {
-          border: 'var(--border) solid var(--line)',
-          borderRadius: 'var(--radius-md)', padding: 2,
-          background: 'var(--surface-sunk)',
-          boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.4)',
+          border: 'var(--border) solid var(--console-seam)',
+          borderRadius: '3px', padding: 2,
+          background: 'var(--console-inset)',
+          boxShadow: 'var(--console-well)',
         }
         : {}),
     }}>
@@ -2296,26 +2296,34 @@ function Strip({
                 : 'var(--space-4) var(--space-2)',
               minHeight: compact ? 24 : 32,
               font: 'inherit',
-              fontSize: compact ? 'var(--text-xs)' : 'var(--text-sm)',
-              fontWeight: chosen ? 'var(--weight-bold)' : 'var(--weight-medium)',
+              /*
+               * A TAB IS A LEGEND, NOT A LABEL. These name the five
+               * desks in the Live Studio and the three views of the
+               * schedule; they are signage, read by shape and position,
+               * and they were set as sentence-case UI text competing
+               * with everything else on the panel.
+               */
+              fontSize: 'var(--text-2xs)',
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              fontWeight: chosen ? 'var(--weight-bold)' : 'var(--weight-semi)',
               cursor: 'pointer',
-              color: chosen
-                ? (compact ? 'var(--ink-000)' : '#7fb4ee')
-                : 'var(--text-faint)',
-              background: compact
-                ? (chosen
-                  ? 'linear-gradient(180deg, var(--accent), var(--accent-deep))'
-                  : 'transparent')
-                : 'none',
+              /*
+               * THE CHOSEN SEGMENT WAS A FILLED BLUE CHIP with a
+               * gradient and a raise — the exact "bright SaaS button"
+               * the brief rules out for a selected state. On a desk a
+               * chosen segment is a LIT one: it comes forward by a
+               * couple of per cent of lightness and keeps a hard edge
+               * underneath it. The blue is in the edge, not the fill.
+               */
+              color: chosen ? 'var(--ink-000)' : 'var(--ink-300)',
+              background: compact && chosen
+                ? 'var(--console-control-hover)' : 'transparent',
               border: 0,
-              borderRadius: compact ? 'var(--radius-sm)' : 0,
-              borderBottom: compact
-                ? 0
-                : `2px solid ${chosen ? 'var(--accent)' : 'transparent'}`,
-              /* The raise: only the chosen segment leaves the track. */
-              boxShadow: compact && chosen
-                ? 'inset 0 1px 0 rgba(255,255,255,0.18), 0 1px 2px rgba(0,0,0,0.4)'
-                : 'none',
+              borderRadius: compact ? '2px' : 0,
+              borderBottom: `2px solid ${chosen
+                ? 'var(--accent)' : 'transparent'}`,
+              boxShadow: compact && chosen ? 'var(--console-bevel)' : 'none',
               transition: 'color var(--motion-fast) var(--ease-out),'
                 + ' background-color var(--motion-fast) var(--ease-out),'
                 + ' border-color var(--motion-fast) var(--ease-out)',
