@@ -1944,13 +1944,26 @@ function Strip({
   compact?: boolean;
 }) {
   return (
+    /*
+      * TWO SHAPES, ONE GRAMMAR. The wide strip heads a panel and marks
+      * its place with a rule beneath, the way a tab always has. The
+      * compact one is a SEGMENTED CONTROL — a track with a slider in it
+      * — and it is a different object because it does a different job:
+      * it lives inside a panel and switches a view rather than a place.
+      *
+      * The track is recessed and the chosen segment is raised out of it,
+      * so which one is selected is legible as depth before it is legible
+      * as colour. [elevation, D-04]
+      */
     <div className="row" data-testid={testid} style={{
       gap: 0, flexWrap: 'nowrap', flex: '0 0 auto',
-      borderBottom: compact ? 0 : '1px solid var(--line)',
+      borderBottom: compact ? 0 : 'var(--border) solid var(--line)',
       ...(compact
         ? {
-          border: '1px solid var(--line)', borderRadius: 8, padding: 2,
-          background: 'var(--panel-2)',
+          border: 'var(--border) solid var(--line)',
+          borderRadius: 'var(--radius-md)', padding: 2,
+          background: 'var(--surface-sunk)',
+          boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.4)',
         }
         : {}),
     }}>
@@ -1962,14 +1975,35 @@ function Strip({
             data-chosen={chosen ? 'true' : 'false'}
             onClick={() => onChange(option.id)}
             style={{
-              flex: compact ? '0 0 auto' : '1 1 0', padding: compact ? '4px 9px' : '9px 4px',
-              font: 'inherit', fontSize: compact ? 11 : 12,
-              fontWeight: chosen ? 700 : 500, cursor: 'pointer',
-              color: chosen ? (compact ? '#fff' : '#6fa9ea') : 'var(--muted)',
+              flex: compact ? '0 0 auto' : '1 1 0',
+              padding: compact
+                ? 'var(--space-2) var(--space-4)'
+                : 'var(--space-4) var(--space-2)',
+              minHeight: compact ? 24 : 32,
+              font: 'inherit',
+              fontSize: compact ? 'var(--text-xs)' : 'var(--text-sm)',
+              fontWeight: chosen ? 'var(--weight-bold)' : 'var(--weight-medium)',
+              cursor: 'pointer',
+              color: chosen
+                ? (compact ? '#fff' : '#7fb4ee')
+                : 'var(--text-faint)',
               background: compact
-                ? (chosen ? '#2f6fd0' : 'transparent') : 'none',
-              border: 0, borderRadius: compact ? 6 : 0,
-              borderBottom: compact ? 0 : `2px solid ${chosen ? '#2f6fd0' : 'transparent'}`,
+                ? (chosen
+                  ? 'linear-gradient(180deg, #3a7ad8, #2f6fd0)'
+                  : 'transparent')
+                : 'none',
+              border: 0,
+              borderRadius: compact ? 'var(--radius-sm)' : 0,
+              borderBottom: compact
+                ? 0
+                : `2px solid ${chosen ? '#3f8ee8' : 'transparent'}`,
+              /* The raise: only the chosen segment leaves the track. */
+              boxShadow: compact && chosen
+                ? 'inset 0 1px 0 rgba(255,255,255,0.18), 0 1px 2px rgba(0,0,0,0.4)'
+                : 'none',
+              transition: 'color var(--motion-fast) var(--ease-out),'
+                + ' background-color var(--motion-fast) var(--ease-out),'
+                + ' border-color var(--motion-fast) var(--ease-out)',
             }}
           >{option.label}</button>
         );
