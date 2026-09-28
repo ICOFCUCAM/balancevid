@@ -78,7 +78,7 @@ export default function CompositionRail({
     <aside data-testid="composition-rail" className="shell-scroll" style={{ paddingLeft: 2 }}>
       <div className="row" style={{ marginBottom: 10, gap: 8 }}>
         <span className="small muted grow" style={{
-          textTransform: 'uppercase', letterSpacing: 0.8, fontSize: 11,
+          textTransform: 'uppercase', letterSpacing: '0.1em', fontSize: 'var(--text-2xs)',
         }}>
           Composition
         </span>

@@ -178,7 +178,7 @@ export default function RoomView({
         {/* ---- who is here, and where they stand ---------------------- */}
         <aside className="shell-scroll" data-testid="people-rail" aria-label="People">
           <div className="small muted" style={{ textTransform: 'uppercase',
-            letterSpacing: 0.8, fontSize: 11, marginBottom: 8 }}>
+            letterSpacing: '0.1em', fontSize: 'var(--text-2xs)', marginBottom: 8 }}>
             In the room
           </div>
 
@@ -269,7 +269,7 @@ export default function RoomView({
         <section style={{ minHeight: 0, display: 'grid', gridTemplateRows: 'auto 1fr' }}>
           <div className="row" style={{ gap: 10, marginBottom: 8, flexWrap: 'nowrap' }}>
             <div className="small muted grow" style={{ textTransform: 'uppercase',
-              letterSpacing: 0.8, fontSize: 11 }}>
+              letterSpacing: '0.1em', fontSize: 'var(--text-2xs)' }}>
               On stage
             </div>
             {/*
@@ -437,7 +437,7 @@ export default function RoomView({
           {host ? (
             <>
               <div className="small muted" style={{ textTransform: 'uppercase',
-                letterSpacing: 0.8, fontSize: 11, marginBottom: 6 }}>
+                letterSpacing: '0.1em', fontSize: 'var(--text-2xs)', marginBottom: 6 }}>
                 Speaker mode
               </div>
               <div data-testid="speaker-mode" style={{ marginBottom: 8 }}>
@@ -508,7 +508,7 @@ export default function RoomView({
             /* A guest's side: what they may do, which is about themselves. */
             <div data-testid="guest-controls">
               <div className="small muted" style={{ textTransform: 'uppercase',
-                letterSpacing: 0.8, fontSize: 11, marginBottom: 6 }}>
+                letterSpacing: '0.1em', fontSize: 'var(--text-2xs)', marginBottom: 6 }}>
                 You
               </div>
               <p className="small muted" style={{ marginTop: 0, lineHeight: 1.45 }}>

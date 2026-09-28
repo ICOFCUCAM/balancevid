@@ -89,9 +89,7 @@ export default function ClipRail({
        */
       aria-label="Your responses"
     >
-      <div className="small muted" style={{
-        textTransform: 'uppercase', letterSpacing: 0.8, fontSize: 11, marginBottom: 8,
-      }}>
+      <div className="module-label" style={{ marginBottom: 8 }}>
         Your clips
       </div>
 
@@ -111,16 +109,31 @@ export default function ClipRail({
             data-selected={chosen ? 'true' : 'false'}
             onClick={() => onSelect(item.id)}
             {...rowMenu(item)}
+            /*
+              * A CLIP IS A SOURCE IN A RAIL, not a card in a feed. Each
+              * sat on its own panel with an 8px radius and eight pixels
+              * of gap, so eleven responses read as eleven objects rather
+              * than as one rail with eleven entries — and the chosen one
+              * was outlined AND tinted, which is two cues for one state.
+              *
+              * Same treatment as the playlist in 06 and Studio Two's
+              * takes in 25: a shared face, a hairline between
+              * neighbours, and the chosen one lit on its leading edge.
+              */
             style={{
-              display: 'block', width: '100%', textAlign: 'left', marginBottom: 8,
-              padding: 8, borderRadius: 8,
-              background: chosen ? 'var(--accent-wash)' : 'var(--panel)',
-              border: `1px solid ${chosen ? 'var(--accent)' : 'var(--line)'}`,
+              display: 'block', width: '100%', textAlign: 'left',
+              marginBottom: 4, padding: 8, borderRadius: 3,
+              background: chosen
+                ? 'var(--console-control-hover)' : 'var(--console-control)',
+              border: '1px solid var(--console-seam)',
+              boxShadow: chosen
+                ? 'inset 2px 0 0 var(--accent), var(--console-bevel-strong)'
+                : 'var(--console-bevel)',
             }}
           >
             <div style={{
               position: 'relative', width: '100%', aspectRatio: '16 / 9',
-              borderRadius: 5, overflow: 'hidden', background: '#0d1319',
+              borderRadius: 2, overflow: 'hidden', background: '#000',
               display: 'grid', placeItems: 'center', marginBottom: 6,
             }}>
               {item.posterUrl ? (

@@ -80,7 +80,7 @@ export default function InvitePanel({
   return (
     <div data-testid="invite-panel">
       <div className="small muted" style={{ textTransform: 'uppercase',
-        letterSpacing: 0.8, fontSize: 11, marginBottom: 6 }}>
+        letterSpacing: '0.1em', fontSize: 'var(--text-2xs)', marginBottom: 6 }}>
         {heading ?? 'Invite people to this conversation'}
       </div>
 

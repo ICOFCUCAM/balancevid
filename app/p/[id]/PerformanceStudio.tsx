@@ -723,7 +723,7 @@ export default function PerformanceStudio(
         {/* ---- what may be done with this music ---------------------- */}
         <section className="panel" data-testid="master-rights" style={{ padding: 12 }}>
           <div className="small muted" style={{ textTransform: 'uppercase',
-            letterSpacing: 0.8, fontSize: 11, marginBottom: 6 }}>
+            letterSpacing: '0.1em', fontSize: 'var(--text-2xs)', marginBottom: 6 }}>
             This music
           </div>
           {/*
@@ -809,7 +809,7 @@ export default function PerformanceStudio(
                  data-latency={latencySamples}
                  style={{ padding: 12, marginTop: 16 }}>
           <div className="small muted" style={{ textTransform: 'uppercase',
-            letterSpacing: 0.8, fontSize: 11, marginBottom: 6 }}>
+            letterSpacing: '0.1em', fontSize: 'var(--text-2xs)', marginBottom: 6 }}>
             This device
           </div>
           <div className="row" style={{ gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
