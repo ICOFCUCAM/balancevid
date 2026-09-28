@@ -1254,25 +1254,44 @@ export default function SwitchingStage({
          * panel 360, and a centre computed from unequal sides is not one.
          */
         gridTemplateColumns: '1fr auto 1fr',
-        border: '1px solid var(--line)', borderRadius: 10,
-        background: 'var(--panel)', padding: '10px 14px',
+        /*
+         * A TRANSPORT IS PART OF THE DESK. It was a rounded card
+         * floating under the stage; it is the strip the edit is driven
+         * from, which makes it the same object as Online TV's master
+         * control bar. Same face, same bevel, same 4px. [brief §12]
+         */
+        border: '1px solid var(--console-edge)',
+        borderRadius: 'var(--radius-module)',
+        background: 'var(--console-face)',
+        boxShadow: 'var(--console-bevel)',
+        padding: '9px 13px',
       }}>
         {/* ---- left: play, position, monitoring level ---------------- */}
         <div className="row" style={{ gap: 10, alignItems: 'center', minWidth: 0 }}>
-          <button className="primary" data-testid="player-play" disabled={!player.ready}
+          {/*
+            * A 40px BLUE CIRCLE IS A MEDIA-PLAYER BUTTON, which is the
+            * right object on a podcast page and the wrong one on a
+            * desk. Every transport ever built — tape, vision mixer,
+            * edit controller — uses square keys, because they sit in a
+            * row and a row of circles has gaps in it. Same key as
+            * Online TV's transport, which is now the same shape.
+            */}
+          <button className="ctl" data-testid="player-play"
+                  disabled={!player.ready}
                   onClick={() => (player.playing ? player.pause() : void player.play())}
                   title={player.playing ? 'Pause' : 'Play the song'}
                   style={{
-                    width: 40, height: 40, borderRadius: '50%', padding: 0,
-                    fontSize: 14, flex: '0 0 auto',
+                    width: 34, height: 30, padding: 0,
+                    fontSize: 12, flex: '0 0 auto',
                   }}>
             {player.playing ? '\u275a\u275a' : '\u25b6'}
           </button>
-          <span style={{
-            fontFamily: 'ui-monospace, monospace', fontSize: 13, flex: '0 0 auto',
+          <span className="mono readout" style={{
+            fontSize: 'var(--text-xs)', flex: '0 0 auto',
+            color: 'var(--ink-050)',
           }}>
             {formatMasterPosition(Math.round(player.position))}
-            <span className="muted"> / {clock(duration)}</span>
+            <span style={{ color: 'var(--ink-400)' }}> / {clock(duration)}</span>
           </span>
           {/*
             * MONITORING, NOT MIXING. This is how loud the song is in the room
@@ -1291,7 +1310,7 @@ export default function SwitchingStage({
               aria-label="Monitoring volume"
               value={Math.round(player.volume * 100)}
               onChange={(e) => player.setVolume(Number(e.target.value) / 100)}
-              style={{ width: 74, accentColor: '#3d7fd6' }}
+              style={{ width: 74, accentColor: 'var(--accent)' }}
             />
           </label>
         </div>
@@ -1310,13 +1329,27 @@ export default function SwitchingStage({
                     data-take-id={take.id}
                     onClick={() => choose(index)}
                     title={`${take.label} \u2014 key ${index + 1}`}
+                    /*
+                      * THE NUMBER KEYS ARE INPUTS ON A SWITCHER, and
+                      * they keep the take's own colour because that
+                      * colour is the thread running through the rail,
+                      * the stage badge and every block of the master.
+                      * What changes is the shape: 3px rather than 7,
+                      * and the armed one is marked with a tally along
+                      * its top edge rather than outlined in white —
+                      * an outline changes the key's size by two pixels
+                      * and the row shifts as you arm one. [§7]
+                      */
                     style={{
-                      width: 34, height: 34, borderRadius: 7, padding: 0,
-                      fontWeight: 700, fontSize: 13, cursor: 'pointer',
+                      width: 32, height: 30, borderRadius: 3, padding: 0,
+                      fontWeight: 'var(--weight-bold)',
+                      fontSize: 'var(--text-sm)', cursor: 'pointer',
                       color: '#0a0c10',
                       background: take.accent ?? '#3e7ca6',
-                      border: pending.includes(take.id)
-                        ? '2px solid #fff' : '1px solid rgba(0,0,0,0.35)',
+                      border: '1px solid rgba(0,0,0,0.4)',
+                      borderTop: pending.includes(take.id)
+                        ? '3px solid #fff' : '1px solid rgba(0,0,0,0.4)',
+                      boxShadow: 'var(--console-bevel)',
                     }}>
               {index + 1}
             </button>
