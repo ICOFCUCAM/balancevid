@@ -1,13 +1,20 @@
 /* One visual language for speaker identity, applied everywhere. [Doctrine U-20]
    Carried by shape and position as well as colour, so it survives greyscale
    and colour-blindness. */
+@import './styles/tokens.css';
+
 :root {
-  --bg: #0e0f11;
-  --panel: #17191c;
-  --panel-2: #1e2125;
-  --line: #2a2e33;
-  --text: #e8eaed;
-  --muted: #9aa1aa;
+  /*
+   * THE OLD NAMES, KEPT AND POINTED AT THE RAMP. Several hundred inline
+   * styles across three studios name `--panel-2` and `--line`, and a
+   * rename would be a diff touching every component to change nothing
+   * anybody can see. They are aliases now: the ramp is the truth, these
+   * are what the existing code calls parts of it, and they can be retired
+   * a surface at a time as each is worked on.
+   */
+  --bg: var(--surface-base);
+  --panel: var(--surface-raised);
+  --panel-2: var(--surface-float);
   --source-accent: #7f9bb5;
   --user-accent: #c2794f;
   --ok: #5c9c6b;

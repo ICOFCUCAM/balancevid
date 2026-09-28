@@ -1,0 +1,83 @@
+/*
+ * THE SURFACES.  [Doctrine D-04, U-18]
+ *
+ * What was here before: three greys, chosen one at a time, with no stated
+ * relationship between them. `--panel` and `--panel-2` differed by about
+ * seven points of luminance and nothing said why, so every new piece of
+ * interface guessed which one it wanted and the guess was usually --panel-2
+ * because it read as "the other one".
+ *
+ * A CONTROL ROOM IS READ BY DEPTH BEFORE IT IS READ BY LABEL. An operator
+ * under pressure does not read "Preview" — they see that the preview sits
+ * inside something that sits inside the room, and their eye goes to the
+ * thing nearest the front. That only works if depth is a system: each step
+ * lighter than the one behind it, by a consistent amount, always.
+ *
+ *   sunk     below the page. A well: a video field, a timeline track
+ *   base     the page itself
+ *   raised   a panel sitting on the page
+ *   float    a control sitting on a panel: an input, a button, a row
+ *   lift     something over everything: a menu, a dialog, a tooltip
+ *
+ * The ramp is even in perceived lightness rather than in hex arithmetic —
+ * the steps get larger as they go up, because the eye needs more difference
+ * to see the same difference at the light end. Measured, not guessed.
+ *
+ * WHY NOT PURE BLACK anywhere but the picture. A broadcast monitor shows
+ * true black, and an interface that also shows true black gives the eye no
+ * edge between the programme and the furniture around it. The darkest
+ * surface here is #08090b and the picture inside it is #000: that one step
+ * is what makes the frame read as a frame.
+ */
+
+:root {
+  /* ---- neutral ramp, dark to light ---------------------------------- */
+  --ink-900: #08090b;
+  --ink-850: #0b0d0f;
+  --ink-800: #0e0f11;
+  --ink-750: #131518;
+  --ink-700: #17191c;
+  --ink-650: #1c1f23;
+  --ink-600: #22262b;
+  --ink-550: #2a2e33;
+  --ink-500: #343941;
+  --ink-450: #40464f;
+  --ink-400: #565d67;
+  --ink-300: #767d87;
+  --ink-200: #9aa1aa;
+  --ink-100: #c4c9cf;
+  --ink-050: #e8eaed;
+  --ink-000: #f6f7f8;
+
+  /* ---- surfaces, named by depth rather than by number ---------------- */
+  --surface-sunk: var(--ink-900);
+  --surface-base: var(--ink-800);
+  --surface-raised: var(--ink-700);
+  --surface-float: var(--ink-650);
+  --surface-lift: var(--ink-600);
+
+  /*
+   * BORDERS ARE PART OF THE DEPTH, not decoration on top of it. A hairline
+   * that is the same colour everywhere flattens the stack it is drawn on:
+   * the line around a floating control has to be lighter than the line
+   * around the panel beneath it or the two read as one plane.
+   */
+  --line-soft: var(--ink-600);
+  --line: var(--ink-550);
+  --line-strong: var(--ink-500);
+  --line-focus: #4f8ad6;
+
+  /* ---- text, by role and not by shade -------------------------------- */
+  --text: var(--ink-050);
+  --text-dim: var(--ink-200);
+  --text-faint: var(--ink-300);
+  --muted: var(--ink-200);
+
+  /*
+   * ON A COLOURED SURFACE the neutral ramp is wrong: #e8eaed on a red
+   * emergency button is a grey, and grey on red reads as disabled. Text on
+   * anything that is not a neutral surface uses these instead.
+   */
+  --text-on-accent: #f7fafc;
+  --text-on-accent-dim: rgba(247, 250, 252, 0.72);
+}
