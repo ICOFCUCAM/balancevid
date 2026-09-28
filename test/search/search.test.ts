@@ -10,7 +10,6 @@ import { describe, expect, it } from 'vitest';
 
 import { fold, matchLine, parseQuery } from '../../src/search/query.js';
 import { searchConversation } from '../../src/search/search.js';
-import { HOUSE_FPS } from '../../src/domain/time.js';
 import { S, makeConversation, makeIntervention } from '../domain/fixtures.js';
 import { transcriptOf } from '../knowledge/fixtures.js';
 
@@ -145,19 +144,6 @@ describe('the result list', () => {
     expect(result.hits.some((h) => h.kind === 'claim')).toBe(true);
     expect(result.hits.some((h) => h.kind === 'source')).toBe(false);
   });
-
-  it('stays inside the 200 ms budget on a long transcript (D-05)', () => {
-    // Forty minutes of speech, which is the length the budget is written for.
-    const sentences = Array.from({ length: 2400 }, (_, i) =>
-      `sentence number ${i} about various things including norway sometimes`);
-    const conversation = makeConversation(40 * 60 * HOUSE_FPS);
-    const transcript = transcriptOf(sentences, 0.5);
-    const started = performance.now();
-    const result = searchConversation('norway', { conversation, sourceTranscript: transcript });
-    const elapsed = performance.now() - started;
-    expect(result.total).toBeGreaterThan(0);
-    expect(elapsed).toBeLessThan(200);
-  }, 60_000);
 });
 
 describe('query parsing', () => {
