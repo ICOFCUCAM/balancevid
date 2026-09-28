@@ -602,7 +602,7 @@ export default function SwitchingStage({
           data-layout={current?.layoutId ?? 'none'}
           style={{
             gridArea: 'stage', position: 'relative', aspectRatio: '16 / 9',
-            background: '#05070a', borderRadius: 10,
+            background: '#000', borderRadius: 2,
             border: '1px solid var(--line)', overflow: 'hidden',
           }}
         >
@@ -749,10 +749,19 @@ export default function SwitchingStage({
           {usableIds.length > 1 && (
             <div className="row" data-testid="stage-view" data-mode={allTakes ? 'all' : 'program'}
                  style={{
+                   /*
+                    * AN OSD CONTROL, printed on the monitor rather
+                    * than floated over it — same rule the programme
+                    * monitor's plates learned in 14. Square, opaque,
+                    * and the chosen half is LIT rather than filled
+                    * blue: at 11px over a picture, a 55%-alpha blue
+                    * fill is a coloured smear whose text is the first
+                    * thing to go.
+                    */
                    position: 'absolute', right: 10, top: 10, gap: 0,
-                   borderRadius: 6, overflow: 'hidden',
-                   border: '1px solid rgba(255,255,255,0.18)',
-                   background: 'rgba(5,7,10,0.78)',
+                   borderRadius: 2, overflow: 'hidden',
+                   border: '1px solid rgba(255,255,255,0.16)',
+                   background: 'rgba(0,0,0,0.74)',
                  }}>
               {([['program', 'Program'], ['all', 'All takes']] as const).map(([id, text]) => {
                 const on = (id === 'all') === allTakes;
@@ -763,8 +772,14 @@ export default function SwitchingStage({
                           onClick={() => setMultiview(id === 'all')}
                           style={{
                             border: 0, borderRadius: 0, padding: '4px 10px',
-                            fontSize: 11, cursor: 'pointer', color: 'inherit',
-                            background: on ? 'rgba(45,110,200,0.55)' : 'transparent',
+                            fontSize: 'var(--text-2xs)', cursor: 'pointer',
+                            letterSpacing: '0.07em', textTransform: 'uppercase',
+                            fontWeight: on
+                              ? 'var(--weight-bold)' : 'var(--weight-semi)',
+                            color: on ? 'var(--ink-000)' : 'rgba(255,255,255,0.58)',
+                            background: on ? 'rgba(255,255,255,0.1)' : 'transparent',
+                            borderBottom: `2px solid ${on
+                              ? 'var(--accent)' : 'transparent'}`,
                           }}>
                     {text}
                   </button>
@@ -794,7 +809,7 @@ export default function SwitchingStage({
         <aside data-testid="composition-panel" className="shell-scroll"
                style={{
                  position: 'absolute', inset: 0,
-                 border: '1px solid var(--line)', borderRadius: 10,
+                 border: '1px solid var(--console-edge)', borderRadius: 2,
                  padding: '4px 12px 8px', background: 'var(--panel)',
                }}>
           {sectionTitle('Composition')}

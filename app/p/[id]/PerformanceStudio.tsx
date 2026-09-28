@@ -486,12 +486,25 @@ export default function PerformanceStudio(
                         style={{
                           flex: '1 1 auto', minWidth: 0, display: 'flex',
                           gap: 9, alignItems: 'center', padding: 7,
-                          borderRadius: 9, textAlign: 'left', font: 'inherit',
+                          borderRadius: 3, textAlign: 'left', font: 'inherit',
                           color: 'inherit', cursor: 'pointer',
+                          /*
+                           * A TAKE IS A SOURCE, and the chosen one is
+                           * lit on its leading edge in the take's OWN
+                           * colour — the thread that runs through the
+                           * rail, the stage badge, the number key and
+                           * every block of the master video. It was
+                           * outlined in that colour and tinted blue,
+                           * which is two cues saying different things.
+                           */
                           background: chosen
-                            ? 'rgba(45,110,200,0.16)' : 'var(--panel-2)',
-                          border: `1px solid ${chosen
-                            ? (take.accent ?? '#3d7fd6') : 'var(--line)'}`,
+                            ? 'var(--console-control-hover)'
+                            : 'var(--console-control)',
+                          border: '1px solid var(--console-seam)',
+                          boxShadow: chosen
+                            ? `inset 3px 0 0 ${take.accent ?? '#3e7ca6'},`
+                              + ' var(--console-bevel-strong)'
+                            : 'var(--console-bevel)',
                         }}
                       >
                         {/*
@@ -568,7 +581,7 @@ export default function PerformanceStudio(
                     data-testid="performer-camera"
                     style={{
                       width: '100%', aspectRatio: '16 / 9', objectFit: 'cover',
-                      borderRadius: 8, background: '#0d1319',
+                      borderRadius: 2, background: '#000',
                       border: `2px solid ${recording.phase === 'recording'
                         ? '#e0674f' : 'var(--line)'}`,
                       display: recording.stream ? 'block' : 'none',
