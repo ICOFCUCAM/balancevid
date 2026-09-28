@@ -457,31 +457,68 @@ export default function SwitchingStage({
       key={key} type="button" data-testid={testid} data-option={key}
       data-chosen={isChosen ? 'true' : 'false'} disabled={opts.disabled}
       onClick={onPick} title={opts.title ?? label}
+      /*
+        * A CHOICE TILE IS A SWATCH OF THE RESULT, and the one that is
+        * chosen has to be findable in a grid of eight without reading
+        * eight labels. A tinted fill alone is not enough at this size:
+        * at 62px, eight tiles in two rows, the difference between
+        * rgba(45,110,200,0.22) and the panel behind it is a few points
+        * of luminance and the eye has to hunt.
+        *
+        * So the chosen one is RAISED as well as tinted — a real border,
+        * a highlight on its top edge and a shadow under it — while the
+        * rest stay flat in the group. Depth is found without hunting,
+        * and it survives greyscale. [D-04, U-19]
+        */
       style={{
         height: opts.height,
         display: 'flex', flexDirection: 'column', alignItems: 'center',
         justifyContent: opts.swatch ? 'flex-start' : 'center',
-        gap: 4, padding: opts.swatch ? 4 : '4px 3px',
-        borderRadius: 8, cursor: opts.disabled ? 'not-allowed' : 'pointer',
-        border: `1px solid ${isChosen ? '#3d7fd6' : 'var(--line)'}`,
-        background: isChosen ? 'rgba(45,110,200,0.22)' : 'var(--panel-2)',
-        color: 'inherit', font: 'inherit', fontSize: 10, lineHeight: 1.2,
-        opacity: opts.disabled ? 0.4 : 1, textAlign: 'center',
+        gap: 'var(--space-2)',
+        padding: opts.swatch ? 'var(--space-2)' : 'var(--space-2) 3px',
+        minHeight: 0,
+        borderRadius: 'var(--radius-md)',
+        cursor: opts.disabled ? 'not-allowed' : 'pointer',
+        border: `1px solid ${isChosen ? '#4f8ad6' : 'var(--line-soft)'}`,
+        background: isChosen
+          ? 'linear-gradient(180deg, rgba(79,138,214,0.26),'
+            + ' rgba(79,138,214,0.14))'
+          : 'var(--surface-float)',
+        boxShadow: isChosen
+          ? 'inset 0 1px 0 rgba(255,255,255,0.14), 0 2px 6px rgba(0,0,0,0.4)'
+          : 'inset 0 1px 0 rgba(255,255,255,0.025)',
+        color: 'inherit', font: 'inherit',
+        fontSize: 'var(--text-2xs)', lineHeight: 1.25,
+        fontWeight: isChosen ? 'var(--weight-semi)' : 'var(--weight-normal)',
+        opacity: opts.disabled ? 0.38 : 1, textAlign: 'center',
         ...(opts.basis ? { flex: `0 0 ${opts.basis}`, minWidth: 0 }
           : { width: '100%' }),
         overflow: 'hidden',
+        transition: 'box-shadow var(--motion-fast) var(--ease-out),'
+          + ' border-color var(--motion-fast) var(--ease-out),'
+          + ' background-color var(--motion-fast) var(--ease-out)',
       }}
     >
       {opts.swatch && (
+        {/*
+          * A COLOUR SWATCH IS A SAMPLE OF A RENDERED FRAME, so it gets
+          * the same inset hairline every picture in this product gets.
+          * Without it a light swatch bleeds into the tile around it and
+          * the sample has no edge — which is the one thing a sample
+          * needs.
+          */}
         <span aria-hidden="true" style={{
-          width: '100%', flex: '1 1 auto', minHeight: 0, borderRadius: 5,
+          width: '100%', flex: '1 1 auto', minHeight: 0,
+          borderRadius: 'var(--radius-xs)',
           background: opts.swatch,
+          boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.35)',
         }} />
       )}
       {opts.glyph && (
         <span aria-hidden="true" style={{
           flex: '0 0 auto', display: 'grid', placeItems: 'center',
-          color: isChosen ? '#7fb2ee' : 'var(--muted)',
+          color: isChosen ? '#9cc6f5' : 'var(--ink-400)',
+          transition: 'color var(--motion-fast) var(--ease-out)',
         }}>{opts.glyph}</span>
       )}
       <span style={{ flex: '0 0 auto' }}>{label}</span>
@@ -492,7 +529,16 @@ export default function SwitchingStage({
     <div className="row" style={{
       alignItems: 'baseline', justifyContent: 'space-between', margin: '9px 0 5px',
     }}>
-      <span style={{ fontSize: 13, fontWeight: 700 }}>{text}</span>
+      {/*
+        * The same signage treatment the control room's sub-heads take,
+        * so the two studios read as one product rather than as two
+        * projects that happen to share a bar. [D-04]
+        */}
+      <span style={{
+        fontSize: 'var(--text-2xs)', fontWeight: 'var(--weight-bold)',
+        letterSpacing: '0.07em', textTransform: 'uppercase',
+        color: 'var(--text-faint)',
+      }}>{text}</span>
       {aside}
     </div>
   );
