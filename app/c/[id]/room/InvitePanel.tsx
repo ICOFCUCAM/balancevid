@@ -141,20 +141,26 @@ export default function InvitePanel({
         </div>
       )}
 
-      <p className="small muted" style={{ marginTop: 12, marginBottom: 0, lineHeight: 1.4 }}>
-        Anyone with this link can join and be seen. They do not need an
-        account. If it reaches someone it should not have,{' '}
-        <button
-          data-testid="invite-rotate"
-          disabled={busy}
-          onClick={onRotate}
-          style={{ background: 'none', border: 'none', padding: 0, color: 'var(--source-accent)',
-            textDecoration: 'underline', cursor: 'pointer', font: 'inherit' }}
-        >
-          make a new link
-        </button>
-        {' '}— the old one stops working, and so does everyone who used it.
-      </p>
+      {/*
+        * A BUTTON, NOT A PARAGRAPH.
+        *
+        * This used to explain who the link lets in and what resetting it
+        * costs. Three lines of text above a control that does one thing:
+        * the explanation belongs on the control, where somebody reads it at
+        * the moment they are deciding, rather than every time they open the
+        * panel to send an invitation. The consequence is in the title.
+        */}
+      <button
+        className="small"
+        data-testid="invite-rotate"
+        disabled={busy}
+        onClick={onRotate}
+        title={'Replaces the invite link. The old one stops working and '
+          + 'everybody who joined with it is signed out.'}
+        style={{ marginTop: 12, width: '100%' }}
+      >
+        Guest Reset Link
+      </button>
     </div>
   );
 }

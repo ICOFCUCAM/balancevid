@@ -798,15 +798,23 @@ export default function ChannelStudio({
             </Frame>
 
             {/* ---- PREVIEW (NEXT) + MULTI-VIEW ------------------------- */}
+            {/*
+              * PREVIEW AND MULTI-VIEW SPLIT THE COLUMN, rather than Preview
+              * taking whatever its own 16:9 happened to come to. Aspect-
+              * locked, it shrank as the column narrowed while Program
+              * Output beside it flexed — so the two monitors that are meant
+              * to be read together stopped being the same height. [D-22]
+              */}
             <div style={{
               display: 'grid', gap: 10, minWidth: 0, minHeight: 0,
-              gridTemplateRows: 'auto minmax(0, 1fr)',
+              gridTemplateRows: 'minmax(0, 1fr) minmax(0, 1fr)',
             }}>
               <Frame testid="preview-next">
                 <Head text="Preview" sub="(Next)" />
                 <div style={{
-                  position: 'relative', aspectRatio: '16 / 9', margin: 9,
-                  background: '#05070a', borderRadius: 8, overflow: 'hidden',
+                  position: 'relative', flex: '1 1 auto', minHeight: 96,
+                  margin: 9, background: '#05070a', borderRadius: 8,
+                  overflow: 'hidden',
                   border: `1px solid ${armed ? '#e0c14f' : 'var(--line)'}`,
                 }}>
                   {/*
