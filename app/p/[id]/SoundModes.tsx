@@ -79,7 +79,12 @@ export default function SoundModes({
 
   return (
     <section style={{ marginTop: 18 }} data-testid="sound">
-      <h2 style={{ fontSize: 14, margin: '0 0 7px' }}>Sound</h2>
+      {/*
+        * A LEGEND, like every other section label in the product since
+        * 02. This was an `<h2>` at 14px — a document heading over three
+        * cards, in a room whose loudest thing should be the picture.
+        */}
+      <h2 className="module-label" style={{ margin: '0 0 7px' }}>Sound</h2>
 
       {/* Three across, because they are three answers to one question and a
           column of three makes the third look like an afterthought. */}

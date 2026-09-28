@@ -1343,7 +1343,7 @@ export default function SwitchingStage({
             * knows them. A second button that started a render would be a
             * second place the rights gate could be got wrong. [§14, INV-15]
             */}
-          <button className="primary" data-testid="to-master"
+          <button className="ctl" data-testid="to-master"
                   disabled={ordered.length === 0}
                   onClick={() => document.querySelector('[data-testid="master-render"]')
                     ?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>

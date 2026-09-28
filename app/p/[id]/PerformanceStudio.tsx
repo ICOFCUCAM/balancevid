@@ -399,22 +399,28 @@ export default function PerformanceStudio(
                 justifyContent: 'space-between', alignItems: 'center', gap: 8,
               }}>
                 <span className="row" style={{ gap: 7, alignItems: 'center' }}>
-                  <span style={{ fontSize: 15, fontWeight: 700 }}>Takes</span>
-                  <span className="small muted" data-testid="take-count" style={{
-                    fontSize: 11, padding: '1px 7px', borderRadius: 9,
-                    background: 'var(--panel-2)', border: '1px solid var(--line)',
-                  }}>{performance.takes.length}</span>
+                  <span className="module-label">Takes</span>
+                  {/*
+                    * A COUNT IS A NUMBER, not a pill. It sat in a
+                    * rounded capsule with its own border — the shape
+                    * of a notification badge, which is a thing you are
+                    * supposed to act on. This is how many takes there
+                    * are.
+                    */}
+                  <span className="mono readout" data-testid="take-count" style={{
+                    fontSize: 'var(--text-2xs)', color: 'var(--ink-400)',
+                  }}>{String(performance.takes.length).padStart(2, '0')}</span>
                 </span>
                 {recording.phase === 'idle' && (
                   <button
-                    className="primary" data-testid="arm" disabled={!ready}
+                    className="ctl" data-testid="arm" disabled={!ready}
                     title={'Opens the camera and loads the song into your headphones. '
                       + 'Wear them — a song out loud goes into the microphone with your '
                       + 'voice, and the video then carries it twice.'}
                     onClick={() => void recording.arm()}
-                    style={{ padding: '6px 11px', fontSize: 12, flex: '0 0 auto' }}
+                    style={{ padding: '6px 11px', flex: '0 0 auto' }}
                   >
-                    {ready ? '+ Record Take' : 'Preparing\u2026'}
+                    {ready ? '+ Record take' : 'Preparing\u2026'}
                   </button>
                 )}
               </div>
