@@ -3,6 +3,7 @@
    and colour-blindness. */
 @import './styles/tokens.css';
 @import './styles/type.css';
+@import './styles/space.css';
 
 :root {
   /*
@@ -21,7 +22,7 @@
   --ok: #5c9c6b;
   --warn: #c99a2e;
   --bad: #d05a48;
-  --radius: 10px;
+  --radius: var(--radius-lg);
 }
 * { box-sizing: border-box; }
 html, body {
@@ -84,8 +85,11 @@ h3 { font-size: var(--text-md); }
 .muted { color: var(--muted); }
 .small { font-size: var(--text-base); }
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
-.row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.panel {
+  background: var(--surface-raised); border: var(--border) solid var(--line);
+  border-radius: var(--radius-lg); padding: var(--space-6);
+}
+.row { display: flex; gap: var(--space-5); align-items: center; flex-wrap: wrap; }
 .grow { flex: 1 1 auto; }
 button, .btn {
   font: inherit; font-weight: 560; color: var(--text); background: var(--panel-2);
@@ -100,7 +104,7 @@ input, select, textarea {
   border: 1px solid var(--line); border-radius: 8px; padding: 9px 11px; width: 100%;
 }
 label { display: block; font-size: var(--text-base); color: var(--muted); margin-bottom: 4px; }
-.field { margin-bottom: 12px; }
+.field { margin-bottom: var(--space-5); }
 video { width: 100%; background: #000; border-radius: 8px; display: block; }
 /* Respect reduced motion in the UI, per D-04. */
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
