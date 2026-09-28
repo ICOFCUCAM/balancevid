@@ -2098,15 +2098,41 @@ function Row({
   return (
     <div
       data-testid={testid} {...dataset}
+      /*
+        * A LIST OF ROWS IS READ AS A LIST, NOT AS A STACK OF CARDS. Every
+        * row carried its own full border, so twenty rows drew forty
+        * horizontal lines and the eye had to work out which pairs
+        * belonged together. A row is now a surface with a hairline
+        * UNDER it — one line between neighbours instead of two — and the
+        * list reads as a column rather than as a pile.
+        *
+        * The chosen row is the exception and keeps a full outline plus a
+        * marker on its leading edge, because it is no longer one of the
+        * list: it is the one you picked.
+        */
       style={{
-        display: 'flex', gap: 9, alignItems: 'center', padding: 6,
-        borderRadius: 9, marginBottom: 5,
-        background: chosen ? 'rgba(45,110,200,0.16)' : 'var(--panel-2)',
-        border: `1px solid ${chosen ? '#3d7fd6' : 'var(--line)'}`,
+        display: 'flex', gap: 'var(--space-3)', alignItems: 'center',
+        padding: 'var(--space-3)',
+        borderRadius: chosen ? 'var(--radius-md)' : 'var(--radius-sm)',
+        marginBottom: 2,
+        background: chosen ? 'rgba(63,142,232,0.14)' : 'var(--surface-float)',
+        border: `1px solid ${chosen ? '#3f8ee8' : 'transparent'}`,
+        borderBottom: chosen
+          ? '1px solid #3f8ee8'
+          : '1px solid var(--ink-700)',
+        boxShadow: chosen ? 'inset 3px 0 0 #3f8ee8' : 'none',
+        transition: 'background-color var(--motion-fast) var(--ease-out)',
       }}
     >
-      <span className="mono muted" style={{
-        flex: '0 0 auto', width: 13, fontSize: 10, textAlign: 'right',
+      {/*
+        * THE ORDINAL IS FURNITURE. It tells you where you are in a loop
+        * and is never the thing being looked for, so it sits at the
+        * faintest tone the ramp offers — present when counted, silent
+        * when scanned.
+        */}
+      <span className="mono" style={{
+        flex: '0 0 auto', width: 14, fontSize: 'var(--text-2xs)',
+        textAlign: 'right', color: 'var(--ink-400)',
       }}>{index}</span>
       <button
         type="button" onClick={onClick}
@@ -2117,30 +2143,45 @@ function Row({
           cursor: onClick ? 'pointer' : 'default',
         }}
       >
+        {/*
+          * THE THUMBNAIL IS A WELL, like every other picture in the
+          * product: recessed, 16:9, and dark inside so an empty one
+          * reads as "nothing here yet" rather than as a broken image.
+          */}
         <span style={{
-          flex: '0 0 auto', width: 62, height: 36, borderRadius: 5,
-          overflow: 'hidden', position: 'relative', background: '#0d1319',
-          border: '1px solid var(--line)',
+          flex: '0 0 auto', width: 62, height: 35,
+          borderRadius: 'var(--radius-xs)',
+          overflow: 'hidden', position: 'relative', background: '#000',
+          boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.07),'
+            + ' inset 0 1px 3px rgba(0,0,0,0.6)',
         }}>
           {source ? <Thumb source={source} /> : null}
         </span>
         <span style={{ minWidth: 0, flex: 1 }}>
           <span className="row" style={{ gap: 6 }}>
             <span style={{
-              fontWeight: 600, fontSize: 12, minWidth: 0, overflow: 'hidden',
+              fontWeight: 'var(--weight-semi)', fontSize: 'var(--text-sm)',
+              minWidth: 0, overflow: 'hidden', letterSpacing: '-0.005em',
               textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             }}>{title}</span>
             {badge}
           </span>
-          <span className="muted" style={{
-            fontSize: 10, display: 'block', overflow: 'hidden',
+          <span style={{
+            fontSize: 'var(--text-2xs)', display: 'block', overflow: 'hidden',
             textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            color: 'var(--text-faint)', marginTop: 1,
           }}>{subtitle}</span>
         </span>
       </button>
-      <span className="mono muted" style={{ flex: '0 0 auto', fontSize: 10 }}>
-        {duration}
-      </span>
+      {/*
+        * THE DURATION IS A NUMBER IN A COLUMN and must line up with the
+        * ones above and below it, or a list of times reads as a ragged
+        * edge. Tabular figures and a right edge do that. [U-08]
+        */}
+      <span className="mono" style={{
+        flex: '0 0 auto', fontSize: 'var(--text-2xs)',
+        color: 'var(--text-faint)', fontVariantNumeric: 'tabular-nums',
+      }}>{duration}</span>
       {menu}
     </div>
   );
@@ -2159,13 +2200,25 @@ function Menu({ children }: { children: React.ReactNode }) {
       position: 'relative', flex: '0 0 auto',
     }}>
       <summary style={{
-        listStyle: 'none', cursor: 'pointer', padding: '0 4px',
-        color: 'var(--muted)', fontSize: 13,
+        listStyle: 'none', cursor: 'pointer',
+        padding: '0 var(--space-2)', borderRadius: 'var(--radius-xs)',
+        color: 'var(--ink-400)', fontSize: 'var(--text-base)',
+        lineHeight: 1,
       }}>&#8943;</summary>
-      <div className="panel" style={{
-        position: 'absolute', right: 0, top: '100%', zIndex: 30, padding: 5,
-        width: 170, display: 'flex', flexDirection: 'column', gap: 2,
-        boxShadow: '0 10px 28px rgba(0,0,0,0.5)',
+      {/*
+        * A MENU IS THE ONLY THING IN THIS ROOM ALLOWED TO FLOAT, so it
+        * takes the third elevation and a lighter surface than anything
+        * beneath it. Without that it opens as a panel-coloured rectangle
+        * on a panel and reads as part of the page rather than over it.
+        */}
+      <div style={{
+        position: 'absolute', right: 0, top: 'calc(100% + 4px)', zIndex: 30,
+        padding: 'var(--space-2)', width: 176,
+        display: 'flex', flexDirection: 'column', gap: 1,
+        background: 'var(--surface-lift)',
+        border: 'var(--border) solid var(--line-strong)',
+        borderRadius: 'var(--radius-md)',
+        boxShadow: 'var(--elev-3)',
       }}>{children}</div>
     </details>
   );
