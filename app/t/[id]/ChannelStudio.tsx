@@ -2370,7 +2370,10 @@ function PlaylistRail({
 }) {
   if (channel.rotation.length === 0) {
     return (
-      <p className="small muted" style={{ margin: 0, fontSize: 11 }}>
+      <p className="empty" style={{
+        margin: 0, padding: 'var(--space-8) var(--space-5)',
+        fontSize: 'var(--text-xs)', maxWidth: '30ch',
+      }}>
         Nothing in the loop. Put something here and the channel is never off
         air — it plays round and round until a fixed slot pre-empts it.
       </p>
@@ -2503,7 +2506,10 @@ function SchedulesRail({
   return (
     <>
       {listing.length === 0 ? (
-        <p className="small muted" style={{ margin: 0, fontSize: 11 }}>
+        <p className="empty" style={{
+          margin: 0, padding: 'var(--space-8) var(--space-5)',
+          fontSize: 'var(--text-xs)', maxWidth: '30ch',
+        }}>
           No fixed times. Everything comes from the loop, which is a perfectly
           good channel — a fixed slot is for the thing that has to be at nine.
         </p>
