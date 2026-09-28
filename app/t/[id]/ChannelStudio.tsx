@@ -3958,9 +3958,24 @@ function Thumb({ source }: { source: ProgrammeSource }) {
   const url = urlFor(source);
   if (!url) {
     return (
-      <span aria-hidden="true" className="muted" style={{
+      /*
+        * A THING WITH NO PICTURE SHOULD LOOK DELIBERATE, NOT EMPTY. A
+        * flat slab with a word on it is what a broken image looks like;
+        * fine diagonal hatching is what an EMPTY SLOT looks like, and
+        * broadcast tools have used exactly that to mean "no signal here"
+        * for as long as there have been racks.
+        *
+        * The hatch is drawn in CSS at 4px, faint enough to read as
+        * texture rather than as a pattern demanding attention, and the
+        * word sits on top of it saying which kind of nothing this is.
+        */
+      <span aria-hidden="true" style={{
         position: 'absolute', inset: 0, display: 'grid', placeItems: 'center',
-        fontSize: 9, background: '#121820',
+        fontSize: 'var(--text-2xs)',
+        fontWeight: 'var(--weight-bold)', letterSpacing: '0.08em',
+        color: 'var(--ink-400)',
+        background: 'repeating-linear-gradient(45deg,'
+          + ' var(--ink-800) 0 3px, var(--ink-750) 3px 6px)',
       }}>{source.kind === 'live' ? 'LIVE' : 'EVENT'}</span>
     );
   }

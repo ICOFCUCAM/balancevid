@@ -597,9 +597,19 @@ function Poster({
   const { show, imgProps } = useStill(poster);
   if (!show) {
     return (
-      <span className="muted" style={{
+      /*
+        * THE SAME HATCH THE CONTROL ROOM USES FOR AN EMPTY SLOT, so a
+        * recording with no still yet and a schedule slot with no source
+        * look like the same kind of nothing in both studios. A flat
+        * panel with a word on it reads as a failed image; hatching
+        * reads as a slot that is simply not filled.
+        */
+      <span style={{
         position: 'absolute', inset: 0, display: 'grid', placeItems: 'center',
-        fontSize: 11,
+        fontSize: 'var(--text-2xs)', letterSpacing: '0.06em',
+        fontWeight: 'var(--weight-semi)', color: 'var(--ink-400)',
+        background: 'repeating-linear-gradient(45deg,'
+          + ' var(--ink-800) 0 3px, var(--ink-750) 3px 6px)',
       }}>{empty}</span>
     );
   }
