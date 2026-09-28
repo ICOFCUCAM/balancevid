@@ -216,3 +216,79 @@ describe('a colour that carries a word', () => {
     }
   });
 });
+
+/**
+ * THE CONSOLE FACES ARE DARKER THAN THE RAMP WAS TUNED AGAINST.
+ * [Doctrine D-04, CHANNEL §1]
+ *
+ * The neutral ramp's dim tones were measured against `--surface-*`,
+ * whose lightest member is #22262b. The control room's module faces sit
+ * BELOW that — #101317 for a face, #0a0c0f for the chassis — because a
+ * desk is darker than a page, and a tone checked on one is not checked
+ * on the other.
+ *
+ * It bit immediately: `--ink-450` on a module face is 1.96:1, and it was
+ * the obvious pick for a panel's quietest legend. This suite is the
+ * reason that lasted one commit.
+ */
+describe('the console surfaces', () => {
+  const CONSOLE = readFileSync(join(STYLES, 'console.css'), 'utf8');
+  const ink = tokens();
+  const face = (name: string) => {
+    const found = new RegExp(`--console-${name}:\\s*(#[0-9a-f]{6});`, 'i')
+      .exec(CONSOLE);
+    return found?.[1] ?? '';
+  };
+
+  it('declares a chassis, a face and a control', () => {
+    for (const name of ['chassis', 'face', 'control']) {
+      expect(face(name), `--console-${name} was not parsed`)
+        .toMatch(/^#[0-9a-f]{6}$/i);
+    }
+  });
+
+  /*
+   * THE STEP BETWEEN LEVELS IS DELIBERATELY NEAR THE THRESHOLD. "The
+   * difference between surfaces should be barely perceptible but
+   * intentional." Barely perceptible has a floor as well as a ceiling:
+   * below about 1.02 the seam disappears on a cheap panel, and above
+   * about 1.25 the layout reads as a stack of cards again — which is
+   * the thing this whole pass is removing.
+   */
+  it.each([
+    ['chassis', 'face'],
+    ['face', 'control'],
+  ])('steps from %s to %s without becoming a card', (lower, upper) => {
+    const got = contrast(face(lower), face(upper));
+    expect(got, `${lower}→${upper} is ${got.toFixed(3)}:1`)
+      .toBeGreaterThan(1.02);
+    expect(got, `${lower}→${upper} is ${got.toFixed(3)}:1 — that is a card`)
+      .toBeLessThan(1.25);
+  });
+
+  /*
+   * AND EVERY TONE THE CONSOLE WRITES ON A FACE STILL HAS TO BE READ.
+   * A module's label is text somebody reads to know what they are
+   * looking at, so it takes the text bar on the darkest face it can
+   * appear on.
+   */
+  it('keeps a module label legible on every face', () => {
+    for (const surface of ['chassis', 'face', 'control']) {
+      const got = contrast(ink['ink-300']!, face(surface));
+      expect(got, `ink-300 on the ${surface} is ${got.toFixed(2)}:1`)
+        .toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  /*
+   * ink-450 IS BANNED FROM A CONSOLE FACE, by name, because it is the
+   * tone somebody reaches for when they want something quiet and it is
+   * the one that does not work here.
+   */
+  it('never writes a legend in the tone that fails here', () => {
+    const offenders = [...CONSOLE.matchAll(/color:\s*var\(--ink-450\)/g)];
+    expect(offenders.length,
+      'ink-450 is 1.96:1 on a module face — use ink-400 or lighter')
+      .toBe(0);
+  });
+});

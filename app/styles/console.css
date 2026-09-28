@@ -1,0 +1,347 @@
+/*
+ * A CONSOLE, NOT A PAGE OF CARDS.  [Doctrine D-04, D-24, CHANNEL §1]
+ *
+ * THE DIAGNOSIS, from looking at the control room from across the room:
+ * eight independently bordered rounded rectangles, evenly spaced, each
+ * one the same tone and the same radius as the last. Playlist, Program
+ * Output, Preview, Multi-view, Live Studio, Schedule — all drawn as
+ * peers, all floating, none of them touching. That is the visual grammar
+ * of a SaaS dashboard, and it is wrong here for a reason that is not
+ * taste: a dashboard is a set of independent widgets you read, and a
+ * control room is ONE INSTRUMENT you operate. The grammar was telling
+ * the truth about a different product.
+ *
+ * WHAT A REAL DESK LOOKS LIKE. Modules are machined into a chassis. They
+ * share edges. The seams between them are hairlines, not gutters. The
+ * panel faces are within a few per cent of each other in lightness and
+ * the eye reads the layout by ALIGNMENT and by what is bright, not by
+ * counting outlines. Nothing floats, because nothing on a desk floats.
+ *
+ * SO THE RULES HERE ARE SUBTRACTIVE:
+ *
+ *   A SEAM RATHER THAN A GUTTER. Adjacent modules share one hairline
+ *     instead of each drawing its own border with a gap between them.
+ *     Two borders and a gap is three lines where one is meant.
+ *   A RADIUS YOU DO NOT NOTICE. The chassis has a radius; the modules
+ *     inside it mostly do not. A 10px radius repeated eight times is
+ *     eight soft rectangles, which is the single strongest "web app"
+ *     signal an interface can emit.
+ *   NO DROP SHADOW ON A MODULE. Shadow means "above the page". A module
+ *     is IN the desk. Depth comes from one pixel of light along its top
+ *     edge, which is what a physical bevel does.
+ *   THE FACE IS ALMOST THE SAME TONE AS THE CHASSIS. Three levels, and
+ *     the step between them is deliberately near the threshold of
+ *     perception: present when looked for, silent when scanned.
+ *
+ * WHAT THIS FILE IS NOT. It is not a new component system and it does
+ * not move anything. Every rule here is a face for a container that
+ * already exists, applied by adding a class to it. The containers, the
+ * layout, the controls and the data are exactly where they were. [D-19]
+ */
+
+:root {
+  /*
+   * THE CHASSIS AND ITS MODULES.
+   *
+   * Measured rather than picked: the step from chassis to face is ~1.5%
+   * in relative luminance and from face to control ~1.3%. Both are above
+   * the threshold where an edge is visible and far below the point where
+   * the layout reads as a stack of cards.
+   */
+  --console-chassis: #0a0c0f;
+  --console-face: #101317;
+  --console-inset: #0c0f13;
+  --console-control: #161a1f;
+  --console-control-hover: #1b2026;
+
+  /*
+   * ONE BORDER LANGUAGE, four weights, and the product uses the quietest
+   * one almost everywhere. "A premium interface knows where not to draw
+   * a line."
+   */
+  --console-seam: #1b1f25;     /* between two modules that touch */
+  --console-edge: #232830;     /* around a module that stands alone */
+  --console-rule: #191d23;     /* a separator inside a module */
+  --console-live: var(--state-live);
+
+  /*
+   * THE BEVEL. One pixel of light along the top, nothing else. On a
+   * near-black face a drop shadow is invisible and a stronger one is a
+   * smudge; a light top edge is how every physical panel catches a room
+   * light, and the eye reads it as height without being told.
+   */
+  --console-bevel: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+  --console-bevel-strong: inset 0 1px 0 rgba(255, 255, 255, 0.055);
+  --console-well: inset 0 1px 2px rgba(0, 0, 0, 0.55);
+
+  /* Modest, and consistent. A module barely rounds; a control rounds. */
+  --radius-module: 4px;
+  --radius-control: 4px;
+}
+
+/* ------------------------------------------------------------------- *
+ *  A module.
+ * ------------------------------------------------------------------- */
+
+.module {
+  background: var(--console-face);
+  border: var(--border) solid var(--console-edge);
+  border-radius: var(--radius-module);
+  box-shadow: var(--console-bevel);
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/*
+ * A module that carries the picture is a WELL rather than a face: the
+ * programme sits below the surface of the desk, which is the one place
+ * true black belongs. [DESIGN.md, decision 1]
+ */
+.module.is-well {
+  background: var(--console-inset);
+  box-shadow: var(--console-well);
+}
+
+/* ------------------------------------------------------------------- *
+ *  A module's head.
+ * ------------------------------------------------------------------- */
+
+/*
+ * THE LABEL IS TECHNICAL METADATA, NOT A HEADING. "Program Output" set
+ * as a 15px semibold sentence is a section title in a document. The same
+ * words at 10px, uppercase, tracked out and dim are a legend on a piece
+ * of equipment — read once, then ignored, which is exactly what a panel
+ * label is for. It also stops competing with the only thing in the
+ * module that should be bright: the state.
+ */
+.module-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  border-bottom: var(--border) solid var(--console-rule);
+  min-height: 30px;
+}
+
+.module-label {
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-300);
+  white-space: nowrap;
+}
+
+/*
+ * What the label is about, when it needs saying: "(Live Stream)".
+ *
+ * `--ink-450` was the obvious choice for something this quiet and it
+ * measures 1.96:1 on a console face — under even the non-text bar, let
+ * alone the 4.5 this is. The console faces are darker than the ramp's
+ * surfaces were tuned against, so the dim end had to be re-checked here
+ * rather than assumed. `--ink-400` is 3.72 and `--ink-300` is 5.56.
+ */
+.module-sub {
+  font-size: var(--text-2xs);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  white-space: nowrap;
+}
+
+.module-body { flex: 1 1 auto; min-height: 0; }
+.module-body.is-padded { padding: 10px; }
+.module-body.is-scrolled { overflow-y: auto; }
+
+/* A separator inside a module. Never a gap where a rule will do. */
+.module-rule {
+  height: 1px;
+  background: var(--console-rule);
+  border: 0;
+  margin: 0;
+  flex: 0 0 auto;
+}
+
+/* ------------------------------------------------------------------- *
+ *  Numbers.
+ * ------------------------------------------------------------------- */
+
+/*
+ * EVERY NUMBER ON A DESK IS A MEASUREMENT, and measurements are read in
+ * columns. Tabular figures and a touch of negative tracking make a
+ * timecode stop shimmering as it counts and make two of them, one above
+ * the other, line up on the colon. [U-08]
+ */
+.readout {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1, 'zero' 1;
+  letter-spacing: -0.01em;
+}
+
+.readout-lg {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semi);
+  letter-spacing: 0.01em;
+}
+
+/* A unit after a number is not part of the number. */
+.unit {
+  font-size: var(--text-2xs);
+  color: var(--ink-400);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* ------------------------------------------------------------------- *
+ *  Controls, on a desk.
+ * ------------------------------------------------------------------- */
+
+/*
+ * THREE WEIGHTS, AND MOST CONTROLS ARE THE QUIETEST. The brief's rule —
+ * "not every control should compete equally" — is the whole difference
+ * between a console and a toolbar. A desk has one or two controls that
+ * are allowed to be loud and forty that are not.
+ */
+.ctl {
+  appearance: none;
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.02em;
+  color: var(--ink-100);
+  background: var(--console-control);
+  border: var(--border) solid var(--console-edge);
+  border-radius: var(--radius-control);
+  padding: 6px 11px;
+  cursor: pointer;
+  box-shadow: var(--console-bevel);
+  transition: background-color var(--motion-fast) var(--ease-out),
+              border-color var(--motion-fast) var(--ease-out);
+}
+
+.ctl:hover:not(:disabled) {
+  background: var(--console-control-hover);
+  border-color: var(--ink-500);
+}
+
+/* Acknowledged in the frame, before anything is asked of a server. */
+.ctl:active:not(:disabled) {
+  background: var(--console-inset);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+/*
+ * A DISABLED CONTROL STILL HAS TO SAY WHAT IT IS. WCAG exempts one from
+ * the contrast rules, which is a licence to make it invisible rather
+ * than an instruction to: somebody looking at a row of six greyed
+ * controls is trying to read which one they want back. ink-450 is
+ * 1.96:1 here and genuinely unreadable; ink-400 is 3.72 and reads as
+ * unavailable rather than absent.
+ */
+.ctl:disabled {
+  color: var(--ink-400);
+  background: var(--console-inset);
+  box-shadow: none;
+  cursor: default;
+}
+
+/*
+ * THE ONE THAT IS ARMED. A switcher's active input is not a filled blue
+ * button — it is a lit edge. The fill stays within a few per cent of its
+ * neighbours so the row still reads as a row, and the edge and the top
+ * bevel do the saying.
+ */
+.ctl.is-on,
+.ctl[aria-pressed='true'],
+.ctl[aria-selected='true'] {
+  color: var(--ink-000);
+  background: var(--console-control-hover);
+  border-color: var(--accent);
+  box-shadow: var(--console-bevel-strong),
+              inset 0 0 0 1px rgba(63, 142, 232, 0.22);
+}
+
+/*
+ * THE LOUD ONE. Take Live and the emergency are operationally the most
+ * consequential controls in the product and they are allowed to be
+ * obvious — but a broadcast desk's loud control is a legend on a lit
+ * surface, not a marketing CTA with a 10px radius and a drop shadow.
+ */
+.ctl.is-critical {
+  color: var(--ink-000);
+  background: linear-gradient(180deg, #c8382c, var(--state-live-dim));
+  border-color: #7d1d15;
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  box-shadow: var(--console-bevel-strong);
+}
+.ctl.is-critical:hover:not(:disabled) {
+  background: linear-gradient(180deg, #d84234, #a8231a);
+  border-color: #8f221a;
+}
+
+/*
+ * AND THE ONE THAT IS DANGEROUS BUT NOT PRIMARY. The emergency cut-away
+ * must be findable in a hurry and must not be the brightest thing on the
+ * desk, or somebody reaches for it by habit. An outline, not a fill.
+ */
+.ctl.is-armed-danger {
+  color: var(--ink-on-bad);
+  background: var(--console-control);
+  border-color: rgba(226, 59, 46, 0.42);
+}
+.ctl.is-armed-danger:hover:not(:disabled) {
+  background: var(--state-live-wash);
+  border-color: var(--state-live);
+}
+
+/* ------------------------------------------------------------------- *
+ *  A lamp, small.
+ * ------------------------------------------------------------------- */
+
+/*
+ * The state a module is in, at the size a legend is. Shape and word as
+ * well as colour, always: "which of these two lamps is lit" is exactly
+ * the discrimination that fails for the eight per cent of men who cannot
+ * separate this red from this green. [U-19]
+ */
+.state {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 2px;
+  border: var(--border) solid transparent;
+  white-space: nowrap;
+}
+.state::before {
+  content: '';
+  width: 6px; height: 6px; border-radius: 50%;
+  flex: 0 0 auto;
+}
+.state.is-live {
+  color: #ff8578;
+  background: var(--state-live-wash);
+  border-color: rgba(226, 59, 46, 0.38);
+}
+.state.is-live::before { background: var(--state-live); }
+.state.is-armed {
+  color: var(--ink-on-armed);
+  background: var(--state-armed-wash);
+  border-color: rgba(232, 179, 60, 0.32);
+}
+.state.is-armed::before { box-shadow: inset 0 0 0 2px var(--state-armed); }
+.state.is-off {
+  color: var(--ink-300);
+  background: transparent;
+  border-color: var(--console-edge);
+}
+.state.is-off::before { background: var(--ink-450); }

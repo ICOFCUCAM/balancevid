@@ -12,6 +12,7 @@
 @import './styles/studios.css';
 @import './styles/surfaces.css';
 @import './styles/platforms.css';
+@import './styles/console.css';
 @import './styles/building.css';
 
 :root {
