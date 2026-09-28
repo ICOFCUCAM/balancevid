@@ -143,3 +143,97 @@ describe('the stylesheet itself', () => {
     expect(css).toContain('prefers-reduced-motion');
   });
 });
+
+/**
+ * ONE VISUAL LANGUAGE FOR SPEAKER IDENTITY.  [Doctrine U-20]
+ *
+ * U-20 names the surfaces it applies to and the editor timeline is the
+ * first of them: "a single speaker-identity system is defined once and
+ * applied in every surface: the editor timeline, the transcript panel,
+ * burned-in captions, lower-thirds, the conversation map, the article
+ * transcript, and the shareable claim card."
+ *
+ * IT WAS NOT. The published article, the interactive player and the
+ * presentation HTML all declare `--source: #7f9bb5; --user: #c2794f`.
+ * Studio One's timeline drew the source in `#6fb3e0` — a different blue
+ * — and drew RESPONSES, which are the user's, in that same source blue.
+ * An operator marking up a conversation saw one identity system and
+ * everybody they published to saw another.
+ *
+ * This is why the check reads the published surfaces rather than a
+ * constant: the exports are the definition, and a test that agreed with
+ * itself would have passed throughout.
+ *
+ * THERE ARE TWO LEGITIMATE PAIRS AND THAT IS NOT A VIOLATION. The article
+ * and the interactive player each declare a light theme as well
+ * (`--bg: #ffffff`), where the same two identities are darkened to stay
+ * legible on white: #3c5a73 and #a35a34. One system, two grounds. The
+ * first draft of this test asserted a single source colour, failed on
+ * that pair, and was wrong — the code was right.
+ */
+describe('speaker identity is one system', () => {
+  const published = ['src/present/html.ts', 'src/interactive/html.ts',
+    'src/article/html.ts'].map((f) => readFileSync(join(ROOT, f), 'utf8'));
+
+  /** What every published surface says the two speakers are. */
+  const declared = (which: 'source' | 'user') => {
+    const found = new Set<string>();
+    for (const html of published) {
+      for (const [, hex] of html.matchAll(
+        new RegExp(`--${which}:\\s*(#[0-9a-f]{6})`, 'gi'))) found.add(hex!.toLowerCase());
+    }
+    return [...found];
+  };
+
+  it('is declared identically by every published surface', () => {
+    /* Dark ground first, light ground second, and nothing else. */
+    expect(new Set(declared('source')), 'the exports disagree about the source')
+      .toEqual(new Set(['#7f9bb5', '#3c5a73']));
+    expect(new Set(declared('user')), 'the exports disagree about the responder')
+      .toEqual(new Set(['#c2794f', '#a35a34']));
+  });
+
+  /*
+   * EVERY SURFACE WITH A DARK GROUND USES THE DARK PAIR. The failure this
+   * catches is one export quietly adopting the light-theme blue on a dark
+   * page, which would look almost right and be a different speaker.
+   */
+  it('uses the dark pair wherever the ground is dark', () => {
+    for (const html of published) {
+      const dark = html.match(/--panel:\s*#1[0-9a-f]{5}/i);
+      if (!dark) continue;
+      const near = html.slice(Math.max(0, html.indexOf(dark[0]) - 200),
+        html.indexOf(dark[0]) + 60);
+      expect(near, 'a dark surface is not using the dark identity')
+        .toMatch(/#7f9bb5/);
+    }
+  });
+
+  it('is the same system the editor timeline uses', () => {
+    const timeline = code(join(ROOT, 'app', 'c', '[id]', 'Timeline.tsx'));
+    /*
+     * The timeline must name the tokens rather than any hex of its own.
+     * A raw colour here is, by construction, a second identity system.
+     */
+    /*
+     * IDENTITY COLOURS ONLY. The timeline legitimately draws chrome —
+     * the trough it sits in, the amber of a pending claim — and a test
+     * banning every hex there would be a test about the wrong thing.
+     * What it may not do is write a SPEAKER's colour by hand, because a
+     * speaker colour written twice is a speaker colour that will
+     * eventually be written differently.
+     */
+    const identity = timeline.match(/#(7f9bb5|c2794f|3c5a73|a35a34|6fb3e0)\b/gi) ?? [];
+    expect(identity,
+      `the timeline writes speaker colours by hand: ${identity.join(', ')}`)
+      .toEqual([]);
+    expect(timeline).toContain('var(--user-accent)');
+    expect(timeline).toContain('var(--source-accent)');
+  });
+
+  it('is the same system the stylesheet declares', () => {
+    const globals = readFileSync(join(ROOT, 'app', 'globals.css'), 'utf8');
+    expect(globals).toContain('--source-accent: #7f9bb5');
+    expect(globals).toContain('--user-accent: #c2794f');
+  });
+});
