@@ -5,8 +5,9 @@ looks at. It is short on purpose: a design document nobody finishes reading
 is a design document nobody follows, and the tokens themselves are in
 `app/styles/` with the reasoning beside each one.
 
-Three tests enforce what follows — `test/domain/contrast.test.ts`,
-`test/domain/design-system.test.ts` and `test/domain/confirm.test.ts`. Where
+Four tests enforce what follows — `test/domain/contrast.test.ts`,
+`test/domain/design-system.test.ts`, `test/domain/console.test.ts` and
+`test/domain/confirm.test.ts`. Where
 this document and those tests disagree, the tests are right, because they
 are the ones that run.
 
@@ -134,6 +135,67 @@ a confirmation safe, and native dialogs do none of them:
 
 ---
 
+## The building is lit; the rooms are not
+
+This document argued the product has no light theme. That argument is
+about the **studios** — a broadcast desk is operated in a dark room,
+often beside a live monitor, and a white panel there ruins both the
+picture and your night vision. It was never about the lobby.
+
+The building — home, the library, settings — is where somebody arrives,
+reads, chooses and leaves, in daylight, on a laptop, with no picture on
+screen to be judged. It is lit. The rail stays dark, so navigation still
+sits behind the work, and stepping into a studio is stepping into a dark
+room on purpose rather than by accident.
+
+Both grounds are measured. `building.css` states every light tone's
+ratio against `#ffffff`; `contrast.test.ts` holds the dark ramp.
+
+---
+
+## The sixth decision: a console is not a page of cards
+
+Added after an art-direction pass on the three studios, and the only one
+of these decisions that came from looking at the product from across the
+room rather than from reading its code.
+
+**What was wrong:** eight independently bordered rounded rectangles,
+evenly spaced, each the same tone and radius as the last. Playlist,
+Program Output, Preview, Multi-view, Live Studio, the schedule — all
+drawn as peers, all floating, none touching.
+
+That is the visual grammar of a dashboard, and it is wrong here for a
+reason that is not taste: **a dashboard is a set of independent widgets
+you read; a control room is one instrument you operate.** The grammar was
+telling the truth about a different product.
+
+The rules in `console.css` are therefore subtractive:
+
+- **A seam, not a gutter.** Adjacent modules share one hairline. Two
+  borders and a gap is three lines where one is meant.
+- **A radius you do not notice.** 4px, and only the chassis rounds
+  visibly. A 10px radius repeated eight times is the strongest "web app"
+  signal an interface can emit.
+- **No drop shadow on a module.** Shadow means "above the page". Depth is
+  one pixel of light along the top edge — what a physical bevel does.
+- **Three levels, barely apart.** Chassis, face, control: 1.05:1 and
+  1.07:1, deliberately near the threshold of perception.
+- **Most controls are the quietest.** Two controls in the product are
+  allowed to be loud. Forty are not.
+- **An outline is the wrong way to say "this one".** An outline in a grid
+  of outlines must be found by comparing; a lit edge is found without.
+  Program wears a red tally, preview and selection a blue one.
+- **No glass, no glow.** Both are banned by test. A blurred sample of the
+  picture behind a status readout means the readout changes appearance
+  with the programme — and the programme is the thing being judged.
+
+**What is deliberately not in this decision:** the lit building keeps its
+rounding, and there is a test asserting it does. The argument is about
+what a console is made of, not about radii being bad. A rule pushed past
+its reason is how a style guide becomes cargo cult.
+
+---
+
 ## Where things live
 
 ```
@@ -147,6 +209,10 @@ app/styles/elevation.css   the four levels and the well
 app/styles/status.css      on air / armed / off, and the accent
 app/styles/studios.css     which of the three rooms a thing belongs to
 app/styles/surfaces.css    scrollbars, selection, empty slots, breakpoints
+app/styles/console.css     the material the three studios are made of
+app/styles/building.css    the lit ground the lobby is made of
+app/styles/platforms.css   the five distribution destinations
+app/Icon.tsx               one set of glyphs, on one grid
 app/Confirm.tsx            asking before something irreversible
 app/Notice.tsx             saying something went wrong, out loud
 ```
