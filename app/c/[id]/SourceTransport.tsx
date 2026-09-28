@@ -148,9 +148,17 @@ export default function SourceTransport({
           position: 'absolute', width: 1, height: 1, overflow: 'hidden',
           clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap',
         }}>Position in the source</span>
+        {/*
+          * THE UNPLAYED PART HAS TO BE VISIBLE. `--console-inset` on the
+          * `--console-chassis` the strip is made of is a 1.03:1 step —
+          * the filled part showed and the track it was filling did not,
+          * so the bar read as a line that stops rather than as a
+          * position in a length. A scrubber whose extent is invisible
+          * cannot be aimed at.
+          */}
         <span aria-hidden="true" style={{
           position: 'absolute', left: 0, right: 0, height: 3,
-          borderRadius: 2, background: 'var(--console-inset)',
+          borderRadius: 2, background: 'var(--ink-600)',
           boxShadow: 'var(--console-well)',
         }} />
         <span aria-hidden="true" style={{

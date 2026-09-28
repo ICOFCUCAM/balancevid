@@ -147,10 +147,19 @@ export default function StudioBar({
            */
           const style = {
             display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
-            padding: '14px var(--space-5)', fontSize: 'var(--text-base)',
+            /*
+             * THE PLACES ARE SIGNAGE, like every other legend in the
+             * product since 02. These are the six rooms of the
+             * building; a person reads them once and then navigates by
+             * position. Sentence case at 13px made them compete with
+             * the title of whatever room you are actually in, two
+             * centimetres to the left. [brief §13]
+             */
+            padding: '14px var(--space-4)', fontSize: 'var(--text-2xs)',
+            letterSpacing: '0.09em', textTransform: 'uppercase',
             textDecoration: 'none', whiteSpace: 'nowrap' as const,
             background: 'none', border: 0, borderRadius: 0,
-            borderBottom: `2px solid ${on ? '#3f8ee8' : 'transparent'}`,
+            borderBottom: `2px solid ${on ? 'var(--accent)' : 'transparent'}`,
             color: on ? '#7fb4ee' : 'var(--text-dim)',
             fontWeight: on ? 'var(--weight-bold)' : 'var(--weight-medium)',
             opacity: on || tab.href || tab.onClick ? 1 : 0.38,
