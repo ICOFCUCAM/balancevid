@@ -815,19 +815,53 @@ export default function ChannelStudio({
                   * (§10); the monitor shows them in the same corners so the
                   * desk sees what a viewer sees. [D-16]
                   */}
+                {/*
+                  * OVERLAYS ON A PICTURE ARE GLASS, NOT PAINT. A flat
+                  * 80%-black plate is a hole cut in the programme; a
+                  * blurred, slightly translucent plate with a hairline of
+                  * light on its top edge sits ON the picture and lets the
+                  * frame continue underneath. Every broadcast interface
+                  * does this and it is the single biggest difference
+                  * between a monitor that looks professional and one that
+                  * looks like a web page with labels on it.
+                  */}
                 <span data-testid="monitor-clock" className="mono" style={{
-                  position: 'absolute', right: 9, top: 9, padding: '3px 8px',
-                  borderRadius: 4, background: 'rgba(5,7,10,0.8)', fontSize: 11,
+                  position: 'absolute', right: 10, top: 10,
+                  padding: '3px var(--space-3)',
+                  borderRadius: 'var(--radius-xs)',
+                  background: 'rgba(8,10,14,0.62)',
+                  backdropFilter: 'blur(10px) saturate(1.1)',
+                  WebkitBackdropFilter: 'blur(10px) saturate(1.1)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.08)',
+                  fontSize: 'var(--text-xs)',
+                  fontVariantNumeric: 'tabular-nums',
+                  color: 'rgba(255,255,255,0.92)',
                 }}>{clock(now)}</span>
 
                 <span data-testid="on-air-lamp" data-mode={on.kind} style={{
-                  position: 'absolute', left: 9, top: 9,
-                  padding: '3px 9px', borderRadius: 4, fontSize: 11, fontWeight: 700,
-                  background: on.kind === 'live' ? '#c0392b'
-                    : on.kind === 'backup' || on.kind === 'emergency' ? '#8e6a1f'
-                      : on.kind === 'off' ? 'rgba(5,7,10,0.78)'
-                        : 'rgba(45,110,200,0.55)',
-                  color: on.kind === 'off' ? 'var(--muted)' : '#fff',
+                  position: 'absolute', left: 10, top: 10,
+                  padding: '3px var(--space-3)',
+                  borderRadius: 'var(--radius-xs)',
+                  fontSize: 'var(--text-2xs)',
+                  fontWeight: 'var(--weight-bold)',
+                  letterSpacing: '0.08em',
+                  background: on.kind === 'live'
+                    ? 'linear-gradient(180deg, #e8483a, #c33327)'
+                    : on.kind === 'backup' || on.kind === 'emergency'
+                      ? 'linear-gradient(180deg, #a8821f, #8e6a1f)'
+                      : on.kind === 'off' ? 'rgba(8,10,14,0.62)'
+                        : 'rgba(45,110,200,0.62)',
+                  backdropFilter: 'blur(10px)',
+                  WebkitBackdropFilter: 'blur(10px)',
+                  border: `1px solid ${on.kind === 'live'
+                    ? 'rgba(255,140,128,0.55)' : 'rgba(255,255,255,0.12)'}`,
+                  boxShadow: on.kind === 'live'
+                    ? '0 0 12px rgba(226,59,46,0.45),'
+                      + ' inset 0 1px 0 rgba(255,255,255,0.22)'
+                    : 'inset 0 1px 0 rgba(255,255,255,0.08)',
+                  color: on.kind === 'off'
+                    ? 'rgba(255,255,255,0.6)' : '#fff',
                 }}>
                   {on.kind === 'live' ? '● LIVE'
                     : on.kind === 'backup' ? 'BACKUP'
@@ -837,13 +871,25 @@ export default function ChannelStudio({
 
                 {on.kind !== 'off' && (
                   <span data-testid="now-playing-chip" style={{
-                    position: 'absolute', left: 9, bottom: 9, maxWidth: '60%',
-                    padding: '4px 9px', borderRadius: 5,
-                    background: 'rgba(5,7,10,0.85)', fontSize: 11,
+                    position: 'absolute', left: 10, bottom: 10, maxWidth: '62%',
+                    padding: '4px var(--space-4)',
+                    borderRadius: 'var(--radius-sm)',
+                    background: 'rgba(8,10,14,0.62)',
+                    backdropFilter: 'blur(12px) saturate(1.1)',
+                    WebkitBackdropFilter: 'blur(12px) saturate(1.1)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.08)',
+                    fontSize: 'var(--text-xs)',
+                    color: 'rgba(255,255,255,0.94)',
                     overflow: 'hidden', textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap',
                   }}>
-                    <span className="muted" style={{ fontSize: 9, marginRight: 6 }}>
+                    <span style={{
+                      fontSize: 'var(--text-2xs)', marginRight: 'var(--space-3)',
+                      letterSpacing: '0.09em',
+                      fontWeight: 'var(--weight-bold)',
+                      color: 'rgba(255,255,255,0.5)',
+                    }}>
                       NOW PLAYING
                     </span>
                     {titleOf(on)}
@@ -853,18 +899,35 @@ export default function ChannelStudio({
                 )}
 
                 {/* The station lockup, bottom right, where a channel's is. */}
+                {/*
+                  * THE STATION LOCKUP GETS NO PLATE. A channel's bug is
+                  * composited onto the outgoing frame with no box behind
+                  * it (§10), so a box here would show the desk something
+                  * no viewer sees. What keeps it legible over a bright
+                  * frame instead is a soft dark shadow behind the letters
+                  * themselves — which is exactly what the renderer does.
+                  */}
                 <span className="row" data-testid="station-lockup" style={{
-                  position: 'absolute', right: 9, bottom: 9, gap: 6,
-                  padding: '4px 9px', borderRadius: 5,
-                  background: 'rgba(5,7,10,0.72)', fontSize: 11, fontWeight: 700,
+                  position: 'absolute', right: 10, bottom: 10,
+                  gap: 'var(--space-3)',
+                  fontSize: 'var(--text-xs)',
+                  fontWeight: 'var(--weight-bold)',
+                  letterSpacing: 'var(--tracking-tight)',
                   color: channel.identity?.ink ?? '#fff',
-                  opacity: channel.identity?.bug?.opacity ?? 0.85,
+                  textShadow: '0 1px 6px rgba(0,0,0,0.85), 0 0 2px rgba(0,0,0,0.9)',
+                  opacity: channel.identity?.bug?.opacity ?? 0.9,
                 }}>
                   {channel.identity?.bug?.text ?? channel.name}
                   {on.kind === 'live' && (
                     <span style={{
-                      padding: '1px 6px', borderRadius: 3, background: '#c0392b',
-                      color: '#fff', fontSize: 9, letterSpacing: 0.6,
+                      padding: '1px var(--space-3)',
+                      borderRadius: 'var(--radius-xs)',
+                      background: 'var(--state-live)',
+                      color: '#fff', fontSize: 'var(--text-2xs)',
+                      letterSpacing: '0.09em',
+                      fontWeight: 'var(--weight-bold)',
+                      boxShadow: '0 0 10px rgba(226,59,46,0.5)',
+                      textShadow: 'none',
                     }}>{channel.identity?.liveLamp?.text ?? 'LIVE'}</span>
                   )}
                 </span>
