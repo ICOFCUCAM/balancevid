@@ -2872,21 +2872,42 @@ function Timeline({
   }) => (
     <div className="row" data-testid="timeline-lane" data-lane={name}
          style={{ alignItems: 'stretch', gap: 0 }}>
+      {/*
+        * THE LANE NAMES ARE A LEGEND, NOT CONTENT. They are read once
+        * when somebody first meets the timeline and never again, so
+        * they sit at the faintest tone and in the smallest size the
+        * scale has. Anything louder and four labels compete with the
+        * programmes they are labelling, every second of every day.
+        */}
       <span style={{
-        flex: '0 0 auto', width: 96, padding: '5px 8px 0 0', textAlign: 'right',
+        flex: '0 0 auto', width: 96,
+        padding: '5px var(--space-4) 0 0', textAlign: 'right',
       }}>
-        <span className="muted" style={{
-          display: 'block', fontSize: 10, fontWeight: 600,
+        <span style={{
+          display: 'block', fontSize: 'var(--text-2xs)',
+          fontWeight: 'var(--weight-semi)', color: 'var(--text-faint)',
+          letterSpacing: '0.02em',
         }}>{name}</span>
         {note && (
-          <span className="muted" style={{
-            display: 'block', fontSize: 8, opacity: 0.7,
+          <span style={{
+            display: 'block', fontSize: 'var(--text-2xs)',
+            transform: 'scale(0.85)', transformOrigin: 'right top',
+            color: 'var(--ink-400)',
           }}>{note}</span>
         )}
       </span>
+      {/*
+        * A LANE IS A TRACK, AND A TRACK IS A GROOVE. The lanes were
+        * separated by a hairline and nothing else, so four of them read
+        * as three lines rather than as four channels. A recessed ground
+        * gives each one a floor for its blocks to sit on, which is what
+        * makes a timeline read as a timeline rather than as a table.
+        */}
       <div style={{
         position: 'relative', flex: 1, minWidth: 0, height,
-        borderTop: '1px solid var(--line)',
+        borderTop: 'var(--border) solid var(--line)',
+        background: 'rgba(0,0,0,0.22)',
+        boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.3)',
       }}>{children}</div>
     </div>
   );
@@ -3044,16 +3065,31 @@ function Timeline({
 
         {/* ---- the playhead --------------------------------------------- */}
         {now >= windowFrom && now <= windowTo && (
+          /*
+            * THE PLAYHEAD IS NOW, AND NOW IS THE ONLY THING ON THIS PAGE
+            * THAT MOVES BY ITSELF. It was a 2px line the same red as
+            * several other things; it is now the live red with a glow,
+            * so it is found instantly in a field of blocks without
+            * being thick enough to hide what is under it.
+            */
           <div aria-hidden="true" data-testid="playhead" style={{
             position: 'absolute', top: 0, bottom: 0, width: 2,
             left: `calc(96px + (100% - 96px) * `
               + `${(now - windowFrom) / (windowTo - windowFrom)})`,
-            background: '#e0674f', pointerEvents: 'none', zIndex: 5,
+            background: 'var(--state-live)', pointerEvents: 'none', zIndex: 5,
+            boxShadow: '0 0 8px rgba(226,59,46,0.65)',
           }}>
             <span className="mono" style={{
-              position: 'absolute', top: -20, left: -34, padding: '1px 5px',
-              borderRadius: 3, background: '#c0392b', color: '#fff', fontSize: 9,
-              fontWeight: 700, whiteSpace: 'nowrap',
+              position: 'absolute', top: -20, left: -34,
+              padding: '1px var(--space-3)',
+              borderRadius: 'var(--radius-xs)',
+              background: 'linear-gradient(180deg, #e8483a, #c33327)',
+              color: '#fff', fontSize: 'var(--text-2xs)',
+              fontWeight: 'var(--weight-bold)', whiteSpace: 'nowrap',
+              letterSpacing: '0.05em',
+              boxShadow: '0 1px 4px rgba(0,0,0,0.5),'
+                + ' inset 0 1px 0 rgba(255,255,255,0.2)',
+              fontVariantNumeric: 'tabular-nums',
             }}>ON AIR {clock(now)}</span>
           </div>
         )}
