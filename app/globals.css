@@ -9,6 +9,7 @@
 @import './styles/controls.css';
 @import './styles/elevation.css';
 @import './styles/status.css';
+@import './styles/surfaces.css';
 
 :root {
   /*
@@ -87,6 +88,7 @@ h3 { font-size: var(--text-md); }
 .muted { color: var(--muted); }
 .small { font-size: var(--text-base); }
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.stage-field { background: var(--surface-sunk); }
 .panel {
   background: var(--surface-raised); border: var(--border) solid var(--line);
   border-radius: var(--radius-lg); padding: var(--space-6);
@@ -99,4 +101,3 @@ input, select, textarea {
 }
 label { display: block; font-size: var(--text-base); color: var(--muted); margin-bottom: 4px; }
 .field { margin-bottom: var(--space-5); }
-video { width: 100%; background: #000; border-radius: 8px; display: block; }

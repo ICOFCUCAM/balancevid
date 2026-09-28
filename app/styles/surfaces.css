@@ -1,0 +1,118 @@
+/*
+ * THE THINGS THE BROWSER DRAWS FOR YOU.  [Doctrine D-04]
+ *
+ * Everything in this file is something a browser supplies a default for,
+ * and every one of those defaults was designed for a white page. On a dark
+ * interface they are the parts that give it away: a light grey scrollbar
+ * down the side of a black panel, a highlight colour from 1995, a text
+ * cursor you cannot find.
+ *
+ * None of this is noticed when it is right. All of it is noticed when it
+ * is wrong, and it is the specific kind of wrong that makes an expensive
+ * product feel like a web page with a dark theme bolted on.
+ */
+
+/* ---- scrollbars ------------------------------------------------------
+ *
+ * A control room has five or six independently scrolling regions on one
+ * screen. With the platform default that is five or six pale bars in the
+ * field of view, each one brighter than the content it belongs to.
+ *
+ * THIN, AND THE SAME TONE AS A BORDER. The rail is invisible until there
+ * is something to scroll, and the thumb is a hairline darker than the
+ * surface it sits on rather than lighter — a scrollbar is a mark ON the
+ * panel, not a thing floating above it.
+ */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ink-550) transparent;
+}
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: var(--ink-550);
+  border-radius: var(--radius-full);
+  /* The inset border is what makes a 10px bar read as a 6px thumb. */
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover { background-clip: content-box; background-color: var(--ink-450); }
+*::-webkit-scrollbar-corner { background: transparent; }
+
+/* ---- selection -------------------------------------------------------
+ *
+ * The default is a saturated blue chosen to sit under black text on white.
+ * Under light text on near-black it is a bruise, and the text inside it
+ * becomes harder to read than it was unselected — which is the opposite of
+ * what selecting is for.
+ */
+::selection {
+  background: rgba(79, 138, 214, 0.32);
+  color: var(--ink-000);
+}
+
+/* ---- the caret -------------------------------------------------------
+ *
+ * Black by default, and on a dark field that is an invisible cursor. It
+ * takes the accent rather than the text colour so it can be found in a
+ * long line without hunting.
+ */
+input, textarea, [contenteditable] { caret-color: var(--line-focus); }
+
+/* ---- the picture -----------------------------------------------------
+ *
+ * A video element with no source is a white rectangle in most engines for
+ * the moment before its first frame, and in a dark control room that is a
+ * flash in the corner of the eye every time a source is switched.
+ */
+video, img { background-color: #000; }
+video {
+  width: 100%; display: block;
+  border-radius: var(--radius-md);
+  /*
+   * The frame is a hairline of light on the inside, not a border on the
+   * outside: a border around a picture crops it by a pixel and on a
+   * composited broadcast frame that pixel is somebody's forehead.
+   */
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+/* ---- dividers --------------------------------------------------------
+ *
+ * A 1px line at the same colour everywhere reads as heavier the longer it
+ * runs. A rule crossing a whole control room is visually much stronger
+ * than the same rule inside a panel, so the long ones fade at their ends
+ * and the short ones do not.
+ */
+hr, .rule {
+  border: 0; height: 1px; margin: var(--space-6) 0;
+  background: linear-gradient(90deg,
+    transparent, var(--line) 12%, var(--line) 88%, transparent);
+}
+
+/* ---- text that is really a number ------------------------------------
+ *
+ * Timecodes, counters, bitrates and clocks. Slightly tighter and slightly
+ * dimmer than prose: a number being watched is read as a shape, and the
+ * tracking that makes words legible makes a digit group harder to take in
+ * at a glance. [U-08]
+ */
+.mono, .tabular {
+  letter-spacing: var(--tracking-tight);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- an empty region should say what goes in it ----------------------
+ *
+ * Several panels in this product show nothing at all when they hold
+ * nothing, and an empty dark rectangle is indistinguishable from one that
+ * has failed to load. This is the shape they share.
+ */
+.empty {
+  display: grid; place-items: center; gap: var(--space-3);
+  padding: var(--space-10) var(--space-6);
+  color: var(--text-faint);
+  font-size: var(--text-base);
+  text-align: center;
+  line-height: var(--leading-snug);
+}
