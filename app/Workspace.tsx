@@ -139,9 +139,17 @@ export default function Workspace({
       height: '100dvh', overflow: 'hidden',
     }}>
       {/* ============ THE RAIL ======================================== */}
+      {/*
+        * THE RAIL IS THE BUILDING AND SITS BEHIND THE ROOMS. It was the
+        * same tone as the panels in the work area, so the two read as
+        * one continuous surface with a line drawn down it. A shade
+        * darker puts the navigation BEHIND the work — which is where
+        * navigation belongs, and it costs one token. [D-24]
+        */}
       <nav data-testid="workspace-rail" style={{
         display: 'flex', flexDirection: 'column', minHeight: 0,
-        borderRight: '1px solid var(--line)', background: 'var(--panel)',
+        borderRight: 'var(--border) solid var(--line)',
+        background: 'var(--ink-850)',
       }}>
         <div className="row" style={{
           gap: 9, padding: '15px 16px', flexWrap: 'nowrap', flex: '0 0 auto',
@@ -480,20 +488,50 @@ function Rail({
       data-empty={empty ? 'true' : 'false'}
       title={empty ? `Nothing in ${label} yet — start something from the card`
         : undefined}
+      /*
+        * THE CURRENT ROOM IS MARKED ON THE RAIL'S EDGE, not only by a
+        * tinted pill. A fill alone is one of several things in this
+        * column with a background, and the eye has to compare them; a
+        * bar on the leading edge is found without comparing, and it is
+        * the convention every editor and every mail client uses for the
+        * same reason.
+        *
+        * It also survives greyscale, which a blue wash does not — and
+        * the rail is the one piece of this product somebody screenshots
+        * to ask a question about. [D-04, U-19]
+        */
       style={{
-        display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px',
-        borderRadius: 8, textDecoration: 'none', fontSize: 13,
-        color: current ? '#fff' : 'var(--text)',
-        background: current ? 'rgba(45,110,200,0.18)' : 'transparent',
-        fontWeight: current ? 600 : 500, marginBottom: 1,
-        opacity: empty ? 0.45 : 1,
+        display: 'flex', alignItems: 'center', gap: 'var(--space-4)',
+        padding: 'var(--space-4) var(--space-4)',
+        borderRadius: 'var(--radius-md)', textDecoration: 'none',
+        fontSize: 'var(--text-base)',
+        color: current ? '#fff' : 'var(--text-dim)',
+        background: current ? 'rgba(63,142,232,0.16)' : 'transparent',
+        boxShadow: current ? 'inset 2px 0 0 #3f8ee8' : 'none',
+        fontWeight: current ? 'var(--weight-semi)' : 'var(--weight-medium)',
+        marginBottom: 1,
+        opacity: empty ? 0.42 : 1,
+        transition: 'background-color var(--motion-fast) var(--ease-out),'
+          + ' color var(--motion-fast) var(--ease-out)',
       }}
     >
-      <span aria-hidden="true" style={{ opacity: 0.75, width: 14 }}
-            dangerouslySetInnerHTML={{ __html: glyph }} />
+      <span aria-hidden="true" style={{
+        opacity: current ? 0.95 : 0.6, width: 14,
+        fontSize: 'var(--text-sm)',
+      }} dangerouslySetInnerHTML={{ __html: glyph }} />
       <span className="grow" style={{ minWidth: 0 }}>{label}</span>
       {count !== undefined && count > 0 && (
-        <span className="muted" style={{ fontSize: 11 }}>{count}</span>
+        /*
+          * A COUNT IS A QUANTITY, NOT A LABEL. Tabular figures so the
+          * numbers in this column line up with each other, and the
+          * faintest tone because nobody comes to the rail to read a
+          * number — they come to go somewhere, and the number is only
+          * there to say whether it is worth going. [U-08]
+          */
+        <span className="mono" style={{
+          fontSize: 'var(--text-2xs)', color: 'var(--ink-400)',
+          fontVariantNumeric: 'tabular-nums',
+        }}>{count}</span>
       )}
     </a>
   );
