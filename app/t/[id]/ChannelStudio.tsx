@@ -1386,10 +1386,23 @@ export default function ChannelStudio({
       <footer className="shell-foot" data-testid="channel-transport" style={{
         display: 'grid', alignItems: 'center', gap: 'var(--space-5)',
         padding: 'var(--space-4) var(--space-6)',
-        gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)',
+        /*
+          * `max-content` AND NOT `auto` FOR THE MIDDLE. An `auto` grid
+          * track will shrink below the width of what is in it when its
+          * neighbours want the room, which is why EMERGENCY was arriving
+          * clipped to "⚠ Eme" and sliding under the control beside it.
+          * `max-content` refuses, and the two `minmax(0, 1fr)` columns
+          * either side give way instead — which is correct, because what
+          * they hold is a channel name and a destination count, and both
+          * of those can truncate without anybody being harmed.
+          */
+        gridTemplateColumns: 'minmax(0, 1fr) max-content minmax(0, 1fr)',
         background: 'linear-gradient(180deg, var(--ink-850), var(--ink-900))',
       }}>
-        <div className="row" style={{ gap: 10, minWidth: 0, flexWrap: 'nowrap' }}>
+        <div className="row" style={{
+          gap: 'var(--space-4)', minWidth: 0, flexWrap: 'nowrap',
+          overflow: 'hidden',
+        }}>
           {/*
             * SAVE THIS LIVE SESSION.  [§8]
             *
@@ -1494,8 +1507,21 @@ export default function ChannelStudio({
           </span>
         </div>
 
+        {/*
+          * THE CONTROL CLUSTER NEVER SHRINKS. It sat in the middle of a
+          * three-column grid whose outer columns were `1fr`, so a long
+          * channel name on the left or an extra destination on the right
+          * stole width from the middle — and what got squeezed was
+          * EMERGENCY, which ended up clipped to "⚠ Eme" and overlapped
+          * by the control beside it.
+          *
+          * A control that is truncated is a control somebody hesitates
+          * over, and this is the one in the room that must never be
+          * hesitated over. It is `auto` in the grid and `0 0 auto` in the
+          * flex, so the outer columns give way instead.
+          */}
         <div className="row" data-testid="control-bar" style={{
-          gap: 6, flexWrap: 'nowrap',
+          gap: 'var(--space-3)', flexWrap: 'nowrap', flex: '0 0 auto',
         }}>
           <button
             className="small" data-testid="stop-live" disabled={!onAir}
@@ -1576,12 +1602,31 @@ export default function ChannelStudio({
                 + 'is on air, including a live broadcast.')) return;
               void patch({ action: 'emergency', source: pickedItem.source });
             }}
+            /*
+              * ARMED IT IS LOUD; IDLE IT IS AN OUTLINE. A destructive
+              * control that looks destructive at rest trains the eye to
+              * ignore red, and then the red that matters is invisible.
+              * So it waits as a red-edged outline and only fills when it
+              * is actually holding the channel off its schedule.
+              */
             style={emergency
               ? {
-                background: '#c0392b', borderColor: '#c0392b', color: '#fff',
-                padding: '7px 12px', fontSize: 12,
+                background: 'linear-gradient(180deg, #d4402f, #b03327)',
+                borderColor: '#e85643', color: '#fff',
+                padding: 'var(--space-3) var(--space-5)',
+                fontSize: 'var(--text-sm)',
+                fontWeight: 'var(--weight-bold)',
+                boxShadow: '0 0 0 3px rgba(226,59,46,0.22),'
+                  + ' inset 0 1px 0 rgba(255,255,255,0.2)',
+                whiteSpace: 'nowrap',
               }
-              : { borderColor: '#8e2f24', color: '#e07a6b', padding: '7px 12px', fontSize: 12 }}
+              : {
+                borderColor: 'rgba(200,70,55,0.5)', color: '#e0806f',
+                background: 'rgba(200,70,55,0.07)',
+                padding: 'var(--space-3) var(--space-5)',
+                fontSize: 'var(--text-sm)',
+                whiteSpace: 'nowrap',
+              }}
           >
             {emergency ? '⚠ Clear Emergency' : '⚠ Emergency'}
           </button>
