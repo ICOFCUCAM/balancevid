@@ -41,7 +41,15 @@ export default function SignOut() {
           data-testid="signout-everywhere-confirm"
           title="Ends this session and every other one, on every device."
           onClick={() => leave(true)}
-          style={{ color: '#c0392b', borderColor: '#8e2f24' }}
+          /*
+           * THE ONE DESTRUCTIVE BUTTON ON THIS ROW, in the tones the
+           * product uses for one. It was #c0392b on #8e2f24, which is
+           * 3.24:1 against the surface behind it — under the bar, on the
+           * button that ends every session on every device. --ink-on-bad
+           * exists for exactly this and measures 7.86:1.
+           */
+          style={{ color: 'var(--ink-on-bad)',
+            borderColor: 'var(--state-live-dim)' }}
         >
           End all sessions?
         </button>

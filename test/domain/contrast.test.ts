@@ -23,14 +23,15 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 /*
- * BOTH FILES, because the ramp and the broadcast states are declared in
- * different places and this test is about the relationship between them.
+ * ALL THREE FILES, because the ramp, the broadcast states and the studio
+ * identities are declared in different places and this test is about the
+ * relationship between them.
  * Reading only `tokens.css` is how the first draft of this test passed
  * while measuring nothing: the state colours parsed to an empty object
  * and the loop over them ran zero times.
  */
 const STYLES = join(import.meta.dirname, '..', '..', 'app', 'styles');
-const CSS = ['tokens.css', 'status.css']
+const CSS = ['tokens.css', 'status.css', 'studios.css']
   .map((file) => readFileSync(join(STYLES, file), 'utf8')).join('\n');
 
 /** The ramp, read from the one place it is written down. */
@@ -161,5 +162,57 @@ describe('the broadcast state colours', () => {
     const live = luminance(state['live']!);
     const armed = luminance(state['armed']!);
     expect(Math.abs(live - armed)).toBeGreaterThan(0.1);
+  });
+});
+
+/**
+ * A FILLED BLOCK WITH A WORD ON IT IS TEXT.  [Doctrine D-04, U-19]
+ *
+ * The bar for a colour changes with what is drawn on it. A lamp is a
+ * non-text element and clears 3:1; the moment the same colour becomes a
+ * chip with "ON AIR" or "Open Studio Two" written across it, the bar is
+ * the text bar, and it is measured against the ink the chip carries
+ * rather than against the desk behind it.
+ *
+ * TWO OF THESE FAILED. The workspace wrote "ON AIR" in --ink-000 on the
+ * live red: 4.00:1. Online TV's green carried its own name at 3.97:1.
+ * Both were chosen against the dark ground, where they are plainly
+ * visible, and nobody thought about the white sitting on top of them —
+ * which is the whole reason this is a test and not a habit.
+ *
+ * The live red keeps its brightness for the job it is good at and hands
+ * the chip to --state-live-dim (5.86:1); the green moved one step.
+ */
+describe('a colour that carries a word', () => {
+  const ink = tokens();
+  const chip = Object.fromEntries(
+    [...CSS.matchAll(/--(studio-(?:one|two|tv)|state-live-dim):\s*(#[0-9a-f]{6});/gi)]
+      .map(([, name, value]) => [name!, value!]));
+
+  /* A loop over nothing passes, so count them first. */
+  it('was found in the stylesheet, all four of them', () => {
+    expect(Object.keys(chip).sort())
+      .toEqual(['state-live-dim', 'studio-one', 'studio-tv', 'studio-two']);
+  });
+
+  it('reaches the text bar against the ink written on it', () => {
+    for (const [name, hex] of Object.entries(chip)) {
+      const got = contrast(hex, ink['ink-000']!);
+      expect(got, `--${name} carries ink-000 at ${got.toFixed(2)}:1`)
+        .toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  /*
+   * AND IS STILL VISIBLE AS A BLOCK. Darkening a chip until its text
+   * passes can push the chip itself into the background it sits on,
+   * which trades one failure for another. 3:1 against the page. [U-19]
+   */
+  it('is still distinguishable from the surface it sits on', () => {
+    for (const [name, hex] of Object.entries(chip)) {
+      const got = contrast(hex, ink['ink-800']!);
+      expect(got, `--${name} on the page is ${got.toFixed(2)}:1`)
+        .toBeGreaterThanOrEqual(3);
+    }
   });
 });

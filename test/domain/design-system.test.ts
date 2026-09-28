@@ -18,7 +18,14 @@
  * with matched six-digit hex and three-digit hex and nothing between, so
  * it missed every `#rrggbbaa`. The test's own regex is the number that
  * matters, and writing the budget from a different tool's count is how a
- * ratchet starts life already loose.)
+ * ratchet starts life already loose.
+ *
+ * AND THEN IT WAS LOOSE THE OTHER WAY. Thirty of the counted "colours"
+ * were never colours: `&#9654;` is a play triangle, and a regex looking
+ * for `#` followed by hex digits finds `9654` inside it very happily.
+ * A budget inflated by a tenth is a budget with a tenth of a free pass
+ * in it, so the regex now refuses a `#` that an `&` introduced, and the
+ * number was re-baselined against what it actually measures.)
  *
  * A ratchet is an uncomfortable kind of test and it is the honest one
  * here. It says: this is where we are, this is the direction, and you may
@@ -43,6 +50,16 @@ function components(dir = join(ROOT, 'app')): string[] {
   return found;
 }
 
+/*
+ * A COLOUR, AND NOT A CHARACTER REFERENCE. `&#9654;` is the play
+ * triangle this interface is full of, and `#9654` is four hex digits
+ * followed by a word boundary, so a naive pattern counts every glyph in
+ * the product as a colour to be converted. The lookbehind is the whole
+ * difference between a budget that measures something and a budget with
+ * slack built into it.
+ */
+const RAW = /(?<!&)#[0-9a-fA-F]{3,8}\b/g;
+
 /** Code only: a hex in a comment is documentation, not a value. */
 function code(file: string): string {
   return readFileSync(file, 'utf8')
@@ -56,13 +73,13 @@ describe('raw colour in components', () => {
    * If this fails on a new feature, the fix is a token, not a bigger
    * number — and the tokens are in `app/styles/`.
    */
-  const BUDGET = 244;
+  const BUDGET = 180;
 
   it(`is at or below ${BUDGET} occurrences, and falling`, () => {
     const counts = components()
       .map((file) => ({
         file: file.slice(file.indexOf('app/')),
-        n: (code(file).match(/#[0-9a-fA-F]{3,8}\b/g) ?? []).length,
+        n: (code(file).match(RAW) ?? []).length,
       }))
       .filter((row) => row.n > 0)
       .sort((a, b) => b.n - a.n);
@@ -81,8 +98,11 @@ describe('raw colour in components', () => {
   it.each([
     'app/Confirm.tsx',
     'app/Notice.tsx',
+    'app/SignOut.tsx',
+    /* The building itself, converted whole rather than in patches. [D-24] */
+    'app/Workspace.tsx',
   ])('%s uses tokens only', (name) => {
-    const found = code(join(ROOT, name)).match(/#[0-9a-fA-F]{3,8}\b/g) ?? [];
+    const found = code(join(ROOT, name)).match(RAW) ?? [];
     expect(found, `raw colour in ${name}: ${found.join(', ')}`).toEqual([]);
   });
 });
@@ -235,5 +255,95 @@ describe('speaker identity is one system', () => {
     const globals = readFileSync(join(ROOT, 'app', 'globals.css'), 'utf8');
     expect(globals).toContain('--source-accent: #7f9bb5');
     expect(globals).toContain('--user-accent: #c2794f');
+  });
+});
+
+/**
+ * A STUDIO'S COLOUR IS WRITTEN IN ONE PLACE.  [Doctrine D-24, D-19]
+ *
+ * The product is three studios and a building, and the workspace shows
+ * all three at once — so the colour is what says which card belongs to
+ * which room before a word of it is read. Online TV's green was written
+ * in `Workspace.tsx` and again in `ChannelStudio.tsx`, five thousand
+ * lines apart, which is the same shape of defect U-20 names for speaker
+ * identity and has the same ending: one of the two gets adjusted.
+ */
+describe('studio identity', () => {
+  const STUDIOS = join(ROOT, 'app', 'styles', 'studios.css');
+  const css = readFileSync(STUDIOS, 'utf8');
+
+  it('is declared, once, in the stylesheet', () => {
+    for (const name of ['one', 'two', 'tv']) {
+      expect(css, `--studio-${name} is not declared`)
+        .toMatch(new RegExp(`--studio-${name}:\\s*#[0-9a-f]{6};`, 'i'));
+    }
+  });
+
+  /*
+   * And nowhere else. A component that writes the green by hand has
+   * made a second Online TV, which will be a slightly different green
+   * the first time anybody adjusts either one.
+   */
+  it('is never written by hand in a component', () => {
+    const identity = [...css.matchAll(/--studio-\w+:\s*(#[0-9a-f]{6});/gi)]
+      .map(([, hex]) => hex!.toLowerCase());
+    expect(identity.length).toBe(3);
+    const offenders: string[] = [];
+    for (const file of components()) {
+      const found = code(file).match(RAW) ?? [];
+      for (const hex of found) {
+        if (identity.includes(hex.toLowerCase())) {
+          offenders.push(`${file.slice(file.indexOf('app/'))}: ${hex}`);
+        }
+      }
+    }
+    expect(offenders, `a second studio identity: ${offenders.join(', ')}`)
+      .toEqual([]);
+  });
+});
+
+/**
+ * YOU CANNOT PUT AN ALPHA ON A TOKEN BY GLUING TWO CHARACTERS TO IT.
+ *
+ * `${colour}22` is the obvious way to get a translucent version of a
+ * colour you were handed, it reads fine, and it works right up until the
+ * caller passes `var(--state-ok)` instead of `#4f9d63`. Then the value
+ * is `var(--state-ok)22`, which is not a colour, so the browser drops
+ * the whole declaration and says nothing. The border, the halo or the
+ * glow simply is not drawn, and it looks like a design choice.
+ *
+ * TWO OF THESE WERE LIVE IN THE PRODUCT when this test was written: every
+ * notice in `Notice.tsx` had been borderless since the day it was
+ * written, and three of the channel studio's five status lamps had been
+ * unlit since the day they were converted to tokens. Neither looked
+ * broken. `color-mix(in srgb, X 20%, transparent)` does the same job and
+ * works for both a hex and a token.
+ */
+describe('translucency', () => {
+  /*
+   * THE THREE EXCEPTIONS ARE REAL ONES. Takes and speakers get their
+   * colour from a fixed palette of raw hex in `src/domain/` — there is
+   * no token to pass — so the suffix is correct there and converting
+   * them would be churn. They are named rather than pattern-matched so
+   * that a fourth cannot join them quietly.
+   */
+  const PALETTE_DRIVEN = [
+    'app/p/[id]/SwitchingStage.tsx',
+    'app/p/[id]/PerformanceStudio.tsx',
+    'app/c/[id]/room/RoomView.tsx',
+  ];
+
+  it('is mixed rather than glued onto the end of a value', () => {
+    const offenders: string[] = [];
+    for (const file of components()) {
+      const name = file.slice(file.indexOf('app/'));
+      if (PALETTE_DRIVEN.includes(name)) continue;
+      for (const [hit] of code(file).matchAll(/\$\{[^}]+\}[0-9a-fA-F]{2}\b/g)) {
+        offenders.push(`${name}: ${hit}`);
+      }
+    }
+    expect(offenders,
+      `an alpha suffix that a token would break: ${offenders.join(', ')}`)
+      .toEqual([]);
   });
 });

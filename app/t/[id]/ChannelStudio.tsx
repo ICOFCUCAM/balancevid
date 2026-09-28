@@ -554,7 +554,7 @@ export default function ChannelStudio({
             border: `1px solid ${on.kind === 'live' ? 'var(--state-live-dim)'
               : on.kind === 'off' ? 'var(--line)' : 'rgba(45,110,200,0.45)'}`,
           }}>
-            <Dot on={on.kind !== 'off'} colour={on.kind === 'live' ? '#e04b37'
+            <Dot on={on.kind !== 'off'} colour={on.kind === 'live' ? 'var(--state-live)'
               : on.kind === 'emergency' || on.kind === 'backup' ? 'var(--ink-on-armed)' : 'var(--accent)'} />
             <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.4 }}>
               {on.kind === 'off' ? 'OFF AIR' : 'ON AIR'}
@@ -1911,7 +1911,7 @@ export default function ChannelStudio({
                 title={published
                   ? 'Anybody with the link can watch this channel.'
                   : 'Only you can watch this. Publish it to give it an audience.'}>
-            <Dot on colour={published ? 'var(--state-ok)' : '#6a7078'} />
+            <Dot on colour={published ? 'var(--state-ok)' : 'var(--ink-400)'} />
             <span className="muted">{published ? 'Public' : 'Private'}</span>
           </span>
 
@@ -2207,7 +2207,7 @@ function Strip({
                 : 'var(--text-faint)',
               background: compact
                 ? (chosen
-                  ? 'linear-gradient(180deg, #3a7ad8, #2f6fd0)'
+                  ? 'linear-gradient(180deg, var(--accent), var(--accent-deep))'
                   : 'transparent')
                 : 'none',
               border: 0,
@@ -2265,8 +2265,20 @@ function Dot({ on, colour }: { on: boolean; colour: string }) {
     <span aria-hidden="true" style={{
       width: 8, height: 8, borderRadius: 'var(--radius-full)', flex: '0 0 auto',
       background: on ? colour : 'var(--ink-500)',
+      /*
+       * THE HALO IS MIXED, NOT SUFFIXED. It was `${colour}22`, which
+       * works for a hex and silently produces nothing for a token —
+       * `var(--state-ok)22` is not a colour, so the whole declaration
+       * is dropped and the lamp loses its glow. Of this component's
+       * four call sites, three already passed a token on at least one
+       * branch — including the encoder lamp, whose every state is a
+       * token — and every one of those branches has been unlit since
+       * the day it was converted. The two that still looked right were
+       * the two that had never been converted.
+       */
       boxShadow: on
-        ? `0 0 0 2.5px ${colour}22, 0 0 8px ${colour}55,`
+        ? `0 0 0 2.5px color-mix(in srgb, ${colour} 13%, transparent),`
+          + ` 0 0 8px color-mix(in srgb, ${colour} 33%, transparent),`
           + ' inset 0 0 0 1px rgba(0,0,0,0.35)'
         : 'inset 0 0 0 1px rgba(0,0,0,0.4)',
     }} />
@@ -3767,7 +3779,7 @@ function ScreensTab({
           }}>LIVE SCREEN</span>
           {share.sharing && (
             <span style={{
-              padding: '1px 6px', borderRadius: 3, background: '#1f8a70',
+              padding: '1px 6px', borderRadius: 3, background: 'var(--studio-tv)',
               color: 'var(--ink-000)', fontSize: 8, fontWeight: 800, letterSpacing: 0.5,
             }}>IN THE MIX</span>
           )}
@@ -3779,7 +3791,7 @@ function ScreensTab({
               flexWrap: 'nowrap', background: 'var(--panel-2)',
               border: '1px solid var(--line)',
             }}>
-              <Dot on colour="#1f8a70" />
+              <Dot on colour="var(--studio-tv)" />
               <span className="grow" style={{
                 minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',

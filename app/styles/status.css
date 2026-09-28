@@ -27,6 +27,14 @@
 :root {
   /* ---- on air: the one that must never be mistaken ------------------ */
   --state-live: #e23b2e;
+  /*
+   * THE DEEP ONE IS FOR A CHIP THAT CARRIES A WORD. The bright red is
+   * tuned to be seen, not read on: --ink-000 over #e23b2e measures
+   * 4.00:1, which is under the bar for the ten-pixel bold "ON AIR" the
+   * workspace draws on it. Over #b62a20 it is 5.86:1 and the red is
+   * still unmistakably the red. So: the lamp, the edge and the glow are
+   * --state-live; a filled block with text on it is --state-live-dim.
+   */
   --state-live-dim: #b62a20;
   --state-live-glow: rgba(226, 59, 46, 0.28);
   --state-live-wash: rgba(226, 59, 46, 0.12);
@@ -45,6 +53,7 @@
   --state-ok-wash: rgba(79, 157, 99, 0.12);
   --state-warn: #d79a2b;
   --state-bad: #d7594a;
+  --state-bad-wash: rgba(215, 89, 74, 0.12);
 
   /*
    * THE INK A NOTICE IS WRITTEN IN, which is not the colour of its

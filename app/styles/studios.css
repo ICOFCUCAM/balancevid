@@ -1,0 +1,50 @@
+/*
+ * WHICH ROOM YOU ARE IN.  [Doctrine D-24, D-04, U-19]
+ *
+ * The product is three studios and a building, and each studio has a
+ * colour. That is not decoration: the workspace shows all three at once,
+ * and the colour is what tells somebody at a glance which card, which
+ * rail row and which badge belongs to which room, before they read a
+ * word of it.
+ *
+ * SO IT HAS TO BE WRITTEN DOWN ONCE. It was not. `#1f8a70` — Online TV's
+ * green — was written in `Workspace.tsx` and again in `ChannelStudio.tsx`,
+ * five thousand lines apart, and a colour written twice is a colour that
+ * will eventually be written differently. Everything that carries a
+ * studio's identity now names the token.
+ *
+ * AND IT IS NEVER THE ONLY CUE. Every studio card carries its name, its
+ * label and a glyph as well; somebody who cannot separate the green from
+ * the blue loses nothing. [U-19]
+ *
+ * THE GREEN MOVED ONE STEP DARKER, and that is the only value here that
+ * is not what it was. These colours are filled chips with `--ink-000`
+ * written on them, so the bar is 4.5:1 for the text they carry, not 3:1
+ * for a block of colour. Measured: Studio One 4.55, Studio Two 4.89,
+ * Online TV 3.97 — the green failed, on the one label a person actually
+ * reads off it. #1c7e66 is the same green at 4.63. `contrast.test.ts`
+ * holds all three to that bar now, so the next one cannot drift under it
+ * unnoticed.
+ */
+
+:root {
+  --studio-one: #2f6fd0;   /* Conversation — the accent's deep weight */
+  --studio-two: #7d56c4;   /* Performance */
+  --studio-tv:  #1c7e66;   /* Online TV */
+
+  /*
+   * THE SAME THREE AT THE TWO STRENGTHS THE BUILDING USES THEM AT: the
+   * veil behind a studio card's artwork, and the wash that fills an empty
+   * frame. They are written out rather than mixed at use time because an
+   * inline `${accent}2e` is how a colour ends up with an alpha nobody
+   * chose — and because two strengths, stated, is a system, where any
+   * hex plus any two characters is not.
+   */
+  --studio-one-veil: rgba(47, 111, 208, 0.18);
+  --studio-two-veil: rgba(125, 86, 196, 0.18);
+  --studio-tv-veil:  rgba(28, 126, 102, 0.18);
+
+  --studio-one-wash: rgba(47, 111, 208, 0.12);
+  --studio-two-wash: rgba(125, 86, 196, 0.12);
+  --studio-tv-wash:  rgba(28, 126, 102, 0.12);
+}

@@ -29,7 +29,7 @@ export type NoticeKind = 'error' | 'warning' | 'done' | 'info';
 const LOOK: Record<NoticeKind, { edge: string; wash: string; ink: string; word: string }> = {
   error: {
     edge: 'var(--state-bad)',
-    wash: 'rgba(215,89,74,0.10)',
+    wash: 'var(--state-bad-wash)',
     ink: 'var(--ink-on-bad)',
     word: 'Failed',
   },
@@ -47,7 +47,7 @@ const LOOK: Record<NoticeKind, { edge: string; wash: string; ink: string; word: 
   },
   info: {
     edge: 'var(--ink-450)',
-    wash: 'rgba(86,93,103,0.12)',
+    wash: 'var(--state-off-wash)',
     ink: 'var(--text-dim)',
     word: '',
   },
@@ -80,7 +80,16 @@ export default function Notice({
         margin: 0, padding: 'var(--space-4) var(--space-5)',
         borderRadius: 'var(--radius-md)',
         background: look.wash,
-        border: `var(--border) solid ${look.edge}33`,
+        /*
+         * MIXED, NOT SUFFIXED. This read `${look.edge}33`, and every
+         * `edge` here is a `var()` — so it produced `var(--state-bad)33`,
+         * which is not a colour, so the border was dropped by the parser
+         * and every notice in the product has been borderless since the
+         * day it was written. Nothing looked broken; it just looked
+         * flatter than it was drawn.
+         */
+        border: `var(--border) solid color-mix(in srgb, ${look.edge} 20%,`
+          + ' transparent)',
         boxShadow: `inset 3px 0 0 ${look.edge}`,
         fontSize: 'var(--text-base)',
         lineHeight: 'var(--leading-snug)',

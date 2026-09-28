@@ -72,7 +72,10 @@ const STUDIOS: {
   label: string;
   name: string;
   blurb: string;
+  /* The room's identity, and the two strengths it is washed in. */
   accent: string;
+  veil: string;
+  wash: string;
   glyph: string;
   open: string;
 }[] = [
@@ -80,19 +83,22 @@ const STUDIOS: {
     studio: 'one', kind: 'conversation',
     label: 'STUDIO ONE', name: 'Conversation Studio',
     blurb: 'Watch, interrupt and respond to any video.',
-    accent: '#2f6fd0', glyph: '▣', open: 'Open Studio One',
+    accent: 'var(--studio-one)', veil: 'var(--studio-one-veil)',
+    wash: 'var(--studio-one-wash)', glyph: '▣', open: 'Open Studio One',
   },
   {
     studio: 'two', kind: 'performance',
     label: 'STUDIO TWO', name: 'Performance Studio',
     blurb: 'One song, many takes. Cut between them afterwards.',
-    accent: '#7d56c4', glyph: '♪', open: 'Open Studio Two',
+    accent: 'var(--studio-two)', veil: 'var(--studio-two-veil)',
+    wash: 'var(--studio-two-wash)', glyph: '♪', open: 'Open Studio Two',
   },
   {
     studio: 'tv', kind: 'channel',
     label: 'ONLINE TV', name: 'Online TV',
     blurb: 'Run a 24/7 channel from what you have already made.',
-    accent: '#1f8a70', glyph: '◉', open: 'Open Online TV',
+    accent: 'var(--studio-tv)', veil: 'var(--studio-tv-veil)',
+    wash: 'var(--studio-tv-wash)', glyph: '◉', open: 'Open Online TV',
   },
 ];
 
@@ -156,7 +162,8 @@ export default function Workspace({
         }}>
           <span aria-hidden="true" style={{
             width: 28, height: 28, borderRadius: 8, display: 'grid',
-            placeItems: 'center', background: '#2f7fe0', color: '#fff',
+            placeItems: 'center', background: 'var(--accent)',
+            color: 'var(--text-on-accent)',
             fontSize: 13, paddingLeft: 2, flex: '0 0 auto',
           }}>&#9654;</span>
           <strong style={{ fontSize: 16, whiteSpace: 'nowrap' }}>BalanceVid</strong>
@@ -217,8 +224,9 @@ export default function Workspace({
               <div style={{
                 height: '100%', width: `${Math.min(100, space.fraction * 100)}%`,
                 minWidth: space.fraction > 0 ? 2 : 0,
-                background: space.fraction > 0.9 ? '#c0392b'
-                  : space.fraction > 0.75 ? '#c99a2e' : '#2f7fe0',
+                background: space.fraction > 0.9 ? 'var(--state-bad)'
+                  : space.fraction > 0.75 ? 'var(--state-warn)'
+                    : 'var(--accent)',
               }} />
             </div>
           </div>
@@ -296,21 +304,22 @@ export default function Workspace({
                     <div aria-hidden="true" style={{
                       height: 118, display: 'grid', gap: 2, padding: 0,
                       gridTemplateColumns: mine.length > 1 ? '2fr 1fr' : '1fr',
-                      background: `linear-gradient(135deg, ${studio.accent}2e, #0b0d10)`,
+                      background: `linear-gradient(135deg, ${studio.veil},`
+                        + ' var(--surface-sunk))',
                       position: 'relative',
                     }}>
                       {mine.slice(0, 1).map((record) => (
                         <Frame key={record.id} poster={record.poster}
-                               accent={studio.accent} glyph={studio.glyph} />
+                               wash={studio.wash} glyph={studio.glyph} />
                       ))}
                       {mine.length > 1 && (
                         <div style={{ display: 'grid', gap: 2, gridTemplateRows: '1fr 1fr' }}>
                           {mine.slice(1, 3).map((record) => (
                             <Frame key={record.id} poster={record.poster}
-                                   accent={studio.accent} glyph={studio.glyph} />
+                                   wash={studio.wash} glyph={studio.glyph} />
                           ))}
                           {mine.length === 2 && (
-                            <Frame poster={null} accent={studio.accent}
+                            <Frame poster={null} wash={studio.wash}
                                    glyph={studio.glyph} />
                           )}
                         </div>
@@ -324,7 +333,8 @@ export default function Workspace({
                       {studio.studio === 'tv' && mine.some((r) => r.live) && (
                         <span style={{
                           position: 'absolute', right: 9, top: 9, padding: '2px 8px',
-                          borderRadius: 4, background: '#c0392b', color: '#fff',
+                          borderRadius: 4, background: 'var(--state-live-dim)',
+                          color: 'var(--ink-000)',
                           fontSize: 10, fontWeight: 800, letterSpacing: 0.6,
                         }}>ON AIR</span>
                       )}
@@ -338,7 +348,7 @@ export default function Workspace({
                         <span aria-hidden="true" style={{
                           width: 26, height: 26, borderRadius: 8, flex: '0 0 auto',
                           display: 'grid', placeItems: 'center', fontSize: 12,
-                          background: studio.accent, color: '#fff',
+                          background: studio.accent, color: 'var(--ink-000)',
                         }}>{studio.glyph}</span>
                         <span className="muted" style={{
                           fontSize: 9, letterSpacing: 1, fontWeight: 700,
@@ -356,7 +366,8 @@ export default function Workspace({
                             style={{
                               flex: '1 1 0', textAlign: 'center', padding: '9px 12px',
                               borderRadius: 9, background: studio.accent,
-                              color: '#fff', textDecoration: 'none', fontSize: 13,
+                              color: 'var(--ink-000)', textDecoration: 'none',
+                              fontSize: 13,
                               fontWeight: 600,
                             }}
                           >
@@ -369,7 +380,7 @@ export default function Workspace({
                             style={{
                               flex: '1 1 0', padding: '9px 12px', borderRadius: 9,
                               background: studio.accent, borderColor: studio.accent,
-                              color: '#fff', fontSize: 13, fontWeight: 600,
+                              color: 'var(--ink-000)', fontSize: 13, fontWeight: 600,
                             }}
                           >
                             {studio.open} &rarr;
@@ -505,9 +516,9 @@ function Rail({
         padding: 'var(--space-4) var(--space-4)',
         borderRadius: 'var(--radius-md)', textDecoration: 'none',
         fontSize: 'var(--text-base)',
-        color: current ? '#fff' : 'var(--text-dim)',
-        background: current ? 'rgba(63,142,232,0.16)' : 'transparent',
-        boxShadow: current ? 'inset 2px 0 0 #3f8ee8' : 'none',
+        color: current ? 'var(--ink-000)' : 'var(--text-dim)',
+        background: current ? 'var(--accent-wash)' : 'transparent',
+        boxShadow: current ? 'inset 2px 0 0 var(--accent)' : 'none',
         fontWeight: current ? 'var(--weight-semi)' : 'var(--weight-medium)',
         marginBottom: 1,
         opacity: empty ? 0.42 : 1,
@@ -568,13 +579,13 @@ function useStill(src: string | null) {
 
 /** A frame of the person's own work, or the room's colour. */
 function Frame({
-  poster, accent, glyph,
-}: { poster: string | null; accent: string; glyph: string }) {
+  poster, wash, glyph,
+}: { poster: string | null; wash: string; glyph: string }) {
   const { show, imgProps } = useStill(poster);
   return (
     <span style={{
       display: 'block', position: 'relative', overflow: 'hidden',
-      background: show ? '#05070a' : `${accent}1f`,
+      background: show ? 'var(--surface-sunk)' : wash,
     }}>
       {show && (
         <img alt="" src={poster!} {...imgProps}
@@ -629,7 +640,8 @@ function Card({
     }}>
       <Link href={record.href} style={{ textDecoration: 'none', color: 'inherit' }}>
         <div style={{
-          position: 'relative', aspectRatio: '16 / 9', background: '#0d1319',
+          position: 'relative', aspectRatio: '16 / 9',
+          background: 'var(--surface-sunk)',
         }}>
           <Poster
             poster={record.poster}
@@ -644,7 +656,8 @@ function Card({
           {record.live && (
             <span style={{
               position: 'absolute', left: 6, top: 6, padding: '1px 7px',
-              borderRadius: 4, background: '#c0392b', color: '#fff',
+              borderRadius: 4, background: 'var(--state-live-dim)',
+              color: 'var(--ink-000)',
               fontSize: 9, fontWeight: 800, letterSpacing: 0.5,
             }}>ON AIR</span>
           )}
@@ -686,7 +699,8 @@ function Row({
       }}>
         <span style={{
           width: 74, height: 42, borderRadius: 6, flex: '0 0 auto',
-          overflow: 'hidden', position: 'relative', background: '#0d1319',
+          overflow: 'hidden', position: 'relative',
+          background: 'var(--surface-sunk)',
           border: '1px solid var(--line)',
         }}>
           <Poster poster={record.poster}
