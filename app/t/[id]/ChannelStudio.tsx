@@ -1454,35 +1454,57 @@ export default function ChannelStudio({
             {/* ---- NOW PLAYING / NEXT / UPCOMING ---------------------- */}
             <div data-testid="now-next" style={{ marginTop: 11 }}>
               <Section text="Now Playing" />
-              <div className="panel" style={{ padding: 9 }}>
+              {/*
+                * WHAT IS OUT, AND HOW FAR THROUGH. This is the one
+                * readout on the desk somebody checks without being
+                * prompted — "how long have I got" — so the elapsed
+                * figure is the bright thing and the total is dim,
+                * rather than the two being equal weight in the faint
+                * grey they both had.
+                */}
+              <div style={{
+                padding: 9, borderRadius: 3,
+                background: 'var(--console-control)',
+                border: 'var(--border) solid var(--console-seam)',
+                boxShadow: 'var(--console-bevel)',
+              }}>
                 <div style={{
-                  fontSize: 13, fontWeight: 600, overflow: 'hidden',
+                  fontSize: 'var(--text-sm)', fontWeight: 'var(--weight-semi)',
+                  overflow: 'hidden',
                   textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                 }}>{titleOf(on)}</div>
                 <div style={{
-                  height: 4, borderRadius: 2, background: 'var(--panel-2)',
-                  margin: '7px 0 5px', overflow: 'hidden',
+                  height: 3, background: 'var(--console-inset)',
+                  boxShadow: 'var(--console-well)',
+                  margin: '8px 0 6px', overflow: 'hidden',
                 }}>
                   <div data-testid="now-progress" style={{
                     height: '100%',
                     width: totalMs > 0
                       ? `${Math.min(100, (intoMs / totalMs) * 100)}%` : '100%',
-                    background: on.kind === 'live' ? 'var(--state-live-dim)' : 'var(--accent-deep)',
+                    background: on.kind === 'live'
+                      ? 'var(--state-live)' : 'var(--accent)',
                   }} />
                 </div>
-                <div className="row mono muted" style={{ fontSize: 10 }}>
-                  <span className="grow">{hms(intoMs)}</span>
-                  <span>{totalMs > 0 ? hms(totalMs) : '—'}</span>
+                <div className="row" style={{ fontSize: 'var(--text-2xs)' }}>
+                  <span className="grow mono readout" style={{
+                    color: 'var(--ink-050)',
+                  }}>{hms(intoMs)}</span>
+                  <span className="mono readout" style={{
+                    color: 'var(--ink-400)',
+                  }}>{totalMs > 0 ? hms(totalMs) : '—'}</span>
                 </div>
               </div>
 
               <div className="row" data-testid="next-in" style={{
-                marginTop: 8, padding: '6px 9px', borderRadius: 7,
-                background: 'var(--panel-2)', border: '1px solid var(--line)',
-                fontSize: 11, gap: 7,
+                marginTop: 6, padding: '6px 9px',
+                borderTop: 'var(--border) solid var(--console-rule)',
+                fontSize: 'var(--text-xs)', gap: 7,
               }}>
-                <span className="muted">Next in</span>
-                <span className="mono" style={{ fontWeight: 700 }}>
+                <span className="module-label">Next in</span>
+                <span className="mono readout" style={{
+                  fontWeight: 'var(--weight-bold)', color: 'var(--ink-050)',
+                }}>
                   {(on.kind === 'programme' || on.kind === 'rotation')
                     ? hms(Math.max(0, on.untilMs - now)) : '—'}
                 </span>
