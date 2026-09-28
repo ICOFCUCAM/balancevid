@@ -115,6 +115,30 @@ several GB per hour-long conversation, and note that **render-cost metering
 (D-11) is not built** — nothing currently meters or caps what a user can
 consume.
 
+### The image, and the host disk it lands on
+
+The volume is not the only thing that needs room. Most hosts keep one image
+per deployment so a release can be rolled back, and this image is not small:
+
+| Part | Approx. | Why |
+|---|---|---|
+| Chromium and its system libraries | 0.6–1 GB | archiving a cited page (U-33) |
+| `node_modules` (production only) | ~1 GB | ffmpeg, pdf.js, playwright, tsx |
+| Python, sherpa-onnx, numpy | ~0.4 GB | offline transcription |
+| node, the app, `.next` | ~0.5 GB | |
+
+**Layers are shared between deployments when they do not change**, so a
+code-only deploy should add a few hundred megabytes rather than another copy
+of all of it. That only holds if nothing near the end of the Dockerfile
+rewrites files from earlier layers — `chown -R` over `/app` is the classic
+way to lose it, and the comment on the last `RUN` in the runtime stage
+explains what it cost when it was there. A dependency change is genuinely
+expensive: it reinstalls the packages and re-downloads the browser.
+
+Budget for production, plus however many rollback images the host keeps, plus
+one build in flight. `WITH_BROWSER=0` removes the largest single part if the
+disk is tight and web-page evidence is not wanted.
+
 ## Before it is reachable from the internet
 
 **Set `BALANCEVID_PASSWORD_HASH`.** Without it the instance is locked and

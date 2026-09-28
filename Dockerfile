@@ -109,13 +109,22 @@ RUN if [ "$WITH_OFFICE" = "1" ]; then \
 
 # Runtime dependencies only. tsx is one of them: the worker runs the
 # TypeScript sources directly.
-COPY package.json package-lock.json* ./
+#
+# OWNERSHIP IS SET AS THE FILES ARE WRITTEN, here and in every COPY below.
+# See the note on the last RUN in this stage: changing it afterwards is what
+# used to cost 1.4 GB a deploy.
+COPY --chown=node:node package.json package-lock.json* ./
 RUN npm ci --omit=dev \
     # ffprobe-static ships macOS and Windows binaries too — 230 MB this image
     # will never execute.
     && rm -rf node_modules/ffprobe-static/bin/darwin \
               node_modules/ffprobe-static/bin/win32 \
-    && npm cache clean --force
+    && npm cache clean --force \
+    # In THIS layer, not a later one. These files were created by the line
+    # above, so chowning them here rewrites metadata on a diff that is being
+    # assembled anyway; a `chown` in a separate RUN would copy every one of
+    # them into a new layer instead.
+    && chown -R node:node node_modules
 
 # Chromium, for archiving a cited page at the moment it is attached (U-33).
 # The INSTALLED playwright, not a pinned copy of it. package.json allows a
@@ -140,18 +149,42 @@ RUN if [ "$WITH_BROWSER" = "1" ]; then \
 
 # Empty unless WITH_MODELS=1. Otherwise serve.sh fetches them onto the volume
 # on first boot, where they are stored once rather than once per deployment.
+# Read-only at runtime and outside /app, so it stays root's.
 COPY --from=models /models /models
-COPY --from=build /app/.next ./.next
-COPY --from=build /app/public ./public
-COPY --from=build /app/next.config.mjs ./next.config.mjs
+
+# `.next` is the one thing under /app the server writes to — Next keeps its
+# cache there — so it is node's, like the rest of the application tree.
+COPY --chown=node:node --from=build /app/.next ./.next
+COPY --chown=node:node --from=build /app/public ./public
+COPY --chown=node:node --from=build /app/next.config.mjs ./next.config.mjs
 # The worker runs from source, so the TypeScript comes with it.
-COPY --from=build /app/src ./src
-COPY --from=build /app/app ./app
-COPY --from=build /app/scripts ./scripts
-COPY --from=build /app/tsconfig.json ./tsconfig.json
+COPY --chown=node:node --from=build /app/src ./src
+COPY --chown=node:node --from=build /app/app ./app
+COPY --chown=node:node --from=build /app/scripts ./scripts
+COPY --chown=node:node --from=build /app/tsconfig.json ./tsconfig.json
 
 # The volume. Everything a user made lives here and nothing else does.
-RUN mkdir -p /data && chown -R node:node /data /app
+#
+# ONE DIRECTORY, NOT A TREE, and this line used to be the single most
+# expensive thing in the image. It read:
+#
+#     RUN mkdir -p /data && chown -R node:node /data /app
+#
+# A layer stores whatever the filesystem diff contains, and changing a file's
+# owner counts as changing the file. Recursing over /app therefore copied
+# node_modules, .next and the sources — about 1.4 GB — into a brand new layer
+# on top of the ones that already held them. The build log showed it plainly:
+# `[runtime 17/17] ... 21.4s` for a command that creates one directory.
+#
+# Worse, being last meant it was rebuilt by every deploy, so a one-line code
+# change still wrote 1.4 GB of duplicated files to the host. That is how a
+# disk fills up without anybody deploying anything large.
+#
+# Now ownership is set by the COPY that writes each file, and this does the
+# only thing left: the two directories themselves, non-recursively. `/app`
+# is included because WORKDIR made it root's before anything was copied in,
+# and one directory entry is not 1.4 GB.
+RUN mkdir -p /data && chown node:node /data /app
 VOLUME ["/data"]
 
 USER node
