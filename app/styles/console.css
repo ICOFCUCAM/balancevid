@@ -345,3 +345,56 @@
   border-color: var(--console-edge);
 }
 .state.is-off::before { background: var(--ink-450); }
+
+/* ------------------------------------------------------------------- *
+ *  Everything else inside a studio.
+ * ------------------------------------------------------------------- */
+
+/*
+ * A PANEL INSIDE A STUDIO IS A MODULE, WHEREVER IT IS.
+ *
+ * `Frame` is the face of the containers this pass has reached by hand,
+ * and there are forty more `.panel`s behind them — the claim card, the
+ * export panel, the evidence list, the device picker, the schedulers,
+ * the calendar rows. Converting each by hand would be forty diffs that
+ * all say the same thing, and the fortieth would be missed.
+ *
+ * So the material is declared once for the scope it applies to. `.shell`
+ * is the studio shell: all three studios and the room use it, and the
+ * building does not — which is exactly the line the light ground drew
+ * in the other direction. A panel on a lit page stays a card, because
+ * on a lit page a card is the right object.
+ *
+ * NOTHING MOVES. `.panel` keeps its padding and its place in the
+ * layout; only the face, the border weight, the radius and the depth
+ * cue change. That is the whole brief in one selector. [brief §4, §15]
+ */
+.shell .panel {
+  background: var(--console-face);
+  border: var(--border) solid var(--console-edge);
+  border-radius: var(--radius-module);
+  box-shadow: var(--console-bevel);
+}
+
+/*
+ * AND A PANEL INSIDE A PANEL IS QUIETER STILL. Two nested panels drawn
+ * at the same weight is the "card in a card" that makes a dense screen
+ * read as a pile — the inner one is a compartment of the outer, so it
+ * takes the control face and loses its border on the side it shares.
+ */
+.shell .panel .panel {
+  background: var(--console-control);
+  border-color: var(--console-seam);
+  box-shadow: none;
+}
+
+/*
+ * THE SUNKEN FIELD a picture sits in keeps true black and square
+ * corners, in every studio, for the reason the programme monitor does:
+ * a screen has square corners, and the one place true black belongs is
+ * inside a frame.
+ */
+.shell .stage-field {
+  background: #000;
+  box-shadow: var(--console-well);
+}
