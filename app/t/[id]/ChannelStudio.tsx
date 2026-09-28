@@ -2952,11 +2952,18 @@ function MultiView({
             * edge is what makes six of them read as one instrument
             * instead of six floating rectangles. [elevation]
             *
-            * THE LIVE ONE IS NOT JUST OUTLINED. An outline in a grid of
-            * outlines is found by comparison — the eye has to check all
-            * six. A tinted halo around it is found without comparison,
-            * which is the difference between reading a rack and glancing
-            * at one.
+            * THE LIVE ONE WEARS A TALLY. It had a tinted halo — a 2px
+            * blue glow spreading outside the tile — which finds the eye
+            * but is the wrong object: a halo is a web affordance, and a
+            * switcher has never had one. A rack tells you what is on air
+            * with a TALLY: a hard bar along the top edge of the monitor,
+            * in the colour of the bus it is on. It is found just as
+            * fast, it costs no pixels outside the tile, and it is what
+            * the equipment this is imitating actually does.
+            *
+            * Red for program, blue for preview, because those are the
+            * two buses and an operator already knows which is which.
+            * [brief §6 — "a restrained blue/white active edge"]
             */
           style={{
             position: 'relative', minHeight: 44,
@@ -2969,11 +2976,12 @@ function MultiView({
              * greyed: an operator watching six sources needs to see the one
              * they cannot cut to as much as the ones they can.
              */
-            opacity: tile.act || tile.live ? 1 : 0.72,
-            border: `1px solid ${tile.live ? 'var(--accent)' : 'var(--ink-600)'}`,
+            opacity: tile.act || tile.live ? 1 : 0.7,
+            border: `1px solid ${tile.live
+              ? 'rgba(226,59,46,0.55)' : 'var(--console-seam)'}`,
             boxShadow: tile.live
-              ? '0 0 0 2px rgba(79,138,214,0.3), 0 2px 8px rgba(0,0,0,0.5),'
-                + ' inset 0 0 0 1px rgba(255,255,255,0.06)'
+              ? 'inset 0 3px 0 0 var(--state-live),'
+                + ' inset 0 0 0 1px rgba(226,59,46,0.16)'
               : 'inset 0 1px 3px rgba(0,0,0,0.6)',
             transition: 'box-shadow var(--motion-fast) var(--ease-out),'
               + ' border-color var(--motion-fast) var(--ease-out),'
@@ -3004,15 +3012,21 @@ function MultiView({
             * the picture: a number over moving video is unreadable for
             * whichever frames happen to be pale behind it.
             */}
-          <span className="mono" style={{
-            position: 'absolute', left: 4, top: 4,
-            padding: '1px 5px', borderRadius: 'var(--radius-xs)',
-            background: 'rgba(0,0,0,0.72)',
-            border: '1px solid rgba(255,255,255,0.1)',
-            fontSize: 'var(--text-2xs)', lineHeight: 1.3,
+          {/*
+            * ZERO-PADDED, because inputs on a switcher are 01..24 and a
+            * bare "1" beside a "12" is a different width and a different
+            * object. It sits below the tally bar rather than over it.
+            */}
+          <span className="mono readout" style={{
+            position: 'absolute', left: 0, top: tile.live ? 3 : 0,
+            padding: '2px 5px 2px 4px',
+            borderBottomRightRadius: 'var(--radius-xs)',
+            background: 'rgba(0,0,0,0.78)',
+            fontSize: 'var(--text-2xs)', lineHeight: 1.25,
             fontWeight: 'var(--weight-bold)',
-            color: tile.live ? '#9cc6f5' : 'var(--ink-100)',
-          }}>{tile.n}</span>
+            letterSpacing: '0.04em',
+            color: tile.live ? '#ff9c91' : 'var(--ink-200)',
+          }}>{String(tile.n).padStart(2, '0')}</span>
           {/*
             * THE NAME PLATE. A single-stop gradient leaves a visible seam
             * where it starts; three stops with an eased middle is what
@@ -3031,10 +3045,31 @@ function MultiView({
               overflow: 'hidden', textOverflow: 'ellipsis',
               whiteSpace: 'nowrap', color: 'var(--ink-000)',
             }}>{tile.label}</span>
-            <span style={{
-              display: 'block', overflow: 'hidden', textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap', color: 'rgba(255,255,255,0.62)',
-            }}>{tile.sub}</span>
+            <span className="row" style={{
+              gap: 5, flexWrap: 'nowrap', minWidth: 0,
+            }}>
+              <span className="grow" style={{
+                minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap', color: 'rgba(255,255,255,0.62)',
+              }}>{tile.sub}</span>
+              {/*
+                * STATUS, IN A WORD, on every input. The brief asks each
+                * source to say availability as well as identity, and a
+                * tile that says only its name leaves "can I cut to this"
+                * to be discovered by clicking. LIVE / READY / — is the
+                * whole vocabulary, and it survives greyscale because it
+                * is a word. [brief §8, U-19]
+                */}
+              <span style={{
+                flex: '0 0 auto', fontSize: 'var(--text-2xs)',
+                fontWeight: 'var(--weight-bold)', letterSpacing: '0.08em',
+                color: tile.live ? '#ff9c91'
+                  : tile.act ? 'rgba(146, 214, 166, 0.92)'
+                    : 'rgba(255,255,255,0.35)',
+              }}>
+                {tile.live ? 'LIVE' : tile.act ? 'READY' : '\u2014'}
+              </span>
+            </span>
           </span>
         </button>
       ))}
