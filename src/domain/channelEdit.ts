@@ -823,6 +823,10 @@ export function setIdentity(
   if (next.lowerThird && next.lowerThird.holdMs < 0) {
     fail('a lower third cannot be held for less than no time');
   }
+  /* Clearing the virtual set removes it rather than storing an empty id: a
+     document holding `spaceId: ''` would be a document naming a space that
+     does not exist, and INV-16 keeps unmeasured spaces out. */
+  if (!next.spaceId?.trim()) delete next.spaceId;
   channel.identity = next;
 }
 

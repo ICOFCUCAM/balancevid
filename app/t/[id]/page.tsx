@@ -42,6 +42,18 @@ export default async function ChannelPage(
       initial={channel!}
       studioOneId={conversations[0]?.id}
       studioTwoId={performances[0]?.id}
+      /*
+       * THE INSTANT THIS PAGE WAS DRAWN.
+       *
+       * A control room is one long argument about what time it is, and every
+       * string in it — the clock, the elapsed counter, the playhead, which
+       * programme is on — comes out of one number. Server-rendered at T and
+       * hydrated at T+1s, that number differs and React throws out the
+       * markup it was handed. Passing it down means the browser's FIRST
+       * render is the server's render, exactly, and the second one (a tick
+       * later) is the browser's own. [§2, U-08]
+       */
+      serverNow={Date.now()}
     />
   );
 }

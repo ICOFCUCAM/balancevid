@@ -37,6 +37,7 @@ import {
   deadAir, distinctAssetsRead, livePlaylist, playoutWindow, segmentIndexAt,
 } from '../../src/domain/playout.js';
 import { marksFor } from '../../src/domain/identity.js';
+import { SPACES } from '../../src/domain/performance.js';
 import { PLATFORMS, layoutFor, sending, sizeOf } from '../../src/domain/distribution.js';
 import { LAYOUTS } from '../../src/domain/presentation.js';
 import {
@@ -1122,6 +1123,30 @@ describe('the channel identity is drawn, never burned in (§13, D-16)', () => {
     /* Merged, not replaced: the second change did not forget the first. */
     expect(c.identity!.bug!.text).toBe('PC');
     expect(c.identity!.ink).toBe('#ffcc00');
+  });
+
+  /*
+   * THE VIRTUAL SET IS STUDIO TWO'S OWN TABLE, not a second one. [D-19]
+   *
+   * A channel names a space by id, so the renderer that lights a
+   * performance's Concert Stage lights the channel's — and clearing it
+   * removes the field rather than leaving an id naming nothing, which is
+   * INV-16 ("no unmeasured spaces") arriving at the broadcast layer.
+   */
+  it('a virtual set is an id from the spaces table, and clearing it removes it', () => {
+    const c = newChannel('Prof Class TV', 'UTC', AT);
+    setIdentity(c, { spaceId: 'concert_stage' });
+    expect(c.identity!.spaceId).toBe('concert_stage');
+    expect(SPACES.some((space) => space.id === c.identity!.spaceId)).toBe(true);
+
+    /* Set and then cleared is not the same as set to nothing. */
+    setIdentity(c, { spaceId: '' });
+    expect('spaceId' in c.identity!).toBe(false);
+    /* And clearing it forgot nothing else. */
+    setIdentity(c, { ink: '#ffcc00' });
+    setIdentity(c, { spaceId: '  ' });
+    expect(c.identity!.ink).toBe('#ffcc00');
+    expect(c.identity!.spaceId).toBeUndefined();
   });
 });
 

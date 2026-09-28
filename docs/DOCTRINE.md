@@ -3241,6 +3241,9 @@ A feature is done when all of the following are true. Not most.
 | U-39 | §31 | The editing proxy, and preview/render frame parity |
 | U-40 | §16 | The article quotes; it does not reproduce |
 
+Channel-era clauses: D-18 broadcast, D-19 check before you build, D-20 seams,
+D-21 distribution, **D-22 the gallery has a geography**.
+
 ---
 
 # APPENDIX B — WHAT CHANGED IN THE PLAN
@@ -4646,3 +4649,58 @@ rather than ON.
 they are is the connector's business and where they are kept is not the
 document's. A conversation directory is a portable archive (U-25), and a
 stream key in one is a stream key in somebody's backup.
+
+---
+
+## D-22 · The gallery has a geography
+
+> **The containers, shapes and sections.**
+
+A control room is a **place** before it is a page. Its regions do not move,
+because an operator finds the EMERGENCY button with a hand and not with a
+search. Online TV is laid out once, and the layout is the argument:
+
+```
+┌──────────┬───────────────────────────────┬──────────────┐
+│ PLAYLIST │  PROGRAM OUTPUT   │ PREVIEW   │  LIVE STUDIO │
+│ LIBRARY  │                   ├───────────┤  Camera      │
+│ SCHEDULES│                   │ MULTI-VIEW│  Guests      │
+│          ├───────────────────────────────┤  Screens     │
+│          │  24/7 SCHEDULE — timeline     │  Graphics    │
+└──────────┴───────────────────────────────┴──────────────┘
+ ● 00:15:32 ▮▮▯  ■ ▶ ▶|  TAKE LIVE  ⚠ EMERGENCY  ▮▮▯  OUTPUT
+```
+
+**Left to right: what there is → what is going out → who is on it.** The
+transport is a footer, not a panel, so it cannot scroll away from under a
+hand; the page never scrolls and each column scrolls inside itself.
+
+**Two monitors, because there are two moments.** PROGRAM is what `whatIsOn`
+says now; PREVIEW is what you are about to cut to, which while a session is
+armed is the live feed. The ARM → TAKE discipline (CHANNEL §6) expressed as
+geometry rather than as a warning.
+
+**Nothing on screen may lie about the transmission.** A multi-view tile is
+outlined because it is *contributing*, computed from `whatIsOn` and the
+mixer's sources — never because somebody clicked it. A timeline lane is
+walked with the playout engine's own function rather than drawn from the
+programme list, because a lane drawn from the list lies about every gap the
+loop fills. An output count includes the channel's own HLS, because the
+engine writes it whether or not a destination row says so.
+
+**Every region must be a picture of something that already exists.** [D-19]
+A region that needs new machinery is a region to justify out loud. In Stage 7
+eleven of twelve were already built; the twelfth was a level meter, and the
+Room's `measureVoice` was waiting for it.
+
+**One component per repeated element.** The tab strip appears three times and
+is one component, for the same reason the application bar is one: a strip
+copied is a strip that gets a different underline in one corner of the room,
+and the product stops looking like one product.
+
+**A page whose content is a clock must be handed the server's instant.** Every
+string in a gallery — the clock, the elapsed counter, the playhead, what is on
+— comes out of one number. Rendered on the server at T and hydrated at T+1s
+that number differs, and the browser discards the markup. The instant is
+passed down as a prop so the first client render *is* the server's, and the
+second one, a tick later, is the browser's own.

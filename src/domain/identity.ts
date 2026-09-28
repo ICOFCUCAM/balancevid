@@ -63,6 +63,20 @@ export interface ChannelIdentity {
   };
   /** The colour the marks are drawn in, so a channel looks like itself. */
   ink?: string;
+  /**
+   * THE VIRTUAL SET the live studio composes its people against.  [§6, U-18]
+   *
+   * A space id from `SPACES` — Studio Two's own table of measured rooms, not
+   * a second one. A channel picking "Concert Stage" is picking the same
+   * thing a performance picks, drawn by the same renderer, which is why it is
+   * an id here and not a colour: a set that was a hex value in the channel
+   * document would be a set the renderer could not light. [D-19, INV-16]
+   *
+   * It lives on the identity rather than on the session because it is how the
+   * CHANNEL looks, not how one broadcast looked: a station does not repaint
+   * its studio between programmes.
+   */
+  spaceId?: string;
 }
 
 export const DEFAULT_IDENTITY: ChannelIdentity = {

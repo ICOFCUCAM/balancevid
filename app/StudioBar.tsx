@@ -14,7 +14,7 @@
  */
 
 export type StudioTab =
-  | 'conversations' | 'studio-one' | 'studio-two' | 'studio-three'
+  | 'conversations' | 'studio-one' | 'studio-two' | 'online-tv'
   | 'library' | 'publish';
 
 export interface BarTab {
@@ -27,7 +27,7 @@ export interface BarTab {
 }
 
 export default function StudioBar({
-  current, studioOneId, studioTwoId, studioThreeId, extra, trailing,
+  current, studioOneId, studioTwoId, studioThreeId, extra, trailing, lamp,
 }: {
   current: StudioTab;
   studioOneId?: string;
@@ -37,6 +37,8 @@ export default function StudioBar({
   extra?: BarTab[];
   /** What this room is, at the right-hand end. */
   trailing?: React.ReactNode;
+  /** Shown before the trailing text: a channel's on-air lamp and clock. */
+  lamp?: React.ReactNode;
 }) {
   const tabs: BarTab[] = [
     {
@@ -58,13 +60,19 @@ export default function StudioBar({
         id: 'studio-two', label: 'Studio Two', glyph: '♪',
         hint: 'No performances yet — start one from the library',
       },
-    studioThreeId || current === 'studio-three'
+    /*
+     * ONLINE TV, not "Studio Three". The other two are named for being
+     * studios because that is what somebody working in them is doing; this
+     * one is named for what a viewer sees, because a channel is the only one
+     * of the three that exists while nobody is in it. [CHANNEL §1, D-18]
+     */
+    studioThreeId || current === 'online-tv'
       ? {
-        id: 'studio-three', label: 'Studio Three', glyph: '◉',
-        ...(current === 'studio-three' ? {} : { href: `/t/${studioThreeId}` }),
+        id: 'online-tv', label: 'Online TV', glyph: '◉',
+        ...(current === 'online-tv' ? {} : { href: `/t/${studioThreeId}` }),
       }
       : {
-        id: 'studio-three', label: 'Studio Three', glyph: '◉',
+        id: 'online-tv', label: 'Online TV', glyph: '◉',
         hint: 'No channels yet — start one from the library',
       },
     { id: 'library', label: 'Library', glyph: '☷', href: '/#performances' },
@@ -125,6 +133,7 @@ export default function StudioBar({
       </nav>
 
       <span className="grow" />
+      {lamp}
       {trailing}
       <a className="btn small" href="/" style={{ padding: '6px 12px', flex: '0 0 auto' }}>
         Leave

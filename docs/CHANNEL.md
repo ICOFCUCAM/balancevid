@@ -682,3 +682,105 @@ Adding it cost eight lines and no new concept, which is the point of having
 had a layout table for the last two studios.
 
 ---
+
+## §16 — The control room
+
+> *"Study this benchmark live studio closely. The containers, shapes and
+> sections."*
+
+The studio is a **place**, not a page. It has a fixed geography, and the
+geography is the argument:
+
+```
+┌──────────┬───────────────────────────────┬──────────────┐
+│ PLAYLIST │  PROGRAM OUTPUT   │ PREVIEW   │  LIVE STUDIO │
+│ LIBRARY  │                   ├───────────┤  Camera      │
+│ SCHEDULES│                   │ MULTI-VIEW│  Guests      │
+│          ├───────────────────────────────┤  Screens     │
+│          │  24/7 SCHEDULE — timeline     │  Graphics    │
+└──────────┴───────────────────────────────┴──────────────┘
+ ● 00:15:32 ▮▮▯  ■ ▶ ▶|  TAKE LIVE  ⚠ EMERGENCY  ▮▮▯  OUTPUT
+```
+
+Read left to right it is **what there is → what is going out → who is on it**,
+with the irreversible buttons along the bottom where a hand rests and nothing
+else can be hit by accident. The page itself never scrolls; each column
+scrolls inside itself, because a control room where the transport slides off
+the bottom is a control room you cannot cut with.
+
+**PROGRAM and PREVIEW are two pictures of two different moments.** Program is
+what `whatIsOn` says right now. Preview is what you are about to cut to —
+which, while a session is armed, is the live feed. That is the whole of the
+ARM → TAKE discipline expressed as geometry, and it is why the studio has two
+monitors rather than one large one.
+
+**The multi-view is an answer, not decoration.** Six numbered tiles: the
+operator's camera, the Room's staged guest, each other studio's most recent
+render, whatever the schedule has on, and the identity layer. A tile's blue
+border means CONTRIBUTING — it is computed from `whatIsOn` and the mixer's
+source list, never from a click, because a tile that lit up when you selected
+it would be a tile lying about the transmission.
+
+**The timeline is walked, not laid out.** At each instant the lane asks the
+same `whatIsOn` the playout engine asks, and the answer's own end is where the
+next question goes. A lane drawn from the programme list alone would be a lane
+that lies about every gap the loop fills — and the gaps are most of a
+channel's day. Four lanes, because four things leave the building: the
+programme, the frames, the marks and the sound.
+
+**Every region is a picture of something that already existed.** [D-19] The
+playlist is the rotation; the library is `/api/channels/library`; the
+schedules are `programmes` and `blocks`; the virtual sets are `SPACES` and
+`SPACE_LOOKS`, Studio Two's own table; the meters are `measureVoice`, the
+Room's own measurement, with twenty lines of `AnalyserNode` plumbing its own
+header said it deliberately did not contain. The genuinely new things are
+three: the tab strips, the multi-view, and the extra timeline lanes.
+
+**The tab strip is one component.** Three places use it — the rail, the
+schedule views, the live desk — and a strip copied is a strip that gets a
+different underline in one corner of the room and looks like a different
+product. The same reason `StudioBar` is one component.
+
+**The bar's tab is "Online TV", not "Studio Three".** The other two are named
+for being studios, because that is what somebody working in them is doing.
+This one is named for what a viewer sees, because a channel is the only one of
+the three that exists while nobody is in it.
+
+**The output count includes the channel.** The playout engine writes this
+channel's HLS whether or not anybody declared a destination row, so
+`Stream Output` counts that one plus whatever else is switched on. A control
+room reading "0 outputs" while transmitting would be lying about the
+transmission.
+
+---
+
+## C-7 — Stage 7: the benchmark, and the clock that would not hydrate
+
+**Checked first; almost nothing was missing.** Mapping the benchmark's twelve
+regions onto the code found eleven already built and tested — the twelfth was
+a level meter, and `measureVoice` was waiting for it. The work was
+arrangement, not construction, which is what D-19 is for.
+
+**A control room is one long argument about what time it is.** The clock, the
+elapsed counter, the playhead and which programme is on all come out of one
+number. Server-rendered at T and hydrated at T+1s, that number differs and
+React throws away the markup it was handed (#418). The fix is to pass the
+server's instant down as a prop, so the browser's FIRST render is the
+server's render exactly and the second one, a tick later, is its own. A page
+whose whole content is time-dependent cannot be hydrated any other way.
+
+**`.row` wraps, and a head is one line.** The shared row class sets
+`flex-wrap: wrap`, which is right for a form and wrong for a title bar: a
+wrapped head pushes into the panel below it, and a wrapped transport puts
+EMERGENCY on a second line. Every strip, head and transport group says
+`nowrap` and truncates instead.
+
+**A poster in a three-pixel cell is a fetch nobody can see.** The filmstrip
+lane draws a frame only for segments long enough to show one. The rest are the
+striped ground, which is what a filmstrip looks like at that zoom anyway.
+
+**The graphics lane tells the truth about eight seconds.** With lower thirds
+set to `at-start` the marks are eight-second ticks at each join, not a bar
+across the day — so the lane is drawn as ticks on a dashed ground, and the
+gutter says `8s at each join`. The benchmark's single wide purple block is
+what `always` looks like, and the lane draws that too.
