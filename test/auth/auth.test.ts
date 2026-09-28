@@ -13,7 +13,10 @@ import { hashPassword, isLocked, loadAuthConfig, verifyPassword } from '../../sr
 import {
   isPubliclyVisible, isPublicRepresentation, isAssetPath, mayBePublic,
 } from '../../src/auth/policy.js';
-import { clearedCookie, issueSession, sessionCookie, verifySession } from '../../src/auth/session.js';
+import {
+  clearedCookie, issueSession, readSession, sessionCookie, verifySession,
+} from '../../src/auth/session.js';
+import { OWNER_ACCOUNT_ID } from '../../src/domain/account.js';
 
 const PASSWORD = 'correct-horse-battery-staple';
 const HASH = hashPassword(PASSWORD);
@@ -273,3 +276,101 @@ describe('published means published', () => {
     expect(isPublicRepresentation(null)).toBe(false);
   });
 });
+
+/**
+ * The token names who it is for.  [U-24, D-06]
+ *
+ * One thing is bought here and it is worth being precise about what: a
+ * request can now say WHICH account it belongs to, provably. Who may do what
+ * is unchanged, and the signing key is still the instance's — a per-account
+ * secret is unreachable from middleware, which has no filesystem.
+ */
+describe('a session names its account', () => {
+  it('carries the account, and hands it back on verification', async () => {
+    const { token } = await issueSession(HASH, 1);
+    expect(token.startsWith('v2.')).toBe(true);
+    const claim = await readSession(token, HASH);
+    expect(claim?.account).toBe(OWNER_ACCOUNT_ID);
+  });
+
+  /*
+   * INSIDE THE SIGNATURE, NOT BESIDE IT — the property the whole step rests
+   * on. A subject the holder can edit is a suggestion, not a claim, and a
+   * token that could be relabelled would be a way to become somebody else
+   * the day there is somebody else to become.
+   */
+  it('cannot be relabelled to a different account', async () => {
+    const { token } = await issueSession(HASH, 1);
+    const [, , expiry, signature] = token.split('.');
+    const forged = `v2.acct_someoneelse.${expiry}.${signature}`;
+    expect(await verifySession(forged, HASH)).toBe(false);
+    expect(await readSession(forged, HASH)).toBeNull();
+  });
+
+  /*
+   * A DEPLOY MUST NOT SIGN EVERYBODY OUT. The change alters nothing a signed
+   * in person can see, so ending their session would be a self-inflicted
+   * outage in exchange for nothing. An unnamed token is the owner's: on an
+   * instance with one account there is nobody else it could be.
+   */
+  it('still honours a token issued before accounts existed', async () => {
+    const legacy = await issueLegacyToken(HASH, 1);
+    expect(await verifySession(legacy, HASH)).toBe(true);
+    expect((await readSession(legacy, HASH))?.account).toBe(OWNER_ACCOUNT_ID);
+  });
+
+  it('applies every other rule to a legacy token too', async () => {
+    const now = Date.now();
+    const expired = await issueLegacyToken(HASH, 1, now);
+    expect(await verifySession(expired, HASH, now + 2 * 3600_000)).toBe(false);
+    /* And a legacy token signed with another password is still nobody. */
+    const other = await issueLegacyToken(hashPassword('another'), 1);
+    expect(await verifySession(other, HASH)).toBe(false);
+  });
+
+  /*
+   * The two shapes must not be confusable: a v1 body re-labelled v2, or a v2
+   * body cut down to v1's length, would each be a parser disagreeing with a
+   * signer about what was signed.
+   */
+  it('does not let one version be replayed as the other', async () => {
+    const legacy = await issueLegacyToken(HASH, 1);
+    const [, expiry, signature] = legacy.split('.');
+    expect(await verifySession(`v2.${expiry}.${signature}`, HASH)).toBe(false);
+    expect(await verifySession(
+      `v2.${OWNER_ACCOUNT_ID}.${expiry}.${signature}`, HASH)).toBe(false);
+
+    const { token } = await issueSession(HASH, 1);
+    const parts = token.split('.');
+    expect(await verifySession(
+      `v1.${parts[2]}.${parts[3]}`, HASH)).toBe(false);
+  });
+
+  /*
+   * An id with a dot in it would split into the wrong fields, and a token
+   * that parses as something other than what was signed is the worst kind of
+   * bug to put in a gate. Refused at issue time, where it is somebody's
+   * mistake rather than an attacker's input.
+   */
+  it('refuses to issue a token for an id that would break the format', async () => {
+    for (const bad of ['acct_a.b', 'a/b', '', '..', 'x y']) {
+      await expect(issueSession(HASH, 1, Date.now(), bad), bad).rejects.toThrow(/unsafe/);
+    }
+  });
+});
+
+/** A token in the pre-accounts format, built the way that version built it. */
+async function issueLegacyToken(
+  hash: string, hours: number, now = Date.now(),
+): Promise<string> {
+  const { sessionKey } = await import('../../src/auth/session.js');
+  const payload = `v1.${now + hours * 3600_000}`;
+  const key = await sessionKey(hash);
+  const signature = await crypto.subtle.sign(
+    'HMAC', key, new TextEncoder().encode(payload));
+  const bytes = new Uint8Array(signature);
+  let binary = '';
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  const b64 = btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  return `${payload}.${b64}`;
+}

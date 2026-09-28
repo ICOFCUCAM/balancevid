@@ -12,11 +12,44 @@
  * The signing key is derived from the password hash, so changing the password
  * invalidates every outstanding session — which is the main thing a password
  * change is for.
+ *
+ * THE TOKEN NAMES WHO IT IS FOR.  [U-24]
+ *
+ *   v2.<account>.<expiry>.<signature>
+ *
+ * The account id is INSIDE the signature, not beside it, for the reason a
+ * guest's conversation id is (`guest.ts`): a subject a holder can edit is not
+ * a claim, it is a suggestion. Changing the account in a v2 token invalidates
+ * it.
+ *
+ * WHAT IS DELIBERATELY NOT HERE. The key is still derived from ONE secret —
+ * the instance's password hash — and not from the named account's own. It
+ * cannot be: this is verified in middleware, which runs on the edge runtime
+ * with no filesystem, so a per-account secret on disk is unreachable at the
+ * gate. Making it reachable would mean either weakening middleware to a
+ * cookie-shaped-object check or moving it to the Node runtime, and neither
+ * is needed while one account exists. Per-account credentials arrive with
+ * sign-up, verified in a route that can read disk.
+ *
+ * So what this step buys is exactly one thing: a request can say WHICH
+ * account it belongs to, provably. Who may do what is unchanged.
+ *
+ * V1 TOKENS ARE STILL ACCEPTED, and that is not laziness. A deploy that
+ * signed out everybody holding a valid session — for a change that alters
+ * nothing they can see — would be a self-inflicted outage. An unnamed token
+ * is the owner's, because on an instance with one account there is nobody
+ * else it could be. They expire on their own within the session window and
+ * the acceptance can go with them.
  */
+
+import { OWNER_ACCOUNT_ID } from '../domain/account.js';
 
 export const SESSION_COOKIE = 'balancevid_session';
 const DOMAIN_SEPARATOR = 'balancevid.session.v1';
-const VERSION = 'v1';
+/** What is issued now. */
+const VERSION = 'v2';
+/** What is still honoured, until the last one issued has expired. */
+const LEGACY_VERSION = 'v1';
 
 const encoder = new TextEncoder();
 const keyCache = new Map<string, Promise<CryptoKey>>();
@@ -53,9 +86,19 @@ function base64url(bytes: Uint8Array): string {
 
 export async function issueSession(
   passwordHash: string, hours: number, now = Date.now(),
+  account: string = OWNER_ACCOUNT_ID,
 ): Promise<{ token: string; expiresAt: number }> {
+  /*
+   * An id with a dot in it would split into the wrong parts and a token that
+   * parsed as something else is the worst kind of bug to have in a gate.
+   * `safe()` already refuses these everywhere a path is built; this is the
+   * same alphabet, checked where the same assumption is made.
+   */
+  if (!/^[A-Za-z0-9_-]{1,128}$/.test(account)) {
+    throw new Error(`unsafe account id: ${JSON.stringify(account)}`);
+  }
   const expiresAt = now + hours * 3600_000;
-  const payload = `${VERSION}.${expiresAt}`;
+  const payload = `${VERSION}.${account}.${expiresAt}`;
   const key = await sessionKey(passwordHash);
   const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(payload));
   return { token: `${payload}.${base64url(new Uint8Array(signature))}`, expiresAt };
@@ -71,20 +114,56 @@ export async function issueSession(
 export async function verifySession(
   token: string | undefined | null, passwordHash: string, now = Date.now(),
 ): Promise<boolean> {
-  if (!token) return false;
+  return (await readSession(token, passwordHash, now)) !== null;
+}
+
+/**
+ * The same check, but it hands back WHO rather than merely yes.
+ *
+ * Middleware wants the yes — it decides whether a request may proceed, not
+ * what it may see. A route wants the subject, because that is the thing it
+ * will read and write on behalf of. One verification, two questions.
+ */
+export interface SessionClaim {
+  account: string;
+  expiresAt: number;
+}
+
+export async function readSession(
+  token: string | undefined | null, passwordHash: string, now = Date.now(),
+): Promise<SessionClaim | null> {
+  if (!token) return null;
   const parts = token.split('.');
-  if (parts.length !== 3) return false;
-  const [version, expiry, signature] = parts as [string, string, string];
-  if (version !== VERSION) return false;
+  if (parts.length < 3 || parts.length > 4) return null;
+
+  /*
+   * v1: version.expiry.signature — no subject, so it is the owner's.
+   * v2: version.account.expiry.signature.
+   */
+  const version = parts[0]!;
+  const signature = parts[parts.length - 1]!;
+  let account: string;
+  let expiry: string;
+  if (version === VERSION && parts.length === 4) {
+    account = parts[1]!;
+    expiry = parts[2]!;
+  } else if (version === LEGACY_VERSION && parts.length === 3) {
+    account = OWNER_ACCOUNT_ID;
+    expiry = parts[1]!;
+  } else {
+    return null;
+  }
 
   const key = await sessionKey(passwordHash);
+  const signed = parts.slice(0, -1).join('.');
   const expected = base64url(new Uint8Array(
-    await crypto.subtle.sign('HMAC', key, encoder.encode(`${version}.${expiry}`)),
+    await crypto.subtle.sign('HMAC', key, encoder.encode(signed)),
   ));
-  if (!timingSafeStringEqual(signature, expected)) return false;
+  if (!timingSafeStringEqual(signature, expected)) return null;
 
   const expiresAt = Number(expiry);
-  return Number.isFinite(expiresAt) && expiresAt > now;
+  if (!Number.isFinite(expiresAt) || expiresAt <= now) return null;
+  return { account, expiresAt };
 }
 
 /** Length-independent, comparison-time-independent. */
