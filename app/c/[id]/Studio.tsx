@@ -14,6 +14,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import SignOut from '../../SignOut.js';
+import SourceTransport from './SourceTransport.js';
 import { useConfirm } from '../../Confirm.js';
 import { useMenu, type MenuEntry } from '../../Menu.js';
 import SearchPanel from './SearchPanel.js';
@@ -1174,7 +1175,6 @@ export default function Studio({ conversationId }: { conversationId: string }) {
               <video
                 ref={videoRef}
                 src={`/api/conversations/${conversationId}/source`}
-                controls
                 playsInline
                 onLoadedMetadata={(e) => {
                   const v = e.currentTarget;
@@ -1207,6 +1207,23 @@ export default function Studio({ conversationId }: { conversationId: string }) {
               </div>
             )}
           </Stage>
+          {/*
+            * THE TRANSPORT, UNDER THE PICTURE RATHER THAN ACROSS IT.
+            * The browser's bar floated over the bottom of the frame,
+            * which is the one part of a source somebody is most often
+            * looking at — a lower third, a caption, a name super. A
+            * desk puts its transport below the monitor. [brief §12]
+            */}
+          {!isEmbedded && ready && (
+            <SourceTransport
+              video={videoRef.current}
+              player={sourcePlayerRef.current}
+              currentFrame={currentFrame}
+              durationFrames={
+                snapshot?.conversation?.source?.durationFrames ?? 0}
+              onSeek={seekTo}
+            />
+          )}
           {readerOpen && (
             <Reader
               title={readingDoc?.title ?? 'Your notes'}

@@ -23,7 +23,8 @@ export type IconName =
   | 'home' | 'conversation' | 'music' | 'broadcast' | 'library'
   | 'channels' | 'distribution' | 'settings' | 'search' | 'bell'
   | 'disk' | 'clock' | 'calendar' | 'play' | 'plus' | 'chevron'
-  | 'arrow' | 'upload' | 'link' | 'live' | 'pencil' | 'sun' | 'moon';
+  | 'arrow' | 'upload' | 'link' | 'live' | 'pencil' | 'sun' | 'moon'
+  | 'sound' | 'muted' | 'expand';
 
 /* Each is the inner geometry; the frame and the stroke are set below. */
 const PATHS: Record<IconName, React.ReactNode> = {
@@ -128,6 +129,24 @@ const PATHS: Record<IconName, React.ReactNode> = {
     <>
       <circle cx="12" cy="12" r="3.2" />
       <path d="M6.8 6.8a7.4 7.4 0 0 0 0 10.4M17.2 6.8a7.4 7.4 0 0 1 0 10.4" />
+    </>
+  ),
+  sound: (
+    <>
+      <path d="M4 9.5h3.2L12 5.4v13.2L7.2 14.5H4z" />
+      <path d="M15.8 9.4a3.6 3.6 0 0 1 0 5.2M18.4 6.8a7.3 7.3 0 0 1 0 10.4" />
+    </>
+  ),
+  muted: (
+    <>
+      <path d="M4 9.5h3.2L12 5.4v13.2L7.2 14.5H4z" />
+      <path d="m16.2 9.8 4.4 4.4M20.6 9.8l-4.4 4.4" />
+    </>
+  ),
+  expand: (
+    <>
+      <path d="M9.2 4.4H4.4v4.8M14.8 4.4h4.8v4.8" />
+      <path d="M9.2 19.6H4.4v-4.8M14.8 19.6h4.8v-4.8" />
     </>
   ),
   sun: (
