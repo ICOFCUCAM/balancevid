@@ -969,19 +969,39 @@ export default function SwitchingStage({
       </>
 
       {/* ---- the song, the takes on it, and the edit (§2, §7, §8) ------ */}
+      {/*
+        * THE EDIT SURFACE IS DARKER THAN THE ROOM AROUND IT, the way a
+        * timeline is in every editor there has ever been. The reason is
+        * not convention for its own sake: the tracks carry small bright
+        * marks — takes, transitions, a playhead — and small bright marks
+        * need a dark floor or they read as noise on a grey field.
+        */}
       <div data-testid="performance-timeline" style={{
         gridArea: 'timeline',
-        border: '1px solid var(--line)', borderRadius: 10,
-        background: 'var(--panel)', overflow: 'hidden',
+        border: 'var(--border) solid var(--line)',
+        borderRadius: 'var(--radius-lg)',
+        background: 'var(--ink-850)', overflow: 'hidden',
+        boxShadow: 'var(--elev-1)',
       }}>
         <div style={{ display: 'flex' }}>
           {/* The names, in a fixed column, so every lane starts at one x. */}
+          {/*
+            * THE TRACK HEADS ARE A FIXED COLUMN and belong to the
+            * furniture rather than to the edit, so they sit a step
+            * lighter than the tracks they label — the same relationship
+            * the control room's rail has to its lanes.
+            */}
           <div style={{
-            width: 190, flex: '0 0 auto', borderRight: '1px solid var(--line)',
+            width: 190, flex: '0 0 auto',
+            borderRight: 'var(--border) solid var(--line)',
+            background: 'var(--surface-raised)',
           }}>
             <div style={{ height: 18 }} />
             <div style={{ height: 52, padding: '6px 10px' }}>
-              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.5 }}>
+              <div style={{
+                fontSize: 'var(--text-2xs)', fontWeight: 'var(--weight-bold)',
+                letterSpacing: '0.08em', color: 'var(--text-dim)',
+              }}>
                 MASTER SONG
               </div>
               <div className="small muted" style={{ fontSize: 10, overflow: 'hidden',
@@ -1035,8 +1055,10 @@ export default function SwitchingStage({
             ))}
             <div style={{
               height: 44, display: 'flex', alignItems: 'center', gap: 8,
-              padding: '0 10px', borderTop: '1px solid var(--line)',
-              fontSize: 11, fontWeight: 700, letterSpacing: 0.5,
+              padding: '0 var(--space-5)',
+              borderTop: 'var(--border) solid var(--line)',
+              fontSize: 'var(--text-2xs)', fontWeight: 'var(--weight-bold)',
+              letterSpacing: '0.08em', color: 'var(--text-dim)',
             }}>
               <span className="grow">MASTER VIDEO</span>
               {/* Starting the edit again belongs on the edit, not on the
