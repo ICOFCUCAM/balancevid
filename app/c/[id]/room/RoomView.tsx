@@ -450,17 +450,28 @@ export default function RoomView({
                     aria-pressed={room.speakerMode === mode.id}
                     disabled={busy}
                     onClick={() => void act({ action: 'speaker-mode', speakerMode: mode.id })}
+                    /*
+                      * FOUR MUTUALLY EXCLUSIVE POSITIONS, which is one
+                      * control and not four cards. Same bank as Studio
+                      * Two's sound modes in 17: they share a face, the
+                      * chosen one is lit along its leading edge, and
+                      * the sentence under each is an explanation.
+                      */
+                    className={`ctl${room.speakerMode === mode.id ? ' is-on' : ''}`}
                     style={{
-                      display: 'block', width: '100%', textAlign: 'left', marginBottom: 5,
-                      padding: '7px 10px', borderRadius: 7,
-                      background: room.speakerMode === mode.id
-                        ? 'var(--accent-wash)' : 'var(--panel-2)',
-                      border: `1px solid ${room.speakerMode === mode.id
-                        ? 'var(--accent)' : 'var(--line)'}`,
+                      display: 'block', width: '100%', textAlign: 'left',
+                      marginBottom: 4, padding: '8px 11px',
                     }}
                   >
-                    <div style={{ fontWeight: 600, fontSize: 13 }}>{mode.label}</div>
-                    <div className="small muted" style={{ fontSize: 11 }}>{mode.hint}</div>
+                    <div style={{
+                      fontWeight: 'var(--weight-semi)', fontSize: 'var(--text-sm)',
+                      letterSpacing: 0, textTransform: 'none',
+                    }}>{mode.label}</div>
+                    <div style={{
+                      fontSize: 'var(--text-2xs)', color: 'var(--ink-300)',
+                      marginTop: 2, letterSpacing: 0, textTransform: 'none',
+                      lineHeight: 'var(--leading-snug)',
+                    }}>{mode.hint}</div>
                   </button>
                 ))}
               </div>
@@ -549,13 +560,20 @@ export default function RoomView({
           />
           <div className="grow" style={{ minWidth: 0 }}>
             {capture.recording ? (
-              <div data-testid="recording-now" style={{ fontWeight: 600, color: '#e0674f' }}>
+              /*
+                * THE STATE OF THE ROOM IS A LEGEND. Three values —
+                * recording, armed, off — set as a bold sentence above
+                * an explanation, which reads as a heading and competes
+                * with the one control beside it. [brief §13]
+                */
+              <div className="module-label" data-testid="recording-now"
+                   style={{ color: 'var(--ink-on-bad)' }}>
                 Recording you
               </div>
             ) : capture.armed ? (
-              <div style={{ fontWeight: 600 }}>Microphone on</div>
+              <div className="module-label">Microphone on</div>
             ) : (
-              <div style={{ fontWeight: 600 }}>Microphone off</div>
+              <div className="module-label">Microphone off</div>
             )}
             <div className="small muted">
               {capture.recording
@@ -566,11 +584,22 @@ export default function RoomView({
             </div>
           </div>
           {capture.armed ? (
-            <button className="small" data-testid="mic-off" onClick={capture.disarm}>
+            <button className="ctl" data-testid="mic-off" onClick={capture.disarm}>
               Turn off
             </button>
           ) : (
-            <button className="primary" data-testid="mic-on" onClick={() => void capture.arm()}>
+            /*
+              * THE ONE LOUD CONTROL IN THE ROOM. Nothing here works
+              * until the microphone is on — the room cannot tell who
+              * is speaking, so the stage cannot follow anybody — which
+              * makes this the same kind of object as ENABLE CAMERA in
+              * Studio One and GO LIVE in the control room. It should
+              * look like their sibling rather than like a sign-up
+              * button.
+              */
+            <button className="ctl is-critical" data-testid="mic-on"
+                    onClick={() => void capture.arm()}
+                    style={{ padding: '8px 14px' }}>
               Turn on camera and microphone
             </button>
           )}

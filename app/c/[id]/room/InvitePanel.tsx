@@ -112,7 +112,7 @@ export default function InvitePanel({
           * twitch on press — a control that resizes when you use it is
           * the smallest possible way to feel cheap.
           */}
-        <button className="primary sm" data-testid="invite-copy"
+        <button className="ctl" data-testid="invite-copy"
                 onClick={() => void copy()}
                 style={{ flex: '0 0 auto', minWidth: 86 }}>
           {copied ? 'Copied' : 'Copy link'}
