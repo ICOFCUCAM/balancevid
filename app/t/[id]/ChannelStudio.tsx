@@ -713,14 +713,44 @@ export default function ChannelStudio({
                   });
                 }}
                 onAddBlock={() => {
-                  const name = window.prompt('What is the day-part called?', 'Morning');
-                  if (!name) return;
-                  const at = window.prompt('It starts at (HH:MM, this channel’s time)', '07:00');
-                  if (!at) return;
-                  const [hours, minutes] = at.split(':').map(Number);
-                  void patch({
-                    action: 'add-block', name,
-                    fromMinute: (hours ?? 0) * 60 + (minutes ?? 0),
+                  /*
+                   * TWO PROMPTS IN A ROW WAS THE WORST OF THEM. A native
+                   * dialog cannot hold two fields, so adding a day-part
+                   * meant answering a question, having it vanish, and
+                   * answering a second one with no way back to the first
+                   * — and cancelling the second silently discarded the
+                   * name you had already typed.
+                   *
+                   * One dialog, asked in one breath. The name is the
+                   * field; the time comes with it in the same question
+                   * because the two are one decision.
+                   */
+                  confirm({
+                    question: 'A day-part is a named stretch of the day '
+                      + '\u2014 Morning, Evening \u2014 that programmes '
+                      + 'can be scheduled inside.',
+                    field: {
+                      label: 'What is it called, and when does it start?',
+                      placeholder: 'Morning 07:00',
+                      initial: 'Morning 07:00',
+                    },
+                    verb: 'Add the day-part',
+                    go: (answer) => {
+                      /*
+                       * "Morning 07:00" — the time is the last word, and
+                       * anything before it is the name. Parsed leniently
+                       * because a person typing a name with a number in
+                       * it should not be punished for it.
+                       */
+                      const match = /^(.*?)\s*(\d{1,2}):(\d{2})\s*$/.exec(answer);
+                      const name = (match?.[1] ?? answer).trim() || 'Day-part';
+                      const hours = Number(match?.[2] ?? 0);
+                      const minutes = Number(match?.[3] ?? 0);
+                      void patch({
+                        action: 'add-block', name,
+                        fromMinute: hours * 60 + minutes,
+                      });
+                    },
                   });
                 }}
                 onRemoveBlock={(block) => confirm({
@@ -1714,12 +1744,28 @@ export default function ChannelStudio({
               <div className="row">
                 <strong className="grow" style={{ fontSize: 12 }}>Destinations</strong>
                 <button className="small" data-testid="add-destination"
-                        onClick={() => {
-                          const kind = window.prompt(
-                            'Which destination? own, tiktok, youtube, facebook, '
-                            + 'x, rtmp', 'tiktok');
-                          if (kind) void patch({ action: 'add-destination', kind });
-                        }}
+                        onClick={() => confirm({
+                          question: 'Every destination carries the same '
+                            + 'moment composed its own way \u2014 a vertical '
+                            + 'output is a vertical edit, not this programme '
+                            + 'with its sides cut off.',
+                          field: {
+                            label: 'Where does it go?',
+                            initial: 'tiktok',
+                            choices: [
+                              { value: 'own', label: 'This channel\u2019s own link' },
+                              { value: 'tiktok', label: 'TikTok \u2014 vertical' },
+                              { value: 'youtube', label: 'YouTube \u2014 16:9' },
+                              { value: 'facebook', label: 'Facebook' },
+                              { value: 'x', label: 'X' },
+                              { value: 'rtmp', label: 'Anything taking an RTMP URL' },
+                            ],
+                          },
+                          verb: 'Add the destination',
+                          go: (kind) => void patch({
+                            action: 'add-destination', kind,
+                          }),
+                        })}
                         style={{
                           border: 0, background: 'none', padding: 0,
                           color: '#5c9ee0', fontSize: 11, cursor: 'pointer',

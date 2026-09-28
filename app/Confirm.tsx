@@ -58,7 +58,17 @@ export interface Ask {
    * when the person is being asked to type something — and the verb is
    * disabled until it holds a value.
    */
-  field?: { label: string; placeholder?: string; initial?: string; optional?: boolean };
+  field?: {
+    label: string; placeholder?: string; initial?: string; optional?: boolean;
+    /*
+     * A CLOSED SET IS NOT A TEXT FIELD. Asking somebody to TYPE one of
+     * six fixed words — "own, tiktok, youtube, facebook, x, rtmp" — is a
+     * spelling test with an error message at the end of it, and the
+     * error is a request the server rejects. When the answers are known,
+     * they are offered.
+     */
+    choices?: readonly { value: string; label: string }[];
+  };
   /** Runs only if they say yes. Carries the field's value when there is one. */
   go: (value: string) => void;
 }
@@ -128,7 +138,23 @@ function ConfirmDialog({ ask, onClose }: { ask: Ask | null; onClose: () => void 
             lineHeight: 'var(--leading-snug)',
           }}>{ask.question}</p>
 
-          {ask.field && (
+          {ask.field?.choices ? (
+            <label style={{ margin: 0 }}>
+              {ask.field.label}
+              <select
+                data-testid="confirm-choice"
+                value={value}
+                onChange={(event) => setValue(event.target.value)}
+                style={{ marginTop: 'var(--space-2)' }}
+              >
+                {ask.field.choices.map((choice) => (
+                  <option key={choice.value} value={choice.value}>
+                    {choice.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : ask.field && (
             <label style={{ margin: 0 }}>
               {ask.field.label}
               <input
