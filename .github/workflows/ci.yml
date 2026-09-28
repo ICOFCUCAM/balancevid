@@ -1,0 +1,91 @@
+# What must be true before anything reaches the trunk.  [Doctrine D-19, D-20]
+#
+# The repository had one branch and no checks: every commit this product has
+# ever had went straight onto the line it deploys from, and the only thing
+# standing between a broken build and production was whoever happened to run
+# `npm test` locally. A trunk with nothing guarding it is a naming convention,
+# not a process — so the trunk and this file arrive together.
+#
+# CHEAPEST FIRST, IN PARALLEL. A type error should be reported in two minutes,
+# not discovered at the end of a nine-minute render suite. So the fast checks
+# and the slow ones are separate jobs that start at the same time: whichever
+# fails, fails while the other is still going, and the report names which.
+#
+# NOTHING HERE IS INSTALLED FROM THE SYSTEM. ffmpeg and ffprobe come from npm
+# (`ffmpeg-static`, `ffprobe-static`), which is what the worker uses in
+# production too — a CI runner encoding with a different ffmpeg than the
+# deployment would be testing the wrong binary. Chromium is the one exception
+# and Playwright fetches its own.
+#
+# WHAT IS NOT COVERED, said plainly rather than left to be discovered:
+# LibreOffice is not installed here, so the office-conversion path is not
+# exercised. That is honest rather than lazy — `WITH_OFFICE=0` is the build
+# default, so production does not have it either, and `deck.test.ts` covers
+# the refusal that a build without it is supposed to give.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# A second push to the same branch makes the first run's answer worthless.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---- the two-minute answer ---------------------------------------------
+  check:
+    name: Typecheck and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # `ci` and not `install`: the lockfile is the statement of what was
+      # tested, and a run that quietly resolved a different tree is a run
+      # that proves nothing about the commit.
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+  # ---- the whole suite ----------------------------------------------------
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    # The frame-exactness tests really do render video, and they are the
+    # reason INV-02 is a claim this product can make rather than an intention.
+    # They take minutes. That is the cost of testing the thing itself instead
+    # of a mock of it.
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Slide rendering and page capture launch a real browser. `--with-deps`
+      # brings the shared libraries a headless Chromium needs on a bare
+      # runner; without them the launch fails with a linker error that reads
+      # like a code fault.
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Test
+        run: npm test
