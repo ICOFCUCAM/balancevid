@@ -8,6 +8,7 @@
 @import './styles/motion.css';
 @import './styles/controls.css';
 @import './styles/elevation.css';
+@import './styles/status.css';
 
 :root {
   /*
@@ -23,9 +24,6 @@
   --panel-2: var(--surface-float);
   --source-accent: #7f9bb5;
   --user-accent: #c2794f;
-  --ok: #5c9c6b;
-  --warn: #c99a2e;
-  --bad: #d05a48;
   --radius: var(--radius-lg);
 }
 * { box-sizing: border-box; }
