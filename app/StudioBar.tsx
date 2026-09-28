@@ -80,16 +80,35 @@ export default function StudioBar({
   ];
 
   return (
-    <header className="shell-bar" style={{ gap: 18, padding: '0 18px', minHeight: 52 }}>
+    <header className="shell-bar" style={{
+      gap: 'var(--space-7)', padding: '0 var(--space-6)', minHeight: 52,
+    }}>
+      {/*
+        * THE MARK. A flat blue square was the placeholder every product
+        * starts with. What makes a mark read as a mark rather than as a
+        * coloured box is that it has its own light: a gradient from the
+        * top, a hairline of white on the upper edge, and a shadow tinted
+        * with its own hue rather than with black — a coloured object casts
+        * a coloured shadow, and a grey one under a blue mark is the single
+        * commonest tell of a logo pasted onto a page.
+        */}
       <a href="/" className="row" style={{
-        gap: 9, textDecoration: 'none', color: 'inherit', flex: '0 0 auto',
+        gap: 'var(--space-3)', textDecoration: 'none', color: 'inherit',
+        flex: '0 0 auto',
       }}>
         <span aria-hidden="true" style={{
-          width: 26, height: 26, borderRadius: 7, display: 'grid',
-          placeItems: 'center', background: '#2f7fe0', color: '#fff',
-          fontSize: 12, paddingLeft: 2,
+          width: 26, height: 26, borderRadius: 'var(--radius-md)',
+          display: 'grid', placeItems: 'center',
+          background: 'linear-gradient(180deg, #3f8ee8 0%, #2a6fcc 100%)',
+          color: '#fff', fontSize: 11, paddingLeft: 2,
+          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3),'
+            + ' 0 1px 3px rgba(26, 78, 150, 0.5)',
         }}>&#9654;</span>
-        <strong style={{ fontSize: 15, whiteSpace: 'nowrap' }}>BalanceVid</strong>
+        <strong style={{
+          fontSize: 'var(--text-md)', whiteSpace: 'nowrap',
+          fontWeight: 'var(--weight-bold)',
+          letterSpacing: 'var(--tracking-tight)',
+        }}>BalanceVid</strong>
       </a>
 
       <nav className="row" data-testid="studio-nav" style={{ gap: 2, flexWrap: 'nowrap' }}>
@@ -97,20 +116,47 @@ export default function StudioBar({
           const on = tab.id === current;
           const body = (
             <>
-              <span aria-hidden="true" style={{ opacity: on ? 1 : 0.7 }}>{tab.glyph}</span>
-              <span>{tab.label}</span>
+              <span aria-hidden="true" style={{
+                opacity: on ? 1 : 0.55, fontSize: 'var(--text-sm)',
+              }}>{tab.glyph}</span>
+              {/*
+                * The bold width is reserved by an invisible copy of the
+                * label, so switching tabs changes no width and the row
+                * beside it does not move. [D-04]
+                */}
+              <span style={{ display: 'grid' }}>
+                <span style={{
+                  gridArea: '1 / 1', visibility: 'hidden', height: 0,
+                  fontWeight: 'var(--weight-bold)', pointerEvents: 'none',
+                }} aria-hidden="true">{tab.label}</span>
+                <span style={{ gridArea: '1 / 1' }}>{tab.label}</span>
+              </span>
             </>
           );
+          /*
+           * A TAB IS NOT A BUTTON AND MUST NOT LOOK LIKE ONE. It has no
+           * fill and no border: what marks the current place is a rule
+           * under it and a change of weight, which is how a tab has read
+           * since before any of this was on a screen.
+           *
+           * THE WEIGHT CHANGE IS WHY THE ROW USED TO JUDDER. Going from
+           * 500 to 700 makes the word wider, so every tab after the
+           * current one shifted when the current one changed. The label
+           * now reserves its own bold width whatever weight it is drawn
+           * at, and the row is still.
+           */
           const style = {
-            display: 'flex', alignItems: 'center', gap: 7,
-            padding: '14px 12px', fontSize: 13,
+            display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
+            padding: '14px var(--space-5)', fontSize: 'var(--text-base)',
             textDecoration: 'none', whiteSpace: 'nowrap' as const,
             background: 'none', border: 0, borderRadius: 0,
-            borderBottom: `2px solid ${on ? '#2f7fe0' : 'transparent'}`,
-            color: on ? '#6fa9ea' : 'var(--text)',
-            fontWeight: on ? 700 : 500,
-            opacity: on || tab.href || tab.onClick ? 1 : 0.4,
+            borderBottom: `2px solid ${on ? '#3f8ee8' : 'transparent'}`,
+            color: on ? '#7fb4ee' : 'var(--text-dim)',
+            fontWeight: on ? 'var(--weight-bold)' : 'var(--weight-medium)',
+            opacity: on || tab.href || tab.onClick ? 1 : 0.38,
             cursor: tab.href || tab.onClick ? 'pointer' : 'default',
+            transition: 'color var(--motion-fast) var(--ease-out),'
+              + ' border-color var(--motion-fast) var(--ease-out)',
           };
           if (on) {
             return (
