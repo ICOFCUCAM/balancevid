@@ -1153,21 +1153,25 @@ export default function ChannelStudio({
 
           {/* ---- 24/7 SCHEDULE ---------------------------------------- */}
           <Frame testid="schedule-deck">
-            <div className="row" style={{
-              gap: 9, padding: '7px 10px', borderBottom: '1px solid var(--line)',
-              flexWrap: 'wrap',
-            }}>
-              <strong style={{ fontSize: 13 }}>24/7 Schedule</strong>
-              <span className="small muted" data-testid="schedule-day" style={{
-                fontSize: 11,
-              }}>
+            {/*
+              * THE SCHEDULE'S HEAD IS THE SAME LEGEND AS EVERY OTHER
+              * MODULE'S. It was hand-written rather than a `Head`,
+              * because it carries three controls — so it kept a 13px
+              * bold title while the five modules around it became
+              * legends, and it was the last sentence-case heading in
+              * the room. The markup stays hand-written; only the voice
+              * changes. [brief §13]
+              */}
+            <div className="row module-head" style={{ flexWrap: 'wrap' }}>
+              <span className="module-label">24/7 Schedule</span>
+              <span className="module-sub" data-testid="schedule-day">
                 {sameDay(windowNow, now, channel.timezone)
                   ? 'Today'
                   : new Date(windowNow).toLocaleDateString('en-GB', {
                     weekday: 'short', day: 'numeric', month: 'short',
                     timeZone: channel.timezone,
                   })}
-                {' ▾'}
+                {' \u25be'}
               </span>
               <span className="grow" />
               <Strip
@@ -3151,8 +3155,8 @@ function Timeline({
       }}>
         <span style={{
           display: 'block', fontSize: 'var(--text-2xs)',
-          fontWeight: 'var(--weight-semi)', color: 'var(--text-faint)',
-          letterSpacing: '0.02em',
+          fontWeight: 'var(--weight-bold)', color: 'var(--ink-300)',
+          letterSpacing: '0.1em', textTransform: 'uppercase',
         }}>{name}</span>
         {note && (
           <span style={{
@@ -3183,14 +3187,40 @@ function Timeline({
       {/* ---- the ruler ------------------------------------------------ */}
       <div className="row" style={{ alignItems: 'stretch' }}>
         <span style={{ flex: '0 0 auto', width: 96 }} />
-        <div style={{ position: 'relative', flex: 1, minWidth: 0, height: 18 }}>
+        {/*
+          * A RULE IS A RULE, NOT A ROW OF NUMBERS.
+          *
+          * The time scale was five clock readings floating in eighteen
+          * pixels of air, and a reading with nothing under it does not
+          * say WHERE it is — the eye has to drop a plumb line by guess
+          * to find which pixel 00:30 actually means. Every measuring
+          * instrument ever made solves this the same way: the number
+          * sits above a mark, and the mark touches the thing being
+          * measured.
+          *
+          * So each label now has a tick descending to the first lane,
+          * and a baseline runs the width. Nothing else changes — same
+          * step, same labels, same positions. [brief §11]
+          */}
+        <div style={{
+          position: 'relative', flex: 1, minWidth: 0, height: 20,
+          borderBottom: 'var(--border) solid var(--console-edge)',
+        }}>
           {Array.from({ length: ticks + 1 }, (_unused, index) => {
             const at = windowFrom + index * STEP_MS;
             return (
-              <span key={index} className="muted mono" style={{
-                position: 'absolute', top: 0, left: across(at), fontSize: 9,
-                transform: index === 0 ? 'none' : 'translateX(-50%)',
-              }}>{clock(at)}</span>
+              <span key={index}>
+                <span className="mono readout" style={{
+                  position: 'absolute', top: 1, left: across(at),
+                  fontSize: 9, color: 'var(--ink-300)',
+                  letterSpacing: '0.04em',
+                  transform: index === 0 ? 'none' : 'translateX(-50%)',
+                }}>{clock(at)}</span>
+                <span aria-hidden="true" style={{
+                  position: 'absolute', bottom: 0, left: across(at),
+                  width: 1, height: 5, background: 'var(--console-edge)',
+                }} />
+              </span>
             );
           })}
         </div>
