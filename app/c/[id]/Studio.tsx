@@ -1502,11 +1502,26 @@ export default function Studio({ conversationId }: { conversationId: string }) {
               </>
             )}
 
+            {/*
+              * WHAT KIND OF MOVE THIS WILL BE, which is the setting the
+              * lower third of the finished video is cut from — so it
+              * belongs beside the key that starts the recording, and it
+              * belongs at the size of a technical readout rather than
+              * of a form field. [U-11]
+              */}
             <select
               aria-label="Kind of response"
+              data-testid="response-type"
               value={type}
               onChange={(e) => setType(e.target.value as InterventionType)}
-              style={{ width: 'auto' }}
+              style={{
+                width: 'auto', padding: '6px 9px',
+                fontSize: 'var(--text-2xs)', letterSpacing: '0.07em',
+                textTransform: 'uppercase',
+                background: 'var(--console-control)',
+                borderColor: 'var(--console-edge)',
+                borderRadius: 'var(--radius-control)',
+              }}
             >
               {INTERVENTION_TYPES.map((t) => (
                 <option key={t} value={t}>{TYPE_PRESENTATION[t].lowerThird}</option>
@@ -1531,7 +1546,18 @@ export default function Studio({ conversationId }: { conversationId: string }) {
               Notes
             </button>
             {phase === 'cold' && (
-              <button className="primary" data-testid="enable-camera" onClick={() => void arm()}>
+              {/*
+                * THE ONE LOUD CONTROL IN STUDIO ONE, and it earns it:
+                * nothing in this room can be done until the camera is
+                * up, and until it is, this is the only thing to press.
+                * It was `.primary` — the product's generic filled blue
+                * — and it is a console control now, so it belongs to
+                * the same family as GO LIVE and TAKE LIVE rather than
+                * to the sign-up button on a marketing page.
+                */}
+              <button className="ctl is-critical" data-testid="enable-camera"
+                      onClick={() => void arm()}
+                      style={{ padding: '8px 14px' }}>
                 Enable camera
               </button>
             )}

@@ -139,7 +139,19 @@ export function StageStatus({
         boxShadow: `0 0 10px ${state.dot}`, flex: '0 0 auto',
       }} />
       <div style={{ minWidth: 0 }}>
-        <div data-testid="stance" style={{ fontSize: 17, fontWeight: 600, lineHeight: 1.15 }}>
+        {/*
+          * THE STATE, AT THE SIZE A STATE IS. 17px semibold is a
+          * heading, and this is one word that changes between four
+          * values — READY, RECORDING, YOURS, HELD. A desk sets that as
+          * a legend and lets the lamp beside it carry the weight, which
+          * is also what stops it competing with the timecode it sits
+          * next to. [brief §13]
+          */}
+        <div data-testid="stance" style={{
+          fontSize: 'var(--text-xs)', fontWeight: 'var(--weight-bold)',
+          lineHeight: 1.3, letterSpacing: '0.09em',
+          textTransform: 'uppercase',
+        }}>
           {state.title}
         </div>
         <div className="small muted" data-testid="stance-hint">{state.hint}</div>
