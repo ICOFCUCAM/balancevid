@@ -20,6 +20,7 @@ import {
   ACCOUNT_SCHEMA_VERSION, ANONYMOUS, OWNER_ACCOUNT_ID,
   isSignedIn, ownerAccount, principalFor,
 } from '../../src/domain/account.js';
+import { sessionStillValid } from '../../src/domain/account.js';
 import { configureOwner, ownerCookie } from '../helpers/session.js';
 
 /*
@@ -32,12 +33,14 @@ let theAccount: typeof import('../../src/store/accounts.js').theAccount;
 let loadAccount: typeof import('../../src/store/accounts.js').loadAccount;
 let saveAccount: typeof import('../../src/store/accounts.js').saveAccount;
 let forget: typeof import('../../src/store/accounts.js').forgetAccountCache;
+let revokeSessions: typeof import('../../src/store/accounts.js').revokeSessions;
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'bv-accounts-'));
   process.env['BALANCEVID_VAR'] = root;
   ({
     theAccount, loadAccount, saveAccount, forgetAccountCache: forget,
+    revokeSessions,
   } = await import('../../src/store/accounts.js'));
 });
 
@@ -195,5 +198,200 @@ describe('/api/auth/me', () => {
     }));
     const raw = JSON.stringify(await response.json());
     expect(raw).not.toMatch(/scrypt\$|passwordHash|password/i);
+  });
+});
+
+/**
+ * Ending every session.  [D-06, U-24]
+ *
+ * The gap this closes was written down in the sign-out route before the fix
+ * existed: a stateless token could only be revoked by changing the instance
+ * password, which ended every session everywhere — including the ones you
+ * still wanted. A date on the account draws the line instead.
+ */
+describe('revoking sessions', () => {
+  /*
+   * NO LINE UNTIL ONE IS DRAWN. Defaulting the field to the creation date
+   * looks tidier and voids every token that predates the field — which on
+   * the deploy that adds it is every token in existence. The first person
+   * to open the product after upgrading would be signed out for no reason.
+   */
+  it('starts with no line at all, not a line at the beginning', async () => {
+    const account = await theAccount();
+    expect(account.sessionsValidFrom).toBeUndefined();
+    expect(sessionStillValid(account, Date.now())).toBe(true);
+    /* Including a token too old to say when it was issued. */
+    expect(sessionStillValid(account, undefined)).toBe(true);
+  });
+
+  it('voids what was issued before the line and keeps what comes after', async () => {
+    const account = await theAccount();
+    const at = new Date('2026-06-01T12:00:00.000Z');
+    const line = Date.parse(at.toISOString());
+    const revoked = { ...account, sessionsValidFrom: await revokeSessions(account.id, at) };
+
+    expect(sessionStillValid(revoked, line - 1)).toBe(false);
+    expect(sessionStillValid(revoked, line)).toBe(true);
+    expect(sessionStillValid(revoked, line + 1)).toBe(true);
+  });
+
+  /*
+   * A TOKEN WITH NO ISSUE TIME IS NOT HONOURED once a line exists. The older
+   * formats did not record when they were made, so they cannot be shown to
+   * be after the line — and "sign out everywhere" that left the oldest
+   * sessions running would be the one case it was pressed for.
+   */
+  it('does not honour a token that cannot say when it was issued', async () => {
+    const account = await theAccount();
+    expect(sessionStillValid(account, undefined)).toBe(true);
+    const revoked = {
+      ...account,
+      sessionsValidFrom: await revokeSessions(account.id, new Date()),
+    };
+    expect(sessionStillValid(revoked, undefined)).toBe(false);
+  });
+
+  it('persists, so a restart does not un-revoke anything', async () => {
+    const at = new Date('2026-06-01T12:00:00.000Z');
+    await revokeSessions(undefined, at);
+    forget();
+    expect((await theAccount()).sessionsValidFrom).toBe(at.toISOString());
+  });
+
+  /*
+   * A record written before revocation existed has no line, and must read as
+   * "nothing revoked" rather than as "everything revoked" — the second would
+   * sign the owner out on the deploy that introduced the feature. [U-25 §1]
+   */
+  it('reads an older record as having revoked nothing', async () => {
+    const account = await theAccount();
+    await saveAccount(account);
+    forget();
+    const read = await loadAccount(account.id);
+    expect(read?.sessionsValidFrom).toBeUndefined();
+    expect(sessionStillValid(read!, undefined)).toBe(true);
+  });
+});
+
+describe('signing out everywhere, over HTTP', () => {
+  let POST: (request: Request) => Promise<Response>;
+  let hash: string;
+
+  beforeAll(async () => {
+    hash = configureOwner();
+    ({ POST } = await import('../../app/api/auth/signout/route.js'));
+  });
+
+  const signOut = async (body: unknown, cookie?: string) => POST(
+    new Request('http://local/api/auth/signout', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...(cookie ? { cookie } : {}) },
+      body: JSON.stringify(body),
+    }));
+
+  /* The ordinary press is unchanged: this browser, nothing else. */
+  it('clears only this cookie by default', async () => {
+    const before = (await theAccount()).sessionsValidFrom;
+    expect(before).toBeUndefined();
+    const response = await signOut({}, await ownerCookie(hash));
+    expect(response.status).toBe(200);
+    expect(response.headers.get('set-cookie')).toContain('Max-Age=0');
+    forget();
+    expect((await theAccount()).sessionsValidFrom).toBe(before);
+  });
+
+  it('draws the line when asked to end everything', async () => {
+    const before = (await theAccount()).sessionsValidFrom;
+    const response = await signOut({ everywhere: true }, await ownerCookie(hash));
+    expect(response.status).toBe(200);
+    forget();
+    const after = (await theAccount()).sessionsValidFrom;
+    expect(after).toBeDefined();
+    expect(after).not.toBe(before);
+    /* And this session goes with the rest: the cookie is cleared too. */
+    expect(response.headers.get('set-cookie')).toContain('Max-Age=0');
+  });
+
+  /*
+   * A STRANGER MUST NOT BE ABLE TO DO THIS. Without a caller it is a URL
+   * anybody can POST at to sign the owner out of every device they own.
+   */
+  it('refuses a stranger, and changes nothing', async () => {
+    const before = (await theAccount()).sessionsValidFrom;
+    const response = await signOut({ everywhere: true });
+    expect(response.status).toBe(401);
+    forget();
+    expect((await theAccount()).sessionsValidFrom).toBe(before);
+  });
+
+  it('treats anything but true as the ordinary sign out', async () => {
+    const before = (await theAccount()).sessionsValidFrom;
+    for (const body of [{ everywhere: 'true' }, { everywhere: 1 }, {}]) {
+      const response = await signOut(body, await ownerCookie(hash));
+      expect(response.status, JSON.stringify(body)).toBe(200);
+    }
+    forget();
+    expect((await theAccount()).sessionsValidFrom).toBe(before);
+  });
+});
+
+/**
+ * The whole loop, which is the only proof that matters.  [D-06]
+ *
+ * Every piece above can pass while the feature does nothing: a date written
+ * to a file that no check reads is a date written to a file. This signs in,
+ * confirms the request is the owner's, revokes, and confirms it is nobody's.
+ */
+describe('a revoked session stops authenticating', () => {
+  let hash: string;
+  let whoIs: typeof import('../../src/auth/request.js').whoIs;
+  let isOwner: typeof import('../../src/auth/request.js').isOwner;
+
+  beforeAll(async () => {
+    hash = configureOwner();
+    ({ whoIs, isOwner } = await import('../../src/auth/request.js'));
+  });
+
+  const asOwner = async () => new Request('http://local/anything', {
+    headers: { cookie: await ownerCookie(hash) },
+  });
+
+  it('is the owner before, and nobody after', async () => {
+    const request = await asOwner();
+    expect(await isOwner(request)).toBe(true);
+    expect((await whoIs(request)).kind).toBe('account');
+
+    /*
+     * A second in the future, because a token issued in the same
+     * millisecond as the line is ON the line and stays valid — which is the
+     * correct boundary, and not the one this test is about.
+     */
+    await revokeSessions(OWNER_ACCOUNT_ID, new Date(Date.now() + 1000));
+    forget();
+
+    expect(await isOwner(request)).toBe(false);
+    expect((await whoIs(request)).kind).toBe('anonymous');
+  });
+
+  /*
+   * AND THE NEXT SIGN-IN WORKS. A revocation that locked the account out
+   * permanently would be a very thorough bug.
+   */
+  it('lets a fresh session straight back in', async () => {
+    await revokeSessions(OWNER_ACCOUNT_ID, new Date(Date.now() - 1000));
+    forget();
+    expect(await isOwner(await asOwner())).toBe(true);
+  });
+
+  /*
+   * NINETY-ODD CALL SITES GET THIS FOR FREE because `isOwner` now reads the
+   * full answer rather than checking a signature on its own. A test that
+   * only exercised `whoIs` would pass while every route in the product
+   * still honoured a revoked token.
+   */
+  it('reaches the check that every route in the product already calls', async () => {
+    await revokeSessions(OWNER_ACCOUNT_ID, new Date(Date.now() + 1000));
+    forget();
+    expect(await isOwner(await asOwner())).toBe(false);
   });
 });

@@ -110,6 +110,23 @@ export async function theAccount(): Promise<Account> {
   }
 }
 
+/**
+ * Draw the line: every session issued before now is void.
+ *
+ * Returns the moment, because the caller usually wants to say when. The
+ * cached record is replaced by `saveAccount`, so the very next request is
+ * already checked against the new line rather than a stale one — which
+ * matters, since the point of pressing this is that something is wrong now.
+ */
+export async function revokeSessions(
+  id: AccountId = OWNER_ACCOUNT_ID, at: Date = new Date(),
+): Promise<string> {
+  const account = await loadAccount(id) ?? await theAccount();
+  const sessionsValidFrom = at.toISOString();
+  await saveAccount({ ...account, sessionsValidFrom });
+  return sessionsValidFrom;
+}
+
 /** For tests, which need a process to forget what it has already read. */
 export function forgetAccountCache(): void {
   cached = null;

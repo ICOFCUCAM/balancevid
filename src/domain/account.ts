@@ -64,6 +64,35 @@ export interface Account {
   /** What to call them. Display only; nothing keys off it. */
   name: string;
   createdAt: string;
+  /**
+   * SESSIONS ISSUED BEFORE THIS MOMENT ARE VOID.  [D-06]
+   *
+   * The gap it closes was written down in the sign-out route before it
+   * existed: "the token is self-contained and stateless, so this clears the
+   * cookie rather than revoking anything. A token that has genuinely leaked
+   * is revoked by changing the password." Which is true, and a poor answer
+   * to a laptop left on a train — the remedy for one lost session was to
+   * change the instance's password and end every session everywhere,
+   * including the ones on the machines you still have.
+   *
+   * A stamp is the smallest thing that fixes it and the only one that keeps
+   * the token stateless: there is still no session table, still nothing to
+   * keep, and a restart still signs nobody out. One date per account says
+   * where the line is.
+   *
+   * It is also the mechanism a second account will need. A per-account
+   * password change cannot revoke anything through the signing key, because
+   * that key is the instance's and shared — so the line has to be drawn
+   * here instead. [U-24]
+   *
+   * ABSENT UNTIL SOMETHING IS ACTUALLY REVOKED, and the difference is not
+   * cosmetic. Defaulting it to the account's creation date looks tidier and
+   * silently voids every token that predates this field — which is every
+   * token in existence on the deploy that adds it. The first person to try
+   * the product after the upgrade would be signed out for no reason. The
+   * field means "a line has been drawn"; no line is no field.
+   */
+  sessionsValidFrom?: string;
 }
 
 /**
@@ -89,6 +118,25 @@ export const ANONYMOUS: Principal = { kind: 'anonymous' };
 
 export function principalFor(account: AccountId): Principal {
   return { kind: 'account', account };
+}
+
+/**
+ * Whether a session issued at this moment is still one this account honours.
+ *
+ * A TOKEN WITH NO ISSUE TIME IS NOT HONOURED once a line has been drawn, and
+ * that is the safe direction rather than an oversight: the pre-revocation
+ * token formats did not record when they were made, so "revoke everything
+ * before now" cannot be shown to exclude them. Treating them as older than
+ * any line means a person who clicks sign out everywhere is actually signed
+ * out everywhere, which is the only reading of that button worth having.
+ */
+export function sessionStillValid(
+  account: Pick<Account, 'sessionsValidFrom'>, issuedAt: number | undefined,
+): boolean {
+  if (!account.sessionsValidFrom) return true; /* Nothing has been revoked. */
+  const line = Date.parse(account.sessionsValidFrom);
+  if (!Number.isFinite(line)) return true; /* Unreadable: refuse to lock out. */
+  return issuedAt !== undefined && issuedAt >= line;
 }
 
 /** Narrowing helper, so call sites read as a question rather than a compare. */
