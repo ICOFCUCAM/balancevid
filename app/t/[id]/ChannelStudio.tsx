@@ -513,8 +513,12 @@ export default function ChannelStudio({
   /* ---------------------------------------------------------------- */
 
   const goLive = () => {
-    const label = window.prompt('What is the live show called?', 'Live');
-    if (!label) return;
+    confirm({
+      question: 'Going live opens your camera and puts it in PREVIEW. '
+        + 'Nothing reaches the wire until you press TAKE LIVE.',
+      field: { label: 'What is the live show called?', initial: 'Live' },
+      verb: 'Go live',
+      go: (label) => {
     /*
      * IT NO LONGER ASKS WHICH ROOM. It used to, through a second prompt
      * wanting a raw `conv_…` identifier typed from memory — which is why
@@ -522,7 +526,9 @@ export default function ChannelStudio({
      * Arming opens the camera; the Guests tab is where a room is chosen and
      * people are invited, and nothing reaches the wire until TAKE LIVE. [§6]
      */
-    void patch({ action: 'go-live', label });
+        void patch({ action: 'go-live', label });
+      },
+    });
   };
   const endLive = () => confirm({
     question: keeping
@@ -1445,13 +1451,20 @@ export default function ChannelStudio({
               : 'Ask the channel to record the next hour of whatever it shows.'}
             onClick={() => {
               if (onAir) { void patch({ action: 'keep-live', keep: !keeping }); return; }
-              const label = window.prompt('What should the recording be called?');
-              if (!label) return;
-              void patch({
-                action: 'record', label,
-                fromAt: new Date(now).toISOString(),
-                toAt: new Date(now + HOUR).toISOString(),
-                requestedBy: 'owner',
+              confirm({
+                question: 'Record the next hour of whatever the channel '
+                  + 'shows. It becomes a file in this channel\u2019s library.',
+                field: {
+                  label: 'What should the recording be called?',
+                  placeholder: 'Tonight\u2019s show',
+                },
+                verb: 'Record the next hour',
+                go: (label) => void patch({
+                  action: 'record', label,
+                  fromAt: new Date(now).toISOString(),
+                  toAt: new Date(now + HOUR).toISOString(),
+                  requestedBy: 'owner',
+                }),
               });
             }}
             /*
@@ -1931,9 +1944,19 @@ export default function ChannelStudio({
                       });
                       return;
                     }
-                    const author = window.prompt(
-                      'Who is broadcasting? (optional)', '') ?? undefined;
-                    void patch({ action: 'publish', ...(author ? { author } : {}) });
+                    confirm({
+                      question: 'Give the channel a public link. Anyone with '
+                        + 'it can watch \u2014 they cannot change anything.',
+                      field: {
+                        label: 'Who is broadcasting?',
+                        placeholder: 'Optional',
+                        optional: true,
+                      },
+                      verb: 'Publish the link',
+                      go: (author) => void patch({
+                        action: 'publish', ...(author ? { author } : {}),
+                      }),
+                    });
                   }}
                   style={published
                     ? { borderColor: '#8e6a1f', color: '#e0c14f', fontSize: 11 }

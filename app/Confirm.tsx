@@ -44,8 +44,23 @@ export interface Ask {
   verb: string;
   /** Destructive actions colour their button and lose the default focus. */
   danger?: boolean;
-  /** Runs only if they say yes. */
-  go: () => void;
+  /**
+   * ASKING FOR A VALUE, not only for a yes.
+   *
+   * `window.prompt` is the worse half of the pair it replaces: as well as
+   * everything wrong with a native confirm, it gives a single unlabelled
+   * line with no room to say what shape the answer should take. A field
+   * with a real label and a placeholder can say "HH:MM" where a prompt
+   * can only put it in the question and hope.
+   *
+   * When this is set the dialog grows a field, focus lands on the FIELD
+   * rather than on Cancel — there is nothing destructive to guard against
+   * when the person is being asked to type something — and the verb is
+   * disabled until it holds a value.
+   */
+  field?: { label: string; placeholder?: string; initial?: string; optional?: boolean };
+  /** Runs only if they say yes. Carries the field's value when there is one. */
+  go: (value: string) => void;
 }
 
 export function useConfirm() {
@@ -58,22 +73,33 @@ export function useConfirm() {
 function ConfirmDialog({ ask, onClose }: { ask: Ask | null; onClose: () => void }) {
   const ref = useRef<HTMLDialogElement | null>(null);
   const cancelRef = useRef<HTMLButtonElement | null>(null);
+  const fieldRef = useRef<HTMLInputElement | null>(null);
+  const [value, setValue] = useState('');
 
   useEffect(() => {
     const element = ref.current;
     if (!element) return;
     if (ask && !element.open) {
+      setValue(ask.field?.initial ?? '');
       element.showModal();
       /*
-       * FOCUS LANDS ON CANCEL. `showModal` focuses the first focusable
+       * FOCUS LANDS ON CANCEL FOR A DECISION and on the FIELD when there
+       * is something to type. `showModal` focuses the first focusable
        * child, and if that were the destructive button then Return —
-       * which a person pressing quickly has already half-pressed — would
-       * confirm it. Moving focus explicitly is the whole safeguard.
+       * which somebody pressing quickly has already half-pressed — would
+       * confirm it. Moving focus explicitly is the whole safeguard, and
+       * it does not apply when the answer is a value rather than a yes.
        */
-      cancelRef.current?.focus();
+      if (ask.field) {
+        window.requestAnimationFrame(() => fieldRef.current?.select());
+      } else {
+        cancelRef.current?.focus();
+      }
     }
     if (!ask && element.open) element.close();
   }, [ask]);
+
+  const ready = !ask?.field || ask.field.optional === true || value.trim() !== '';
 
   return (
     <dialog
@@ -101,6 +127,26 @@ function ConfirmDialog({ ask, onClose }: { ask: Ask | null; onClose: () => void 
             margin: 0, fontSize: 'var(--text-md)',
             lineHeight: 'var(--leading-snug)',
           }}>{ask.question}</p>
+
+          {ask.field && (
+            <label style={{ margin: 0 }}>
+              {ask.field.label}
+              <input
+                ref={fieldRef} data-testid="confirm-field"
+                value={value} placeholder={ask.field.placeholder}
+                onChange={(event) => setValue(event.target.value)}
+                onKeyDown={(event) => {
+                  /* Return submits, which is what a one-field form means. */
+                  if (event.key === 'Enter' && ready) {
+                    event.preventDefault();
+                    ask.go(value.trim());
+                    onClose();
+                  }
+                }}
+                style={{ marginTop: 'var(--space-2)' }}
+              />
+            </label>
+          )}
           <div className="row" style={{
             gap: 'var(--space-4)', justifyContent: 'flex-end',
           }}>
@@ -111,8 +157,8 @@ function ConfirmDialog({ ask, onClose }: { ask: Ask | null; onClose: () => void 
             <button
               type="button"
               className={ask.danger ? 'danger' : 'primary'}
-              data-testid="confirm-go"
-              onClick={() => { ask.go(); onClose(); }}
+              data-testid="confirm-go" disabled={!ready}
+              onClick={() => { ask.go(value.trim()); onClose(); }}
             >{ask.verb}</button>
           </div>
         </div>
