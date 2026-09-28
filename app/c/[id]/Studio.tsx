@@ -1303,17 +1303,55 @@ export default function Studio({ conversationId }: { conversationId: string }) {
               currentFrame={currentFrame}
               durationFrames={conversation?.source?.durationFrames ?? 0}
             />
-            <span aria-hidden style={{ width: 1, alignSelf: 'stretch',
-              background: 'var(--line)', margin: '0 2px' }} />
+            {/*
+              * A DIVIDER IN A BAR FADES AT ITS ENDS. A hard 1px rule
+              * meeting the bar's own edges makes a cross, and the eye
+              * finds the junction rather than the separation.
+              */}
+            <span aria-hidden style={{
+              width: 1, alignSelf: 'stretch', margin: '0 var(--space-1)',
+              background: 'linear-gradient(180deg, transparent,'
+                + ' var(--line) 25%, var(--line) 75%, transparent)',
+            }} />
             {picked && !boundResponse ? (
               <span className="grow" />
             ) : (
               <>
+                {/*
+                  * THE ONE KEY IN THE PRODUCT, drawn as a key.
+                  *
+                  * It was a bordered rectangle with a faint wash, which
+                  * is a chip. A keycap has a top face and a front edge:
+                  * a light hairline along the top, a dark one along the
+                  * bottom, and the label sitting on the face. That is
+                  * two shadows, and it is the difference between a
+                  * label that says "space" and an object that says
+                  * "press me".
+                  *
+                  * It matters here more than anywhere else in the
+                  * product, because SPACE is the whole interaction of
+                  * Studio One — the interrupt is the product (U-04),
+                  * and this is the only place it is taught.
+                  */}
                 <kbd style={{
-                  padding: '8px 18px', borderRadius: 6, border: '1px solid var(--line)',
-                  background: 'rgba(255,255,255,0.06)', fontSize: 14, letterSpacing: 1,
+                  padding: 'var(--space-4) var(--space-7)',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1px solid var(--ink-500)',
+                  borderBottomColor: 'var(--ink-900)',
+                  borderBottomWidth: 2,
+                  background: 'linear-gradient(180deg,'
+                    + ' var(--ink-600), var(--ink-700))',
+                  fontSize: 'var(--text-md)',
+                  fontWeight: 'var(--weight-semi)',
+                  letterSpacing: '0.1em',
+                  color: 'var(--ink-050)',
+                  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.1),'
+                    + ' 0 1px 2px rgba(0,0,0,0.45)',
+                  fontFamily: 'inherit',
                 }}>SPACE</kbd>
-                <span className="grow small">
+                <span className="grow" style={{
+                  fontSize: 'var(--text-base)', color: 'var(--text-dim)',
+                }}>
                   {stance === 'yours' ? 'to continue the video' : 'to interrupt and respond'}
                 </span>
               </>
