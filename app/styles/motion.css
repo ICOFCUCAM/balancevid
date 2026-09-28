@@ -1,0 +1,79 @@
+/*
+ * MOTION.  [Doctrine D-04]
+ *
+ * There was one transition in the product before this — a 400ms linear
+ * width on the feed meter — and nothing else moved at all. State changed
+ * by teleporting: a tab became the active tab, a panel was suddenly a
+ * different colour, a lamp went from green to red between two frames.
+ *
+ * WHY THAT READS AS CHEAP even to somebody who could not say why. An
+ * instant change gives the eye no path to follow, so the brain does not
+ * register a thing changing — it registers a different thing being there.
+ * The work of noticing what moved falls on the person. A hundred and
+ * twenty milliseconds of movement is below the threshold at which anybody
+ * would call an interface animated, and above the one at which the eye
+ * can follow a thing from where it was to where it is.
+ *
+ * FAST OUT, SLOWER IN, and never the other way round. A control responding
+ * to a press must feel like it obeyed instantly, so what leaves goes
+ * quickly; what arrives can afford to settle. Reversing those is the
+ * single most common way an interface ends up feeling sluggish while every
+ * individual duration is short.
+ *
+ * NOTHING ON THE BROADCAST PATH MOVES. The monitor, the multi-view tiles
+ * and the on-air lamp change state instantly and always will: an operator
+ * cutting to camera two must see it in the frame it happened, not 120ms
+ * later, and a lamp that fades is a lamp that lies for a tenth of a second
+ * about whether you are live. Motion is for the furniture, never for the
+ * signal. [CHANNEL §7]
+ */
+
+:root {
+  /*
+   * Three durations. More than three and nobody can hold the difference
+   * in mind while working, and they drift.
+   */
+  --motion-fast: 90ms;    /* a press, a hover, a colour change */
+  --motion-base: 150ms;   /* a panel opening, a tab sliding */
+  --motion-slow: 240ms;   /* something entering or leaving the page */
+
+  /*
+   * Curves, not easings named after what they look like on a chart. A
+   * control that responds decelerates into place; a thing leaving
+   * accelerates away and is not watched.
+   */
+  --ease-out: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-in: cubic-bezier(0.55, 0.06, 0.68, 0.19);
+  --ease-in-out: cubic-bezier(0.45, 0.05, 0.55, 0.95);
+  /*
+   * A LITTLE OVERSHOOT, used almost nowhere. It belongs on a thing the
+   * person just created — a slide arriving in a deck — and nowhere else.
+   * On a control it reads as a toy.
+   */
+  --ease-spring: cubic-bezier(0.34, 1.32, 0.64, 1);
+}
+
+/*
+ * THE REDUCED-MOTION RULE WAS ALREADY HERE AND WAS TOO BLUNT. It killed
+ * `transition` and `animation` on everything with `!important`, which also
+ * kills a colour fade and a border change — neither of which is motion in
+ * the sense anybody means when they ask for less of it. What causes
+ * trouble is things travelling and things scaling.
+ *
+ * So: distance and scale go, colour stays. Someone who asked for reduced
+ * motion still gets an interface that acknowledges a press. [D-04]
+ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+  /* Colour and opacity are not the motion anybody is asking to reduce. */
+  :where(a, button, [role='button'], input, select, textarea) {
+    transition-property: color, background-color, border-color, opacity,
+                         box-shadow, outline-color !important;
+    transition-duration: 80ms !important;
+  }
+}
