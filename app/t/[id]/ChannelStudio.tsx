@@ -1541,7 +1541,17 @@ export default function ChannelStudio({
           * of those can truncate without anybody being harmed.
           */
         gridTemplateColumns: 'minmax(0, 1fr) max-content minmax(0, 1fr)',
-        background: 'linear-gradient(180deg, var(--ink-850), var(--ink-900))',
+        /*
+          * A MASTER CONTROL STRIP IS PART OF THE CHASSIS, not a footer
+          * laid over it. It carried a top-to-bottom gradient, which is
+          * a decorative device and the one thing on a desk that says
+          * "this was styled" — a real strip is one tone with a lit top
+          * edge, because that is what a piece of extruded metal looks
+          * like under a room light. [brief §12, §15]
+          */
+        background: 'var(--console-chassis)',
+        borderTop: 'var(--border) solid var(--console-edge)',
+        boxShadow: 'var(--console-bevel)',
       }}>
         <div className="row" style={{
           gap: 'var(--space-4)', minWidth: 0, flexWrap: 'nowrap',
@@ -1675,28 +1685,35 @@ export default function ChannelStudio({
           gap: 'var(--space-3)', flexWrap: 'nowrap', flex: '0 0 auto',
         }}>
           <button
-            className="small" data-testid="stop-live" disabled={!onAir}
+            className="ctl" data-testid="stop-live" disabled={!onAir}
             aria-label="Take program" title="Stop the live source and return to program"
             onClick={endLive}
             style={{ padding: '7px 11px' }}
           >&#9632;</button>
           <button
-            className="small" data-testid="resume-program" disabled={!emergency}
+            className="ctl" data-testid="resume-program" disabled={!emergency}
             aria-label="Resume programme"
             title="Clear the emergency and let the schedule take the air again"
             onClick={() => void patch({ action: 'emergency', source: null })}
             style={{ padding: '7px 11px' }}
           >&#9654;</button>
           <button
-            className="small" data-testid="next-item"
+            className="ctl" data-testid="next-item"
             disabled={channel.rotation.length === 0}
             title="Cut to the next item in the loop now"
             onClick={() => void patch({ action: 'next' })}
             style={{ padding: '7px 11px' }}
           >&#9654;&#9612; Next</button>
 
+          {/*
+            * A DIVIDER BETWEEN GROUPS OF CONTROLS, at the weight of a
+            * seam rather than of a border. It separates transport from
+            * the two controls that change what is on air, which is the
+            * one grouping in this strip that matters.
+            */}
           <span aria-hidden="true" style={{
-            width: 1, alignSelf: 'stretch', background: 'var(--line)', margin: '0 3px',
+            width: 1, alignSelf: 'stretch', margin: '2px 5px',
+            background: 'var(--console-seam)',
           }} />
 
           {armed ? (
