@@ -319,10 +319,30 @@ export default function RoomView({
                       data-participant-id={person.id}
                       data-live={live ? 'true' : 'false'}
                       data-connection={link}
+                      /*
+                        * A STAGE TILE IS A FRAME AROUND A PERSON, and the
+                        * accent border is how the room says which person
+                        * — the same colour their lower third will carry
+                        * in the finished edit (U-20). A 2px line in that
+                        * colour is correct and was doing it alone, which
+                        * made a lit tile and an unlit one look equally
+                        * present.
+                        *
+                        * So the border stays and gains a halo in the same
+                        * hue, and the halo only appears when there is
+                        * actually a picture. Somebody on stage with their
+                        * camera off should look like what they are:
+                        * present, and not yet visible.
+                        */
                       style={{
-                        borderRadius: 8, border: `2px solid ${person.accent}`,
-                        background: '#0d1319', display: 'grid', placeItems: 'center',
+                        borderRadius: 'var(--radius-md)',
+                        border: `2px solid ${person.accent}`,
+                        background: '#000', display: 'grid', placeItems: 'center',
                         minHeight: 120, position: 'relative', overflow: 'hidden',
+                        boxShadow: live
+                          ? `0 0 0 3px ${person.accent}26, 0 4px 16px rgba(0,0,0,0.5)`
+                          : 'inset 0 2px 8px rgba(0,0,0,0.5)',
+                        transition: 'box-shadow var(--motion-base) var(--ease-out)',
                       }}
                     >
                       {live ? (
@@ -332,11 +352,21 @@ export default function RoomView({
                         */
                         <LiveTile stream={live} muted={mine} name={person.displayName} />
                       ) : (
-                        <div style={{ textAlign: 'center', padding: 8 }}>
-                          <div style={{ fontSize: 15, fontWeight: 600 }}>
+                        <div style={{
+                          textAlign: 'center', padding: 'var(--space-5)',
+                        }}>
+                          <div style={{
+                            fontSize: 'var(--text-md)',
+                            fontWeight: 'var(--weight-semi)',
+                            letterSpacing: 'var(--tracking-tight)',
+                          }}>
                             {person.displayName}
                           </div>
-                          <div className="small muted" style={{ marginTop: 3 }}>
+                          <div style={{
+                            marginTop: 'var(--space-2)',
+                            fontSize: 'var(--text-sm)',
+                            color: 'var(--text-faint)',
+                          }}>
                             {/*
                               Why there is no picture, in words. A tile that is
                               blank for an unexplained reason reads as broken;
@@ -352,18 +382,36 @@ export default function RoomView({
                           </div>
                         </div>
                       )}
+                      {/*
+                        * THE ROLE FLAG IS THE ONE THING HERE ALLOWED TO BE
+                        * SOLID. It sits in the corner the way a name super
+                        * does on a broadcast, in the person's own accent,
+                        * with dark text on it — because the accents are
+                        * chosen to be light enough to carry a lower third,
+                        * and light-on-light would be unreadable.
+                        */}
                       <span style={{
-                        position: 'absolute', left: 0, bottom: 0, padding: '2px 8px',
-                        background: person.accent, color: '#0e0f11', fontSize: 10,
-                        fontWeight: 700, borderTopRightRadius: 4,
+                        position: 'absolute', left: 0, bottom: 0,
+                        padding: '2px var(--space-4)',
+                        background: person.accent, color: '#0b0d0f',
+                        fontSize: 'var(--text-2xs)',
+                        fontWeight: 'var(--weight-bold)',
+                        letterSpacing: '0.07em',
+                        borderTopRightRadius: 'var(--radius-xs)',
                       }}>
                         {person.role === 'host' ? 'HOST' : 'SPEAKER'}
                       </span>
                       {live && (
                         <span style={{
-                          position: 'absolute', right: 0, bottom: 0, padding: '2px 8px',
-                          background: 'rgba(8,9,11,0.72)', fontSize: 11, fontWeight: 600,
-                          borderTopLeftRadius: 4,
+                          position: 'absolute', right: 0, bottom: 0,
+                          padding: '2px var(--space-4)',
+                          background: 'rgba(8,10,14,0.6)',
+                          backdropFilter: 'blur(10px)',
+                          WebkitBackdropFilter: 'blur(10px)',
+                          fontSize: 'var(--text-xs)',
+                          fontWeight: 'var(--weight-medium)',
+                          color: 'rgba(255,255,255,0.92)',
+                          borderTopLeftRadius: 'var(--radius-xs)',
                         }}>
                           {person.displayName}{mine ? ' (you)' : ''}
                         </span>
