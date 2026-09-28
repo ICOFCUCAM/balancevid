@@ -3869,18 +3869,44 @@ function CameraTab({
               aria-pressed={chosen}
               onClick={() => onSpace(chosen ? '' : space.id)}
               title={space.label}
+              /*
+                * AN ASSET IN A LIBRARY, not a swatch in a palette. Ten
+                * rounded squares in a five-across grid with a caption
+                * under each is the shape of a colour picker, and these
+                * are SETS — the room a presenter is composited into.
+                * Square corners, a seam between neighbours instead of
+                * a gap, and the chosen one lit along its top edge in
+                * the same accent the rest of the room now uses for
+                * "this is the one". [brief §10]
+                */
               style={{
-                padding: 0, aspectRatio: '1 / 1', borderRadius: 6,
+                padding: 0, aspectRatio: '1 / 1', borderRadius: 2,
                 overflow: 'hidden', cursor: 'pointer', position: 'relative',
                 background: SPACE_SWATCHES[space.id] ?? '#1b2028',
-                border: `1px solid ${chosen ? 'var(--accent)' : 'var(--line)'}`,
-                boxShadow: chosen ? '0 0 0 1px rgba(61,127,214,0.5)' : 'none',
+                border: `1px solid ${chosen
+                  ? 'var(--accent)' : 'var(--console-seam)'}`,
+                borderTopWidth: chosen ? 2 : 1,
+                borderTopColor: chosen ? 'var(--accent)' : 'var(--console-seam)',
+                opacity: chosen ? 1 : 0.82,
               }}
             >
+              {/*
+                * 7px WAS NOT A SIZE, IT WAS AN APOLOGY. The type scale
+                * bottoms at 10px for a reason — below that a label is a
+                * grey smear that tells you a word is present without
+                * telling you which. The plate is a scrim on the picture
+                * now rather than a caption bar under it, which buys the
+                * three pixels back without the tile growing.
+                */}
               <span style={{
                 position: 'absolute', left: 0, right: 0, bottom: 0,
-                fontSize: 7, lineHeight: '11px', textAlign: 'center',
-                background: 'rgba(5,7,10,0.72)', overflow: 'hidden',
+                fontSize: 'var(--text-2xs)', lineHeight: '14px',
+                padding: '0 3px', textAlign: 'center',
+                letterSpacing: '-0.01em',
+                color: chosen ? 'var(--ink-000)' : 'var(--ink-100)',
+                background: 'linear-gradient(180deg, transparent,'
+                  + ' rgba(5,7,10,0.82) 45%)',
+                overflow: 'hidden',
                 textOverflow: 'ellipsis', whiteSpace: 'nowrap',
               }}>{space.label}</span>
             </button>
