@@ -121,6 +121,19 @@ export default function ChannelStudio({
   const [error, setError] = useState<string | null>(null);
   const [missing, setMissing] = useState<ProgrammeSource[]>([]);
   const [violations, setViolations] = useState<string[]>([]);
+  /**
+   * WHETHER ANYTHING IS ACTUALLY GOING OUT.  [§18]
+   *
+   * Not derived here, because it cannot be: the playout engine is a separate
+   * process and this browser has no way to see it. The server looks at the
+   * heartbeat and at the age of the newest segment, and hands back the
+   * answer and a sentence.
+   */
+  const [health, setHealth] = useState<{
+    engine: 'running' | 'stale' | 'stopped';
+    stream: 'transmitting' | 'stalled' | 'silent';
+    says: string | null;
+  } | null>(null);
 
   /* ---- which face of each container is showing ------------------------ */
   const [railTab, setRailTab] = useState<RailTab>('playlist');
@@ -200,9 +213,20 @@ export default function ChannelStudio({
     setChannel(data.channel);
     setMissing(data.missing ?? []);
     setViolations(data.violations ?? []);
+    setHealth(data.health ?? null);
   }, [id]);
 
   useEffect(() => { void refresh(); }, [refresh]);
+
+  /*
+   * The engine can die at any moment and nothing on this page would change
+   * on its own. Every ten seconds is well inside ENGINE_STALE_MS, so the
+   * lamp goes red within one threshold of the process going away.
+   */
+  useEffect(() => {
+    const timer = setInterval(() => { void refresh(); }, 10_000);
+    return () => clearInterval(timer);
+  }, [refresh]);
 
   /*
    * The camera follows the session, not a button. Arming opens it, ending
@@ -1480,18 +1504,41 @@ export default function ChannelStudio({
             * that is arriving; amber is a reference with nothing behind it,
             * which is the one fault a listing cannot show by looking right.
             */}
-          <span className="row" data-testid="server-lamp" style={{
-            gap: 6, fontSize: 11, flex: '0 0 auto',
-          }} title={[...violations, ...(error ? [error] : [])].join(' ')
-            || 'The schedule resolves and every reference has a file behind it.'}>
+          {/*
+            * THE ENGINE, NOT THE SCHEDULE.  [§18]
+            *
+            * This lamp used to report that the schedule resolved, which is a
+            * different question and the easier one: a perfect schedule with
+            * no encoder behind it is a listing, and a control room that
+            * called that "Online" was answering wrongly rather than
+            * declining to answer. Red is nothing being written; amber is
+            * something to fix; green is segments arriving.
+            */}
+          <span className="row" data-testid="server-lamp"
+                data-engine={health?.engine ?? 'unknown'}
+                data-stream={health?.stream ?? 'unknown'}
+                style={{ gap: 6, fontSize: 11, flex: '0 0 auto' }}
+                title={[health?.says, ...violations, error]
+                  .filter(Boolean).join(' \u00b7 ')
+                  || 'Segments are being written and every reference has a '
+                    + 'file behind it.'}>
             <Dot
               on
-              colour={violations.length > 0 || missing.length > 0 ? '#c99a2e'
-                : encoder.running && encoder.dropped > 0 ? '#c99a2e' : '#4f8a5b'}
+              colour={!health ? '#6a7078'
+                : health.engine !== 'running' || health.stream === 'silent'
+                  ? '#c0392b'
+                  : health.stream === 'stalled' ? '#c99a2e'
+                    : violations.length > 0 || missing.length > 0 ? '#c99a2e'
+                      : '#4f8a5b'}
             />
             <span className="muted">
-              Server: {violations.length > 0 || missing.length > 0
-                ? `${missing.length || violations.length} to fix` : 'Online'}
+              {!health ? 'Engine: \u2026'
+                : health.engine === 'stopped' ? 'Engine: not running'
+                  : health.engine === 'stale' ? 'Engine: not responding'
+                    : health.stream !== 'transmitting' ? 'Engine: no output'
+                      : violations.length > 0 || missing.length > 0
+                        ? `On air \u00b7 ${missing.length || violations.length} to fix`
+                        : 'On air'}
             </span>
           </span>
 
@@ -1634,12 +1681,18 @@ export default function ChannelStudio({
           </details>
         </div>
 
-        {(violations.length > 0 || error) && (
+        {(violations.length > 0 || error || health?.says) && (
           <p className="small" data-testid="violations" style={{
             gridColumn: '1 / -1', margin: '4px 0 0', fontSize: 11,
-            color: error ? 'var(--bad)' : 'var(--warn)',
+            color: error || health?.engine !== 'running'
+              ? 'var(--bad)' : 'var(--warn)',
           }}>
-            {error ?? violations.join(' ')}
+            {/*
+              * THE ENGINE FIRST. A broken reference matters; nothing being
+              * written at all matters more, and it is the fault that used to
+              * be invisible from this page. [§18]
+              */}
+            {error ?? health?.says ?? violations.join(' ')}
           </p>
         )}
       </footer>

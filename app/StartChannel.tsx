@@ -54,7 +54,7 @@ export default function StartChannel() {
         <label htmlFor="channel-name">What is it called</label>
         <input
           id="channel-name" data-testid="channel-name" value={name}
-          placeholder="Prof Class One"
+          placeholder="BalanceVid One"
           onChange={(event) => setName(event.target.value)}
         />
       </div>

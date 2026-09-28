@@ -9,7 +9,9 @@
  * half-written document is hours of someone's reasoning destroyed.
  */
 
-import { appendFile, mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises';
+import {
+  appendFile, mkdir, readFile, readdir, rename, rm, writeFile,
+} from 'node:fs/promises';
 import { join } from 'node:path';
 import { SCHEMA_VERSION, type Conversation } from '../domain/document.js';
 import { paths, safe } from './paths.js';
@@ -120,4 +122,22 @@ export async function mutateConversation(
     await saveConversation(conversation);
     return conversation;
   });
+}
+
+/**
+ * Throw a conversation away, with everything under it. [§19, D-13, U-25]
+ *
+ * The directory IS the conversation — document, takes, renders, evidence,
+ * thumbnails and audit log (U-25: a conversation directory is a portable
+ * archive). So deleting it is deleting the directory, and there is nothing
+ * else to remember to clean up. That is the payoff of having kept
+ * everything in one place for the last two studios.
+ *
+ * IRREVERSIBLE, AND THE CALLER HAS ALREADY BEEN WARNED. There is no trash:
+ * a trash folder is a second place for media to live, which is a second
+ * thing to reason about on every disk-space question, and the product has
+ * no quota to make it worth it.
+ */
+export async function deleteConversation(id: string): Promise<void> {
+  await rm(paths.conversation(safe(id)), { recursive: true, force: true });
 }

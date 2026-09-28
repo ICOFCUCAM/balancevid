@@ -4,6 +4,8 @@ import {
 } from '../../../../../src/domain/channel.js';
 import type { Channel, OnAir } from '../../../../../src/domain/channel.js';
 import { loadChannel } from '../../../../../src/store/channels.js';
+import { newestSegmentAt } from '../../../../../src/store/playoutHealth.js';
+import { healthSentence, streamState } from '../../../../../src/domain/health.js';
 import { fail, json } from '../../../../../src/web/http.js';
 
 export const dynamic = 'force-dynamic';
@@ -24,7 +26,7 @@ type Params = { params: Promise<{ id: string }> };
  *
  * A SLOT WITH NO TITLE IS THE CHANNEL'S NAME, not the document id behind it.
  * Falling back to `render conv_a1b2c3…` would leak an identifier through the
- * one hole a careful route left open, and "Prof Class TV" is what a listing
+ * one hole a careful route left open, and "BalanceVid TV" is what a listing
  * without a title says anyway.
  */
 function titleOf(channel: Channel, on: OnAir): string {
@@ -56,6 +58,15 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
   }
 
   const at = Date.now();
+  /*
+   * WHETHER ANYTHING IS ACTUALLY ARRIVING.  [§18]
+   *
+   * A viewer whose player never starts is owed a sentence rather than a
+   * spinner. They get the fact about this channel and not a diagnosis of
+   * somebody else's server: "not transmitting right now" is true, useful,
+   * and says nothing about which process died.
+   */
+  const stream = streamState(await newestSegmentAt(id), at);
   const on = whatIsOn(channel, at);
   const coming = nextAfter(channel, at);
 
@@ -81,6 +92,8 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
     /* An instant, not a countdown: a cached countdown is wrong by its age. */
     untilMs: on.kind === 'programme' || on.kind === 'rotation' ? on.untilMs : null,
     next,
+    transmitting: stream === 'transmitting',
+    says: healthSentence('running', stream, 'viewer'),
     ...(channel.publication?.author ? { author: channel.publication.author } : {}),
   }, { headers: { 'cache-control': 'no-store' } });
 }

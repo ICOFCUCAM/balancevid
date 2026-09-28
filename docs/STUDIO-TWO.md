@@ -159,7 +159,7 @@ You press:
 
 1 → 3 → 2 → 4 → 2 → 1
 
-Prof Class records those decisions onto the master timeline.
+BalanceVid records those decisions onto the master timeline.
 
 So you are essentially directing the music video live.
 
@@ -167,7 +167,7 @@ Then:
 
 Create Master Video
 
-And Prof Class renders the result.
+And BalanceVid renders the result.
 
 ### 8) But don't throw away the manual edit
 
@@ -212,7 +212,7 @@ That produces much cleaner music-video results.
 
 ### 10) There should also be a "sync" operation
 
-When recording Take 2, Take 3, etc., Prof Class should know:
+When recording Take 2, Take 3, etc., BalanceVid should know:
 
 This take belongs to this song.
 
@@ -321,7 +321,7 @@ while the song plays, and the final master video is generated from those
 decisions.
 
 And yes — this deserves to be called Studio Two, rather than trying to cram it
-into the Conversation Studio. It gives Prof Class a second major identity:
+into the Conversation Studio. It gives BalanceVid a second major identity:
 Studio One lets you converse with media; Studio Two lets you perform and create
 media.
 

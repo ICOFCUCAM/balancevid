@@ -37,6 +37,7 @@ import { faultLive, recoverLive } from '../domain/channelEdit.js';
 import { paths } from '../store/paths.js';
 import { pathFor } from '../store/playoutSources.js';
 import { ffprobe } from '../render/ffmpeg.js';
+import { beat } from '../store/playoutHealth.js';
 import { produceSegment, type SourceFacts } from './segment.js';
 
 /**
@@ -168,8 +169,15 @@ async function sweep(channelId: string, before: number): Promise<void> {
   }));
 }
 
-/** Every channel, once. Exported so a test can drive one pass. */
-export async function pass(nowMs = Date.now()): Promise<number> {
+/**
+ * Every channel, once. Exported so a test can drive one pass.
+ *
+ * `announce` is off by default so a test driving a pass does not overwrite
+ * the heartbeat of an engine that is genuinely running beside it.
+ */
+export async function pass(
+  nowMs = Date.now(), announce = false,
+): Promise<number> {
   const channels = await listChannels();
   let made = 0;
   for (const channel of channels) {
@@ -187,6 +195,17 @@ export async function pass(nowMs = Date.now()): Promise<number> {
      */
     await watchTheFeed(fresh, nowMs);
     made += await advance(fresh, nowMs).catch(() => 0);
+  }
+  /*
+   * THE PULSE, AT THE END OF THE PASS rather than the start.  [§18]
+   *
+   * At the start it would say "alive" and then spend thirty seconds wedged
+   * on a broken encode, which is the failure a heartbeat exists to catch.
+   * Written after the work means the timestamp is the last moment the engine
+   * demonstrably completed something.
+   */
+  if (announce) {
+    await beat({ channels: channels.length, made }).catch(() => undefined);
   }
   return made;
 }
@@ -206,15 +225,22 @@ async function main(): Promise<void> {
     const started = Date.now();
     let made = 0;
     try {
-      made = await pass();
+      made = await pass(Date.now(), true);
     } catch (error) {
       /*
        * A pass that threw is a pass, not the end of the channel. The most
        * likely causes — a document being rewritten as it was read, a render
        * deleted mid-encode — are transient, and a broadcast that stopped for
        * them would be off air until somebody noticed.
+       *
+       * IT STILL BEATS. The process is alive and trying, and a heartbeat
+       * skipped here would report it dead while it was recovering — sending
+       * somebody to restart a thing that did not need restarting. What a
+       * failing pass produces is zero segments, and the per-channel stream
+       * check is what notices that. [§18]
        */
       process.stderr.write(`playout: ${String(error).slice(0, 300)}\n`);
+      await beat({ channels: 0, made: 0 }).catch(() => undefined);
     }
     const spent = Date.now() - started;
     if (made === 0) {

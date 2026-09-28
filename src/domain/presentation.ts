@@ -490,7 +490,7 @@ const PERFORMANCE_LAYOUTS: Record<string, Layout> = {
    *     ├───────────────┤
    *     │    CONTENT    │
    *     ├───────────────┤
-   *     │  Prof Class   │
+   *     │  BalanceVid   │
    *     └───────────────┘
    *
    * "Don't merely crop the television channel." A 16:9 programme squeezed

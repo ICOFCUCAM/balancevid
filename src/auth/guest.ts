@@ -1,7 +1,7 @@
 /**
  * A guest in one room.  [Doctrine ROOM §6, §12, D-03, D-06]
  *
- * The brief: participants "don't necessarily need a Prof Class account
+ * The brief: participants "don't necessarily need a BalanceVid account
  * initially", and an invitation is a link somebody sends over WhatsApp. That
  * is a capability URL, and capability URLs are a real security model — but
  * only if what the capability grants is small, scoped and revocable.

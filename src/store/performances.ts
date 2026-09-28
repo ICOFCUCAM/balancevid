@@ -11,7 +11,9 @@
  * somebody's performance destroyed, and they cannot sing it again exactly.
  */
 
-import { appendFile, mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises';
+import {
+  appendFile, mkdir, readFile, readdir, rename, rm, writeFile,
+} from 'node:fs/promises';
 import { join } from 'node:path';
 import {
   PERFORMANCE_SCHEMA_VERSION, type Performance,
@@ -103,4 +105,18 @@ export async function readPerformanceAudit(id: string): Promise<AuditEntry[]> {
   } catch {
     return [];
   }
+}
+
+/**
+ * Throw a performance away, with its takes, its song and its renders.
+ * [§19, STUDIO-TWO §13, D-13]
+ *
+ * Same shape as a conversation's, and for the same reason: the directory is
+ * the performance. What is different is what is inside — the master track
+ * somebody performed over goes too, which is correct and worth saying out
+ * loud, because a song is the one thing here a person may not have another
+ * copy of.
+ */
+export async function deletePerformance(id: string): Promise<void> {
+  await rm(paths.performance(safe(id)), { recursive: true, force: true });
 }

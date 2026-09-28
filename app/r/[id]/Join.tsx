@@ -7,7 +7,7 @@ import RoomView, { type RoomState } from '../../c/[id]/room/RoomView.js';
  * Joining a room from a link.  [Doctrine ROOM §6, §12]
  *
  * "They click it and enter the Conversation Room. They don't necessarily need
- *  a Prof Class account initially."
+ *  a BalanceVid account initially."
  *
  * So the entire membrane is: what should we call you. The link is the
  * credential; the name is what everyone else sees. Nothing is asked that

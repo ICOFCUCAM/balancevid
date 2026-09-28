@@ -488,7 +488,7 @@ const ALIGN_WINDOW = 30 * HOUSE_SAMPLE_RATE;
 /**
  * Create Master Video.  [Doctrine STUDIO-TWO §7, §14, S-7, INV-00]
  *
- * "And Prof Class renders the result." The moment the takes finally become one
+ * "And BalanceVid renders the result." The moment the takes finally become one
  * video — and the first moment in the whole studio that anything is merged,
  * which is the brief's own architectural instruction observed to the letter.
  *

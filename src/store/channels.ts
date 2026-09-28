@@ -13,7 +13,7 @@
  */
 
 import {
-  appendFile, mkdir, readFile, readdir, rename, writeFile,
+  appendFile, mkdir, readFile, readdir, rename, rm, writeFile,
 } from 'node:fs/promises';
 import { join } from 'node:path';
 import { CHANNEL_SCHEMA_VERSION, type Channel } from '../domain/channel.js';
@@ -125,4 +125,22 @@ export async function readChannelAudit(id: string): Promise<AuditEntry[]> {
   } catch {
     return [];
   }
+}
+
+/**
+ * Throw a channel away.  [§19, CHANNEL §1, INV-17]
+ *
+ * NOTHING SCHEDULED DIES WITH IT, which is the whole point of D-18 arriving
+ * at the end of a channel's life: the schedule was references, so deleting
+ * it deletes a list of pointers and every film it pointed at is untouched.
+ * Six months of programming removes no video from this machine.
+ *
+ * What DOES die is the only media a channel ever owns (INV-17): saved live
+ * sessions, recordings somebody asked for, and the segment directory. The
+ * segments are regenerated from the clock by definition and are not an
+ * archive of anything; the recordings are, and the caller is told how many
+ * before being asked.
+ */
+export async function deleteChannel(id: string): Promise<void> {
+  await rm(paths.channel(safe(id)), { recursive: true, force: true });
 }

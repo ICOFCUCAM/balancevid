@@ -1,263 +1,139 @@
-import Link from 'next/link';
-import { isRespondable, orderedInterventions } from '../src/domain/document.js';
+import { orderedInterventions } from '../src/domain/document.js';
 import { listConversations, loadConversation } from '../src/store/repository.js';
 import { listPerformances } from '../src/store/performances.js';
 import { listChannels } from '../src/store/channels.js';
-import { formatMasterPosition } from '../src/domain/time.js';
-import { formatTimecode } from '../src/domain/time.js';
+import { whatIsOn } from '../src/domain/channel.js';
+import { bytesLabel, diskSpace } from '../src/store/space.js';
+import { formatMasterPosition, formatTimecode } from '../src/domain/time.js';
 import StartConversation from './StartConversation.js';
 import StartPerformance from './StartPerformance.js';
 import StartChannel from './StartChannel.js';
-import SignOut from './SignOut.js';
+import Workspace, { type WorkRecord } from './Workspace.js';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * The library, and the way in.
+ * The way in.  [Doctrine §19, §13, STUDIO-TWO §13, CHANNEL §13]
  *
- * Two things a person arrives wanting: to carry on with something, or to
- * start something. The old page put a creation FORM beside a list, so the
- * first thing anyone met was a set of fields about rights and attribution.
- * Now the list is a library — each conversation showing the face of a
- * response in it — and starting one is its own short journey.
+ * Three studios, everything made in them, and how much room is left. The
+ * shape is the building: a rail of places, the three doors, and the work.
+ *
+ * THIS FILE ONLY GATHERS. Every number here is measured — the durations come
+ * from the documents, the storage from the disk, whether a channel is on air
+ * from `whatIsOn` — and none of it is arranged. The arranging is
+ * `Workspace`, which is a client component because searching and deleting
+ * are things a person does without reloading.
  */
 export default async function Home() {
-  const summaries = await listConversations();
-  const respondable = summaries.filter(isRespondable);
-  /*
-   * The other studio's work, listed.  [STUDIO-TWO §13]
-   *
-   * It was not, and there was no other way back to a performance: start one,
-   * lose the tab, lose the performance. A library that lists half of what you
-   * have made is a library that teaches you to keep your own bookmarks.
-   */
-  const performances = (await listPerformances().catch(() => []))
-    .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
-  /* Studio Three's work, which is a schedule rather than a video. [CHANNEL §1] */
-  const channels = (await listChannels().catch(() => []))
-    .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
+  const [summaries, performances, channels, space] = await Promise.all([
+    listConversations(),
+    listPerformances().catch(() => []),
+    listChannels().catch(() => []),
+    diskSpace(),
+  ]);
 
-  // One still per conversation, so the library is recognisable rather than
-  // a column of titles. Read from the document; absent ones simply have none.
-  const cards = await Promise.all(summaries.map(async (summary) => {
-    const conversation = await loadConversation(summary.id).catch(() => null);
-    const first = conversation ? orderedInterventions(conversation)[0] : undefined;
-    const take = first?.takes.find((t) => t.id === first.selectedTakeId);
+  const now = Date.now();
+
+  /*
+   * One frame per conversation, so the library is recognisable rather than a
+   * column of titles. Read from the document; a response recorded before
+   * posters existed simply has none, and says so rather than showing a
+   * plausible grey rectangle.
+   */
+  const conversationRecords: WorkRecord[] = await Promise.all(
+    summaries.map(async (summary) => {
+      const conversation = await loadConversation(summary.id).catch(() => null);
+      const first = conversation ? orderedInterventions(conversation)[0] : undefined;
+      const take = first?.takes.find((candidate) => candidate.id === first.selectedTakeId);
+      const responses = conversation?.interventions.length ?? 0;
+      return {
+        id: summary.id,
+        kind: 'conversation' as const,
+        title: summary.title,
+        detail: `${responses} ${responses === 1 ? 'response' : 'responses'}`,
+        duration: summary.source.durationFrames > 0
+          ? formatTimecode(summary.source.durationFrames).slice(0, 8)
+          : null,
+        poster: take && take.durationFrames > 0
+          ? `/api/conversations/${summary.id}/takes/${take.id}/media?kind=poster`
+          : null,
+        href: `/c/${summary.id}`,
+        updatedAt: summary.updatedAt ?? summary.createdAt,
+        published: Boolean(
+          summary.publication && !summary.publication.unpublishedAt),
+      };
+    }),
+  );
+
+  const performanceRecords: WorkRecord[] = performances.map((performance) => {
+    const usable = performance.takes.filter((take) => take.durationSamples > 0);
     return {
-      summary,
-      responses: conversation?.interventions.length ?? 0,
-      poster: take && take.durationFrames > 0
-        ? `/api/conversations/${summary.id}/takes/${take.id}/media?kind=poster`
+      id: performance.id,
+      kind: 'performance' as const,
+      title: performance.title,
+      detail: `${performance.takes.length} `
+        + `${performance.takes.length === 1 ? 'take' : 'takes'}`,
+      duration: performance.master.durationSamples > 0
+        ? formatMasterPosition(performance.master.durationSamples).slice(0, 5)
         : null,
+      poster: usable[0]
+        ? `/api/performances/${performance.id}/takes/${usable[0].id}/media?kind=poster`
+        : null,
+      href: `/p/${performance.id}`,
+      updatedAt: performance.updatedAt,
+      published: Boolean(
+        performance.publication && !performance.publication.unpublishedAt),
     };
-  }));
+  });
+
+  const channelRecords: WorkRecord[] = channels.map((channel) => {
+    /*
+     * WHAT IS ACTUALLY ON, by the function the playout engine uses — not by
+     * scanning the fixed slots, which was the old answer here and was wrong
+     * for every channel whose day is filled by the loop. [CHANNEL §4]
+     */
+    const on = whatIsOn(channel, now);
+    const scheduled = channel.programmes.length + channel.rotation.length;
+    return {
+      id: channel.id,
+      kind: 'channel' as const,
+      title: channel.name,
+      detail: `${scheduled} scheduled · ${channel.timezone}`,
+      duration: null,
+      poster: null,
+      href: `/t/${channel.id}`,
+      updatedAt: channel.updatedAt,
+      published: Boolean(
+        channel.publication && !channel.publication.unpublishedAt),
+      live: on.kind !== 'off',
+    };
+  });
+
+  /* Newest first, across all three, which is what "recent" has to mean. */
+  const records = [...conversationRecords, ...performanceRecords, ...channelRecords]
+    .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
 
   return (
-    <div className="shell">
-      <header className="shell-bar">
-        <h1 className="grow" style={{ fontSize: 17, margin: 0 }}>BalanceVid</h1>
-        <SignOut />
-      </header>
-
-      <div className="shell-body" style={{
-        display: 'grid', gridTemplateColumns: 'minmax(300px, 0.75fr) minmax(0, 1.45fr)',
-        gap: 28, padding: '20px 24px',
-      }}>
-        {/* ---- carry on with something -------------------------------- */}
-        <section className="shell-scroll" style={{ paddingRight: 6 }}>
-          <div className="row" id="conversations" style={{ marginBottom: 2 }}>
-            <strong className="grow">Conversations</strong>
-            <span className="small muted">{summaries.length}</span>
-          </div>
-          <p className="small muted" style={{ marginTop: 0 }}>Continue where you left off</p>
-
-          {cards.length === 0 && (
-            <div className="panel muted small">
-              Nothing yet. Bring a video in and start responding to it.
-            </div>
-          )}
-
-          {cards.map(({ summary, responses, poster }) => (
-            <Link key={summary.id} href={`/c/${summary.id}`}
-                  style={{ textDecoration: 'none', color: 'inherit' }}>
-              <div className="panel" data-testid="library-card"
-                   style={{ marginBottom: 8, padding: 10, display: 'flex', gap: 12 }}>
-                <div style={{
-                  width: 76, height: 44, borderRadius: 5, overflow: 'hidden', flex: '0 0 auto',
-                  background: '#0d1319', border: '1px solid var(--line)',
-                  display: 'grid', placeItems: 'center',
-                }}>
-                  {poster
-                    ? <img alt="" src={poster}
-                           style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    : <span className="small muted" style={{ fontSize: 10 }}>—</span>}
-                </div>
-                <div className="grow" style={{ minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden',
-                    textOverflow: 'ellipsis' }}>
-                    {summary.title}
-                  </div>
-                  <div className="small muted">
-                    {responses} {responses === 1 ? 'response' : 'responses'}
-                    {summary.source.durationFrames > 0
-                      ? ` · ${formatTimecode(summary.source.durationFrames).slice(0, 8)}`
-                      : ' · preparing'}
-                    {summary.publication && !summary.publication.unpublishedAt && ' · published'}
-                  </div>
-                </div>
-              </div>
-            </Link>
-          ))}
-
-          {/* ---- the other studio's work ----------------------------- */}
-          {performances.length > 0 && (
-            <div data-testid="performance-library" id="performances"
-                 style={{ marginTop: 22 }}>
-              <div className="row" style={{ marginBottom: 2 }}>
-                <strong className="grow">Performances</strong>
-                <span className="small muted">{performances.length}</span>
-              </div>
-              <p className="small muted" style={{ marginTop: 0 }}>
-                One song, many takes
-              </p>
-              {performances.map((performance) => {
-                const usable = performance.takes.filter((t) => t.durationSamples > 0);
-                const poster = usable[0]
-                  ? `/api/performances/${performance.id}/takes/${usable[0].id}`
-                    + '/media?kind=poster'
-                  : null;
-                return (
-                  <Link key={performance.id} href={`/p/${performance.id}`}
-                        style={{ textDecoration: 'none', color: 'inherit' }}>
-                    <div className="panel" data-testid="performance-card"
-                         style={{ marginBottom: 8, padding: 10, display: 'flex', gap: 12 }}>
-                      <div style={{
-                        width: 76, height: 44, borderRadius: 5, overflow: 'hidden',
-                        flex: '0 0 auto', background: '#0d1319',
-                        border: '1px solid var(--line)', display: 'grid',
-                        placeItems: 'center',
-                        ...(poster ? {
-                          backgroundImage: `url(${poster})`,
-                          backgroundSize: 'cover', backgroundPosition: 'center',
-                        } : {}),
-                      }}>
-                        {!poster && <span className="small muted"
-                                          style={{ fontSize: 10 }}>&mdash;</span>}
-                      </div>
-                      <div className="grow" style={{ minWidth: 0 }}>
-                        <div style={{ fontWeight: 600, whiteSpace: 'nowrap',
-                          overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {performance.title}
-                        </div>
-                        <div className="small muted">
-                          {performance.takes.length}
-                          {performance.takes.length === 1 ? ' take' : ' takes'}
-                          {performance.master.durationSamples > 0
-                            ? ` · ${formatMasterPosition(
-                              performance.master.durationSamples).slice(0, 5)}`
-                            : ' · preparing'}
-                          {performance.publication && !performance.publication.unpublishedAt
-                            && ' · published'}
-                        </div>
-                      </div>
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
-          )}
-
-          {/* ---- and what is being broadcast (CHANNEL §1) ------------- */}
-          {channels.length > 0 && (
-            <div data-testid="channel-library" id="channels" style={{ marginTop: 22 }}>
-              <div className="row" style={{ marginBottom: 2 }}>
-                <strong className="grow">Channels</strong>
-                <span className="small muted">{channels.length}</span>
-              </div>
-              <p className="small muted" style={{ marginTop: 0 }}>
-                Scheduled from what is above, never copied
-              </p>
-              {channels.map((channel) => {
-                const now = Date.now();
-                const live = channel.programmes.find((programme) => {
-                  const start = Date.parse(programme.startsAt);
-                  return now >= start && now < start + programme.durationMs;
-                });
-                return (
-                  <Link key={channel.id} href={`/t/${channel.id}`}
-                        style={{ textDecoration: 'none', color: 'inherit' }}>
-                    <div className="panel" data-testid="channel-card"
-                         style={{ marginBottom: 8, padding: 10, display: 'flex', gap: 12 }}>
-                      <div style={{
-                        width: 76, height: 44, borderRadius: 5, flex: '0 0 auto',
-                        background: '#0d1319', border: '1px solid var(--line)',
-                        display: 'grid', placeItems: 'center',
-                      }}>
-                        <span style={{
-                          fontSize: 9, fontWeight: 700, letterSpacing: 0.5,
-                          padding: '2px 6px', borderRadius: 3,
-                          background: live ? '#c0392b' : 'transparent',
-                          color: live ? '#fff' : 'var(--muted)',
-                        }}>{live ? 'ON AIR' : 'OFF AIR'}</span>
-                      </div>
-                      <div className="grow" style={{ minWidth: 0 }}>
-                        <div style={{ fontWeight: 600, whiteSpace: 'nowrap',
-                          overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {channel.name}
-                        </div>
-                        <div className="small muted">
-                          {channel.programmes.length}
-                          {channel.programmes.length === 1 ? ' programme' : ' programmes'}
-                          {` · ${channel.timezone}`}
-                          {live ? ` · ${live.title ?? 'on air'}` : ''}
-                        </div>
-                      </div>
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
-          )}
-        </section>
-
-        {/* ---- or start something ------------------------------------- */}
-        <section className="shell-scroll" style={{ display: 'grid', alignContent: 'center' }}>
-          <div className="panel" style={{ padding: 28 }}>
-            <StartConversation />
-          </div>
-
-          {/* The second studio. A different door, because it is a different
-              job: one answers media, the other makes it. [STUDIO-TWO §13] */}
-          <div className="panel" style={{ padding: 28, marginTop: 16 }}>
-            <StartPerformance />
-          </div>
-
-          {/* The third studio. It asks for no media at all, because a channel
-              holds none — it schedules what the other two finished. [D-18] */}
-          <div className="panel" style={{ padding: 28, marginTop: 16 }}>
-            <StartChannel />
-          </div>
-
-          {/* A published conversation is itself a source, so answering one is
-              a way to begin. [U-31, §40] */}
-          {respondable.length > 0 && (
-            <div style={{ marginTop: 22 }}>
-              <div className="small muted" style={{ textTransform: 'uppercase',
-                letterSpacing: 0.8, fontSize: 11, marginBottom: 8 }}>
-                Published — anyone can answer these
-              </div>
-              <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
-                {respondable.map((c) => (
-                  <a key={c.id} className="btn small" href={`/c/${c.id}/watch`}>
-                    {c.title}
-                  </a>
-                ))}
-              </div>
-            </div>
-          )}
-        </section>
-      </div>
-
-    </div>
+    <Workspace
+      records={records}
+      space={{
+        used: bytesLabel(space.usedBytes),
+        free: bytesLabel(space.freeBytes),
+        total: bytesLabel(space.totalBytes),
+        /*
+         * Of the disk, not of a plan. There is no quota to be a fraction of,
+         * and inventing one would put a number on the page that nothing
+         * enforces.
+         */
+        fraction: space.totalBytes > 0
+          ? (space.totalBytes - space.freeBytes) / space.totalBytes : 0,
+        partial: space.partial,
+      }}
+      starters={{
+        one: <StartConversation />,
+        two: <StartPerformance />,
+        tv: <StartChannel />,
+      }}
+    />
   );
 }

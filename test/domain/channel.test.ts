@@ -66,7 +66,7 @@ const DEBATE: ProgrammeSource = {
 };
 
 function channel(): Channel {
-  return newChannel('Prof Class One', 'Africa/Lagos', AT);
+  return newChannel('BalanceVid One', 'Africa/Lagos', AT);
 }
 
 /** An hour of film at nine, as an instant with an offset. [§2] */
@@ -910,7 +910,7 @@ describe('the rest of the control bar (§6)', () => {
 
 describe('a booked live slot holds the air open (§6)', () => {
   function booked(): Channel {
-    const c = newChannel('Prof Class TV', 'UTC', AT);
+    const c = newChannel('BalanceVid TV', 'UTC', AT);
     c.rotationFrom = at(0);
     addToRotation(c, { source: FILM, durationMs: 30 * MINUTE, title: 'Music' }, AT);
     bookLiveEvent(c, {
@@ -960,7 +960,7 @@ describe('channel blocks give the day a shape (§5)', () => {
    *   23:00 ─ Overnight Music
    */
   function station(): Channel {
-    const c = newChannel('Prof Class TV', 'UTC', AT);
+    const c = newChannel('BalanceVid TV', 'UTC', AT);
     c.rotationFrom = at(0);
     addToRotation(c, { source: FILM, durationMs: HOUR, title: 'Default' }, AT);
     const morning = addBlock(c, { name: 'Morning Music', fromMinute: 6 * 60 }, AT);
@@ -1001,7 +1001,7 @@ describe('channel blocks give the day a shape (§5)', () => {
   });
 
   it('the channel\'s own loop is what runs where no block does', () => {
-    const c = newChannel('Prof Class TV', 'UTC', AT);
+    const c = newChannel('BalanceVid TV', 'UTC', AT);
     c.rotationFrom = at(0);
     addToRotation(c, { source: FILM, durationMs: HOUR, title: 'Default' }, AT);
     const evening = addBlock(c, { name: 'Evening', fromMinute: 18 * 60 }, AT);
@@ -1052,7 +1052,7 @@ describe('the channel identity is drawn, never burned in (§13, D-16)', () => {
   const title = () => 'Everlasting Love';
 
   it('a bug goes up and stays up', () => {
-    const c = newChannel('Prof Class TV', 'UTC', AT);
+    const c = newChannel('BalanceVid TV', 'UTC', AT);
     setIdentity(c, {
       bug: { text: 'PROF CLASS', corner: 'bottom-right', opacity: 0.8 },
     });
@@ -1067,7 +1067,7 @@ describe('the channel identity is drawn, never burned in (§13, D-16)', () => {
    * lie rather than a decoration, and it is the piece every viewer checks.
    */
   it('the LIVE lamp is drawn only when the channel is actually live', () => {
-    const c = newChannel('Prof Class TV', 'UTC', AT);
+    const c = newChannel('BalanceVid TV', 'UTC', AT);
     setIdentity(c, {});
     const session = goLive(c, 'Studio', at(20));
     const notYet = marksFor(c.identity, {
@@ -1086,7 +1086,7 @@ describe('the channel identity is drawn, never burned in (§13, D-16)', () => {
   });
 
   it('the lower third holds at the start and then goes, by default', () => {
-    const c = newChannel('Prof Class TV', 'UTC', AT);
+    const c = newChannel('BalanceVid TV', 'UTC', AT);
     setIdentity(c, { lowerThird: { show: 'at-start', holdMs: 8000 } });
     const on: Parameters<typeof marksFor>[1] = {
       kind: 'rotation',
@@ -1100,7 +1100,7 @@ describe('the channel identity is drawn, never burned in (§13, D-16)', () => {
   });
 
   it('and NEXT rides with the title rather than appearing on its own', () => {
-    const c = newChannel('Prof Class TV', 'UTC', AT);
+    const c = newChannel('BalanceVid TV', 'UTC', AT);
     setIdentity(c, { lowerThird: { show: 'always', holdMs: 0 } });
     const marks = marksFor(c.identity, {
       kind: 'rotation',
@@ -1115,7 +1115,7 @@ describe('the channel identity is drawn, never burned in (§13, D-16)', () => {
    * point: changing it changes every future second and touches no file.
    */
   it('changing it touches no reference and no asset', () => {
-    const c = newChannel('Prof Class TV', 'UTC', AT);
+    const c = newChannel('BalanceVid TV', 'UTC', AT);
     addToRotation(c, { source: FILM, durationMs: HOUR }, AT);
     const before = JSON.stringify({ r: c.rotation, p: c.programmes });
     setIdentity(c, { bug: { text: 'PC', corner: 'top-right', opacity: 0.7 } });
@@ -1135,7 +1135,7 @@ describe('the channel identity is drawn, never burned in (§13, D-16)', () => {
    * INV-16 ("no unmeasured spaces") arriving at the broadcast layer.
    */
   it('a virtual set is an id from the spaces table, and clearing it removes it', () => {
-    const c = newChannel('Prof Class TV', 'UTC', AT);
+    const c = newChannel('BalanceVid TV', 'UTC', AT);
     setIdentity(c, { spaceId: 'concert_stage' });
     expect(c.identity!.spaceId).toBe('concert_stage');
     expect(SPACES.some((space) => space.id === c.identity!.spaceId)).toBe(true);
@@ -1159,7 +1159,7 @@ describe('giving it an audience (§17, U-31, D-03)', () => {
    * decides who may fetch them.
    */
   it('publishes without touching a reference or an asset', () => {
-    const c = newChannel('Prof Class TV', 'UTC', AT);
+    const c = newChannel('BalanceVid TV', 'UTC', AT);
     addToRotation(c, { source: FILM, durationMs: HOUR }, AT);
     const before = JSON.stringify({
       r: c.rotation, p: c.programmes, i: c.ingests, rec: c.recordings,
@@ -1182,7 +1182,7 @@ describe('giving it an audience (§17, U-31, D-03)', () => {
    * is a link to a black rectangle.
    */
   it('refuses a channel with nothing on it, and says which thing to do first', () => {
-    const c = newChannel('Prof Class TV', 'UTC', AT);
+    const c = newChannel('BalanceVid TV', 'UTC', AT);
     expect(() => publishChannel(c, { at: AT })).toThrow(/nothing on this channel/);
     expect(isPublished(c)).toBe(false);
   });
@@ -1209,7 +1209,7 @@ describe('giving it an audience (§17, U-31, D-03)', () => {
    * channel rather than as a new one, so the original date survives.
    */
   it('goes off air and back on as the same channel', () => {
-    const c = newChannel('Prof Class TV', 'UTC', AT);
+    const c = newChannel('BalanceVid TV', 'UTC', AT);
     addToRotation(c, { source: FILM, durationMs: HOUR }, AT);
     publishChannel(c, { at: AT });
     const first = c.publication!.publishedAt;
@@ -1228,7 +1228,7 @@ describe('giving it an audience (§17, U-31, D-03)', () => {
   });
 
   it('will not take an unpublished channel off the air', () => {
-    const c = newChannel('Prof Class TV', 'UTC', AT);
+    const c = newChannel('BalanceVid TV', 'UTC', AT);
     expect(() => unpublishChannel(c, AT)).toThrow(/not published/);
   });
 
@@ -1238,7 +1238,7 @@ describe('giving it an audience (§17, U-31, D-03)', () => {
    * where the time says when it came back. [§4]
    */
   it('taking it off the air does not move the schedule', () => {
-    const c = newChannel('Prof Class TV', 'UTC', AT);
+    const c = newChannel('BalanceVid TV', 'UTC', AT);
     addToRotation(c, { source: FILM, durationMs: HOUR }, AT);
     const at = Date.parse(AT) + 90 * 60 * 1000;
     const before = whatIsOn(c, at);
@@ -1259,7 +1259,7 @@ describe('the viewer never sees a dead screen (§9)', () => {
    * resolved anyway.
    */
   function broadcasting(): Channel {
-    const c = newChannel('Prof Class TV', 'UTC', AT);
+    const c = newChannel('BalanceVid TV', 'UTC', AT);
     c.rotationFrom = at(0);
     addToRotation(c, { source: FILM, durationMs: 30 * MINUTE, title: 'Music loop' }, AT);
     setBackup(c, DEBATE);
@@ -1343,7 +1343,7 @@ describe('one programme, many audiences (§15, D-21)', () => {
    * "One live programme → multiple outputs." Not one video made three times.
    */
   it('a destination is declared off, whatever it is', () => {
-    const c = newChannel('Prof Class TV', 'UTC', AT);
+    const c = newChannel('BalanceVid TV', 'UTC', AT);
     const own = addDestination(c, { kind: 'own' }, AT);
     const tiktok = addDestination(c, { kind: 'tiktok' }, AT);
     expect(own.enabled).toBe(false);
@@ -1355,7 +1355,7 @@ describe('one programme, many audiences (§15, D-21)', () => {
    * and a LAYOUT, so the vertical output is a vertical composition.
    */
   it('and it carries its own shape and its own composition', () => {
-    const c = newChannel('Prof Class TV', 'UTC', AT);
+    const c = newChannel('BalanceVid TV', 'UTC', AT);
     const own = addDestination(c, { kind: 'own' }, AT);
     const tiktok = addDestination(c, { kind: 'tiktok' }, AT);
     expect(own.shape).toBe('16:9');
@@ -1376,7 +1376,7 @@ describe('one programme, many audiences (§15, D-21)', () => {
   });
 
   it('an operator may override the composition, from the same table', () => {
-    const c = newChannel('Prof Class TV', 'UTC', AT);
+    const c = newChannel('BalanceVid TV', 'UTC', AT);
     const tiktok = addDestination(c, { kind: 'tiktok' }, AT);
     setDestination(c, tiktok.id, { layoutId: 'performance_quad' });
     expect(layoutFor(c.destinations![0]!)).toBe('performance_quad');
@@ -1390,7 +1390,7 @@ describe('one programme, many audiences (§15, D-21)', () => {
    * screen that loses a broadcast.
    */
   it('switched on is not the same as sending', () => {
-    const c = newChannel('Prof Class TV', 'UTC', AT);
+    const c = newChannel('BalanceVid TV', 'UTC', AT);
     const own = addDestination(c, { kind: 'own' }, AT);
     const tiktok = addDestination(c, { kind: 'tiktok' }, AT);
     setDestination(c, own.id, { enabled: true });
@@ -1411,7 +1411,7 @@ describe('one programme, many audiences (§15, D-21)', () => {
   });
 
   it('a channel cannot be its own destination twice', () => {
-    const c = newChannel('Prof Class TV', 'UTC', AT);
+    const c = newChannel('BalanceVid TV', 'UTC', AT);
     addDestination(c, { kind: 'own' }, AT);
     expect(() => addDestination(c, { kind: 'own' }, AT)).toThrow(ChannelEditError);
   });
@@ -1421,7 +1421,7 @@ describe('one programme, many audiences (§15, D-21)', () => {
    * which is the same rule the schedule keeps, arriving at the other end.
    */
   it('and a destination costs no asset, because it is an output', () => {
-    const c = newChannel('Prof Class TV', 'UTC', AT);
+    const c = newChannel('BalanceVid TV', 'UTC', AT);
     addToRotation(c, { source: FILM, durationMs: HOUR }, AT);
     const before = referencedAssets(c).length;
     for (const kind of ['own', 'tiktok', 'youtube', 'facebook', 'x'] as const) {

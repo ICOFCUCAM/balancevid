@@ -16,9 +16,14 @@ import {
   assertChannelOwnsNoScheduledMedia, assertScheduleResolves,
 } from '../../../../src/domain/invariants.js';
 import {
-  auditChannel, channelAssetIds, loadChannel, mutateChannel,
+  auditChannel, channelAssetIds, deleteChannel, loadChannel, mutateChannel,
 } from '../../../../src/store/channels.js';
+import { channelOwns } from '../../../../src/domain/deletion.js';
 import { missingSources, resolves } from '../../../../src/store/playoutSources.js';
+import { newestSegmentAt, readBeat } from '../../../../src/store/playoutHealth.js';
+import {
+  engineState, healthSentence, streamState,
+} from '../../../../src/domain/health.js';
 import { discardBuffer, keepBuffer } from '../../../../src/store/liveBuffer.js';
 import { fail, json } from '../../../../src/web/http.js';
 
@@ -52,6 +57,21 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
   const now = Date.now();
   const missing = await missingSources(channel, referencedAssets(channel));
   /*
+   * IS ANYTHING ACTUALLY GOING OUT?  [§18]
+   *
+   * A resolving schedule is not a transmitting channel. The playout engine
+   * is a separate process (§11, U-23), so the only way this tier can know is
+   * to look at what that one left on disk: its heartbeat, and the age of
+   * this channel's newest segment. Two facts, two questions, and a control
+   * room full of green lamps over a dead encoder is the fault they prevent.
+   */
+  const [heartbeat, newestSegment] = await Promise.all([
+    readBeat(), newestSegmentAt(id),
+  ]);
+  const engine = engineState(
+    heartbeat ? Date.parse(heartbeat.at) : null, now);
+  const stream = streamState(newestSegment, now);
+  /*
    * INV-17, both halves, checked on every read rather than on a schedule.
    * Reported rather than thrown: a channel with a broken reference must still
    * be openable, because the page that shows the fault is the page it is
@@ -82,6 +102,16 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
     assets: referencedAssets(channel).length,
     missing,
     violations,
+    health: {
+      engine,
+      stream,
+      /* One sentence, written in the domain so the control room and the
+         viewer cannot describe the same condition two different ways. */
+      says: healthSentence(engine, stream, 'operator'),
+      ...(heartbeat ? { beatAt: heartbeat.at, pid: heartbeat.pid } : {}),
+      ...(newestSegment
+        ? { segmentAt: new Date(newestSegment).toISOString() } : {}),
+    },
     serverNow: new Date(now).toISOString(),
   });
 }
@@ -352,4 +382,36 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
     rotationOffsets: rotationOffsets(channel),
     assets: referencedAssets(channel).length,
   });
+}
+
+/**
+ * Throw the channel away.  [Doctrine §19, CHANNEL §1, D-18, INV-17]
+ *
+ * NOTHING SCHEDULED DIES WITH IT. The schedule was references, so six months
+ * of programming removes no video from this machine — which is D-18 paying
+ * out one last time, at the end of a channel's life.
+ *
+ * What does die is the only media a channel ever owns: saved live sessions
+ * and recordings somebody asked for. The count goes back in the response so
+ * the page can say how many before asking, rather than after.
+ */
+export async function DELETE(request: Request, { params }: Params): Promise<Response> {
+  const { id } = await params;
+  if (!(await isOwner(request))) return fail(404, 'channel not found');
+  let channel;
+  try {
+    channel = await loadChannel(id);
+  } catch {
+    return fail(404, 'channel not found');
+  }
+
+  /*
+   * NOT REFUSED WHILE LIVE, but said. Ending a broadcast by deleting its
+   * channel is a strange way to do it and it is still the owner's call; what
+   * would be wrong is doing it silently, so the answer names it.
+   */
+  const wasLive = Boolean(channel.live && channel.live.phase !== 'ended');
+  const owned = channelOwns(channel);
+  await deleteChannel(id);
+  return json({ ok: true, deleted: id, recordingsLost: owned, wasLive });
 }

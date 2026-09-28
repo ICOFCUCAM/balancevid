@@ -26,7 +26,7 @@ That is a very powerful model.
 
 ### The experience
 
-Imagine you are watching a source video with Prof Class.
+Imagine you are watching a source video with BalanceVid.
 
 You click:
 
@@ -43,7 +43,7 @@ You can simply send the link through WhatsApp.
 
 They click it and enter the Conversation Room.
 
-They don't necessarily need a Prof Class account initially.
+They don't necessarily need a BalanceVid account initially.
 
 ### 1) The room could look like this
 
@@ -67,7 +67,7 @@ detection.
 
 For example:
 
-Prof Class automatically changes the active speaker:
+BalanceVid automatically changes the active speaker:
 
 Then:
 
@@ -99,7 +99,7 @@ The host could choose:
 Speaker mode
 
 Automatic
-Prof Class switches to the active speaker.
+BalanceVid switches to the active speaker.
 
 Manual
 Host controls who appears on stage.
@@ -163,7 +163,7 @@ Generate invitation URL → Share URL through WhatsApp.
 
 For example:
 
-James invited you to a Prof Class conversation
+James invited you to a BalanceVid conversation
 The History of Europe — Discussion
 Join the room →
 
@@ -180,7 +180,7 @@ So the invitation mechanism can be:
 
 WhatsApp | Messenger | SMS | Email | Copy link | QR code
 
-without Prof Class needing to own or control those messaging platforms.
+without BalanceVid needing to own or control those messaging platforms.
 
 ### 7) QR code would be excellent too
 
@@ -288,7 +288,7 @@ The raw participant recordings remain intact.
 
 Imagine a 30-minute three-person discussion.
 
-Prof Class could produce:
+BalanceVid could produce:
 
 Full conversation
 16:9
@@ -370,7 +370,7 @@ trying to make every participant's browser send media directly to every other
 participant. That will matter once you have several people in a room.
 
 And I would make "Invite" → "Join room" → "Bring to stage" → "Automatic/Manual
-switching" one of Prof Class's core interaction patterns. It turns the product
+switching" one of BalanceVid's core interaction patterns. It turns the product
 from a one-person response tool into a genuine video conversation room while
 preserving everything you've already built.
 

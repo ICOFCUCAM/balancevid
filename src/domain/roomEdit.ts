@@ -114,7 +114,7 @@ export function rotateInvite(conversation: Conversation, inviteToken: string, no
  * Someone follows the link and says who they are.  [ROOM §6, §12]
  *
  * A display name and nothing else: the brief is explicit that a participant
- * "doesn't necessarily need a Prof Class account". What comes back is a
+ * "doesn't necessarily need a BalanceVid account". What comes back is a
  * participant record, which is what the guest session then names.
  */
 export function joinRoom(

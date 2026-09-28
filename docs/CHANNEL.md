@@ -885,3 +885,61 @@ and not marked `loop` goes black when the media ends. Marking it `loop` gave
 five distinct segments out of eight — a five-second film round a four-second
 window. The behaviour was right; the schedule was wrong, and the channel said
 so in the only way it can.
+
+## §18 — Is anything actually transmitting
+
+A resolving schedule is not a transmitting channel. The playout engine is a
+separate process by design (§11, D-20), so the web tier cannot know whether
+the encoder is alive except by looking at what it left behind — and a control
+room whose lamps were all green while nothing went out is worse than one with
+no lamps, because it answers the question wrongly rather than declining to
+answer it.
+
+**Two questions, not one.**
+
+| | engine | stream |
+| --- | --- | --- |
+| on the air | running | transmitting |
+| the process died | stale / stopped | — |
+| this channel died | running | stalled / silent |
+
+**Both answers come from the filesystem**, which is the only thing the two
+processes share. The engine writes one heartbeat file, overwritten each pass;
+the segments carry their own mtimes. Nothing is asked of the engine, and
+nothing is written into the channel document — a health flag in a document is
+a fact about the past pretending to be a fact about now, and it would still
+read "healthy" after the process died, which is the exact failure this
+catches.
+
+**The heartbeat is written at the END of a pass**, not the start. At the start
+it would say "alive" and then spend thirty seconds wedged on a broken encode.
+A pass that *threw* still beats: the process is alive and recovering, and
+reporting it dead would send somebody to restart a thing that did not need
+restarting. What a failing pass produces is no segments, and the per-channel
+check is what notices that.
+
+**The engine keeps two segments ahead of the playhead**, so a healthy
+channel's newest file is in the future. A staleness check that did not allow
+for that would report every working channel as dead.
+
+**A stranger is not owed a diagnosis.** The operator is told which command to
+run; a viewer is told "This channel is not transmitting right now" and nothing
+about a server they cannot reach. And a viewer whose picture is arriving is
+told nothing at all, even when the heartbeat is late — what reaches them is
+the only thing they can judge, and a warning over a working picture trains
+people to ignore warnings.
+
+---
+
+## C-9 — Stage 9: the lamp that was answering the wrong question
+
+**The control room's `Server: Online` reported that the schedule resolved.**
+That is a real check and it is not the question a green lamp implies. A
+channel whose engine had never been started showed a full listing, a moving
+playhead, a correct now-and-next, and an operator with no reason to doubt any
+of it — while a viewer got a player that spun for ever.
+
+**The fix was not a new mechanism.** The engine already ran a loop; the
+segments already had mtimes. What was missing was the twenty lines that write
+one file and the pure function that reads two numbers — which is why the whole
+of it is unit-tested without a process, a channel or a frame.

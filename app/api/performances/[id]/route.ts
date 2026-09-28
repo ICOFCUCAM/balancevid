@@ -1,3 +1,7 @@
+import { isOwner } from '../../../../src/auth/request.js';
+import { bookingsFor, refusalFor } from '../../../../src/domain/deletion.js';
+import { deletePerformance } from '../../../../src/store/performances.js';
+import { listChannels } from '../../../../src/store/channels.js';
 import { acceptBeats, setTempo,
   classifyMaster, usePlate, setAudioMode, setSceneAudio, setTransition, setScene, moveScene, removeScene, labelScene, clearScenes, nudgeTake, trimTake, renameTake, setEffect, setEnvironment, removeTake, setLoop, setFootageRights, PerformanceEditError } from '../../../../src/domain/performanceEdit.js';
 import { projectPerformance, covered } from '../../../../src/domain/performance.js';
@@ -125,4 +129,31 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
     if (error instanceof PerformanceEditError) return fail(400, error.message);
     return fail(404, error instanceof Error ? error.message : 'performance not found');
   }
+}
+
+/**
+ * Throw it away.  [Doctrine §19, STUDIO-TWO §13, D-18]
+ *
+ * The performance, its takes, its renders — and the song. That last one is
+ * the reason this confirmation is worded the way it is on the page: a master
+ * track is the one thing in here somebody may not have another copy of.
+ *
+ * The same question is put to the channels first, for the same reason: a
+ * render of this performance may be in a loop that plays all night.
+ */
+export async function DELETE(request: Request, { params }: Params): Promise<Response> {
+  const { id } = await params;
+  if (!(await isOwner(request))) return fail(404, 'performance not found');
+  try {
+    await loadPerformance(id);
+  } catch {
+    return fail(404, 'performance not found');
+  }
+
+  const channels = await listChannels().catch(() => []);
+  const refusal = refusalFor(bookingsFor(channels, 'performance', id));
+  if (refusal) return fail(409, refusal);
+
+  await deletePerformance(id);
+  return json({ ok: true, deleted: id });
 }

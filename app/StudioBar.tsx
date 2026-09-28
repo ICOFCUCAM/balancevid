@@ -89,7 +89,7 @@ export default function StudioBar({
           placeItems: 'center', background: '#2f7fe0', color: '#fff',
           fontSize: 12, paddingLeft: 2,
         }}>&#9654;</span>
-        <strong style={{ fontSize: 15, whiteSpace: 'nowrap' }}>Prof Class</strong>
+        <strong style={{ fontSize: 15, whiteSpace: 'nowrap' }}>BalanceVid</strong>
       </a>
 
       <nav className="row" data-testid="studio-nav" style={{ gap: 2, flexWrap: 'nowrap' }}>

@@ -17,7 +17,7 @@ import { usePerformancePlayer } from './usePerformancePlayer.js';
 /**
  * Directing the music video.  [Doctrine STUDIO-TWO §2, §5, §6, §7, §8, §15]
  *
- * "You press 1 → 3 → 2 → 4 → 2 → 1. Prof Class records those decisions onto
+ * "You press 1 → 3 → 2 → 4 → 2 → 1. BalanceVid records those decisions onto
  *  the master timeline. So you are essentially directing the music video
  *  live."
  *

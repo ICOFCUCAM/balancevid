@@ -158,7 +158,7 @@ export const PLATFORMS: Record<DestinationKind, {
   hint: string;
 }> = {
   own: {
-    label: 'Prof Class TV',
+    label: 'BalanceVid TV',
     shape: '16:9',
     needsReview: false,
     hint: 'Your own channel. Always available, and the one that needs nobody’s permission.',

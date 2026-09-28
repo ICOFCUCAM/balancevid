@@ -25,6 +25,10 @@ interface NowAndNext {
   title: string;
   untilMs: number | null;
   next: string | null;
+  /** Whether segments are actually arriving. [§18] */
+  transmitting: boolean;
+  /** What to tell the viewer when they are not. */
+  says: string | null;
   author?: string;
 }
 
@@ -97,6 +101,25 @@ export default function Watch({
       <div className="shell-body shell-scroll" style={{ padding: '16px 20px' }}>
         <div style={{ maxWidth: 1000, margin: '0 auto' }}>
           <ChannelPlayer channelId={channelId} />
+
+          {/*
+            * A SENTENCE INSTEAD OF A SPINNER.  [§18]
+            *
+            * A player that never starts is the worst page in this product:
+            * it looks like the viewer's connection, and they wait. The
+            * server knows whether anything is being written, so it says so —
+            * and says nothing about which of the broadcaster's processes
+            * died, which is none of a stranger's business.
+            */}
+          {now && !now.transmitting && (
+            <p className="small" data-testid="viewer-off-air" style={{
+              margin: '10px 0 0', padding: '9px 12px', borderRadius: 8,
+              background: 'rgba(201,154,46,0.12)', border: '1px solid #8e6a1f',
+              color: '#e0c14f',
+            }}>
+              {now.says ?? 'This channel is not transmitting right now.'}
+            </p>
+          )}
 
           <div className="row" data-testid="viewer-now" style={{
             marginTop: 12, gap: 12, alignItems: 'baseline',

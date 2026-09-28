@@ -3242,7 +3242,8 @@ A feature is done when all of the following are true. Not most.
 | U-40 | §16 | The article quotes; it does not reproduce |
 
 Channel-era clauses: D-18 broadcast, D-19 check before you build, D-20 seams,
-D-21 distribution, **D-22 the gallery has a geography**.
+D-21 distribution, D-22 the gallery has a geography, **D-23 everything can be
+thrown away**, **D-24 the workspace is the building**.
 
 ---
 
@@ -4704,3 +4705,76 @@ string in a gallery — the clock, the elapsed counter, the playhead, what is on
 that number differs, and the browser discards the markup. The instant is
 passed down as a prop so the first client render *is* the server's, and the
 second one, a tick later, is the browser's own.
+
+---
+
+## D-23 · Everything can be thrown away
+
+A library you cannot delete from is a library that fills up, and what fills it
+is failed experiments — which is most of what a studio produces. So every
+record in every studio has a delete, and it reaches disk: the directory IS the
+document (U-25), so removing it removes the takes, the renders, the evidence
+and the audit log with it, and there is nothing else to remember to clean up.
+
+**There is no trash.** A trash folder is a second place for media to live,
+which is a second thing to reason about on every disk-space question, and this
+product has no quota to make it worth it. The confirmation is the safety.
+
+**The confirmation names what actually goes.** "Are you sure?" tells somebody
+nothing they did not already know. A performance takes the song with it, and
+that is the one file in this product a person may not have another copy of, so
+that is what the question says.
+
+**The hazard is D-18.** A channel schedules by REFERENCE — nothing is copied,
+which is the whole design and also means the bytes a broadcast depends on live
+in another studio's directory. Deleting a performance can take a programme off
+the air at nine o'clock tonight, and nothing on the performance's own card
+would hint at it. So deletion asks every channel first, in all four places a
+channel can hold a reference: the fixed slots, the loop, each day-part's own
+loop, and the fallbacks. A check that missed one would let somebody delete the
+thing a channel falls back to when everything else has already failed.
+
+**It refuses; it does not cascade.** Unscheduling somebody's evening of
+television is a decision, not a side effect of tidying up. And the refusal
+names the channel and the programme, because "cannot delete: in use" is the
+message that makes somebody open six channels by hand. It also says that
+unscheduling costs nothing, because the fear it answers is "will this delete
+my video".
+
+**Deleting a channel deletes no video.** The schedule was references, so six
+months of programming removes nothing from the machine. What goes is the only
+media a channel ever owns (INV-17): saved live sessions and recordings
+somebody asked for, counted and named before the question is put.
+
+---
+
+## D-24 · The workspace is the building
+
+A studio is one room, and its bar says which room you are in. The home page is
+the building: it has to show every room at once, so it carries a rail rather
+than a strip — a horizontal strip that grows with the product is a strip that
+starts truncating. The rail and the bar carry the same places in the same
+order, so a person who learns them in one recognises them in the other.
+
+**Nothing on it is decoration.** Every nav row goes somewhere, the storage
+figure is a measurement of this disk, the search filters what is actually
+below it, and the card art is a frame from the person's own work rather than a
+stock photograph of a studio they have never been in. A dashboard with a
+notification bell behind which nothing ever happens is a dashboard teaching
+people not to look at it — so there is no bell, and no "shared with me" on an
+instance with one owner.
+
+**Two measurements are said as two.** What the workspace holds and what the
+disk has left are different numbers. One line reading "10 GB used" above a bar
+drawn at ninety per cent is a widget contradicting itself.
+
+**A poster that 404s is not a poster.** Work recorded before stills existed has
+none, and a torn-image glyph reads as a fault in the product rather than as a
+fact about an old recording. `onError` alone does not catch it: the browser
+fetches images while parsing the server's HTML, so the failure has usually
+already happened by the time React hydrates and the event fires into nothing.
+The element is asked directly on mount — a finished load with no pixels.
+
+**The product is called BalanceVid.** One name, in the bar, the rail, the
+station identity, the default channel name and the connector labels. A product
+with two names in it is a product somebody has to ask about.
