@@ -1545,16 +1545,16 @@ export default function Studio({ conversationId }: { conversationId: string }) {
             >
               Notes
             </button>
+            {/*
+              * THE ONE LOUD CONTROL IN STUDIO ONE, and it earns it:
+              * nothing in this room can be done until the camera is up,
+              * and until it is, this is the only thing to press. It was
+              * `.primary` — the product's generic filled blue — and it
+              * is a console control now, so it belongs to the same
+              * family as GO LIVE and TAKE LIVE rather than to the
+              * sign-up button on a marketing page.
+              */}
             {phase === 'cold' && (
-              {/*
-                * THE ONE LOUD CONTROL IN STUDIO ONE, and it earns it:
-                * nothing in this room can be done until the camera is
-                * up, and until it is, this is the only thing to press.
-                * It was `.primary` — the product's generic filled blue
-                * — and it is a console control now, so it belongs to
-                * the same family as GO LIVE and TAKE LIVE rather than
-                * to the sign-up button on a marketing page.
-                */}
               <button className="ctl is-critical" data-testid="enable-camera"
                       onClick={() => void arm()}
                       style={{ padding: '8px 14px' }}>
