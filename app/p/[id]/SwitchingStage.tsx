@@ -500,13 +500,13 @@ export default function SwitchingStage({
       }}
     >
       {opts.swatch && (
-        {/*
+        /*
           * A COLOUR SWATCH IS A SAMPLE OF A RENDERED FRAME, so it gets
           * the same inset hairline every picture in this product gets.
           * Without it a light swatch bleeds into the tile around it and
           * the sample has no edge — which is the one thing a sample
           * needs.
-          */}
+          */
         <span aria-hidden="true" style={{
           width: '100%', flex: '1 1 auto', minHeight: 0,
           borderRadius: 'var(--radius-xs)',
