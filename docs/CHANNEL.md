@@ -1196,3 +1196,73 @@ navigate, and stays in frame.
 API and drawn by the worker into a 1920×1080 library PNG; then written again
 through the studio's own form, appended to a deck, and stepped on air as
 `1 / 2`.
+
+## §23 — Which camera
+
+The product could always reach **any camera the operating system exposes**.
+That is not a short list:
+
+| | how it becomes a camera |
+|---|---|
+| the laptop's own webcam | it already is one |
+| a USB webcam | it already is one |
+| **a phone** | Continuity Camera, Camo, EpocCam, Android's USB webcam mode |
+| **a professional camera** | a UVC capture card (Cam Link, Blackmagic), or USB-UVC out |
+
+A browser sees all of them through `getUserMedia`, and this product needs no
+driver, no plug-in and no integration for any of it.
+
+**What it could not do was choose one.** Six call sites, not one `deviceId`
+between them — so the browser picked its default, and on a machine with a
+webcam, a capture card and a phone plugged in that is whichever the
+operating system nominated. The gap was never the hardware; it was the
+absence of a picker.
+
+**`exact`, not `ideal`, on the device.** A broadcaster who chose the capture
+card and silently got the laptop's webcam instead would be on air with the
+wrong picture and nothing on screen to say so. Failing is the honest
+outcome, and the message names what it could not open. The SIZE stays
+`ideal`, because that is a preference: a camera that only does 1024×576
+should be used at 1024×576 rather than refused.
+
+**Labels are blank until permission is granted.** `enumerateDevices` will
+return four cameras called `""` before anybody has allowed access, so a menu
+built at page load is a menu of empty strings. The list is re-read when a
+stream opens, and until then the picker says why the names are missing
+rather than showing "Camera 1, Camera 2" as though that were a fault.
+
+**And it watches for changes.** `devicechange` fires when something is
+plugged in or pulled out, so a camera connected mid-show appears without a
+reload, and a capture card that fell out leaves.
+
+**A phone needs none of this.** It can also just join the room: a guest link
+opened on a phone is a camera on the broadcast, with no cable and no
+driver (§19). That is often the better answer, and it was already built.
+
+---
+
+## C-13 — Stage 13: the camera that was never chosen
+
+**"Why are the cameras not working?"** Two answers, and only one was a bug.
+
+The message in the screenshots — *the camera could not be opened* — was
+headless Chromium in a container with no camera. Correct behaviour, wrong
+impression.
+
+The real gap was underneath it and would not have shown up on a laptop with
+one webcam: `grep -rn "deviceId" app/ src/` returned nothing. Every
+`getUserMedia` in the product took the default and there was no way to pick
+anything else — which means every claim about supporting professional
+cameras was true of the browser and false of the product.
+
+**One shared hook, because there are six call sites.** `useDevices` is at
+the application root rather than inside Online TV: Studio One's room, Studio
+Two's recorder and the calibration step all have the same gap, and a second
+enumeration would be a second answer to "which cameras are there". Online TV
+uses it now; the others adopt it by passing a `deviceId`.
+
+**Proved with a real device.** Chromium's fake camera and three fake
+microphones, enumerated in the picker, opened on arming, drawn in the host
+preview, in Multi-view tile 1 and in Preview, with the encoder pushing at
+62 kB/s. The first time in this session the whole live chain has run with a
+camera in it.

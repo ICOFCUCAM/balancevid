@@ -20,6 +20,9 @@ import { useFeedLevels } from './useFeedLevels.js';
 import GuestsTab from './GuestsTab.js';
 import SlidesPanel from './SlidesPanel.js';
 import { type ScreenShare, useScreenShare } from './useScreenShare.js';
+import {
+  type Devices, cameraConstraints, microphoneConstraints, useDevices,
+} from '../../useDevices.js';
 
 /**
  * The control room.  [Doctrine CHANNEL §1–§9, §15, D-18, D-19, INV-17]
@@ -187,6 +190,18 @@ export default function ChannelStudio({
    */
   const [camera, setCamera] = useState<MediaStream | null>(null);
   const [arrangement, setArrangement] = useState<string | undefined>(undefined);
+  /*
+   * WHICH camera and WHICH microphone. [§23]
+   *
+   * Absent means the browser's default, which is what this did before and
+   * is right for a laptop with one of each. Named means the capture card,
+   * the phone or the second microphone — and the constraint is `exact`, so
+   * a chosen device that cannot be opened fails loudly rather than
+   * substituting the built-in webcam onto the air.
+   */
+  const [cameraId, setCameraId] = useState<string | undefined>(undefined);
+  const [micId, setMicId] = useState<string | undefined>(undefined);
+  const devices = useDevices();
   const liveNow = channel.live && channel.live.phase !== 'ended';
   const guests = useBroadcastGuests({
     roomId: channel.live?.roomId,
@@ -255,20 +270,35 @@ export default function ChannelStudio({
   useEffect(() => {
     let cancelled = false;
     if (phase === 'armed' || phase === 'on_air') {
-      if (!camera) {
-        void navigator.mediaDevices.getUserMedia({
-          video: { width: { ideal: 1280 }, height: { ideal: 720 } },
-          audio: { echoCancellation: true, noiseSuppression: true },
-        }).then((media) => { if (!cancelled) setCamera(media); })
-          .catch(() => setError('the camera could not be opened'));
-      }
+      /*
+       * Re-opened when the chosen device changes, which is why the old
+       * stream is stopped first: two streams from one camera is a second
+       * red light on the operator's machine, and on some drivers it is an
+       * error rather than a picture.
+       */
+      for (const track of camera?.getTracks() ?? []) track.stop();
+      void navigator.mediaDevices.getUserMedia({
+        video: cameraConstraints(cameraId),
+        audio: microphoneConstraints(micId),
+      }).then((media) => {
+        if (cancelled) {
+          for (const track of media.getTracks()) track.stop();
+          return;
+        }
+        setCamera(media);
+        /* Labels arrive with permission, so the menu is re-read now. [§23] */
+        void devices.refresh();
+      }).catch(() => setError(cameraId
+        ? 'that camera could not be opened — it may be in use by another '
+          + 'application, or unplugged'
+        : 'the camera could not be opened'));
     } else {
       for (const track of camera?.getTracks() ?? []) track.stop();
       if (camera) setCamera(null);
     }
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase]);
+  }, [phase, cameraId, micId]);
 
   /* The pipe follows the mix, which follows the session. */
   useEffect(() => {
@@ -1124,6 +1154,9 @@ export default function ChannelStudio({
                 onSpace={(spaceId) => void patch({
                   action: 'identity', identity: { spaceId },
                 })}
+                devices={devices}
+                cameraId={cameraId} micId={micId}
+                onCamera={setCameraId} onMic={setMicId}
               />
             )}
 
@@ -2837,7 +2870,13 @@ const SPACE_SWATCHES: Record<string, string> = Object.fromEntries(
 
 function CameraTab({
   camera, mixer, levels, onAir, armed, encoder, spaceId, onSpace,
+  devices, cameraId, micId, onCamera, onMic,
 }: {
+  devices: Devices;
+  cameraId?: string;
+  micId?: string;
+  onCamera: (deviceId: string | undefined) => void;
+  onMic: (deviceId: string | undefined) => void;
   camera: MediaStream | null;
   mixer: MediaStream | null;
   levels: Record<string, { energy: number; speech: number }>;
@@ -2885,6 +2924,56 @@ function CameraTab({
           <VMeter value={levels['master']?.energy ?? 0} />
           <VMeter value={levels['master']?.speech ?? 0} tint="#4f8ad6" />
         </div>
+      </div>
+
+      {/* ---- which camera, which microphone (§23) ------------------- */}
+      <div data-testid="device-picker" style={{
+        display: 'flex', flexDirection: 'column', gap: 5, marginTop: 9,
+      }}>
+        <select
+          data-testid="camera-choice" value={cameraId ?? ''}
+          onChange={(event) => onCamera(event.target.value || undefined)}
+          style={{ fontSize: 11, padding: '6px 8px' }}
+        >
+          <option value="">Camera — the system default</option>
+          {devices.cameras.map((device) => (
+            <option key={device.deviceId} value={device.deviceId}>
+              {device.label}
+            </option>
+          ))}
+        </select>
+        <select
+          data-testid="mic-choice" value={micId ?? ''}
+          onChange={(event) => onMic(event.target.value || undefined)}
+          style={{ fontSize: 11, padding: '6px 8px' }}
+        >
+          <option value="">Microphone — the system default</option>
+          {devices.microphones.map((device) => (
+            <option key={device.deviceId} value={device.deviceId}>
+              {device.label}
+            </option>
+          ))}
+        </select>
+        {!devices.named && devices.cameras.length > 0 && (
+          /*
+           * `enumerateDevices` returns cameras with blank labels until
+           * permission has been granted, so before GO LIVE the menu is
+           * numbered rather than named. Saying why beats a list of
+           * "Camera 1, Camera 2" that looks like a fault. [§23]
+           */
+          <p className="small muted" style={{ margin: 0, fontSize: 10 }}>
+            Your browser will not name the devices until you allow access.
+            Go live once and the real names appear.
+          </p>
+        )}
+        {devices.cameras.length === 0 && (
+          <p className="small muted" style={{ margin: 0, fontSize: 10 }}>
+            No camera found. A phone works as one over USB (Continuity
+            Camera, Camo, EpocCam, or Android&rsquo;s webcam mode), and a
+            professional camera works through a UVC capture card — both
+            appear here once the computer sees them.
+          </p>
+        )}
       </div>
 
       <div className="row" data-testid="feed-health" style={{
