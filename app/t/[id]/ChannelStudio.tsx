@@ -2476,17 +2476,26 @@ function Row({
         * marker on its leading edge, because it is no longer one of the
         * list: it is the one you picked.
         */
+      /*
+        * A LIST, NOT A STACK OF CARDS. Rows sat on their own tinted
+        * surface, each with a radius, a border and two pixels of gap —
+        * which is a column of small cards. A playlist is a LIST: the
+        * rows share a face and are separated by one hairline, so twenty
+        * of them read as one object with twenty entries rather than as
+        * twenty objects.
+        *
+        * The chosen one is the exception and is marked on its leading
+        * edge rather than outlined and tinted. An outline in a column
+        * of outlines has to be found by comparison; a bar on the
+        * leading edge is found without. [D-04, U-19, brief §4]
+        */
       style={{
         display: 'flex', gap: 'var(--space-3)', alignItems: 'center',
         padding: 'var(--space-3)',
-        borderRadius: chosen ? 'var(--radius-md)' : 'var(--radius-sm)',
-        marginBottom: 2,
-        background: chosen ? 'rgba(63,142,232,0.14)' : 'var(--surface-float)',
-        border: `1px solid ${chosen ? 'var(--accent)' : 'transparent'}`,
-        borderBottom: chosen
-          ? '1px solid #3f8ee8'
-          : '1px solid var(--ink-700)',
-        boxShadow: chosen ? 'inset 3px 0 0 #3f8ee8' : 'none',
+        background: chosen ? 'var(--console-control)' : 'transparent',
+        borderBottom: '1px solid var(--console-rule)',
+        boxShadow: chosen
+          ? 'inset 2px 0 0 var(--accent), var(--console-bevel)' : 'none',
         transition: 'background-color var(--motion-fast) var(--ease-out)',
       }}
     >
@@ -2496,10 +2505,15 @@ function Row({
         * faintest tone the ramp offers — present when counted, silent
         * when scanned.
         */}
-      <span className="mono" style={{
-        flex: '0 0 auto', width: 14, fontSize: 'var(--text-2xs)',
+      {/*
+        * TWO DIGITS, LIKE EVERY OTHER ORDINAL IN THIS ROOM. A "9" above
+        * a "10" is a ragged left edge on a column whose only job is to
+        * be counted down.
+        */}
+      <span className="mono readout" style={{
+        flex: '0 0 auto', width: 16, fontSize: 'var(--text-2xs)',
         textAlign: 'right', color: 'var(--ink-400)',
-      }}>{index}</span>
+      }}>{String(index).padStart(2, '0')}</span>
       <button
         type="button" onClick={onClick}
         style={{
