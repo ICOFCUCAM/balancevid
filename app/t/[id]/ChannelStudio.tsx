@@ -2303,7 +2303,20 @@ function Strip({
       * as colour. [elevation, D-04]
       */
     <div className="row" data-testid={testid} style={{
-      gap: 0, flexWrap: 'nowrap', flex: '0 0 auto',
+      /*
+       * THE STRIP ITSELF HAS TO BE ABLE TO SHRINK. Commit 11 made the
+       * five desk labels shrink and they still clipped, because the
+       * container they are in was `flex: 0 0 auto` — it takes its
+       * content width and overflows its panel, so no amount of
+       * shrinking inside it changes anything. Fixing the children of a
+       * box that cannot itself give way is the ordinary way to spend
+       * two attempts on one bug.
+       *
+       * The compact one stays fixed: it is a segmented control with
+       * three short labels and it must not stretch across a header.
+       */
+      gap: 0, flexWrap: 'nowrap',
+      ...(compact ? { flex: '0 0 auto' } : { flex: '1 1 auto', minWidth: 0 }),
       borderBottom: compact ? 0 : 'var(--border) solid var(--line)',
       ...(compact
         ? {
@@ -2944,6 +2957,8 @@ function MultiView({
 
   const tiles: {
     n: number; label: string; sub: string; live: boolean;
+    /** Lit, but not on program: an overlay that is keyed over it. */
+    on?: boolean;
     stream?: MediaStream | null; source?: ProgrammeSource; href?: string;
     glyph?: string;
     /** What clicking it does, and what to say when it cannot. */
@@ -3010,9 +3025,16 @@ function MultiView({
     {
       n: 6, label: 'Graphics',
       sub: channel.identity?.bug?.text ?? channel.name,
-      /* The identity layer is only ON anything while something is out. */
-      live: transmitting
+      /*
+       * AN OVERLAY IS NOT A SOURCE ON PROGRAM. Graphics is drawn OVER
+       * whatever is going out; it never has the air to itself. Giving
+       * it the program tally put two red bars in a grid whose whole
+       * job is to say which single thing is on — so it says ON,
+       * quietly, which is what a keyer's indicator says.
+       */
+      on: transmitting
         && Boolean(channel.identity?.bug || channel.identity?.lowerThird),
+      live: false,
       glyph: '◰',
       act: onGraphics,
       why: 'Open the identity controls',
@@ -3067,11 +3089,15 @@ function MultiView({
              */
             opacity: tile.act || tile.live ? 1 : 0.7,
             border: `1px solid ${tile.live
-              ? 'rgba(226,59,46,0.55)' : 'var(--console-seam)'}`,
+              ? 'rgba(226,59,46,0.55)'
+              : tile.on ? 'rgba(63,142,232,0.45)' : 'var(--console-seam)'}`,
             boxShadow: tile.live
               ? 'inset 0 3px 0 0 var(--state-live),'
                 + ' inset 0 0 0 1px rgba(226,59,46,0.16)'
-              : 'inset 0 1px 3px rgba(0,0,0,0.6)',
+              : tile.on
+                ? 'inset 0 2px 0 0 var(--accent),'
+                  + ' inset 0 1px 3px rgba(0,0,0,0.6)'
+                : 'inset 0 1px 3px rgba(0,0,0,0.6)',
             transition: 'box-shadow var(--motion-fast) var(--ease-out),'
               + ' border-color var(--motion-fast) var(--ease-out),'
               + ' opacity var(--motion-fast) var(--ease-out)',
@@ -3153,10 +3179,12 @@ function MultiView({
                 flex: '0 0 auto', fontSize: 'var(--text-2xs)',
                 fontWeight: 'var(--weight-bold)', letterSpacing: '0.08em',
                 color: tile.live ? '#ff9c91'
-                  : tile.act ? 'rgba(146, 214, 166, 0.92)'
-                    : 'rgba(255,255,255,0.35)',
+                  : tile.on ? 'rgba(146, 194, 240, 0.95)'
+                    : tile.act ? 'rgba(146, 214, 166, 0.92)'
+                      : 'rgba(255,255,255,0.35)',
               }}>
-                {tile.live ? 'LIVE' : tile.act ? 'READY' : '\u2014'}
+                {tile.live ? 'LIVE' : tile.on ? 'ON'
+                  : tile.act ? 'READY' : '\u2014'}
               </span>
             </span>
           </span>
