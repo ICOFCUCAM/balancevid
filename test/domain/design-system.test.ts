@@ -518,3 +518,62 @@ describe('a chosen control', () => {
       offenders.join(', ')}`).toEqual([]);
   });
 });
+
+/**
+ * THE MATERIALS A BROADCAST DESK IS NOT MADE OF.  [brief §4, §19]
+ *
+ * The art-direction brief rules out five things by name, and each of
+ * them is something a person adds in good faith to make a surface look
+ * more finished: glass, glow, big gradients, deep rounding, floating
+ * cards. Every one of them was somewhere in this product.
+ *
+ * They are banned here rather than merely removed because the failure
+ * mode is not "somebody puts them all back" — it is one blur on one
+ * overlay, added by somebody who has not read a brief written a year
+ * earlier, on the day they are making a plate legible over a bright
+ * shot. Which is exactly how the three on the programme monitor got
+ * there.
+ */
+const named = (file: string) => file.slice(file.indexOf('app/'));
+
+describe('the console has no glass and no glow', () => {
+  /*
+   * GLASSMORPHISM. On a broadcast monitor it is not merely a fashion:
+   * a blurred sample of the picture behind a status readout means the
+   * readout changes appearance with the programme, and the programme
+   * is the thing being judged. It also costs a compositor pass per
+   * frame on a surface that repaints thirty times a second.
+   */
+  it('frosts nothing', () => {
+    const offenders: string[] = [];
+    for (const file of components()) {
+      if (/backdropFilter|backdrop-filter/.test(code(file))) {
+        offenders.push(named(file));
+      }
+    }
+    expect(offenders, `frosted glass in: ${offenders.join(', ')}`).toEqual([]);
+  });
+
+  /*
+   * A GLOW IS A SPREAD SHADOW IN THE OBJECT'S OWN HUE, and on a dark
+   * desk it reads as the object being out of focus. The playhead, the
+   * take button, the emergency and the live tile all had one; a
+   * hairline at full contrast is found faster and stays sharp.
+   *
+   * The lamps are the exception and are allowed exactly one: a tally
+   * light has had a halo since the 1950s, it is the cue that survives
+   * being seen in peripheral vision, and `status.css` is where it
+   * lives. Anything outside that file is somebody decorating.
+   */
+  it('glows only where a lamp glows', () => {
+    const offenders: string[] = [];
+    for (const file of components()) {
+      for (const [hit] of code(file).matchAll(
+        /(?<!inset )0 0 (?:[4-9]|[1-9]\d)px rgba\(\d+,\s*\d+/g)) {
+        offenders.push(`${named(file)}: ${hit.trim().slice(0, 52)}`);
+      }
+    }
+    expect(offenders, `a glow outside status.css: ${offenders.join(' | ')}`)
+      .toEqual([]);
+  });
+});

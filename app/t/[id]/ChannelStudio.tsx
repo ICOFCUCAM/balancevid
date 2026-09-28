@@ -898,9 +898,19 @@ export default function ChannelStudio({
                 data-on-air={on.kind !== 'off' ? 'true' : 'false'}
                 data-mode={on.kind}
                 style={{
+                  /*
+                   * THE FRAME AROUND THE TRANSMISSION. 8px of rounding
+                   * on the one rectangle in the product that IS a
+                   * television picture — a screen has square corners,
+                   * and rounding them is the difference between a
+                   * monitor and a thumbnail. True black inside, a
+                   * hairline around it, nothing else: the brief's
+                   * "do not decorate the video". [brief §5]
+                   */
                   position: 'relative', flex: '1 1 auto', minHeight: 150,
-                  margin: 9, background: 'var(--ink-900)', borderRadius: 8,
-                  border: '1px solid var(--line)', overflow: 'hidden',
+                  margin: 9, background: '#000', borderRadius: 2,
+                  border: '1px solid var(--console-edge)',
+                  boxShadow: 'var(--console-well)', overflow: 'hidden',
                 }}
               >
                 {on.kind === 'live' && on.source.kind === 'live' ? (
@@ -957,40 +967,45 @@ export default function ChannelStudio({
                 <span data-testid="monitor-clock" className="mono" style={{
                   position: 'absolute', right: 10, top: 10,
                   padding: '3px var(--space-3)',
-                  borderRadius: 'var(--radius-xs)',
-                  background: 'rgba(8,10,14,0.62)',
-                  backdropFilter: 'blur(10px) saturate(1.1)',
-                  WebkitBackdropFilter: 'blur(10px) saturate(1.1)',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.08)',
+                  /*
+                   * A MONITOR OSD IS PRINTED ON THE GLASS, not floated
+                   * over it. These three plates were frosted glass —
+                   * `backdrop-filter: blur(10px) saturate(1.1)` — which
+                   * is the one material the brief rules out by name,
+                   * and on a broadcast monitor it is actively wrong: a
+                   * blurred sample of the picture behind a status
+                   * readout means the readout changes appearance with
+                   * the programme, and the thing it is over is the
+                   * thing you are judging. Flat, opaque, square. It
+                   * also costs a compositor pass per frame on a surface
+                   * that repaints thirty times a second. [brief §19]
+                   */
+                  borderRadius: 2,
+                  background: 'rgba(0,0,0,0.72)',
+                  border: '1px solid rgba(255,255,255,0.14)',
                   fontSize: 'var(--text-xs)',
                   fontVariantNumeric: 'tabular-nums',
-                  color: 'rgba(255,255,255,0.92)',
+                  letterSpacing: '0.02em',
+                  color: 'rgba(255,255,255,0.94)',
                 }}>{clock(now)}</span>
 
                 <span data-testid="on-air-lamp" data-mode={on.kind} style={{
                   position: 'absolute', left: 10, top: 10,
                   padding: '3px var(--space-3)',
-                  borderRadius: 'var(--radius-xs)',
+                  borderRadius: 2,
                   fontSize: 'var(--text-2xs)',
                   fontWeight: 'var(--weight-bold)',
-                  letterSpacing: '0.08em',
+                  letterSpacing: '0.1em',
                   background: on.kind === 'live'
-                    ? 'linear-gradient(180deg, #e8483a, #c33327)'
+                    ? 'var(--state-live-dim)'
                     : on.kind === 'backup' || on.kind === 'emergency'
-                      ? 'linear-gradient(180deg, #a8821f, #8e6a1f)'
-                      : on.kind === 'off' ? 'rgba(8,10,14,0.62)'
-                        : 'rgba(45,110,200,0.62)',
-                  backdropFilter: 'blur(10px)',
-                  WebkitBackdropFilter: 'blur(10px)',
+                      ? '#8e6a1f'
+                      : on.kind === 'off' ? 'rgba(0,0,0,0.72)'
+                        : 'rgba(0,0,0,0.72)',
                   border: `1px solid ${on.kind === 'live'
-                    ? 'rgba(255,140,128,0.55)' : 'rgba(255,255,255,0.12)'}`,
-                  boxShadow: on.kind === 'live'
-                    ? '0 0 12px rgba(226,59,46,0.45),'
-                      + ' inset 0 1px 0 rgba(255,255,255,0.22)'
-                    : 'inset 0 1px 0 rgba(255,255,255,0.08)',
+                    ? '#ff6d5c' : 'rgba(255,255,255,0.14)'}`,
                   color: on.kind === 'off'
-                    ? 'rgba(255,255,255,0.6)' : 'var(--ink-000)',
+                    ? 'rgba(255,255,255,0.72)' : 'var(--ink-000)',
                 }}>
                   {on.kind === 'live' ? '● LIVE'
                     : on.kind === 'backup' ? 'BACKUP'
@@ -1002,12 +1017,9 @@ export default function ChannelStudio({
                   <span data-testid="now-playing-chip" style={{
                     position: 'absolute', left: 10, bottom: 10, maxWidth: '62%',
                     padding: '4px var(--space-4)',
-                    borderRadius: 'var(--radius-sm)',
-                    background: 'rgba(8,10,14,0.62)',
-                    backdropFilter: 'blur(12px) saturate(1.1)',
-                    WebkitBackdropFilter: 'blur(12px) saturate(1.1)',
-                    border: '1px solid rgba(255,255,255,0.1)',
-                    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.08)',
+                    borderRadius: 2,
+                    background: 'rgba(0,0,0,0.72)',
+                    border: '1px solid rgba(255,255,255,0.14)',
                     fontSize: 'var(--text-xs)',
                     color: 'rgba(255,255,255,0.94)',
                     overflow: 'hidden', textOverflow: 'ellipsis',
@@ -1055,7 +1067,7 @@ export default function ChannelStudio({
                       color: 'var(--ink-000)', fontSize: 'var(--text-2xs)',
                       letterSpacing: '0.09em',
                       fontWeight: 'var(--weight-bold)',
-                      boxShadow: '0 0 10px rgba(226,59,46,0.5)',
+                      boxShadow: '0 0 0 1px rgba(0,0,0,0.55)',
                       textShadow: 'none',
                     }}>{channel.identity?.liveLamp?.text ?? 'LIVE'}</span>
                   )}
@@ -1619,7 +1631,7 @@ export default function ChannelStudio({
               width: 12, height: 12, borderRadius: 'var(--radius-full)',
               background: onAir && keeping ? 'var(--ink-000)' : 'transparent',
               boxShadow: onAir && keeping
-                ? '0 0 4px rgba(255,255,255,0.6)'
+                ? '0 0 0 1px rgba(0,0,0,0.5)'
                 : 'inset 0 0 0 2px var(--state-live-dim)',
             }} />
           </button>
@@ -3974,7 +3986,7 @@ function VMeter({ value, tint = 'var(--state-ok)' }: { value: number; tint?: str
         width: '100%', height: `${lit * 100}%`,
         background: `linear-gradient(0deg, ${tint}, var(--state-warn) 78%,`
           + ' var(--state-live))',
-        boxShadow: lit > 0.92 ? '0 0 6px rgba(226,59,46,0.7)' : 'none',
+        boxShadow: lit > 0.92 ? 'inset 0 0 0 1px rgba(255,160,150,0.5)' : 'none',
         transition: 'height 60ms linear',
       }} />
     </span>

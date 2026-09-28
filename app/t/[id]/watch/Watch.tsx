@@ -108,7 +108,7 @@ export default function Watch({
             border: '1px solid rgba(255,140,128,0.5)',
             color: '#fff', fontSize: 'var(--text-2xs)',
             fontWeight: 'var(--weight-bold)', letterSpacing: '0.09em',
-            boxShadow: '0 0 14px rgba(226,59,46,0.45),'
+            boxShadow: '0 0 0 1px rgba(0,0,0,0.5),'
               + ' inset 0 1px 0 rgba(255,255,255,0.22)',
           }}>
             <span className="lamp is-live" style={{

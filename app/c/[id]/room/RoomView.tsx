@@ -406,9 +406,16 @@ export default function RoomView({
                         <span style={{
                           position: 'absolute', right: 0, bottom: 0,
                           padding: '2px var(--space-4)',
-                          background: 'rgba(8,10,14,0.6)',
-                          backdropFilter: 'blur(10px)',
-                          WebkitBackdropFilter: 'blur(10px)',
+                          /*
+                           * A NAME SUPER IS PRINTED ON THE PICTURE, not
+                           * frosted over it — the last glass surface in
+                           * the product, and the one most likely to be
+                           * over a moving face. A blurred sample of
+                           * somebody's chin behind their own name is
+                           * not a material any broadcast graphic has
+                           * ever been made of. [brief §19]
+                           */
+                          background: 'rgba(0,0,0,0.68)',
                           fontSize: 'var(--text-xs)',
                           fontWeight: 'var(--weight-medium)',
                           color: 'rgba(255,255,255,0.92)',

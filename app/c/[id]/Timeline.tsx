@@ -170,12 +170,13 @@ export default function Timeline({
         {dragging && (
           <div data-testid="timeline-drop" style={{
             position: 'absolute', left: at(dragging.frame), top: -5, bottom: -5, width: 2,
-            background: '#e0b24f', boxShadow: '0 0 8px rgba(224,178,79,0.8)',
+            background: '#e0b24f',
+            boxShadow: '0 0 0 1px rgba(0,0,0,0.5)',
           }} />
         )}
         <div data-testid="timeline-playhead" style={{
           position: 'absolute', left: at(currentFrame), top: -4, bottom: -4, width: 2,
-          background: '#fff', boxShadow: '0 0 6px rgba(255,255,255,0.6)',
+          background: '#fff', boxShadow: '0 0 0 1px rgba(0,0,0,0.55)',
         }} />
       </div>
 
