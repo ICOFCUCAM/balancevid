@@ -1,0 +1,73 @@
+/*
+ * ELEVATION, AND THE ONE EDGE THAT DOES THE WORK.  [Doctrine D-04]
+ *
+ * There were no shadows in this product. Every panel was a fill and a
+ * hairline, which is a legitimate flat style and is also why the interface
+ * read as a wireframe of itself: nothing was in front of anything, so the
+ * eye had no order to follow and read the screen left to right like text.
+ *
+ * WHAT A DARK INTERFACE ACTUALLY NEEDS, and it is not more shadow. On a
+ * light ground a shadow is the whole illusion; on a dark ground a black
+ * shadow is nearly invisible against a nearly-black surface, and piling on
+ * opacity produces a dirty smudge rather than depth. The thing that does
+ * the work is the TOP EDGE: a single hairline of light along the upper
+ * border, because a raised object catches the light above it. One pixel of
+ * white at four per cent lifts a panel further than 40px of black blur.
+ *
+ * So each level here is a light edge first and a shadow second, and the
+ * shadow is there mostly to separate the panel from what is immediately
+ * behind it rather than to suggest a height.
+ *
+ * FOUR LEVELS AND NO MORE. A fifth is always somebody wanting their panel
+ * to win, and once two things are at level five neither is.
+ */
+
+:root {
+  /* Resting: a panel on the page. Barely anything, which is correct. */
+  --elev-1:
+    inset 0 1px 0 rgba(255, 255, 255, 0.035),
+    0 1px 2px rgba(0, 0, 0, 0.32);
+
+  /* A control or tile standing on a panel. */
+  --elev-2:
+    inset 0 1px 0 rgba(255, 255, 255, 0.045),
+    0 2px 6px rgba(0, 0, 0, 0.36);
+
+  /* A thing that opened: a menu, a popover, the mixer drawer. */
+  --elev-3:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 8px 24px rgba(0, 0, 0, 0.44),
+    0 2px 6px rgba(0, 0, 0, 0.3);
+
+  /* A dialog, over everything, with the page dimmed behind it. */
+  --elev-4:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 18px 48px rgba(0, 0, 0, 0.55),
+    0 4px 12px rgba(0, 0, 0, 0.36);
+
+  /*
+   * A WELL IS ELEVATION TOO, pointing the other way. The video field and
+   * the timeline tracks are holes in the page, not things on it, and the
+   * shadow falls inward.
+   */
+  --elev-sunk: inset 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+.panel { box-shadow: var(--elev-1); }
+
+/*
+ * THE STAGE IS A HOLE, and this is the detail that makes a monitor read as
+ * a monitor rather than as a black rectangle: the picture sits BELOW the
+ * surface of the desk. Every broadcast product gets this right and it is
+ * almost never noticed, which is the point.
+ */
+.stage-field { box-shadow: var(--elev-sunk); }
+
+/*
+ * AND THE BARS ARE NOT PANELS. A shell bar that carries its own shadow
+ * separates from the body and starts to look like a floating toolbar; what
+ * it wants instead is to be the edge of the window, so it gets a hairline
+ * of light on the inside of its border and nothing else.
+ */
+.shell-bar { box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.025); }
+.shell-foot { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03); }
