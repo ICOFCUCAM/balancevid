@@ -6,6 +6,7 @@
 @import './styles/space.css';
 @import './styles/focus.css';
 @import './styles/motion.css';
+@import './styles/controls.css';
 
 :root {
   /*
@@ -93,14 +94,6 @@ h3 { font-size: var(--text-md); }
 }
 .row { display: flex; gap: var(--space-5); align-items: center; flex-wrap: wrap; }
 .grow { flex: 1 1 auto; }
-button, .btn {
-  font: inherit; font-weight: 560; color: var(--text); background: var(--panel-2);
-  border: 1px solid var(--line); border-radius: 8px; padding: 9px 14px; cursor: pointer;
-}
-button:hover:not(:disabled) { border-color: #3a4048; }
-button:disabled { opacity: .45; cursor: not-allowed; }
-button.primary { background: #2b5f8a; border-color: #35719f; }
-button.danger { background: #6d3229; border-color: #8c4033; }
 input, select, textarea {
   font: inherit; color: var(--text); background: var(--panel-2);
   border: 1px solid var(--line); border-radius: 8px; padding: 9px 11px; width: 100%;

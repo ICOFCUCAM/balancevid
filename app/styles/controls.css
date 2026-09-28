@@ -1,0 +1,160 @@
+/*
+ * THE CONTROLS.  [Doctrine D-04, CHANNEL §9]
+ *
+ * A button had one look and three overrides — `.primary`, `.danger`, and
+ * whatever inline style the place it sat in decided on. There was no small
+ * size, so a chip in a dense panel was a normal button with the padding
+ * written over it, and there were four different such rewrites with four
+ * different paddings.
+ *
+ * WHAT MAKES A CONTROL FEEL EXPENSIVE, in order of how much it matters:
+ *
+ *   1. It acknowledges the press WITHIN THE FRAME. Not after a request
+ *      returns — immediately, on :active, before anything else happens.
+ *      An interface that waits for the server before it admits you
+ *      touched it feels broken no matter how fast the server is.
+ *   2. Its states are distinguishable WITHOUT COLOUR. Hover, focus,
+ *      active, disabled and selected each change something structural,
+ *      because a colour-only difference is invisible to some people and
+ *      illegible on a bad panel in a bright room.
+ *   3. It does not move the layout when it changes. A border that thickens
+ *      on hover shifts everything beside it; the thickness has to come
+ *      from somewhere that costs no space.
+ *
+ * ALL THREE ARE MISSING TODAY and the third is the one people feel without
+ * seeing: `button:hover` changes `border-color` only, which is correct, but
+ * `.primary` and `.danger` change `background` AND `border-color` on a
+ * different trigger, so the two kinds of button behave differently under
+ * the same hand.
+ */
+
+button, .btn {
+  font: inherit;
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-normal);
+  color: var(--text);
+  background: var(--surface-float);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-5);
+  cursor: pointer;
+  /*
+   * A control is a target before it is a rectangle. Forty pixels is the
+   * smallest a finger finds reliably and a mouse finds without aiming;
+   * the padding above sets the look, this sets the hit.
+   */
+  min-height: 34px;
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: var(--space-3);
+  /*
+   * NO LAYOUT SHIFT ON HOVER. The emphasis a pressed or hovered control
+   * shows comes from an inset shadow, which costs no space, rather than
+   * from a thicker border, which costs a pixel on every side and moves
+   * whatever is next to it.
+   */
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  transition:
+    background-color var(--motion-fast) var(--ease-out),
+    border-color var(--motion-fast) var(--ease-out),
+    box-shadow var(--motion-fast) var(--ease-out),
+    transform var(--motion-fast) var(--ease-out);
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+button:hover:not(:disabled), .btn:hover:not(:disabled) {
+  background: var(--surface-lift);
+  border-color: var(--line-strong);
+}
+
+/*
+ * THE PRESS, ACKNOWLEDGED IN THE FRAME IT HAPPENS. One pixel down and the
+ * highlight gone: small enough that nobody would describe the interface as
+ * animated, large enough that the hand is certain the control took it.
+ */
+button:active:not(:disabled), .btn:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.28);
+  transition-duration: 40ms;
+}
+
+button:disabled, .btn[aria-disabled='true'] {
+  opacity: 0.42;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* ---- intent ---------------------------------------------------------- */
+
+button.primary {
+  background: linear-gradient(180deg, #316b9c 0%, #2b5f8a 100%);
+  border-color: #3c7cb2;
+  color: var(--text-on-accent);
+  font-weight: var(--weight-semi);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+button.primary:hover:not(:disabled) {
+  background: linear-gradient(180deg, #38779f, #2f6893);
+  border-color: #4a8cc4;
+}
+
+button.danger {
+  background: linear-gradient(180deg, #7a3730 0%, #6d3229 100%);
+  border-color: #94463a;
+  color: var(--text-on-accent);
+  font-weight: var(--weight-semi);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+button.danger:hover:not(:disabled) {
+  background: linear-gradient(180deg, #8a3f36, #7a382e);
+  border-color: #a85042;
+}
+
+/*
+ * QUIET. For the third and fourth action in a cluster, which should be
+ * reachable without competing with the first. It is a button that looks
+ * like text until the hand is near it — the alternative, three buttons of
+ * equal weight, makes the person read all three every time.
+ */
+button.quiet, .btn.quiet {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-dim);
+  box-shadow: none;
+}
+button.quiet:hover:not(:disabled) {
+  background: var(--surface-float);
+  border-color: var(--line-soft);
+  color: var(--text);
+}
+
+/* ---- size ------------------------------------------------------------ */
+
+button.sm, .btn.sm {
+  font-size: var(--text-xs);
+  padding: var(--space-2) var(--space-3);
+  min-height: 26px;
+  border-radius: var(--radius-sm);
+  gap: var(--space-2);
+}
+button.lg, .btn.lg {
+  font-size: var(--text-md);
+  padding: var(--space-4) var(--space-7);
+  min-height: 42px;
+}
+
+/*
+ * SELECTED IS NOT HOVER, and the difference has to survive the pointer
+ * leaving. A chosen tab or layout keeps a left-edge marker as well as its
+ * fill, so which one is chosen is legible in a screenshot, in greyscale,
+ * and to somebody who cannot see the blue.
+ */
+button[aria-pressed='true'], .btn[aria-pressed='true'],
+button.selected, .btn.selected {
+  background: var(--surface-lift);
+  border-color: var(--line-focus);
+  color: var(--text);
+  box-shadow: inset 2px 0 0 var(--line-focus);
+}
