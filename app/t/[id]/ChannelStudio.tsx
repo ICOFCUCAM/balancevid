@@ -2462,11 +2462,13 @@ function Meter({ value, label }: { value: number; label: string }) {
         * using. Unlit segments now sit just above the ground they are
         * on: present, dark, and clearly a scale.
         *
-        * The lit ones gain a glow in their own colour. A segment that
-        * is merely filled reads as a coloured rectangle; one that is
-        * lit reads as a signal, and this is the only place in the room
-        * where a number is being read as a continuous quantity rather
-        * than as a figure. [CHANNEL §9]
+        * AND THE LIT ONES DO NOT GLOW. Each had a 4px bloom in its own
+        * colour, which on eight segments three pixels wide is eight
+        * overlapping halos — the meter reads as a smear of colour
+        * rather than as a count of lit segments, and counting the
+        * segments is the entire job. A meter is the one instrument on
+        * a desk that must be read at a glance and precisely at the
+        * same time. Flat, hard-edged, on a dark scale. [brief §9, §18]
         */}
       {Array.from({ length: 8 }, (_unused, index) => {
         const colour = index > 6 ? 'var(--state-live)'
@@ -2476,8 +2478,6 @@ function Meter({ value, label }: { value: number; label: string }) {
           <span key={index} aria-hidden="true" style={{
             width: 3, height: 5 + index * 1.6, borderRadius: 1,
             background: on ? colour : 'rgba(255,255,255,0.09)',
-            boxShadow: on ? `0 0 4px ${index > 6 ? 'rgba(226,59,46,0.7)'
-              : index > 4 ? 'rgba(215,154,43,0.6)' : 'rgba(79,157,99,0.5)'}` : 'none',
             transition: 'background-color 60ms linear',
           }} />
         );
@@ -4307,36 +4307,86 @@ function AudioTab({
   keeping: boolean;
   onKeep: (keep: boolean) => void;
 }) {
+  /*
+   * A MIXER IS A STRIP OF CHANNELS, NOT A COLUMN OF CARDS.
+   *
+   * Every channel had its own rounded rectangle with its own border and
+   * a gap under it — so four microphones read as four objects rather
+   * than as four channels of one desk. On real equipment the channels
+   * share a face and are separated by a hairline, and the MASTER is set
+   * apart from them: it is not another input, it is what they sum to.
+   *
+   * The master gets a rule beneath it and a slightly lighter face; the
+   * inputs run underneath as a list. Nothing moves, nothing is removed,
+   * and the meters are the same meters. [brief §9]
+   */
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+    <div style={{
+      display: 'flex', flexDirection: 'column',
+      border: 'var(--border) solid var(--console-seam)',
+      borderRadius: 3, overflow: 'hidden',
+      background: 'var(--console-inset)',
+    }}>
       <div className="row" data-testid="master-audio" style={{
-        gap: 8, padding: '7px 9px', borderRadius: 7, fontSize: 11,
-        background: 'var(--panel-2)', border: '1px solid var(--line)',
+        gap: 8, padding: '7px 9px', fontSize: 'var(--text-xs)',
+        background: 'var(--console-control)',
+        borderBottom: 'var(--border) solid var(--console-edge)',
+        boxShadow: 'var(--console-bevel)',
+        flexWrap: 'nowrap',
       }}>
-        <span className="grow" style={{ fontWeight: 600 }}>Master (Program)</span>
+        <span className="grow module-label" style={{ color: 'var(--ink-200)' }}>
+          Master
+        </span>
         <Meter value={levels['master']?.energy ?? 0} label="master" />
-        <span className="mono muted" style={{ fontSize: 10 }}>
+        {/*
+          * THE RATE IS A READOUT. A number that changes every second,
+          * beside a meter, in a proportional face, re-flows on every
+          * tick — which is the shimmer that makes a mixer look cheap.
+          */}
+        <span className="mono readout" style={{
+          fontSize: 'var(--text-2xs)', color: 'var(--ink-300)',
+          minWidth: 52, textAlign: 'right',
+        }}>
           {encoder.running ? `${Math.round(encoder.rate / 1000)} kB/s` : '—'}
         </span>
       </div>
 
       {guests.sources.length === 0 ? (
-        <p className="small muted" style={{ margin: 0, fontSize: 11 }}>
+        <p style={{
+          margin: 0, padding: '8px 9px', fontSize: 'var(--text-2xs)',
+          color: 'var(--ink-300)',
+        }}>
           {onAir ? 'One microphone: yours.'
             : 'Nothing is live. Microphones appear when the stage does.'}
         </p>
-      ) : guests.sources.map((person) => (
+      ) : guests.sources.map((person, index) => (
         <div key={person.id} className="row" data-testid="audio-channel" style={{
-          gap: 8, fontSize: 11, padding: '5px 7px', borderRadius: 6,
-          background: 'var(--panel-2)', border: '1px solid var(--line)',
+          gap: 8, fontSize: 'var(--text-xs)', padding: '5px 9px',
+          flexWrap: 'nowrap',
+          borderTop: index === 0
+            ? 0 : 'var(--border) solid var(--console-rule)',
         }}>
+          {/* Channels are numbered on a desk, and counted from one. */}
+          <span className="mono readout" style={{
+            flex: '0 0 auto', width: 16, fontSize: 'var(--text-2xs)',
+            color: 'var(--ink-400)', textAlign: 'right',
+          }}>{String(index + 1).padStart(2, '0')}</span>
           <span className="grow" style={{
             minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
           }}>{person.label ?? person.id}</span>
-          <span className="muted" style={{ fontSize: 9 }}>
-            {(levels[person.id]?.speech ?? 0) > 0.5 ? 'voice' : ''}
-          </span>
+          {/*
+            * SPEAKING, as a word rather than as a meter reading. A
+            * level meter says how loud; it does not say whether that
+            * is a voice or a chair moving, and the stage follows the
+            * voice. [ROOM §4]
+            */}
+          <span style={{
+            flex: '0 0 auto', fontSize: 'var(--text-2xs)',
+            letterSpacing: '0.07em',
+            color: (levels[person.id]?.speech ?? 0) > 0.5
+              ? 'var(--ink-on-ok)' : 'transparent',
+          }}>VOICE</span>
           <Meter value={levels[person.id]?.energy ?? 0} label={person.label ?? 'mic'} />
         </div>
       ))}
@@ -4347,10 +4397,11 @@ function AudioTab({
         * be able to read, not just press. [§8]
         */}
       <label className="row" data-testid="keep-live-label" style={{
-        gap: 8, fontSize: 12, padding: '7px 9px', borderRadius: 7, margin: 0,
+        gap: 8, fontSize: 'var(--text-xs)', padding: '8px 9px', margin: 0,
         flexWrap: 'nowrap', alignItems: 'flex-start',
-        border: `1px solid ${keeping ? 'var(--state-live-dim)' : 'var(--line)'}`,
-        background: keeping ? 'rgba(192,57,43,0.14)' : 'var(--panel-2)',
+        borderTop: 'var(--border) solid var(--console-edge)',
+        boxShadow: keeping ? 'inset 2px 0 0 var(--state-live)' : 'none',
+        background: keeping ? 'var(--state-live-wash)' : 'var(--console-control)',
       }}>
         <input
           type="checkbox" checked={keeping} disabled={!onAir}

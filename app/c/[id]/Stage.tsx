@@ -136,7 +136,8 @@ export function StageStatus({
     <div className="row" style={{ gap: 12, alignItems: 'center', flexWrap: 'nowrap' }}>
       <span aria-hidden style={{
         width: 10, height: 10, borderRadius: '50%', background: state.dot,
-        boxShadow: `0 0 10px ${state.dot}`, flex: '0 0 auto',
+        /* A hard ring, not a bloom — see design-system.test.ts. */
+        boxShadow: '0 0 0 1px rgba(0,0,0,0.5)', flex: '0 0 auto',
       }} />
       <div style={{ minWidth: 0 }}>
         {/*

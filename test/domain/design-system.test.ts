@@ -564,12 +564,19 @@ describe('the console has no glass and no glow', () => {
    * light has had a halo since the 1950s, it is the cue that survives
    * being seen in peripheral vision, and `status.css` is where it
    * lives. Anything outside that file is somebody decorating.
+   *
+   * THE FIRST VERSION OF THIS MISSED A GLOW ASSEMBLED IN A TEMPLATE
+   * LITERAL. The level meter built one per segment as
+   * `` `0 0 4px ${colour}` ``, and the pattern was looking for `rgba(`
+   * immediately after the blur radius. A rule that only catches the
+   * literal spelling catches the careless half and misses the clever
+   * half, which is the wrong half to miss.
    */
   it('glows only where a lamp glows', () => {
     const offenders: string[] = [];
     for (const file of components()) {
       for (const [hit] of code(file).matchAll(
-        /(?<!inset )0 0 (?:[4-9]|[1-9]\d)px rgba\(\d+,\s*\d+/g)) {
+        /(?<!inset )0 0 (?:[4-9]|[1-9]\d)px (?:rgba\(\d+,\s*\d+|\$\{|var\()/g)) {
         offenders.push(`${named(file)}: ${hit.trim().slice(0, 52)}`);
       }
     }
