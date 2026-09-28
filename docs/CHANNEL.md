@@ -1098,3 +1098,101 @@ second answer to "what is the viewer seeing".
 uploaded through the route, rasterised by the worker into three library
 PNGs, served as `image/png`, resolved by `pathFor` to a file that exists,
 and stepped 1 → 2 → 3 in a browser with NEXT disabling itself at the end.
+
+## §21 — Slides written here
+
+Uploading a document and writing a slide produce **the same thing**: a
+library PNG at the house size, appended to a deck. Nothing downstream can
+tell them apart — the playout engine broadcasts it, the monitor draws it,
+the schedule holds it, and the two arrows step it, by the same code.
+Authoring adds a way to MAKE a slide, not a second kind of slide.
+
+**Four layouts, three fields.** Title, text, picture, quote. A slide editor
+with thirty controls is a slide editor somebody uses to make an ugly slide;
+these four are each hard to make look bad, and "diverse" is served by their
+being different from each other rather than by each being adjustable.
+
+**Chromium, not ffmpeg's subtitle renderer.** The share cards in
+`thumbnails.ts` are drawn with ASS, which is right for them: one block of
+text at a known size. A slide is a layout — a heading, a body that wraps,
+bullets, a picture beside them — and expressing that in ASS would be writing
+a layout engine in subtitle syntax. Chromium is already required to turn a
+PDF into pages, so a deck feature that uses it adds no dependency the deck
+feature did not already have; `WITH_BROWSER=0` loses both together and says
+so.
+
+**It fetches nothing.** The page is handed its content and its pictures as
+bytes, and every request it might make is aborted — the rule the PDF
+rasteriser follows, for the same reason. Typed text is untrusted input: a
+renderer that can be made to fetch a URL is a renderer that can be made to
+leak, and one that can be made to run script is worse. Headings and bodies
+are escaped, and an ink that is not a colour is refused rather than
+interpolated into a stylesheet. [D-06]
+
+**A picture is a library asset, not an upload to the slide.** A slide names
+one, which is the same reference a caption card is — so a photograph can be
+on two slides without a second copy of it. [§3, D-18]
+
+**Adding a slide never renumbers what is in front of it.** A presenter
+looking at "4 / 9" during a talk must not have that mean a different page
+because somebody appended one. New slides go at the end unless a position is
+given.
+
+---
+
+## §22 — A live web page, and anything else on screen
+
+> *"The internet should be able to open and connect live for others to see."*
+
+**The presenter's own browser, shared into the mix.** Not a headless browser
+in the playout engine: that would be a second browser nobody can see, driven
+by a control surface nobody has built, signed into nothing — so the pages
+worth showing, the ones behind a login, are exactly the ones it could not
+open. Sharing the browser the presenter is already using is what every
+broadcaster does, and it is thirty lines, because the mixer already composes
+an arbitrary number of arbitrary streams and a display capture is just
+another `MediaStream`.
+
+It is not only the web: a deck open in another application, a spreadsheet, a
+map, a terminal — anything on the screen.
+
+**It is a source, not a roll-in.** A rolled-in reference REPLACES the live
+feed with a file (§5). A shared screen is part of the picture, with the
+presenter still in frame beside it — which is the whole point of showing
+somebody a web page while you talk about it. So it joins the mixer's list
+and the layout table arranges it, exactly as another guest would be.
+
+**The browser owns the picker.** There is no list of tabs in this product
+and there cannot be: which window is shared is a decision the browser takes
+from the person, outside the page. That is a security property, not a
+limitation.
+
+**And the browser's own Stop is the real control.** Chrome puts a bar at the
+bottom of the screen and people use it, so the track's `ended` event takes
+the source out of the mix. A studio that only noticed when its own button
+was pressed would keep a dead black rectangle in the picture.
+
+**Dismissing the picker is not an error.** It is somebody deciding not to
+share, and a red message for it teaches people to distrust red messages.
+
+---
+
+## C-12 — Stage 12: two features, one already built and one thirty lines
+
+**Authoring turned out to be a renderer and nothing else.** The deck, the
+ordering, the broadcast path, the arrows and the library all existed from
+§20; what was missing was a way to produce a PNG from typed words. So the
+feature is one file that writes HTML, one worker case that screenshots it,
+and a form with three fields.
+
+**The live web page was a decision, not a build.** The expensive
+implementation — a browser inside the playout engine — was rejected before
+any of it was written, on the grounds that it could not open the pages
+anybody would want to show. The cheap one reuses the canvas mixer that was
+built for guests, and is better: the presenter is signed in, knows how to
+navigate, and stays in frame.
+
+**Both were verified against the real thing.** A slide written through the
+API and drawn by the worker into a 1920×1080 library PNG; then written again
+through the studio's own form, appended to a deck, and stepped on air as
+`1 / 2`.

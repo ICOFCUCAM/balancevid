@@ -50,7 +50,9 @@ export type JobKind =
    * `conversationId` field carries a deck id, as it already carries a
    * performance id.
    */
-  | 'rasterise_deck';
+  | 'rasterise_deck'
+  /* A slide somebody wrote rather than uploaded. [CHANNEL §21] */
+  | 'compose_slide';
 
 export interface Job {
   id: string;

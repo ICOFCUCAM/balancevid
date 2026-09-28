@@ -19,6 +19,7 @@ import { arrangementFor, useBroadcastMixer } from './useBroadcastMixer.js';
 import { useFeedLevels } from './useFeedLevels.js';
 import GuestsTab from './GuestsTab.js';
 import SlidesPanel from './SlidesPanel.js';
+import { type ScreenShare, useScreenShare } from './useScreenShare.js';
 
 /**
  * The control room.  [Doctrine CHANNEL §1–§9, §15, D-18, D-19, INV-17]
@@ -192,20 +193,35 @@ export default function ChannelStudio({
     localStream: camera,
     enabled: Boolean(liveNow),
   });
+  /*
+   * A SHARED SCREEN IS A SOURCE, NOT A ROLL-IN. [§22]
+   *
+   * Rolling a reference in REPLACES the live feed with a file; a shared web
+   * page is part of the picture, with the presenter still in frame beside
+   * it. So it joins the mixer's list and the layout table arranges it,
+   * exactly as another guest would be.
+   */
+  const share = useScreenShare();
+  const mixed = useMemo(() => (
+    share.stream
+      ? [...guests.sources,
+        { id: 'screen', stream: share.stream, label: share.label ?? 'Screen' }]
+      : guests.sources
+  ), [guests.sources, share.stream, share.label]);
   const mixer = useBroadcastMixer({
-    sources: guests.sources,
+    sources: mixed,
     layoutId: arrangement,
-    enabled: Boolean(liveNow) && guests.sources.length > 0,
+    enabled: Boolean(liveNow) && mixed.length > 0,
   });
   const encoder = useLiveEncoder(id, mixer.stream);
 
   /* The meters. Every microphone on the desk, and the mix they add up to. */
   const metered = useMemo(() => {
-    const entries = guests.sources.map(
+    const entries = mixed.map(
       (person) => ({ id: person.id, stream: person.stream }));
     if (mixer.stream) entries.push({ id: 'master', stream: mixer.stream });
     return entries;
-  }, [guests.sources, mixer.stream]);
+  }, [mixed, mixer.stream]);
   const levels = useFeedLevels(metered, Boolean(liveNow));
 
   const refresh = useCallback(async () => {
@@ -1132,6 +1148,7 @@ export default function ChannelStudio({
                 }}
                 onRollOut={() => void patch({ action: 'roll-in', source: null })}
                 onShow={(source) => void patch({ action: 'roll-in', source })}
+                share={share}
               />
             )}
 
@@ -2961,7 +2978,7 @@ function VMeter({ value, tint = '#4f8a5b' }: { value: number; tint?: string }) {
  * and the feed is underneath it.
  */
 function ScreensTab({
-  channel, picked, onAir, nameOf, onRollIn, onRollOut, onShow,
+  channel, picked, onAir, nameOf, onRollIn, onRollOut, onShow, share,
 }: {
   channel: Channel;
   picked: LibraryItem | null;
@@ -2971,6 +2988,8 @@ function ScreensTab({
   onRollOut: () => void;
   /** Put a named reference up — what a slide needs and a pick does not. */
   onShow: (source: ProgrammeSource) => void;
+  /** A live web page, or anything else on the presenter's screen. [§22] */
+  share: ScreenShare;
 }) {
   const up = channel.live?.segment;
   return (
@@ -3007,6 +3026,70 @@ function ScreensTab({
           ? `Ready: “${picked.title}”.`
           : 'Pick something in the Library and it can go up over the feed.'}
       </p>
+
+      {/* ---- a live web page, or anything on screen (§22) --------- */}
+      <div data-testid="screen-share" style={{
+        display: 'flex', flexDirection: 'column', gap: 6,
+        borderTop: '1px solid var(--line)', paddingTop: 9, marginTop: 2,
+      }}>
+        <div className="row" style={{ flexWrap: 'nowrap' }}>
+          <span className="muted grow" style={{
+            fontSize: 9, letterSpacing: 0.8, fontWeight: 700,
+          }}>LIVE SCREEN</span>
+          {share.sharing && (
+            <span style={{
+              padding: '1px 6px', borderRadius: 3, background: '#1f8a70',
+              color: '#fff', fontSize: 8, fontWeight: 800, letterSpacing: 0.5,
+            }}>IN THE MIX</span>
+          )}
+        </div>
+        {share.sharing ? (
+          <>
+            <div className="row" style={{
+              gap: 7, fontSize: 11, padding: '5px 7px', borderRadius: 6,
+              flexWrap: 'nowrap', background: 'var(--panel-2)',
+              border: '1px solid var(--line)',
+            }}>
+              <Dot on colour="#1f8a70" />
+              <span className="grow" style={{
+                minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}>{share.label}</span>
+            </div>
+            <button className="small" data-testid="stop-share"
+                    onClick={share.stop}
+                    style={{ borderColor: '#8e2f24', color: '#e07a6b' }}>
+              Stop sharing
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              className="small" data-testid="start-share" disabled={!onAir}
+              title={onAir
+                ? 'Your browser asks which tab, window or screen to share'
+                : 'Only while you are live'}
+              onClick={() => { void share.start(); }}
+            >
+              Share a tab, window or screen
+            </button>
+            <p className="small muted" style={{ margin: 0, fontSize: 10 }}>
+              {/*
+                * Said once, because it is the difference between this and
+                * everything else in the tab: a shared screen JOINS the
+                * picture rather than replacing it.
+                */}
+              It joins the picture beside you, rather than replacing the feed
+              — a live web page with the presenter still in frame.
+            </p>
+          </>
+        )}
+        {share.error && (
+          <p className="small" style={{ margin: 0, color: 'var(--bad)', fontSize: 11 }}>
+            {share.error}
+          </p>
+        )}
+      </div>
 
       {/*
         * SLIDES ARE THE SAME DOOR. A deck is an order over library images

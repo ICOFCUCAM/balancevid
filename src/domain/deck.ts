@@ -112,6 +112,42 @@ export const DECK_EXTENSIONS = new Set([
   '.xlsx', '.ods',
 ]);
 
+/**
+ * Where a new slide goes in a deck.
+ *
+ * At the end, unless a position is given. A slide appended while a talk is
+ * being given must not renumber the ones behind it — the presenter is
+ * looking at "4 / 9" and somebody adding a slide should not make that mean
+ * a different page.
+ */
+export function withSlide(deck: Deck, slide: Slide, at?: number): Deck {
+  const slides = [...deck.slides];
+  const where = at === undefined || at < 0 || at > slides.length
+    ? slides.length : at;
+  slides.splice(where, 0, slide);
+  return { ...deck, slides: slides.map((each, index) => ({ ...each, page: index + 1 })) };
+}
+
+/** Take one out, and renumber what is left. */
+export function withoutSlide(deck: Deck, assetId: string): Deck {
+  const slides = deck.slides.filter((slide) => slide.assetId !== assetId);
+  return { ...deck, slides: slides.map((each, index) => ({ ...each, page: index + 1 })) };
+}
+
+/**
+ * Move one. The order IS the deck, so this is the only edit that matters
+ * after the slides exist.
+ */
+export function moveSlide(deck: Deck, assetId: string, to: number): Deck {
+  const from = deck.slides.findIndex((slide) => slide.assetId === assetId);
+  if (from < 0) return deck;
+  const slides = [...deck.slides];
+  const [moved] = slides.splice(from, 1);
+  const where = Math.max(0, Math.min(slides.length, to));
+  slides.splice(where, 0, moved!);
+  return { ...deck, slides: slides.map((each, index) => ({ ...each, page: index + 1 })) };
+}
+
 export function canMakeDeckFrom(filename: string): boolean {
   const dot = filename.lastIndexOf('.');
   return dot >= 0 && DECK_EXTENSIONS.has(filename.slice(dot).toLowerCase());

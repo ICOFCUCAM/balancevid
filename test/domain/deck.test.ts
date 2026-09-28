@@ -10,7 +10,8 @@ import { describe, expect, it } from 'vitest';
 
 import type { ProgrammeSource } from '../../src/domain/channel.js';
 import {
-  type Deck, canMakeDeckFrom, deckAssetIds, slideOnAir, sourceForSlide, step,
+  type Deck, canMakeDeckFrom, deckAssetIds, moveSlide, slideOnAir,
+  sourceForSlide, step, withSlide, withoutSlide,
 } from '../../src/domain/deck.js';
 
 const deck: Deck = {
@@ -119,5 +120,55 @@ describe('what can become a deck', () => {
     for (const name of ['clip.mp4', 'photo.png', 'archive.zip', 'noextension']) {
       expect(canMakeDeckFrom(name), name).toBe(false);
     }
+  });
+});
+
+describe('editing the order', () => {
+  /*
+   * A DECK BEING ADDED TO DURING A TALK MUST NOT RENUMBER WHAT IS BEHIND
+   * IT. The presenter is looking at "2 / 3" and a new slide should not
+   * quietly make that a different page.
+   */
+  it('appends by default, leaving the pages in front of it alone', () => {
+    const next = withSlide(deck, { assetId: 'ast_4', page: 99 });
+    expect(next.slides.map((slide) => slide.assetId))
+      .toEqual(['ast_1', 'ast_2', 'ast_3', 'ast_4']);
+    /* And the page numbers are the positions, always. */
+    expect(next.slides.map((slide) => slide.page)).toEqual([1, 2, 3, 4]);
+  });
+
+  it('inserts where it is told, and renumbers from there', () => {
+    const next = withSlide(deck, { assetId: 'ast_new', page: 0 }, 1);
+    expect(next.slides.map((slide) => slide.assetId))
+      .toEqual(['ast_1', 'ast_new', 'ast_2', 'ast_3']);
+    expect(next.slides.map((slide) => slide.page)).toEqual([1, 2, 3, 4]);
+  });
+
+  it('removes one and closes the gap', () => {
+    const next = withoutSlide(deck, 'ast_2');
+    expect(next.slides.map((slide) => slide.assetId)).toEqual(['ast_1', 'ast_3']);
+    expect(next.slides.map((slide) => slide.page)).toEqual([1, 2]);
+  });
+
+  it('ignores a removal of something that is not in it', () => {
+    expect(withoutSlide(deck, 'ast_nope').slides).toHaveLength(3);
+  });
+
+  it('moves one, which is the edit that matters once the slides exist', () => {
+    expect(moveSlide(deck, 'ast_3', 0).slides.map((slide) => slide.assetId))
+      .toEqual(['ast_3', 'ast_1', 'ast_2']);
+    expect(moveSlide(deck, 'ast_1', 2).slides.map((slide) => slide.assetId))
+      .toEqual(['ast_2', 'ast_3', 'ast_1']);
+  });
+
+  it('clamps a move past either end rather than losing the slide', () => {
+    expect(moveSlide(deck, 'ast_1', 99).slides.map((slide) => slide.assetId))
+      .toEqual(['ast_2', 'ast_3', 'ast_1']);
+    expect(moveSlide(deck, 'ast_3', -5).slides.map((slide) => slide.assetId))
+      .toEqual(['ast_3', 'ast_1', 'ast_2']);
+  });
+
+  it('leaves the deck alone when asked to move something that is not in it', () => {
+    expect(moveSlide(deck, 'ast_nope', 0).slides).toEqual(deck.slides);
   });
 });

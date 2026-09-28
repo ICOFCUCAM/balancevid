@@ -41,6 +41,10 @@ export default function SlidesPanel({
   const [chosen, setChosen] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  const [writing, setWriting] = useState(false);
+  const [layout, setLayout] = useState<'title' | 'text' | 'picture' | 'quote'>('text');
+  const [heading, setHeading] = useState('');
+  const [text, setText] = useState('');
   const file = useRef<HTMLInputElement | null>(null);
 
   const read = useCallback(async () => {
@@ -89,6 +93,57 @@ export default function SlidesPanel({
     } finally { setBusy(false); }
   };
 
+  /**
+   * Write one.
+   *
+   * With no deck yet, it starts one — because "+ Write" with nothing to
+   * write into would be a button that explains why it cannot work, and
+   * making an empty deck costs a file.
+   */
+  const write = async () => {
+    if (!heading.trim() && !text.trim()) {
+      setNote('A slide needs a heading or some words.');
+      return;
+    }
+    setBusy(true);
+    setNote('Drawing the slide\u2026');
+    try {
+      let target = deck?.id;
+      if (!target) {
+        const made = await fetch('/api/decks', {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ title: heading.trim() || 'Slides' }),
+        });
+        if (!made.ok) { setNote('that deck could not be started'); return; }
+        target = ((await made.json()).deck as Deck).id;
+      }
+      const response = await fetch(`/api/decks/${target}/slides`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ layout, heading, text }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) { setNote(data.error ?? 'that slide was refused'); return; }
+
+      /* The worker is drawing it. Poll until the page count moves. */
+      const before = deck?.slides.length ?? 0;
+      for (let tries = 0; tries < 30; tries += 1) {
+        await new Promise((resolve) => { setTimeout(resolve, 1500); });
+        const check = await fetch(`/api/decks/${target}`, { cache: 'no-store' });
+        if (!check.ok) continue;
+        const now = (await check.json()).deck as Deck;
+        if (now.slides.length > before) {
+          await read();
+          setChosen(now.id);
+          setHeading('');
+          setText('');
+          setNote(`${now.title} \u2014 ${now.slides.length} slides`);
+          return;
+        }
+      }
+      setNote('Still drawing it. It will appear when the worker has finished.');
+    } finally { setBusy(false); }
+  };
+
   const go = (by: 1 | -1) => {
     if (!deck) return;
     const wanted = step(deck, at, by);
@@ -104,6 +159,14 @@ export default function SlidesPanel({
         <span className="muted grow" style={{
           fontSize: 9, letterSpacing: 0.8, fontWeight: 700,
         }}>SLIDES</span>
+        <button
+          className="small" data-testid="write-slide" disabled={busy}
+          onClick={() => setWriting((open) => !open)}
+          style={{
+            border: 0, background: 'none', padding: 0, fontSize: 11,
+            color: '#5c9ee0', cursor: 'pointer', marginRight: 9,
+          }}
+        >+ Write</button>
         <button
           className="small" data-testid="add-deck" disabled={busy}
           onClick={() => file.current?.click()}
@@ -140,6 +203,64 @@ export default function SlidesPanel({
             </option>
           ))}
         </select>
+      )}
+
+      {/*
+        * WRITING ONE.  [§21]
+        *
+        * Four layouts and three fields. A slide editor with thirty controls
+        * is a slide editor somebody uses to make an ugly slide; these four
+        * are each hard to make look bad, and "diverse" is served by their
+        * being different from each other rather than by each being
+        * adjustable.
+        */}
+      {writing && (
+        <div data-testid="slide-writer" style={{
+          display: 'flex', flexDirection: 'column', gap: 6, padding: 8,
+          borderRadius: 8, background: 'var(--panel-2)',
+          border: '1px solid var(--line)',
+        }}>
+          <div className="row" style={{ gap: 4, flexWrap: 'wrap' }}>
+            {(['title', 'text', 'picture', 'quote'] as const).map((option) => (
+              <button
+                key={option} type="button" data-testid="slide-layout"
+                data-layout={option}
+                data-chosen={layout === option ? 'true' : 'false'}
+                onClick={() => setLayout(option)}
+                style={{
+                  padding: '3px 8px', fontSize: 10, borderRadius: 5,
+                  border: `1px solid ${layout === option ? '#3d7fd6' : 'var(--line)'}`,
+                  background: layout === option
+                    ? 'rgba(45,110,200,0.22)' : 'transparent',
+                }}
+              >{option}</button>
+            ))}
+          </div>
+          <input
+            data-testid="slide-heading" value={heading}
+            onChange={(event) => setHeading(event.target.value)}
+            placeholder={layout === 'quote' ? 'Who said it (optional)' : 'Heading'}
+            style={{ fontSize: 12, padding: '6px 9px' }}
+          />
+          <textarea
+            data-testid="slide-text" value={text} rows={3}
+            onChange={(event) => setText(event.target.value)}
+            placeholder={layout === 'quote'
+              ? 'The quotation'
+              : 'Words. A blank line starts a paragraph; \u201c- \u201d starts a bullet.'}
+            style={{
+              fontSize: 12, padding: '6px 9px', width: '100%', resize: 'vertical',
+              font: 'inherit', background: 'var(--panel)',
+              border: '1px solid var(--line)', borderRadius: 8, color: 'inherit',
+            }}
+          />
+          <button
+            className="primary small" data-testid="make-slide" disabled={busy}
+            onClick={() => { void write(); }}
+          >
+            {busy ? 'Drawing\u2026' : deck ? 'Add to this deck' : 'Start a deck'}
+          </button>
+        </div>
       )}
 
       {deck && (

@@ -1,8 +1,8 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { isOwner } from '../../../src/auth/request.js';
-import { canMakeDeckFrom } from '../../../src/domain/deck.js';
+import { type Deck, canMakeDeckFrom } from '../../../src/domain/deck.js';
 import { newId } from '../../../src/domain/ids.js';
-import { listDecks } from '../../../src/store/decks.js';
+import { listDecks, saveDeck } from '../../../src/store/decks.js';
 import { paths } from '../../../src/store/paths.js';
 import { enqueue } from '../../../src/store/queue.js';
 import { fail, json } from '../../../src/web/http.js';
@@ -33,6 +33,25 @@ export async function GET(request: Request): Promise<Response> {
  */
 export async function POST(request: Request): Promise<Response> {
   if (!(await isOwner(request))) return fail(404, 'not found');
+
+  /*
+   * A DECK CAN START EMPTY. Uploading a document and writing slides one at
+   * a time produce the same thing (§21), so the same door makes both: a
+   * JSON body with a title opens an empty deck, a form with a file opens
+   * one that already has pages.
+   */
+  if (request.headers.get('content-type')?.includes('application/json')) {
+    const body = await request.json().catch(() => ({})) as { title?: string };
+    const deck: Deck = {
+      id: newId('deck') as Deck['id'],
+      title: body.title?.trim() || 'Untitled deck',
+      slides: [],
+      origin: 'written here',
+      createdAt: new Date().toISOString(),
+    };
+    await saveDeck(deck);
+    return json({ deck }, { status: 201 });
+  }
 
   const form = await request.formData();
   const file = form.get('file');

@@ -13,12 +13,13 @@
 
 import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { Deck, Slide } from '../domain/deck.js';
+import { type Deck, type Slide, withSlide } from '../domain/deck.js';
 import { newId } from '../domain/ids.js';
 import {
   officeConverterAvailable, rasteriseOffice, rasterisePdf,
 } from '../evidence/pages.js';
-import { saveDeck } from '../store/decks.js';
+import { loadDeck, saveDeck } from '../store/decks.js';
+import { renderSlide, type SlideSpec } from '../render/slide.js';
 import type { AssetId, Take } from '../domain/document.js';
 import { buildAttribution, buildRenderPlan, type RenderPlan } from '../domain/plan.js';
 import { buildClipPlan, buildClipTimeline } from '../domain/clips.js';
@@ -103,6 +104,7 @@ export async function runJob(job: Job): Promise<Job> {
     case 'render_performance_card': return renderPerformanceCard(job);
     case 'render_audio': return renderAudio(job);
     case 'rasterise_deck': return rasteriseDeck(job);
+    case 'compose_slide': return composeSlide(job);
   }
 }
 
@@ -1494,4 +1496,40 @@ async function rasteriseDeck(job: Job): Promise<Job> {
   await rm(uploadPath, { force: true });
 
   return { ...job, result: { deckId, pages: slides.length } };
+}
+
+/**
+ * A slide somebody wrote.  [Doctrine CHANNEL §21, §20, D-19]
+ *
+ * The output is indistinguishable from a page of an uploaded PowerPoint: a
+ * library PNG at the house size, appended to a deck. Everything downstream
+ * — the engine, the monitor, the schedule, the two arrows in the Screens
+ * tab — handles it because it is the same thing.
+ *
+ * APPENDED, NOT REBUILT. A deck being added to during a talk must not
+ * renumber the slides behind it: the presenter is looking at "4 / 9" and a
+ * new slide should not quietly make that a different page.
+ */
+async function composeSlide(job: Job): Promise<Job> {
+  const deckId = job.conversationId;
+  const spec = job.payload['spec'] as SlideSpec;
+  const at = job.payload['at'] === undefined
+    ? undefined : Number(job.payload['at']);
+
+  const deck = await loadDeck(deckId);
+  const assetId = newId('asset');
+  const outPath = paths.libraryMedia(assetId, 'png');
+  await mkdir(paths.library(), { recursive: true });
+  await renderSlide(spec, outPath);
+
+  const heading = (spec.heading ?? spec.body ?? 'Slide').slice(0, 60);
+  await writeFile(
+    join(paths.library(), `${assetId}.json`),
+    JSON.stringify({ label: `${deck.title} — ${heading}` }),
+    'utf8',
+  );
+
+  const next = withSlide(deck, { assetId, page: deck.slides.length + 1 }, at);
+  await saveDeck(next);
+  return { ...job, result: { deckId, assetId, slides: next.slides.length } };
 }
