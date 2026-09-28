@@ -41,7 +41,16 @@ export type JobKind =
   | 'render_performance'
   | 'render_performance_clip'
   | 'render_performance_card'
-  | 'render_audio';
+  | 'render_audio'
+  /*
+   * A document becomes slides. [CHANNEL §20, U-33 §2]
+   *
+   * Worker-only for the reason every other rasterising job is: it spawns
+   * LibreOffice and a browser, and the web tier does neither (U-23). The
+   * `conversationId` field carries a deck id, as it already carries a
+   * performance id.
+   */
+  | 'rasterise_deck';
 
 export interface Job {
   id: string;

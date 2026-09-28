@@ -11,8 +11,14 @@
  * cache (U-16) means a re-run resumes rather than restarts.
  */
 
-import { mkdir } from 'node:fs/promises';
+import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import type { Deck, Slide } from '../domain/deck.js';
+import { newId } from '../domain/ids.js';
+import {
+  officeConverterAvailable, rasteriseOffice, rasterisePdf,
+} from '../evidence/pages.js';
+import { saveDeck } from '../store/decks.js';
 import type { AssetId, Take } from '../domain/document.js';
 import { buildAttribution, buildRenderPlan, type RenderPlan } from '../domain/plan.js';
 import { buildClipPlan, buildClipTimeline } from '../domain/clips.js';
@@ -96,6 +102,7 @@ export async function runJob(job: Job): Promise<Job> {
     case 'render_performance_clip': return renderPerformanceClip(job);
     case 'render_performance_card': return renderPerformanceCard(job);
     case 'render_audio': return renderAudio(job);
+    case 'rasterise_deck': return rasteriseDeck(job);
   }
 }
 
@@ -1407,3 +1414,84 @@ async function main(): Promise<void> {
 }
 
 if (process.argv[1]?.includes('worker')) void main();
+
+/* ------------------------------------------------------------------------ *
+ *  Decks.  [Doctrine CHANNEL §20, U-33 §2, U-23, D-19]
+ * ------------------------------------------------------------------------ */
+
+/**
+ * A document becomes slides.
+ *
+ * Every step of this already existed for evidence: LibreOffice turns a deck
+ * into a PDF and pdf.js rasterises it, so a `.pptx` and a `.pdf` reach the
+ * same place by the same path and look the same when they get there. The
+ * only new thing is where the pages land — the library, as ordinary images,
+ * one asset each.
+ *
+ * WHY THE LIBRARY AND NOT A DECK FOLDER. A slide has to be something the
+ * playout engine can already broadcast, the monitor can already draw and the
+ * schedule can already hold. A page in a private folder would be a fourth
+ * kind of media; a page in the library is the kind that has worked since the
+ * channel was written. [D-18, D-19]
+ *
+ * PNG, NOT JPEG. Slides are type. A JPEG of a bullet list is a bullet list
+ * with a halo round every letter, at the size somebody reads it off a wall.
+ */
+async function rasteriseDeck(job: Job): Promise<Job> {
+  const deckId = job.conversationId;
+  const uploadPath = String(job.payload['uploadPath']);
+  const title = String(job.payload['title'] ?? 'Slides');
+  const origin = String(job.payload['origin'] ?? '');
+
+  await mkdir(paths.library(), { recursive: true });
+  const work = join(paths.decks(), `${safe(deckId)}.pages`);
+  await mkdir(work, { recursive: true });
+
+  /*
+   * A PDF goes straight to pdf.js; anything else needs LibreOffice first,
+   * and a build without it must say so rather than accept a deck and
+   * quietly produce nothing. [U-33 §2]
+   */
+  const isPdf = uploadPath.toLowerCase().endsWith('.pdf');
+  if (!isPdf && !(await officeConverterAvailable())) {
+    throw new Error(
+      'this deployment has no document converter — export the deck as a PDF '
+      + 'and upload that instead');
+  }
+  const paged = isPdf
+    ? await rasterisePdf(uploadPath, work, safe(deckId))
+    : await rasteriseOffice(uploadPath, work, safe(deckId));
+
+  if (paged.pageCount === 0) throw new Error('that document has no pages');
+
+  /*
+   * Each page becomes a library asset with its own id, so a slide is a
+   * reference like any other and a channel can schedule one on its own.
+   */
+  const slides: Slide[] = [];
+  for (const [index, pagePath] of paged.pagePaths.entries()) {
+    const assetId = newId('asset');
+    await rename(pagePath, paths.libraryMedia(assetId, 'png'));
+    await writeFile(
+      join(paths.library(), `${assetId}.json`),
+      JSON.stringify({ label: `${title} — ${index + 1}/${paged.pageCount}` }),
+      'utf8',
+    );
+    slides.push({ assetId, page: index + 1 });
+  }
+
+  const deck: Deck = {
+    id: deckId as Deck['id'],
+    title,
+    slides,
+    origin,
+    createdAt: new Date().toISOString(),
+  };
+  await saveDeck(deck);
+
+  /* The upload and the scratch pages have done their job. [§19] */
+  await rm(work, { recursive: true, force: true });
+  await rm(uploadPath, { force: true });
+
+  return { ...job, result: { deckId, pages: slides.length } };
+}

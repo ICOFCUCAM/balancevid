@@ -1011,3 +1011,90 @@ built.
 **The whole feature is one new domain function.** Everything else is
 arrangement. That is what a check-before-building rule buys: the second time
 a capability is needed, it is a prop and a picker rather than a subsystem.
+
+## §20 — Slides
+
+> *"A PowerPoint system users can build or upload, where the presentation
+> changes with clicks as it changes live."*
+
+**A deck is an order over library images.** Nothing else. A slide is an
+ordinary library image — the kind the playout engine has been able to
+broadcast since it was written (`-loop 1 -framerate`, `segment.ts`), the kind
+the monitor already draws and the kind the schedule can already hold — and
+advancing a slide is `roll-in` of the next one, which is the action the
+Screens tab has had from the beginning.
+
+So the only thing a deck adds to this product is the order. Finding that out
+is what D-19 is for, and it is the difference between a feature and a
+subsystem.
+
+```
+deck.pptx → LibreOffice → PDF → pdf.js → page PNGs → library media
+                                                          │
+                                              roll-in → over the live feed
+```
+
+**Every step already existed for evidence** (U-33 §2). A `.pptx` and a `.pdf`
+reach the same place by the same path and look the same when they get there.
+The pages land in the library rather than a deck folder, because a page in a
+private folder would be a fourth kind of media and a page in the library is
+the kind that has worked since the channel was written.
+
+**PNG, not JPEG.** Slides are type. A JPEG of a bullet list is a bullet list
+with a halo round every letter, at the size somebody reads it off a wall. So
+`pathFor` asks for a PNG before a JPEG — synchronously, because it is called
+inside the loop that keeps the stream ahead of the playhead and making it
+async to save one `stat` would turn every caller in that loop into an await.
+
+**There is no cursor.** Which slide is showing is `channel.live.segment` —
+the thing actually on air — so the number between the two arrows is the
+transmission's own answer rather than a counter that could disagree with it.
+Press NEXT twice quickly and the second press works from what went out.
+[D-22]
+
+**And it does not wrap.** Running out of slides is information. A deck that
+looped would put the title card back up in front of an audience waiting for
+the presenter to finish, and the operator pressing NEXT would have no way to
+tell that from a deck with one more slide.
+
+**The web tier does not rasterise.** Turning a deck into pages spawns
+LibreOffice and a browser; one of those in a request handler is one upload
+making the application unusable for everybody else. The file is written down
+and a job is enqueued, exactly as an uploaded source is (U-23).
+
+**A build without a converter says so.** `WITH_OFFICE=0` is the default, and
+then a PDF still works while a `.pptx` is refused with the sentence that
+tells the author to export one. A deck accepted and silently turned into
+nothing is the failure this avoids.
+
+**Decks live beside the library, not inside a channel.** Deleting a channel
+takes its schedule and nothing else (D-18); a deck that lived in one would
+vanish with it, which is the wrong lifetime for a talk somebody gave. Two
+channels can show the same deck without a second copy.
+
+**Deleting a deck does delete media**, unlike deleting a channel — its
+slides exist only as its pages and there is nowhere else they belong. Which
+makes the question to the channels matter more, not less, and it is asked
+per page: a deck of forty is forty references, and any one of them could be
+the safe playlist.
+
+---
+
+## C-11 — Stage 11: the feature that was already built
+
+**Three checks decided the whole design.** Could the playout engine put a
+still on the wire — yes, `segment.ts:232`. Could something already put an
+arbitrary reference over the live feed — yes, `roll-in`. Did a document-to-
+pages pipeline exist — yes, and it had been sitting unused behind a build
+flag since the evidence work.
+
+After that the feature is a type with an array in it, a job handler that
+moves files into the library, and a panel with two arrows. The temptation
+worth naming is the one not taken: a slide player, with its own transport,
+its own state and its own idea of what is on screen. It would have been a
+second answer to "what is the viewer seeing".
+
+**It was verified against the real thing.** A `.pptx` built with Impress,
+uploaded through the route, rasterised by the worker into three library
+PNGs, served as `image/png`, resolved by `pathFor` to a file that exists,
+and stepped 1 → 2 → 3 in a browser with NEXT disabling itself at the end.

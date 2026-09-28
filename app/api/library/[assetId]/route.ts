@@ -18,15 +18,20 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
   const { assetId } = await params;
   if (!(await isOwner(request))) return fail(404, 'not found');
   if (!/^[A-Za-z0-9_-]{1,128}$/.test(assetId)) return fail(404, 'not found');
-  /* Two containers, one asset. Whichever is there is what is served. */
-  const jpg = paths.libraryMedia(assetId, 'jpg');
+  /*
+   * THREE CONTAINERS, ONE ASSET. Whichever is there is what is served: PNG
+   * for a deck's pages, which are type and must not be smeared by JPEG
+   * (§20); JPEG for a photograph somebody uploaded as an ident; MP4 for
+   * everything that moves.
+   */
   const { access } = await import('node:fs/promises');
-  try {
-    await access(jpg);
-    return serveFile(request, jpg, 'image/jpeg');
-  } catch {
-    return serveFile(request, paths.libraryMedia(assetId, 'mp4'), 'video/mp4');
-  }
+  const there = async (path: string) =>
+    access(path).then(() => true).catch(() => false);
+  const png = paths.libraryMedia(assetId, 'png');
+  if (await there(png)) return serveFile(request, png, 'image/png');
+  const jpg = paths.libraryMedia(assetId, 'jpg');
+  if (await there(jpg)) return serveFile(request, jpg, 'image/jpeg');
+  return serveFile(request, paths.libraryMedia(assetId, 'mp4'), 'video/mp4');
 }
 
 /**

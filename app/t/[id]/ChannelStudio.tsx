@@ -18,6 +18,7 @@ import { useBroadcastGuests } from './useBroadcastGuests.js';
 import { arrangementFor, useBroadcastMixer } from './useBroadcastMixer.js';
 import { useFeedLevels } from './useFeedLevels.js';
 import GuestsTab from './GuestsTab.js';
+import SlidesPanel from './SlidesPanel.js';
 
 /**
  * The control room.  [Doctrine CHANNEL §1–§9, §15, D-18, D-19, INV-17]
@@ -1130,6 +1131,7 @@ export default function ChannelStudio({
                   }
                 }}
                 onRollOut={() => void patch({ action: 'roll-in', source: null })}
+                onShow={(source) => void patch({ action: 'roll-in', source })}
               />
             )}
 
@@ -2959,7 +2961,7 @@ function VMeter({ value, tint = '#4f8a5b' }: { value: number; tint?: string }) {
  * and the feed is underneath it.
  */
 function ScreensTab({
-  channel, picked, onAir, nameOf, onRollIn, onRollOut,
+  channel, picked, onAir, nameOf, onRollIn, onRollOut, onShow,
 }: {
   channel: Channel;
   picked: LibraryItem | null;
@@ -2967,6 +2969,8 @@ function ScreensTab({
   nameOf: (source: ProgrammeSource) => string;
   onRollIn: () => void;
   onRollOut: () => void;
+  /** Put a named reference up — what a slide needs and a pick does not. */
+  onShow: (source: ProgrammeSource) => void;
 }) {
   const up = channel.live?.segment;
   return (
@@ -3003,6 +3007,17 @@ function ScreensTab({
           ? `Ready: “${picked.title}”.`
           : 'Pick something in the Library and it can go up over the feed.'}
       </p>
+
+      {/*
+        * SLIDES ARE THE SAME DOOR. A deck is an order over library images
+        * and advancing one is `roll-in` of the next — so it belongs in the
+        * tab named after putting things up, rather than in a tab of its
+        * own that would do the same thing by a second route. [§20, D-19]
+        */}
+      <SlidesPanel
+        channel={channel} onAir={onAir}
+        onShow={onShow} onRollOut={onRollOut}
+      />
     </div>
   );
 }

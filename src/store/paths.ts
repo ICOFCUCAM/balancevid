@@ -138,6 +138,19 @@ export const paths = {
   library: () => join(VAR_ROOT, 'library'),
   libraryMedia: (assetId: string, ext: string) =>
     join(paths.library(), `${safe(assetId)}.${ext.replace(/[^a-z0-9]/gi, '')}`),
+  /**
+   * Decks live beside the library and not inside a channel. [CHANNEL §20]
+   *
+   * A deck is an ORDER over library images, and the images are ordinary
+   * library media — so any channel can put the same talk on air, and
+   * deleting the channel takes none of it with it. The same reason the
+   * library is not inside a conversation.
+   */
+  decks: () => join(paths.library(), 'decks'),
+  deck: (deckId: string) => join(paths.decks(), `${safe(deckId)}.json`),
+  /** Where an uploaded document waits for the worker to turn it into pages. */
+  deckUpload: (deckId: string, ext: string) =>
+    join(paths.decks(), `${safe(deckId)}.src.${ext.replace(/[^a-z0-9]/gi, '')}`),
 
   channels: () => join(VAR_ROOT, 'channels'),
   channel: (id: string) => join(VAR_ROOT, 'channels', safe(id)),

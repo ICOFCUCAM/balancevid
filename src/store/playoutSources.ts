@@ -13,6 +13,7 @@
  * programme scheduled thirty times resolves thirty times to the same path.
  */
 
+import { existsSync } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Channel, ProgrammeSource } from '../domain/channel.js';
@@ -59,7 +60,21 @@ export function pathFor(
      * here, applied to the one kind of asset that has no studio. [§3, D-18]
      */
     if (!/^[A-Za-z0-9_-]{1,128}$/.test(source.assetId)) return undefined;
-    return paths.libraryMedia(source.assetId, source.form === 'image' ? 'jpg' : 'mp4');
+    if (source.form !== 'image') return paths.libraryMedia(source.assetId, 'mp4');
+    /*
+     * PNG BEFORE JPEG, because a slide is type. A deck's pages are
+     * rasterised to PNG (§20) and a photograph uploaded as an ident is a
+     * JPEG; asking which file is there costs one `access` on a path the
+     * engine caches anyway, and guessing wrong puts a caption card on air
+     * as black.
+     *
+     * SYNCHRONOUSLY, deliberately. `pathFor` is the one place a reference
+     * becomes a path and the playout engine calls it inside the loop that
+     * keeps the stream ahead of the playhead; making it async to save one
+     * `stat` would turn every caller in that loop into an await. [§3, §20]
+     */
+    const png = paths.libraryMedia(source.assetId, 'png');
+    return existsSync(png) ? png : paths.libraryMedia(source.assetId, 'jpg');
   }
   const ingest = ingestById(channel, source.ingestId);
   if (!ingest) return undefined;
