@@ -85,26 +85,56 @@ export default function InvitePanel({
       </div>
 
       <div className="row" style={{ gap: 6, flexWrap: 'nowrap', marginBottom: 8 }}>
+        {/*
+          * A LINK YOU ARE ABOUT TO SEND IS NOT AN INPUT YOU ARE ABOUT TO
+          * EDIT, and it was drawn as one. Read-only, so it keeps the
+          * well's recess to say "this holds a value" but loses the caret
+          * colour and the focus lightening, which promise typing. The
+          * monospace is right and stays: a URL somebody may read aloud
+          * or copy by hand needs its characters distinguishable.
+          */}
         <input
           readOnly value={joinUrl} data-testid="invite-link"
           onFocus={(e) => e.currentTarget.select()}
-          style={{ fontFamily: 'ui-monospace, monospace', fontSize: 12 }}
+          style={{
+            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+            fontSize: 'var(--text-sm)',
+            color: 'var(--text-dim)',
+            caretColor: 'transparent',
+            cursor: 'text',
+          }}
         />
-        <button className="primary small" data-testid="invite-copy"
-                onClick={() => void copy()} style={{ flex: '0 0 auto' }}>
+        {/*
+          * THE CONFIRMATION IS THE BUTTON, not a message beside it. A
+          * toast somewhere else asks the eye to leave the thing it just
+          * pressed; the control saying "Copied" is read without moving.
+          * It stays the same width as "Copy link" so the row does not
+          * twitch on press — a control that resizes when you use it is
+          * the smallest possible way to feel cheap.
+          */}
+        <button className="primary sm" data-testid="invite-copy"
+                onClick={() => void copy()}
+                style={{ flex: '0 0 auto', minWidth: 86 }}>
           {copied ? 'Copied' : 'Copy link'}
         </button>
       </div>
 
-      <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+      {/*
+        * THE WAYS TO SEND IT ARE PEERS, and none of them is the
+        * recommended one — which one is right depends entirely on who
+        * the guest is. So they are all quiet buttons of the same size,
+        * and the only emphasised control in this panel is the one that
+        * puts the link on the clipboard. [ROOM §7]
+        */}
+      <div className="row" style={{ gap: 'var(--space-3)', flexWrap: 'wrap' }}>
         {typeof navigator !== 'undefined' && 'share' in navigator && (
-          <button className="small" data-testid="invite-share"
+          <button className="quiet sm" data-testid="invite-share"
                   onClick={() => void share()}>Share…</button>
         )}
         {channels.map((channel) => (
           <a
             key={channel.label}
-            className="btn small"
+            className="btn quiet sm"
             data-testid={`invite-${channel.label.toLowerCase()}`}
             href={channel.href}
             target="_blank"
@@ -113,7 +143,8 @@ export default function InvitePanel({
             {channel.label}
           </a>
         ))}
-        <button className="small" data-testid="invite-qr-toggle"
+        <button className="quiet sm" data-testid="invite-qr-toggle"
+                aria-pressed={showQr}
                 onClick={() => setShowQr(!showQr)}>
           {showQr ? 'Hide code' : 'QR code'}
         </button>
@@ -125,8 +156,18 @@ export default function InvitePanel({
       */}
       {showQr && (
         <div data-testid="invite-qr" style={{ marginTop: 12, textAlign: 'center' }}>
+          {/*
+            * A QR CODE MUST BE WHITE AND MUST HAVE A QUIET ZONE. The
+            * white is not a style choice — scanners look for a light
+            * ground, and a dark-themed code fails on a lot of phones.
+            * The padding is the quiet zone the spec requires, and
+            * without it a code printed and stuck on a wall reads at
+            * half the distance.
+            */}
           <div style={{
-            display: 'inline-block', padding: 12, borderRadius: 10, background: '#fff',
+            display: 'inline-block', padding: 'var(--space-5)',
+            borderRadius: 'var(--radius-lg)', background: '#fff',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
           }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
