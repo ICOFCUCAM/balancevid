@@ -610,15 +610,21 @@ export default function ChannelStudio({
           <div className="row" style={{
             gap: 6, padding: '8px 9px 0', flexWrap: 'nowrap', flex: '0 0 auto',
           }}>
+            {/*
+              * NOT A CTA. This was a full-width filled blue button at the
+              * top of the rail — the single most SaaS-looking object in
+              * the room, and the brightest thing on a screen whose
+              * brightest thing should be the programme. Adding to a
+              * playlist is an ordinary, frequent, reversible action; it
+              * gets an ordinary control. [brief §4]
+              */}
             <button
-              type="button" className="primary" data-testid="add-to-playlist"
+              type="button" className="ctl" data-testid="add-to-playlist"
+              aria-expanded={adding}
               onClick={() => { setAdding((open) => !open); setRailTab('library'); }}
-              style={{
-                flex: 1, padding: '7px 10px', fontSize: 12,
-                background: 'var(--accent-deep)', borderColor: 'var(--accent-deep)',
-              }}
+              style={{ flex: 1, padding: '7px 10px' }}
             >
-              + Add to Playlist
+              + Add to playlist
             </button>
             <button
               type="button" aria-label="Search" data-testid="rail-search"
@@ -1266,34 +1272,44 @@ export default function ChannelStudio({
           <div className="row" style={{
             gap: 6, padding: '0 9px 8px', flexWrap: 'nowrap', flex: '0 0 auto',
           }}>
+            {/*
+              * THE ONE LOUD CONTROL IN THIS PANEL, and only one.
+              *
+              * GO LIVE and END LIVE were two equal pills side by side —
+              * a filled red one and an outlined red one — which is a
+              * pair of SaaS buttons and, worse, gives equal visual
+              * weight to arming and to stopping. On a desk exactly one
+              * of these is available at any moment, and the other is
+              * the way back. So the available one is the loud one and
+              * the other recedes, which also means the panel's
+              * appearance says which state you are in before you read
+              * a word of it. [brief §7]
+              *
+              * `.ctl.is-critical` is a legend on a lit surface rather
+              * than a CTA: uppercase, tracked, a 4px radius and a
+              * one-pixel bevel instead of a 10px pill with a shadow.
+              */}
             <button
-              className="primary" data-testid="go-live"
+              className={`ctl${onAir ? '' : ' is-critical'}`}
+              data-testid="go-live"
               disabled={onAir}
               title={'Brings the camera up and shows it to you in PREVIEW. '
                 + 'Nothing reaches the wire until you press TAKE LIVE — the '
                 + 'programme keeps playing until then.'}
               onClick={goLive}
-              style={{
-                flex: 1, padding: '8px 10px', fontSize: 12,
-                background: onAir ? 'var(--panel-2)' : 'var(--state-live-dim)',
-                borderColor: onAir ? 'var(--line)' : 'var(--state-live-dim)',
-                opacity: onAir ? 0.5 : 1,
-              }}
+              style={{ flex: 1, padding: '8px 10px' }}
             >
-              &#9679; Go Live
+              Go live
             </button>
             <button
-              className="small" data-testid="end-live"
+              className={`ctl${onAir ? ' is-armed-danger' : ''}`}
+              data-testid="end-live"
               disabled={!onAir}
               title="Return to program. The schedule resumes where the clock says."
               onClick={endLive}
-              style={{
-                flex: 1, padding: '8px 10px', fontSize: 12,
-                borderColor: onAir ? 'var(--state-live-dim)' : 'var(--line)',
-                color: onAir ? '#e07a6b' : 'var(--muted)',
-              }}
+              style={{ flex: 1, padding: '8px 10px' }}
             >
-              End Live
+              End live
             </button>
             <button
               type="button" aria-label="Channel settings" data-testid="identity-gear"
@@ -1681,46 +1697,44 @@ export default function ChannelStudio({
 
           {armed ? (
             <button
-              className="primary" data-testid="take-live"
+              className="ctl is-critical" data-testid="take-live"
               title="Cut the live feed to air"
               onClick={() => void patch({ action: 'take-live' })}
               /*
                 * THE MOST CONSEQUENTIAL BUTTON ON THE PAGE, and the only
-                * one allowed to look it. It carries the live red as a lit
-                * surface rather than a flat fill, and a halo in its own
-                * hue — so when it is pressable it is the brightest thing
-                * in the transport and nothing else has to be dimmed to
-                * make that true.
+                * one still allowed to look it — but the HALO goes. It
+                * wore a 3px glow in its own hue, which is the one
+                * decoration the brief rules out by name, and it was
+                * doing a job the surface already does: the button is
+                * the only lit red object in a bar of grey ones.
+                *
+                * Prominence now comes from being lit, tracked and
+                * uppercase, which is what the legend on a real take
+                * button looks like. [brief §12, §19]
                 */
               style={{
-                background: 'linear-gradient(180deg, #e8483a, #c33327)',
-                borderColor: '#f05a4a',
-                color: 'var(--text-on-accent)',
                 padding: 'var(--space-3) var(--space-6)',
                 fontSize: 'var(--text-sm)',
-                fontWeight: 'var(--weight-bold)',
-                letterSpacing: '0.02em',
-                boxShadow: '0 0 0 3px var(--state-live-glow),'
-                  + ' inset 0 1px 0 rgba(255,255,255,0.22)',
               }}
             >
-              Take Live
+              Take live
             </button>
           ) : (
             <button
-              className="small" data-testid="take-live" disabled
+              className="ctl" data-testid="take-live" disabled
               title={onAir
                 ? 'Already on air.'
                 : 'Press GO LIVE first — the feed is armed into PREVIEW, and '
                   + 'TAKE LIVE is what puts it on the wire.'}
-              style={{ padding: '7px 14px', fontSize: 12 }}
+              style={{ padding: 'var(--space-3) var(--space-6)' }}
             >
-              Take Live
+              Take live
             </button>
           )}
 
           <button
-            className="small" data-testid="emergency"
+            className={`ctl ${emergency ? 'is-critical' : 'is-armed-danger'}`}
+            data-testid="emergency"
             title={emergency
               ? 'Cut back to whatever the channel would be showing'
               : 'Cut away immediately. Beats live.'}
@@ -1745,24 +1759,11 @@ export default function ChannelStudio({
               * So it waits as a red-edged outline and only fills when it
               * is actually holding the channel off its schedule.
               */
-            style={emergency
-              ? {
-                background: 'linear-gradient(180deg, #d4402f, #b03327)',
-                borderColor: '#e85643', color: 'var(--ink-000)',
-                padding: 'var(--space-3) var(--space-5)',
-                fontSize: 'var(--text-sm)',
-                fontWeight: 'var(--weight-bold)',
-                boxShadow: '0 0 0 3px rgba(226,59,46,0.22),'
-                  + ' inset 0 1px 0 rgba(255,255,255,0.2)',
-                whiteSpace: 'nowrap',
-              }
-              : {
-                borderColor: 'rgba(200,70,55,0.5)', color: '#e0806f',
-                background: 'rgba(200,70,55,0.07)',
-                padding: 'var(--space-3) var(--space-5)',
-                fontSize: 'var(--text-sm)',
-                whiteSpace: 'nowrap',
-              }}
+            style={{
+              padding: 'var(--space-3) var(--space-5)',
+              fontSize: 'var(--text-sm)',
+              whiteSpace: 'nowrap',
+            }}
           >
             {emergency ? '⚠ Clear Emergency' : '⚠ Emergency'}
           </button>
