@@ -1,0 +1,283 @@
+'use client';
+
+import { useCallback, useEffect, useState } from 'react';
+import InvitePanel from '../../c/[id]/room/InvitePanel.js';
+import type { Channel } from '../../../src/domain/channel.js';
+
+/**
+ * Inviting people onto the broadcast.  [Doctrine CHANNEL §6, ROOM §3, §6, D-19]
+ *
+ *     GO LIVE (armed)  →  attach a room  →  invite  →  they join
+ *                      →  stage them     →  TAKE LIVE
+ *
+ * THE CHANNEL COULD ALREADY USE A ROOM AND COULD NOT INVITE ANYBODY TO ONE.
+ * `goLive` has always taken a `roomId`, so a broadcast could come out of a
+ * conversation's room — but the only way to name one was a `window.prompt`
+ * asking for a raw `conv_…` id, and the invitation itself lived over in
+ * Studio One. Getting a guest onto the air meant: leave the control room,
+ * find the conversation, open its room, copy the link, come back, and type
+ * an identifier from memory. The capability existed; the door did not.
+ *
+ * SO THIS BUILDS ALMOST NOTHING. [D-19] Everything below already existed:
+ *
+ *   InvitePanel          the Room's own panel — link, copy, native share,
+ *                        WhatsApp/SMS/email, QR, rotate. Imported, not
+ *                        reimplemented: a second invite UI would be a second
+ *                        place the join URL can be composed wrongly
+ *   /room POST 'open'    opening a room, with the server minting the token
+ *   /room GET            who is in it, and the token for the owner
+ *   /api/conversations   the list to choose from
+ *   attachRoom           the one new line of domain: which room this is
+ *
+ * ARMED IS THE RIGHT MOMENT. A broadcast that is armed is not on air — the
+ * schedule is still going out — so inviting people, waiting for them to
+ * arrive and staging them all happens before anybody watching sees a thing.
+ * That is the ARM → TAKE discipline doing a second job. [§6]
+ */
+
+interface Conversation {
+  id: string;
+  title: string;
+}
+
+interface RoomView {
+  open: boolean;
+  inviteToken?: string;
+  participants?: { id: string; displayName: string }[];
+}
+
+export default function GuestsTab({
+  channel, guests, levels, onAir, armed, onAttach, Meter,
+}: {
+  channel: Channel;
+  guests: {
+    sources: { id: string; label?: string; accent?: string }[];
+    tooMany: boolean;
+  };
+  levels: Record<string, { energy: number; speech: number }>;
+  onAir: boolean;
+  armed: boolean;
+  onAttach: (roomId: string | null) => void;
+  /** The control room's own meter, so this draws no second one. */
+  Meter: (props: { value: number; label: string }) => React.JSX.Element;
+}) {
+  const roomId = channel.live?.roomId;
+  const [choices, setChoices] = useState<Conversation[]>([]);
+  const [room, setRoom] = useState<RoomView | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [origin, setOrigin] = useState('');
+
+  useEffect(() => { setOrigin(window.location.origin); }, []);
+
+  /* The conversations whose rooms this broadcast could come out of. */
+  useEffect(() => {
+    if (!onAir || roomId) return;
+    void (async () => {
+      const response = await fetch('/api/conversations', { cache: 'no-store' });
+      if (response.ok) setChoices((await response.json()).conversations ?? []);
+    })();
+  }, [onAir, roomId]);
+
+  /*
+   * The room's own state, from the Room's own endpoint. Polled while
+   * attached, because people arrive while nobody is looking at this tab —
+   * and at the Room's rate, not a rate invented here.
+   */
+  const readRoom = useCallback(async () => {
+    if (!roomId) { setRoom(null); return; }
+    try {
+      const response = await fetch(
+        `/api/conversations/${roomId}/room`, { cache: 'no-store' });
+      if (response.ok) setRoom(await response.json() as RoomView);
+    } catch { /* momentarily unreachable; keep the last view. */ }
+  }, [roomId]);
+
+  useEffect(() => {
+    void readRoom();
+    if (!roomId) return;
+    const timer = setInterval(() => { void readRoom(); }, 4000);
+    return () => clearInterval(timer);
+  }, [roomId, readRoom]);
+
+  /** Open the room if it has never been opened. Mints the token server-side. */
+  const act = async (body: Record<string, unknown>) => {
+    if (!roomId) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/conversations/${roomId}/room`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) {
+        setError((await response.json().catch(() => ({}))).error
+          ?? 'the room refused that');
+        return;
+      }
+      await readRoom();
+    } finally { setBusy(false); }
+  };
+
+  /* ---- nothing is live: say when guests become possible -------------- */
+  if (!onAir) {
+    return (
+      <p className="small muted" style={{ margin: 0, fontSize: 11 }}>
+        Guests come out of a room. Press <strong>GO LIVE</strong> — that arms
+        the feed into PREVIEW without putting anything on the wire — then
+        invite people here and stage them before you take it live.
+      </p>
+    );
+  }
+
+  /* ---- live, no room: choose one -------------------------------------- */
+  if (!roomId) {
+    return (
+      <div data-testid="attach-room" style={{
+        display: 'flex', flexDirection: 'column', gap: 8,
+      }}>
+        <p className="small muted" style={{ margin: 0, fontSize: 11 }}>
+          {/*
+            * Said once, because it is the thing that explains the whole
+            * arrangement: the channel does not grow a room, it names one.
+            */}
+          A broadcast takes its guests from a conversation&rsquo;s room. Pick
+          the conversation and everybody staged in it is in the picture.
+        </p>
+        {choices.length === 0 ? (
+          <p className="small muted" style={{ margin: 0, fontSize: 11 }}>
+            No conversations yet. Start one in Studio One and its room becomes
+            available here.
+          </p>
+        ) : (
+          <select
+            data-testid="room-choice" defaultValue=""
+            onChange={(event) => {
+              if (event.target.value) onAttach(event.target.value);
+            }}
+            style={{ fontSize: 12, padding: '7px 9px' }}
+          >
+            <option value="" disabled>Choose a conversation&hellip;</option>
+            {choices.map((conversation) => (
+              <option key={conversation.id} value={conversation.id}>
+                {conversation.title}
+              </option>
+            ))}
+          </select>
+        )}
+        {armed && (
+          <p className="small muted" style={{ margin: 0, fontSize: 10 }}>
+            You are armed, not on air. Nothing reaches the wire until TAKE LIVE.
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  /* ---- live, room attached: invite, and see who is here ---------------- */
+  const joined = room?.participants?.length ?? 0;
+  return (
+    <div data-testid="broadcast-stage" style={{
+      display: 'flex', flexDirection: 'column', gap: 9,
+    }}>
+      <div className="row" style={{ flexWrap: 'nowrap' }}>
+        <span className="muted grow" style={{
+          fontSize: 9, letterSpacing: 0.8, fontWeight: 700,
+        }}>ON STAGE</span>
+        <a className="small" href={`/c/${roomId}/room`} data-testid="to-room"
+           target="_blank" rel="noreferrer" style={{ fontSize: 10 }}>
+          Open the room
+        </a>
+      </div>
+
+      {guests.sources.length === 0 ? (
+        <span className="small muted" style={{ fontSize: 11 }}>
+          {joined > 0
+            ? `${joined} in the room, nobody staged yet. Bring somebody to `
+              + 'stage in the room and they appear in the picture.'
+            : 'Just the camera. Invite somebody below.'}
+        </span>
+      ) : guests.sources.map((person) => (
+        <div key={person.id} className="row" data-testid="stage-person" style={{
+          gap: 8, fontSize: 11, padding: '5px 7px', borderRadius: 6,
+          flexWrap: 'nowrap', background: 'var(--panel-2)',
+          border: '1px solid var(--line)',
+        }}>
+          <span aria-hidden="true" style={{
+            width: 8, height: 8, borderRadius: '50%', flex: '0 0 auto',
+            background: person.accent ?? '#3e7ca6',
+          }} />
+          <span className="grow" style={{
+            minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}>{person.label}</span>
+          <Meter value={levels[person.id]?.energy ?? 0}
+                 label={person.label ?? 'guest'} />
+        </div>
+      ))}
+
+      {guests.tooMany && (
+        <span className="small" style={{ fontSize: 10, color: 'var(--warn)' }}>
+          {/* The Room's own warning, surfaced where it matters: a mesh this
+              size is a broadcast that will drop somebody. [ROOM §6, D-14] */}
+          More people on stage than a mesh should carry.
+        </span>
+      )}
+
+      <div style={{ borderTop: '1px solid var(--line)', paddingTop: 9 }}>
+        {room && !room.open ? (
+          <>
+            <p className="small muted" style={{ margin: '0 0 7px', fontSize: 11 }}>
+              This conversation&rsquo;s room has never been opened. Opening it
+              makes a link you can send to anybody.
+            </p>
+            <button className="primary small" data-testid="open-room"
+                    disabled={busy}
+                    onClick={() => { void act({ action: 'open' }); }}
+                    style={{ width: '100%' }}>
+              {busy ? 'Opening…' : 'Open the room'}
+            </button>
+          </>
+        ) : room?.inviteToken ? (
+          /*
+           * THE ROOM'S OWN PANEL, imported rather than rebuilt. It composes
+           * the join URL, the message, the QR and the rotate — and a second
+           * copy of it here would be a second place that URL can be wrong.
+           * [D-19, ROOM §7]
+           */
+          <InvitePanel
+            conversationId={roomId}
+            joinUrl={`${origin}/r/${roomId}?t=${encodeURIComponent(room.inviteToken)}`}
+            heading="Invite people onto this broadcast"
+            title={channel.name}
+            sourceTitle={`${channel.name} — live`}
+            busy={busy}
+            onRotate={() => { void act({ action: 'rotate-invite' }); }}
+          />
+        ) : (
+          <p className="small muted" style={{ margin: 0, fontSize: 11 }}>
+            Reading the room&hellip;
+          </p>
+        )}
+      </div>
+
+      <button className="small" data-testid="detach-room"
+              onClick={() => {
+                if (!window.confirm(
+                  'Take this room off the broadcast? The room keeps running '
+                  + 'and its guests stay in it — it simply stops being the '
+                  + 'one this channel is looking at.')) return;
+                onAttach(null);
+              }}
+              style={{ fontSize: 11 }}>
+        Use a different room
+      </button>
+
+      {error && (
+        <p className="small" style={{ margin: 0, color: 'var(--bad)', fontSize: 11 }}>
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}

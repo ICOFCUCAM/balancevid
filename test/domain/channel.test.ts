@@ -31,7 +31,7 @@ import {
   moveProgramme, newChannel, openIngest, removeFromRotation, removeProgramme,
   faultLive, recoverLive, requestRecording, rollIn, scheduleProgramme,
   setBackup, setEmergency, setFiller, skipToNext, takeLive,
-  publishChannel, unpublishChannel,
+  publishChannel, unpublishChannel, attachRoom,
 } from '../../src/domain/channelEdit.js';
 import {
   SEGMENT_MS, WINDOW_SEGMENTS,
@@ -1148,6 +1148,48 @@ describe('the channel identity is drawn, never burned in (§13, D-16)', () => {
     setIdentity(c, { spaceId: '  ' });
     expect(c.identity!.ink).toBe('#ffcc00');
     expect(c.identity!.spaceId).toBeUndefined();
+  });
+});
+
+describe('bringing a room onto the broadcast (§6, ROOM §3, D-17)', () => {
+  /*
+   * A CHANNEL NAMES A ROOM; IT DOES NOT GROW ONE. The Room keeps the
+   * invitation, the joining, the staging and the speaker switching, and the
+   * whole of the coupling is one field.
+   */
+  it('names a room, and changes it while on air', () => {
+    const c = newChannel('BalanceVid TV', 'UTC', AT);
+    goLive(c, 'Tonight', AT);
+    expect(c.live!.roomId).toBeUndefined();
+
+    attachRoom(c, 'conv_seminar');
+    expect(c.live!.roomId).toBe('conv_seminar');
+
+    /* "We should get Sarah on" at 20:40 is an ordinary thing to say. */
+    takeLive(c, new Date(Date.parse(AT) + 60_000).toISOString());
+    attachRoom(c, 'conv_panel');
+    expect(c.live!.roomId).toBe('conv_panel');
+  });
+
+  it('detaches without ending the broadcast', () => {
+    const c = newChannel('BalanceVid TV', 'UTC', AT);
+    goLive(c, 'Tonight', AT, 'conv_seminar');
+    attachRoom(c);
+    expect(c.live!.roomId).toBeUndefined();
+    /* Still live: the room left, the broadcast did not. */
+    expect(c.live!.phase).toBe('armed');
+  });
+
+  it('will not attach a room when nothing is live, and says what to press', () => {
+    const c = newChannel('BalanceVid TV', 'UTC', AT);
+    expect(() => attachRoom(c, 'conv_seminar')).toThrow(/GO LIVE/);
+  });
+
+  it('treats blank as detaching rather than as a room called nothing', () => {
+    const c = newChannel('BalanceVid TV', 'UTC', AT);
+    goLive(c, 'Tonight', AT, 'conv_seminar');
+    attachRoom(c, '   ');
+    expect(c.live!.roomId).toBeUndefined();
   });
 });
 

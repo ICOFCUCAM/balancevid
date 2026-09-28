@@ -17,6 +17,7 @@ import { useLiveEncoder } from './useLiveEncoder.js';
 import { useBroadcastGuests } from './useBroadcastGuests.js';
 import { arrangementFor, useBroadcastMixer } from './useBroadcastMixer.js';
 import { useFeedLevels } from './useFeedLevels.js';
+import GuestsTab from './GuestsTab.js';
 
 /**
  * The control room.  [Doctrine CHANNEL §1–§9, §15, D-18, D-19, INV-17]
@@ -430,10 +431,14 @@ export default function ChannelStudio({
   const goLive = () => {
     const label = window.prompt('What is the live show called?', 'Live');
     if (!label) return;
-    const roomId = window.prompt(
-      'Which conversation’s room are the people in? '
-      + '(blank for a feed with nobody)', '') || undefined;
-    void patch({ action: 'go-live', label, roomId });
+    /*
+     * IT NO LONGER ASKS WHICH ROOM. It used to, through a second prompt
+     * wanting a raw `conv_…` identifier typed from memory — which is why
+     * nobody could get a guest on the air without leaving the control room.
+     * Arming opens the camera; the Guests tab is where a room is chosen and
+     * people are invited, and nothing reaches the wire until TAKE LIVE. [§6]
+     */
+    void patch({ action: 'go-live', label });
   };
   const endLive = () => {
     if (!window.confirm(keeping
@@ -1093,7 +1098,11 @@ export default function ChannelStudio({
 
             {deskTab === 'guests' && (
               <GuestsTab
-                channel={channel} guests={guests} levels={levels} onAir={onAir}
+                channel={channel} guests={guests} levels={levels}
+                onAir={onAir} armed={armed} Meter={Meter}
+                onAttach={(roomId) => void patch({
+                  action: 'attach-room', ...(roomId ? { roomId } : {}),
+                })}
               />
             )}
 
@@ -2869,79 +2878,6 @@ function VMeter({ value, tint = '#4f8a5b' }: { value: number; tint?: string }) {
         background: `linear-gradient(0deg, ${tint}, #c99a2e 78%, #c0392b)`,
       }} />
     </span>
-  );
-}
-
-/**
- * WHO IS ON THE BROADCAST STAGE.  [§6, ROOM §4]
- *
- * The Room decides this — by hand or by voice activity — and the channel
- * reads it. "Bring Sarah to stage" happens over there and the picture changes
- * over here, which is the whole reason a channel names a room rather than
- * growing one.
- */
-function GuestsTab({
-  channel, guests, levels, onAir,
-}: {
-  channel: Channel;
-  guests: {
-    sources: { id: string; label?: string; accent?: string }[];
-    tooMany: boolean;
-  };
-  levels: Record<string, { energy: number; speech: number }>;
-  onAir: boolean;
-}) {
-  if (!channel.live?.roomId) {
-    return (
-      <p className="small muted" style={{ margin: 0, fontSize: 11 }}>
-        {onAir
-          ? 'No room attached — it is a feed with nobody invited. Name a '
-            + 'conversation’s room when you GO LIVE and its stage becomes '
-            + 'this broadcast’s.'
-          : 'Go live naming a conversation’s room, and everybody staged in '
-            + 'it is in the picture.'}
-      </p>
-    );
-  }
-  return (
-    <div data-testid="broadcast-stage" style={{
-      display: 'flex', flexDirection: 'column', gap: 6,
-    }}>
-      <div className="row">
-        <span className="muted grow" style={{
-          fontSize: 9, letterSpacing: 0.8, fontWeight: 700,
-        }}>ON STAGE</span>
-        <a className="small" href={`/c/${channel.live.roomId}/room`}
-           data-testid="to-room" style={{ fontSize: 10 }}>Open the room</a>
-      </div>
-      {guests.sources.length === 0 ? (
-        <span className="small muted" style={{ fontSize: 11 }}>
-          Just the camera. Bring somebody to stage in the room.
-        </span>
-      ) : guests.sources.map((person) => (
-        <div key={person.id} className="row" data-testid="stage-person" style={{
-          gap: 8, fontSize: 11, padding: '5px 7px', borderRadius: 6,
-          background: 'var(--panel-2)', border: '1px solid var(--line)',
-        }}>
-          <span aria-hidden="true" style={{
-            width: 8, height: 8, borderRadius: '50%',
-            background: person.accent ?? '#3e7ca6',
-          }} />
-          <span className="grow" style={{
-            minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}>{person.label}</span>
-          <Meter value={levels[person.id]?.energy ?? 0} label={person.label ?? 'guest'} />
-        </div>
-      ))}
-      {guests.tooMany && (
-        <span className="small" style={{ fontSize: 10, color: 'var(--warn)' }}>
-          {/* The Room's own warning, surfaced where it matters: a mesh this
-              size is a broadcast that will drop somebody. [ROOM §6, D-14] */}
-          More people on stage than a mesh should carry.
-        </span>
-      )}
-    </div>
   );
 }
 

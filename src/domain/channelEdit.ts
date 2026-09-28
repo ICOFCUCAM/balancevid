@@ -962,6 +962,33 @@ export function setDestination(
   return destination;
 }
 
+/**
+ * Bring a room into the broadcast, or take it out.  [§6, ROOM §3, D-17, D-19]
+ *
+ * A channel does not grow a room of its own. It NAMES one — an existing
+ * conversation's — and the Room keeps everything that follows: who is
+ * invited, who has joined, who is on stage, and the speaker switching. This
+ * is the whole of the coupling, and it is one field.
+ *
+ * IT IS A LIVE-SESSION DECISION, not a channel setting, because that is what
+ * it is in a gallery: a broadcast has guests, a channel has a schedule. It
+ * can be changed while armed and while on air — "we should get Sarah on" at
+ * 20:40 is an ordinary thing to say, and a field that could only be set at
+ * GO LIVE would make it a reason to end the broadcast.
+ *
+ * Passing nothing detaches. The room is untouched: it keeps running, its
+ * guests stay in it, and it simply stops being the one this channel is
+ * looking at.
+ */
+export function attachRoom(channel: Channel, roomId?: string): void {
+  const live = channel.live && channel.live.phase !== 'ended'
+    ? channel.live
+    : fail('nothing is live — press GO LIVE first, then invite people') as never;
+  const wanted = roomId?.trim();
+  if (wanted) live.roomId = wanted;
+  else delete live.roomId;
+}
+
 /* ------------------------------------------------------------------------ *
  *  Giving it an audience.  [§17, U-31, D-03]
  * ------------------------------------------------------------------------ */

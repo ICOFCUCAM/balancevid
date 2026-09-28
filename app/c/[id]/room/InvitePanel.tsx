@@ -19,7 +19,7 @@ import { useState } from 'react';
  * credential to do it.
  */
 export default function InvitePanel({
-  conversationId, joinUrl, title, sourceTitle, onRotate, busy,
+  conversationId, joinUrl, title, sourceTitle, onRotate, busy, heading,
 }: {
   conversationId: string;
   joinUrl: string;
@@ -27,6 +27,16 @@ export default function InvitePanel({
   sourceTitle: string;
   onRotate: () => void;
   busy: boolean;
+  /**
+   * What the panel is called where it is standing.
+   *
+   * The room and the control room invite people to the same place and mean
+   * different things by it — "this conversation" is right in Studio One and
+   * wrong in a gallery, where the person being invited is joining a
+   * broadcast. A prop rather than a second copy of the panel: the join URL
+   * is composed in exactly one place and stays that way. [D-19]
+   */
+  heading?: string;
 }) {
   const [copied, setCopied] = useState(false);
   const [showQr, setShowQr] = useState(false);
@@ -71,7 +81,7 @@ export default function InvitePanel({
     <div data-testid="invite-panel">
       <div className="small muted" style={{ textTransform: 'uppercase',
         letterSpacing: 0.8, fontSize: 11, marginBottom: 6 }}>
-        Invite people to this conversation
+        {heading ?? 'Invite people to this conversation'}
       </div>
 
       <div className="row" style={{ gap: 6, flexWrap: 'nowrap', marginBottom: 8 }}>

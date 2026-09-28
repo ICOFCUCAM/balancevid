@@ -6,7 +6,7 @@ import {
   removeFromBlock, removeFromRotation, removeProgramme, requestRecording,
   retitleProgramme, rollIn, scheduleProgramme, setEmergency, setFiller,
   addDestination, removeDestination, setBackup, setDestination, setIdentity,
-  skipToNext, takeLive, publishChannel, unpublishChannel,
+  skipToNext, takeLive, publishChannel, unpublishChannel, attachRoom,
 } from '../../../../src/domain/channelEdit.js';
 import {
   gaps, nextAfter, onAirAt, orderedProgrammes, overlaps, referencedAssets,
@@ -323,6 +323,13 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
         case 'close-ingest':
           closeIngest(draft, body['ingestId'], at,
             body['durationMs'] === undefined ? undefined : Number(body['durationMs']));
+          break;
+        /*
+         * Which room the guests are in (§6). The channel names it; the Room
+         * owns everything that follows. [D-17, D-19]
+         */
+        case 'attach-room':
+          attachRoom(draft, body['roomId']);
           break;
         /* ---- who may watch it (§17) ----------------------------------- */
         /*

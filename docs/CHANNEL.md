@@ -943,3 +943,56 @@ of it — while a viewer got a player that spun for ever.
 segments already had mtimes. What was missing was the twenty lines that write
 one file and the pure function that reads two numbers — which is why the whole
 of it is unit-tested without a process, a channel or a frame.
+
+## §19 — Inviting people onto the broadcast
+
+> *"They don't necessarily need a BalanceVid account initially."* [ROOM §6]
+
+A channel does not grow a room. It **names** one — an existing
+conversation's — and the Room keeps everything that follows: the invitation,
+the joining, the staging, the speaker switching. The whole of the coupling is
+one field on the live session.
+
+**The capability existed and the door did not.** `goLive` has always taken a
+`roomId`, so a broadcast could come out of a room — but the only way to name
+one was a `window.prompt` wanting a raw `conv_…` identifier typed from
+memory, and the invitation itself lived in Studio One. Getting a guest on the
+air meant leaving the control room, finding the conversation, opening its
+room, copying the link, coming back, and remembering an id. A feature nobody
+can reach is a feature that does not exist.
+
+**GO LIVE no longer asks.** It arms the feed; the Guests tab is where a room
+is chosen and people are invited. One question per place, and the place is
+the one named after the thing.
+
+**Armed is the right moment to invite.** A broadcast that is armed is not on
+air — the schedule is still going out — so inviting people, waiting for them
+to arrive and staging them all happen before a viewer sees anything. The
+ARM → TAKE discipline (§6) doing a second job.
+
+**The room can change while on air.** "We should get Sarah on" at 20:40 is an
+ordinary thing to say, and a field that could only be set at GO LIVE would
+make it a reason to end the broadcast. Detaching leaves the room running with
+its guests in it; it simply stops being the one this channel is looking at.
+
+**The panel is the Room's own.** `InvitePanel` is imported, not
+reimplemented — link, copy, native share, WhatsApp, SMS, email, QR, and
+rotate. It gained exactly one prop, a heading, because "this conversation" is
+right in Studio One and wrong in a gallery. A second invite panel would be a
+second place the join URL can be composed wrongly, and the URL carries the
+credential.
+
+---
+
+## C-10 — Stage 10: the door that was missing
+
+**Checked first; the answer was "almost all of it exists".** [D-19] The Room
+had invitation by link, tokens, QR, rotation and a share panel; the channel
+had a `roomId` field and a mesh that read the Room's staging. What was
+missing was a `select` and one edit — `attachRoom` — and the import of a
+component that had been sitting in `app/c/[id]/room/` since the Room was
+built.
+
+**The whole feature is one new domain function.** Everything else is
+arrangement. That is what a check-before-building rule buys: the second time
+a capability is needed, it is a prop and a picker rather than a subsystem.
