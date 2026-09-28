@@ -20,7 +20,7 @@
  * actually exist; this is about the asks themselves.
  */
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -104,6 +104,37 @@ describe('the control room asks before the irreversible', () => {
       expect(STUDIO.slice(at, at + 120), `"${verb}" is not marked danger`)
         .toMatch(/danger:\s*true/);
     }
+  });
+});
+
+/**
+ * NOT ONE, ANYWHERE.  [D-04]
+ *
+ * The control-room check above protects one file. This protects the
+ * product, and it is the one that will actually catch somebody: a
+ * `window.confirm` is the obvious thing to reach for when adding a
+ * feature in a hurry, it works, and nothing else in the toolchain
+ * objects to it.
+ */
+describe('the whole product', () => {
+  it('raises no native dialog in any surface', () => {
+    const offenders: string[] = [];
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const full = join(dir, entry.name);
+        if (entry.isDirectory()) { walk(full); continue; }
+        if (!/\.tsx?$/.test(entry.name)) continue;
+        const code = readFileSync(full, 'utf8')
+          .replace(/\/\*[\s\S]*?\*\//g, '')
+          .replace(/\/\/[^\n]*/g, '');
+        if (/window\.(confirm|prompt|alert)\s*\(/.test(code)) {
+          offenders.push(full.slice(full.indexOf('app/')));
+        }
+      }
+    };
+    walk(join(ROOT, 'app'));
+    expect(offenders, `still asking through the browser: ${offenders.join(', ')}`)
+      .toEqual([]);
   });
 });
 

@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+
+import { useConfirm } from '../../Confirm.js';
 import { HOUSE_FPS } from '../../../src/domain/time.js';
 import type { ExplainTool } from './CompositionRail.js';
 
@@ -41,6 +43,7 @@ export default function ExplainSurface({
 }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const setDraft = onDraft;
+  const { confirm, dialog } = useConfirm();
 
   // Escape puts the tool down. A mode with no way out is a trap.
   useEffect(() => {
@@ -64,8 +67,24 @@ export default function ExplainSurface({
     // One click, one mark: the tools a person uses by pointing.
     if (tool === 'point') { onPlace({ kind: 'point', points: [from], drawFrames: 6 }); return; }
     if (tool === 'text') {
-      const text = window.prompt('Label');
-      if (text?.trim()) onPlace({ kind: 'text', points: [from], text: text.trim() });
+      /*
+       * THE LAST NATIVE DIALOG IN THE PRODUCT, and the one where losing
+       * it costs the most context. A label is placed AT A POINT on a
+       * frame somebody is explaining — and `window.prompt` covered that
+       * frame with an operating-system box, so the person typing could
+       * no longer see the thing they were labelling.
+       *
+       * The product's own dialog does not cover the picture, and the
+       * question can now say where the mark is going, which a one-line
+       * prompt saying "Label" could not.
+       */
+      confirm({
+        question: 'The label is drawn on the frame at the point you '
+          + 'clicked, and stays for as long as the mark does.',
+        field: { label: 'What does it say?', placeholder: 'Here' },
+        verb: 'Place the label',
+        go: (text) => onPlace({ kind: 'text', points: [from], text }),
+      });
       return;
     }
 
@@ -97,6 +116,8 @@ export default function ExplainSurface({
   };
 
   return (
+    <>
+    {dialog}
     <div
       ref={hostRef}
       data-testid="explain-surface"
@@ -112,5 +133,6 @@ export default function ExplainSurface({
         Marking the frame — Escape to stop
       </div>
     </div>
+    </>
   );
 }
