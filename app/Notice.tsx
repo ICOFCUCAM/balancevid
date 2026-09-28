@@ -30,19 +30,19 @@ const LOOK: Record<NoticeKind, { edge: string; wash: string; ink: string; word: 
   error: {
     edge: 'var(--state-bad)',
     wash: 'rgba(215,89,74,0.10)',
-    ink: '#f0958a',
+    ink: 'var(--ink-on-bad)',
     word: 'Failed',
   },
   warning: {
     edge: 'var(--state-armed)',
     wash: 'var(--state-armed-wash)',
-    ink: '#f0c66a',
+    ink: 'var(--ink-on-armed)',
     word: 'Careful',
   },
   done: {
     edge: 'var(--state-ok)',
     wash: 'var(--state-ok-wash)',
-    ink: '#84c797',
+    ink: 'var(--ink-on-ok)',
     word: 'Done',
   },
   info: {

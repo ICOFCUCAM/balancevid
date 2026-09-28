@@ -46,6 +46,17 @@
   --state-warn: #d79a2b;
   --state-bad: #d7594a;
 
+  /*
+   * THE INK A NOTICE IS WRITTEN IN, which is not the colour of its
+   * marker. A message set in --state-bad is the same red as the edge
+   * beside it and disappears into its own wash; the text has to be a
+   * lighter tint of the same hue so the two read as one object with a
+   * bright edge rather than as red-on-red.
+   */
+  --ink-on-bad: #f0958a;
+  --ink-on-armed: #f0c66a;
+  --ink-on-ok: #84c797;
+
   /* The old names, aliased, so nothing has to change at once. */
   --ok: var(--state-ok);
   --warn: var(--state-warn);

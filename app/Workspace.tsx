@@ -318,7 +318,7 @@ export default function Workspace({
                       {mine.length === 0 && (
                         <span className="muted" style={{
                           position: 'absolute', inset: 0, display: 'grid',
-                          placeItems: 'center', fontSize: 30, opacity: 0.35,
+                          placeItems: 'center', fontSize: 'var(--text-2xl)', opacity: 0.35,
                         }}>{studio.glyph}</span>
                       )}
                       {studio.studio === 'tv' && mine.some((r) => r.live) && (
@@ -345,7 +345,7 @@ export default function Workspace({
                         }}>{studio.label}</span>
                       </span>
                       <strong style={{ fontSize: 17 }}>{studio.name}</strong>
-                      <p className="muted" style={{ margin: 0, fontSize: 12.5 }}>
+                      <p style={{ margin: 0, fontSize: 'var(--text-sm)', color: 'var(--text-faint)' }}>
                         {studio.blurb}
                       </p>
                       <span className="grow" />
@@ -655,11 +655,12 @@ function Card({
           minWidth: 0, textDecoration: 'none', color: 'inherit',
         }}>
           <span style={{
-            display: 'block', fontSize: 12.5, fontWeight: 600, overflow: 'hidden',
+            display: 'block', fontSize: 'var(--text-sm)',
+            fontWeight: 'var(--weight-semi)', overflow: 'hidden',
             textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           }}>{record.title}</span>
           <span className="muted" style={{
-            display: 'block', fontSize: 10.5, overflow: 'hidden',
+            display: 'block', fontSize: 'var(--text-2xs)', overflow: 'hidden',
             textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           }}>
             {record.detail}{record.published ? ' · published' : ''}
