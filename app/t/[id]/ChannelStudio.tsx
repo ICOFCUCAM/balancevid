@@ -24,6 +24,7 @@ import {
   type Devices, cameraConstraints, microphoneConstraints, useDevices,
 } from '../../useDevices.js';
 import { useQuality } from '../../useQuality.js';
+import { useConfirm } from '../../Confirm.js';
 import {
   type Quality, type QualityId, QUALITIES, QUALITY_ORDER, aboveTransmission,
   qualityFor, rateSentence, rateVerdict, targetBytesPerSecond,
@@ -219,6 +220,15 @@ export default function ChannelStudio({
    * this is a preset and not three menus.
    */
   const quality = useQuality();
+  /*
+   * ASKING BEFORE THE IRREVERSIBLE ONES. [Confirm.tsx]
+   *
+   * These replace `window.confirm`, which on a dark desk is a white box
+   * in the operating system's typography, arriving at the top of the
+   * window far from the control that raised it — and whose only buttons
+   * are OK and Cancel, neither of which says what is about to happen.
+   */
+  const { confirm, dialog: confirmDialog } = useConfirm();
   const liveNow = channel.live && channel.live.phase !== 'ended';
   const guests = useBroadcastGuests({
     roomId: channel.live?.roomId,
@@ -514,13 +524,15 @@ export default function ChannelStudio({
      */
     void patch({ action: 'go-live', label });
   };
-  const endLive = () => {
-    if (!window.confirm(keeping
+  const endLive = () => confirm({
+    question: keeping
       ? 'End the broadcast? It will be saved as a recording.'
-      : 'End the broadcast? It is NOT being saved, so the live buffer is '
-        + 'discarded.')) return;
-    void patch({ action: 'end-live' });
-  };
+      : 'End the broadcast? It is not being saved, so the live buffer is '
+        + 'discarded.',
+    verb: 'End the broadcast',
+    danger: true,
+    go: () => void patch({ action: 'end-live' }),
+  });
 
   return (
     <div className="shell">
@@ -684,9 +696,15 @@ export default function ChannelStudio({
                 keep={railRows.keep}
                 onChoose={setChosen}
                 onUnschedule={(entry) => {
-                  if (!window.confirm(
-                    'Take it off the schedule? The video itself is untouched.')) return;
-                  void patch({ action: 'unschedule', programmeId: entry.id });
+                  confirm({
+                    question: 'Take it off the schedule? The video itself is '
+                      + 'untouched — it stays in the library.',
+                    verb: 'Unschedule',
+                    danger: true,
+                    go: () => void patch({
+                      action: 'unschedule', programmeId: entry.id,
+                    }),
+                  });
                 }}
                 onAddBlock={() => {
                   const name = window.prompt('What is the day-part called?', 'Morning');
@@ -699,10 +717,13 @@ export default function ChannelStudio({
                     fromMinute: (hours ?? 0) * 60 + (minutes ?? 0),
                   });
                 }}
-                onRemoveBlock={(block) => {
-                  if (!window.confirm(`Remove the ${block.name} block?`)) return;
-                  void patch({ action: 'remove-block', blockId: block.id });
-                }}
+                onRemoveBlock={(block) => confirm({
+                  question: `Remove the ${block.name} block? The programmes `
+                    + 'inside it stay where they are — only the block goes.',
+                  verb: 'Remove the block',
+                  danger: true,
+                  go: () => void patch({ action: 'remove-block', blockId: block.id }),
+                })}
               />
             )}
           </div>
@@ -1597,10 +1618,15 @@ export default function ChannelStudio({
             onClick={() => {
               if (emergency) { void patch({ action: 'emergency', source: null }); return; }
               if (!pickedItem) return;
-              if (!window.confirm(
-                `Cut away to "${pickedItem.title}" now? This interrupts whatever `
-                + 'is on air, including a live broadcast.')) return;
-              void patch({ action: 'emergency', source: pickedItem.source });
+              confirm({
+                question: `Cut away to “${pickedItem.title}” now? This `
+                  + 'interrupts whatever is on air, including a live broadcast.',
+                verb: 'Cut away now',
+                danger: true,
+                go: () => void patch({
+                  action: 'emergency', source: pickedItem.source,
+                }),
+              });
             }}
             /*
               * ARMED IT IS LOUD; IDLE IT IS AN OUTLINE. A destructive
@@ -1895,10 +1921,14 @@ export default function ChannelStudio({
                   className="small" data-testid="publish-channel"
                   onClick={() => {
                     if (published) {
-                      if (!window.confirm(
-                        'Take the channel off the air for viewers? It keeps '
-                        + 'transmitting \u2014 the link simply stops working.')) return;
-                      void patch({ action: 'unpublish' });
+                      confirm({
+                        question: 'Take the channel off the air for viewers? '
+                          + 'It keeps transmitting \u2014 the link simply '
+                          + 'stops working.',
+                        verb: 'Stop the link',
+                        danger: true,
+                        go: () => void patch({ action: 'unpublish' }),
+                      });
                       return;
                     }
                     const author = window.prompt(
@@ -1967,6 +1997,17 @@ export default function ChannelStudio({
           </p>
         )}
       </footer>
+
+      {/*
+        * THE DIALOG LIVES AT THE END OF THE SHELL and is rendered on
+        * every pass whether or not anything is being asked. A <dialog>
+        * in the top layer is not positioned by where it sits in the
+        * tree, so this costs nothing and means the hook has somewhere
+        * to put its question — a `useConfirm` whose dialog is never
+        * mounted silently does nothing at all, which is the worst way
+        * for a confirmation to fail. [Confirm.tsx]
+        */}
+      {confirmDialog}
     </div>
   );
 }

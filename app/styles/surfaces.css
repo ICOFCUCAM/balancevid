@@ -224,3 +224,20 @@ hr, .rule {
   }
   button.sm, .btn.sm { min-height: 32px; }
 }
+
+/* ---- the backdrop behind a dialog ------------------------------------
+ *
+ * The default is a light grey wash designed for a white page. Behind a
+ * dark panel it lightens the room rather than dimming it, which is the
+ * exact opposite of what a backdrop is for.
+ *
+ * Dark, and blurred: the blur is not decoration but the thing that makes
+ * the page behind read as OUT OF REACH rather than merely tinted — and
+ * on a control room full of moving video, a tint alone leaves six
+ * animated rectangles competing with the question being asked.
+ */
+dialog::backdrop {
+  background: rgba(4, 6, 9, 0.62);
+  backdrop-filter: blur(3px) saturate(0.85);
+  -webkit-backdrop-filter: blur(3px) saturate(0.85);
+}
