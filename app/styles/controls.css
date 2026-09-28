@@ -46,6 +46,22 @@ button, .btn {
    * the padding above sets the look, this sets the hit.
    */
   min-height: 34px;
+  /*
+   * CENTRED, WHICH IS RIGHT FOR A LABEL AND WRONG FOR A CARD.
+   *
+   * This rule was added to give every control a reliable hit area, and
+   * it broke five surfaces at once: a button whose content is two
+   * stacked <div>s — a name and a description underneath it — became
+   * two boxes side by side, centred, with the description crushed
+   * against the name. Studio Two's sound modes, Studio One's layouts,
+   * the room's speaker modes and both cards on the start screen.
+   *
+   * The lesson is about the rule, not the buttons. `display: flex` on
+   * EVERY button assumes every button holds a phrase, and this product
+   * has several that hold a paragraph. So the flex applies only where
+   * the content really is inline, and anything with a block child
+   * governs itself.
+   */
   display: inline-flex; align-items: center; justify-content: center;
   gap: var(--space-3);
   /*
@@ -84,6 +100,25 @@ button:disabled, .btn[aria-disabled='true'] {
   opacity: 0.42;
   cursor: not-allowed;
   box-shadow: none;
+}
+
+/*
+ * A BUTTON THAT IS A CARD. Two lines, left-aligned, stacked — a choice
+ * with an explanation rather than a control with a label. It opts out of
+ * the centring above rather than fighting it with overrides at each
+ * call site.
+ */
+button:has(> div),
+button:has(> p),
+.btn.stacked,
+button.stacked {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  text-align: left;
+  gap: var(--space-1);
+  line-height: var(--leading-snug);
 }
 
 /* ---- intent ---------------------------------------------------------- */
