@@ -1,4 +1,4 @@
-import { joinRoom } from '../../../../../../src/domain/roomEdit.js';
+import { inviteOpen, joinRoom } from '../../../../../../src/domain/roomEdit.js';
 import { EditError } from '../../../../../../src/domain/edit.js';
 import { guestCookie, issueGuest } from '../../../../../../src/auth/guest.js';
 import { isSecureRequest } from '../../../../../../src/auth/session.js';
@@ -43,11 +43,18 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
    * The comparison is length-independent so that a wrong token cannot be
    * narrowed down by how long the refusal takes.
    */
-  if (!room?.open || !body.token || !constantTimeEqual(body.token, room.inviteToken)) {
+  const now = new Date().toISOString();
+  /*
+   * Closed, never opened, the wrong secret, or past its expiry: one answer
+   * for all four. An expired link is told apart from a wrong one by nobody
+   * — saying "that expired" confirms the room exists, and whether a given
+   * conversation exists is itself private. [D-03, MASTER-EDIT §10]
+   */
+  if (!room?.open || !inviteOpen(room, now)
+    || !body.token || !constantTimeEqual(body.token, room.inviteToken)) {
     return fail(404, 'that invitation is not valid. Ask for a new link.');
   }
 
-  const now = new Date().toISOString();
   let participantId: string;
   try {
     const updated = await mutateRoomHost(id, (draft) => {

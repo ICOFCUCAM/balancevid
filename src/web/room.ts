@@ -76,6 +76,13 @@ export function roomView(
     participants,
     hands: raisedHands(conversation.participants ?? []).map((p) => p.id),
     ...(owner && room ? { inviteToken: room.inviteToken } : {}),
+    /*
+     * THE TERMS GO TO THE OWNER ONLY, with the token, and for the same
+     * reason: what a link admits people as is a fact about the host's
+     * arrangements, and a guest reading the room does not need to know
+     * that somebody else's link expires on Friday. [D-03]
+     */
+    ...(owner && room?.terms ? { terms: room.terms } : {}),
     ...(me ? { meId: me } : {}),
   };
 }
@@ -126,7 +133,22 @@ export function mayRecord(conversation: RoomHost, caller: Caller): boolean {
    */
   const participant = (conversation.participants ?? [])
     .find((p) => p.id === caller.participantId);
-  return Boolean(participant && may(participant, 'respond'));
+  if (!participant || !may(participant, 'respond')) return false;
+  /*
+   * AND THE DEVICES THEY WOULD BE RECORDING WITH.  [MASTER-EDIT §10]
+   *
+   * HERE, BECAUSE THIS IS WHERE RECORDING IS ALREADY DECIDED. A camera
+   * permission enforced in the browser is a button that is easy to not
+   * draw and impossible to rely on; every route that accepts a guest's
+   * recording asks this function, so a device withheld is withheld at the
+   * only place it matters.
+   *
+   * EITHER, NOT BOTH: a take is a recording of a person, and somebody with
+   * a microphone and no camera is somebody contributing audio, which this
+   * product composes perfectly well. Requiring both would make withholding
+   * a camera mean withholding a voice, which is not what the host said.
+   */
+  return may(participant, 'use.camera') || may(participant, 'use.microphone');
 }
 
 /**

@@ -7,6 +7,7 @@ import { useConfirm } from '../../Confirm.js';
 import InvitePanel from '../../c/[id]/room/InvitePanel.js';
 import type { Channel } from '../../../src/domain/channel.js';
 import { roomBase } from '../../../src/domain/document.js';
+import type { InviteTerms } from '../../../src/domain/document.js';
 
 /**
  * Inviting people onto the broadcast.  [Doctrine CHANNEL §6, ROOM §3, §6, D-19]
@@ -45,6 +46,8 @@ interface Conversation {
 }
 
 interface RoomView {
+  /** The terms on the door, owner only. [MASTER-EDIT §10] */
+  terms?: InviteTerms;
   open: boolean;
   inviteToken?: string;
   participants?: { id: string; displayName: string }[];
@@ -295,6 +298,8 @@ export default function GuestsTab({
             sourceTitle={`${channel.name} — live`}
             busy={busy}
             onRotate={() => { void act({ action: 'rotate-invite' }); }}
+            terms={room.terms}
+            onTerms={(terms) => { void act({ action: 'invite-terms', terms }); }}
           />
         ) : (
           <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-xs)' }}>

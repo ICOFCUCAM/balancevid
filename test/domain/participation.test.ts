@@ -25,7 +25,7 @@ import {
   participantFor, renderableInterventions, responseNumbers, speakingParticipants,
 } from '../../src/domain/document.js';
 import {
-  CAPABILITIES, capabilitiesOf, defaultsFor, may, mayBeStaged,
+  CAPABILITIES, DEVICE_CAPABILITIES, capabilitiesOf, defaultsFor, may, mayBeStaged,
   type Participant, type ParticipantId, type ParticipantRole,
 } from '../../src/domain/participants.js';
 import { projectTimeline } from '../../src/domain/timeline.js';
@@ -193,8 +193,40 @@ describe('what each person may do (ROOM §3, D-03)', () => {
     for (const capability of CAPABILITIES) expect(may(host, capability)).toBe(true);
   });
 
-  it('a speaker may answer and tidy their own material, and nothing else', () => {
-    expect(capabilitiesOf(person('part_s', 'Sarah'))).toEqual(['respond', 'edit.own']);
+  /*
+   * A SPEAKER ALSO ARRIVES WITH A CAMERA AND A MICROPHONE, since §10's
+   * device permissions became capabilities rather than a second system.
+   * That is what the role MEANS — somebody invited to be seen and heard —
+   * and this test is the list, so the list is here.
+   */
+  it('a speaker may answer, tidy their own material, and be seen and heard', () => {
+    expect(capabilitiesOf(person('part_s', 'Sarah')))
+      .toEqual(['respond', 'edit.own', 'use.camera', 'use.microphone']);
+  });
+
+  /*
+   * AND NOT SHARE A SCREEN. It is the one device act that can put something
+   * in front of a room that nobody in it expected, so it is grantable and
+   * granted deliberately — the same argument as `publish`.
+   */
+  it('a speaker does not get a screen without being given one', () => {
+    const sarah = person('part_s', 'Sarah');
+    expect(may(sarah, 'use.screen')).toBe(false);
+    sarah.grants = { 'use.screen': true };
+    expect(may(sarah, 'use.screen')).toBe(true);
+  });
+
+  /*
+   * AN AUDIENCE MEMBER HAS NO DEVICES AT ALL, which is what makes bringing
+   * somebody up two decisions rather than one: `setStaged` puts them on
+   * screen, a grant turns their camera on, and a host who only meant the
+   * first has not accidentally done the second.
+   */
+  it('an audience member arrives with nothing switched on', () => {
+    const watching = person('part_a', 'Ade', 'audience');
+    for (const device of DEVICE_CAPABILITIES) {
+      expect(may(watching, device), device).toBe(false);
+    }
   });
 
   /*

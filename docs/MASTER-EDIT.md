@@ -359,14 +359,22 @@ What §10 asks for beyond that, measured:
 | the invitation lives in Live Studio → Guests | HAVE | `GuestsTab` |
 | guest list: connected / waiting | HAVE | `presenceOf`, `inRoom` |
 | admit / invite to stage | HAVE | `setStaged` |
-| guest **roles** | PARTIAL | `ParticipantRole` is `host / speaker / audience / editor` — not Guest / Co-host / Contributor, and the join route always mints `audience` |
-| per-guest **camera / mic / screen** permission | GAP | `Capability` is about the DOCUMENT — `respond`, `edit.own`, `edit.conversation`, `invite`, `publish`. There is no device permission in the model |
-| invitation **expiry** | GAP | `Room.inviteToken` is revoked by rotation, never by a clock |
+| guest **roles** | HAVE | `Room.terms.as` says what the link admits people as; the join route no longer always mints `audience`. The names stay `host / speaker / audience / editor` — they describe what somebody does in a conversation, which Guest / Co-host / Contributor does not |
+| per-guest **camera / mic / screen** permission | HAVE | `use.camera`, `use.microphone`, `use.screen` are capabilities like any other, so `may`, `grants` and `ROLE_DEFAULTS` work on them unchanged. Set for everyone on the link (`terms.grants`) or for one person after they arrive (`setGrant`), and enforced at `mayRecord` rather than in the browser |
+| invitation **expiry** | HAVE | `Room.terms.expiresAt` and `inviteOpen`; an expired link answers exactly as a wrong one does (D-03). Rotation is still the revocation that always works — an expiry is for a link living in a chat thread for a year |
 | role chosen **at invitation time** | GAP | one link, one role for everyone who follows it |
 
-The three gaps are one shape: **an invitation is currently a door, not a
-door with terms on it.** A token says "you may come in"; it does not say as
-what, with which devices, or until when.
+The three gaps were one shape: **an invitation was a door, not a door with
+terms on it.** A token said "you may come in"; it did not say as what, with
+which devices, or until when. It does now.
+
+**Three things worth keeping from building it.** Absent terms mean exactly
+what they meant before the field existed, because every room already open
+has none. The grants are *copied* onto each person as they arrive, so
+tightening the terms cannot reach back and take a microphone off somebody
+mid-sentence — an invitation describes an arrival. And a link can never
+admit a host: a link can be forwarded, and a host who sent one would be one
+forward away from somebody who could close the room on them.
 
 ---
 
