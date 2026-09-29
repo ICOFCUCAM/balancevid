@@ -378,6 +378,47 @@
 .state.is-on::before { background: var(--accent); }
 
 /*
+ * A BANK OF POSITIONS IS ONE CONTROL, AND LOOKS LIKE ONE.
+ *
+ * Four mutually exclusive choices had already stopped being four cards
+ * and become four `.ctl`s — but with four pixels of air between them,
+ * which leaves them four objects that happen to agree. A mode selector
+ * on a desk is a single piece of metal with positions cut into it: the
+ * positions share edges, the seam between them is a line rather than a
+ * gap, and the group has one outline.
+ *
+ * That difference is most of what "premium" means here. A gap says
+ * these things were placed; a shared seam says they were machined.
+ *
+ * The chosen one is lit down its leading edge rather than outlined,
+ * because inside a bank there is no outline of its own to colour — and
+ * an edge is the same thing every rail in this product uses to say
+ * "this one". [brief §3, §4, §14]
+ */
+.ctl-bank {
+  display: flex;
+  flex-direction: column;
+  border: var(--border) solid var(--console-edge);
+  border-radius: var(--radius-control);
+  overflow: hidden;
+}
+
+.ctl-bank > .ctl {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  border-bottom: var(--border) solid var(--console-seam);
+}
+
+.ctl-bank > .ctl:last-child { border-bottom: 0; }
+
+.ctl-bank > .ctl.is-on,
+.ctl-bank > .ctl[aria-pressed='true'] {
+  border-color: var(--console-seam);
+  box-shadow: inset 3px 0 0 0 var(--accent);
+}
+
+/*
  * THE FALLBACK WENT OUT. Not live, not scheduled — the thing that plays
  * when the thing that should have played did not. It keeps the existing
  * emergency red rather than taking a sixth colour. [brief §2]

@@ -499,3 +499,41 @@ describe('titles', () => {
       .toEqual([]);
   });
 });
+
+/**
+ * A BANK IS ONE PIECE OF METAL.  [brief §3, §4, §14]
+ *
+ * Mutually exclusive positions had already stopped being cards and
+ * become `.ctl`s, which was most of the work — and left four objects
+ * with four pixels of air between them, which is four objects that
+ * happen to agree rather than one control. A gap says these were
+ * placed; a shared seam says they were machined.
+ */
+describe('a bank of positions', () => {
+  it('shares edges rather than leaving gaps', () => {
+    const rule = CONSOLE.slice(CONSOLE.indexOf('.ctl-bank > .ctl {'),
+      CONSOLE.indexOf('.ctl-bank > .ctl:last-child'));
+    expect(rule, 'a position inside a bank keeps its own border')
+      .toMatch(/border:\s*0/);
+    expect(rule, 'a position inside a bank keeps its own corners')
+      .toMatch(/border-radius:\s*0/);
+    expect(rule, 'there is no seam between positions')
+      .toMatch(/border-bottom: var\(--border\) solid var\(--console-seam\)/);
+    expect(CONSOLE, 'the last position draws a seam against nothing')
+      .toMatch(/\.ctl-bank > \.ctl:last-child \{ border-bottom: 0/);
+  });
+
+  /*
+   * AND THE CHOSEN ONE IS LIT ON ITS EDGE, not outlined — inside a
+   * bank there is no outline of its own to colour, and an edge is
+   * what every rail in this product uses to say "this one".
+   */
+  it('lights the chosen position on its leading edge', () => {
+    expect(CONSOLE).toMatch(/inset 3px 0 0 0 var\(--accent\)/);
+  });
+
+  it('is what the room uses to choose a speaker mode', () => {
+    expect(code(join(ROOT, 'app', 'c', '[id]', 'room', 'RoomView.tsx')))
+      .toMatch(/className="ctl-bank" data-testid="speaker-mode"/);
+  });
+});

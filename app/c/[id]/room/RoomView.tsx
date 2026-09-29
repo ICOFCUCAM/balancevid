@@ -484,7 +484,8 @@ export default function RoomView({
                 letterSpacing: '0.1em', fontSize: 'var(--text-2xs)', marginBottom: 6 }}>
                 Speaker mode
               </div>
-              <div data-testid="speaker-mode" style={{ marginBottom: 8 }}>
+              <div className="ctl-bank" data-testid="speaker-mode"
+                   style={{ marginBottom: 8 }}>
                 {MODES.map((mode) => (
                   <button
                     key={mode.id}
@@ -500,11 +501,16 @@ export default function RoomView({
                       * Two's sound modes in 17: they share a face, the
                       * chosen one is lit along its leading edge, and
                       * the sentence under each is an explanation.
+                      *
+                      * They now share EDGES as well as a face. Four
+                      * pixels of air between four `.ctl`s leaves four
+                      * objects that happen to agree; a seam makes them
+                      * one piece of metal with positions cut into it.
                       */
                     className={`ctl${room.speakerMode === mode.id ? ' is-on' : ''}`}
                     style={{
                       display: 'block', width: '100%', textAlign: 'left',
-                      marginBottom: 4, padding: '8px 11px',
+                      padding: '8px 11px',
                     }}
                   >
                     <div style={{
