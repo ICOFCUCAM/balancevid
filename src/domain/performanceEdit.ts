@@ -27,6 +27,7 @@ import {
   DEFAULT_TRANSITION, MAX_TRANSITION_FRAMES, MIN_TRANSITION_FRAMES,
   type TransitionAlign, isTransition, isTransitionAlign, transitionOf,
 } from './transitions.js';
+import { NO_CLEANUP, isCleanup } from './cleanup.js';
 import { newId } from './ids.js';
 import type { TakeId } from './document.js';
 import {
@@ -842,6 +843,37 @@ export function setEffect(
   }
   if (!EFFECT_LOOKS[effect]) throw new PerformanceEditError(`unknown treatment: ${effect}`);
   take.effect = effect;
+}
+
+/**
+ * What to do about the room this take was recorded in.
+ * [MASTER-EDIT §8, §12 P2]
+ *
+ * The same shape as `setEffect` deliberately: one field, one table, `null`
+ * for none. A second way of saying "this take gets a named treatment" would
+ * be a second place for the two to disagree about what `none` means. [D-19]
+ *
+ * IT REFUSES A TAKE WITH NO SOUND IN IT, which `setEffect` has no analogue
+ * of. A denoiser on silence is not harmless — it is a control that appears
+ * to work, and the author spends the next twenty minutes wondering why the
+ * cleanup they chose did nothing. `hasAudio` is measured on ingest, so this
+ * is a question the document can answer. [U-02]
+ */
+export function setCleanup(
+  performance: Performance, takeId: string, cleanup: string | null,
+): void {
+  const take = takeById(performance, takeId);
+  if (!take) throw new PerformanceEditError(`no take ${takeId} in this performance`);
+  if (cleanup === null || cleanup === NO_CLEANUP) {
+    delete take.cleanup;
+    return;
+  }
+  if (!isCleanup(cleanup)) throw new PerformanceEditError(`unknown cleanup: ${cleanup}`);
+  if (take.hasAudio === false) {
+    throw new PerformanceEditError(
+      `"${take.label}" was recorded with no sound in it — there is nothing to clean`);
+  }
+  take.cleanup = cleanup;
 }
 
 /* ------------------------------------------------------------------------ *

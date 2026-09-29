@@ -29,6 +29,7 @@ import {
   coverage, projectPerformance, takeById,
 } from './performance.js';
 import { type Samples, HOUSE_SAMPLE_RATE } from './time.js';
+import { cleanupFor } from './cleanup.js';
 
 /**
  * The fade at each end of a piece, in samples (~24 ms).
@@ -67,6 +68,19 @@ export interface AudioPiece {
    * correction of drift, it is a correction of the moment before it starts.
    */
   rateRatio?: number;
+  /**
+   * The cleanup row this take carries, if any.  [MASTER-EDIT §8]
+   *
+   * CARRIED ON THE PIECE RATHER THAN LOOKED UP BY THE MIXER, because the
+   * mixer is handed a plan and not a document — that is what makes the plan
+   * hashable and the shot cache correct (U-16). A take whose cleanup
+   * changed must produce a different plan, and it does, because the plan
+   * says so here.
+   *
+   * Never set on a `master` piece. The song is the author's music and
+   * denoising it is damage done on their behalf.
+   */
+  cleanup?: string;
 }
 
 export class PerformanceAudioError extends Error {
@@ -183,6 +197,7 @@ export function planPerformanceAudio(
           (run.from - effective(take)) * take.alignment.rateRatio)),
         ...(take.alignment.rateRatio !== 1
           ? { rateRatio: take.alignment.rateRatio } : {}),
+        ...(cleanupFor(take.cleanup) ? { cleanup: take.cleanup } : {}),
         ...fades(run.from, run.to, performance, window),
       });
     }

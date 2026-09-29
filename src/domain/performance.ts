@@ -511,6 +511,26 @@ export interface PerformanceTake {
    */
   effect?: string;
   /**
+   * What to do about the room this take was recorded in.
+   * [MASTER-EDIT §8, §12 P2]
+   *
+   * A row in `CLEANUPS`, never a rack of parameters, for the reason
+   * `effect` is a row in `EFFECT_LOOKS`: an author knows what is wrong with
+   * their recording — a fan, a quiet vocal, handling noise — and does not
+   * know what `afftdn=nr=12:nf=-25` is for.
+   *
+   * ON THE TAKE AND NOT ON THE SCENE, which is the same shape as `effect`
+   * and for a stronger reason: a microphone's fan hum belongs to the
+   * recording, not to the stretch of song it happens to be used over. The
+   * same take cut into three places should not need cleaning three times,
+   * and should not be able to disagree with itself about whether it has a
+   * fan in it.
+   *
+   * Absent means none. A product that denoises by default is deciding how
+   * somebody's voice sounds before they have heard it.
+   */
+  cleanup?: string;
+  /**
    * Which plate this take is matted against. [§4, S-6, INV-16]
    *
    * A reference rather than a copy: one plate serves every take recorded in
