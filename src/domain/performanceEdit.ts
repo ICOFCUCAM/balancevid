@@ -27,7 +27,7 @@ import {
   DEFAULT_TRANSITION, MAX_TRANSITION_FRAMES, MIN_TRANSITION_FRAMES,
   type TransitionAlign, isTransition, isTransitionAlign, transitionOf,
 } from './transitions.js';
-import { NO_CLEANUP, isCleanup } from './cleanup.js';
+import { type SoundReading, NO_CLEANUP, isCleanup } from './cleanup.js';
 import { type ColourReading, isMeasured } from './colour.js';
 import { NO_STABILIZER, isStabilizer } from './stabilize.js';
 import { LyricsError, parseLrc } from './lyrics.js';
@@ -907,6 +907,22 @@ export function setColourReading(
   const take = takeById(performance, takeId);
   if (!take) throw new PerformanceEditError(`no take ${takeId} in this performance`);
   take.colour = reading;
+}
+
+/**
+ * What this take's sound measured, written down.  [MASTER-EDIT §12 P3, U-02]
+ *
+ * The render layer listens; this records. Separate from `setCleanup` for
+ * the reason `setColourReading` is separate from `matchColour`: a reading
+ * is a fact about the media and survives the author changing their mind
+ * about what to do with it.
+ */
+export function setSoundReading(
+  performance: Performance, takeId: string, reading: SoundReading,
+): void {
+  const take = takeById(performance, takeId);
+  if (!take) throw new PerformanceEditError(`no take ${takeId} in this performance`);
+  take.sound = reading;
 }
 
 /**

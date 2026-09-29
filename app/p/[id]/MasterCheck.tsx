@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import type { Performance, RenderProblem } from '../../../src/domain/performance.js';
-import { masterCheck, repairsFor } from '../../../src/domain/performance.js';
+import { masterCheck } from '../../../src/domain/performance.js';
+import { repairsFor } from '../../../src/domain/takeRanking.js';
 import { EXPORT_PROFILES } from '../../../src/domain/presentation.js';
 import { formatMasterPosition } from '../../../src/domain/time.js';
 import Icon from '../../Icon.js';

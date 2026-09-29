@@ -15,7 +15,7 @@ import { describe, expect, it } from 'vitest';
 import {
   type MasterTrack, type Performance, type PerformanceTake,
   coverage, covered, covers, effectiveOffset, masterToTake, mayPublish,
-  masterCheck, orderedScenes, projectPerformance, renderProblems, repairsFor,
+  masterCheck, orderedScenes, projectPerformance, renderProblems,
   sceneAt, stageNow, stagesOf, takeToMaster, coversSpan,
 } from '../../src/domain/performance.js';
 import {
@@ -34,6 +34,7 @@ import {
 } from '../../src/domain/time.js';
 import type { AssetId, TakeId } from '../../src/domain/document.js';
 import { EXPORT_PROFILES, LAYOUTS, takeSlots } from '../../src/domain/presentation.js';
+import { repairsFor } from '../../src/domain/takeRanking.js';
 
 const AT = '2026-09-24T12:00:00.000Z';
 /** Four minutes, which is a song. */

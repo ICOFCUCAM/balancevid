@@ -133,3 +133,101 @@ export const LENGTH_PRESERVING: readonly string[] = [
   'highpass', 'lowpass', 'afftdn', 'anlmdn', 'adeclick', 'speechnorm',
   'acompressor', 'alimiter', 'equalizer', 'dynaudnorm',
 ];
+
+/* ------------------------------------------------------------------------ *
+ *  Choosing a row from what was measured.  [MASTER-EDIT §12 P3, U-02, U-15]
+ * ------------------------------------------------------------------------ */
+
+/**
+ * What a take's sound measures.
+ *
+ * `astats`' own numbers, in dBFS. The three that matter for this decision:
+ * how loud the quietest part is (the noise floor), how loud the whole
+ * thing is, and where the peaks are. A fan is a floor that sits close to
+ * the voice; a clean recording has a floor far below it.
+ */
+export interface SoundReading {
+  /** dBFS. Higher means a noisier room. */
+  noiseFloorDb: number;
+  /** dBFS. The overall level. */
+  rmsDb: number;
+  /** dBFS. How close to clipping the loudest moment is. */
+  peakDb: number;
+  /** Zero means nothing was measured. */
+  windows: number;
+}
+
+export interface CleanupAdvice {
+  /** The row to use, or `NO_CLEANUP` when nothing is wrong. */
+  id: string;
+  /** Why, in the author's words. The whole point: this is a proposal. */
+  says: string;
+}
+
+export function isHeard(reading: SoundReading | undefined): boolean {
+  return reading !== undefined && reading.windows > 0;
+}
+
+/**
+ * Which row this recording wants, and why.
+ * [MASTER-EDIT §12 P3; Doctrine U-02, U-15]
+ *
+ * A PROPOSAL, NOT AN APPLICATION. Nothing here sets `take.cleanup`. The
+ * author presses something, for the reason U-15 gives: a denoiser chosen
+ * by a heuristic and applied without asking is the product deciding how
+ * somebody's voice sounds.
+ *
+ * THE MEASUREMENT IS THE HEADROOM BETWEEN THE FLOOR AND THE SIGNAL, which
+ * is the thing a listener actually hears as "noisy". An absolute floor
+ * says nothing on its own: −40 dBFS under a loud vocal is silence, and the
+ * same floor under a whispered one is a fan. So the decision is a
+ * difference, and the reason says the number.
+ *
+ * IT NEVER PROPOSES `heavy`. That row costs a swirl behind the vocal and
+ * the author is told so on the control; a machine choosing the row with a
+ * known cost, on their behalf, is exactly the trade U-15 says is theirs.
+ * The worst it will suggest is `voice`, and an author who can hear the fan
+ * on playback can still reach for `heavy` themselves.
+ */
+export function adviseCleanup(
+  reading: SoundReading | undefined,
+): CleanupAdvice | null {
+  if (!isHeard(reading)) return null;
+  const { noiseFloorDb, rmsDb, peakDb } = reading!;
+  const headroom = rmsDb - noiseFloorDb;
+
+  /*
+   * Sixteen decibels. Below that the floor is within earshot of the voice
+   * and a listener calls the recording noisy; above it, a denoiser is
+   * removing something nobody was going to hear and leaving artefacts in
+   * exchange.
+   */
+  if (headroom < 16) {
+    /* Quiet AND noisy wants levelling as well as denoising. */
+    if (peakDb < -12) {
+      return {
+        id: 'voice',
+        says: `the room is only ${headroom.toFixed(0)} dB below the voice and `
+          + `the loudest moment reaches ${peakDb.toFixed(0)} dB — quiet and noisy`,
+      };
+    }
+    return {
+      id: 'room',
+      says: `the room is only ${headroom.toFixed(0)} dB below the voice`,
+    };
+  }
+
+  /* Clean but quiet: nothing to remove, something to lift. */
+  if (peakDb < -12) {
+    return {
+      id: 'voice',
+      says: `clean, but the loudest moment only reaches ${peakDb.toFixed(0)} dB`,
+    };
+  }
+
+  return {
+    id: NO_CLEANUP,
+    says: `the room is ${headroom.toFixed(0)} dB below the voice — nothing `
+      + 'worth removing',
+  };
+}

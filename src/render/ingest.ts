@@ -20,6 +20,7 @@ import { HOUSE_FPS } from '../domain/time.js';
 import { ffmpeg, ffmpegCapture, type RunOptions } from './ffmpeg.js';
 import { probe, type MediaInfo } from './probe.js';
 import type { ColourReading } from '../domain/colour.js';
+import type { SoundReading } from '../domain/cleanup.js';
 import { type Stabilizer, detectArgs } from '../domain/stabilize.js';
 
 /** The house format. One shape, so concat never has to reconcile two. */
@@ -161,6 +162,99 @@ export async function detectShake(
   await ffmpeg([
     '-i', path, '-vf', detectArgs(stabilizer, resultPath), '-f', 'null', '-',
   ]);
+}
+
+/**
+ * What this take's sound measures.  [MASTER-EDIT §12 P3, U-02]
+ *
+ * `astats` over the whole take, for the three numbers `adviseCleanup`
+ * reads. The same shape as `measureColour` beside it and
+ * `measureLoudness` above: the render layer looks, the domain decides,
+ * and the domain never opens a file.
+ *
+ * Answers `windows: 0` rather than throwing on a file with no sound —
+ * footage can be picture-only, and the domain reads that as "not asked"
+ * rather than "nothing wrong".
+ */
+export async function measureSound(path: string): Promise<SoundReading> {
+  let stdout: string;
+  try {
+    ({ stdout } = await ffmpegCapture([
+      '-i', path, '-af', 'astats=metadata=1:reset=0,ametadata=print:file=-',
+      '-vn', '-f', 'null', '-',
+    ]));
+  } catch (error) {
+    const said = error instanceof Error ? error.message : '';
+    if (/does not contain any stream|Output file is empty/i.test(said)) {
+      return { noiseFloorDb: 0, rmsDb: 0, peakDb: 0, windows: 0 };
+    }
+    throw error;
+  }
+  return parseAstats(stdout);
+}
+
+/**
+ * What a floor of `-inf` is worth as a number.
+ *
+ * A digitally silent passage has no level at all, and the headroom
+ * arithmetic needs one. Minus a hundred and twenty dB is below the noise
+ * floor of any real recording, so it reads as "nothing to remove", which
+ * is what it means.
+ */
+export const SILENT_FLOOR_DB = -120;
+
+/** The overall figures `astats` prints once at the end. */
+export function parseAstats(text: string): SoundReading {
+  /*
+   * THE LAST ONE, NOT THE FIRST, AND THAT IS THE WHOLE BUG THIS FUNCTION
+   * SHIPPED WITH ONCE.
+   *
+   * `astats` with `reset=0` prints a CUMULATIVE Overall block on every
+   * frame — three hundred and forty-three of them for a seven-second take
+   * — and only the last is the figure for the whole file. The first is
+   * computed from a few hundred samples and is routinely `-inf`, which
+   * parsed as not-a-number and made the reading look like a measurement
+   * that never happened.
+   *
+   * It is the same mistake as taking the first line of an `ffprobe`
+   * listing that prints its keys in its own order: matching something is
+   * not the same as matching the right thing.
+   */
+  const of = (key: string): number | null => {
+    const all = [...text.matchAll(
+      new RegExp(`lavfi\\.astats\\.Overall\\.${key}=(-?[\\d.]+|-?inf)`, 'g'))];
+    const last = all[all.length - 1];
+    if (!last) return null;
+    const value = Number(last[1]);
+    return Number.isFinite(value) ? value : null;
+  };
+  const noiseFloorDb = of('Noise_floor');
+  const rmsDb = of('RMS_level');
+  const peakDb = of('Peak_level');
+
+  /*
+   * `-inf` IS AN ANSWER ON THE FLOOR AND A REFUSAL ON THE OTHER TWO, and
+   * telling them apart is the whole of this function.
+   *
+   * ffmpeg reports a noise floor of `-inf` when some stretch of the take
+   * is digital silence — which is not a failed measurement, it is the
+   * cleanest possible one, and the first version of this threw the whole
+   * reading away for it. The synthetic fixtures never hit the case
+   * because they have noise everywhere; the first real take did.
+   *
+   * `-inf` for the RMS or the peak is different: it means there is no
+   * sound in the file at all, and there is genuinely nothing to advise on.
+   */
+  if (rmsDb === null || peakDb === null) {
+    return { noiseFloorDb: 0, rmsDb: 0, peakDb: 0, windows: 0 };
+  }
+  return {
+    /* Below this, nothing in a 16-bit recording is audible anyway. */
+    noiseFloorDb: noiseFloorDb ?? SILENT_FLOOR_DB,
+    rmsDb,
+    peakDb,
+    windows: 1,
+  };
 }
 
 /**

@@ -8,8 +8,13 @@ import {
   MASTER_CLASSES, SPACES, isFootage, orderedScenes, renderProblems, sceneAt,
 } from '../../../src/domain/performance.js';
 import { EFFECT_LOOKS, SPACE_LOOKS } from '../../../src/domain/environment.js';
-import { CLEANUPS } from '../../../src/domain/cleanup.js';
+import {
+  CLEANUPS, NO_CLEANUP, adviseCleanup,
+} from '../../../src/domain/cleanup.js';
 import { STABILIZERS } from '../../../src/domain/stabilize.js';
+import {
+  proposeFirstCut, worthProposing,
+} from '../../../src/domain/takeRanking.js';
 import { useConfirm } from '../../Confirm.js';
 import { useMenu, type MenuEntry } from '../../Menu.js';
 import ClipInspector, { type Selection } from './ClipInspector.js';
@@ -466,6 +471,26 @@ export default function SwitchingStage({
       setSteadying(false);
     }
   }, [onChanged, performance.id, readHistory]);
+
+  /**
+   * Write a proposed arrangement, as scenes.  [MASTER-EDIT §12 P3, U-15]
+   *
+   * THE PROPOSAL BECOMES REAL HERE AND NOWHERE ELSE. `proposeFirstCut`
+   * returns scenes that do not exist; this is the press that makes them,
+   * and it goes through `set-scene` like every other edit — so it lands in
+   * the history, undoes in one press, and cannot reach the document by a
+   * path the rest of the studio does not use. [D-19]
+   */
+  const applyFirstCut = useCallback(async (
+    scenes: { fromSample: number; takeId: string }[],
+  ) => {
+    for (const scene of scenes) {
+      await patch({
+        action: 'set-scene', at: scene.fromSample,
+        layoutId: 'performance_full', takeIds: [scene.takeId],
+      });
+    }
+  }, [patch]);
 
   /*
    * WHAT CAN BE DONE TO WHAT IS ON SCREEN.  [§7, §8, §11, U-04]
@@ -1499,6 +1524,45 @@ export default function SwitchingStage({
           )}
 
           {sectionTitle('Sound')}
+          {/*
+            * WHAT WAS MEASURED, AND WHAT IT SUGGESTS.
+            * [MASTER-EDIT §12 P3, U-02, U-15]
+            *
+            * Above the rows rather than replacing them: the advice says
+            * which row and why, and the author presses it or presses
+            * another. It never proposes `Heavy`, which costs a swirl
+            * behind the vocal — a machine choosing the row with a known
+            * cost on somebody's behalf is the trade U-15 says is theirs.
+            *
+            * Only when it disagrees with what is already set, for the same
+            * reason the best-take line only shows when it disagrees: advice
+            * that repeats the current answer is noise.
+            */}
+          {subject && (() => {
+            const advice = adviseCleanup(subject.sound);
+            if (!advice) return null;
+            const already = (subject.cleanup ?? NO_CLEANUP) === advice.id;
+            if (already) return null;
+            return (
+              <div data-testid="cleanup-advice">
+                <div className="row" style={{ gap: 'var(--space-3)', flexWrap: 'wrap' }}>
+                  <span className="module-sub">Measured</span>
+                  <button className="ctl sm" data-testid="cleanup-advice-apply"
+                          onClick={() => void patch({
+                            action: 'set-cleanup', takeId: subject.id,
+                            cleanup: advice.id === NO_CLEANUP ? null : advice.id,
+                          })}>
+                    {advice.id === NO_CLEANUP
+                      ? 'Leave it as recorded'
+                      : `Use ${CLEANUPS[advice.id]?.label ?? advice.id}`}
+                  </button>
+                </div>
+                <p className="small muted" style={{ margin: '2px 0 0' }}>
+                  {advice.says}.
+                </p>
+              </div>
+            );
+          })()}
           {!subject ? null : subject.hasAudio === false ? (
             <p className="small muted" data-testid="cleanup-silent"
                style={{ margin: 0 }}>
@@ -2123,6 +2187,47 @@ export default function SwitchingStage({
           ))}
         </div>
       )}
+
+      {/*
+        * A FIRST CUT, OFFERED ONLY WHERE THERE IS NOTHING TO LOSE.
+        * [MASTER-EDIT §12 P3; Doctrine U-15, U-04, AI_MAY 'suggest structure']
+        *
+        * An empty Master Video lane is the one moment this is a gift
+        * rather than a threat: there is no arrangement to overwrite, and
+        * the blank timeline is the hardest part of this studio to start
+        * from. `worthProposing` is what makes that true, and it is in the
+        * domain rather than here so the rule is one rule.
+        *
+        * IT SAYS ITS METHOD BEFORE IT ACTS. The author presses a button
+        * that describes what it will do — how many sections, cut on what —
+        * because "make me a first cut" from a machine that will not say
+        * how is the thing U-15 exists to refuse. And it is one press to
+        * undo, because undo exists.
+        */}
+      {worthProposing(performance) && (() => {
+        const cut = proposeFirstCut(performance);
+        if (cut.refused) {
+          return (
+            <p className="small muted" data-testid="first-cut-refused"
+               style={{ margin: 0 }}>
+              {`A first cut is not possible yet: ${cut.refused}.`}
+            </p>
+          );
+        }
+        return (
+          <div className="row" data-testid="first-cut"
+               style={{ gap: 'var(--space-3)', flexWrap: 'wrap' }}>
+            <button className="ctl" data-testid="first-cut-apply"
+                    onClick={() => { void applyFirstCut(cut.scenes); }}>
+              Make a first cut
+            </button>
+            <span className="small muted" style={{ flex: '1 1 240px', minWidth: 0 }}>
+              {`${cut.says}. Nothing here can hear the song — change any of `
+                + 'it, or press undo.'}
+            </span>
+          </div>
+        );
+      })()}
 
       {pending.length > 0 && (
         <p className="small muted" data-testid="pending-hint" style={{ margin: 0 }}>

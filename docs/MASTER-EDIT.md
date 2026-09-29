@@ -181,6 +181,15 @@ Recorded so the brief is checked rather than remembered. `HAVE` means it
 works today; `DOMAIN` means the operation exists and nothing on screen reaches
 it; `GAP` means it does not exist.
 
+**A NOTE ON READING THIS DOCUMENT.** The §1–§4 tables below were written
+when the brief first arrived and record what was true THEN. Several rows in
+them said `GAP` for months after the thing was built, because the habit was
+to update the priority tables at the bottom and not the measurement at the
+top — which made the record lie about the product in the one direction that
+matters, understating it, and made the same gap look open twice. They have
+been brought up to date, and the lesson is worth more than the correction:
+a measurement is only worth keeping if it is re-measured.
+
 | brief | state | where |
 | --- | --- | --- |
 | §1 gaps found before render | HAVE | `renderProblems()` in `performance.ts`, asked by the console, the timeline and the invariant |
@@ -188,21 +197,21 @@ it; `GAP` means it does not exist.
 | §1 render refused while incomplete | HAVE | `Create master video` disabled; `assertPerformanceRenderable` refuses |
 | §1 `MASTER VIDEO · INCOMPLETE` on the lane | GAP | the lane has no state of its own |
 | §1 Use next take (start the next scene earlier) | HAVE | `coverGap()`, offered as **Extend scene** |
-| §1 Extend previous take | GAP | needs a scene END, which the model does not have — a scene runs until the next one starts |
+| §1 Extend previous take | HAVE, as a boundary move | it needed "a scene END, which the model does not have" — and trim showed that was the wrong shape for the question. Moving the boundary extends the previous take by construction |
 | §1 Insert another take / Cover with selected take | DOMAIN | `setScene(at, …)` does it; only the monitor's menu reaches it, not the gap |
 | §1 Freeze previous frame | GAP | no still-from-take source in the renderer |
 | §1 Remove gap | GAP | means moving every later scene earlier; no such operation |
-| §2 click a block to inspect it | GAP | `timeline-scene` has no click |
+| §2 click a block to inspect it | HAVE | selects it and opens the inspector |
 | §2 replace source | HAVE | monitor menu, `Replace with …` — and it does not move the boundary |
-| §2 trim in/out per segment | GAP | `trimTake` trims a TAKE for the whole performance; a scene has no in/out of its own |
+| §2 trim in/out per segment | HAVE | In and Out step the boundary — a scene still has no out-point, because its out IS the next clip's in, and the panel says so |
 | §2 composition per segment | DOMAIN | `setScene` takes a `layoutId`; the composition rail sets the NEXT scene, not the selected one |
 | §2 audio per segment | DOMAIN | `setSceneAudio`, behind the Audio settings disclosure |
 | §3 transition stored between takes | HAVE | `scene.transition` is how a scene ARRIVES — the join, stored on the later side |
-| §3 click the join | GAP | no transition handle on the timeline |
-| §3 adjustable duration | GAP | `TRANSITIONS` fixes frames per style |
-| §3 alignment | GAP | always centred: half from each side, by `INV-03` (the song does not get longer) |
+| §3 click the join | HAVE | `timeline-join` handles, and the transition inspector behind them |
+| §3 adjustable duration | HAVE | a stepper bounded by what the join can pay |
+| §3 alignment | HAVE | *Ends on the cut* / *Centred* / *Begins on the cut* — none of them lengthens the song (INV-03) |
 | §4 replace without moving the clock | HAVE | monitor menu; `patch` not `write`, so beat-snapping cannot drag the boundary |
-| §4 replace from the timeline block | GAP | same missing click as §2 |
+| §4 replace from the timeline block | HAVE | the clip inspector's source picker, at the scene's own sample |
 
 **What this says.** Most of §4 and much of §1 are built. The shape of the gap
 is consistent: **the operations exist in the domain and the timeline is
@@ -362,7 +371,7 @@ What §10 asks for beyond that, measured:
 | guest **roles** | HAVE | `Room.terms.as` says what the link admits people as; the join route no longer always mints `audience`. The names stay `host / speaker / audience / editor` — they describe what somebody does in a conversation, which Guest / Co-host / Contributor does not |
 | per-guest **camera / mic / screen** permission | HAVE | `use.camera`, `use.microphone`, `use.screen` are capabilities like any other, so `may`, `grants` and `ROLE_DEFAULTS` work on them unchanged. Set for everyone on the link (`terms.grants`) or for one person after they arrive (`setGrant`), and enforced at `mayRecord` rather than in the browser |
 | invitation **expiry** | HAVE | `Room.terms.expiresAt` and `inviteOpen`; an expired link answers exactly as a wrong one does (D-03). Rotation is still the revocation that always works — an expiry is for a link living in a chat thread for a year |
-| role chosen **at invitation time** | GAP | one link, one role for everyone who follows it |
+| role chosen **at invitation time** | HAVE | `Room.terms.as`. Still one link and one role — a second link would be a second thing to revoke — but the host sets what that role is |
 
 The three gaps were one shape: **an invitation was a door, not a door with
 terms on it.** A token said "you may come in"; it did not say as what, with
@@ -554,10 +563,12 @@ being a promise.
 | --- | --- |
 | automatic gap detection | HAVE |
 | beat-aware cuts | HAVE — `snapToBeat`, off until the author accepts the grid |
-| automatic continuity repair suggestions | PARTIAL — one remedy (extend the next scene), and it refuses when it would not help |
-| best-take suggestions | PARTIAL — `suggestions.ts` and `performanceClips.ts` rank clip candidates |
+| automatic continuity repair suggestions | HAVE — the remedies, and `rankTakes` now says WHICH take to choose rather than how many reach |
+| best-take suggestions | HAVE — `rankTakes` over measured facts only, with the reasons it scored by; shown only where it disagrees with the take already there |
 | captions in Studio Two | HAVE — timed lyrics on the master, `performanceCues`, and the worker passing them at both performance render sites. **Not** Studio One's transcription, and the note above P3 says why |
-| auto-reframe · automatic audio cleanup · transcript editing · AI first cut | GAP |
+| automatic audio cleanup | HAVE — `adviseCleanup` from a measured noise floor; it never proposes the row with a known cost |
+| AI first cut | HAVE — `proposeFirstCut`, offered only on an empty lane, and it proposes rather than writes |
+| auto-reframe · transcript editing | GAP |
 
 ### P4 — Studio-specific distribution
 
