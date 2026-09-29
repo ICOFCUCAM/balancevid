@@ -376,9 +376,26 @@ export default function PerformanceStudio(
           chosenTake={chosenTake}
           onChooseTake={setChosenTake}
           takesPanel={(
+            /*
+              * A MODULE IS THE COLUMN, NOT A CARD AT THE TOP OF IT.
+              * [brief §3, §4]
+              *
+              * The takes rail shrink-wrapped its two takes and stopped,
+              * leaving two thirds of the left column as bare desk with
+              * a bordered rectangle floating at the top of it. That is
+              * the single most recognisable "dashboard" shape there is,
+              * and it was the largest one left in this studio.
+              *
+              * On a desk a rail runs the height of the bay it is in —
+              * because the bay is the rail's, not because it has enough
+              * to put in it. Empty space belongs INSIDE the module,
+              * under the last take, where it reads as room for more
+              * takes rather than as a gap in the furniture.
+              */
             <div className="panel" data-testid="takes" style={{
               minWidth: 0, padding: 10, display: 'flex',
               flexDirection: 'column', gap: 8,
+              height: '100%', minHeight: 0,
             }}>
               {/*
                 * THE TAKES COLUMN.  [benchmark, §2, §5, §7]
@@ -425,7 +442,19 @@ export default function PerformanceStudio(
                 )}
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+              {/*
+                * THE LIST TAKES THE SLACK AND SCROLLS INSIDE IT, so the
+                * two things that are not takes — the camera when it is
+                * armed, and the two ways to bring footage in — keep
+                * their place at the foot of the module. Before this the
+                * whole column scrolled, which meant arming the camera
+                * could push the record button out of sight at the
+                * moment you were about to use it.
+                */}
+              <div style={{
+                display: 'flex', flexDirection: 'column', gap: 7,
+                flex: '1 1 auto', minHeight: 0, overflowY: 'auto',
+              }}>
                 {performance.takes.length === 0 && recording.phase === 'idle' && (
                   <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-xs)' }}>
                     Record against the song, or bring in something you filmed.
@@ -575,6 +604,7 @@ export default function PerformanceStudio(
                 <section data-testid="record" style={{
                   display: 'flex', flexDirection: 'column', gap: 8,
                   borderTop: '1px solid var(--line)', paddingTop: 8,
+                  flex: '0 0 auto',
                 }}>
                   <video
                     ref={recording.videoRef} autoPlay muted playsInline
@@ -675,6 +705,7 @@ export default function PerformanceStudio(
                 <div style={{
                   display: 'flex', gap: 6, alignItems: 'stretch',
                   borderTop: '1px solid var(--line)', paddingTop: 8,
+                  flex: '0 0 auto',
                 }}>
                   <UploadTake
                     compact
