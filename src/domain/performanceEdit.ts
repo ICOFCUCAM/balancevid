@@ -29,6 +29,7 @@ import {
 } from './transitions.js';
 import { NO_CLEANUP, isCleanup } from './cleanup.js';
 import { type ColourReading, isMeasured } from './colour.js';
+import { NO_STABILIZER, isStabilizer } from './stabilize.js';
 import { newId } from './ids.js';
 import type { TakeId } from './document.js';
 import {
@@ -176,6 +177,20 @@ export function setEnvironment(
   if (needsMatte(environment) && !plateFor(performance, target)) {
     fail('that background needs a matte, and this take has no plate to make one '
       + 'from — record three seconds of the empty room, then set it again');
+  }
+  /*
+   * AND THE OTHER HALF OF THE STABILISER'S REFUSAL. `setStabilize` refuses a
+   * take that is already in a replaced background; this refuses a
+   * replacement on a take that is already stabilised. Either alone would
+   * leave the ORDER THE AUTHOR HAPPENED TO PRESS THINGS IN deciding whether
+   * the render comes out torn, which is the worst kind of rule: it works
+   * when you test it and fails for somebody who did it the other way.
+   * [INV-16, MASTER-EDIT §8]
+   */
+  if (needsMatte(environment) && target.stabilize) {
+    fail(`"${target.label}" is stabilised, and a replaced background is keyed `
+      + 'against a still of the room the take no longer lines up with — turn '
+      + 'the stabiliser off first');
   }
   target.environment = environment;
 }
@@ -940,6 +955,47 @@ export function matchColour(
       `"${follower.label}" is matched to this take — unmatch it first`);
   }
   take.matchTo = to.id as TakeId;
+}
+
+/**
+ * Take the shake out of this take.  [MASTER-EDIT §5, §8, §12 P2]
+ *
+ * The same shape as `setEffect` and `setCleanup`: one field, one table,
+ * `null` for none. What it adds is a refusal the other two do not need.
+ *
+ * A STABILIZED TAKE CANNOT ALSO BE MATTED, and this is where that is said.
+ * §4's background replacement keys the performer out by differencing the
+ * take against a still plate of the same room (INV-16). Stabilizing moves
+ * the picture relative to that plate, so every edge in the room lands
+ * somewhere the plate says is empty and the matte fills with torn fringes.
+ * No ordering saves it — stabilize first and the plate no longer matches;
+ * matte first and the stabilizer is tracking a performer against a
+ * background that is not moving with them.
+ *
+ * Refused from BOTH sides: this refuses a take that is already in a drawn
+ * space, and `setEnvironment` refuses a stabilized take. One of the two
+ * alone would leave the order the author happened to press things in
+ * deciding whether the render comes out torn.
+ */
+export function setStabilize(
+  performance: Performance, takeId: string, stabilize: string | null,
+): void {
+  const take = takeById(performance, takeId);
+  if (!take) throw new PerformanceEditError(`no take ${takeId} in this performance`);
+  if (stabilize === null || stabilize === NO_STABILIZER) {
+    delete take.stabilize;
+    return;
+  }
+  if (!isStabilizer(stabilize)) {
+    throw new PerformanceEditError(`unknown stabilizer: ${stabilize}`);
+  }
+  if (take.environment.kind !== 'original') {
+    throw new PerformanceEditError(
+      `"${take.label}" is in a replaced background, which is keyed against a `
+      + 'still of the room — stabilising moves the picture away from it. '
+      + 'Put the take back in its own room first.');
+  }
+  take.stabilize = stabilize;
 }
 
 /* ------------------------------------------------------------------------ *

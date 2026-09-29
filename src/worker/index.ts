@@ -539,6 +539,9 @@ async function renderPerformance(job: Job): Promise<Job> {
       performance.plates.some((plate) => plate.assetId === assetId)
         ? paths.performancePlate(id, assetId)
         : paths.performanceAsset(id, assetId, 'png')),
+    /* The measured shake, written beside the mezzanine it was measured
+       from, under a derived id. [MASTER-EDIT §5] */
+    resolveTransforms: (assetId) => paths.performanceAsset(id, assetId, 'trf'),
     onProgress: (info) => {
       const frames = Number(info['frame'] ?? 0);
       if (frames > 0 && plan.totalOutputFrames > 0) {
@@ -605,6 +608,9 @@ async function renderPerformanceClip(job: Job): Promise<Job> {
       performance.plates.some((plate) => plate.assetId === assetId)
         ? paths.performancePlate(id, assetId)
         : paths.performanceAsset(id, assetId, 'png')),
+    /* The measured shake, written beside the mezzanine it was measured
+       from, under a derived id. [MASTER-EDIT §5] */
+    resolveTransforms: (assetId) => paths.performanceAsset(id, assetId, 'trf'),
     onProgress: (info) => {
       const frames = Number(info['frame'] ?? 0);
       if (frames > 0 && plan.totalOutputFrames > 0) {

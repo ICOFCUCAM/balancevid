@@ -9,6 +9,7 @@ import {
 } from '../../../src/domain/performance.js';
 import { EFFECT_LOOKS, SPACE_LOOKS } from '../../../src/domain/environment.js';
 import { CLEANUPS } from '../../../src/domain/cleanup.js';
+import { STABILIZERS } from '../../../src/domain/stabilize.js';
 import { useConfirm } from '../../Confirm.js';
 import { useMenu, type MenuEntry } from '../../Menu.js';
 import ClipInspector, { type Selection } from './ClipInspector.js';
@@ -279,6 +280,8 @@ export default function SwitchingStage({
    */
   const [matching, setMatching] = useState(false);
   const [matchSaid, setMatchSaid] = useState<string | null>(null);
+  /* A pass over the whole take, so the control has to show it is alive. */
+  const [steadying, setSteadying] = useState(false);
   /** Snapping is OFF until the author turns it on, which is the acceptance. */
   const [snap, setSnap] = useState(false);
   const [snapped, setSnapped] = useState<number | null>(null);
@@ -419,6 +422,29 @@ export default function SwitchingStage({
       void readHistory();
     } finally {
       setMatching(false);
+    }
+  }, [onChanged, performance.id, readHistory]);
+
+  /**
+   * Turn the stabiliser on, measuring the take on the way.
+   * [MASTER-EDIT §5]
+   */
+  const steady = useCallback(async (takeId: string, row: string) => {
+    setError(null);
+    setSteadying(true);
+    try {
+      const response = await fetch(
+        `/api/performances/${performance.id}/takes/${takeId}/stabilize`,
+        {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ stabilize: row === '' ? null : row }),
+        });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) { setError(data.error ?? 'that did not work'); return; }
+      onChanged(data.performance);
+      void readHistory();
+    } finally {
+      setSteadying(false);
     }
   }, [onChanged, performance.id, readHistory]);
 
@@ -1378,6 +1404,77 @@ export default function SwitchingStage({
               {matchSaid && (
                 <p className="small muted" data-testid="match-said"
                    style={{ margin: 0 }}>{matchSaid}</p>
+              )}
+            </>
+          )}
+
+          {/*
+            * STEADY, AFTER MATCH, BECAUSE IT IS THE FIRST THING THE RENDER
+            * DOES AND THE LAST THING AN AUTHOR DECIDES.  [MASTER-EDIT §5]
+            *
+            * Drawn as words rather than tiles for the reason the cleanups
+            * are: there is no picture of "handheld", and inventing one
+            * would be three tiles the author has to hover to read. [U-19]
+            *
+            * A TAKE IN A REPLACED BACKGROUND SEES A SENTENCE, NOT A DEAD
+            * CONTROL. The two cannot both be on — the matte is keyed
+            * against a still of the room the stabiliser moves away from —
+            * and a greyed row with no explanation teaches an author to
+            * guess. [INV-16]
+            */}
+          {!subject ? null : (
+            <>
+              {sectionTitle('Steady')}
+              {subject.environment?.kind !== 'original' ? (
+                <p className="small muted" data-testid="steady-blocked"
+                   style={{ margin: 0 }}>
+                  This take is in a replaced background, which is keyed
+                  against a still of its own room. Stabilising moves the
+                  picture away from that still, so the two cannot both be on.
+                </p>
+              ) : (
+                <>
+                  <div className="ctl-bank">
+                    <button className={`ctl${!subject.stabilize ? ' is-on' : ''}`}
+                            data-testid="steady-option" data-steady="none"
+                            aria-pressed={!subject.stabilize} disabled={steadying}
+                            onClick={() => { void steady(subject.id, ''); }}
+                            style={{ textAlign: 'left', padding: '7px 10px', display: 'block' }}>
+                      <span style={{
+                        fontWeight: 'var(--weight-semi)', fontSize: 'var(--text-sm)',
+                        letterSpacing: 0, textTransform: 'none',
+                      }}>As shot</span>
+                      <span className="muted" style={{
+                        display: 'block', fontSize: 'var(--text-2xs)', marginTop: 2,
+                        letterSpacing: 0, textTransform: 'none',
+                      }}>Every wobble you made, kept. The default.</span>
+                    </button>
+                    {Object.values(STABILIZERS).map((row) => (
+                      <button key={row.id}
+                              className={`ctl${subject.stabilize === row.id ? ' is-on' : ''}`}
+                              data-testid="steady-option" data-steady={row.id}
+                              aria-pressed={subject.stabilize === row.id}
+                              disabled={steadying}
+                              onClick={() => { void steady(subject.id, row.id); }}
+                              style={{ textAlign: 'left', padding: '7px 10px', display: 'block' }}>
+                        <span style={{
+                          fontWeight: 'var(--weight-semi)', fontSize: 'var(--text-sm)',
+                          letterSpacing: 0, textTransform: 'none',
+                        }}>{row.label}</span>
+                        <span className="muted" style={{
+                          display: 'block', fontSize: 'var(--text-2xs)', marginTop: 2,
+                          letterSpacing: 0, textTransform: 'none',
+                        }}>{row.hint}</span>
+                      </button>
+                    ))}
+                  </div>
+                  {steadying && (
+                    <p className="small muted" data-testid="steady-working"
+                       style={{ margin: 0 }}>
+                      Watching the whole take to see where it moved&hellip;
+                    </p>
+                  )}
+                </>
               )}
             </>
           )}

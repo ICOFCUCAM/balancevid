@@ -20,6 +20,7 @@ import { HOUSE_FPS } from '../domain/time.js';
 import { ffmpeg, ffmpegCapture, type RunOptions } from './ffmpeg.js';
 import { probe, type MediaInfo } from './probe.js';
 import type { ColourReading } from '../domain/colour.js';
+import { type Stabilizer, detectArgs } from '../domain/stabilize.js';
 
 /** The house format. One shape, so concat never has to reconcile two. */
 export const HOUSE = {
@@ -138,6 +139,28 @@ export async function measureLoudness(path: string): Promise<{ inputI: number; i
     '-i', path, '-af', 'loudnorm=print_format=json', '-f', 'null', '-',
   ]);
   return parseLoudnorm(stderr);
+}
+
+/**
+ * Walk the take and write down where every frame moved.
+ * [MASTER-EDIT §5, §8; Doctrine U-02]
+ *
+ * Pass one of two. The file it writes is read back by
+ * `vidstabtransform` at render time, so this is a MEASUREMENT kept beside
+ * the media, like a plate — not a rendered artefact and not something the
+ * document holds. Re-runnable: the take does not change, so the transforms
+ * do not either, and an existing file is as good as a new one.
+ *
+ * It writes and returns nothing, because the file IS the answer and
+ * handing it back as bytes would mean holding a take's worth of transforms
+ * in memory to put them straight back on disk.
+ */
+export async function detectShake(
+  path: string, resultPath: string, stabilizer: Stabilizer,
+): Promise<void> {
+  await ffmpeg([
+    '-i', path, '-vf', detectArgs(stabilizer, resultPath), '-f', 'null', '-',
+  ]);
 }
 
 /**
