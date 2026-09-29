@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import VideoTransport from '../../../VideoTransport.js';
 
 /**
  * Watching the channel.  [Doctrine CHANNEL §17, §11, U-31]
@@ -35,12 +36,15 @@ import { useEffect, useRef, useState } from 'react';
 const DRIFT_S = 12;
 
 export default function ChannelPlayer({
-  channelId, poster,
+  channelId, poster, onAir = false,
 }: {
   channelId: string;
   poster?: string;
+  /** From the channel's own `now` endpoint — see VideoTransport. */
+  onAir?: boolean;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [video, setVideo] = useState<HTMLVideoElement | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
 
@@ -119,17 +123,40 @@ export default function ChannelPlayer({
 
   return (
     <>
-      <video
-        ref={videoRef}
-        data-testid="channel-player"
-        controls autoPlay playsInline muted
-        {...(poster ? { poster } : {})}
-        style={{
-          width: '100%', aspectRatio: '16 / 9', borderRadius: 'var(--radius-screen)',
-          background: '#08090b', border: '1px solid var(--line)',
-          display: 'block',
-        }}
-      />
+      {/*
+        * THE PICTURE AND ITS TRANSPORT ARE ONE OBJECT, which is why
+        * the bar is inside the bordered frame rather than under it:
+        * the native control bar was drawn over the bottom of the
+        * picture and this replaces it in the same place, seated on
+        * the frame's own bottom edge.
+        */}
+      <div style={{
+        border: 'var(--border) solid var(--line)',
+        borderRadius: 'var(--radius-screen)', overflow: 'hidden',
+        background: '#08090b',
+      }}>
+        <video
+          /*
+            * THE ELEMENT GOES INTO STATE AS WELL AS INTO THE REF.
+            * The transport is a sibling that needs the element as a
+            * prop, and a ref read during render is `null` on the
+            * first pass — so a transport handed `videoRef.current`
+            * only wakes up if something else happens to re-render
+            * the page afterwards.
+            */
+          ref={(element) => { videoRef.current = element; setVideo(element); }}
+          data-testid="channel-player"
+          autoPlay playsInline muted
+          {...(poster ? { poster } : {})}
+          style={{
+            width: '100%', aspectRatio: '16 / 9', borderRadius: 0,
+            background: '#08090b', border: 0, display: 'block',
+          }}
+        />
+        {/* A channel has no end, so: a clock and no scrub. The LIVE
+            badge is a separate fact and comes from the server. */}
+        <VideoTransport video={video} continuous onAir={onAir} />
+      </div>
       {error && (
         <p className="small" data-testid="player-error"
            style={{ color: 'var(--bad)', marginTop: 8 }}>
