@@ -1,4 +1,6 @@
-import { isSignedIn } from '../../../../src/domain/account.js';
+import {
+  type StudioId, isSignedIn, isStudioId,
+} from '../../../../src/domain/account.js';
 import { whoIs } from '../../../../src/auth/request.js';
 import { saveAccount, theAccount } from '../../../../src/store/accounts.js';
 import { fail, json } from '../../../../src/web/http.js';
@@ -47,21 +49,66 @@ export async function GET(request: Request): Promise<Response> {
  * up. That default then becomes the word the whole building greets them
  * with: "Good evening, Owner."
  *
- * So the name is editable, and this is the only field on the account a
- * person may change. Nothing keys off it — `src/domain/account.ts` says
- * so where the field is declared — which is exactly why it is safe to
+ * So the name is editable. Nothing keys off it — `src/domain/account.ts`
+ * says so where the field is declared — which is exactly why it is safe to
  * let them.
+ *
+ * AND WHICH STUDIOS THIS ACCOUNT HAS.  [MASTER-EDIT §11]
+ *
+ * That one plainly IS keyed off — `isOwner` refuses a studio route the
+ * account does not hold — so letting the account set it needs a reason.
+ * The reason is that there is no billing, and inventing a plan-management
+ * surface for a product with nothing to charge would be inventing a
+ * business model rather than building one. This instance has one owner who
+ * owns the machine; they may say which studios they are running, and the
+ * day there is a subscription this write moves behind it and the field,
+ * the rule and every surface consulting it are already in place. That is
+ * the whole point of doing it before the billing rather than after.
+ *
+ * TURNING THEM ALL OFF CANNOT LOCK ANYBODY OUT, and that is by
+ * construction rather than by a guard: settings is not a studio path, so
+ * `studioForPath` returns null for it and `isOwner` lets it through. There
+ * is a test that says so, because "by construction" is a claim.
  */
 export async function PATCH(request: Request): Promise<Response> {
   const principal = await whoIs(request);
   if (!isSignedIn(principal)) return fail(401, 'not signed in');
 
-  const body = await request.json().catch(() => ({})) as { name?: unknown };
-  const name = typeof body.name === 'string' ? body.name.trim() : '';
-  if (!name) return fail(400, 'a name is needed');
-  if (name.length > 80) return fail(400, 'that name is too long');
-
+  type Patch = { name?: unknown; studios?: unknown };
+  const body = await request.json().catch(() => ({})) as Patch;
   const account = await theAccount();
-  await saveAccount({ ...account, name });
-  return json({ account: { ...account, name } });
+  const next = { ...account };
+
+  if (body.name !== undefined) {
+    const name = typeof body.name === 'string' ? body.name.trim() : '';
+    if (!name) return fail(400, 'a name is needed');
+    if (name.length > 80) return fail(400, 'that name is too long');
+    next.name = name;
+  }
+
+  if (body.studios !== undefined) {
+    /*
+     * `null` puts the account back to having no plan, which MEANS all three
+     * — the same distinction the record draws. An empty array is a real
+     * answer and a different one: an account with nothing.
+     */
+    if (body.studios === null) delete next.studios;
+    else {
+      if (!Array.isArray(body.studios)) return fail(400, 'studios is a list');
+      const wanted = [...new Set(body.studios)];
+      for (const id of wanted) {
+        if (typeof id !== 'string' || !isStudioId(id)) {
+          return fail(400, `there is no studio called ${String(id)}`);
+        }
+      }
+      next.studios = wanted as StudioId[];
+    }
+  }
+
+  if (body.name === undefined && body.studios === undefined) {
+    return fail(400, 'nothing to change');
+  }
+
+  await saveAccount(next);
+  return json({ account: next });
 }

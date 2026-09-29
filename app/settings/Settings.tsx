@@ -5,6 +5,9 @@ import Link from 'next/link';
 import Icon from '../Icon.js';
 import Notice from '../Notice.js';
 import SignOut from '../SignOut.js';
+import {
+  ALL_STUDIOS, STUDIOS, type StudioId,
+} from '../../src/domain/account.js';
 
 /**
  * The one page in the building that is a form.  [Doctrine U-24, D-16]
@@ -20,12 +23,14 @@ import SignOut from '../SignOut.js';
 export default function Settings({
   account, runtime, version, space,
 }: {
-  account: { id: string; name: string; createdAt: string };
+  account: { id: string; name: string; createdAt: string; studios: StudioId[] };
   runtime: { label: string; hosted: boolean };
   version: string;
   space: { used: string; free: string; total: string };
 }) {
   const [name, setName] = useState(account.name);
+  const [studios, setStudios] = useState<StudioId[]>(account.studios);
+  const [plan, setPlan] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -48,6 +53,38 @@ export default function Settings({
       setError('that did not save — the server did not answer');
     } finally {
       setBusy(false);
+    }
+  };
+
+  /*
+   * A STUDIO IS TURNED OFF ONE AT A TIME AND SAVED IMMEDIATELY, because
+   * there is no draft state worth having here: the answer is three
+   * booleans, and a Save button under three checkboxes is a form that
+   * exists to have a button.
+   */
+  const toggle = async (id: StudioId) => {
+    const want = studios.includes(id)
+      ? studios.filter((each) => each !== id)
+      : [...ALL_STUDIOS].filter((each) => studios.includes(each) || each === id);
+    setStudios(want);
+    setPlan(null);
+    try {
+      const response = await fetch('/api/auth/me', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ studios: want }),
+      });
+      if (!response.ok) {
+        setStudios(studios);
+        setPlan('that did not save');
+        return;
+      }
+      setPlan(want.length === 0
+        ? 'No studios. The building still opens; there is nothing in it.'
+        : `Saved. ${want.map((each) => STUDIOS[each].label).join(', ')}.`);
+    } catch {
+      setStudios(studios);
+      setPlan('that did not save — the server did not answer');
     }
   };
 
@@ -89,8 +126,8 @@ export default function Settings({
           margin: '4px 0 26px', fontSize: 'var(--text-base)',
           color: 'var(--text-faint)',
         }}>
-          One thing to change, and four things worth knowing about this
-          instance.
+          What to call you, which studios you run, and four things worth
+          knowing about this instance.
         </p>
 
         {/* ---- the only setting -------------------------------------- */}
@@ -177,6 +214,54 @@ export default function Settings({
         </section>
 
         {/* ---- the one dangerous thing, kept apart -------------------- */}
+        {/*
+          * STUDIOS.  [MASTER-EDIT §11]
+          *
+          * Here rather than behind a price, because there is no price yet.
+          * What this panel is really for is that the separation is REAL —
+          * turn Studio Two off and its tab goes, its section goes, and
+          * `/p/<id>` stops answering, because the check is in `isOwner` and
+          * not in the bar.
+          */}
+        <section className="panel" data-testid="studios" style={{
+          padding: 20, borderRadius: 'var(--radius-xl)', marginTop: 16,
+        }}>
+          <h2 style={{ margin: 0, fontSize: 'var(--text-md)' }}>Studios</h2>
+          <p style={{
+            margin: '4px 0 14px', fontSize: 'var(--text-sm)',
+            color: 'var(--text-faint)', maxWidth: '58ch',
+          }}>
+            Which studios this account runs. A studio that is off disappears
+            from the bar and from the building, and its pages stop answering
+            — the work in it is untouched and comes back when it does.
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {ALL_STUDIOS.map((id) => (
+              <label key={id} data-testid="studio-toggle" data-studio={id}
+                     style={{
+                       display: 'flex', alignItems: 'baseline', gap: 10,
+                       fontSize: 'var(--text-sm)',
+                     }}>
+                <input type="checkbox" checked={studios.includes(id)}
+                       data-testid="studio-checkbox" data-studio={id}
+                       onChange={() => { void toggle(id); }} />
+                <span style={{ fontWeight: 'var(--weight-semi)' }}>
+                  {STUDIOS[id].label}
+                </span>
+                <span style={{ color: 'var(--text-faint)' }}>
+                  {STUDIOS[id].holds}
+                </span>
+              </label>
+            ))}
+          </div>
+          {plan && (
+            <p data-testid="studios-said" style={{
+              margin: '12px 0 0', fontSize: 'var(--text-sm)',
+              color: 'var(--text-faint)',
+            }}>{plan}</p>
+          )}
+        </section>
+
         <section className="panel" data-testid="sessions" style={{
           padding: 20, borderRadius: 'var(--radius-xl)', marginTop: 16,
         }}>

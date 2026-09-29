@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import Icon, { type IconName } from './Icon.js';
+import type { StudioId } from '../src/domain/account.js';
 import { MenuButton, RightClickHint, useMenu, type MenuEntry } from './Menu.js';
 import { useRecordActions } from './RecordMenu.js';
 import AccountMenu, { GroundToggle } from './AccountMenu.js';
@@ -115,6 +116,20 @@ export interface HeroChannel {
 
 const STUDIOS: {
   studio: Studio;
+  /*
+   * THE ENTITLEMENT'S NAME FOR THE SAME THING.  [MASTER-EDIT §11, D-19]
+   *
+   * This file has called them `one | two | tv` since before an account
+   * could own some and not others, and `src/domain/account.ts` calls them
+   * `studio-one | studio-two | online-tv` because that is what a plan is
+   * sold under. Two vocabularies for three things is one too many, and the
+   * cheap fix — rename everything here — is a churn diff across a
+   * fourteen-hundred-line file whose only content is the rename.
+   *
+   * So the mapping lives in the table that already names them, once, where
+   * anybody adding a fourth studio has to fill it in.
+   */
+  id: StudioId;
   kind: WorkRecord['kind'];
   label: string;
   name: string;
@@ -127,7 +142,7 @@ const STUDIOS: {
   open: string;
 }[] = [
   {
-    studio: 'one', kind: 'conversation',
+    studio: 'one', id: 'studio-one', kind: 'conversation',
     label: 'STUDIO ONE', name: 'Conversation Studio',
     blurb: 'Watch, interrupt and respond to any video. Invite guests and '
       + 'produce the room.',
@@ -136,7 +151,7 @@ const STUDIOS: {
     open: 'Open Studio One',
   },
   {
-    studio: 'two', kind: 'performance',
+    studio: 'two', id: 'studio-two', kind: 'performance',
     label: 'STUDIO TWO', name: 'Performance Studio',
     blurb: 'One song, many takes. Cut between them afterwards, in a room '
       + 'you choose.',
@@ -145,7 +160,7 @@ const STUDIOS: {
     open: 'Open Studio Two',
   },
   {
-    studio: 'tv', kind: 'channel',
+    studio: 'tv', id: 'online-tv', kind: 'channel',
     label: 'ONLINE TV', name: 'Online TV',
     blurb: 'Run a 24/7 channel from what you have already made, and go '
       + 'live to your audience.',
@@ -156,8 +171,17 @@ const STUDIOS: {
 ];
 
 export default function Workspace({
-  records, space, starters, account, runtime, pending, hero, version,
+  records, space, starters, account, runtime, pending, hero, version, owned,
 }: {
+  /**
+   * The studios this account has.  [MASTER-EDIT §11]
+   *
+   * A courtesy and not the boundary: `isOwner` refuses a studio this
+   * account does not have, whatever this bar chooses to draw, because "a
+   * check in an interface is one refactor away from not being in the path".
+   * What this buys is that nobody is shown a door they cannot open.
+   */
+  owned: StudioId[];
   records: WorkRecord[];
   space: SpaceReading;
   /** The three creation forms, rendered by the server page. */
@@ -219,6 +243,9 @@ export default function Workspace({
       || record.detail.toLowerCase().includes(needle));
   }, [live, query]);
 
+  const mineStudios = STUDIOS.filter((studio) => owned.includes(studio.id));
+  const has = (id: StudioId) => owned.includes(id);
+
   const of = (kind: WorkRecord['kind']) =>
     matching.filter((record) => record.kind === kind);
   /* Unfiltered: the rail is the building, not the search result. */
@@ -270,15 +297,30 @@ export default function Workspace({
             * and scrolls to the door instead of leading nowhere. [§13]
             */}
           <Rail href="#top" icon="home" label="Home" current />
-          <Rail href={newest('conversation')?.href ?? '#conversations'}
-                icon="conversation" label="Studio One" under="Conversations"
-                empty={!newest('conversation')} />
-          <Rail href={newest('performance')?.href ?? '#performances'}
-                icon="music" label="Studio Two" under="Performance"
-                empty={!newest('performance')} />
-          <Rail href={newest('channel')?.href ?? '#channels'}
-                icon="broadcast" label="Online TV" under="Channels & Broadcasts"
-                empty={!newest('channel')} />
+          {/*
+            * A STUDIO THIS ACCOUNT DOES NOT HAVE IS NOT DIMMED HERE, IT IS
+            * ABSENT. The `empty` state above means "you have this and there
+            * is nothing in it yet", which is an invitation. Not owning it is
+            * not an invitation, and dressing it as one would make the rail
+            * an advertisement — with no way to buy, because there is no
+            * billing. When there is something to sell, this is where the
+            * offer goes. [MASTER-EDIT §11]
+            */}
+          {has('studio-one') && (
+            <Rail href={newest('conversation')?.href ?? '#conversations'}
+                  icon="conversation" label="Studio One" under="Conversations"
+                  empty={!newest('conversation')} />
+          )}
+          {has('studio-two') && (
+            <Rail href={newest('performance')?.href ?? '#performances'}
+                  icon="music" label="Studio Two" under="Performance"
+                  empty={!newest('performance')} />
+          )}
+          {has('online-tv') && (
+            <Rail href={newest('channel')?.href ?? '#channels'}
+                  icon="broadcast" label="Online TV" under="Channels & Broadcasts"
+                  empty={!newest('channel')} />
+          )}
           <Rail href="#library" icon="library" label="Library"
                 under="Media & Recordings" count={live.length} />
 
@@ -287,10 +329,14 @@ export default function Workspace({
             margin: '14px 10px',
           }} />
 
-          <Rail href="#channels" icon="channels" label="Channels" />
-          <Rail href={hero ? `${hero.href}#distribution` : '#channels'}
-                icon="distribution" label="Distribution"
-                empty={!hero} />
+          {has('online-tv') && (
+            <>
+              <Rail href="#channels" icon="channels" label="Channels" />
+              <Rail href={hero ? `${hero.href}#distribution` : '#channels'}
+                    icon="distribution" label="Distribution"
+                    empty={!hero} />
+            </>
+          )}
           <Rail href="/settings" icon="settings" label="Settings" />
           {/*
             * NO "SHARED WITH ME". This instance has one owner, so it would
@@ -402,7 +448,7 @@ export default function Workspace({
                 display: 'grid', gap: 14,
                 gridTemplateColumns: 'repeat(auto-fit, minmax(226px, 1fr))',
               }}>
-                {STUDIOS.map((studio) => (
+                {mineStudios.map((studio) => (
                   <StudioCard
                     key={studio.studio}
                     studio={studio}
@@ -436,7 +482,7 @@ export default function Workspace({
 
               {/* ---- the library, by studio ----------------------- */}
               <div id="library" style={{ scrollMarginTop: 20 }} />
-              {STUDIOS.map((studio) => {
+              {mineStudios.map((studio) => {
                 const mine = of(studio.kind);
                 if (mine.length === 0) return null;
                 return (

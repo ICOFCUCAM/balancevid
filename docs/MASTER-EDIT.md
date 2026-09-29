@@ -391,15 +391,27 @@ ACCOUNT
 
 | brief | state | where |
 | --- | --- | --- |
-| each studio works without the others | PARTIAL | Online TV no longer needs Studio One for guests (`Channel.room`); nothing else has been audited |
+| each studio works without the others | HAVE | Online TV no longer needs Studio One for guests (`Channel.room`), and each studio's store refuses when the account does not hold it |
 | shared room technology, separate concepts | HAVE | one `RoomHost`, one `roomEdit`, one `InvitePanel`; the wording differs per studio |
-| an account model | PARTIAL | `Account` exists — id, sessions, `OWNER_ACCOUNT_ID`. It is single-tenant and has no plan |
-| **entitlements per studio** | GAP | no `plan`, `entitlement`, `tier` or `subscription` anywhere in `src/domain` |
-| navigation reflects what is owned | GAP | the bar shows all three studios unconditionally |
+| an account model | PARTIAL | `Account` exists — id, sessions, studios, `OWNER_ACCOUNT_ID`. Still single-tenant; there is a plan but no billing |
+| **entitlements per studio** | HAVE | `Account.studios`, `ownsStudio`, and `requireStudio` at every door into the three stores — the data layer, per D-06 |
+| navigation reflects what is owned | HAVE | the bar drops the tab, the rail drops the row, the building drops the section |
 
-This is the one item on the list that is **not** a feature. It is a field on
-`Account` and a rule every surface consults, and it gets harder to add the
-longer the product assumes all three.
+This was the one item on the list that is **not** a feature. It is a field on
+`Account` and a rule every surface consults, and it got harder to add the
+longer the product assumed all three — so it was done before the billing
+rather than after.
+
+**Where the rule lives, and the two places it does not.** A dimmed tab is a
+courtesy: the URL is still typeable. `isOwner` was tried first, because
+ninety-odd routes already call it and it already loads the account — and it
+does not work, because the studio has to come from the request's path and
+server components pass their cookie as `new Request('http://local/')`, a
+request with no path. Those calls read as protected and were nothing. The
+middleware sees every real path and its own opening paragraph rules it out:
+it "has no business reading storage", and a plan lives in the account
+document. So the gate is in the store, which is where D-06 puts isolation
+and where `tenancy.test.ts` already says this product's data layer is.
 
 ---
 

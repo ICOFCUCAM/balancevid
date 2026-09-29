@@ -4,6 +4,7 @@ import { orderedInterventions } from '../src/domain/document.js';
 import { listConversations, loadConversation } from '../src/store/repository.js';
 import { listPerformances } from '../src/store/performances.js';
 import { listChannels } from '../src/store/channels.js';
+import { studiosOf } from '../src/domain/account.js';
 import { whatIsOn } from '../src/domain/channel.js';
 import { bytesLabel, diskSpace } from '../src/store/space.js';
 import { theAccount } from '../src/store/accounts.js';
@@ -195,6 +196,7 @@ export default async function Home() {
 
   return (
     <Workspace
+      owned={studiosOf(account)}
       account={{ name: account.name, role: 'Owner' }}
       runtime={runtime()}
       /*

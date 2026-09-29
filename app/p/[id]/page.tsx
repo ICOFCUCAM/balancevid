@@ -5,6 +5,8 @@ import { loadPerformance } from '../../../src/store/performances.js';
 import { listConversations } from '../../../src/store/repository.js';
 import { listChannels } from '../../../src/store/channels.js';
 import PerformanceStudio from './PerformanceStudio.js';
+import { studiosOf } from '../../../src/domain/account.js';
+import { theAccount } from '../../../src/store/accounts.js';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,6 +48,7 @@ export default async function PerformancePage(
       initial={performance!}
       studioOneId={conversations[0]?.id}
       studioThreeId={channels[0]?.id}
+      owned={studiosOf(await theAccount())}
       /*
        * WHERE THIS COULD GO. A channel can already broadcast a Studio Two
        * render — `ProgrammeSource {kind:'render', document:'performance'}`

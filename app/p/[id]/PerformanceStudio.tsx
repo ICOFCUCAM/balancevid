@@ -18,6 +18,7 @@ import Delivery, { type ChannelDestination } from './Delivery.js';
 import RoomPlate from './RoomPlate.js';
 import { useCalibration } from './useCalibration.js';
 import StudioBar from '../../StudioBar.js';
+import type { StudioId } from '../../../src/domain/account.js';
 
 /**
  * The Performance Studio.  [Doctrine STUDIO-TWO §1, §3, §4, §10, §13]
@@ -55,8 +56,9 @@ const CLASS_LABELS: Record<string, { label: string; hint: string }> = {
 };
 
 export default function PerformanceStudio(
-  { initial, studioOneId, studioThreeId, channels = [] }: {
+  { initial, studioOneId, studioThreeId, channels = [], owned }: {
     initial: Performance; studioOneId?: string; studioThreeId?: string;
+    owned?: StudioId[];
     channels?: ChannelDestination[];
   },
 ) {
@@ -336,6 +338,7 @@ export default function PerformanceStudio(
         current="studio-two"
         studioOneId={studioOneId}
         studioThreeId={studioThreeId}
+        owned={owned}
         extra={[{
           id: 'publish' as const,
           label: 'Publish',

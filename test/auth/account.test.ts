@@ -395,3 +395,94 @@ describe('a revoked session stops authenticating', () => {
     expect(await isOwner(await asOwner())).toBe(false);
   });
 });
+
+/*
+ * STUDIOS ARE SEPARABLE, AND THE SEPARATION IS IN THE STORE.
+ * [MASTER-EDIT §11, D-06, D-19]
+ *
+ * "A customer buying Studio One only must not automatically receive Studio
+ * Two guest functionality, Online TV guest functionality, or a broadcast
+ * channel."
+ *
+ * THE FIRST ATTEMPT PUT THIS IN `isOwner`, because ninety-odd routes call
+ * it and it already loads the account — which is how `sessionsValidFrom`
+ * above reached them all with no diff at any of them. It passed its unit
+ * tests and did nothing in the product, and the browser found it: with
+ * Studio Two turned off, `/api/performances/<id>` still answered 200.
+ *
+ * Two reasons, both instructive. Half the studio routes never call
+ * `isOwner` at all — the middleware is their session check, and it cannot
+ * read a plan out of the account document. And the studio had to be
+ * derived from the request's path, while server components pass their
+ * cookie as `new Request('http://local/', { headers })` — a request with no
+ * path, which the check read as "no studio" and waved through. A test that
+ * builds `http://local/api/performances/perf_1` by hand proves the
+ * derivation works and proves nothing about the product.
+ *
+ * So the gate is in the store, where D-06 says isolation goes, and these
+ * assert the thing the product actually does.
+ */
+describe('a studio this account does not have', () => {
+  let loadPerformance: typeof import('../../src/store/performances.js').loadPerformance;
+  let listPerformances: typeof import('../../src/store/performances.js').listPerformances;
+  let savePerformance: typeof import('../../src/store/performances.js').savePerformance;
+  let listConversations: typeof import('../../src/store/repository.js').listConversations;
+  let StudioNotHeld: typeof import('../../src/store/entitlement.js').StudioNotHeld;
+
+  beforeAll(async () => {
+    ({ loadPerformance, listPerformances, savePerformance } =
+      await import('../../src/store/performances.js'));
+    ({ listConversations } = await import('../../src/store/repository.js'));
+    ({ StudioNotHeld } = await import('../../src/store/entitlement.js'));
+  });
+
+  const plan = async (studios: string[] | undefined) => {
+    const account = await theAccount();
+    const next = { ...account, studios: studios as never };
+    if (studios === undefined) delete (next as { studios?: unknown }).studios;
+    await saveAccount(next);
+    forget();
+  };
+
+  it('refuses at the read, which is the only way in', async () => {
+    await plan(['studio-one']);
+    await expect(loadPerformance('perf_1')).rejects.toThrow(StudioNotHeld);
+    await expect(listPerformances()).rejects.toThrow(/does not have Studio Two/);
+    /* And the write, or a route could create what it may not read. */
+    await expect(savePerformance({ id: 'perf_1' } as never))
+      .rejects.toThrow(StudioNotHeld);
+    /* The studio it does have still answers. */
+    await expect(listConversations()).resolves.toBeInstanceOf(Array);
+  });
+
+  it('comes back the moment the studio does', async () => {
+    await plan(['studio-one']);
+    await expect(listPerformances()).rejects.toThrow(StudioNotHeld);
+    await plan(['studio-one', 'studio-two']);
+    await expect(listPerformances()).resolves.toEqual([]);
+  });
+
+  /*
+   * THE DEPLOY THAT ADDS THIS MUST TAKE NOTHING AWAY. An instance running
+   * today has no such field, and a default of "none" would lock its owner
+   * out of every studio on upgrade.
+   */
+  it('is nothing at all for an account with no plan', async () => {
+    await plan(undefined);
+    await expect(listPerformances()).resolves.toEqual([]);
+    await expect(listConversations()).resolves.toEqual([]);
+  });
+
+  /*
+   * AND SIGNING IN IS NOT A STUDIO. An owner who turns all three off has to
+   * be able to turn one back on, and the account routes do not go through
+   * any studio's store.
+   */
+  it('never closes the door an owner turns them back on with', async () => {
+    await plan([]);
+    await expect(listPerformances()).rejects.toThrow(StudioNotHeld);
+    await expect((await theAccount()).id).toBe(OWNER_ACCOUNT_ID);
+    await plan(['online-tv']);
+    expect((await theAccount()).studios).toEqual(['online-tv']);
+  });
+});

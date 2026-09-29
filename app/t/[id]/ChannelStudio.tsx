@@ -30,6 +30,7 @@ import {
 } from '../../useDevices.js';
 import { useQuality } from '../../useQuality.js';
 import { useConfirm } from '../../Confirm.js';
+import type { StudioId } from '../../../src/domain/account.js';
 import {
   type Quality, type QualityId, QUALITIES, QUALITY_ORDER, aboveTransmission,
   qualityFor, rateSentence, rateVerdict, targetBytesPerSecond,
@@ -123,11 +124,12 @@ interface Segment {
 /* ------------------------------------------------------------------------ */
 
 export default function ChannelStudio({
-  initial, studioOneId, studioTwoId, serverNow, transmission,
+  initial, studioOneId, studioTwoId, serverNow, transmission, owned,
 }: {
   initial: Channel;
   studioOneId?: string;
   studioTwoId?: string;
+  owned?: StudioId[];
   /** When the server drew this page. See the note where it is passed. */
   serverNow?: number;
   /** What the channel puts on the wire, as against what this machine sends. */
@@ -557,6 +559,7 @@ export default function ChannelStudio({
         current="online-tv"
         studioOneId={studioOneId}
         studioTwoId={studioTwoId}
+        owned={owned}
         lamp={(
           <span className="row" data-testid="bar-on-air" data-mode={on.kind} style={{
             gap: 7, padding: '4px 10px', borderRadius: 5, flex: '0 0 auto',
