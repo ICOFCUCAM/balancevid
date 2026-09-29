@@ -3,6 +3,7 @@
 import type { AudioMode, Performance, Scene } from '../../../src/domain/performance.js';
 import { joinRoom, orderedScenes } from '../../../src/domain/performance.js';
 import { LAYOUTS, takeSlots } from '../../../src/domain/presentation.js';
+import JoinPreview from './JoinPreview.js';
 import {
   MAX_TRANSITION_FRAMES, MIN_TRANSITION_FRAMES, TRANSITIONS, TRANSITION_ALIGNS,
   transitionAlignOf, transitionOf,
@@ -203,6 +204,18 @@ export default function ClipInspector({
               ))}
             </div>
           ))}
+          {/*
+            * WATCHING IT, BEFORE CHOOSING IT.  [MASTER-EDIT §3, §12 P1]
+            *
+            * Above the length and the alignment, because it is what those
+            * two are FOR: an author sets a duration by looking at the
+            * result, and a number chosen without one is a guess they find
+            * out about at the export. Only for a mix — a cut has no
+            * overlap to scrub.
+            */}
+          {mix > 0 && before && (
+            <JoinPreview performance={performance} scene={scene} before={before} />
+          )}
           {mix > 0 && group('Duration', (
             <div className="row" style={{ gap: 'var(--space-3)', flexWrap: 'wrap' }}>
               {/* is-across, because a stepper whose − sits above its + is a

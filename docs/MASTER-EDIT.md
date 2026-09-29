@@ -453,6 +453,18 @@ pre-render validation
 
 ### P1 — Studio Two editing
 
+**Closed.** Every row below is HAVE. The last one was the join preview,
+and building it turned up the thing worth recording here: the renderer
+states its cross-fade as an ffmpeg expression and a browser cannot call
+one, so previewing a dissolve meant a second statement of the same ramp.
+That is exactly the shape D-19 warns about, and the answer is not to
+pretend otherwise but to make the two provably equal — `mixAt` is the
+definition, `mixExpression` is it written for ffmpeg, and a test
+evaluates the expression at every frame of every length against the
+function. A preview that fades at a different rate from the render is
+worse than no preview: it is a measurement the author trusts and
+should not.
+
 | item | state |
 | --- | --- |
 | click a Master Video segment | HAVE — selects it and opens the inspector |
@@ -464,7 +476,7 @@ pre-render validation
 | trim | HAVE — In and Out step the boundary, guarded: a scene still has no out-point, because its out IS the next clip's in, and the panel says so |
 | adjust transition duration | HAVE — a stepper bounded by what the join can pay, and a `Default` to put it back |
 | choose which shot pays | HAVE — *Ends on the cut* / *Centred* / *Begins on the cut* |
-| preview | PARTIAL — the programme monitor shows the scene at the playhead; no scrub of the join |
+| preview | HAVE — the join inspector stacks both takes and scrubs the overlap a frame at a time, cross-faded by `mixAt`, which is the definition the renderer's own ffmpeg expression is written from. A test evaluates that expression at every frame against it, because a preview fading at a different rate from the render is worse than no preview |
 | **undo / redo** | HAVE — every edit to a performance records a version; ⌘Z / ⌘⇧Z and a control bank step through 50 of them |
 
 ### P2 — Professional finishing
