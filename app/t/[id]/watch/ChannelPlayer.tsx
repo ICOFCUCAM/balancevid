@@ -133,7 +133,7 @@ export default function ChannelPlayer({
       <div style={{
         border: 'var(--border) solid var(--line)',
         borderRadius: 'var(--radius-screen)', overflow: 'hidden',
-        background: '#08090b',
+        background: 'var(--screen-bed)',
       }}>
         <video
           /*
@@ -150,7 +150,7 @@ export default function ChannelPlayer({
           {...(poster ? { poster } : {})}
           style={{
             width: '100%', aspectRatio: '16 / 9', borderRadius: 0,
-            background: '#08090b', border: 0, display: 'block',
+            background: 'var(--screen-bed)', border: 0, display: 'block',
           }}
         />
         {/* A channel has no end, so: a clock and no scrub. The LIVE

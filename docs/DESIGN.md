@@ -189,9 +189,12 @@ The rules in `console.css` are therefore subtractive:
   picture behind a status readout means the readout changes appearance
   with the programme — and the programme is the thing being judged.
 - **A screen has square corners.** `--radius-screen`, 2px, on every
-  rectangle that is a picture — both monitors, the stage, the camera PiP,
-  and the two pages a viewer sees. 10px on a video is the shape of a card
-  in a feed, on the one surface where that association is worst.
+  rectangle that is a picture — both monitors, the multi-view tiles, the
+  filmstrip cells, the poster wells, the stage, the camera PiP, and the
+  three pages a viewer sees. 10px on a video is the shape of a card in a
+  feed, on the one surface where that association is worst. It holds for
+  a picture whose frame clips it, too: nine were square themselves and
+  rounded by the frame around them.
 - **One plate, everywhere something sits on a picture.** `rgba(0,0,0,0.72)`
   with a hairline of light. Seven private near-blacks were found between
   0.6 and 0.82, each arrived at by eye on one tile, none distinguishable
@@ -252,6 +255,106 @@ sometimes lies is not a signal, it is decoration that happens to be red.
 
 ---
 
+## The eighth decision: a stranger is not an operator
+
+The first fifty-odd commits went into the surfaces somebody **operates**.
+The pages somebody is **sent** — three watch pages and the guest invite —
+turned out to have been built at three different times and to agree on
+nothing: one centred with a real transport, one flush left against a 960px
+video in a 1440px window, one with the brand mark and two without.
+
+- **The product's own transport, not the browser's.** Two viewer pages
+  still shipped `<video controls>`. On a desk that is merely unpolished;
+  on a published page its three-dot menu offers **Download** — an offer to
+  take somebody's work, made by the page that publishes it.
+- **Two transports, two clocks, on purpose.** Studio One's is a frame
+  address because an editor cuts on frames [INV-02, U-08]. A viewer
+  watches, so theirs is seconds; printing `00:00:12:14` at somebody
+  watching a song is precision theatre. Everything they genuinely share is
+  in `console.css`. A third is the signal to merge rather than to add.
+- **The mark is on every page a stranger can land on.** Most of all the
+  guest invite, which had no identity anywhere: a link from a colleague,
+  and a box asking for your name. That is the shape of a phishing page and
+  the one place a stranger has no prior context. A trust decision, not a
+  cosmetic one.
+- **A page may have one call to action.** Playing is ordinary, frequent
+  and reversible and takes a control; "Respond to this" is the premise of
+  the product [U-04] and stays loud.
+
+**And the label follows the fact.** A viewer arriving at an off-air channel
+read `This channel is not transmitting right now` immediately above
+`NOW PLAYING / Station Ident / 06:25 left`. Both true of different things —
+`title` is what the schedule says, `transmitting` is whether a segment is
+arriving — which is exactly why printing them together is a lie. It is the
+seventh decision again, one layer out: a surface may not assert what the
+state underneath does not support.
+
+---
+
+## What the tests kept getting wrong
+
+Worth its own section, because it keeps happening the same way. A rule gets
+written against the instances in front of it rather than against the thing it
+is describing, and then walks straight past the next instance:
+
+| rule | was scoped to | is now |
+| --- | --- | --- |
+| no card rounding | five desk files | every studio file |
+| one plate on a picture | a list of known near-blacks | any near-black used as a background |
+| no bold-literal titles | `<strong className="grow">` | any `<strong>` that **is** its line |
+| no hand-written sizes | the three studio routes | the whole application |
+| a screen has square corners | radii ≥ 8, written as digits, in three route folders | any radius above `--radius-screen`, token or digit, anywhere in `app/` |
+
+Each widening found more: nine corners, five near-blacks, five titles,
+fourteen sizes — and, the fifth time, twenty-two rounded pictures on six
+surfaces where a passing test had said there were none.
+
+**Write the rule against the property, not against the examples.** When a
+widened rule fires on something correct, that is information about the rule:
+widening the title ban flagged `Press <strong>GO LIVE</strong> — that arms
+the feed`, which is emphasis inside a sentence and exactly what the tag is
+for, and the discriminator turned out to be neither the class nor the tag but
+whether the `<strong>` **is** the line or sits in one. Widening the picture
+ban flagged a blurred poster at `inset: -40` behind a setup card, which has
+no corners anybody can see; the tell is the blur, because a picture being
+judged is never blurred.
+
+Three more ways to be wrong, all found in the fifth round:
+
+- **A rule that reads colours by their digits dies when the colours get
+  names.** The discriminator for "is this a picture" was `#000|#08090b`. The
+  commit that named those `--screen-bed` made the test blinder while looking
+  like housekeeping. A rule and the code it polices should not be coupled
+  through a literal.
+- **`\{[^{}]*\}` is not a block.** Any style object containing a conditional
+  spread or a `${…}` has a brace inside it, so a character class stops early
+  and the element is skipped — precisely the elaborate elements, which are
+  the ones somebody fiddled with. Match braces by counting depth.
+- **A style object closes before its children.** A well whose picture arrives
+  from `<Still>` or `<Thumb>` has no `objectFit` and no `aspectRatio` of its
+  own; the signal is outside the block. The first attempt at that signal was
+  written inside the pattern where it could never fire, and read correctly to
+  a human. Only the mutation found it.
+
+Which is the standing rule underneath all of this: **an assertion nobody has
+seen fail is not known to work.** Every new assertion in this batch was run
+against a deliberately broken tree before being trusted.
+
+**And the browser sees what the source cannot.** Nine of the twenty-two
+pictures were at `borderRadius: 0` themselves, rounded by a parent that clips
+them — a fact no single file contains. Measuring the running product also
+supplies the discriminator that reading cannot: a frame's corner rounds its
+picture only when the frame clips with no padding between, so a `.panel` at
+10px with 10px of padding rounds nothing and is correctly left alone.
+
+**A loud failure is not a remembered one.** `performance.ts` opens by saying
+that importing `newId` drags `node:crypto` into the client bundle and that
+"this codebase has learned that once already". It has now learned it twice,
+because a broken build gets fixed and forgotten rather than written down.
+`console.test.ts` names the server-only modules now.
+
+---
+
 ## Where things live
 
 ```
@@ -269,15 +372,25 @@ app/styles/console.css     the material the three studios are made of
 app/styles/building.css    the lit ground the lobby is made of
 app/styles/platforms.css   the five distribution destinations
 app/Icon.tsx               one set of glyphs, on one grid
+app/Brand.tsx              the mark, in one place rather than four
+app/VideoTransport.tsx     a viewer's transport — seconds, not frames
 app/Confirm.tsx            asking before something irreversible
 app/Notice.tsx             saying something went wrong, out loud
 ```
+
+Two tokens in `console.css` carry the eighth decision:
+`--radius-screen` (2px, on anything that is a picture) and
+`--screen-bed` (true black, what a picture sits on — seven different
+blacks were doing that job, and a video letterboxing inside its own
+frame showed the seam between them). `--screen-bed` is also what the
+renderer pads with: `compose.ts` uses `color=black`, so a composition
+preview on any other value is a preview of a different file.
 
 ---
 
 ## The ratchet
 
-120 raw hex colours remain in components. The token system arrived after the
+76 raw hex colours remain in components. The token system arrived after the
 product did, and surfaces are converted as each is worked on.
 
 It read 244 until the regex was corrected: `&#9654;` is a play triangle, and
@@ -316,4 +429,4 @@ without noticing.
 - **No light theme** in the application. The published article and
   interactive player have one, and declare the speaker identities darkened
   for white; the studios do not.
-- **The remaining 120.** They are not wrong, they are just not yet named.
+- **The remaining 76.** They are not wrong, they are just not yet named.

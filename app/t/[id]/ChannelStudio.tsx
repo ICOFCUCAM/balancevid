@@ -893,7 +893,7 @@ export default function ChannelStudio({
                    * "do not decorate the video". [brief §5]
                    */
                   position: 'relative', flex: '1 1 auto', minHeight: 150,
-                  margin: 9, background: '#000', borderRadius: 'var(--radius-screen)',
+                  margin: 9, background: 'var(--screen-bed)', borderRadius: 'var(--radius-screen)',
                   border: '1px solid var(--console-edge)',
                   boxShadow: 'var(--console-well)', overflow: 'hidden',
                 }}
@@ -965,7 +965,7 @@ export default function ChannelStudio({
                    * also costs a compositor pass per frame on a surface
                    * that repaints thirty times a second. [brief §19]
                    */
-                  borderRadius: 2,
+                  borderRadius: 'var(--radius-screen)',
                   background: 'rgba(0,0,0,0.72)',
                   border: '1px solid rgba(255,255,255,0.14)',
                   fontSize: 'var(--text-xs)',
@@ -977,7 +977,7 @@ export default function ChannelStudio({
                 <span data-testid="on-air-lamp" data-mode={on.kind} style={{
                   position: 'absolute', left: 10, top: 10,
                   padding: '3px var(--space-3)',
-                  borderRadius: 2,
+                  borderRadius: 'var(--radius-screen)',
                   fontSize: 'var(--text-2xs)',
                   fontWeight: 'var(--weight-bold)',
                   letterSpacing: '0.1em',
@@ -1013,7 +1013,7 @@ export default function ChannelStudio({
                   <span data-testid="now-playing-chip" style={{
                     position: 'absolute', left: 10, bottom: 10, maxWidth: '62%',
                     padding: '4px var(--space-4)',
-                    borderRadius: 2,
+                    borderRadius: 'var(--radius-screen)',
                     background: 'rgba(0,0,0,0.72)',
                     border: '1px solid rgba(255,255,255,0.14)',
                     fontSize: 'var(--text-xs)',
@@ -1107,7 +1107,7 @@ export default function ChannelStudio({
                 />
                 <div style={{
                   position: 'relative', flex: '1 1 auto', minHeight: 96,
-                  margin: 9, background: '#000', borderRadius: 'var(--radius-screen)',
+                  margin: 9, background: 'var(--screen-bed)', borderRadius: 'var(--radius-screen)',
                   overflow: 'hidden',
                   border: `1px solid ${armed ? 'var(--ink-on-armed)' : 'var(--line)'}`,
                 }}>
@@ -2694,8 +2694,8 @@ function Row({
           */}
         <span style={{
           flex: '0 0 auto', width: 62, height: 35,
-          borderRadius: 'var(--radius-xs)',
-          overflow: 'hidden', position: 'relative', background: '#000',
+          borderRadius: 'var(--radius-screen)',
+          overflow: 'hidden', position: 'relative', background: 'var(--screen-bed)',
           boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.07),'
             + ' inset 0 1px 3px rgba(0,0,0,0.6)',
         }}>
@@ -3188,8 +3188,8 @@ function MultiView({
             */
           style={{
             position: 'relative', minHeight: 44,
-            borderRadius: 'var(--radius-sm)', padding: 0, minWidth: 0,
-            overflow: 'hidden', background: '#000', textAlign: 'left',
+            borderRadius: 'var(--radius-screen)', padding: 0, minWidth: 0,
+            overflow: 'hidden', background: 'var(--screen-bed)', textAlign: 'left',
             font: 'inherit', color: 'inherit',
             cursor: tile.act ? 'pointer' : 'default',
             /*
@@ -3520,8 +3520,9 @@ function Timeline({
             <div key={`v${segment.fromMs}`} data-testid="filmstrip-cell" style={{
               position: 'absolute', top: 3, bottom: 3, left: across(segment.fromMs),
               width: `calc(${across(segment.toMs)} - ${across(segment.fromMs)})`,
-              minWidth: 3, borderRadius: 4, overflow: 'hidden',
-              border: '1px solid var(--line)', background: '#0d1319',
+              minWidth: 3, overflow: 'hidden',
+              borderRadius: 'var(--radius-screen)',
+              border: '1px solid var(--line)', background: 'var(--screen-bed)',
               /* A strip of sprocket holes: the join between two pieces of
                  video, which is what this lane is for seeing. */
               backgroundImage:
@@ -3867,7 +3868,7 @@ function CameraTab({
       <div className="row" style={{ gap: 9, alignItems: 'stretch' }}>
         <div style={{
           flex: 1, minWidth: 0, position: 'relative', aspectRatio: '16 / 9',
-          borderRadius: 2, overflow: 'hidden', background: '#000',
+          borderRadius: 'var(--radius-screen)', overflow: 'hidden', background: 'var(--screen-bed)',
           border: `1px solid ${armed ? 'var(--ink-on-armed)' : onAir ? 'var(--state-live-dim)' : 'var(--line)'}`,
         }}>
           {feed ? (
@@ -4093,7 +4094,7 @@ function CameraTab({
                 * "this is the one". [brief §10]
                 */
               style={{
-                padding: 0, aspectRatio: '1 / 1', borderRadius: 2,
+                padding: 0, aspectRatio: '1 / 1', borderRadius: 'var(--radius-screen)',
                 overflow: 'hidden', cursor: 'pointer', position: 'relative',
                 background: SPACE_SWATCHES[space.id] ?? '#1b2028',
                 border: `1px solid ${chosen

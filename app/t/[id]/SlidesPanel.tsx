@@ -274,8 +274,9 @@ export default function SlidesPanel({
             * it is.
             */}
           <div style={{
-            position: 'relative', aspectRatio: '16 / 9', borderRadius: 7,
-            overflow: 'hidden', background: '#05070a',
+            position: 'relative', aspectRatio: '16 / 9',
+            borderRadius: 'var(--radius-screen)',
+            overflow: 'hidden', background: 'var(--screen-bed)',
             border: `1px solid ${at >= 0 ? '#3d7fd6' : 'var(--line)'}`,
           }}>
             {at >= 0 ? (

@@ -65,7 +65,7 @@ input, textarea, [contenteditable] { caret-color: var(--line-focus); }
  * the moment before its first frame, and in a dark control room that is a
  * flash in the corner of the eye every time a source is switched.
  */
-video, img { background-color: #000; }
+video, img { background-color: var(--screen-bed); }
 video {
   width: 100%; display: block;
   /*

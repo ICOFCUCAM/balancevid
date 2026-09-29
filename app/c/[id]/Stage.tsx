@@ -65,7 +65,7 @@ export default function Stage({
       <div
         data-testid="stage-frame"
         style={{
-          position: 'relative', background: '#000',
+          position: 'relative', background: 'var(--screen-bed)',
           borderRadius: 'var(--radius-screen)', overflow: 'hidden',
           aspectRatio: String(ratio), lineHeight: 0,
           ...(fit === 'width'

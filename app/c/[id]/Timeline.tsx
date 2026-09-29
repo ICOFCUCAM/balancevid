@@ -278,9 +278,10 @@ export default function Timeline({
               opacity: r.selected ? 1 : 0.5,
             }} />
             <div style={{
-              width: 62, height: 34, borderRadius: 5, overflow: 'hidden',
+              width: 62, height: 34, overflow: 'hidden',
+              borderRadius: 'var(--radius-screen)',
               border: `1px solid ${r.selected ? 'var(--user-accent)' : 'var(--line)'}`,
-              background: '#000',
+              background: 'var(--screen-bed)',
               display: 'grid', placeItems: 'center',
             }}>
               {r.thumbnailUrl && !failed.has(r.id) ? (

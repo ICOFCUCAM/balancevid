@@ -1149,7 +1149,7 @@ export default function Studio({ conversationId }: { conversationId: string }) {
               </CompositionStage>
             ) : isEmbedded ? (
               <div style={{
-                position: 'absolute', inset: 0, background: '#000',
+                position: 'absolute', inset: 0, background: 'var(--screen-bed)',
               }}>
                 <iframe
                   ref={embedRef}
@@ -1170,7 +1170,7 @@ export default function Studio({ conversationId }: { conversationId: string }) {
                   if (v.videoWidth && v.videoHeight) setSourceAspect(v.videoWidth / v.videoHeight);
                 }}
                 style={{
-                  display: 'block', background: '#000', borderRadius: 0,
+                  display: 'block', background: 'var(--screen-bed)', borderRadius: 0,
                   // The frame already carries the source's ratio, so filling
                   // it edge to edge letterboxes at neither end.
                   width: '100%', height: '100%', objectFit: 'contain',

@@ -1,13 +1,15 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { TAKE_ACCENT_FALLBACK } from '../../../src/domain/performance.js';
 import Icon from '../../Icon.js';
 import type { MasterClass, Performance } from '../../../src/domain/performance.js';
 import {
-  MASTER_CLASSES, SPACES, isFootage, orderedScenes, sceneAt,
+  MASTER_CLASSES, SPACES, isFootage, orderedScenes, renderProblems, sceneAt,
 } from '../../../src/domain/performance.js';
 import { EFFECT_LOOKS, SPACE_LOOKS } from '../../../src/domain/environment.js';
 import { useConfirm } from '../../Confirm.js';
+import { useMenu, type MenuEntry } from '../../Menu.js';
 import { LAYOUTS, takeSlots } from '../../../src/domain/presentation.js';
 import {
   BEATS_USABLE_CONFIDENCE, beatPositions, snapToBeat,
@@ -240,6 +242,13 @@ export default function SwitchingStage({
   takesPanel?: React.ReactNode;
 }) {
   const { confirm, dialog: confirmDialog } = useConfirm();
+  /*
+   * THE SAME MENU COMPONENT THE REST OF THE PRODUCT USES, a second
+   * instance of it rather than a second implementation — what D-19 rules
+   * out is four different objects called a menu, not two rows that each
+   * know what can be done to them. [D-19]
+   */
+  const { menu, onRow } = useMenu();
   const [arrangement, setArrangement] = useState<string>('performance_full');
   const [pending, setPending] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -250,6 +259,20 @@ export default function SwitchingStage({
   const [showTransitions, setShowTransitions] = useState(false);
 
   const ordered = orderedScenes(performance);
+  /*
+   * WHERE THE HOLES ARE, ON THE TIMELINE, WHILE YOU WORK.  [INV-03, U-04]
+   *
+   * They were only ever named at the bottom of the page, at the moment of
+   * rendering, in a sentence — and a sentence cannot point. A stretch of
+   * song with nothing on it is a fact about the edit, so it belongs on the
+   * edit, drawn where it is: an author scrolling the timeline sees the hole
+   * before they ever reach the render button, and clicking it seeks there
+   * like clicking anywhere else on these lanes does.
+   *
+   * The same question the render console and the renderer ask. [D-19]
+   */
+  const holes = renderProblems(performance)
+    .filter((problem) => problem.fromSample !== undefined);
   const usable = performance.takes.filter((t) => t.durationSamples > 0);
   const slots = takeSlots(LAYOUTS[arrangement]!);
 
@@ -315,6 +338,111 @@ export default function SwitchingStage({
     if (!response.ok) { setError(data.error ?? 'that did not work'); return; }
     onChanged(data.performance);
   }, [onChanged, performance.id]);
+
+  /*
+   * WHAT CAN BE DONE TO WHAT IS ON SCREEN.  [§7, §8, §11, U-04]
+   *
+   * THE PROGRAM MONITOR WAS INERT. Every other object in this studio says
+   * what can be done to it — the takes in the rail, the clips, the
+   * programmes in the control room — and the one picture the whole studio
+   * is about answered neither click. To change the take in a scene you
+   * found the take rail; to change how the scene arrives you opened a
+   * `Transitions` toggle in the transport, which raised a row of
+   * `<select>`s, one per scene, identified by nothing but their order.
+   *
+   * The transitions were built long ago — cut, dissolve, fade through
+   * black, planned and rendered — and reachable only through that row.
+   * This does not add a transition; it puts the ones there are where the
+   * author is already looking. [D-19]
+   *
+   * IT IS RAISED BY EITHER BUTTON. Right-click because that is what the
+   * rest of the product taught, and LEFT-click because the program monitor
+   * has nothing else for a left click to mean — in the multiview it cuts
+   * to that take, and here there is no cut to make, so a picture that did
+   * nothing at all was the only thing it could be confused with. Both go
+   * through `onRow`, so there is one list and not two that drift.
+   */
+  const rewrite = useCallback((scene: { fromSample: number; layoutId: string },
+    takeIds: string[]) => patch({
+    action: 'set-scene', at: scene.fromSample, layoutId: scene.layoutId, takeIds,
+  }), [patch]);
+
+  const stageMenu = useCallback((panelTakeId: string | null): MenuEntry[] => {
+    const at = Math.round(player.positionNow());
+    /*
+     * NOTHING ON SCREEN HERE is a hole, and the useful thing to offer is
+     * the thing that closes it — the same offer the render console makes
+     * in a sentence, made where the emptiness actually is.
+     */
+    if (!current) {
+      return usable.map((take) => ({
+        label: `Put ${take.label} on screen from here`,
+        hint: 'Nothing is on screen at this moment',
+        onSelect: () => { void write(at, 'performance_full', [take.id]); },
+      }));
+    }
+    const scene = current;
+    const panel = panelTakeId
+      ? scene.takeIds.findIndex((id) => id === panelTakeId) : -1;
+    const isFirst = ordered[0]?.id === scene.id;
+    const transition = scene.transition ?? 'cut';
+    return [
+      /*
+       * Replacing goes through `patch` and not through `write`, because
+       * `write` snaps to the beat grid — correct when placing a cut, and
+       * wrong here: swapping who is in a panel must not also move the
+       * boundary of the scene they are in.
+       */
+      ...(panel >= 0
+        ? usable.filter((take) => !scene.takeIds.includes(take.id))
+          .map((take) => ({
+            label: `Replace with ${take.label}`,
+            onSelect: () => {
+              const takeIds = [...scene.takeIds];
+              takeIds[panel] = take.id;
+              void rewrite(scene, takeIds);
+            },
+          }))
+        : []),
+      ...Object.values(TRANSITIONS).map((style) => ({
+        label: `Arrives as a ${style.label.toLowerCase()}`,
+        hint: style.hint,
+        /* The first scene arrives from nothing, so it has no join to
+           style. Greyed with the reason rather than hidden: a menu whose
+           contents change between visits is a menu nobody learns. */
+        ...(isFirst ? { disabled: 'nothing comes before it' } as const
+          : style.id === transition ? { disabled: 'already' } as const : {}),
+        onSelect: () => {
+          void patch({
+            action: 'scene-transition', sceneId: scene.id, transition: style.id,
+          });
+        },
+      })),
+      {
+        label: 'Start this scene here',
+        hint: `move its beginning to ${formatMasterPosition(at)}`,
+        ...(at === scene.fromSample
+          ? { disabled: 'it already starts here' } as const
+          : ordered.some((other) => other.id !== scene.id && other.fromSample === at)
+            ? { disabled: 'another scene starts there' } as const : {}),
+        onSelect: () => {
+          void patch({ action: 'move-scene', sceneId: scene.id, at });
+        },
+      },
+      {
+        label: 'Remove this scene\u2026',
+        danger: true,
+        onSelect: () => confirm({
+          question: 'Remove this scene? What was on screen here goes back to '
+            + 'whatever the scene before it shows \u2014 or to nothing, if it is '
+            + 'the first.',
+          verb: 'Remove the scene',
+          danger: true,
+          go: () => { void patch({ action: 'remove-scene', sceneId: scene.id }); },
+        }),
+      },
+    ];
+  }, [confirm, current, ordered, patch, player, rewrite, usable, write]);
 
   /** Who accepted the beats. One owner for now; the field exists for later. */
   const accept = useCallback(
@@ -575,6 +703,7 @@ export default function SwitchingStage({
       alignItems: 'start',
     }}>
       {confirmDialog}
+      {menu}
       {/*
         * The rail is as tall as the stage too, and scrolls inside that.
         *
@@ -603,19 +732,32 @@ export default function SwitchingStage({
           data-layout={current?.layoutId ?? 'none'}
           style={{
             gridArea: 'stage', position: 'relative', aspectRatio: '16 / 9',
-            background: '#000', borderRadius: 2,
+            background: 'var(--screen-bed)', borderRadius: 'var(--radius-screen)',
             border: '1px solid var(--line)', overflow: 'hidden',
           }}
         >
           {visible.length === 0 && (
-            <div className="small muted" style={{
-              position: 'absolute', inset: 0, display: 'flex',
-              alignItems: 'center', justifyContent: 'center', textAlign: 'center',
-              padding: 20,
-            }}>
+            /*
+              * A HOLE IS SOMETHING TO ACT ON, TOO. The sentence told the
+              * author what was wrong and left them to go and find the
+              * remedy; pressing the emptiness now offers the takes that
+              * could fill it. Same list, same place they were looking.
+              */
+            <button type="button" className="small muted"
+                    data-testid="program-actions"
+                    {...onRow('this moment', () => stageMenu(null))}
+                    onClick={(event) =>
+                      onRow('this moment', () => stageMenu(null)).onContextMenu(event)}
+                    style={{
+                      position: 'absolute', inset: 0, display: 'flex',
+                      alignItems: 'center', justifyContent: 'center',
+                      textAlign: 'center', padding: 20, background: 'transparent',
+                      border: 0, font: 'inherit', color: 'inherit',
+                      cursor: 'context-menu',
+                    }}>
               Nothing is on screen at this moment. Press a number while the
-              song plays, or pick a take below.
-            </div>
+              song plays, pick a take below, or press here for what can go on it.
+            </button>
           )}
           {visible.map((takeId, index) => {
             const take = performance.takes.find((t) => t.id === takeId);
@@ -639,11 +781,11 @@ export default function SwitchingStage({
                      position: 'absolute',
                      left: `${rect.x * 100}%`, top: `${rect.y * 100}%`,
                      width: `${rect.w * 100}%`, height: `${rect.h * 100}%`,
-                     backgroundColor: `${take.accent ?? '#3e7ca6'}22`,
+                     backgroundColor: `${take.accent ?? TAKE_ACCENT_FALLBACK}22`,
                      backgroundImage:
                        `url(/api/performances/${performance.id}/takes/${take.id}/media?kind=poster)`,
                      backgroundSize: 'cover', backgroundPosition: 'center',
-                     borderRadius: 6, overflow: 'hidden',
+                     borderRadius: 'var(--radius-screen)', overflow: 'hidden',
                      /* A gutter between monitors, so five panels read as
                         five and not as one wide picture. A border rather than
                         an inset shadow, because a shadow draws under the
@@ -652,7 +794,7 @@ export default function SwitchingStage({
                         composition, and a gap the renderer will not draw
                         would be a preview that lies. */
                      ...(allTakes
-                       ? { border: '2px solid #05070a', boxSizing: 'border-box' as const }
+                       ? { border: '2px solid var(--screen-bed)', boxSizing: 'border-box' as const }
                        : {}),
                    }}>
                 {/*
@@ -733,7 +875,7 @@ export default function SwitchingStage({
                   fontSize: 'var(--text-xs)', fontWeight: 600,
                   background: 'rgba(0,0,0,0.72)',
                   border: '1px solid rgba(255,255,255,0.14)',
-                  borderLeft: `3px solid ${take.accent ?? '#3e7ca6'}`,
+                  borderLeft: `3px solid ${take.accent ?? TAKE_ACCENT_FALLBACK}`,
                   color: 'rgba(255,255,255,0.94)',
                   maxWidth: 'calc(100% - 12px)', overflow: 'hidden',
                   textOverflow: 'ellipsis', whiteSpace: 'nowrap',
@@ -754,6 +896,28 @@ export default function SwitchingStage({
                             position: 'absolute', inset: 0, padding: 0,
                             background: 'transparent', border: 0,
                             cursor: 'pointer',
+                          }} />
+                )}
+                {/*
+                  * AND IN PROGRAM THE PANEL IS THE SCENE. There is no cut
+                  * to make here — this IS what is on air at the playhead
+                  * — so the picture answers with what can be done to it
+                  * instead of doing nothing. A `<button>` because it is
+                  * one: reachable by tab, pressed by Enter, and named.
+                  */}
+                {!allTakes && (
+                  <button type="button" data-testid="program-actions"
+                          data-take-id={take.id}
+                          title={`What can be done to ${take.label} here`}
+                          aria-label={`What can be done to ${take.label} here`}
+                          {...onRow(take.label, () => stageMenu(take.id))}
+                          onClick={(event) =>
+                            onRow(take.label, () => stageMenu(take.id))
+                              .onContextMenu(event)}
+                          style={{
+                            position: 'absolute', inset: 0, padding: 0,
+                            background: 'transparent', border: 0,
+                            cursor: 'context-menu',
                           }} />
                 )}
               </div>
@@ -797,7 +961,7 @@ export default function SwitchingStage({
                     * thing to go.
                     */
                    position: 'absolute', right: 10, top: 10, gap: 0,
-                   borderRadius: 2, overflow: 'hidden',
+                   borderRadius: 'var(--radius-screen)', overflow: 'hidden',
                    border: '1px solid rgba(255,255,255,0.16)',
                    background: 'rgba(0,0,0,0.72)',
                  }}>
@@ -1135,7 +1299,7 @@ export default function SwitchingStage({
                       }}>
                 <span aria-hidden="true" style={{
                   width: 8, height: 8, borderRadius: '50%', flex: '0 0 auto',
-                  background: take.accent ?? '#3e7ca6',
+                  background: take.accent ?? TAKE_ACCENT_FALLBACK,
                   opacity: take.alignment.method === 'unplaced' ? 0.4 : 1,
                 }} />
                 <span style={{ fontWeight: 600 }}>{take.label}</span>
@@ -1222,8 +1386,8 @@ export default function SwitchingStage({
                     position: 'absolute', left: pct(from),
                     width: pct(Math.max(0, to - from)), top: 2, bottom: 2,
                     borderRadius: 3,
-                    border: `1px solid ${take.accent ?? '#3e7ca6'}`,
-                    backgroundColor: `${take.accent ?? '#3e7ca6'}22`,
+                    border: `1px solid ${take.accent ?? TAKE_ACCENT_FALLBACK}`,
+                    backgroundColor: `${take.accent ?? TAKE_ACCENT_FALLBACK}22`,
                     backgroundImage:
                       `url(/api/performances/${performance.id}/takes/${take.id}/media?kind=strip)`,
                     backgroundSize: '100% 100%',
@@ -1238,6 +1402,27 @@ export default function SwitchingStage({
             <div data-testid="master-timeline" style={{
               position: 'relative', height: 44, borderTop: '1px solid var(--line)',
             }}>
+              {/*
+                * UNDER THE SCENES, not over them: a scene that covers this
+                * stretch is the answer, and the mark is what shows through
+                * where there is none. Hatched rather than flooded, because
+                * a solid amber band would read as a THING on the timeline,
+                * and a hole is the absence of one.
+                */}
+              {holes.map((hole) => (
+                <div key={`hole-${hole.kind}-${hole.fromSample}`}
+                     data-testid="timeline-hole" data-kind={hole.kind}
+                     title={hole.say}
+                     style={{
+                       position: 'absolute', top: 4, bottom: 4,
+                       left: pct(hole.fromSample!),
+                       width: pct(hole.toSample! - hole.fromSample!),
+                       borderRadius: 'var(--radius-screen)',
+                       border: 'var(--border) solid rgba(232,179,60,0.44)',
+                       backgroundImage: 'repeating-linear-gradient(45deg,'
+                         + ' rgba(232,179,60,0.16) 0 5px, transparent 5px 10px)',
+                     }} />
+              ))}
               {ordered.map((scene, i) => {
                 const to = ordered[i + 1]?.fromSample ?? duration;
                 const take = performance.takes.find((t) => t.id === scene.takeIds[0]);
@@ -1250,8 +1435,8 @@ export default function SwitchingStage({
                          left: pct(scene.fromSample), width: pct(to - scene.fromSample),
                          // The take's own colour, so this strip and the lanes
                          // above it are plainly about the same takes. [§2]
-                         background: `${take?.accent ?? '#3e7ca6'}33`,
-                         borderLeft: `3px solid ${take?.accent ?? '#3e7ca6'}`,
+                         background: `${take?.accent ?? TAKE_ACCENT_FALLBACK}33`,
+                         borderLeft: `3px solid ${take?.accent ?? TAKE_ACCENT_FALLBACK}`,
                          borderRadius: 4, padding: '3px 6px', fontSize: 'var(--text-2xs)',
                          overflow: 'hidden',
                        }}>
@@ -1398,7 +1583,7 @@ export default function SwitchingStage({
                       fontWeight: 'var(--weight-bold)',
                       fontSize: 'var(--text-sm)', cursor: 'pointer',
                       color: '#0a0c10',
-                      background: take.accent ?? '#3e7ca6',
+                      background: take.accent ?? TAKE_ACCENT_FALLBACK,
                       border: '1px solid rgba(0,0,0,0.4)',
                       borderTop: pending.includes(take.id)
                         ? '3px solid #fff' : '1px solid rgba(0,0,0,0.4)',

@@ -307,11 +307,12 @@ export default function StartConversation() {
             data-testid="preview-media"
             data-kind={preview?.thumbnailUrl ? 'poster' : 'placeholder'}
             style={{
-              width: 280, aspectRatio: '16 / 9', borderRadius: 10, overflow: 'hidden',
+              width: 280, aspectRatio: '16 / 9', overflow: 'hidden',
+              borderRadius: 'var(--radius-screen)',
               border: '1px solid var(--line)', flex: '0 0 auto',
               display: 'grid', placeItems: 'center',
               background: preview?.thumbnailUrl
-                ? '#000'
+                ? 'var(--screen-bed)'
                 : 'linear-gradient(145deg, #1b2129, #12171d)',
             }}
           >

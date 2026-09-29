@@ -269,7 +269,8 @@ function LayoutDiagram({ layoutId }: { layoutId: string }) {
   return (
     <div aria-hidden style={{
       position: 'relative', width: '100%', aspectRatio: '16 / 9',
-      background: '#0d1319', borderRadius: 3, overflow: 'hidden',
+      background: 'var(--screen-bed)', overflow: 'hidden',
+      borderRadius: 'var(--radius-screen)',
       border: '1px solid var(--line)',
     }}>
       {[...layout.layers].sort((a, b) => a.z - b.z).map((layer, i) => (
