@@ -707,7 +707,7 @@ export default function SwitchingStage({
                     point of looking at them all at once. */}
                 <span style={{
                   position: 'absolute', left: 6, bottom: 6, padding: '3px 7px',
-                  borderRadius: 4, fontSize: 11, fontWeight: 600,
+                  borderRadius: 4, fontSize: 'var(--text-xs)', fontWeight: 600,
                   background: take.accent ?? '#3e7ca6', color: '#0a0c10',
                   maxWidth: 'calc(100% - 12px)', overflow: 'hidden',
                   textOverflow: 'ellipsis', whiteSpace: 'nowrap',
@@ -735,7 +735,7 @@ export default function SwitchingStage({
           })}
           <div style={{
             position: 'absolute', left: 10, top: 10, padding: '3px 8px',
-            borderRadius: 4, background: 'rgba(5,7,10,0.78)', fontSize: 11,
+            borderRadius: 4, background: 'rgba(5,7,10,0.78)', fontSize: 'var(--text-xs)',
             fontFamily: 'ui-monospace, monospace',
           }}>
             {formatMasterPosition(Math.round(player.position))} / {clock(duration)}
@@ -857,7 +857,7 @@ export default function SwitchingStage({
           {subject && isFootage(subject) ? (
             <>
               {sectionTitle('Footage', (
-                <span className="small muted" style={{ fontSize: 10 }}>{subject.label}</span>
+                <span className="small muted" style={{ fontSize: 'var(--text-2xs)' }}>{subject.label}</span>
               ))}
               {/* Four across, the environment group's shape, because this
                   group stands where that one would. */}
@@ -872,7 +872,7 @@ export default function SwitchingStage({
 
               {sectionTitle('Whose footage', (
                 <span className="small" style={{
-                  fontSize: 10,
+                  fontSize: 'var(--text-2xs)',
                   color: subject.rights && subject.rights !== 'third_party'
                     ? 'var(--muted)' : 'var(--warn)',
                 }}>
@@ -924,7 +924,7 @@ export default function SwitchingStage({
                   'footage-rights', { height: 48 }))}
               </div>
               {subject.rightsNote && (
-                <p className="small muted" style={{ fontSize: 10, margin: '6px 0 0' }}>
+                <p className="small muted" style={{ fontSize: 'var(--text-2xs)', margin: '6px 0 0' }}>
                   {subject.rightsNote}
                 </p>
               )}
@@ -935,14 +935,14 @@ export default function SwitchingStage({
             'Background / Environment',
             <span className="row" style={{ gap: 8, alignItems: 'baseline' }}>
               {subject && (
-                <span className="small muted" style={{ fontSize: 10 }}>{subject.label}</span>
+                <span className="small muted" style={{ fontSize: 'var(--text-2xs)' }}>{subject.label}</span>
               )}
               {SPACES.length > 6 && (
                 <button type="button" className="small" data-testid="view-all-spaces"
                         onClick={() => setAllSpaces(!allSpaces)}
                         style={{
                           border: 0, background: 'none', padding: 0, cursor: 'pointer',
-                          color: '#5c9ee0', fontSize: 11,
+                          color: '#5c9ee0', fontSize: 'var(--text-xs)',
                         }}>
                   {allSpaces ? 'Show fewer' : 'View all'}
                 </button>
@@ -950,7 +950,7 @@ export default function SwitchingStage({
             </span>,
           )}
           {!subject ? (
-            <p className="small muted" style={{ fontSize: 11, margin: 0 }}>
+            <p className="small muted" style={{ fontSize: 'var(--text-xs)', margin: 0 }}>
               Record or upload a take first.
             </p>
           ) : (
@@ -1054,7 +1054,7 @@ export default function SwitchingStage({
               }}>
                 MASTER SONG
               </div>
-              <div className="small muted" style={{ fontSize: 10, overflow: 'hidden',
+              <div className="small muted" style={{ fontSize: 'var(--text-2xs)', overflow: 'hidden',
                 textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {performance.master.title}
               </div>
@@ -1069,17 +1069,17 @@ export default function SwitchingStage({
               {beats?.acceptedBy && (
                 <span className="row" data-testid="tempo"
                       style={{ gap: 4, marginTop: 2 }}>
-                  <span className="small muted" style={{ fontSize: 10 }}>
+                  <span className="small muted" style={{ fontSize: 'var(--text-2xs)' }}>
                     {Math.round(beats.bpm)} BPM
                   </span>
                   <button className="small" data-testid="halve-tempo"
                           title={`Half time \u2014 ${Math.round(beats.bpm / 2)} BPM`}
                           onClick={() => void tempo(beats.bpm / 2)}
-                          style={{ padding: '0 5px', fontSize: 10 }}>&frac12;</button>
+                          style={{ padding: '0 5px', fontSize: 'var(--text-2xs)' }}>&frac12;</button>
                   <button className="small" data-testid="double-tempo"
                           title={`Double time \u2014 ${Math.round(beats.bpm * 2)} BPM`}
                           onClick={() => void tempo(beats.bpm * 2)}
-                          style={{ padding: '0 5px', fontSize: 10 }}>2&times;</button>
+                          style={{ padding: '0 5px', fontSize: 'var(--text-2xs)' }}>2&times;</button>
                 </span>
               )}
             </div>
@@ -1090,7 +1090,7 @@ export default function SwitchingStage({
                       style={{
                         display: 'flex', alignItems: 'center', gap: 7, width: '100%',
                         height: 30, padding: '0 10px', border: 0, font: 'inherit',
-                        fontSize: 11, textAlign: 'left', cursor: 'pointer',
+                        fontSize: 'var(--text-xs)', textAlign: 'left', cursor: 'pointer',
                         color: 'inherit',
                         background: subject?.id === take.id
                           ? 'rgba(45,110,200,0.16)' : 'transparent',
@@ -1126,7 +1126,7 @@ export default function SwitchingStage({
                           go: () => void patch({ action: 'clear-scenes' }),
                         })}
                         style={{
-                          border: 0, background: 'none', padding: 0, fontSize: 10,
+                          border: 0, background: 'none', padding: 0, fontSize: 'var(--text-2xs)',
                           fontWeight: 500, color: 'var(--muted)', cursor: 'pointer',
                         }}>Clear</button>
               )}
@@ -1153,7 +1153,7 @@ export default function SwitchingStage({
               {ordered.filter((s) => s.label).map((scene) => (
                 <span key={scene.id} style={{
                   position: 'absolute', left: pct(scene.fromSample), top: 0,
-                  fontSize: 10, paddingLeft: 5, color: 'rgba(255,255,255,0.72)',
+                  fontSize: 'var(--text-2xs)', paddingLeft: 5, color: 'rgba(255,255,255,0.72)',
                 }}>{scene.label}</span>
               ))}
               <svg width="100%" height="36" style={{ position: 'absolute', top: 14 }}
@@ -1214,7 +1214,7 @@ export default function SwitchingStage({
                          // above it are plainly about the same takes. [§2]
                          background: `${take?.accent ?? '#3e7ca6'}33`,
                          borderLeft: `3px solid ${take?.accent ?? '#3e7ca6'}`,
-                         borderRadius: 4, padding: '3px 6px', fontSize: 10,
+                         borderRadius: 4, padding: '3px 6px', fontSize: 'var(--text-2xs)',
                          overflow: 'hidden',
                        }}>
                     <span style={{ display: 'block', fontWeight: 600 }}>
@@ -1297,7 +1297,7 @@ export default function SwitchingStage({
                   title={player.playing ? 'Pause' : 'Play the song'}
                   style={{
                     width: 34, height: 30, padding: 0,
-                    fontSize: 12, flex: '0 0 auto',
+                    fontSize: 'var(--text-sm)', flex: '0 0 auto',
                   }}>
             {player.playing ? '\u275a\u275a' : '\u25b6'}
           </button>
@@ -1316,7 +1316,7 @@ export default function SwitchingStage({
             */}
           <label className="row" style={{ gap: 5, alignItems: 'center', minWidth: 0 }}
                  title="How loud the song is here. The render is unaffected.">
-            <span aria-hidden="true" style={{ fontSize: 12, opacity: 0.7 }}>
+            <span aria-hidden="true" style={{ fontSize: 'var(--text-sm)', opacity: 0.7 }}>
               {player.volume === 0 ? '\ud83d\udd07' : '\ud83d\udd0a'}
             </span>
             <input
@@ -1374,7 +1374,7 @@ export default function SwitchingStage({
         {/* ---- right: what acts on the whole edit -------------------- */}
         <div className="row" style={{
           gap: 6, justifyContent: 'flex-end', flexWrap: 'nowrap',
-          fontSize: 12, whiteSpace: 'nowrap',
+          fontSize: 'var(--text-sm)', whiteSpace: 'nowrap',
         }}>
           {beats && (
             <button className="small" data-testid="snap-to-beat"
@@ -1444,7 +1444,7 @@ export default function SwitchingStage({
       {/* ---- how one scene becomes the next (§11) ---------------------- */}
       {ordered.length > 1 && showTransitions && (
         <div className="row" data-testid="transitions" style={{ gap: 8, flexWrap: 'wrap' }}>
-          <span className="small muted" style={{ fontSize: 11 }}>Transitions</span>
+          <span className="small muted" style={{ fontSize: 'var(--text-xs)' }}>Transitions</span>
           {ordered.slice(1).map((scene) => (
             <select key={scene.id} className="small" data-testid="scene-transition"
                     data-scene-id={scene.id}
@@ -1453,7 +1453,7 @@ export default function SwitchingStage({
                       action: 'set-transition', sceneId: scene.id,
                       transition: e.target.value === 'cut' ? null : e.target.value,
                     })}
-                    style={{ width: 'auto', fontSize: 11, padding: '2px 6px' }}>
+                    style={{ width: 'auto', fontSize: 'var(--text-xs)', padding: '2px 6px' }}>
               {Object.values(TRANSITIONS).map((t) => (
                 <option key={t.id} value={t.id}>
                   {clock(scene.fromSample)} · {t.label}

@@ -146,7 +146,7 @@ export default function ClaimCard({
       {/* ---- what the source said --------------------------------------- */}
       <div style={{ flex: '1 1 0', minWidth: 0 }}>
         <div className="row small muted" style={{ gap: 8, marginBottom: 2 }}>
-          <span style={{ textTransform: 'uppercase', fontSize: 11, letterSpacing: 0.6 }}>
+          <span style={{ textTransform: 'uppercase', fontSize: 'var(--text-xs)', letterSpacing: 0.6 }}>
             Source statement
           </span>
           <span className="mono" data-testid="claim-card-time">
@@ -172,7 +172,7 @@ export default function ClaimCard({
       {/* ---- and what you are doing about it ---------------------------- */}
       <div style={{ flex: '1 1 0', minWidth: 0 }}>
         <div className="small muted" style={{
-          textTransform: 'uppercase', fontSize: 11, letterSpacing: 0.6, marginBottom: 2,
+          textTransform: 'uppercase', fontSize: 'var(--text-xs)', letterSpacing: 0.6, marginBottom: 2,
         }}>
           Your response
         </div>
@@ -186,7 +186,7 @@ export default function ClaimCard({
           <div className="row" style={{ gap: 10, flexWrap: 'nowrap' }}>
             <kbd style={{
               padding: '6px 14px', borderRadius: 6, border: '1px solid var(--line)',
-              background: 'rgba(255,255,255,0.06)', fontSize: 13, letterSpacing: 1,
+              background: 'rgba(255,255,255,0.06)', fontSize: 'var(--text-base)', letterSpacing: 1,
               flex: '0 0 auto',
             }}>SPACE</kbd>
             <span className="grow small muted">

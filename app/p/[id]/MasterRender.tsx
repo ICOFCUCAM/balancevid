@@ -138,7 +138,7 @@ export default function MasterRender({ performance }: { performance: Performance
             aria-pressed={shape === profileId}
             onClick={() => setShape(profileId)}
             style={{
-              padding: '5px 10px', fontSize: 12,
+              padding: '5px 10px', fontSize: 'var(--text-sm)',
               background: shape === profileId ? 'var(--accent-wash)' : undefined,
               borderColor: shape === profileId ? 'var(--accent)' : undefined,
             }}
@@ -216,7 +216,7 @@ export default function MasterRender({ performance }: { performance: Performance
                     <button className="small" data-testid="make-audio"
                             disabled={busy || audioState(planHash) === 'working'}
                             onClick={() => void audio(planHash)}
-                            style={{ padding: '2px 8px', fontSize: 11 }}>
+                            style={{ padding: '2px 8px', fontSize: 'var(--text-xs)' }}>
                       {audioState(planHash) === 'working' ? 'Taking the audio…'
                         : audioState(planHash) === 'done' ? 'Take it again'
                         : 'Make an audio file'}

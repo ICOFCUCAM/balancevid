@@ -427,7 +427,7 @@ export default function PerformanceStudio(
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
                 {performance.takes.length === 0 && recording.phase === 'idle' && (
-                  <p className="small muted" style={{ margin: 0, fontSize: 11 }}>
+                  <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-xs)' }}>
                     Record against the song, or bring in something you filmed.
                   </p>
                 )}
@@ -525,18 +525,18 @@ export default function PerformanceStudio(
                         />
                         <span style={{ minWidth: 0, flex: 1 }}>
                           <span style={{
-                            fontWeight: 600, fontSize: 13, display: 'block',
+                            fontWeight: 600, fontSize: 'var(--text-base)', display: 'block',
                             overflow: 'hidden', textOverflow: 'ellipsis',
                             whiteSpace: 'nowrap',
                           }}>{take.label}</span>
                           <span className="small muted" style={{
-                            fontSize: 11, display: 'block', overflow: 'hidden',
+                            fontSize: 'var(--text-xs)', display: 'block', overflow: 'hidden',
                             textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                           }}>
                             {footage || placed ? where : 'not placed yet'}
                           </span>
                           <span className="small muted" style={{
-                            fontSize: 11, display: 'block',
+                            fontSize: 'var(--text-xs)', display: 'block',
                             fontFamily: 'ui-monospace, monospace',
                           }}>
                             {take.durationSamples > 0
@@ -616,7 +616,7 @@ export default function PerformanceStudio(
                           ))}
                         </select>
                         {!measured && (
-                          <span className="small muted" style={{ fontSize: 11 }}>
+                          <span className="small muted" style={{ fontSize: 'var(--text-xs)' }}>
                             Measure your room in Set up to stand anywhere else.
                           </span>
                         )}
@@ -717,7 +717,7 @@ export default function PerformanceStudio(
           */}
         <details data-testid="setup" open={performance.takes.length === 0}
                  style={{ marginTop: 14, borderTop: '1px solid var(--line)', paddingTop: 10 }}>
-          <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
+          <summary style={{ cursor: 'pointer', fontSize: 'var(--text-base)', fontWeight: 600 }}>
             Set up
           </summary>
         {/* ---- what may be done with this music ---------------------- */}
@@ -784,7 +784,7 @@ export default function PerformanceStudio(
                   licence: performance.master.licence ?? null,
                 })}
                 style={{
-                  padding: '5px 10px', fontSize: 12,
+                  padding: '5px 10px', fontSize: 'var(--text-sm)',
                   background: performance.master.class === cls
                     ? 'var(--accent-wash)' : undefined,
                   borderColor: performance.master.class === cls ? 'var(--accent)' : undefined,
@@ -833,7 +833,7 @@ export default function PerformanceStudio(
               {describeCalibration(device.calibration)}
             </span>
           </div>
-          <p className="small muted" style={{ fontSize: 11, marginTop: 6,
+          <p className="small muted" style={{ fontSize: 'var(--text-xs)', marginTop: 6,
             marginBottom: 0, maxWidth: 640 }}>
             {/* The one instruction that makes the measurement possible, and the
                 opposite of the one recording needs. [S-3] */}

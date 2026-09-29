@@ -164,7 +164,7 @@ export default function UploadTake({
         {busy ? `Uploading… ${sent}%` : footage ? 'Add footage' : 'Upload a take'}
       </button>
       {!compact && (
-        <p className="small muted" style={{ fontSize: 11, margin: '4px 0 0' }}>
+        <p className="small muted" style={{ fontSize: 'var(--text-xs)', margin: '4px 0 0' }}>
           {/* Said before they choose, because it decides whether the take
               lands in the right place or has to be dragged there. */}
           {explain}

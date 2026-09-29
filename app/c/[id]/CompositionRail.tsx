@@ -151,7 +151,7 @@ export default function CompositionRail({
               }}
             >
               <LayoutDiagram layoutId={id} />
-              <div className="small" style={{ fontSize: 11, marginTop: 4, lineHeight: 1.2 }}>
+              <div className="small" style={{ fontSize: 'var(--text-xs)', marginTop: 4, lineHeight: 1.2 }}>
                 {layout.label}
               </div>
             </button>
@@ -178,7 +178,7 @@ export default function CompositionRail({
               title={option.hint}
               onClick={() => onTool(armed ? null : option.kind)}
               style={{
-                padding: '8px 6px', borderRadius: 6, fontSize: 12,
+                padding: '8px 6px', borderRadius: 6, fontSize: 'var(--text-sm)',
                 ...(armed ? {} : { background: 'var(--panel-2)',
                   border: '1px solid var(--line)' }),
               }}
@@ -210,7 +210,7 @@ export default function CompositionRail({
                 textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {labelFor(mark.kind)}{mark.text ? ` — “${mark.text}”` : ''}
               </span>
-              <span className="mono muted" style={{ fontSize: 10, flex: '0 0 auto' }}>
+              <span className="mono muted" style={{ fontSize: 'var(--text-2xs)', flex: '0 0 auto' }}>
                 {mark.appearOffset !== undefined
                   ? formatTimecode(mark.appearOffset).slice(3, 8)
                   : 'all'}
@@ -219,13 +219,13 @@ export default function CompositionRail({
                 <button className="small" disabled={disabled}
                         title="Show this mark only from here to the end"
                         onClick={() => onTimeMark(mark.id)}
-                        style={{ padding: '2px 6px', fontSize: 11 }}>
+                        style={{ padding: '2px 6px', fontSize: 'var(--text-xs)' }}>
                   time
                 </button>
               )}
               <button className="small" disabled={disabled}
                       onClick={() => onRemoveMark(mark.id)}
-                      style={{ padding: '2px 6px', fontSize: 11 }}>
+                      style={{ padding: '2px 6px', fontSize: 'var(--text-xs)' }}>
                 remove
               </button>
             </div>

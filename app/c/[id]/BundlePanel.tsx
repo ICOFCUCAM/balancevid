@@ -71,7 +71,7 @@ export default function BundlePanel({ conversationId, ready }: { conversationId:
         <label htmlFor="bundle-description">Description</label>
         <textarea id="bundle-description" readOnly rows={8} value={bundle.description}
                   data-testid="bundle-description"
-                  style={{ width: '100%', fontSize: 13, fontFamily: 'inherit' }} />
+                  style={{ width: '100%', fontSize: 'var(--text-base)', fontFamily: 'inherit' }} />
         <button className="small" onClick={() => void copy('description', bundle.description)}>
           {copied === 'description' ? 'Copied' : 'Copy description'}
         </button>

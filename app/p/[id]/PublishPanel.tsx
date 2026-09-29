@@ -140,7 +140,7 @@ export default function PublishPanel({
                 Make a vertical clip
               </button>
             </div>
-            <div className="small muted" style={{ marginTop: 3, fontSize: 11 }}>
+            <div className="small muted" style={{ marginTop: 3, fontSize: 'var(--text-xs)' }}>
               {/* The ranking, said out loud so it can be disagreed with. */}
               {candidate.reasons.join(' · ')}
             </div>

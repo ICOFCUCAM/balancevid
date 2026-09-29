@@ -719,7 +719,7 @@ function EvidenceItem({
             >
               {enlarged ? 'Showing the passage large' : 'Show the marked part large'}
             </button>
-            <span className="muted" style={{ fontSize: 11 }}>
+            <span className="muted" style={{ fontSize: 'var(--text-xs)' }}>
               {region
                 ? 'The marked part fills the screen while you read it.'
                 : 'Drag a box over the part you are reading first.'}

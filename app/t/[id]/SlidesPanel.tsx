@@ -163,7 +163,7 @@ export default function SlidesPanel({
           className="small" data-testid="write-slide" disabled={busy}
           onClick={() => setWriting((open) => !open)}
           style={{
-            border: 0, background: 'none', padding: 0, fontSize: 11,
+            border: 0, background: 'none', padding: 0, fontSize: 'var(--text-xs)',
             color: '#5c9ee0', cursor: 'pointer', marginRight: 9,
           }}
         >+ Write</button>
@@ -171,7 +171,7 @@ export default function SlidesPanel({
           className="small" data-testid="add-deck" disabled={busy}
           onClick={() => file.current?.click()}
           style={{
-            border: 0, background: 'none', padding: 0, fontSize: 11,
+            border: 0, background: 'none', padding: 0, fontSize: 'var(--text-xs)',
             color: '#5c9ee0', cursor: 'pointer',
           }}
         >+ Upload</button>
@@ -187,7 +187,7 @@ export default function SlidesPanel({
       </div>
 
       {decks.length === 0 ? (
-        <p className="small muted" style={{ margin: 0, fontSize: 11 }}>
+        <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-xs)' }}>
           Upload a PowerPoint, a PDF or a Word document and each page becomes
           a slide you can put on air.
         </p>
@@ -195,7 +195,7 @@ export default function SlidesPanel({
         <select
           data-testid="deck-choice" value={chosen ?? ''}
           onChange={(event) => setChosen(event.target.value)}
-          style={{ fontSize: 12, padding: '6px 9px' }}
+          style={{ fontSize: 'var(--text-sm)', padding: '6px 9px' }}
         >
           {decks.map((candidate) => (
             <option key={candidate.id} value={candidate.id}>
@@ -229,7 +229,7 @@ export default function SlidesPanel({
                 aria-pressed={layout === option}
                 onClick={() => setLayout(option)}
                 style={{
-                  padding: '3px 8px', fontSize: 10, borderRadius: 5,
+                  padding: '3px 8px', fontSize: 'var(--text-2xs)', borderRadius: 5,
                   border: `1px solid ${layout === option ? '#3d7fd6' : 'var(--line)'}`,
                   background: layout === option
                     ? 'rgba(45,110,200,0.22)' : 'transparent',
@@ -241,7 +241,7 @@ export default function SlidesPanel({
             data-testid="slide-heading" value={heading}
             onChange={(event) => setHeading(event.target.value)}
             placeholder={layout === 'quote' ? 'Who said it (optional)' : 'Heading'}
-            style={{ fontSize: 12, padding: '6px 9px' }}
+            style={{ fontSize: 'var(--text-sm)', padding: '6px 9px' }}
           />
           <textarea
             data-testid="slide-text" value={text} rows={3}
@@ -250,7 +250,7 @@ export default function SlidesPanel({
               ? 'The quotation'
               : 'Words. A blank line starts a paragraph; \u201c- \u201d starts a bullet.'}
             style={{
-              fontSize: 12, padding: '6px 9px', width: '100%', resize: 'vertical',
+              fontSize: 'var(--text-sm)', padding: '6px 9px', width: '100%', resize: 'vertical',
               font: 'inherit', background: 'var(--panel)',
               border: '1px solid var(--line)', borderRadius: 8, color: 'inherit',
             }}
@@ -282,7 +282,7 @@ export default function SlidesPanel({
             ) : (
               <span className="muted" style={{
                 position: 'absolute', inset: 0, display: 'grid',
-                placeItems: 'center', fontSize: 11,
+                placeItems: 'center', fontSize: 'var(--text-xs)',
               }}>Not on air</span>
             )}
           </div>
@@ -295,7 +295,7 @@ export default function SlidesPanel({
               style={{ flex: '0 0 auto', padding: '7px 11px' }}
             >&#9664;</button>
             <span className="mono grow" data-testid="slide-position" style={{
-              textAlign: 'center', fontSize: 12, fontWeight: 700,
+              textAlign: 'center', fontSize: 'var(--text-sm)', fontWeight: 700,
             }}>
               {at >= 0 ? `${at + 1} / ${deck.slides.length}`
                 : `— / ${deck.slides.length}`}
@@ -314,7 +314,7 @@ export default function SlidesPanel({
               className="small" data-testid="slide-blank" disabled={at < 0}
               title="Take the slides down and go back to the room"
               onClick={onRollOut}
-              style={{ flex: '0 0 auto', padding: '7px 10px', fontSize: 11 }}
+              style={{ flex: '0 0 auto', padding: '7px 10px', fontSize: 'var(--text-xs)' }}
             >Blank</button>
           </div>
         </>
@@ -322,7 +322,7 @@ export default function SlidesPanel({
 
       {note && (
         <p className="small muted" data-testid="slides-note"
-           style={{ margin: 0, fontSize: 11 }}>{note}</p>
+           style={{ margin: 0, fontSize: 'var(--text-xs)' }}>{note}</p>
       )}
     </div>
   );

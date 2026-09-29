@@ -148,7 +148,7 @@ export default function ClaimsPanel({
                 <>
                   <textarea rows={3} value={draft} data-testid="claim-edit"
                             onChange={(e) => setDraft(e.target.value)}
-                            style={{ width: '100%', fontSize: 13 }} />
+                            style={{ width: '100%', fontSize: 'var(--text-base)' }} />
                   <p className="small muted" style={{ margin: '2px 0 6px' }}>
                     Narrow it to the part that matters. It has to stay the
                     source's own words — your wording belongs in a note.

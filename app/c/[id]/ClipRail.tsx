@@ -141,7 +141,7 @@ export default function ClipRail({
                      style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               ) : (
                 <span className="small" style={{
-                  fontSize: 10, textAlign: 'center', padding: '0 4px', lineHeight: 1.25,
+                  fontSize: 'var(--text-2xs)', textAlign: 'center', padding: '0 4px', lineHeight: 1.25,
                   color: item.state === 'failed' ? 'var(--bad)' : 'var(--muted)',
                 }}>
                   {item.state === 'failed' ? 'did not save'
@@ -185,20 +185,20 @@ export default function ClipRail({
             </div>
 
             <div className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
-              <span className="mono small" style={{ fontSize: 12 }}>
+              <span className="mono small" style={{ fontSize: 'var(--text-sm)' }}>
                 {item.durationFrames > 0
                   ? formatTimecode(item.durationFrames).slice(3, 8)
                   : '--:--'}
               </span>
               <span className="grow" />
-              <span className="mono small muted" style={{ fontSize: 11 }}>
+              <span className="mono small muted" style={{ fontSize: 'var(--text-xs)' }}>
                 Source {formatTimecode(item.tSourceFrame).slice(3, 8)}
               </span>
             </div>
 
             {item.quote && (
               <div className="small muted" style={{
-                fontSize: 11, marginTop: 3, lineHeight: 1.3,
+                fontSize: 'var(--text-xs)', marginTop: 3, lineHeight: 1.3,
                 display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
                 overflow: 'hidden',
               }}>
@@ -213,7 +213,7 @@ export default function ClipRail({
             */}
             {item.state === 'failed' && (
               <div data-testid="clip-failed" style={{ marginTop: 5 }}>
-                <div className="small" style={{ color: 'var(--bad)', fontSize: 11,
+                <div className="small" style={{ color: 'var(--bad)', fontSize: 'var(--text-xs)',
                   lineHeight: 1.3 }}>
                   This recording did not finish saving.
                   {item.error ? ` ${item.error}` : ''}
@@ -233,7 +233,7 @@ export default function ClipRail({
                     style={{
                       display: 'inline-block', marginTop: 4, padding: '3px 8px',
                       borderRadius: 5, border: '1px solid var(--line)',
-                      background: 'var(--panel-2)', cursor: 'pointer', fontSize: 11,
+                      background: 'var(--panel-2)', cursor: 'pointer', fontSize: 'var(--text-xs)',
                     }}
                   >
                     Try again
@@ -244,7 +244,7 @@ export default function ClipRail({
 
             {item.state === 'waiting' && (
               <div className="small muted" data-testid="clip-waiting"
-                   style={{ marginTop: 4, fontSize: 11, lineHeight: 1.3 }}>
+                   style={{ marginTop: 4, fontSize: 'var(--text-xs)', lineHeight: 1.3 }}>
                 Waiting to be prepared.
               </div>
             )}

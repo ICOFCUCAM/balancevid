@@ -566,10 +566,10 @@ export default function ChannelStudio({
           }}>
             <Dot on={on.kind !== 'off'} colour={on.kind === 'live' ? 'var(--state-live)'
               : on.kind === 'emergency' || on.kind === 'backup' ? 'var(--ink-on-armed)' : 'var(--accent)'} />
-            <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.4 }}>
+            <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, letterSpacing: 0.4 }}>
               {on.kind === 'off' ? 'OFF AIR' : 'ON AIR'}
             </span>
-            <span className="mono" style={{ fontSize: 12 }}>{hms(elapsedMs)}</span>
+            <span className="mono" style={{ fontSize: 'var(--text-sm)' }}>{hms(elapsedMs)}</span>
           </span>
         )}
         trailing={(
@@ -642,7 +642,7 @@ export default function ChannelStudio({
                 autoFocus value={filter} data-testid="rail-filter"
                 onChange={(event) => setFilter(event.target.value)}
                 placeholder="Find something…"
-                style={{ fontSize: 12, padding: '6px 9px' }}
+                style={{ fontSize: 'var(--text-sm)', padding: '6px 9px' }}
               />
             </div>
           )}
@@ -654,7 +654,7 @@ export default function ChannelStudio({
             */}
           {adding && (
             <p className="small muted" style={{
-              margin: 0, padding: '7px 10px 0', fontSize: 11,
+              margin: 0, padding: '7px 10px 0', fontSize: 'var(--text-xs)',
             }}>
               {pickedItem
                 ? `“${pickedItem.title}” — put it in the loop, or give it a time.`
@@ -836,7 +836,7 @@ export default function ChannelStudio({
 
           <div className="row" style={{
             borderTop: '1px solid var(--line)', padding: '7px 10px',
-            fontSize: 10, gap: 8, flex: '0 0 auto',
+            fontSize: 'var(--text-2xs)', gap: 8, flex: '0 0 auto',
           }}>
             {/* THE CLAIM, ON SCREEN: everything scheduled against the files
                 behind it. Six showings of one film is still one file. [D-18] */}
@@ -1120,12 +1120,12 @@ export default function ChannelStudio({
                   ) : (
                     <span className="small muted" style={{
                       position: 'absolute', inset: 0, display: 'grid',
-                      placeItems: 'center', fontSize: 11,
+                      placeItems: 'center', fontSize: 'var(--text-xs)',
                     }}>Nothing queued</span>
                   )}
                   <span data-testid="preview-title" style={{
                     position: 'absolute', left: 0, right: 0, bottom: 0,
-                    padding: '14px 9px 6px', fontSize: 11, fontWeight: 600,
+                    padding: '14px 9px 6px', fontSize: 'var(--text-xs)', fontWeight: 600,
                     background: 'linear-gradient(180deg, transparent, rgba(5,7,10,0.92))',
                     overflow: 'hidden', textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap',
@@ -1142,7 +1142,7 @@ export default function ChannelStudio({
                   sub="Sources"
                   right={(
                     <span className="muted" style={{
-                      fontSize: 10, whiteSpace: 'nowrap', flex: '0 0 auto',
+                      fontSize: 'var(--text-2xs)', whiteSpace: 'nowrap', flex: '0 0 auto',
                     }}>
                       {guests.sources.length || 1} in mix
                     </span>
@@ -1205,7 +1205,7 @@ export default function ChannelStudio({
                 * control room somebody reaches for in a hurry. [D-22]
                 */}
               <label className="row" data-testid="auto-play" style={{
-                gap: 6, fontSize: 11, margin: 0, cursor: 'pointer',
+                gap: 6, fontSize: 'var(--text-xs)', margin: 0, cursor: 'pointer',
               }} title="Keep the timeline on the clock. The transmission is unaffected.">
                 <input
                   type="checkbox" checked={pinned === null}
@@ -1512,7 +1512,7 @@ export default function ChannelStudio({
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {segments.slice(1, 6).map((segment) => (
                   <div key={segment.fromMs} className="row" data-testid="upcoming-row"
-                       style={{ gap: 8, fontSize: 11 }}>
+                       style={{ gap: 8, fontSize: 'var(--text-xs)' }}>
                     <span className="mono muted" style={{ flex: '0 0 auto' }}>
                       {clock(segment.fromMs)}
                     </span>
@@ -1520,13 +1520,13 @@ export default function ChannelStudio({
                       flex: 1, minWidth: 0, overflow: 'hidden',
                       textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                     }}>{segment.title}</span>
-                    <span className="muted" style={{ flex: '0 0 auto', fontSize: 10 }}>
+                    <span className="muted" style={{ flex: '0 0 auto', fontSize: 'var(--text-2xs)' }}>
                       {offsetLabel(segment.toMs - segment.fromMs)}
                     </span>
                   </div>
                 ))}
                 {segments.length <= 1 && (
-                  <p className="small muted" style={{ margin: 0, fontSize: 11 }}>
+                  <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-xs)' }}>
                     Put something in the loop and the channel is never off air.
                   </p>
                 )}
@@ -1680,7 +1680,7 @@ export default function ChannelStudio({
           <Meter value={levels['master']?.energy ?? 0} label="Program" />
 
           <span className="small muted" style={{
-            fontSize: 11, minWidth: 0, overflow: 'hidden',
+            fontSize: 'var(--text-xs)', minWidth: 0, overflow: 'hidden',
             textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           }}>
             {/*
@@ -1828,7 +1828,7 @@ export default function ChannelStudio({
             <summary className="small" style={{
               listStyle: 'none', cursor: 'pointer', padding: '6px 10px',
               borderRadius: 3, border: '1px solid var(--console-seam)',
-              background: 'var(--panel-2)', fontSize: 11, whiteSpace: 'nowrap',
+              background: 'var(--panel-2)', fontSize: 'var(--text-xs)', whiteSpace: 'nowrap',
             }}>
               Stream Output
               {' '}
@@ -1859,7 +1859,7 @@ export default function ChannelStudio({
                 * with its sides cut off. [§15, U-22, D-21]
                 */}
               <div className="row">
-                <strong className="grow" style={{ fontSize: 12 }}>Destinations</strong>
+                <strong className="grow" style={{ fontSize: 'var(--text-sm)' }}>Destinations</strong>
                 <button className="small" data-testid="add-destination"
                         onClick={() => confirm({
                           question: 'Every destination carries the same '
@@ -1885,17 +1885,17 @@ export default function ChannelStudio({
                         })}
                         style={{
                           border: 0, background: 'none', padding: 0,
-                          color: 'var(--accent-soft)', fontSize: 11, cursor: 'pointer',
+                          color: 'var(--accent-soft)', fontSize: 'var(--text-xs)', cursor: 'pointer',
                         }}>
                   + Add
                 </button>
               </div>
-              <p className="small muted" style={{ margin: 0, fontSize: 10 }}>
+              <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-2xs)' }}>
                 This channel is always one of the outputs — the playout
                 engine writes its HLS whatever is listed here.
               </p>
               {(channel.destinations ?? []).length === 0 && (
-                <p className="small muted" style={{ margin: 0, fontSize: 11 }}>
+                <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-xs)' }}>
                   Nothing else. Add a destination to send the same programme
                   somewhere else.
                 </p>
@@ -1916,7 +1916,7 @@ export default function ChannelStudio({
                        data-testid="destination" data-kind={destination.kind}
                        data-state={state}
                        style={{
-                         gap: 7, fontSize: 11, padding: '5px 7px', borderRadius: 6,
+                         gap: 7, fontSize: 'var(--text-xs)', padding: '5px 7px', borderRadius: 6,
                          background: 'var(--panel-2)', border: '1px solid var(--line)',
                        }}>
                     <button
@@ -1952,7 +1952,7 @@ export default function ChannelStudio({
                       })}
                       style={{
                         border: 0, background: 'none', padding: '0 2px',
-                        color: 'var(--bad)', cursor: 'pointer', fontSize: 12,
+                        color: 'var(--bad)', cursor: 'pointer', fontSize: 'var(--text-sm)',
                       }}
                     >&times;</button>
                   </div>
@@ -1961,7 +1961,7 @@ export default function ChannelStudio({
               {(channel.destinations ?? []).some(
                 (destination) => destination.enabled
                   && PLATFORMS[destination.kind]?.needsReview) && (
-                <p className="small muted" style={{ margin: 0, fontSize: 10 }}>
+                <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-2xs)' }}>
                   {/* Said plainly rather than shown as a working switch: a
                       platform whose Live products are behind an app review is
                       not something this can turn on for you. */}
@@ -1990,7 +1990,7 @@ export default function ChannelStudio({
           <span className="row" data-testid="server-lamp"
                 data-engine={health?.engine ?? 'unknown'}
                 data-stream={health?.stream ?? 'unknown'}
-                style={{ gap: 6, fontSize: 11, flex: '0 0 auto' }}
+                style={{ gap: 6, fontSize: 'var(--text-xs)', flex: '0 0 auto' }}
                 title={[health?.says, ...violations, error]
                   .filter(Boolean).join(' \u00b7 ')
                   || 'Segments are being written and every reference has a '
@@ -2023,7 +2023,7 @@ export default function ChannelStudio({
             */}
           <span className="row" data-testid="publish-lamp"
                 data-published={published ? 'true' : 'false'} style={{
-                  gap: 6, fontSize: 11, flex: '0 0 auto',
+                  gap: 6, fontSize: 'var(--text-xs)', flex: '0 0 auto',
                 }}
                 title={published
                   ? 'Anybody with the link can watch this channel.'
@@ -2035,7 +2035,7 @@ export default function ChannelStudio({
           <a className="btn small" data-testid="view-channel"
              href={`/t/${id}/watch`} target="_blank" rel="noreferrer"
              title="Open the channel the way a viewer gets it: the transmission, twelve seconds behind."
-             style={{ padding: '6px 11px', fontSize: 11, whiteSpace: 'nowrap' }}>
+             style={{ padding: '6px 11px', fontSize: 'var(--text-xs)', whiteSpace: 'nowrap' }}>
             View Channel
           </a>
 
@@ -2043,7 +2043,7 @@ export default function ChannelStudio({
             <summary aria-label="Channel settings" style={{
               listStyle: 'none', cursor: 'pointer', padding: '5px 8px',
               borderRadius: 3, border: '1px solid var(--console-seam)',
-              background: 'var(--panel-2)', fontSize: 13,
+              background: 'var(--panel-2)', fontSize: 'var(--text-base)',
             }}>&#9881;</summary>
             <div className="panel" style={{
               position: 'absolute', right: 0, bottom: 'calc(100% + 7px)', width: 290,
@@ -2058,7 +2058,7 @@ export default function ChannelStudio({
                 * about it. [§9]
                 */}
               <div className="row">
-                <span className="grow" style={{ fontSize: 12, fontWeight: 600 }}>
+                <span className="grow" style={{ fontSize: 'var(--text-sm)', fontWeight: 600 }}>
                   Safe playlist
                 </span>
                 <button
@@ -2074,13 +2074,13 @@ export default function ChannelStudio({
                     }
                   }}
                   style={channel.backup
-                    ? { borderColor: 'var(--state-armed-dim)', color: 'var(--ink-on-armed)', fontSize: 11 }
-                    : { fontSize: 11 }}
+                    ? { borderColor: 'var(--state-armed-dim)', color: 'var(--ink-on-armed)', fontSize: 'var(--text-xs)' }
+                    : { fontSize: 'var(--text-xs)' }}
                 >
                   {channel.backup ? 'Clear' : 'Set from pick'}
                 </button>
               </div>
-              <p className="small muted" style={{ margin: 0, fontSize: 11 }}>
+              <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-xs)' }}>
                 {channel.backup
                   ? `A lost feed falls to “${nameOf(channel.backup)}” for a `
                     + 'minute, then back to the loop.'
@@ -2090,7 +2090,7 @@ export default function ChannelStudio({
               <div className="row" style={{
                 borderTop: '1px solid var(--line)', paddingTop: 7,
               }}>
-                <span className="grow" style={{ fontSize: 12, fontWeight: 600 }}>
+                <span className="grow" style={{ fontSize: 'var(--text-sm)', fontWeight: 600 }}>
                   Audience
                 </span>
                 <button
@@ -2122,16 +2122,16 @@ export default function ChannelStudio({
                     });
                   }}
                   style={published
-                    ? { borderColor: 'var(--state-armed-dim)', color: 'var(--ink-on-armed)', fontSize: 11 }
+                    ? { borderColor: 'var(--state-armed-dim)', color: 'var(--ink-on-armed)', fontSize: 'var(--text-xs)' }
                     : {
                       background: 'var(--accent-deep)', borderColor: 'var(--accent-deep)', color: 'var(--ink-000)',
-                      fontSize: 11,
+                      fontSize: 'var(--text-xs)',
                     }}
                 >
                   {published ? 'Take off air' : 'Publish'}
                 </button>
               </div>
-              <p className="small muted" style={{ margin: 0, fontSize: 11 }}>
+              <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-xs)' }}>
                 {/*
                   * SAID PLAINLY, because it is the one thing about publishing
                   * a channel that is not obvious: nothing is copied and
@@ -2150,17 +2150,17 @@ export default function ChannelStudio({
                     readOnly data-testid="public-link"
                     value={`${origin}/t/${id}/watch`}
                     onFocus={(event) => event.currentTarget.select()}
-                    style={{ fontSize: 11, padding: '5px 8px' }}
+                    style={{ fontSize: 'var(--text-xs)', padding: '5px 8px' }}
                   />
                 </div>
               )}
               <div className="row" style={{
-                borderTop: '1px solid var(--line)', paddingTop: 7, fontSize: 11,
+                borderTop: '1px solid var(--line)', paddingTop: 7, fontSize: 'var(--text-xs)',
               }}>
                 <span className="grow muted">Timezone</span>
                 <span className="mono">{channel.timezone}</span>
               </div>
-              <div className="row" style={{ fontSize: 11 }}>
+              <div className="row" style={{ fontSize: 'var(--text-xs)' }}>
                 <span className="grow muted">Referenced files</span>
                 <span className="mono">{assets}</span>
               </div>
@@ -2170,7 +2170,7 @@ export default function ChannelStudio({
 
         {(violations.length > 0 || error || health?.says) && (
           <p className="small" data-testid="violations" style={{
-            gridColumn: '1 / -1', margin: '4px 0 0', fontSize: 11,
+            gridColumn: '1 / -1', margin: '4px 0 0', fontSize: 'var(--text-xs)',
             color: error || health?.engine !== 'running'
               ? 'var(--bad)' : 'var(--warn)',
           }}>
@@ -2726,7 +2726,7 @@ function PlaylistRail({
           />
         );
       })}
-      <p className="small muted" style={{ margin: '6px 2px 0', fontSize: 10 }}>
+      <p className="small muted" style={{ margin: '6px 2px 0', fontSize: 'var(--text-2xs)' }}>
         {/* The one sentence D-18 is about, next to the thing it is about. */}
         The loop plays round for ever. Scheduling something twice adds no file.
       </p>
@@ -2749,7 +2749,7 @@ function LibraryRail({
 }) {
   if (items.length === 0) {
     return (
-      <p className="small muted" style={{ margin: 0, fontSize: 11 }}>
+      <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-xs)' }}>
         Nothing finished yet. Make a video in Studio One or Studio Two and it
         appears here — as a reference, never as a copy.
       </p>
@@ -2865,20 +2865,20 @@ function SchedulesRail({
         aside={(
           <button className="small" data-testid="add-block" onClick={onAddBlock}
                   style={{
-                    border: 0, background: 'none', padding: 0, fontSize: 11,
+                    border: 0, background: 'none', padding: 0, fontSize: 'var(--text-xs)',
                     color: 'var(--accent-soft)', cursor: 'pointer',
                   }}>+ Add</button>
         )}
       />
       {blocks.length === 0 ? (
-        <p className="small muted" style={{ margin: 0, fontSize: 11 }}>
+        <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-xs)' }}>
           None. The channel&rsquo;s own loop runs all day.
         </p>
       ) : blocks.map((block) => (
         <div key={block.id} className="row" data-testid="block-row"
              data-block-id={block.id}
              style={{
-               gap: 8, fontSize: 11, padding: '5px 7px', borderRadius: 6,
+               gap: 8, fontSize: 'var(--text-xs)', padding: '5px 7px', borderRadius: 6,
                marginBottom: 4, background: 'var(--panel-2)',
                border: '1px solid var(--line)',
              }}>
@@ -2889,7 +2889,7 @@ function SchedulesRail({
             minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
           }}>{block.name}</span>
-          <span className="muted" style={{ fontSize: 10 }}>
+          <span className="muted" style={{ fontSize: 'var(--text-2xs)' }}>
             {block.rotation.length} in its loop
           </span>
           <button type="button" data-testid="remove-block"
@@ -3367,7 +3367,7 @@ function Timeline({
                    * than a pill. [brief §11]
                    */
                   minWidth: 3, padding: '3px 5px', borderRadius: 2,
-                  textAlign: 'left', font: 'inherit', fontSize: 10,
+                  textAlign: 'left', font: 'inherit', fontSize: 'var(--text-2xs)',
                   color: 'inherit', cursor: id ? 'pointer' : 'default',
                   overflow: 'hidden',
                   /*
@@ -3559,7 +3559,7 @@ function ListView({
           <div key={segment.fromMs} className="row" data-testid="list-row"
                data-playing={holds ? 'true' : 'false'}
                style={{
-                 gap: 10, padding: '6px 8px', borderRadius: 6, fontSize: 12,
+                 gap: 10, padding: '6px 8px', borderRadius: 6, fontSize: 'var(--text-sm)',
                  background: holds ? 'rgba(45,110,200,0.16)' : 'transparent',
                  borderBottom: '1px solid var(--line)',
                }}>
@@ -3570,20 +3570,20 @@ function ListView({
               flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis',
               whiteSpace: 'nowrap', fontWeight: holds ? 700 : 500,
             }}>{segment.title}</span>
-            <span className="muted" style={{ flex: '0 0 auto', fontSize: 10 }}>
+            <span className="muted" style={{ flex: '0 0 auto', fontSize: 'var(--text-2xs)' }}>
               {segment.on.kind === 'off' ? 'off air'
                 : segment.on.kind === 'rotation'
                   ? (segment.on.blockName ?? 'the loop')
                   : segment.on.kind}
             </span>
-            <span className="mono muted" style={{ flex: '0 0 auto', fontSize: 10 }}>
+            <span className="mono muted" style={{ flex: '0 0 auto', fontSize: 'var(--text-2xs)' }}>
               {offsetLabel(segment.toMs - segment.fromMs)}
             </span>
           </div>
         );
       })}
       {channel.backup && (
-        <p className="small muted" style={{ margin: '8px 2px 0', fontSize: 10 }}>
+        <p className="small muted" style={{ margin: '8px 2px 0', fontSize: 'var(--text-2xs)' }}>
           If a live feed fails, &ldquo;{nameOf(channel.backup)}&rdquo; holds the
           air for a minute, then the loop resumes.
         </p>
@@ -3639,7 +3639,7 @@ function CalendarView({
       </div>
 
       {blocks.length === 0 && (
-        <p className="small muted" style={{ margin: 0, fontSize: 11 }}>
+        <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-xs)' }}>
           No day-parts. Add one in Schedules and the channel gets a morning
           that is different from its evening.
         </p>
@@ -3649,10 +3649,10 @@ function CalendarView({
         <div key={block.id} className="panel" data-testid="calendar-row"
              data-block-id={block.id} style={{ padding: 9 }}>
           <div className="row" style={{ gap: 8 }}>
-            <span className="mono muted" style={{ fontSize: 11 }}>
+            <span className="mono muted" style={{ fontSize: 'var(--text-xs)' }}>
               {atMinute(block.fromMinute)}
             </span>
-            <strong className="grow" style={{ fontSize: 12 }}>{block.name}</strong>
+            <strong className="grow" style={{ fontSize: 'var(--text-sm)' }}>{block.name}</strong>
             {block.id === holding && (
               <span style={{
                 padding: '1px 6px', borderRadius: 3, background: 'var(--accent-deep)',
@@ -3662,22 +3662,22 @@ function CalendarView({
             <button className="small" data-testid="add-to-block"
                     onClick={() => onAddToBlock(block)}
                     style={{
-                      border: 0, background: 'none', padding: 0, fontSize: 11,
+                      border: 0, background: 'none', padding: 0, fontSize: 'var(--text-xs)',
                       color: 'var(--accent-soft)', cursor: 'pointer',
                     }}>+ Add pick</button>
           </div>
           {block.rotation.length === 0 ? (
-            <p className="small muted" style={{ margin: '5px 0 0', fontSize: 10 }}>
+            <p className="small muted" style={{ margin: '5px 0 0', fontSize: 'var(--text-2xs)' }}>
               Empty — the channel&rsquo;s own loop runs through this block.
             </p>
           ) : block.rotation.map((entry) => (
             <div key={entry.id} className="row" data-testid="block-entry"
-                 style={{ gap: 8, fontSize: 11, marginTop: 4 }}>
+                 style={{ gap: 8, fontSize: 'var(--text-xs)', marginTop: 4 }}>
               <span style={{
                 flex: 1, minWidth: 0, overflow: 'hidden',
                 textOverflow: 'ellipsis', whiteSpace: 'nowrap',
               }}>{entry.title ?? nameOf(entry.source)}</span>
-              <span className="mono muted" style={{ fontSize: 10 }}>
+              <span className="mono muted" style={{ fontSize: 'var(--text-2xs)' }}>
                 {offsetLabel(entry.durationMs)}
               </span>
               <button type="button" data-testid="remove-from-block"
@@ -3691,7 +3691,7 @@ function CalendarView({
         </div>
       ))}
 
-      <p className="small muted" style={{ margin: 0, fontSize: 10 }}>
+      <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-2xs)' }}>
         {listing.length} fixed {listing.length === 1 ? 'slot sits' : 'slots sit'}
         {' '}above all of this — the first one today is at{' '}
         {listing[0] ? clock(programmeStart(listing[0])) : '—'}.
@@ -3763,12 +3763,12 @@ function CameraTab({
           ) : (
             <span className="small muted" style={{
               position: 'absolute', inset: 0, display: 'grid',
-              placeItems: 'center', fontSize: 11, textAlign: 'center', padding: 10,
+              placeItems: 'center', fontSize: 'var(--text-xs)', textAlign: 'center', padding: 10,
             }}>Camera off. GO LIVE brings it up.</span>
           )}
           <span style={{
             position: 'absolute', left: 6, bottom: 5, padding: '2px 7px',
-            borderRadius: 4, background: 'rgba(5,7,10,0.8)', fontSize: 10,
+            borderRadius: 4, background: 'rgba(5,7,10,0.8)', fontSize: 'var(--text-2xs)',
             fontWeight: 600,
           }}>You (Host)</span>
         </div>
@@ -3790,7 +3790,7 @@ function CameraTab({
         <select
           data-testid="camera-choice" value={cameraId ?? ''}
           onChange={(event) => onCamera(event.target.value || undefined)}
-          style={{ fontSize: 11, padding: '6px 8px' }}
+          style={{ fontSize: 'var(--text-xs)', padding: '6px 8px' }}
         >
           <option value="">Camera — the system default</option>
           {devices.cameras.map((device) => (
@@ -3802,7 +3802,7 @@ function CameraTab({
         <select
           data-testid="mic-choice" value={micId ?? ''}
           onChange={(event) => onMic(event.target.value || undefined)}
-          style={{ fontSize: 11, padding: '6px 8px' }}
+          style={{ fontSize: 'var(--text-xs)', padding: '6px 8px' }}
         >
           <option value="">Microphone — the system default</option>
           {devices.microphones.map((device) => (
@@ -3824,13 +3824,13 @@ function CameraTab({
           data-testid="quality-choice" value={quality.id}
           disabled={qualityLocked}
           onChange={(event) => onQuality(event.target.value as QualityId)}
-          style={{ fontSize: 11, padding: '6px 8px' }}
+          style={{ fontSize: 'var(--text-xs)', padding: '6px 8px' }}
         >
           {QUALITY_ORDER.map((id) => (
             <option key={id} value={id}>{QUALITIES[id]!.label}</option>
           ))}
         </select>
-        <p className="small muted" style={{ margin: 0, fontSize: 10 }}>
+        <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-2xs)' }}>
           {qualityLocked
             /*
              * NOT A LIMITATION BEING APOLOGISED FOR. Resizing the canvas
@@ -3852,7 +3852,7 @@ function CameraTab({
            * the good copy. What would be dishonest is letting somebody
            * choose Maximum, watch the monitor, and think nothing happened.
            */
-          <p className="small muted" style={{ margin: 0, fontSize: 10 }}>
+          <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-2xs)' }}>
             The channel transmits at {transmission.height}p, so viewers see
             {' '}{transmission.height}p — the extra detail is kept in the
             recording of this session.
@@ -3865,13 +3865,13 @@ function CameraTab({
            * numbered rather than named. Saying why beats a list of
            * "Camera 1, Camera 2" that looks like a fault. [§23]
            */
-          <p className="small muted" style={{ margin: 0, fontSize: 10 }}>
+          <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-2xs)' }}>
             Your browser will not name the devices until you allow access.
             Go live once and the real names appear.
           </p>
         )}
         {devices.cameras.length === 0 && (
-          <p className="small muted" style={{ margin: 0, fontSize: 10 }}>
+          <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-2xs)' }}>
             No camera found. A phone works as one over USB (Continuity
             Camera, Camo, EpocCam, or Android&rsquo;s webcam mode), and a
             professional camera works through a UVC capture card — both
@@ -3881,7 +3881,7 @@ function CameraTab({
       </div>
 
       <div data-testid="feed-health" style={{
-        fontSize: 11, padding: '6px 8px', borderRadius: 7, marginTop: 8,
+        fontSize: 'var(--text-xs)', padding: '6px 8px', borderRadius: 7, marginTop: 8,
         background: 'var(--panel-2)', border: '1px solid var(--line)',
       }}>
         <div className="row" style={{ gap: 8 }}>
@@ -3925,7 +3925,7 @@ function CameraTab({
               }} />
             </div>
             <p className="small muted" data-testid="feed-rate-note" style={{
-              margin: '5px 0 0', fontSize: 10,
+              margin: '5px 0 0', fontSize: 'var(--text-2xs)',
             }}>{rateSentence(encoder.rate, quality)}</p>
           </>
         )}
@@ -3940,7 +3940,7 @@ function CameraTab({
       <Section
         text="Background / Virtual Set"
         aside={(
-          <span className="muted" style={{ fontSize: 10 }}>
+          <span className="muted" style={{ fontSize: 'var(--text-2xs)' }}>
             {spaceId ? SPACE_LOOKS[spaceId]?.label ?? spaceId : 'None'}
             {' ▾'}
           </span>
@@ -4067,7 +4067,7 @@ function ScreensTab({
         <div className="muted" style={{
           fontSize: 9, letterSpacing: 0.8, fontWeight: 700,
         }}>ROLLED IN</div>
-        <div style={{ fontSize: 12, fontWeight: 600 }}>
+        <div style={{ fontSize: 'var(--text-sm)', fontWeight: 600 }}>
           {up ? nameOf(up) : 'Nothing — the room is on air'}
         </div>
       </div>
@@ -4090,7 +4090,7 @@ function ScreensTab({
           Back to the room
         </button>
       </div>
-      <p className="small muted" style={{ margin: 0, fontSize: 11 }}>
+      <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-xs)' }}>
         {picked
           ? `Ready: “${picked.title}”.`
           : 'Pick something in the Library and it can go up over the feed.'}
@@ -4115,7 +4115,7 @@ function ScreensTab({
         {share.sharing ? (
           <>
             <div className="row" style={{
-              gap: 7, fontSize: 11, padding: '5px 7px', borderRadius: 6,
+              gap: 7, fontSize: 'var(--text-xs)', padding: '5px 7px', borderRadius: 6,
               flexWrap: 'nowrap', background: 'var(--panel-2)',
               border: '1px solid var(--line)',
             }}>
@@ -4142,7 +4142,7 @@ function ScreensTab({
             >
               Share a tab, window or screen
             </button>
-            <p className="small muted" style={{ margin: 0, fontSize: 10 }}>
+            <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-2xs)' }}>
               {/*
                 * Said once, because it is the difference between this and
                 * everything else in the tab: a shared screen JOINS the
@@ -4154,7 +4154,7 @@ function ScreensTab({
           </>
         )}
         {share.error && (
-          <p className="small" style={{ margin: 0, color: 'var(--bad)', fontSize: 11 }}>
+          <p className="small" style={{ margin: 0, color: 'var(--bad)', fontSize: 'var(--text-xs)' }}>
             {share.error}
           </p>
         )}
@@ -4194,11 +4194,11 @@ function GraphicsTab({
   const identity = channel.identity;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <p className="small muted" style={{ margin: 0, fontSize: 11 }}>
+      <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-xs)' }}>
         Drawn onto the broadcast, never onto your videos.
       </p>
 
-      <label className="small" style={{ margin: 0, fontSize: 11 }}>
+      <label className="small" style={{ margin: 0, fontSize: 'var(--text-xs)' }}>
         Station bug
         <input
           data-testid="bug-text"
@@ -4211,7 +4211,7 @@ function GraphicsTab({
               opacity: identity?.bug?.opacity ?? 0.85,
             },
           })}
-          style={{ fontSize: 12, padding: '6px 9px', marginTop: 3 }}
+          style={{ fontSize: 'var(--text-sm)', padding: '6px 9px', marginTop: 3 }}
         />
       </label>
 
@@ -4260,7 +4260,7 @@ function GraphicsTab({
         })}
       </div>
 
-      <label className="small" style={{ margin: 0, fontSize: 11 }}>
+      <label className="small" style={{ margin: 0, fontSize: 'var(--text-xs)' }}>
         Presenter
         <input
           data-testid="presenter"
@@ -4273,11 +4273,11 @@ function GraphicsTab({
               presenter: event.target.value,
             },
           })}
-          style={{ fontSize: 12, padding: '6px 9px', marginTop: 3 }}
+          style={{ fontSize: 'var(--text-sm)', padding: '6px 9px', marginTop: 3 }}
         />
       </label>
 
-      <label className="small" style={{ margin: 0, fontSize: 11 }}>
+      <label className="small" style={{ margin: 0, fontSize: 'var(--text-xs)' }}>
         LIVE lamp
         <input
           data-testid="live-lamp"
@@ -4288,10 +4288,10 @@ function GraphicsTab({
               text: event.target.value,
             },
           })}
-          style={{ fontSize: 12, padding: '6px 9px', marginTop: 3 }}
+          style={{ fontSize: 'var(--text-sm)', padding: '6px 9px', marginTop: 3 }}
         />
       </label>
-      <p className="small muted" style={{ margin: 0, fontSize: 10 }}>
+      <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-2xs)' }}>
         The lamp is drawn only while the channel is actually live. A channel
         whose LIVE light is part of its logo is a channel lying to its viewers.
       </p>
@@ -4419,7 +4419,7 @@ function AudioTab({
         />
         <span style={{ minWidth: 0 }}>
           <span style={{ fontWeight: 600 }}>Save this live session</span>
-          <span className="muted" style={{ display: 'block', fontSize: 10 }}>
+          <span className="muted" style={{ display: 'block', fontSize: 'var(--text-2xs)' }}>
             {keeping
               ? 'It becomes an archived recording when you end it.'
               : 'Off: the live buffer is discarded after the broadcast.'}
@@ -4565,7 +4565,7 @@ function Scheduler({
           >{option} min</button>
         ))}
       </div>
-      <label className="row muted" style={{ gap: 6, fontSize: 11, margin: 0 }}>
+      <label className="row muted" style={{ gap: 6, fontSize: 'var(--text-xs)', margin: 0 }}>
         <input type="checkbox" data-testid="loop-it" checked={loop}
                onChange={(event) => setLoop(event.target.checked)} />
         Play it again until the slot is over
@@ -4822,7 +4822,7 @@ function Monitor({
         <br />
         {/* Honest: the feed's encoder writes to the channel's buffer, and a
             monitor of a feed that has not started is a monitor of nothing. */}
-        <span style={{ fontSize: 11 }}>
+        <span style={{ fontSize: 'var(--text-xs)' }}>
           {on.kind === 'live' && on.session.roomId
             ? 'Coming out of the room' : 'Waiting for the feed'}
         </span>
@@ -4840,7 +4840,7 @@ function Monitor({
       }}>
         {source.note ?? 'Live event'}
         <br />
-        <span style={{ fontSize: 11 }}>
+        <span style={{ fontSize: 'var(--text-xs)' }}>
           Nobody is live — the loop is on air
         </span>
       </div>

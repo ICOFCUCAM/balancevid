@@ -238,7 +238,7 @@ export default function RoomView({
                           ? room.stagedParticipantIds.filter((id) => id !== person.id)
                           : [...room.stagedParticipantIds, person.id],
                       })}
-                      style={{ padding: '3px 8px', fontSize: 11 }}
+                      style={{ padding: '3px 8px', fontSize: 'var(--text-xs)' }}
                     >
                       {isStaged ? 'Take off stage' : 'Bring in'}
                     </button>
@@ -250,7 +250,7 @@ export default function RoomView({
                       onClick={() => void act({
                         action: 'pin', pinned: pinned ? null : person.id,
                       })}
-                      style={{ padding: '3px 8px', fontSize: 11 }}
+                      style={{ padding: '3px 8px', fontSize: 'var(--text-xs)' }}
                     >
                       {pinned ? 'Unpin' : 'Pin'}
                     </button>

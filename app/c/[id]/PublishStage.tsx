@@ -219,7 +219,7 @@ export default function PublishStage({
                     </div>
                   </div>
 
-                  <div className="small muted" style={{ marginTop: 6, fontSize: 11 }}>
+                  <div className="small muted" style={{ marginTop: 6, fontSize: 'var(--text-xs)' }}>
                     {entry.detail}
                   </div>
                 </button>
@@ -457,11 +457,11 @@ function OpeningEditor({ conversationId, candidate, onChanged }: {
       <button
         className="small" data-testid="clip-opening-toggle"
         onClick={() => setOpen(!open)}
-        style={{ padding: '2px 8px', fontSize: 11 }}
+        style={{ padding: '2px 8px', fontSize: 'var(--text-xs)' }}
       >
         {open ? 'Done' : 'Opening'}
       </button>
-      <span className="small muted" style={{ marginLeft: 8, fontSize: 11 }}>
+      <span className="small muted" style={{ marginLeft: 8, fontSize: 'var(--text-xs)' }}>
         {/* What it will do, said here so the panel need not be opened to know. */}
         {mode === 'statement' && card && 'opens on the statement'}
         {mode === 'statement' && !card && 'opens straight on the footage'}
@@ -493,7 +493,7 @@ function OpeningEditor({ conversationId, candidate, onChanged }: {
                     : { order, card: { kind: id } },
                 )}
                 style={{
-                  padding: '3px 9px', fontSize: 11,
+                  padding: '3px 9px', fontSize: 'var(--text-xs)',
                   background: mode === id ? 'var(--accent-wash)' : undefined,
                   borderColor: mode === id ? 'var(--accent)' : undefined,
                 }}
@@ -517,7 +517,7 @@ function OpeningEditor({ conversationId, candidate, onChanged }: {
                   }
                 }}
               />
-              <span className="small muted" style={{ fontSize: 11 }}>
+              <span className="small muted" style={{ fontSize: 'var(--text-xs)' }}>
                 {/* Said plainly, because it is the difference between quoting
                     somebody and speaking over them. */}
                 Shown without quotation marks — these are your words, not
@@ -527,7 +527,7 @@ function OpeningEditor({ conversationId, candidate, onChanged }: {
           )}
 
           <div className="row small" style={{ gap: 8, alignItems: 'center' }}>
-            <span className="muted" style={{ fontSize: 11 }}>Start</span>
+            <span className="muted" style={{ fontSize: 'var(--text-xs)' }}>Start</span>
             <select
               data-testid="opening-lead-in"
               disabled={busy}
@@ -545,7 +545,7 @@ function OpeningEditor({ conversationId, candidate, onChanged }: {
                   leadInFrames: Number(e.target.value) * HOUSE_FPS,
                   card: cardBody(mode, draft),
                 })}
-              style={{ width: 'auto', padding: '2px 6px', fontSize: 11 }}
+              style={{ width: 'auto', padding: '2px 6px', fontSize: 'var(--text-xs)' }}
             >
               <option value="sentence">at the sentence they were answering</option>
               <option value="0">at the cut</option>
@@ -562,7 +562,7 @@ function OpeningEditor({ conversationId, candidate, onChanged }: {
           </div>
 
           <div className="row small" style={{ gap: 8, alignItems: 'center', marginTop: 8 }}>
-            <span className="muted" style={{ fontSize: 11 }}>Order</span>
+            <span className="muted" style={{ fontSize: 'var(--text-xs)' }}>Order</span>
             {([
               ['source_first', 'The moment, then my reply',
                 'The order the argument happened in'],
@@ -585,7 +585,7 @@ function OpeningEditor({ conversationId, candidate, onChanged }: {
                     ? {} : { leadInFrames: lead * HOUSE_FPS }),
                 })}
                 style={{
-                  padding: '3px 9px', fontSize: 11,
+                  padding: '3px 9px', fontSize: 'var(--text-xs)',
                   background: order === id ? 'var(--accent-wash)' : undefined,
                   borderColor: order === id ? 'var(--accent)' : undefined,
                 }}
@@ -594,7 +594,7 @@ function OpeningEditor({ conversationId, candidate, onChanged }: {
               </button>
             ))}
           </div>
-          <p className="small muted" style={{ fontSize: 11, margin: '4px 0 0' }}>
+          <p className="small muted" style={{ fontSize: 'var(--text-xs)', margin: '4px 0 0' }}>
             {/* Said plainly, because the reason to choose it and the reason not
                 to are both real, and the author is the one who should weigh
                 them rather than the default. */}
@@ -663,7 +663,7 @@ function CaptionLook({ conversationId, chosen, onChanged }: {
   return (
     <section data-testid="caption-look" style={{ marginTop: 18 }}>
       <div className="small muted" style={{ textTransform: 'uppercase',
-        letterSpacing: 0.8, fontSize: 11, marginBottom: 6 }}>
+        letterSpacing: 0.8, fontSize: 'var(--text-xs)', marginBottom: 6 }}>
         Caption look
       </div>
       <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
@@ -676,7 +676,7 @@ function CaptionLook({ conversationId, chosen, onChanged }: {
           disabled={busy}
           onClick={() => void choose(null)}
           style={{
-            padding: '5px 10px', fontSize: 12,
+            padding: '5px 10px', fontSize: 'var(--text-sm)',
             background: chosen === null ? 'var(--accent-wash)' : undefined,
             borderColor: chosen === null ? 'var(--accent)' : undefined,
           }}
@@ -696,7 +696,7 @@ function CaptionLook({ conversationId, chosen, onChanged }: {
             onClick={() => void choose(style.id)}
             title={style.hint}
             style={{
-              padding: '5px 10px', fontSize: 12,
+              padding: '5px 10px', fontSize: 'var(--text-sm)',
               background: chosen === style.id ? 'var(--accent-wash)' : undefined,
               borderColor: chosen === style.id ? 'var(--accent)' : undefined,
             }}

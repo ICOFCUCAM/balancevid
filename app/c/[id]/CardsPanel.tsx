@@ -127,14 +127,14 @@ export default function CardsPanel({ conversationId }: { conversationId: string 
               )}
               <div style={{ minWidth: 0 }}>
                 <div className="small" style={{ color: 'var(--muted)' }}>{card.eyebrow}</div>
-                <div style={{ fontSize: 13, margin: '2px 0' }}>
+                <div style={{ fontSize: 'var(--text-base)', margin: '2px 0' }}>
                   {card.claim.quoted ? `“${card.claim.text}”` : card.claim.text}
                 </div>
                 <div className="small" style={{
                   color: card.response.kind === 'unheard' ? 'var(--muted)' : 'inherit',
                   fontStyle: card.response.kind === 'unheard' ? 'italic' : 'normal',
                 }}>
-                  <strong style={{ fontSize: 10, letterSpacing: '.08em' }}>
+                  <strong style={{ fontSize: 'var(--text-2xs)', letterSpacing: '.08em' }}>
                     {card.label.toUpperCase()}
                   </strong>{' '}
                   {card.response.text}

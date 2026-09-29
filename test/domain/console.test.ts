@@ -137,8 +137,13 @@ describe('the legend', () => {
    * exists, a number written by hand is a size chosen by eye against
    * one screen, and the desks are full of them. So it is a ratchet,
    * like the raw colours. Lower it when a surface is converted.
+   *
+   * 164 → 25 in one commit, which is not 139 decisions: 10, 11, 12 and
+   * 13 ARE the scale — `--text-2xs` through `--text-base` are those
+   * exact pixels — so those were a rename with no visual change at all.
+   * What is left is the genuinely off-scale, and those are decisions.
    */
-  const SIZES = 164;
+  const SIZES = 25;
 
   it(`writes at most ${SIZES} sizes by hand across the desks`, () => {
     const counts = DESKS.map((file) => ({

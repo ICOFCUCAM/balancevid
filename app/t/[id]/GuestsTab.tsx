@@ -125,7 +125,7 @@ export default function GuestsTab({
   /* ---- nothing is live: say when guests become possible -------------- */
   if (!onAir) {
     return (
-      <p className="small muted" style={{ margin: 0, fontSize: 11 }}>
+      <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-xs)' }}>
         Guests come out of a room. Press <strong>GO LIVE</strong> — that arms
         the feed into PREVIEW without putting anything on the wire — then
         invite people here and stage them before you take it live.
@@ -139,7 +139,7 @@ export default function GuestsTab({
       <div data-testid="attach-room" style={{
         display: 'flex', flexDirection: 'column', gap: 8,
       }}>
-        <p className="small muted" style={{ margin: 0, fontSize: 11 }}>
+        <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-xs)' }}>
           {/*
             * Said once, because it is the thing that explains the whole
             * arrangement: the channel does not grow a room, it names one.
@@ -148,7 +148,7 @@ export default function GuestsTab({
           the conversation and everybody staged in it is in the picture.
         </p>
         {choices.length === 0 ? (
-          <p className="small muted" style={{ margin: 0, fontSize: 11 }}>
+          <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-xs)' }}>
             No conversations yet. Start one in Studio One and its room becomes
             available here.
           </p>
@@ -158,7 +158,7 @@ export default function GuestsTab({
             onChange={(event) => {
               if (event.target.value) onAttach(event.target.value);
             }}
-            style={{ fontSize: 12, padding: '7px 9px' }}
+            style={{ fontSize: 'var(--text-sm)', padding: '7px 9px' }}
           >
             <option value="" disabled>Choose a conversation&hellip;</option>
             {choices.map((conversation) => (
@@ -169,7 +169,7 @@ export default function GuestsTab({
           </select>
         )}
         {armed && (
-          <p className="small muted" style={{ margin: 0, fontSize: 10 }}>
+          <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-2xs)' }}>
             You are armed, not on air. Nothing reaches the wire until TAKE LIVE.
           </p>
         )}
@@ -189,13 +189,13 @@ export default function GuestsTab({
           fontSize: 9, letterSpacing: 0.8, fontWeight: 700,
         }}>ON STAGE</span>
         <a className="small" href={`/c/${roomId}/room`} data-testid="to-room"
-           target="_blank" rel="noreferrer" style={{ fontSize: 10 }}>
+           target="_blank" rel="noreferrer" style={{ fontSize: 'var(--text-2xs)' }}>
           Open the room
         </a>
       </div>
 
       {guests.sources.length === 0 ? (
-        <span className="small muted" style={{ fontSize: 11 }}>
+        <span className="small muted" style={{ fontSize: 'var(--text-xs)' }}>
           {joined > 0
             ? `${joined} in the room, nobody staged yet. Bring somebody to `
               + 'stage in the room and they appear in the picture.'
@@ -203,7 +203,7 @@ export default function GuestsTab({
         </span>
       ) : guests.sources.map((person) => (
         <div key={person.id} className="row" data-testid="stage-person" style={{
-          gap: 8, fontSize: 11, padding: '5px 7px', borderRadius: 6,
+          gap: 8, fontSize: 'var(--text-xs)', padding: '5px 7px', borderRadius: 6,
           flexWrap: 'nowrap', background: 'var(--panel-2)',
           border: '1px solid var(--line)',
         }}>
@@ -221,7 +221,7 @@ export default function GuestsTab({
       ))}
 
       {guests.tooMany && (
-        <span className="small" style={{ fontSize: 10, color: 'var(--warn)' }}>
+        <span className="small" style={{ fontSize: 'var(--text-2xs)', color: 'var(--warn)' }}>
           {/* The Room's own warning, surfaced where it matters: a mesh this
               size is a broadcast that will drop somebody. [ROOM §6, D-14] */}
           More people on stage than a mesh should carry.
@@ -231,7 +231,7 @@ export default function GuestsTab({
       <div style={{ borderTop: '1px solid var(--line)', paddingTop: 9 }}>
         {room && !room.open ? (
           <>
-            <p className="small muted" style={{ margin: '0 0 7px', fontSize: 11 }}>
+            <p className="small muted" style={{ margin: '0 0 7px', fontSize: 'var(--text-xs)' }}>
               This conversation&rsquo;s room has never been opened. Opening it
               makes a link you can send to anybody.
             </p>
@@ -259,7 +259,7 @@ export default function GuestsTab({
             onRotate={() => { void act({ action: 'rotate-invite' }); }}
           />
         ) : (
-          <p className="small muted" style={{ margin: 0, fontSize: 11 }}>
+          <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-xs)' }}>
             Reading the room&hellip;
           </p>
         )}
@@ -278,7 +278,7 @@ export default function GuestsTab({
       </button>
 
       {error && (
-        <p className="small" style={{ margin: 0, color: 'var(--bad)', fontSize: 11 }}>
+        <p className="small" style={{ margin: 0, color: 'var(--bad)', fontSize: 'var(--text-xs)' }}>
           {error}
         </p>
       )}

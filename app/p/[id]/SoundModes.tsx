@@ -167,7 +167,7 @@ export default function SoundModes({
 
       {scenes.length > 0 && (
         <details style={{ marginTop: 10 }} data-testid="scene-audio">
-          <summary className="small muted" style={{ cursor: 'pointer', fontSize: 12 }}
+          <summary className="small muted" style={{ cursor: 'pointer', fontSize: 'var(--text-sm)' }}
                    title={'For the chorus that should carry the crowd from the stage '
                      + 'take while everything else stays on the studio vocal.'}>
             One section at a time
@@ -185,7 +185,7 @@ export default function SoundModes({
                   action: 'scene-audio', sceneId: scene.id,
                   mode: e.target.value === '' ? null : e.target.value,
                 })}
-                style={{ fontSize: 11, padding: '2px 6px', width: 'auto' }}
+                style={{ fontSize: 'var(--text-xs)', padding: '2px 6px', width: 'auto' }}
               >
                 <option value="">same as the rest</option>
                 {MODES.map((option) => (

@@ -302,14 +302,14 @@ export default function Timeline({
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                 />
               ) : (
-                <span className="small muted" style={{ fontSize: 10 }}>
+                <span className="small muted" style={{ fontSize: 'var(--text-2xs)' }}>
                   {formatTimecode(r.durationFrames).slice(3, 8)}
                 </span>
               )}
             </div>
             {dragging?.id === r.id && (
               <div className="small mono" data-testid="timeline-drop-time" style={{
-                marginTop: 2, color: '#e0b24f', fontSize: 10,
+                marginTop: 2, color: '#e0b24f', fontSize: 'var(--text-2xs)',
               }}>
                 {formatTimecode(dragging.frame).slice(0, 8)}
               </div>
