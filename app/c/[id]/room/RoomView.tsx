@@ -176,11 +176,37 @@ export default function RoomView({
         gap: 14, padding: '14px 20px',
       }}>
         {/* ---- who is here, and where they stand ---------------------- */}
-        <aside className="shell-scroll" data-testid="people-rail" aria-label="People">
-          <div className="small muted" style={{ textTransform: 'uppercase',
-            letterSpacing: '0.1em', fontSize: 'var(--text-2xs)', marginBottom: 8 }}>
-            In the room
+        {/*
+          * THE ROOM IS ONE RAIL, NOT A STACK OF CARDS IN A VOID.
+          * [brief §3, §4]
+          *
+          * Each person was their own bordered `.panel` with its own
+          * margin, under a bare legend, in a column that stopped after
+          * the last one — so a room with one person in it was a small
+          * rectangle floating at the top of nine hundred pixels of
+          * empty desk, and a room with six was six rectangles with
+          * gaps between them. Both read as a dashboard; neither reads
+          * as the list of who is here.
+          *
+          * Same shape the takes rail took in 39: one module that runs
+          * the height of its bay, with a head, and people as ROWS
+          * inside it separated by a rule. A row's borders are its
+          * neighbours, which is why a list looks like a list.
+          */}
+        <aside className="panel" data-testid="people-rail" aria-label="People"
+               style={{
+                 display: 'flex', flexDirection: 'column', minHeight: 0,
+                 height: '100%', padding: 0, overflow: 'hidden',
+               }}>
+          <div className="module-head">
+            <span className="module-label grow">In the room</span>
+            <span className="mono readout" data-testid="room-count" style={{
+              fontSize: 'var(--text-2xs)', color: 'var(--ink-400)',
+            }}>{String(present.length).padStart(2, '0')}</span>
           </div>
+          <div className="shell-scroll" style={{
+            flex: '1 1 auto', minHeight: 0, overflowY: 'auto',
+          }}>
 
           {present.map((person) => {
             const isStaged = staged.has(person.id);
@@ -192,9 +218,23 @@ export default function RoomView({
                 data-testid="room-person"
                 data-participant-id={person.id}
                 data-presence={person.presence}
-                className="panel"
-                style={{ padding: 9, marginBottom: 7, borderColor: isStaged
-                  ? 'var(--source-accent)' : 'var(--line)' }}
+                style={{
+                  padding: '8px 10px',
+                  borderBottom: '1px solid var(--console-rule)',
+                  /*
+                    * ON STAGE IS SAID BY A LIT LEADING EDGE, which is
+                    * how every rail in this product says "this one" —
+                    * the takes rail, the clip rail, the schedule's
+                    * running block. It was said by recolouring the
+                    * whole card's border, an object that no longer
+                    * exists and that in a stack of six put six
+                    * competing outlines on the screen.
+                    */
+                  borderLeft: `3px solid ${isStaged
+                    ? 'var(--source-accent)' : 'transparent'}`,
+                  background: isStaged
+                    ? 'var(--console-control)' : 'transparent',
+                }}
               >
                 <div className="row" style={{ gap: 8, flexWrap: 'nowrap' }}>
                   <span aria-hidden style={{
@@ -261,8 +301,11 @@ export default function RoomView({
           })}
 
           {present.length === 0 && (
-            <p className="small muted">Nobody yet. Send someone the link.</p>
+            <p className="small muted" style={{ padding: '10px 12px', margin: 0 }}>
+              Nobody yet. Send someone the link.
+            </p>
           )}
+          </div>
         </aside>
 
         {/* ---- what the viewer would see ------------------------------ */}
