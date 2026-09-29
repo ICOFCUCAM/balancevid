@@ -68,7 +68,22 @@ input, textarea, [contenteditable] { caret-color: var(--line-focus); }
 video, img { background-color: #000; }
 video {
   width: 100%; display: block;
-  border-radius: var(--radius-md);
+  /*
+   * A SCREEN HAS SQUARE CORNERS, AND THIS IS WHERE IT IS DECIDED.
+   *
+   * This was `--radius-md`, 8px, on every video element in the
+   * product. Commit 36 converted seven explicit picture rectangles to
+   * `--radius-screen` and a live audit then found twenty-three
+   * rounded videos still on the control room alone — the multi-view
+   * tiles, the filmstrip cells, the host preview, each one a `Thumb`
+   * that sets no radius of its own and inherited this.
+   *
+   * A source-level test could not have found it: the number is not in
+   * any component, and the component that draws twenty of those
+   * pictures is three lines long with no styling in it at all. It
+   * took pointing a browser at a running desk. [D-19]
+   */
+  border-radius: var(--radius-screen);
   /*
    * The frame is a hairline of light on the inside, not a border on the
    * outside: a border around a picture crops it by a pixel and on a

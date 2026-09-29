@@ -603,7 +603,10 @@ export default function RoomView({
             ref={capture.videoRef} autoPlay muted playsInline
             data-testid="my-camera"
             style={{
-              width: 132, aspectRatio: '16 / 9', objectFit: 'cover', borderRadius: 6,
+              width: 132, aspectRatio: '16 / 9', objectFit: 'cover',
+              /* Your own camera is a picture like any other. 6px slipped
+                 under the radius ban, which only looks for 8 and above. */
+              borderRadius: 'var(--radius-screen)',
               border: `2px solid ${capture.recording ? '#e0674f' : 'var(--line)'}`,
               display: capture.armed ? 'block' : 'none', flex: '0 0 auto',
             }}

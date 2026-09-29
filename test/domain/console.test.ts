@@ -377,6 +377,12 @@ describe('the pictures', () => {
    * picture at 10px in a new file, which is exactly how the first
    * seven got there.
    */
+  /*
+   * THE RADIUS BAN STARTS AT 8, which let a 6px self-view through in
+   * the Room — the one place where "a bit rounded" reads as friendly
+   * and is therefore most tempting. A picture takes the picture
+   * radius; there is no in-between.
+   */
   it('rounds no video or canvas like a card', () => {
     const offenders: string[] = [];
     for (const file of ['t', 'c', 'p']
