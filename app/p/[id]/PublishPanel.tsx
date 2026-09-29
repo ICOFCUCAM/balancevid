@@ -160,21 +160,21 @@ export default function PublishPanel({
     ? 'This music is somebody else’s, so there is no page to give it. '
       + 'A private export is still yours.'
     : !masterReady
-      ? 'There is no master video yet. Make one above and this becomes a page '
+      ? 'There is no master video yet. Create one above and this becomes a page '
         + 'anyone with the link can watch.'
       : null;
 
   const state = published ? { cls: 'is-live', say: 'published' }
-    : why ? { cls: 'is-off', say: 'not yet' }
+    : why ? { cls: 'is-off', say: 'not published' }
       : { cls: 'is-armed', say: 'ready' };
 
   return (
     <section className="module" data-testid="publish-module"
              data-published={published ? 'true' : 'false'}>
       <header className="module-head">
-        <span className="module-label">Publish</span>
+        <span className="module-label">Publish &amp; distribute</span>
         <span className="module-sub grow" style={{ minWidth: 0 }}>
-          and where it goes
+          platforms, and a page of your own
         </span>
         <span className={`state ${state.cls}`} data-testid="publish-state">
           {state.say}
@@ -226,11 +226,11 @@ export default function PublishPanel({
             <>
               <a className="ctl sm" data-testid="watch-link"
                  href={`/p/${id}/watch`} target="_blank" rel="noreferrer">
-                Open the page people see
+                View public page
               </a>
               <button className="ctl sm" data-testid="unpublish" disabled={busy}
                       onClick={() => void withdraw()}>
-                Withdraw it
+                Unpublish
               </button>
             </>
           ) : (
@@ -238,7 +238,7 @@ export default function PublishPanel({
                     disabled={busy || Boolean(why)}
                     title={why ?? undefined}
                     onClick={() => void post('/publish')}>
-              Publish it
+              Create public page
             </button>
           )}
           <button className="ctl sm" data-testid="render-card"
@@ -246,7 +246,7 @@ export default function PublishPanel({
                   title={publishable ? undefined
                     : 'a card is made to be posted, and this music is not yours'}
                   onClick={() => void post('/card')}>
-            {hasCard ? 'Draw the preview again' : 'Make the link preview'}
+            {hasCard ? 'Create it again' : 'Create link preview'}
           </button>
         </div>
       </div>
@@ -256,9 +256,9 @@ export default function PublishPanel({
         borderTop: 'var(--border) solid var(--console-rule)',
       }}>
         <div className="module-head" style={{ borderTop: 0 }}>
-          <span className="module-label">Where it goes</span>
+          <span className="module-label">Distribution</span>
           <span className="module-sub grow" style={{ minWidth: 0 }}>
-            your channels, and the cut each other place wants
+            your channels, and the format each platform expects
           </span>
         </div>
 
@@ -274,7 +274,7 @@ export default function PublishPanel({
           const stale = here.length > 0 && !current;
           const lamp = current ? { cls: 'is-live', say: 'on air' }
             : stale ? { cls: 'is-armed', say: 'older cut' }
-              : { cls: 'is-off', say: 'not on it' };
+              : { cls: 'is-off', say: 'not in rotation' };
           return (
             <div key={channel.id} className="row" data-testid="destination"
                  data-channel={channel.id}
@@ -293,11 +293,12 @@ export default function PublishPanel({
                         onClick={() => void rotate(channel.id, {
                           action: 'unrotate', entryId: here[0]!.entryId,
                         })}
-                        style={{ flex: '0 0 auto' }}>Take it off</button>
+                        style={{ flex: '0 0 auto' }}>Remove</button>
               ) : (
                 <button className="ctl sm" data-testid="rotate"
                         disabled={busy || !masterReady || !masterHash}
-                        title={masterReady ? undefined : 'make the master video first'}
+                        title={masterReady ? undefined
+                          : 'create the master video first'}
                         onClick={() => void rotate(channel.id, {
                           action: 'rotate',
                           source: {
@@ -310,7 +311,7 @@ export default function PublishPanel({
                           title: performance.title,
                         })}
                         style={{ flex: '0 0 auto' }}>
-                  {stale ? 'Put the new cut on' : 'Put it in the loop'}
+                  {stale ? 'Update to current' : 'Add to rotation'}
                 </button>
               )}
             </div>
@@ -353,7 +354,7 @@ export default function PublishPanel({
                 fontSize: 'var(--text-2xs)', flex: '0 0 auto',
               }}>{shape}</span>
               <span className={`state ${ready ? 'is-on' : 'is-off'}`}>
-                {ready ? 'cut ready' : 'not made'}
+                {ready ? 'ready' : 'not created'}
               </span>
               {ready ? (
                 <a className="ctl sm" data-testid="posting-download"
@@ -367,7 +368,7 @@ export default function PublishPanel({
                           .querySelector('[data-testid="deliver"]')
                           ?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
                         style={{ flex: '0 0 auto' }}>
-                  Make the cut
+                  Create
                 </button>
               )}
             </div>
@@ -377,8 +378,8 @@ export default function PublishPanel({
         <p className="small muted" style={{
           margin: 0, padding: '8px 10px', fontSize: 'var(--text-2xs)',
         }}>
-          BalanceVid does not post for you. It makes the cut each place wants;
-          you take the file.
+          BalanceVid does not upload for you. It creates the format each
+          platform expects; you take the file.
         </p>
         {error && (
           <p className="small" data-testid="publish-error"

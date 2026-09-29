@@ -1282,15 +1282,78 @@ describe('the delivery half is made of the same material as the editor', () => {
   });
 
   /*
-   * THREE ACTS, NAMED. The point of the reorganisation is that an author
-   * can see which controls belong to the same act; a module whose legend
-   * went back to "Share it" would be the old grouping with a new border.
+   * THREE ACTS, NAMED, AND NAMED DIFFERENTLY. The point of the
+   * reorganisation is that an author can see which controls belong to the
+   * same act; two modules sharing a legend, or one going back to "Share
+   * it", would be the old grouping with a new border.
+   *
+   * By the COUNT and not by the words: the middle module was "Deliver" and
+   * is now "Versions", because Deliver is the STAGE — what the strip above
+   * calls the act, which includes publishing — while the list itself is
+   * the formats an audience watches in. Pinning the literals made a
+   * rename fail a test about grouping.
    */
-  it('and names the three acts', () => {
-    const all = LOWER.map(code).join('\n');
-    for (const act of ['>Master<', '>Deliver<', '>Publish<']) {
-      expect(all, `${act} is missing`).toContain(act);
+  it('and names each act, distinctly', () => {
+    const legends = LOWER.slice(0, 3).map((file) => {
+      const body = code(file);
+      return /<span className="module-label">([^<]+)</.exec(body)?.[1]?.trim();
+    });
+    expect(legends.filter(Boolean), 'a module lost its legend').toHaveLength(3);
+    expect(new Set(legends).size, `two modules share a legend: ${legends.join(', ')}`)
+      .toBe(3);
+  });
+
+  /*
+   * ONE VERB FOR ONE ACT, AND NOT THAT ONE.  [D-14]
+   *
+   * `Make it`. `Make it again`. `Make an audio file`. `Make the cut`.
+   * `not made`. Five controls in the room where a video is finished, all
+   * built on the verb a child uses for a sandcastle — in a product whose
+   * own domain layer has said `render` and `export` since it was written.
+   * The screen was less precise than the code driving it, which is the
+   * wrong way round and is most of what reads as a prototype.
+   *
+   * `Create` throughout, because one verb is worth more than the best
+   * verb: a screen saying Render here, Export there and Make somewhere
+   * else is three vocabularies for one act.
+   *
+   * SCOPED TO THE CONTROLS. Plain speech is right wherever the product is
+   * explaining a CHOICE rather than naming an operation — "The song, and
+   * whoever is on screen" is a decision described in the words of making
+   * it, and is not what this bans.
+   */
+  it('and names the act with one verb, which is not "make"', () => {
+    /*
+     * ANCHORED FOR A LABEL, LOOSE FOR THE ACT. "Make" at the start of a
+     * string is a control's verb; "make" in the middle of a sentence is
+     * ordinary English and stays. The exception is naming THIS act —
+     * "Make one above", "make the master video first" — where prose and
+     * button must agree or the page is teaching two words for one thing.
+     */
+    const WEAK = /^(?:Make|Draw|Take it|Put it|not made)\b|\b[Mm]akes? (?:one|the master)\b/;
+    const offenders: string[] = [];
+    for (const file of LOWER) {
+      const body = code(file);
+      /*
+       * EVERY VISIBLE STRING, not only `>Text<`. The first version matched
+       * element text and state lamps, and a mutation putting `Make it`
+       * back walked straight past it — because the label lives inside a
+       * ternary, `{failed ? 'Try again' : 'Make it'}`, which is a string
+       * literal and not element text. Most labels on this page are.
+       *
+       * AND THE CAP IS 200, NOT 60. A second mutation — the act named
+       * "Make one above" in a SENTENCE — also passed, because the sentence
+       * is seventy characters long and the matcher only looked at short
+       * strings. A rule that sees only labels cannot check that the prose
+       * agrees with them, which is the half of this that matters.
+       */
+      for (const hit of body.matchAll(
+        /(?:>\s*([A-Z][^<>{}]{1,60}?)\s*<|'([^']{2,200})')/g)) {
+        const text = (hit[1] ?? hit[2] ?? '').trim();
+        if (WEAK.test(text)) offenders.push(`${named(file)}: “${text}”`);
+      }
     }
+    expect(offenders, 'one verb, and it is Create').toEqual([]);
   });
 
   /*

@@ -1063,13 +1063,13 @@ export function stagesOf(
     {
       id: 'perform',
       label: 'Perform',
-      hint: 'Record or upload takes',
+      hint: 'Record and manage takes',
       done: performance.takes.some((take) => take.durationSamples > 0),
     },
     {
       id: 'compose',
       label: 'Compose',
-      hint: 'Direct the cuts and the look',
+      hint: 'Edit, mix and add effects',
       /*
        * Not "has scenes" but "has scenes a renderer would accept". A song
        * with a hole in it is still being composed, whatever else is true of
@@ -1081,13 +1081,13 @@ export function stagesOf(
     {
       id: 'master',
       label: 'Master',
-      hint: 'Make the one file the rest comes from',
+      hint: 'Create your final video',
       done: done.some((job) => profileOf(job) === MASTER_PROFILE),
     },
     {
       id: 'deliver',
       label: 'Deliver',
-      hint: 'Versions, clips and a page',
+      hint: 'Export and publish',
       done: published || done.some((job) => profileOf(job) !== MASTER_PROFILE),
     },
   ];
