@@ -4069,16 +4069,47 @@ function CameraTab({
                 * now rather than a caption bar under it, which buys the
                 * three pixels back without the tile growing.
                 */}
+              {/*
+                * AND IT WRAPS RATHER THAN ELLIPSISING. Five tiles
+                * across a 330px column is 56 pixels; "Recording
+                * Studio" wants about 85, so on one line it became
+                * "Recordi…" — which does not distinguish it from a
+                * Recording Booth, and four of the ten sets were in
+                * that state. An ellipsis is the right answer for a
+                * programme title, where the first words identify it
+                * and the row can be widened. It is the wrong answer
+                * for a fixed grid of ten proper nouns, all of which
+                * have to be told apart at a glance.
+                *
+                * Two lines, clamped, which is what Studio Two's larger
+                * tiles have always done with the same ten labels — so
+                * this also stops the same set being named two
+                * different ways in two rooms. [brief §13, D-19]
+                */}
               <span style={{
                 position: 'absolute', left: 0, right: 0, bottom: 0,
-                fontSize: 'var(--text-2xs)', lineHeight: '14px',
-                padding: '0 3px', textAlign: 'center',
+                fontSize: 'var(--text-2xs)', lineHeight: '12px',
+                padding: '2px 3px', textAlign: 'center',
                 letterSpacing: '-0.01em',
                 color: chosen ? 'var(--ink-000)' : 'var(--ink-100)',
-                background: 'linear-gradient(180deg, transparent,'
-                  + ' rgba(5,7,10,0.82) 45%)',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                /*
+                  * A PLATE, NOT A FADE. The scrim reached full
+                  * opacity 35% down the label — fine under one line,
+                  * and under two it left the FIRST line sitting on
+                  * the raw swatch. Four of the ten sets are light
+                  * (Modern Room is near-white, Beach and Mountain are
+                  * pale sky), so "Modern" was grey on grey while
+                  * "Room" underneath it was white on black.
+                  *
+                  * It is the same plate every other label on a
+                  * picture in this product uses, which also means the
+                  * tone is measured rather than dependent on which
+                  * set happens to be behind it. [brief §19]
+                  */
+                background: 'rgba(0,0,0,0.72)',
+                display: '-webkit-box', WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical', overflow: 'hidden',
+                overflowWrap: 'break-word',
               }}>{space.label}</span>
             </button>
           );
