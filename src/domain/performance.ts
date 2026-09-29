@@ -1010,6 +1010,103 @@ export function renderProblems(
 }
 
 /**
+ * Where the work has got to.  [§2, §14, U-04, D-14]
+ *
+ * PERFORM → COMPOSE → MASTER → DELIVER is not a new idea about Studio Two;
+ * it is what Studio Two already does, said out loud. Takes are recorded,
+ * scenes are directed over them, one file is made, versions of that file go
+ * out. The studio had all four and named none of them, so the page below the
+ * editor read as a list of unrelated controls — sound, then shapes, then a
+ * clip, then a preview picture, then a publish button — with nothing saying
+ * which of them belonged to the same act.
+ *
+ * IT IS A READOUT AND NOT A WIZARD, which is the whole difference. Nothing
+ * gates anything: a take can be re-recorded after the master is made, a
+ * scene moved after it is published, the render pressed again. Every stage
+ * stays reachable at every moment. What this says is where the work IS, the
+ * way a meter says what a signal is doing — and it is derived from the
+ * document every time it is asked, so it cannot say something the document
+ * does not. [U-04: the interrupt is the product]
+ *
+ * IN THE DOMAIN AND NOT IN THE COMPONENT, because "is this performance
+ * composed" is a fact about a performance, and a fact worth drawing is a
+ * fact worth testing.
+ */
+export type StageId = 'perform' | 'compose' | 'master' | 'deliver';
+
+export interface Stage {
+  id: StageId;
+  label: string;
+  /** What is done here, in the words of doing it. */
+  hint: string;
+  done: boolean;
+}
+
+/** What a render job looks like from here: enough to say which and whether. */
+export interface RenderState {
+  state: string;
+  payload?: Record<string, unknown> | undefined;
+}
+
+/** The master IS the wide one; everything else is a version of it. [§14] */
+export const MASTER_PROFILE = 'youtube_16x9';
+
+export function stagesOf(
+  performance: Performance, renders: readonly RenderState[],
+): Stage[] {
+  const profileOf = (job: RenderState) =>
+    String(job.payload?.['exportProfileId'] ?? MASTER_PROFILE);
+  const done = renders.filter((job) => job.state === 'done');
+  const published = Boolean(performance.publication
+    && !performance.publication.unpublishedAt);
+  return [
+    {
+      id: 'perform',
+      label: 'Perform',
+      hint: 'Record or upload takes',
+      done: performance.takes.some((take) => take.durationSamples > 0),
+    },
+    {
+      id: 'compose',
+      label: 'Compose',
+      hint: 'Direct the cuts and the look',
+      /*
+       * Not "has scenes" but "has scenes a renderer would accept". A song
+       * with a hole in it is still being composed, whatever else is true of
+       * it — and that is the same question the render console and the
+       * renderer ask, rather than a third opinion about it. [D-19, INV-03]
+       */
+      done: performance.scenes.length > 0 && renderProblems(performance).length === 0,
+    },
+    {
+      id: 'master',
+      label: 'Master',
+      hint: 'Make the one file the rest comes from',
+      done: done.some((job) => profileOf(job) === MASTER_PROFILE),
+    },
+    {
+      id: 'deliver',
+      label: 'Deliver',
+      hint: 'Versions, clips and a page',
+      done: published || done.some((job) => profileOf(job) !== MASTER_PROFILE),
+    },
+  ];
+}
+
+/**
+ * Which stage the work is at: the first thing not yet done, or the last.
+ *
+ * NOT "the furthest done", which is the tempting reading and the wrong one.
+ * A performance that is mastered and then has a hole cut back into it is at
+ * COMPOSE again, and a readout that kept saying DELIVER because it once got
+ * there would be describing the past.
+ */
+export function stageNow(stages: readonly Stage[]): number {
+  const next = stages.findIndex((stage) => !stage.done);
+  return next === -1 ? stages.length - 1 : next;
+}
+
+/**
  * How much of the song has a picture on it.
  *
  * The Performance's equivalent of the source ratio the Studio shows while you

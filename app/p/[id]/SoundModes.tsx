@@ -78,21 +78,36 @@ export default function SoundModes({
   const mode = performance.audio.mode;
 
   return (
-    <section style={{ marginTop: 18 }} data-testid="sound">
+    <div data-testid="sound">
       {/*
-        * A LEGEND, like every other section label in the product since
-        * 02. This was an `<h2>` at 14px — a document heading over three
-        * cards, in a room whose loudest thing should be the picture.
+        * A SETTING ON THE MASTER, NOT A SECTION OF THE PAGE.
+        *
+        * This was its own `<section>` with its own legend, sitting between
+        * the timeline and the render button as though choosing where the
+        * sound comes from were a separate stage of the work. It is not: it
+        * is a property OF the master, and it belongs inside the module that
+        * makes one — the same relationship the arrangement has to the
+        * stage. What it answers is one question, so it reads as one line
+        * with a bank of positions after it rather than a heading over three
+        * cards. [D-19]
         */}
-      <h2 className="module-label" style={{ margin: '0 0 7px' }}>Sound</h2>
-
-      {/* Three across, because they are three answers to one question and a
-          column of three makes the third look like an afterthought. */}
-      <div style={{
-        display: 'grid', gap: 7,
-        gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))',
-        maxWidth: 900,
+      <div className="row" style={{
+        gap: 'var(--space-4)', alignItems: 'baseline', marginBottom: 'var(--space-3)',
       }}>
+        <span className="module-label">Audio</span>
+        <span className="module-sub grow" style={{ minWidth: 0 }}>
+          where the finished sound comes from
+        </span>
+      </div>
+
+      {/*
+        * A BANK OF THREE POSITIONS. They were three bordered rectangles in
+        * a row with a semibold title each — the shape of a pricing table —
+        * and four pixels of air between them, which leaves three objects
+        * that happen to agree. A mode selector on a desk is one piece of
+        * metal with positions cut into it. [brief §4]
+        */}
+      <div className="ctl-bank is-across" style={{ flexWrap: 'wrap' }}>
         {MODES.map((option) => (
           <button
             key={option.id}
@@ -119,7 +134,7 @@ export default function SoundModes({
             className={`ctl${mode === option.id ? ' is-on' : ''}`}
             style={{
               textAlign: 'left', padding: '8px 11px',
-              display: 'block', height: '100%',
+              display: 'block', flex: '1 1 210px', minWidth: 0,
             }}
           >
             <div style={{
@@ -198,6 +213,6 @@ export default function SoundModes({
       )}
 
       {error && <p className="small" style={{ color: 'var(--bad)' }}>{error}</p>}
-    </section>
+    </div>
   );
 }

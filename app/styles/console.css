@@ -513,6 +513,36 @@
 }
 
 /*
+ * A BANK LAID ACROSS, for the one case where the positions are a
+ * SEQUENCE rather than a set: Perform, Compose, Master, Deliver. Read
+ * left to right because that is the order the work happens in, and a
+ * column of four would say they are alternatives to each other.
+ *
+ * The seam turns with it — a vertical bank is separated by horizontal
+ * rules and a horizontal one by vertical rules, and inheriting the
+ * wrong axis is how a control ends up with a line across its middle.
+ */
+.ctl-bank.is-across { flex-direction: row; }
+.ctl-bank.is-across > .ctl {
+  border-bottom: 0;
+  border-right: var(--border) solid var(--console-seam);
+}
+.ctl-bank.is-across > .ctl:last-child { border-right: 0; }
+
+/*
+ * AND THE LIT EDGE MOVES TO THE TOP. On a row, a 3px bar down the
+ * LEADING edge is a bar between two neighbours — indistinguishable
+ * from the seam it sits beside — so across the bank it rides the top,
+ * where nothing else is.
+ */
+.ctl-bank.is-across > .ctl.is-on,
+.ctl-bank.is-across > .ctl[aria-pressed='true'],
+.ctl-bank.is-across > .ctl[aria-current='step'] {
+  border-color: var(--console-seam);
+  box-shadow: inset 0 3px 0 0 var(--accent), var(--ring);
+}
+
+/*
  * THE FALLBACK WENT OUT. Not live, not scheduled — the thing that plays
  * when the thing that should have played did not. It keeps the existing
  * emergency red rather than taking a sixth colour. [brief §2]
