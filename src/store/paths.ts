@@ -146,6 +146,17 @@ export const paths = {
   performanceChunks: (id: string, takeId: string) =>
     join(paths.performanceAssets(id), 'chunks', safe(takeId)),
   performanceRenders: (id: string) => join(paths.performance(id), 'renders'),
+  /**
+   * Past versions of the document, for undo.  [MASTER-EDIT §12 P1]
+   *
+   * Beside the document and not inside it: a version IS a document, and a
+   * directory that sometimes holds one and sometimes holds a list of them
+   * is the kind of thing a cleanup script gets wrong — the same reasoning
+   * that keeps assets out of here.
+   */
+  performanceHistory: (id: string) => join(paths.performance(id), 'history'),
+  performanceVersion: (id: string, n: number) =>
+    join(paths.performanceHistory(id), `v${String(n).padStart(6, '0')}.json`),
 
   /* ---- Studio Three: the channel.  [CHANNEL §1, D-18, INV-17] ---------- *
    *

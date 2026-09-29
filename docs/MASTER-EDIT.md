@@ -444,7 +444,7 @@ pre-render validation
 | trim | GAP — a scene has no out-point; moving a boundary is `moveScene` |
 | adjust transition duration | GAP — fixed per style |
 | preview | PARTIAL — the programme monitor shows the scene at the playhead; no scrub of the join |
-| **undo / redo** | GAP — nothing in the product has it |
+| **undo / redo** | HAVE — every edit to a performance records a version; ⌘Z / ⌘⇧Z and a control bank step through 50 of them |
 
 ### P2 — Professional finishing
 

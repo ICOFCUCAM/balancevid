@@ -261,6 +261,14 @@ export default function SwitchingStage({
    * editor has worked since they had mice.
    */
   const [selection, setSelection] = useState<Selection | null>(null);
+  /*
+   * HOW FAR BACK THE DOCUMENT CAN GO.  [MASTER-EDIT §12 P1]
+   *
+   * Asked of the server rather than counted here: the history is versions
+   * on disk, and a page that kept its own tally would disagree with them
+   * the first time two tabs were open on one performance.
+   */
+  const [history, setHistory] = useState({ canUndo: false, canRedo: false });
   const [arrangement, setArrangement] = useState<string>('performance_full');
   const [pending, setPending] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -340,6 +348,31 @@ export default function SwitchingStage({
     }
   }, [beats, onChanged, performance.id, snap]);
 
+  const readHistory = useCallback(async () => {
+    const response = await fetch(`/api/performances/${performance.id}/history`,
+      { cache: 'no-store' });
+    if (response.ok) setHistory(await response.json());
+  }, [performance.id]);
+
+  useEffect(() => { void readHistory(); }, [readHistory]);
+
+  /** Walk the document back or forward. [§12 P1] */
+  const step = useCallback(async (action: 'undo' | 'redo') => {
+    setError(null);
+    const response = await fetch(`/api/performances/${performance.id}/history`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) { setError(data.error ?? 'that did not work'); return; }
+    setHistory({ canUndo: Boolean(data.canUndo), canRedo: Boolean(data.canRedo) });
+    if (data.moved) {
+      onChanged(data.performance);
+      /* A clip that no longer exists cannot stay selected. */
+      setSelection(null);
+    }
+  }, [onChanged, performance.id]);
+
   const patch = useCallback(async (body: Record<string, unknown>) => {
     setError(null);
     const response = await fetch(`/api/performances/${performance.id}`, {
@@ -349,7 +382,8 @@ export default function SwitchingStage({
     const data = await response.json().catch(() => ({}));
     if (!response.ok) { setError(data.error ?? 'that did not work'); return; }
     onChanged(data.performance);
-  }, [onChanged, performance.id]);
+    void readHistory();
+  }, [onChanged, performance.id, readHistory]);
 
   /*
    * WHAT CAN BE DONE TO WHAT IS ON SCREEN.  [§7, §8, §11, U-04]
@@ -504,6 +538,27 @@ export default function SwitchingStage({
    */
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      /*
+       * THE ONE MODIFIER THIS STUDIO TAKES.  [§12 P1, U-04]
+       *
+       * The rule beside the number keys is that modifier combinations are
+       * left alone, because Cmd-1 belongs to the browser. Cmd-Z is the
+       * exception and not a contradiction: on a page with nothing else to
+       * undo, Cmd-Z already MEANS "take back what I just did", and the
+       * thing the person just did is an edit to this performance. Taking
+       * it is meeting the expectation, not overriding it — and the check
+       * below still hands it back the moment a field has focus, where the
+       * browser's own undo is the one they want.
+       */
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z'
+        && !event.altKey) {
+        const field = event.target as HTMLElement | null;
+        if (field && (/^(INPUT|TEXTAREA|SELECT)$/.test(field.tagName)
+          || field.isContentEditable)) return;
+        event.preventDefault();
+        void step(event.shiftKey ? 'redo' : 'undo');
+        return;
+      }
       if (event.metaKey || event.ctrlKey || event.altKey) return;
       const target = event.target as HTMLElement | null;
       if (target && (/^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)
@@ -523,7 +578,7 @@ export default function SwitchingStage({
     // Capture, so the page's other keys never swallow a switch mid-song.
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, [choose, player]);
+  }, [choose, player, step]);
 
   const duration = performance.master.durationSamples;
   /*
@@ -1706,6 +1761,21 @@ export default function SwitchingStage({
           gap: 6, justifyContent: 'flex-end', flexWrap: 'nowrap',
           fontSize: 'var(--text-sm)', whiteSpace: 'nowrap',
         }}>
+          {/*
+            * UNDO FIRST IN THE GROUP THAT ACTS ON THE WHOLE EDIT, because
+            * that is what it acts on. A bank of two, because they are one
+            * control with two directions. [§12 P1]
+            */}
+          <div className="ctl-bank is-across" data-testid="history">
+            <button className="ctl" data-testid="undo" disabled={!history.canUndo}
+                    title="Undo the last change to this performance"
+                    onClick={() => { void step('undo'); }}
+                    style={{ padding: '5px 9px' }}>Undo</button>
+            <button className="ctl" data-testid="redo" disabled={!history.canRedo}
+                    title="Put back the change you just undid"
+                    onClick={() => { void step('redo'); }}
+                    style={{ padding: '5px 9px' }}>Redo</button>
+          </div>
           {beats && (
             <button className="small" data-testid="snap-to-beat"
                     disabled={!beats.acceptedBy && !snap}

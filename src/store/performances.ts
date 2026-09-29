@@ -20,6 +20,7 @@ import {
 } from '../domain/performance.js';
 import type { AuditEntry } from './repository.js';
 import { paths, safe } from './paths.js';
+import { historyState, recordVersion, stepHistory } from './history.js';
 
 export async function savePerformance(performance: Performance): Promise<void> {
   const dir = paths.performance(performance.id);
@@ -85,7 +86,35 @@ export async function mutatePerformance(
   id: string, change: (draft: Performance) => void | Promise<void>,
 ): Promise<Performance> {
   const performance = await loadPerformance(id);
+  /*
+   * THE STATE BEFORE THE FIRST EDIT, or undo has nowhere to go back to.
+   * Recorded lazily rather than at creation, so documents made before undo
+   * existed gain a history the moment they are next touched. [§12 P1]
+   */
+  if ((await historyState(id)).count === 0) await recordVersion(id, performance);
   await change(performance);
+  await savePerformance(performance);
+  await recordVersion(id, performance);
+  return performance;
+}
+
+/**
+ * Step the document back or forward through its own history.
+ * [MASTER-EDIT §12 P1]
+ *
+ * It writes through `savePerformance` like every other change, so the
+ * document's own validation runs on the way in — a version restored past a
+ * schema change is still checked rather than trusted for being ours.
+ * `recordVersion` is deliberately NOT called: walking the history is not an
+ * edit, and recording it would make the history grow every time somebody
+ * looked at it.
+ */
+export async function stepPerformance(
+  id: string, direction: -1 | 1,
+): Promise<Performance | null> {
+  const document = await stepHistory(id, direction);
+  if (document === null) return null;
+  const performance = document as Performance;
   await savePerformance(performance);
   return performance;
 }
