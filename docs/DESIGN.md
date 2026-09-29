@@ -188,11 +188,67 @@ The rules in `console.css` are therefore subtractive:
 - **No glass, no glow.** Both are banned by test. A blurred sample of the
   picture behind a status readout means the readout changes appearance
   with the programme — and the programme is the thing being judged.
+- **A screen has square corners.** `--radius-screen`, 2px, on every
+  rectangle that is a picture — both monitors, the stage, the camera PiP,
+  and the two pages a viewer sees. 10px on a video is the shape of a card
+  in a feed, on the one surface where that association is worst.
+- **One plate, everywhere something sits on a picture.** `rgba(0,0,0,0.72)`
+  with a hairline of light. Seven private near-blacks were found between
+  0.6 and 0.82, each arrived at by eye on one tile, none distinguishable
+  from the others — which is most of what "assembled from parts" looks
+  like. Identity rides a lamp or a leading edge; a saturated plate makes
+  the label the loudest thing on the frame it is labelling.
+- **A bank of positions is one piece of metal.** Mutually exclusive
+  choices share edges, not gutters. A gap says these things were placed; a
+  seam says they were machined.
+- **Every control state leaves a slot for the focus ring.** `--ring` is
+  empty until `:focus-visible` fills it. The ring is drawn under a
+  zero-specificity `:where()` so a component can retint it, which also
+  means any component setting `box-shadow` silently deletes it — as every
+  `.ctl` state was doing.
 
 **What is deliberately not in this decision:** the lit building keeps its
 rounding, and there is a test asserting it does. The argument is about
 what a console is made of, not about radii being bad. A rule pushed past
 its reason is how a style guide becomes cargo cult.
+
+---
+
+## The seventh decision: a signal spent is a signal lost
+
+Red in this product means one thing: **this is going out, or it is being
+recorded.** The tally, the LIVE lamp, the playhead, ON AIR, TAKE LIVE,
+EMERGENCY, and the record buttons in Studio Two.
+
+It is the only signal here that a person must be able to trust without
+reading, and four controls were spending it on things that transmit
+nothing and record nothing: ENABLE CAMERA, TURN ON CAMERA AND MICROPHONE,
+I'D LIKE TO SPEAK — and GO LIVE, whose own tooltip says *"Nothing reaches
+the wire until you press TAKE LIVE."* It wore the transmission colour two
+feet from the button that transmits while its copy explained that it does
+not.
+
+Those are the loudest control on their surface and they should look it, so
+there is a fourth weight — `.ctl.is-key` — and the four are now:
+
+| weight | what it means | how it looks |
+| --- | --- | --- |
+| `.ctl` | the forty ordinary ones | quiet face, seam border |
+| `.ctl.is-on` | this one is engaged | lit face, accent edge |
+| `.ctl.is-key` | the action this surface exists for | lit face, accent edge, bold uppercase legend |
+| `.ctl.is-critical` | on air, or recording | saturated fill |
+
+**`is-key` differs from `is-critical` by material, not by hue**, which is
+the part that matters. #c8382c and #3f8ee8 are 1.54:1 apart in luminance —
+to anybody who does not separate red from blue they are the same tone, so
+hue alone would be no distinction at all. One is a fill; the other is a
+dark face with a lit edge. Two kinds of object before two colours. [U-19]
+
+The same argument fixed three other places in the same pass where red
+asserted something untrue: the multi-view tally claiming three sources on
+air when one was, the playhead flag reading ON AIR over a dead schedule,
+and Graphics counted as a source when it is an overlay. A colour that
+sometimes lies is not a signal, it is decoration that happens to be red.
 
 ---
 
@@ -221,7 +277,7 @@ app/Notice.tsx             saying something went wrong, out loud
 
 ## The ratchet
 
-142 raw hex colours remain in components. The token system arrived after the
+120 raw hex colours remain in components. The token system arrived after the
 product did, and surfaces are converted as each is worked on.
 
 It read 244 until the regex was corrected: `&#9654;` is a play triangle, and
@@ -234,6 +290,13 @@ blue for "this one is chosen", in fifteen borders and eight fills, beside a
 selection wash written thirteen times at four strengths. A design system is
 mostly this — not new values, but finding that a hundred lines were all
 trying to say the same thing.
+
+Four tests hold the sixth and seventh decisions: `console.test.ts` for the
+material (the module, the legend, the plate, the radii, the bank, the ring
+slot, and what red is allowed to mean), `contrast.test.ts` for every tone
+including the ones that sit on a wash over a face, `design-system.test.ts`
+for the glass and glow bans and this budget, and `menus.test.ts` for the
+one context menu.
 
 `design-system.test.ts` holds that number as a budget. **Lower it when you
 convert a surface; never raise it.** If it fails on a new feature the fix is
@@ -253,4 +316,4 @@ without noticing.
 - **No light theme** in the application. The published article and
   interactive player have one, and declare the speaker identities darkened
   for white; the studios do not.
-- **The remaining 142.** They are not wrong, they are just not yet named.
+- **The remaining 120.** They are not wrong, they are just not yet named.

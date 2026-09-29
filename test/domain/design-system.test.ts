@@ -73,7 +73,7 @@ describe('raw colour in components', () => {
    * If this fails on a new feature, the fix is a token, not a bigger
    * number — and the tokens are in `app/styles/`.
    */
-  const BUDGET = 142;
+  const BUDGET = 120;
 
   it(`is at or below ${BUDGET} occurrences, and falling`, () => {
     const counts = components()
