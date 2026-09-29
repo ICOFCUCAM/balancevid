@@ -166,11 +166,16 @@ describe('the legend', () => {
    * keeps its rounding — this is a claim about what a console is made
    * of, and the lobby is not one.
    */
-  const STUDIOS = ['t', 'c', 'p']
-    .flatMap((route) => components(join(ROOT, 'app', route, '[id]')));
-
-  it('writes no size by hand anywhere in the three studios', () => {
-    const offenders = STUDIOS.flatMap((file) =>
+  /*
+   * AND IT COVERS THE WHOLE APPLICATION NOW, not the three studio
+   * routes. Fourteen sizes were sitting in the five files outside
+   * them — the start panels and the guest join page — which the
+   * narrower rule had no opinion about. Scoping a rule to where it
+   * was first applied is how it stops being a rule; that is the
+   * fourth time in this work.
+   */
+  it('writes no size by hand anywhere in the application', () => {
+    const offenders = components().flatMap((file) =>
       (code(file).match(/fontSize:\s*\d+/g) ?? [])
         .map((hit) => `${named(file)}: ${hit}`));
     expect(offenders, 'the scale has eight steps — use one').toEqual([]);

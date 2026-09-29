@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import RoomView, { type RoomState } from '../../c/[id]/room/RoomView.js';
+import Brand from '../../Brand.js';
 
 /**
  * Joining a room from a link.  [Doctrine ROOM §6, §12]
@@ -50,11 +51,27 @@ export default function Join({
     <div className="shell">
       <div className="shell-body" style={{ display: 'grid', placeItems: 'center', padding: 24 }}>
         <div className="panel" data-testid="join-card" style={{ maxWidth: 420, padding: 28 }}>
-          <div className="small muted" style={{ textTransform: 'uppercase',
-            letterSpacing: 0.8, fontSize: 11 }}>
-            You have been invited
+          {/*
+            * THE MARK, AND HERE MOST OF ALL.
+            *
+            * This page had no identity on it at all. Somebody is sent
+            * a link by a colleague, clicks it, and is asked to type
+            * their name into an unbranded box — which is the exact
+            * shape of a phishing page, and the one page in the
+            * product where a stranger has no prior context to fall
+            * back on. The watch pages at least show them something
+            * they came to see; this asks for something first.
+            *
+            * It is a trust fix rather than a cosmetic one, which is
+            * why it leads the card instead of sitting in a bar. [D-14]
+            */}
+          <div className="row" style={{ marginBottom: 'var(--space-5)' }}>
+            <Brand />
           </div>
-          <h1 style={{ fontSize: 24, margin: '4px 0 6px' }}>Join the conversation</h1>
+          <div className="module-label">You have been invited</div>
+          <h1 style={{ fontSize: 'var(--text-xl)', margin: '4px 0 6px' }}>
+            Join the conversation
+          </h1>
           <p className="muted" style={{ marginTop: 0 }}>
             You will be able to hear and see the conversation straight away.
             You only appear in the video if the host brings you in.

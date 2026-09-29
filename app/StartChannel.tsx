@@ -46,7 +46,7 @@ export default function StartChannel() {
 
   return (
     <div data-testid="start-channel">
-      <h2 style={{ fontSize: 16, margin: '0 0 2px' }}>Start a channel</h2>
+      <h2 style={{ fontSize: 'var(--text-md)', margin: '0 0 2px' }}>Start a channel</h2>
       <p className="small muted" style={{ marginTop: 0 }}>
         Schedule what you have already made. Nothing is copied.
       </p>
@@ -64,7 +64,7 @@ export default function StartChannel() {
           id="channel-zone" data-testid="channel-zone" value={timezone}
           onChange={(event) => setTimezone(event.target.value)}
         />
-        <span className="small muted" style={{ fontSize: 11 }}>
+        <span className="small muted" style={{ fontSize: 'var(--text-xs)' }}>
           {/* Said because the consequence is invisible: a schedule in the
               wrong zone looks right and goes out an hour early. [§2] */}
           Nine o&rsquo;clock means nine o&rsquo;clock here.
