@@ -235,10 +235,18 @@ export default function GuestsTab({
               This conversation&rsquo;s room has never been opened. Opening it
               makes a link you can send to anybody.
             </p>
-            <button className="primary small" data-testid="open-room"
+            {/*
+              * NOT A CTA, BECAUSE THIS IS A DESK. Opening the room is an
+              * ordinary, frequent, reversible action taken from inside
+              * the Live Studio — and a filled blue button on the
+              * broadcast console is the object the brief rules out by
+              * name. It was only still here because the ban was scoped
+              * to five files and this is the sixth. [brief §4]
+              */}
+            <button className="ctl" data-testid="open-room"
                     disabled={busy}
                     onClick={() => { void act({ action: 'open' }); }}
-                    style={{ width: '100%' }}>
+                    style={{ width: '100%', padding: '7px 10px' }}>
               {busy ? 'Opening…' : 'Open the room'}
             </button>
           </>

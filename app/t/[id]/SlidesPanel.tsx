@@ -257,7 +257,7 @@ export default function SlidesPanel({
             }}
           />
           <button
-            className="primary small" data-testid="make-slide" disabled={busy}
+            className="ctl" data-testid="make-slide" disabled={busy}
             onClick={() => { void write(); }}
           >
             {busy ? 'Drawing\u2026' : deck ? 'Add to this deck' : 'Start a deck'}

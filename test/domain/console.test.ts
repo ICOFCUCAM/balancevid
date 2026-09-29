@@ -92,6 +92,29 @@ describe('the desks', () => {
   });
 
   /*
+   * AND THE WHOLE CONTROL ROOM COUNTS, not the one file named above.
+   *
+   * `ChannelStudio.tsx` was clean while two filled blue buttons sat in
+   * `GuestsTab` and `SlidesPanel` — which are not somewhere else, they
+   * are the GUESTS and GRAPHICS tabs of the Live Studio, rendered
+   * inside the console's right-hand column. A ban scoped to the file
+   * somebody already fixed measures the fix, not the rule.
+   *
+   * Studio One and Studio Two are deliberately NOT included. Their
+   * routes hold genuine forms — the export panel, the publish stage,
+   * the room plate's setup flow — and a form keeps a conventional
+   * primary button. This was never a campaign against blue buttons;
+   * it is about what an operating surface is made of, and `app/t` is
+   * an operating surface all the way down.
+   */
+  it('raises no generic CTA anywhere in the control room', () => {
+    const found = components(join(ROOT, 'app', 't', '[id]'))
+      .flatMap((file) => [...code(file).matchAll(/className=(?:"|\{`)primary/g)]
+        .map(() => named(file)));
+    expect(found, 'the control room is a desk in every file').toEqual([]);
+  });
+
+  /*
    * AND THE CONSOLE CONTROL IS ACTUALLY USED. A ban with no adoption is
    * a ban that was satisfied by deleting buttons.
    */
