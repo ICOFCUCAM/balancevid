@@ -1177,6 +1177,68 @@ describe('the viewer pages', () => {
  * one that disagrees is always the one in front of a person — the server's
  * copy is exercised by tests, the console's by nobody.
  */
+/**
+ * THE PICTURE ANSWERS.  [§7, §8, §11, D-19, U-04]
+ *
+ * The one thing Studio Two is about — what is on screen at this moment —
+ * answered neither mouse button. Changing the take in a scene meant going
+ * to the take rail; changing how the scene arrives meant opening a
+ * `Transitions` toggle in the transport, which raised a row of `<select>`s
+ * identified by nothing but their order. The transitions themselves have
+ * been built and rendered for a long time; what was missing was a way to
+ * reach them from the thing they are about.
+ */
+describe('what can be done to what is on screen', () => {
+  const STAGE = code(join(ROOT, 'app', 'p', '[id]', 'SwitchingStage.tsx'));
+
+  it('raises the product\'s own menu and not a fourth one', () => {
+    expect(STAGE, 'the program monitor offers nothing')
+      .toContain("data-testid=\"program-actions\"");
+    expect(STAGE, 'a menu that is not the shared one drifts from it')
+      .toMatch(/from '\.\.\/\.\.\/Menu\.js'/);
+  });
+
+  /*
+   * THE TRAP THIS ONE IS ABOUT. `write()` snaps to the beat grid, which is
+   * right when placing a cut and wrong for every other edit: swapping who
+   * is in a panel, or restyling a join, must not also drag the boundary of
+   * the scene it belongs to. An author would see their cut walk to the
+   * nearest beat as a side effect of changing a face, and would have no
+   * way to connect the two.
+   */
+  it('and never writes a scene at its own start through the snapping path', () => {
+    expect(STAGE, 'that would move the boundary as a side effect of an edit')
+      .not.toMatch(/\bwrite\((?:scene|current)\.fromSample/);
+  });
+
+  /*
+   * And the styles offered are the ones the renderer can actually draw,
+   * asked for rather than listed. Scoped to the MENU: the first version of
+   * this checked the whole file, and the transitions row further down
+   * already asks the same way — so hand-listing two of the three in the
+   * menu passed. Same mistake as every other rule in this file that was
+   * written against where it happened to be looking.
+   */
+  it('offers the transitions the renderer has, by asking for them', () => {
+    const fn = STAGE.slice(STAGE.indexOf('const stageMenu'));
+    /*
+     * ENDING ON CODE AND NOT ON A COMMENT. `code()` strips comments before
+     * this ever sees the file, so the first end marker here was a comment
+     * that did not exist — `indexOf` returned -1, `slice(0, -1)` took
+     * almost the whole file, and the assertion passed on a DIFFERENT
+     * `Object.values(TRANSITIONS)` four hundred lines further down. The
+     * mutation that hand-listed two of the three styles went green.
+     *
+     * A slice that is non-empty is not a slice that is right, so the
+     * boundary is asserted rather than assumed.
+     */
+    const ends = fn.indexOf('const accept = useCallback');
+    expect(ends, 'the end of stageMenu moved — this test is reading the '
+      + 'wrong span of the file').toBeGreaterThan(0);
+    expect(fn.slice(0, ends)).toMatch(/Object\.values\(TRANSITIONS\)/);
+  });
+});
+
 describe('one question, one answer', () => {
   /*
    * PROJECTING IS DERIVING. `projectPerformance` turns a document into

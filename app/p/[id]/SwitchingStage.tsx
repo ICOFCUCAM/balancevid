@@ -9,6 +9,7 @@ import {
 } from '../../../src/domain/performance.js';
 import { EFFECT_LOOKS, SPACE_LOOKS } from '../../../src/domain/environment.js';
 import { useConfirm } from '../../Confirm.js';
+import { useMenu, type MenuEntry } from '../../Menu.js';
 import { LAYOUTS, takeSlots } from '../../../src/domain/presentation.js';
 import {
   BEATS_USABLE_CONFIDENCE, beatPositions, snapToBeat,
@@ -241,6 +242,13 @@ export default function SwitchingStage({
   takesPanel?: React.ReactNode;
 }) {
   const { confirm, dialog: confirmDialog } = useConfirm();
+  /*
+   * THE SAME MENU COMPONENT THE REST OF THE PRODUCT USES, a second
+   * instance of it rather than a second implementation — what D-19 rules
+   * out is four different objects called a menu, not two rows that each
+   * know what can be done to them. [D-19]
+   */
+  const { menu, onRow } = useMenu();
   const [arrangement, setArrangement] = useState<string>('performance_full');
   const [pending, setPending] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -330,6 +338,111 @@ export default function SwitchingStage({
     if (!response.ok) { setError(data.error ?? 'that did not work'); return; }
     onChanged(data.performance);
   }, [onChanged, performance.id]);
+
+  /*
+   * WHAT CAN BE DONE TO WHAT IS ON SCREEN.  [§7, §8, §11, U-04]
+   *
+   * THE PROGRAM MONITOR WAS INERT. Every other object in this studio says
+   * what can be done to it — the takes in the rail, the clips, the
+   * programmes in the control room — and the one picture the whole studio
+   * is about answered neither click. To change the take in a scene you
+   * found the take rail; to change how the scene arrives you opened a
+   * `Transitions` toggle in the transport, which raised a row of
+   * `<select>`s, one per scene, identified by nothing but their order.
+   *
+   * The transitions were built long ago — cut, dissolve, fade through
+   * black, planned and rendered — and reachable only through that row.
+   * This does not add a transition; it puts the ones there are where the
+   * author is already looking. [D-19]
+   *
+   * IT IS RAISED BY EITHER BUTTON. Right-click because that is what the
+   * rest of the product taught, and LEFT-click because the program monitor
+   * has nothing else for a left click to mean — in the multiview it cuts
+   * to that take, and here there is no cut to make, so a picture that did
+   * nothing at all was the only thing it could be confused with. Both go
+   * through `onRow`, so there is one list and not two that drift.
+   */
+  const rewrite = useCallback((scene: { fromSample: number; layoutId: string },
+    takeIds: string[]) => patch({
+    action: 'set-scene', at: scene.fromSample, layoutId: scene.layoutId, takeIds,
+  }), [patch]);
+
+  const stageMenu = useCallback((panelTakeId: string | null): MenuEntry[] => {
+    const at = Math.round(player.positionNow());
+    /*
+     * NOTHING ON SCREEN HERE is a hole, and the useful thing to offer is
+     * the thing that closes it — the same offer the render console makes
+     * in a sentence, made where the emptiness actually is.
+     */
+    if (!current) {
+      return usable.map((take) => ({
+        label: `Put ${take.label} on screen from here`,
+        hint: 'Nothing is on screen at this moment',
+        onSelect: () => { void write(at, 'performance_full', [take.id]); },
+      }));
+    }
+    const scene = current;
+    const panel = panelTakeId
+      ? scene.takeIds.findIndex((id) => id === panelTakeId) : -1;
+    const isFirst = ordered[0]?.id === scene.id;
+    const transition = scene.transition ?? 'cut';
+    return [
+      /*
+       * Replacing goes through `patch` and not through `write`, because
+       * `write` snaps to the beat grid — correct when placing a cut, and
+       * wrong here: swapping who is in a panel must not also move the
+       * boundary of the scene they are in.
+       */
+      ...(panel >= 0
+        ? usable.filter((take) => !scene.takeIds.includes(take.id))
+          .map((take) => ({
+            label: `Replace with ${take.label}`,
+            onSelect: () => {
+              const takeIds = [...scene.takeIds];
+              takeIds[panel] = take.id;
+              void rewrite(scene, takeIds);
+            },
+          }))
+        : []),
+      ...Object.values(TRANSITIONS).map((style) => ({
+        label: `Arrives as a ${style.label.toLowerCase()}`,
+        hint: style.hint,
+        /* The first scene arrives from nothing, so it has no join to
+           style. Greyed with the reason rather than hidden: a menu whose
+           contents change between visits is a menu nobody learns. */
+        ...(isFirst ? { disabled: 'nothing comes before it' } as const
+          : style.id === transition ? { disabled: 'already' } as const : {}),
+        onSelect: () => {
+          void patch({
+            action: 'scene-transition', sceneId: scene.id, transition: style.id,
+          });
+        },
+      })),
+      {
+        label: 'Start this scene here',
+        hint: `move its beginning to ${formatMasterPosition(at)}`,
+        ...(at === scene.fromSample
+          ? { disabled: 'it already starts here' } as const
+          : ordered.some((other) => other.id !== scene.id && other.fromSample === at)
+            ? { disabled: 'another scene starts there' } as const : {}),
+        onSelect: () => {
+          void patch({ action: 'move-scene', sceneId: scene.id, at });
+        },
+      },
+      {
+        label: 'Remove this scene\u2026',
+        danger: true,
+        onSelect: () => confirm({
+          question: 'Remove this scene? What was on screen here goes back to '
+            + 'whatever the scene before it shows \u2014 or to nothing, if it is '
+            + 'the first.',
+          verb: 'Remove the scene',
+          danger: true,
+          go: () => { void patch({ action: 'remove-scene', sceneId: scene.id }); },
+        }),
+      },
+    ];
+  }, [confirm, current, ordered, patch, player, rewrite, usable, write]);
 
   /** Who accepted the beats. One owner for now; the field exists for later. */
   const accept = useCallback(
@@ -590,6 +703,7 @@ export default function SwitchingStage({
       alignItems: 'start',
     }}>
       {confirmDialog}
+      {menu}
       {/*
         * The rail is as tall as the stage too, and scrolls inside that.
         *
@@ -623,14 +737,27 @@ export default function SwitchingStage({
           }}
         >
           {visible.length === 0 && (
-            <div className="small muted" style={{
-              position: 'absolute', inset: 0, display: 'flex',
-              alignItems: 'center', justifyContent: 'center', textAlign: 'center',
-              padding: 20,
-            }}>
+            /*
+              * A HOLE IS SOMETHING TO ACT ON, TOO. The sentence told the
+              * author what was wrong and left them to go and find the
+              * remedy; pressing the emptiness now offers the takes that
+              * could fill it. Same list, same place they were looking.
+              */
+            <button type="button" className="small muted"
+                    data-testid="program-actions"
+                    {...onRow('this moment', () => stageMenu(null))}
+                    onClick={(event) =>
+                      onRow('this moment', () => stageMenu(null)).onContextMenu(event)}
+                    style={{
+                      position: 'absolute', inset: 0, display: 'flex',
+                      alignItems: 'center', justifyContent: 'center',
+                      textAlign: 'center', padding: 20, background: 'transparent',
+                      border: 0, font: 'inherit', color: 'inherit',
+                      cursor: 'context-menu',
+                    }}>
               Nothing is on screen at this moment. Press a number while the
-              song plays, or pick a take below.
-            </div>
+              song plays, pick a take below, or press here for what can go on it.
+            </button>
           )}
           {visible.map((takeId, index) => {
             const take = performance.takes.find((t) => t.id === takeId);
@@ -769,6 +896,28 @@ export default function SwitchingStage({
                             position: 'absolute', inset: 0, padding: 0,
                             background: 'transparent', border: 0,
                             cursor: 'pointer',
+                          }} />
+                )}
+                {/*
+                  * AND IN PROGRAM THE PANEL IS THE SCENE. There is no cut
+                  * to make here — this IS what is on air at the playhead
+                  * — so the picture answers with what can be done to it
+                  * instead of doing nothing. A `<button>` because it is
+                  * one: reachable by tab, pressed by Enter, and named.
+                  */}
+                {!allTakes && (
+                  <button type="button" data-testid="program-actions"
+                          data-take-id={take.id}
+                          title={`What can be done to ${take.label} here`}
+                          aria-label={`What can be done to ${take.label} here`}
+                          {...onRow(take.label, () => stageMenu(take.id))}
+                          onClick={(event) =>
+                            onRow(take.label, () => stageMenu(take.id))
+                              .onContextMenu(event)}
+                          style={{
+                            position: 'absolute', inset: 0, padding: 0,
+                            background: 'transparent', border: 0,
+                            cursor: 'context-menu',
                           }} />
                 )}
               </div>
