@@ -397,6 +397,16 @@ async function renderPerformanceShot(
      * a plate of that room — changing its brightness first is changing the
      * thing the threshold was measured for. [S-6, INV-16]
      */
+    /*
+     * THE MATCH BEFORE THE LOOK. A match says "agree with that camera" and
+     * a look says "now make it warmer than either" — doing it the other way
+     * round normalises away the decision the author just made.
+     */
+    if (take.match) {
+      const matched = `${panel}m`;
+      filters.push(...effectChain(take.match, panel, matched, box.w, box.h));
+      panel = matched;
+    }
     if (take.effect) {
       const graded = `g${index}`;
       filters.push(...effectChain(take.effect, panel, graded, box.w, box.h));

@@ -19,6 +19,7 @@ import { dirname } from 'node:path';
 import { HOUSE_FPS } from '../domain/time.js';
 import { ffmpeg, ffmpegCapture, type RunOptions } from './ffmpeg.js';
 import { probe, type MediaInfo } from './probe.js';
+import type { ColourReading } from '../domain/colour.js';
 
 /** The house format. One shape, so concat never has to reconcile two. */
 export const HOUSE = {
@@ -137,6 +138,121 @@ export async function measureLoudness(path: string): Promise<{ inputI: number; i
     '-i', path, '-af', 'loudnorm=print_format=json', '-f', 'null', '-',
   ]);
   return parseLoudnorm(stderr);
+}
+
+/**
+ * What this take's picture measures.  [MASTER-EDIT §8, U-02]
+ *
+ * THE SAME SHAPE AS `measureLoudness` AND FOR THE SAME REASON. A colour
+ * match without a measurement is a slider, and a slider is the author doing
+ * by eye what the product can do by arithmetic — which is exactly what U-02
+ * says not to ship. `signalstats` reports per-plane averages and deciles;
+ * the domain turns two readings into a grade and never looks at a file.
+ *
+ * SAMPLED, NOT SCANNED. A four-minute take at thirty a second is seven
+ * thousand frames, and the numbers that matter — average brightness, the
+ * spread, the cast — are the same from thirty well-spread frames as from
+ * all of them. `fps=1/N` walks the whole take rather than the first few
+ * seconds, which matters because the first few seconds of a performance
+ * take are somebody walking back from the camera.
+ *
+ * It returns `frames: 0` rather than throwing when there is no picture to
+ * measure: a take with no video is a legal document in this product
+ * (footage can be audio-only), and the domain already treats an unmeasured
+ * reading as "not asked" rather than as "no difference". ffmpeg REFUSES a
+ * video filter chain on a file with no video rather than producing an empty
+ * one, so that case arrives as a non-zero exit and is caught here.
+ */
+export async function measureColour(
+  path: string, durationSeconds = 0,
+): Promise<ColourReading> {
+  /* One frame every few seconds, and never fewer than one a minute. */
+  const every = Math.max(1, Math.round(durationSeconds / 30) || 1);
+  /*
+   * STDOUT, NOT STDERR, and this is the whole reason the render test for
+   * this exists. `metadata=print:file=-` means the FILE named `-`, which is
+   * stdout; everything else ffmpeg says goes to stderr, so reading stderr
+   * returns a perfectly well-formed log with no measurements in it and the
+   * parser answers "nothing was measured". Which is a legal answer, so
+   * nothing throws, and the match silently never happens.
+   */
+  let stdout: string;
+  try {
+    ({ stdout } = await ffmpegCapture([
+      '-i', path,
+      '-vf', `fps=1/${every},signalstats,metadata=print:file=-`,
+      '-an', '-f', 'null', '-',
+    ]));
+  } catch (error) {
+    /*
+     * NARROW, BECAUSE THE FIRST VERSION WAS NOT AND IT COST AN HOUR. A bare
+     * `.catch(() => '')` turns every failure — a missing file, a codec this
+     * build cannot open, a binary that would not spawn — into "nothing was
+     * measured", which is a legal answer, so nothing throws and the match
+     * silently never happens. The caller then says "both takes have to be
+     * measured" about two takes it just measured.
+     *
+     * The one failure that IS "nothing to measure" is a file with no video
+     * in it, which ffmpeg refuses by name. Everything else is a fault and
+     * is thrown, so the route can say what went wrong.
+     */
+    const said = error instanceof Error ? error.message : '';
+    if (/does not contain any stream|Output file is empty/i.test(said)) {
+      return { y: 0, ySpread: 0, u: 128, v: 128, saturation: 0, frames: 0 };
+    }
+    throw error;
+  }
+  return parseSignalstats(stdout);
+}
+
+/**
+ * The averages over every frame `signalstats` printed.
+ *
+ * AVERAGED HERE RATHER THAN BY `signalstats`, which reports per frame and
+ * has no notion of a whole take. A median would be more robust to one
+ * blown-out frame and needs every sample held; at thirty samples the mean
+ * is within a hair of it and the arithmetic is one line.
+ */
+export function parseSignalstats(text: string): ColourReading {
+  const sums = { y: 0, yLow: 0, yHigh: 0, u: 0, v: 0, saturation: 0 };
+  let frames = 0;
+  let current: Partial<Record<keyof typeof sums | 'seen', number>> = {};
+  const push = () => {
+    if (current['seen'] === undefined) return;
+    frames += 1;
+    for (const key of Object.keys(sums) as (keyof typeof sums)[]) {
+      sums[key] += current[key] ?? 0;
+    }
+    current = {};
+  };
+  for (const line of text.split('\n')) {
+    if (/^frame:/.test(line)) { push(); continue; }
+    const found = /lavfi\.signalstats\.([A-Z]+)=(-?[\d.]+)/.exec(line);
+    if (!found) continue;
+    const value = Number(found[2]);
+    switch (found[1]) {
+      case 'YAVG': current.y = value; current['seen'] = 1; break;
+      case 'YLOW': current.yLow = value; break;
+      case 'YHIGH': current.yHigh = value; break;
+      case 'UAVG': current.u = value; break;
+      case 'VAVG': current.v = value; break;
+      case 'SATAVG': current.saturation = value; break;
+      default: break;
+    }
+  }
+  push();
+  if (frames === 0) {
+    return { y: 0, ySpread: 0, u: 128, v: 128, saturation: 0, frames: 0 };
+  }
+  const mean = (total: number) => Math.round((total / frames) * 100) / 100;
+  return {
+    y: mean(sums.y),
+    ySpread: Math.max(0, mean(sums.yHigh) - mean(sums.yLow)),
+    u: mean(sums.u),
+    v: mean(sums.v),
+    saturation: mean(sums.saturation),
+    frames,
+  };
 }
 
 /**

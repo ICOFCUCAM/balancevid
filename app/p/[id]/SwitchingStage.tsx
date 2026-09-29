@@ -273,6 +273,12 @@ export default function SwitchingStage({
   const [arrangement, setArrangement] = useState<string>('performance_full');
   const [pending, setPending] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  /*
+   * Measuring is a pass over the media and can take a second or two, which
+   * is long enough that a control giving no sign of life reads as broken.
+   */
+  const [matching, setMatching] = useState(false);
+  const [matchSaid, setMatchSaid] = useState<string | null>(null);
   /** Snapping is OFF until the author turns it on, which is the acceptance. */
   const [snap, setSnap] = useState(false);
   const [snapped, setSnapped] = useState<number | null>(null);
@@ -384,6 +390,36 @@ export default function SwitchingStage({
     if (!response.ok) { setError(data.error ?? 'that did not work'); return; }
     onChanged(data.performance);
     void readHistory();
+  }, [onChanged, performance.id, readHistory]);
+
+  /**
+   * Match this take to another, measuring both on the way.
+   * [MASTER-EDIT §8]
+   *
+   * ONE CALL, because choosing "match to Beach" is one act. The route
+   * measures whichever takes have not been measured and sets the reference
+   * in the same request; sequencing three round trips here would mean this
+   * component deciding what to show when the second of them failed.
+   */
+  const matchTo = useCallback(async (takeId: string, toTakeId: string) => {
+    setError(null);
+    setMatchSaid(null);
+    setMatching(true);
+    try {
+      const response = await fetch(
+        `/api/performances/${performance.id}/takes/${takeId}/colour`,
+        {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ to: toTakeId === '' ? null : toTakeId }),
+        });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) { setError(data.error ?? 'that did not work'); return; }
+      onChanged(data.performance);
+      setMatchSaid(data.says ?? null);
+      void readHistory();
+    } finally {
+      setMatching(false);
+    }
   }, [onChanged, performance.id, readHistory]);
 
   /*
@@ -1302,6 +1338,50 @@ export default function SwitchingStage({
             * background", and inventing one would be five tiles the author
             * has to hover to read. [U-19]
             */}
+          {/*
+            * MATCH, UNDER EFFECTS, BECAUSE IT IS THE SAME QUESTION ONE STEP
+            * EARLIER.  [MASTER-EDIT §8, §12 P2]
+            *
+            * An Effect is a decision about how this take should look; a
+            * match is a correction that has to happen BEFORE the decision,
+            * so that "warmer" means warmer than the other takes rather than
+            * warmer than whatever this camera happened to do. Same panel,
+            * one control above the other, in the order the render applies
+            * them.
+            *
+            * A SELECT AND NOT TILES. The choices are the other takes, so
+            * there is no fixed set to draw and nothing to draw them as —
+            * and there is usually one other take, where five tiles would be
+            * four empty boxes. [U-18]
+            */}
+          {!subject || usable.length < 2 ? null : (
+            <>
+              {sectionTitle('Match')}
+              <select className="small" data-testid="match-to"
+                      value={subject.matchTo ?? ''}
+                      disabled={matching}
+                      onChange={(event) => { void matchTo(subject.id, event.target.value); }}
+                      style={{ fontSize: 'var(--text-sm)', width: '100%' }}>
+                <option value="">Its own colour</option>
+                {usable.filter((other) => other.id !== subject.id).map((other) => (
+                  <option key={other.id} value={other.id}>
+                    Match to {other.label ?? other.id}
+                  </option>
+                ))}
+              </select>
+              {matching && (
+                <p className="small muted" data-testid="match-working"
+                   style={{ margin: 0 }}>
+                  Measuring both takes&hellip;
+                </p>
+              )}
+              {matchSaid && (
+                <p className="small muted" data-testid="match-said"
+                   style={{ margin: 0 }}>{matchSaid}</p>
+              )}
+            </>
+          )}
+
           {sectionTitle('Sound')}
           {!subject ? null : subject.hasAudio === false ? (
             <p className="small muted" data-testid="cleanup-silent"
