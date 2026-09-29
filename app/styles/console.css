@@ -346,6 +346,32 @@
 }
 .state.is-off::before { background: var(--ink-450); }
 
+/*
+ * TRANSMITTING, BUT NOT FROM A PERSON. The channel running itself is on
+ * air just as much as the red button is, and it is not the same event —
+ * red on a rotation block would mean the studio is live, which is the
+ * one thing an operator must never be told wrongly. The accent already
+ * carries "the system is doing this" everywhere else on the desk.
+ */
+.state.is-on {
+  color: var(--accent-soft);
+  background: var(--accent-wash);
+  border-color: rgba(63, 142, 232, 0.32);
+}
+.state.is-on::before { background: var(--accent); }
+
+/*
+ * THE FALLBACK WENT OUT. Not live, not scheduled — the thing that plays
+ * when the thing that should have played did not. It keeps the existing
+ * emergency red rather than taking a sixth colour. [brief §2]
+ */
+.state.is-critical {
+  color: #ff9b78;
+  background: rgba(179, 67, 31, 0.16);
+  border-color: rgba(179, 67, 31, 0.44);
+}
+.state.is-critical::before { background: #d8552a; }
+
 /* ------------------------------------------------------------------- *
  *  Everything else inside a studio.
  * ------------------------------------------------------------------- */

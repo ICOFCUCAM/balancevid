@@ -291,4 +291,39 @@ describe('the console surfaces', () => {
       'ink-450 is 1.96:1 on a module face — use ink-400 or lighter')
       .toBe(0);
   });
+
+  /*
+   * A STATE BADGE IS TEXT ON A TINT ON A FACE, which is two composites
+   * deep and therefore the place a measured palette quietly stops being
+   * measured. The tint is translucent, so the thing under the letters
+   * is neither the token nor the face but the blend of them, and
+   * eyeballing that blend is exactly how a 3.9:1 badge ships.
+   *
+   * Both of these tones were added in one commit for two states that
+   * had been filled plates. A filled plate is trivially legible — dark
+   * ink on saturated colour — so converting to a wash is precisely the
+   * change that can lose contrast without looking like it did.
+   */
+  const over = (fg: string, alpha: number, bg: string): string => {
+    const part = (hex: string, i: number) =>
+      parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16);
+    const mixed = [0, 1, 2].map((i) =>
+      Math.round(part(fg, i) * alpha + part(bg, i) * (1 - alpha)));
+    return `#${mixed.map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+  };
+
+  it.each([
+    ['is-on', '#7fb4ee', '#3f8ee8', 0.16, '#3f8ee8'],
+    ['is-critical', '#ff9b78', '#b3431f', 0.16, '#d8552a'],
+  ])('reads %s through its own wash', (_name, text, tint, alpha, lamp) => {
+    const bed = over(tint, alpha, face('face'));
+    const word = contrast(text, bed);
+    expect(word, `the word is ${word.toFixed(2)}:1 on ${bed}`)
+      .toBeGreaterThanOrEqual(4.5);
+    /* The lamp carries no information on its own, so it takes the
+       non-text bar — but it still has to be seen to be a lamp. */
+    const dot = contrast(lamp, bed);
+    expect(dot, `the lamp is ${dot.toFixed(2)}:1 on ${bed}`)
+      .toBeGreaterThanOrEqual(3);
+  });
 });

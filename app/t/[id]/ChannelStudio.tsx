@@ -868,21 +868,7 @@ export default function ChannelStudio({
               <Head
                 text="Program Output"
                 sub="Live stream"
-                right={(
-                  <span data-testid="program-mode" data-mode={on.kind} style={{
-                    padding: '3px 9px', borderRadius: 4, fontSize: 10,
-                    fontWeight: 800, letterSpacing: 0.6, color: 'var(--ink-000)',
-                    background: on.kind === 'live' ? 'var(--state-live-dim)'
-                      : on.kind === 'emergency' ? '#b3431f'
-                        : on.kind === 'backup' ? 'var(--state-armed-dim)'
-                          : on.kind === 'off' ? 'var(--ink-500)' : 'var(--accent-deep)',
-                  }}>
-                    {on.kind === 'live' ? '● ON AIR'
-                      : on.kind === 'emergency' ? 'EMERGENCY'
-                        : on.kind === 'backup' ? 'BACKUP'
-                          : on.kind === 'off' ? 'OFF AIR' : '● ON AIR'}
-                  </span>
-                )}
+                right={<Status testid="program-mode" mode={on.kind} {...AIR[on.kind]} />}
               />
               {/*
                 * THE BIGGEST THING IN THE ROOM, because it is the only one
@@ -1087,7 +1073,26 @@ export default function ChannelStudio({
               gridTemplateRows: 'minmax(0, 1fr) minmax(0, 1fr)',
             }}>
               <Frame testid="preview-next" well>
-                <Head text="Preview" sub="Next" />
+                <Head
+                  text="Preview"
+                  sub="Next"
+                  /*
+                    * PREVIEW REPORTS ITS STATE WHERE PROGRAM REPORTS ITS
+                    * STATE. These two monitors are read together — that is
+                    * the entire reason a gallery has two — and one of them
+                    * was saying what it was doing in a badge in its head
+                    * while the other said it in a pill lying on the
+                    * picture. Same object, same corner, same words.
+                    */
+                  right={armed
+                    ? <Status testid="preview-mode" mode="armed"
+                              tone="is-armed" text="Armed" />
+                    : upNext
+                      ? <Status testid="preview-mode" mode="queued"
+                                tone="is-off" text="Next" />
+                      : <Status testid="preview-mode" mode="empty"
+                                tone="is-off" text="Empty" />}
+                />
                 <div style={{
                   position: 'relative', flex: '1 1 auto', minHeight: 96,
                   margin: 9, background: '#000', borderRadius: 2,
@@ -1128,13 +1133,6 @@ export default function ChannelStudio({
                     {armed ? 'The live studio — armed'
                       : upNext?.title ?? '—'}
                   </span>
-                  {armed && (
-                    <span style={{
-                      position: 'absolute', left: 8, top: 8, padding: '2px 7px',
-                      borderRadius: 3, fontSize: 9, fontWeight: 800,
-                      background: 'var(--state-armed-dim)', color: 'var(--ink-000)', letterSpacing: 0.6,
-                    }}>ARMED</span>
-                  )}
                 </div>
               </Frame>
 
@@ -4734,6 +4732,65 @@ function Legend({ on }: { on: OnAir }) {
     </div>
   );
 }
+
+/**
+ * WHAT A MODULE IS DOING, said one way.  [brief §6, §13, U-19, U-20]
+ *
+ * There were two of these, hand-written, forty lines apart. Program
+ * Output's lived in its head: 10px, weight 800, 4px corners, a filled
+ * plate in one of five raw colours. Preview's lay on the picture at
+ * 9px with 3px corners and a sixth colour. They report the same kind
+ * of fact about the two monitors a gallery exists to let you read
+ * TOGETHER, and they did not look like the same kind of thing.
+ *
+ * The badge is `.state`, which the desk already had. The change is not
+ * that it is prettier — it is that a filled plate SHOUTS, and four of
+ * the five things it was shouting are ordinary. A channel playing its
+ * rotation at three in the morning is not an alarm. So the tint is a
+ * wash with a lamp in front of it, and the one state that genuinely
+ * is an alarm — the red button — is the only one that reads as one.
+ *
+ * NOT COLOUR ALONE. Every state carries its own word, so the tone is
+ * confirmation and never the message. [U-19]
+ */
+function Status({
+  testid, mode, tone, text,
+}: {
+  testid: string;
+  /** For tests and for the DOM to be readable. Not styling. */
+  mode: string;
+  tone: 'is-live' | 'is-on' | 'is-armed' | 'is-critical' | 'is-off';
+  text: string;
+}) {
+  return (
+    <span className={`state ${tone}`} data-testid={testid} data-mode={mode}>
+      {text}
+    </span>
+  );
+}
+
+/**
+ * THE FIVE THINGS A CHANNEL CAN BE DOING, and the words for them.
+ *
+ * A table rather than a nested ternary because the ternary it replaces
+ * was five deep across two properties and had to be read twice to see
+ * that `programme` and `rotation` fell through to the same arm. Five
+ * states, one line each, and adding a sixth is adding a line.
+ *
+ * `live` and the rest are deliberately NOT the same tone: red means a
+ * person is on air, and a rotation block is the machine playing to
+ * nobody. Telling an operator those are the same event is the single
+ * most consequential lie this desk could tell. [U-20]
+ */
+const AIR: Record<OnAir['kind'],
+{ tone: 'is-live' | 'is-on' | 'is-armed' | 'is-critical' | 'is-off'; text: string }> = {
+  live: { tone: 'is-live', text: 'On air' },
+  emergency: { tone: 'is-critical', text: 'Emergency' },
+  backup: { tone: 'is-armed', text: 'Backup' },
+  programme: { tone: 'is-on', text: 'On air' },
+  rotation: { tone: 'is-on', text: 'On air' },
+  off: { tone: 'is-off', text: 'Off air' },
+};
 
 /**
  * The confidence monitor.  [§7]
