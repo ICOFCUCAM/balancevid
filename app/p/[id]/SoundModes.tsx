@@ -96,7 +96,7 @@ export default function SoundModes({
       }}>
         <span className="module-label">Audio</span>
         <span className="module-sub grow" style={{ minWidth: 0 }}>
-          where the finished sound comes from
+          choose your master audio source
         </span>
       </div>
 
@@ -191,7 +191,7 @@ export default function SoundModes({
           <summary className="small muted" style={{ cursor: 'pointer', fontSize: 'var(--text-sm)' }}
                    title={'For the chorus that should carry the crowd from the stage '
                      + 'take while everything else stays on the studio vocal.'}>
-            One section at a time
+            Audio settings — one section at a time
           </summary>
           {scenes.map((scene) => (
             <div key={scene.id} className="row"

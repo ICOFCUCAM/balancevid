@@ -96,9 +96,15 @@ export default function Deliver({
   return (
     <section className="module" data-testid="deliver">
       <header className="module-head">
-        <span className="module-label">Deliver</span>
+        {/*
+          * VERSIONS, which is what this list is. "Deliver" is the STAGE —
+          * it is what the strip above calls the act, and the act includes
+          * publishing, which happens in the next module. The list itself is
+          * the formats an audience watches in.
+          */}
+        <span className="module-label">Versions</span>
         <span className="module-sub grow" style={{ minWidth: 0 }}>
-          versions and clips of the master
+          different formats for your audience
         </span>
         <span className="module-sub readout" data-testid="versions-made">
           {made} of {VERSIONS.length}
@@ -113,7 +119,7 @@ export default function Deliver({
           const state = job?.state === 'done' ? { cls: 'is-on', say: 'ready' }
             : job?.state === 'failed' ? { cls: 'is-critical', say: 'failed' }
               : job ? { cls: 'is-armed', say: `${job.progress ?? 0}%` }
-                : { cls: 'is-off', say: 'not made' };
+                : { cls: 'is-off', say: 'not created' };
           return (
             <div key={profileId} className="row" data-testid="version"
                  data-profile={profileId} data-state={job?.state ?? 'none'}
@@ -152,13 +158,13 @@ export default function Deliver({
                          * author can act on; a grey button is a puzzle.
                          */
                         title={blocked ?? (masterReady || profileId === MASTER_PROFILE
-                          ? undefined : 'make the master video first')}
+                          ? undefined : 'create the master video first')}
                         onClick={() => void post('/renders', {
                           exportProfileId: profileId,
                           allowUnpublishable: !publishable,
                         })}
                         style={{ flex: '0 0 auto' }}>
-                  {job?.state === 'failed' ? 'Try again' : 'Make it'}
+                  {job?.state === 'failed' ? 'Try again' : 'Create'}
                 </button>
               )}
             </div>
@@ -169,7 +175,7 @@ export default function Deliver({
         <div className="module-head" style={{ borderTop: 0 }}>
           <span className="module-label">Clips</span>
           <span className="module-sub grow" style={{ minWidth: 0 }}>
-            a named section of it, cut for a phone
+            a named section, vertical, for a phone
           </span>
         </div>
 
@@ -224,7 +230,7 @@ export default function Deliver({
                           })}
                           style={{ flex: '0 0 auto' }}>
                     {job && job.state !== 'failed'
-                      ? `${job.progress ?? 0}%` : 'Make a vertical clip'}
+                      ? `${job.progress ?? 0}%` : 'Create clip'}
                   </button>
                 )}
               </div>

@@ -183,6 +183,16 @@
   text-transform: uppercase;
   color: var(--ink-400);
   white-space: nowrap;
+  /*
+   * AND IT GIVES WAY TO THE STATE. `nowrap` with nothing to stop it runs
+   * a long subtitle straight under the lamp on its right — "share it
+   * across platforms and your own pa[GE]" with READY printed over the
+   * end of it. The legend and the state are the two things in a head that
+   * must always be readable; the subtitle is the one that can be cut.
+   */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .module-body { flex: 1 1 auto; min-height: 0; }

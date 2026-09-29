@@ -146,10 +146,32 @@ export default function MasterRender({
    * performance that has not been mastered yet is the ordinary condition of
    * every performance for most of its life. It is a lamp that is not lit.
    */
+  /*
+   * THE WORDS ON A DESK ARE THE WORDS FOR THE WORK.  [D-14]
+   *
+   * `not made`, `Make it`, `Make it again`, `Make an audio file`. Four
+   * controls in the room where a video is finished, all built on the verb a
+   * child uses for a sandcastle. The domain underneath has said `render`
+   * and `export` since it was written — `/renders`, `RenderJob`,
+   * `EXPORT_PROFILES`, `assertPerformanceRenderable` — so the screen was
+   * less precise than the code driving it, which is the wrong way round and
+   * is most of what reads as a prototype.
+   *
+   * CREATE, because that is the word the benchmark uses and one verb is
+   * worth more than the best verb. `Create` / `Not created` / `Ready` runs
+   * through the master, the versions, the clips, the card and the page; a
+   * screen that said Render here, Export there and Make somewhere else
+   * would be three vocabularies for one act.
+   *
+   * PLAIN SPEECH STAYS WHERE THE PRODUCT IS EXPLAINING A CHOICE. "The song,
+   * and whoever is on screen" is not changing: it is a decision described
+   * in the words of making it, which is a different job from naming an
+   * operation.
+   */
   const state = master?.state === 'done' ? { cls: 'is-on', say: 'ready' }
     : master?.state === 'failed' ? { cls: 'is-critical', say: 'failed' }
       : master ? { cls: 'is-armed', say: `${master.progress ?? 0}%` }
-        : { cls: 'is-off', say: 'not made' };
+        : { cls: 'is-off', say: 'not created' };
 
   return (
     <section className="module" data-testid="master-render"
@@ -158,7 +180,7 @@ export default function MasterRender({
         <span className="module-label">Master</span>
         <span className="module-sub grow" style={{
           minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis',
-        }}>the one file everything else comes from</span>
+        }}>your final video, from the takes you directed</span>
         <span className={`state ${state.cls}`} data-testid="master-state">{state.say}</span>
       </header>
 
@@ -223,13 +245,13 @@ export default function MasterRender({
               {/* The same render, listened to rather than watched. [§14] */}
               <button className="ctl sm" data-testid="make-audio"
                       disabled={busy || audioWorking} onClick={() => void takeAudio()}>
-                {audioWorking ? 'Taking the audio…'
-                  : audioDone ? 'Take the audio again' : 'Make an audio file'}
+                {audioWorking ? 'Creating…'
+                  : audioDone ? 'Create it again' : 'Create audio file'}
               </button>
               {audioDone && (
                 <a className="ctl sm" data-testid="audio-download"
                    href={`/api/performances/${id}/renders/${planHash}/file?kind=mp3`}
-                   download>Audio</a>
+                   download>Download audio</a>
               )}
             </div>
           )}
@@ -273,7 +295,7 @@ export default function MasterRender({
                           onClick={() => void cover(
                             id, problem.extend!.sceneId, problem.extend!.fromSample,
                             setBusy, setError)}>
-                    Cover it
+                    Extend scene
                   </button>
                 )}
               </li>
@@ -295,9 +317,9 @@ export default function MasterRender({
                   {...(problems.length > 0
                     ? { title: 'the song is not covered yet' } : {})}
                   onClick={() => void start()}>
-            {busy ? 'Planning…'
-              : master ? 'Make it again'
-                : publishable ? 'Make the master video' : 'Export a private copy'}
+            {busy ? 'Creating…'
+              : master ? 'Create it again'
+                : publishable ? 'Create master video' : 'Create a private copy'}
           </button>
           {!publishable && (
             <p className="small muted" data-testid="private-only"

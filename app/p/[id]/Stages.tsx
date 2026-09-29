@@ -93,7 +93,7 @@ export default function Stages({
             }}>{stage.label}</span>
             <span className={`state ${stage.done ? 'is-on' : 'is-off'}`}
                   style={{ padding: '1px 5px', flex: '0 0 auto' }}>
-              {stage.done ? 'done' : index === at ? 'here' : 'to do'}
+              {stage.done ? 'done' : index === at ? 'current' : 'pending'}
             </span>
           </span>
           <span className="muted" style={{

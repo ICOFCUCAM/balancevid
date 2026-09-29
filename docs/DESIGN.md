@@ -418,6 +418,21 @@ Four things fell out of it that are worth keeping:
   a control promising a connection nobody built is the only thing worse than
   the row's absence. What the product can do — make the cut each place wants
   — is what each row offers.
+- **One verb for one act, and it is not "make".** `Make it`, `Make it again`,
+  `Make an audio file`, `Make the cut`, `not made` — five controls in the room
+  where a video is finished, all built on the verb a child uses for a
+  sandcastle, in a product whose own domain layer has said `render` and
+  `export` since it was written. The screen was less precise than the code
+  driving it, which is the wrong way round and is most of what reads as a
+  prototype. `Create` / `Not created` / `Ready` runs through the master, the
+  versions, the clips, the card and the page, **and through the prose**: a
+  button saying CREATE MASTER VIDEO over a sentence saying "make one above"
+  is teaching two words for one thing. One verb is worth more than the best
+  verb — Render here, Export there and Make somewhere else would be three
+  vocabularies for one act. Plain speech stays wherever the product explains
+  a **choice** rather than naming an operation: "The song, and whoever is on
+  screen" is a decision described in the words of making it, and is not what
+  this rule is about.
 - **Perform → Compose → Master → Deliver is a readout, not a wizard.**
   Nothing gates anything; every stage stays reachable at every moment (U-04).
   `stagesOf` lives in the domain because "is this performance composed" is a
@@ -448,6 +463,7 @@ is describing, and then walks straight past the next instance:
 | why a render is refused | decided twice — properly in the invariant, worse in the console | `renderProblems`, asked by both |
 | red is for on air and for recording | `is-critical` anywhere near a testid | `.ctl` and `is-critical` in one class expression |
 | one transport for viewers | the exact list of files that used it | the count of files that DEFINE one |
+| one verb, and it is not "make" | `>Text<` only, then labels under 60 chars | every string, to 200, so the prose is checked too |
 
 Each widening found more: nine corners, five near-blacks, five titles,
 fourteen sizes — and, the fifth time, twenty-two rounded pictures on six
