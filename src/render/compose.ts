@@ -59,6 +59,16 @@ export interface ComposeOptions extends RunOptions {
    * that does not exist, discovered by ffmpeg rather than by us.
    */
   resolveStill?: (assetId: AssetId) => string;
+  /**
+   * The measured shake of a take, written by `detectShake`.
+   * [MASTER-EDIT §5, §8]
+   *
+   * A third resolver rather than a branch inside the first, for the reason
+   * the second one exists: these are neither recordings nor pictures but a
+   * table of transforms, and resolving one to a mezzanine path would be a
+   * file that does not exist, discovered by ffmpeg rather than by us.
+   */
+  resolveTransforms?: (assetId: AssetId) => string;
 }
 
 export interface ComposeResult {
@@ -337,8 +347,30 @@ async function renderPerformanceShot(
      */
     const ratio = take.rateRatio ?? 1;
     const retime = ratio === 1 ? '' : `setpts=PTS/${ratio.toFixed(9)},`;
+    /*
+     * THE SHAKE COMES OUT FIRST, BEFORE ANYTHING IS FITTED TO A PANEL.
+     * [MASTER-EDIT §5, INV-02]
+     *
+     * Undoing a shake moves the whole frame and zooms in far enough to
+     * hide the uncovered edge, so it changes the framing — and everything
+     * downstream is about framing: the fit into this layout's box, the
+     * crop, the matte. Applied after any of them, the stabiliser would be
+     * correcting a picture that had already been cut to the wrong part of
+     * the sensor.
+     *
+     * It does not change the frame COUNT — `vidstabtransform` moves each
+     * frame's contents and keeps the frame — which matters because `trim`
+     * and `fps` below are what make INV-02 true, and a filter that dropped
+     * one frame here would move every cut in the finished video.
+     */
+    const steady = take.stabilize
+      ? `vidstabtransform=input=${escapeFilterArgument(
+        opts.resolveTransforms?.(take.stabilize.transformsAssetId)
+        ?? '')}:smoothing=${take.stabilize.smoothing}`
+        + ':optzoom=1:interpol=bilinear,'
+      : '';
     filters.push(
-      `[${index}:v]${fitFilter(layer.fit, box.w, box.h)},`
+      `[${index}:v]${steady}${fitFilter(layer.fit, box.w, box.h)},`
       + `setsar=1,${retime}fps=${fps},trim=end=${seconds},setpts=PTS-STARTPTS[${fitted}]`,
     );
 

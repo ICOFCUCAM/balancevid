@@ -32,6 +32,7 @@ import {
 } from './performance.js';
 import { effectFor, matteFeather, matteThreshold, needsMatte } from './environment.js';
 import { matchLook } from './colour.js';
+import { stabilizerFor } from './stabilize.js';
 import { planPerformanceAudio } from './performanceAudio.js';
 import {
   type ExportProfile, EXPORT_PROFILES, LAYOUTS, captionStyleFor,
@@ -433,6 +434,22 @@ function performanceShot(
             label: 'Matched',
             hint: `Graded towards "${to?.label ?? 'another take'}".`,
             ...numbers,
+          } }
+          : {};
+      })(),
+      /*
+       * The transforms live beside the mezzanine under a derived id, the
+       * same way the proxy and the plate do. Present in the plan only when
+       * the author asked for stabilisation: a take that was once
+       * stabilised and is not any more must render as it was shot, and a
+       * stale file next to it must not quietly keep applying. [U-16]
+       */
+      ...(() => {
+        const stabilizer = stabilizerFor(take.stabilize);
+        return stabilizer
+          ? { stabilize: {
+            transformsAssetId: `${take.assetId}stab` as AssetId,
+            smoothing: stabilizer.smoothing,
           } }
           : {};
       })(),

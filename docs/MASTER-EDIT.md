@@ -246,7 +246,7 @@ used* — and nothing about the recording itself.
 | effects | PARTIAL | same four looks |
 | crop / reframe | PARTIAL | `focus.ts` reframes a conversation; a take has no crop |
 | replace take | GAP | a source take is a recording; replacing it is uploading another |
-| stabilize | GAP | no `vidstab`/`deshake` anywhere in `src/` |
+| stabilize | HAVE | `setStabilize` with two named rows, measured before it is applied; cannot be on at the same time as a matted background (INV-16) |
 | audio cleanup | HAVE | `setCleanup` with four named rows — the same shape as `setEffect`, on the take because a fan belongs to the recording and not to the stretch of song it is used over |
 
 ---
@@ -275,7 +275,7 @@ against `src/` rather than remembered:
 | LUT / colour tools | GAP | no `lut3d`; four named looks and `eq` |
 | chroma key | GAP | no `chromakey`; the matte is difference-based by design (INV-16) |
 | motion tracking | GAP | — |
-| stabilization | GAP | — |
+| stabilization | HAVE | two-pass `vidstabdetect` / `vidstabtransform`, two named rows; refused together with a replaced background, from both sides |
 | audio denoise | HAVE | `CLEANUPS`, per take — `highpass` + `afftdn`, measured in `test/render/cleanup.test.ts` |
 | speech enhancement | HAVE | the `Voice` and `Heavy` rows — `speechnorm` under a limiter, so the first shouted line does not clip |
 | hardware acceleration | GAP | no `nvenc`/`qsv`/`vaapi`/`videotoolbox` in the ffmpeg layer |
@@ -461,14 +461,30 @@ pre-render validation
 
 ### P2 — Professional finishing
 
-keyframes · masks · crop/reframe · LUT · stabilization · chroma key ·
-de-reverb — **GAP.**
+keyframes · masks · crop/reframe · LUT · chroma key · de-reverb — **GAP.**
 
 **HAVE:** captions · audio denoise · speech enhancement (`CLEANUPS`: four
 named rows on a take, never on the song, none of them changing the length
 by a sample) · **colour match** (`signalstats` per take, a bounded grade
 between two, riding the same `effectChain` a named look does — so a match
-and a look compose, in that order, and there is no second grading path).
+and a look compose, in that order, and there is no second grading path) ·
+**stabilization** (two-pass vidstab, measured then applied, `optzoom` so
+there are no black edges, and the frame count asserted to the frame).
+
+**The three that were worth building are built.** They are the ones that
+change what a finished video looks and sounds like: a phone mic in a
+bedroom, two takes in different light, and a handheld camera. What is left
+on this list — keyframes, masks, LUTs, chroma key, motion tracking — are
+prestige features for this product rather than necessities: they would make
+the list look complete and would not make one master better.
+
+**And stabilization comes with a rule.** It cannot be on at the same time
+as a replaced background, because §4 keys the performer out by differencing
+the take against a still plate of the same room (INV-16) and stabilising
+moves the picture away from that plate. No ordering saves it, so both edits
+refuse it — `setStabilize` and `setEnvironment` — and neither alone would
+be enough: one refusal would leave the order the author pressed things in
+deciding whether the render comes out torn.
 
 **PARTIAL:** colour adjustment (four named looks).
 

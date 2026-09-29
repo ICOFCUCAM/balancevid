@@ -540,6 +540,19 @@ export interface PerformanceTake {
    */
   colour?: ColourReading;
   /**
+   * Which stabilizer this take is put through.  [MASTER-EDIT §5, §8, §12 P2]
+   *
+   * A row in `STABILIZERS`, never a set of numbers, for the reason `effect`
+   * and `cleanup` are rows: an author knows their take was handheld and
+   * does not know what `smoothing=30` is for.
+   *
+   * REFUSED TOGETHER WITH A MATTE, and `performanceEdit.ts` says why: the
+   * difference key is measured against a still plate of the room, and
+   * moving the picture relative to that plate tears every edge in it.
+   * [INV-16]
+   */
+  stabilize?: string;
+  /**
    * Another take this one is graded towards.  [MASTER-EDIT §8, §12 P2]
    *
    * A REFERENCE AND NOT A GRADE. Storing the computed correction would

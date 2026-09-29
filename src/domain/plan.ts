@@ -209,6 +209,15 @@ export interface PerformanceShot extends ShotBase {
      */
     match?: EffectLook;
     /**
+     * The shake, measured, to be undone.  [MASTER-EDIT §5, §8]
+     *
+     * The transforms themselves are a file beside the media — too big for a
+     * plan and unchanged by anything the author does — so what the plan
+     * carries is WHICH file and HOW MUCH smoothing. The renderer resolves
+     * the one and applies the other, and learns nothing about stabilizers.
+     */
+    stabilize?: { transformsAssetId: AssetId; smoothing: number };
+    /**
      * What to put behind this performer, and how to cut them out. [§4, S-6]
      *
      * Complete: the plate to difference against, the threshold measured from
