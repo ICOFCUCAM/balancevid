@@ -369,8 +369,25 @@ async function renderPerformanceShot(
         ?? '')}:smoothing=${take.stabilize.smoothing}`
         + ':optzoom=1:interpol=bilinear,'
       : '';
+    /*
+     * THE CROP, AFTER THE SHAKE AND BEFORE THE FIT.  [MASTER-EDIT §2, §15]
+     *
+     * After the stabiliser for the reason written above it: undoing a
+     * shake needs the whole sensor to know how far the picture moved,
+     * and a stabiliser fed an already-cropped frame is correcting a
+     * picture that has lost the edges it was going to move into.
+     *
+     * Before the fit because the fit is what makes the picture the
+     * panel's size and shape, and cropping after it would be cutting
+     * into a frame that has already been scaled — a second generation
+     * of resampling for no reason.
+     */
+    const cropOf = (rect: Rect): string =>
+      `crop=iw*${rect.w.toFixed(6)}:ih*${rect.h.toFixed(6)}:`
+      + `iw*${rect.x.toFixed(6)}:ih*${rect.y.toFixed(6)},`;
+    const reframe = take.reframe ? cropOf(take.reframe) : '';
     filters.push(
-      `[${index}:v]${steady}${fitFilter(layer.fit, box.w, box.h)},`
+      `[${index}:v]${steady}${reframe}${fitFilter(layer.fit, box.w, box.h)},`
       + `setsar=1,${retime}fps=${fps},trim=end=${seconds},setpts=PTS-STARTPTS[${fitted}]`,
     );
 
@@ -405,10 +422,26 @@ async function renderPerformanceShot(
           + `format=gbrp[${behind}]`);
       }
 
+      /*
+       * AND THE PLATE IS CROPPED IDENTICALLY, or the key is nonsense.
+       * [INV-16]
+       *
+       * The matte is a DIFFERENCE against a still of the same room from
+       * the same camera: every pixel that has not changed is background.
+       * Crop the take to its left half and leave the plate whole and the
+       * comparison is between two different parts of the room, so every
+       * pixel differs and the key passes the entire frame through —
+       * which does not look like a broken crop, it looks like the
+       * background replacement silently not working.
+       *
+       * This is why a reframe does NOT refuse a matte the way the
+       * stabiliser does: a fixed crop can be applied to both, and a
+       * per-frame correction cannot.
+       */
       const plateInput = still(backdrop.plateAssetId);
       filters.push(
-        `[${plateInput}:v]${fitFilter(layer.fit, box.w, box.h)},setsar=1,fps=${fps},`
-        + `format=gbrp[${plate}]`);
+        `[${plateInput}:v]${reframe}${fitFilter(layer.fit, box.w, box.h)},`
+        + `setsar=1,fps=${fps},format=gbrp[${plate}]`);
       filters.push(...matteChain({
         fg: keyable, plate, backdrop: behind, out: composed,
         threshold: backdrop.threshold, feather: backdrop.feather,

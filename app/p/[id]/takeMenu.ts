@@ -48,6 +48,8 @@ export interface TakeMenuHost {
   /** Which take the stage is showing on its own, if any. */
   solo: string | null;
   onSolo: (takeId: string | null) => void;
+  /** Put the stage into drawing a crop over this take's picture. */
+  onReframe?: ((takeId: string) => void) | undefined;
   /** Which take the Background and Effects panels are editing. */
   chosen?: string | null | undefined;
   onChoose?: ((takeId: string) => void) | undefined;
@@ -167,6 +169,33 @@ export function takeMenuItems(
         void host.patch({
           action: 'trim-take', takeId: take.id,
           useFromSample: null, useToSample: null,
+        });
+      },
+    },
+
+    /*
+     * THE THIRD OPERATION, and it opens a tool rather than doing
+     * something: a crop is a rectangle somebody draws over a picture,
+     * and there is no sensible default rectangle for a menu to apply.
+     * The host puts the stage into reframing for this take; the box is
+     * drawn on the take's own monitor. [MASTER-EDIT §15]
+     */
+    host.onReframe && {
+      section: 'Crop \u2014 what part of the picture shows',
+      label: take.reframe ? 'Change the crop\u2026' : 'Crop / reframe\u2026',
+      hint: take.reframe
+        ? `keeping ${Math.round(take.reframe.w * 100)}% of the frame`
+        : 'draw a box on its picture; the rest is not in the master',
+      ...(key === null ? { disabled: 'it is still assembling' } as const : {}),
+      onSelect: () => host.onReframe?.(take.id),
+    },
+    take.reframe && {
+      section: 'Crop \u2014 what part of the picture shows',
+      label: 'Use the whole frame again',
+      hint: 'the media was never cut \u2014 a crop is four numbers',
+      onSelect: () => {
+        void host.patch({
+          action: 'reframe-take', takeId: take.id, reframe: null,
         });
       },
     },

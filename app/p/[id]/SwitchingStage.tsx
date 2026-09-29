@@ -21,6 +21,7 @@ import { useMenu, type MenuEntry } from '../../Menu.js';
 import type { TakeId } from '../../../src/domain/document.js';
 import { nudgeSays } from './takeNudge.js';
 import { takeMenuItems } from './takeMenu.js';
+import ReframeBox from './ReframeBox.js';
 import ClipInspector, { type Selection } from './ClipInspector.js';
 import { LAYOUTS, takeSlots } from '../../../src/domain/presentation.js';
 import {
@@ -307,6 +308,26 @@ export default function SwitchingStage({
   const [showTransitions, setShowTransitions] = useState(false);
   /** True between the pointer going down on the ruler and coming up. */
   const [scrubbing, setScrubbing] = useState(false);
+  /**
+   * The take whose crop is being drawn, if any.
+   *
+   * A MODE, AND THE ONLY ONE ON THIS STAGE — which is a cost, so it is
+   * worth saying why. Every other control here is a press with an
+   * immediate result; a crop is a rectangle somebody draws, and while
+   * they are drawing it the picture cannot also be a cut button. It is
+   * per take, it is entered from that take's own menu, and the tool
+   * says how to leave it. [U-04]
+   */
+  const [reframing, setReframing] = useState<string | null>(null);
+  /**
+   * Each take's own frame shape, as its media reports it.
+   *
+   * ASKED OF THE PICTURE, NOT ASSUMED. Footage brought in from a phone
+   * is as likely to be 9:16 as 16:9, and a crop box built on a guessed
+   * shape would sit over the letterbox bars rather than the picture.
+   * `videoHeight / videoWidth` is the only thing that knows.
+   */
+  const [aspects, setAspects] = useState<Record<string, number>>({});
   /** The lane column, so an x on the screen can be turned into a sample. */
   const lanes = useRef<HTMLDivElement | null>(null);
   /**
@@ -703,6 +724,15 @@ export default function SwitchingStage({
     place: (takeId) => {
       const index = usableIds.indexOf(takeId as TakeId);
       if (index >= 0) choose(index);
+    },
+    onReframe: (takeId) => {
+      setReframing(takeId);
+      /*
+       * Paused, because a crop is drawn over ONE frame and a picture
+       * moving under the box is a box you cannot place. It also makes
+       * the contained view legible: the whole frame, held still.
+       */
+      player.pause();
     },
     solo: soloed,
     onSolo: (takeId) => {
@@ -1102,6 +1132,13 @@ export default function SwitchingStage({
                   data-testid="stage-video" data-take-id={take.id}
                   ref={(element) => { player.attach(take.id, element); }}
                   muted playsInline preload="auto"
+                  onLoadedMetadata={(event) => {
+                    const media = event.currentTarget;
+                    if (!media.videoWidth || !media.videoHeight) return;
+                    const ratio = media.videoHeight / media.videoWidth;
+                    setAspects((was) => (was[take.id] === ratio
+                      ? was : { ...was, [take.id]: ratio }));
+                  }}
                   /*
                     * The proxy, not the mezzanine. [U-39]
                     *
@@ -1116,10 +1153,37 @@ export default function SwitchingStage({
                   src={`/api/performances/${performance.id}/takes/${take.id}`
                     + '/media?kind=proxy'}
                   style={{
-                    width: '100%', height: '100%', objectFit: 'cover',
+                    width: '100%', height: '100%',
+                    /*
+                      * CONTAINED WHILE A CROP IS BEING DRAWN, and only
+                      * then. A tile fits its video with `cover`, so on
+                      * any panel that is not the source's own shape
+                      * part of the frame is off the edge — and a box
+                      * drawn over a picture whose edges are missing is
+                      * a box over something the author cannot see. For
+                      * the length of the crop the whole frame is shown,
+                      * letterboxed, and `ReframeBox` measures against
+                      * that content box rather than the tile.
+                      */
+                    objectFit: reframing === take.id ? 'contain' : 'cover',
                     display: 'block',
                   }}
                 />
+                {reframing === take.id && (
+                  <ReframeBox
+                    sourceAspect={aspects[take.id] ?? 9 / 16}
+                    reframe={take.reframe}
+                    onDrawn={(rect) => {
+                      void patch({
+                        action: 'reframe-take', takeId: take.id,
+                        /* The whole frame is not a crop; the document
+                           stores it as none, through one function. */
+                        reframe: rect.w > 0.995 && rect.h > 0.995 ? null : rect,
+                      });
+                    }}
+                    onDone={() => setReframing(null)}
+                  />
+                )}
                 {/* The take's name, in the take's colour, where the benchmark
                     puts it: bottom left of its own panel — with the key in
                     front of it on the multiview, because that is the whole

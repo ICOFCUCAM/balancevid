@@ -3,7 +3,7 @@ import { bookingsFor, refusalFor } from '../../../../src/domain/deletion.js';
 import { deletePerformance } from '../../../../src/store/performances.js';
 import { listChannels } from '../../../../src/store/channels.js';
 import { acceptBeats, setTempo,
-  classifyMaster, usePlate, setAudioMode, setSceneAudio, setTransition, setTransitionTiming, setScene, moveScene, moveBoundary, coverGap, coverWith, removeScene, labelScene, clearScenes, nudgeTake, trimTake, renameTake, renamePerformance, setEffect, setCleanup, setLyrics, setEnvironment, removeTake, setLoop, setFootageRights, PerformanceEditError } from '../../../../src/domain/performanceEdit.js';
+  classifyMaster, usePlate, setAudioMode, setSceneAudio, setTransition, setTransitionTiming, setScene, moveScene, moveBoundary, coverGap, coverWith, removeScene, labelScene, clearScenes, nudgeTake, trimTake, renameTake, renamePerformance, setEffect, setCleanup, setLyrics, setEnvironment, setReframe, removeTake, setLoop, setFootageRights, PerformanceEditError } from '../../../../src/domain/performanceEdit.js';
 import { projectPerformance, covered } from '../../../../src/domain/performance.js';
 import { assertAlignmentInvariants } from '../../../../src/domain/invariants.js';
 import { listJobs } from '../../../../src/store/queue.js';
@@ -127,6 +127,15 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
           break;
         case 'clear-scenes': clearScenes(draft); break;
         case 'nudge-take': nudgeTake(draft, body['takeId'], body['nudgeSamples']); break;
+        /*
+         * A reframe needs no pass over the media — it is four numbers
+         * — so it belongs here with trim and nudge rather than in a
+         * route of its own like `stabilize`, which has to measure the
+         * shake before it can undo it.
+         */
+        case 'reframe-take':
+          setReframe(draft, body['takeId'], body['reframe'] ?? null);
+          break;
         case 'trim-take':
           trimTake(draft, body['takeId'],
             body['useFromSample'] ?? null, body['useToSample'] ?? null);

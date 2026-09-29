@@ -22,6 +22,8 @@
  */
 
 import { LAYOUTS, takeSlots } from './presentation.js';
+import type { Rect } from './presentation.js';
+import { MIN_REFRAME_SPAN } from './focus.js';
 import { EFFECT_LOOKS, type RoomPlate, SPACE_LOOKS, needsMatte } from './environment.js';
 import {
   DEFAULT_TRANSITION, MAX_TRANSITION_FRAMES, MIN_TRANSITION_FRAMES,
@@ -1004,6 +1006,56 @@ export function setLyrics(
     throw new PerformanceEditError(
       error instanceof LyricsError ? error.message : 'those lyrics could not be read');
   }
+}
+
+/**
+ * Which part of this take's picture is used.  [MASTER-EDIT §2, §5, §15]
+ *
+ * The third of the three operations, and deliberately not folded into
+ * either of the others: this changes WHAT PART OF THE PICTURE shows,
+ * while a move changes when the take plays and a trim changes which part
+ * of it exists.
+ *
+ * FRACTIONS, NOT PIXELS, so the same reframe means the same thing on the
+ * proxy the author drew it over and on the mezzanine the master is cut
+ * from. Checked here rather than at the edge of the screen because a
+ * rectangle that is off the frame, inside out or a single pixel wide is
+ * a document that cannot be rendered, and the document layer is where
+ * that is decided. [D-06]
+ *
+ * A BOX ROUND THE WHOLE FRAME IS NOT A REFRAME, and is stored as none:
+ * cropping to everything costs a filter and a generation of quality for
+ * a picture identical to the one that was there.
+ */
+export function setReframe(
+  performance: Performance, takeId: string, reframe: Rect | null,
+): void {
+  const take = takeById(performance, takeId);
+  if (!take) throw new PerformanceEditError(`no take ${takeId} in this performance`);
+  if (reframe === null) {
+    delete take.reframe;
+    return;
+  }
+  const { x, y, w, h } = reframe;
+  for (const [name, value] of Object.entries({ x, y, w, h })) {
+    if (!Number.isFinite(value)) {
+      throw new PerformanceEditError(`the reframe's ${name} is not a number`);
+    }
+  }
+  if (w < MIN_REFRAME_SPAN || h < MIN_REFRAME_SPAN) {
+    throw new PerformanceEditError(
+      `that crop keeps less than a ${Math.round(MIN_REFRAME_SPAN * 100)}th of `
+      + 'the frame, which is a zoom no source survives');
+  }
+  if (x < 0 || y < 0 || x + w > 1 || y + h > 1) {
+    throw new PerformanceEditError('that crop goes outside the picture');
+  }
+  /* Everything is not a crop. Stored as none, so no filter is emitted. */
+  if (w > 0.995 && h > 0.995) {
+    delete take.reframe;
+    return;
+  }
+  take.reframe = { x, y, w, h };
 }
 
 /**

@@ -453,6 +453,14 @@ function performanceShot(
           } }
           : {};
       })(),
+      /*
+       * The crop, carried as the author drew it. Fractions, so the plan
+       * says the same thing about a proxy and a mezzanine — and present
+       * only when there is one, so a take that was reframed and then put
+       * back renders without a crop filter at all rather than with one
+       * that happens to be the whole frame. [U-16]
+       */
+      ...(take.reframe ? { reframe: take.reframe } : {}),
       ...(backdropFor(performance, take) ?? {}),
     })),
     /*

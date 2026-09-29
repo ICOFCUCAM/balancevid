@@ -65,6 +65,7 @@ import type { LyricLine } from './lyrics.js';
 import type { SoundReading } from './cleanup.js';
 import type { BeatGrid } from './beats.js';
 import type { RoomPlate } from './environment.js';
+import type { Rect } from './presentation.js';
 import type { Id } from './ids.js';
 import {
   type Frames, type Samples, HOUSE_FPS, HOUSE_SAMPLE_RATE, assertSamples,
@@ -578,6 +579,37 @@ export interface PerformanceTake {
    * [INV-16]
    */
   stabilize?: string;
+  /**
+   * Which part of this take's picture is used.  [MASTER-EDIT §2, §5, §15]
+   *
+   * THE THIRD OF THE THREE OPERATIONS, and the whole reason it is a
+   * separate field from the other two: moving a take changes WHEN it
+   * plays, trimming it changes WHICH PART OF IT exists, and this
+   * changes WHAT PART OF THE PICTURE shows. They act on three different
+   * axes and folding any two together would make an editor nobody can
+   * predict.
+   *
+   * Fractions of the source frame, not pixels, so a reframe survives a
+   * take being re-ingested at another size and means the same thing on
+   * a proxy as on the mezzanine. The same `Rect` a conversation's focus
+   * uses, in the same units, because "which part of a frame" is one
+   * idea. [D-19]
+   *
+   * A FREE RECTANGLE, WHERE ALMOST EVERYTHING ELSE HERE IS A NAMED ROW.
+   * The looks, the cleanups and the stabilizers are rows because an
+   * author knows their take was handheld and does not know what
+   * `smoothing=30` is; nobody knows in advance which part of their own
+   * frame the performer is in, and there is no list of four answers
+   * that could contain it. So this one is drawn. [U-18's limit]
+   *
+   * It does NOT refuse a matte, and that is a deliberate difference
+   * from `stabilize`: the stabiliser moves the picture relative to the
+   * plate frame by frame and tears every edge, while a crop is fixed
+   * and the renderer applies the identical crop to the plate. The
+   * difference key still compares the same region of the same room.
+   * [INV-16]
+   */
+  reframe?: Rect;
   /**
    * Another take this one is graded towards.  [MASTER-EDIT §8, §12 P2]
    *
