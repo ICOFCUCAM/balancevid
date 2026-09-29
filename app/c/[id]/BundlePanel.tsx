@@ -61,7 +61,7 @@ export default function BundlePanel({ conversationId, ready }: { conversationId:
 
   return (
     <div className="panel" style={{ marginTop: 12 }} data-testid="bundle-panel">
-      <strong>Ready to publish</strong>
+      <span className="module-label">Ready to publish</span>
       <p className="small muted" style={{ marginTop: 2 }}>
         Written from the conversation itself. Nothing here was invented — the
         titles are claims you bound, the chapters are your own cuts.

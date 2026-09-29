@@ -154,7 +154,7 @@ export default function PublishStage({
 
         {embedded ? (
           <div className="panel" data-testid="publish-embedded" style={{ lineHeight: 1.45 }}>
-            <strong>This video plays on its own platform</strong>
+            <span className="module-label">This video plays on its own platform</span>
             <p className="small muted" style={{ margin: '4px 0 0' }}>
               We never hold its picture, so there is no single file to cut. What
               publishes is a player that runs the original and cuts to you at

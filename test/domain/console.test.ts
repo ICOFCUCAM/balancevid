@@ -516,12 +516,31 @@ describe('what sits on a picture', () => {
  */
 describe('titles', () => {
   it('writes no panel title as a bold literal', () => {
+    /*
+     * THE FIRST VERSION REQUIRED `className="grow"`, because all four
+     * titles it was written for happened to have it. The conversation
+     * watch page had three more as bare `<strong>The conversation
+     * </strong>` — same object, same escape from the legend, and the
+     * rule walked straight past them because it was describing the
+     * four instances rather than the thing.
+     *
+     * Third rule in this pass to be widened for exactly that: the
+     * radius ban was scoped to five files, the near-black ban to a
+     * list of colours, and this to one class name.
+     */
+    /*
+     * AND A TITLE IS ALONE ON ITS LINE. Widening it first caught
+     * `Press <strong>GO LIVE</strong> — that arms the feed`, which is
+     * emphasis inside a sentence and exactly what the tag is for. The
+     * discriminator is not the class, it is whether the `<strong>` IS
+     * the line or sits in one.
+     */
     const offenders: string[] = [];
     for (const file of ['t', 'c', 'p']
       .flatMap((route) => components(join(ROOT, 'app', route, '[id]')))) {
-      for (const hit of code(file).matchAll(
-        /<strong[^>]*className="[^"]*\bgrow\b[^"]*"[^>]*>\s*([A-Z][^<{]*?)\s*<\/strong>/g)) {
-        offenders.push(`${named(file)}: "${hit[1]}"`);
+      for (const line of code(file).split('\n')) {
+        const hit = /^\s*<strong[^>]*>\s*([A-Z][^<{]*?)\s*<\/strong>\s*$/.exec(line);
+        if (hit) offenders.push(`${named(file)}: "${hit[1]}"`);
       }
     }
     expect(offenders, 'use className="module-label" — a title is signage')
