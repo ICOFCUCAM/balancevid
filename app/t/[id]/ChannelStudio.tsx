@@ -1309,12 +1309,21 @@ export default function ChannelStudio({
               * appearance says which state you are in before you read
               * a word of it. [brief §7]
               *
-              * `.ctl.is-critical` is a legend on a lit surface rather
-              * than a CTA: uppercase, tracked, a 4px radius and a
-              * one-pixel bevel instead of a 10px pill with a shadow.
+              * `.ctl.is-key` is a legend on a lit surface rather than a
+              * CTA: uppercase, tracked, a 4px radius and a one-pixel
+              * bevel instead of a 10px pill with a shadow.
+              *
+              * IT IS NOT RED, AND ITS OWN TOOLTIP SAYS WHY: "Nothing
+              * reaches the wire until you press TAKE LIVE — the
+              * programme keeps playing until then." GO LIVE brings the
+              * camera up in PREVIEW. It was wearing the colour this
+              * desk uses for transmission, two feet from the button
+              * that actually transmits, while its own copy explained
+              * that it does not. Red is for on air and for recording;
+              * this is neither. [U-19, U-20]
               */}
             <button
-              className={`ctl${onAir ? '' : ' is-critical'}`}
+              className={`ctl${onAir ? '' : ' is-key'}`}
               data-testid="go-live"
               disabled={onAir}
               title={'Brings the camera up and shows it to you in PREVIEW. '

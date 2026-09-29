@@ -571,7 +571,7 @@ export default function RoomView({
                   Put my hand down
                 </button>
               ) : (
-                <button className="ctl is-critical" data-testid="raise-hand" disabled={busy}
+                <button className="ctl is-key" data-testid="raise-hand" disabled={busy}
                         onClick={() => void act({ action: 'raise-hand' }, 'room/presence')}>
                   I&rsquo;d like to speak
                 </button>
@@ -647,7 +647,7 @@ export default function RoomView({
               * look like their sibling rather than like a sign-up
               * button.
               */
-            <button className="ctl is-critical" data-testid="mic-on"
+            <button className="ctl is-key" data-testid="mic-on"
                     onClick={() => void capture.arm()}
                     style={{ padding: '8px 14px' }}>
               Turn on camera and microphone

@@ -306,6 +306,48 @@
 }
 
 /*
+ * THE LOUD ONE THAT IS NOT ON AIR.  [U-19, U-20, brief §2, §14]
+ *
+ * Red in this product means one thing: this is going out, or this
+ * overrides what is. The tally, the LIVE lamp, the playhead, ON AIR,
+ * GO LIVE, TAKE LIVE, EMERGENCY. It is the signal that must never be
+ * ambiguous, and three controls were spending it without
+ * transmitting anything — ENABLE CAMERA in Studio One, TURN ON CAMERA
+ * AND MICROPHONE in the room, and I'D LIKE TO SPEAK, which is a
+ * request to be heard later.
+ *
+ * They are the loudest control on their surface and they should look
+ * it; they are not the red one. So this is a fourth weight: the lit
+ * face `.is-on` uses, an accent edge, and the bold uppercase legend
+ * of `.is-critical`.
+ *
+ * IT DIFFERS FROM RED BY MATERIAL, NOT BY HUE. #c8382c and #3f8ee8
+ * are 1.54:1 apart in luminance — near-identical to anybody who does
+ * not separate red from blue — so hue alone would be no distinction
+ * at all. `.is-critical` is a saturated FILL; this is a dark face
+ * with a lit edge. That reads as two different kinds of object before
+ * it reads as two colours. [U-19]
+ *
+ * Measured: the legend is 15.28:1 on the lit face, the edge 4.87:1.
+ */
+.ctl.is-key {
+  color: var(--ink-000);
+  background: var(--console-control-hover);
+  border-color: var(--accent);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  box-shadow: var(--console-bevel-strong),
+              inset 0 0 0 1px rgba(63, 142, 232, 0.30),
+              var(--ring);
+}
+
+.ctl.is-key:hover:not(:disabled) {
+  background: #222933;
+  border-color: var(--accent-soft);
+}
+
+/*
  * THE LOUD ONE. Take Live and the emergency are operationally the most
  * consequential controls in the product and they are allowed to be
  * obvious — but a broadcast desk's loud control is a legend on a lit

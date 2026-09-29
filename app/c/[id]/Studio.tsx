@@ -1555,7 +1555,7 @@ export default function Studio({ conversationId }: { conversationId: string }) {
               * sign-up button on a marketing page.
               */}
             {phase === 'cold' && (
-              <button className="ctl is-critical" data-testid="enable-camera"
+              <button className="ctl is-key" data-testid="enable-camera"
                       onClick={() => void arm()}
                       style={{ padding: '8px 14px' }}>
                 Enable camera

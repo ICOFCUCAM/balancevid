@@ -674,3 +674,81 @@ describe('the focus ring', () => {
     expect(body).toContain('var(--ring)');
   });
 });
+
+/**
+ * RED MEANS ON AIR.  [U-19, U-20, brief §2]
+ *
+ * It is the one signal in this product that must never be ambiguous:
+ * the tally, the LIVE lamp, the playhead, ON AIR, GO LIVE, TAKE LIVE,
+ * EMERGENCY. Three controls were spending it without transmitting
+ * anything — enabling your own camera, turning your microphone on,
+ * and asking to speak later. This pass has already corrected three
+ * other places where red asserted something untrue (the multi-view
+ * tally in 11 and 21, the playhead flag in 33); those were bugs in
+ * what the colour said, and this is a bug in what it is FOR.
+ */
+describe('the loud controls', () => {
+  /*
+   * THE FULL RULE IS ON AIR **OR RECORDING**, which the first draft of
+   * this test got wrong by naming only transmission. A record button
+   * has been red since tape, and Studio Two's start and stop are
+   * capturing something irreversible — the same class of fact as a
+   * tally, which is what red is for. Studio One's Continue resumes a
+   * recording in progress.
+   *
+   * GO LIVE IS THE INTERESTING ONE and it went the other way. Its own
+   * tooltip reads "Nothing reaches the wire until you press TAKE LIVE
+   * — the programme keeps playing until then." It brings the camera
+   * up in PREVIEW. It was wearing the transmission colour two feet
+   * from the button that transmits, while its own copy explained that
+   * it does not.
+   */
+  const CRITICAL = [
+    ['app/t/[id]/ChannelStudio.tsx', 'take-live'],
+    ['app/t/[id]/ChannelStudio.tsx', 'emergency'],
+    ['app/c/[id]/Studio.tsx', 'continue-button'],
+    ['app/p/[id]/PerformanceStudio.tsx', 'start-take'],
+    ['app/p/[id]/PerformanceStudio.tsx', 'stop-take'],
+  ];
+
+  it('spends red only on going out or going down', () => {
+    const offenders: string[] = [];
+    for (const file of ['t', 'c', 'p']
+      .flatMap((route) => components(join(ROOT, 'app', route, '[id]')))) {
+      const body = code(file);
+      for (const hit of body.matchAll(
+        /is-critical[^>]*?data-testid="([a-z-]+)"/g)) {
+        offenders.push(`${named(file)}: ${hit[1]}`);
+      }
+      for (const hit of body.matchAll(
+        /data-testid="([a-z-]+)"[^>]*?is-critical/g)) {
+        offenders.push(`${named(file)}: ${hit[1]}`);
+      }
+    }
+    const allowed = new Set(CRITICAL.map(([f, t]) => `${f}: ${t}`));
+    expect([...new Set(offenders)].filter((row) => !allowed.has(row)),
+      'use .ctl.is-key — red is for on air and for recording')
+      .toEqual([]);
+  });
+
+  /*
+   * AND THE FOURTH WEIGHT DIFFERS BY MATERIAL, NOT BY HUE. #c8382c
+   * and #3f8ee8 are 1.54:1 apart in luminance, so to anybody who does
+   * not separate red from blue they are the same tone. `.is-critical`
+   * is a saturated FILL; `.is-key` is a dark face with a lit edge.
+   */
+  it('separates key from critical by more than colour', () => {
+    const key = CONSOLE.slice(CONSOLE.indexOf('.ctl.is-key {'),
+      CONSOLE.indexOf('}', CONSOLE.indexOf('.ctl.is-key {')));
+    const crit = CONSOLE.slice(CONSOLE.indexOf('.ctl.is-critical {'),
+      CONSOLE.indexOf('}', CONSOLE.indexOf('.ctl.is-critical {')));
+    expect(crit, 'the critical control stopped being a fill')
+      .toMatch(/background: linear-gradient/);
+    expect(key, 'the key control became a fill too')
+      .not.toMatch(/background: linear-gradient/);
+    expect(key, 'the key control has no lit edge')
+      .toMatch(/border-color: var\(--accent\)/);
+    /* And it keeps the ring slot, like every other state. */
+    expect(key).toContain('var(--ring)');
+  });
+});
