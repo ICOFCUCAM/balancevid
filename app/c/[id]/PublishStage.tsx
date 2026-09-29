@@ -145,7 +145,7 @@ export default function PublishStage({
         )}
 
         {/* ---- the shapes it travels in --------------------------------- */}
-        <h2 style={{ fontSize: 20, marginBottom: 2 }}>How this conversation travels</h2>
+        <h2 style={{ fontSize: 'var(--text-lg)', marginBottom: 2 }}>How this conversation travels</h2>
         <p className="small muted" style={{ marginTop: 0, maxWidth: 620 }}>
           One conversation, composed once. Each of these is the same exchange
           in a different shape — not a separate edit, so changing the
@@ -184,7 +184,7 @@ export default function PublishStage({
                   }}
                 >
                   <div className="row" style={{ gap: 6, marginBottom: 8, flexWrap: 'nowrap' }}>
-                    <strong className="grow" style={{ fontSize: 14 }}>{entry.name}</strong>
+                    <strong className="grow" style={{ fontSize: 'var(--text-base)' }}>{entry.name}</strong>
                     <span className="mono small muted">{entry.ratio}</span>
                   </div>
 
@@ -297,7 +297,7 @@ export default function PublishStage({
                       style={{ width: 'auto', marginTop: 3 }}
                     />
                     <span className="grow" style={{ minWidth: 0 }}>
-                      <span style={{ fontWeight: 600, fontSize: 14, display: 'block' }}>
+                      <span style={{ fontWeight: 600, fontSize: 'var(--text-base)', display: 'block' }}>
                         {candidate.claim
                           ? `“${candidate.claim.slice(0, 90)}${candidate.claim.length > 90 ? '…' : ''}”`
                           : `Your ${String(candidate.typeLabel).toLocaleLowerCase()} at ${

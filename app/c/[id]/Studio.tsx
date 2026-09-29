@@ -1199,7 +1199,7 @@ export default function Studio({ conversationId }: { conversationId: string }) {
                 lineHeight: 1.5,
               }}>
                 <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 15, marginBottom: 4 }}>Preparing your video</div>
+                  <div style={{ fontSize: 'var(--text-md)', marginBottom: 4 }}>Preparing your video</div>
                   <div className="small">
                     This happens once. You can start responding as soon as it appears.
                   </div>

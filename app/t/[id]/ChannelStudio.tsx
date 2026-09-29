@@ -3134,7 +3134,7 @@ function MultiView({
           ) : (
             <span aria-hidden="true" className="muted" style={{
               position: 'absolute', inset: 0, display: 'grid',
-              placeItems: 'center', fontSize: 16, opacity: 0.4,
+              placeItems: 'center', fontSize: 'var(--text-md)', opacity: 0.4,
             }}>{tile.glyph ?? '—'}</span>
           )}
           {/*

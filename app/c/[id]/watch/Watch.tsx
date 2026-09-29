@@ -259,7 +259,7 @@ export default function Watch({ conversationId }: { conversationId: string }) {
             <div style={{
               position: 'absolute', top: 12, left: 12, right: 12,
               padding: '8px 12px', borderRadius: 6, fontStyle: 'italic',
-              background: 'rgba(0,0,0,.6)', color: '#fff', fontSize: 15,
+              background: 'rgba(0,0,0,.6)', color: '#fff', fontSize: 'var(--text-md)',
             }}>
               “{current.claim}”
             </div>

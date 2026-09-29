@@ -80,7 +80,7 @@ export default function Reader({
     >
       <header className="row" style={{ gap: 8, padding: '10px 14px',
         borderBottom: '1px solid var(--line)', flexWrap: 'nowrap' }}>
-        <strong className="grow" style={{ fontSize: 14, whiteSpace: 'nowrap',
+        <strong className="grow" style={{ fontSize: 'var(--text-base)', whiteSpace: 'nowrap',
           overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</strong>
         <button className="small" onClick={() => setZoom((z) => Math.max(0.6, z - 0.2))}
                 aria-label="Smaller">−</button>

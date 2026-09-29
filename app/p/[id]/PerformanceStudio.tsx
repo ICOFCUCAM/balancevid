@@ -642,7 +642,7 @@ export default function PerformanceStudio(
                   )}
 
                   {recording.phase === 'counting' && (
-                    <div data-testid="count-in" style={{ fontWeight: 600, fontSize: 18 }}>
+                    <div data-testid="count-in" style={{ fontWeight: 600, fontSize: 'var(--text-lg)' }}>
                       Get ready\u2026
                     </div>
                   )}
@@ -650,7 +650,7 @@ export default function PerformanceStudio(
                   {recording.phase === 'recording' && (
                     <>
                       <div data-testid="recording-now"
-                           style={{ fontWeight: 600, color: '#e0674f', fontSize: 15 }}>
+                           style={{ fontWeight: 600, color: '#e0674f', fontSize: 'var(--text-md)' }}>
                         Recording \u00b7 {formatMasterPosition(
                           Math.round(recording.position * HOUSE_SAMPLE_RATE))} of {songLength}
                       </div>

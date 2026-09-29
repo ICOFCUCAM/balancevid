@@ -151,7 +151,7 @@ export default function RoomView({
     <div className="shell">
       <header className="shell-bar">
         <div className="grow" style={{ minWidth: 0 }}>
-          <h1 style={{ fontSize: 17, margin: 0, whiteSpace: 'nowrap',
+          <h1 style={{ fontSize: 'var(--text-lg)', margin: 0, whiteSpace: 'nowrap',
             overflow: 'hidden', textOverflow: 'ellipsis' }}>{room.title}</h1>
           <div className="small muted">
             {room.sourceTitle} · {present.length}{' '}

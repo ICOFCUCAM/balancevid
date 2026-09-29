@@ -39,14 +39,14 @@ export default function OpenRoom({
   return (
     <div className="shell">
       <header className="shell-bar">
-        <h1 className="grow" style={{ fontSize: 17, margin: 0 }}>{title}</h1>
+        <h1 className="grow" style={{ fontSize: 'var(--text-lg)', margin: 0 }}>{title}</h1>
         <a className="btn" href={`/c/${conversationId}`} style={{ padding: '7px 14px' }}>
           Back to the studio
         </a>
       </header>
       <div className="shell-body" style={{ display: 'grid', placeItems: 'center', padding: 24 }}>
         <div className="panel" data-testid="open-room" style={{ maxWidth: 460, padding: 26 }}>
-          <h2 style={{ fontSize: 22, marginBottom: 4 }}>Open a room</h2>
+          <h2 style={{ fontSize: 'var(--text-xl)', marginBottom: 4 }}>Open a room</h2>
           <p className="muted" style={{ marginTop: 0 }}>
             Bring other people into this conversation. You send them a link;
             they join in a browser with no account. Everyone who joins can hear

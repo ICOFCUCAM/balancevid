@@ -98,7 +98,7 @@ export default function ClaimCard({
             boxShadow: '0 0 0 1px rgba(0,0,0,0.5)', flex: '0 0 auto',
           }} />
           <div className="grow">
-            <div style={{ fontSize: 17, fontWeight: 600, lineHeight: 1.15 }}>
+            <div style={{ fontSize: 'var(--text-lg)', fontWeight: 600, lineHeight: 1.15 }}>
               Your response
             </div>
             <div className="small muted">
@@ -156,7 +156,7 @@ export default function ClaimCard({
         <blockquote
           data-testid="claim-card-quote"
           style={{
-            margin: 0, fontSize: 16, lineHeight: 1.35,
+            margin: 0, fontSize: 'var(--text-md)', lineHeight: 1.35,
             // Their words, set as their words. No emphasis that reads as doubt.
             fontStyle: 'normal',
             display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
@@ -167,7 +167,7 @@ export default function ClaimCard({
         </blockquote>
       </div>
 
-      <div aria-hidden style={{ color: 'var(--muted)', fontSize: 18, flex: '0 0 auto' }}>→</div>
+      <div aria-hidden style={{ color: 'var(--muted)', fontSize: 'var(--text-lg)', flex: '0 0 auto' }}>→</div>
 
       {/* ---- and what you are doing about it ---------------------------- */}
       <div style={{ flex: '1 1 0', minWidth: 0 }}>

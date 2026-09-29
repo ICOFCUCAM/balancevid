@@ -110,7 +110,7 @@ export default function Stage({
             <div className="small" style={{ opacity: 0.7, marginBottom: 4 }}>
               You are answering
             </div>
-            <div style={{ fontSize: 18, maxWidth: '75%' }}>
+            <div style={{ fontSize: 'var(--text-lg)', maxWidth: '75%' }}>
               “{claim}”
             </div>
           </div>

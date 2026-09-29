@@ -147,13 +147,26 @@ describe('the legend', () => {
    */
   const SIZES = 6;
 
-  it(`writes at most ${SIZES} sizes by hand across the desks`, () => {
-    const counts = DESKS.map((file) => ({
-      file,
-      n: (code(join(ROOT, file)).match(/fontSize:\s*\d/g) ?? []).length,
-    })).sort((a, b) => b.n - a.n);
+  /*
+   * AND IT NOW COVERS THE WHOLE OF THE THREE STUDIOS, not the five
+   * desk files. The narrow version was right while the desks were the
+   * only converted surfaces and everything around them was full of
+   * hand-written numbers — a ratchet you can satisfy by moving a
+   * `<span>` into a sibling file measures nothing.
+   *
+   * Every .tsx under the three studio routes now counts, which is 60
+   * files rather than 5, and the number is 6.
+   */
+  const STUDIOS = ['t', 'c', 'p']
+    .flatMap((route) => components(join(ROOT, 'app', route, '[id]')));
+
+  it(`writes at most ${SIZES} sizes by hand across the studios`, () => {
+    const counts = STUDIOS.map((file) => ({
+      file: named(file),
+      n: (code(file).match(/fontSize:\s*\d/g) ?? []).length,
+    })).filter((row) => row.n > 0).sort((a, b) => b.n - a.n);
     const total = counts.reduce((sum, row) => sum + row.n, 0);
-    expect(total, `worst: ${counts.slice(0, 2)
+    expect(total, `${counts.length} files: ${counts.slice(0, 4)
       .map((row) => `${row.file} (${row.n})`).join(', ')}`)
       .toBeLessThanOrEqual(SIZES);
   });
