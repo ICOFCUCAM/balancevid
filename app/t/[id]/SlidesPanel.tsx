@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import Icon from '../../Icon.js';
 import type { Channel, ProgrammeSource } from '../../../src/domain/channel.js';
 import { type Deck, slideOnAir, sourceForSlide, step } from '../../../src/domain/deck.js';
 
@@ -293,8 +294,8 @@ export default function SlidesPanel({
               className="small" data-testid="slide-back"
               disabled={!onAir || !step(deck, at, -1)}
               onClick={() => go(-1)}
-              style={{ flex: '0 0 auto', padding: '7px 11px' }}
-            >&#9664;</button>
+              style={{ flex: '0 0 auto', padding: '7px 11px', lineHeight: 0 }}
+            ><Icon name="chevron" size={12} turn={180} /></button>
             <span className="mono grow" data-testid="slide-position" style={{
               textAlign: 'center', fontSize: 'var(--text-sm)', fontWeight: 700,
             }}>
@@ -309,8 +310,8 @@ export default function SlidesPanel({
                   : 'That is the last slide')
                 : 'Only while you are live'}
               onClick={() => go(1)}
-              style={{ flex: '0 0 auto', padding: '7px 11px' }}
-            >&#9654;</button>
+              style={{ flex: '0 0 auto', padding: '7px 11px', lineHeight: 0 }}
+            ><Icon name="chevron" size={12} /></button>
             <button
               className="small" data-testid="slide-blank" disabled={at < 0}
               title="Take the slides down and go back to the room"

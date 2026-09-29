@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Brand from '../../../Brand.js';
 import ChannelPlayer from './ChannelPlayer.js';
 
 /**
@@ -67,14 +68,7 @@ export default function Watch({
   return (
     <div className="shell">
       <header className="shell-bar" style={{ gap: 12 }}>
-        <span aria-hidden="true" style={{
-          width: 26, height: 26, borderRadius: 'var(--radius-md)',
-          display: 'grid', placeItems: 'center',
-          background: 'linear-gradient(180deg, #3f8ee8 0%, #2a6fcc 100%)',
-          color: '#fff', fontSize: 'var(--text-xs)', paddingLeft: 2, flex: '0 0 auto',
-          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3),'
-            + ' 0 1px 3px rgba(26,78,150,0.5)',
-        }}>&#9654;</span>
+        <Brand wordmark={false} />
         <div className="grow" style={{ minWidth: 0 }}>
           <h1 style={{
             fontSize: 'var(--text-lg)', margin: 0, whiteSpace: 'nowrap',

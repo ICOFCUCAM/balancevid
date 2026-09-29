@@ -992,7 +992,18 @@ export default function ChannelStudio({
                   color: on.kind === 'off'
                     ? 'rgba(255,255,255,0.72)' : 'var(--ink-000)',
                 }}>
-                  {on.kind === 'live' ? '● LIVE'
+                  {/* A lamp is a drawn circle, not U+25CF — which is a
+                      different diameter and a different baseline in
+                      every font, inside a plate 14 pixels tall. */}
+                  {on.kind === 'live' && (
+                    <span aria-hidden="true" style={{
+                      width: 5, height: 5, borderRadius: '50%',
+                      background: 'currentColor', flex: '0 0 auto',
+                      marginRight: 4, display: 'inline-block',
+                      verticalAlign: 'middle',
+                    }} />
+                  )}
+                  {on.kind === 'live' ? 'LIVE'
                     : on.kind === 'backup' ? 'BACKUP'
                       : on.kind === 'emergency' ? 'EMERGENCY'
                         : on.kind === 'off' ? 'OFF AIR' : 'ON AIR'}

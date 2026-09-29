@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Brand from '../Brand.js';
 
 import Notice from '../Notice.js';
 
@@ -66,14 +67,9 @@ export default function SignIn({ configured, next }: { configured: boolean; next
         gap: 'var(--space-4)', marginBottom: 'var(--space-7)',
         justifyContent: 'center',
       }}>
-        <span aria-hidden="true" style={{
-          width: 34, height: 34, borderRadius: 'var(--radius-md)',
-          display: 'grid', placeItems: 'center',
-          background: 'linear-gradient(180deg, #3f8ee8 0%, #2a6fcc 100%)',
-          color: '#fff', fontSize: 14, paddingLeft: 2,
-          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3),'
-            + ' 0 2px 10px rgba(26, 78, 150, 0.55)',
-        }}>&#9654;</span>
+        {/* The name is the <h1> beside it, and there is nowhere to go
+            until you are in, so: no wordmark and no link. */}
+        <Brand size={34} href={null} />
         <h1 style={{
           margin: 0, fontSize: 'var(--text-xl)',
           letterSpacing: 'var(--tracking-tighter)',

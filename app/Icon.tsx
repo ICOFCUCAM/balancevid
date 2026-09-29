@@ -25,7 +25,7 @@ export type IconName =
   | 'disk' | 'clock' | 'calendar' | 'play' | 'plus' | 'chevron'
   | 'arrow' | 'upload' | 'link' | 'live' | 'pencil' | 'sun' | 'moon'
   | 'sound' | 'muted' | 'expand' | 'faders' | 'list' | 'mic'
-  | 'stop' | 'next' | 'loop' | 'warning' | 'graphics';
+  | 'stop' | 'next' | 'loop' | 'warning' | 'graphics' | 'pause';
 
 /* Each is the inner geometry; the frame and the stroke are set below. */
 const PATHS: Record<IconName, React.ReactNode> = {
@@ -161,6 +161,19 @@ const PATHS: Record<IconName, React.ReactNode> = {
    * is the square that weighs what the triangle weighs.
    */
   stop: <rect x="5.6" y="5.6" width="12.8" height="12.8" rx="1.2" />,
+  /*
+   * Two bars on the same optical footprint as `stop` and `play`, so
+   * a transport row does not change weight when it is pressed. It
+   * was ❚❚ (U+275A twice) in Studio Two and two `borderLeft`/
+   * `borderRight` declarations on an empty span in Studio One —
+   * two spellings of the same eleven pixels.
+   */
+  pause: (
+    <>
+      <rect x="6.4" y="5.6" width="3.8" height="12.8" rx="1" />
+      <rect x="13.8" y="5.6" width="3.8" height="12.8" rx="1" />
+    </>
+  ),
   next: (
     <>
       <path d="M6 5.6 15 12l-9 6.4z" />
@@ -288,7 +301,7 @@ const PATHS: Record<IconName, React.ReactNode> = {
 };
 
 /** `filled` is for the few that read as a shape rather than as a line. */
-const FILLED: IconName[] = ['play', 'home', 'stop', 'next'];
+const FILLED: IconName[] = ['play', 'home', 'stop', 'next', 'pause'];
 
 export default function Icon({
   name, size = 16, strokeWidth, turn,

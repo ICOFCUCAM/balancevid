@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
+import Icon from '../../Icon.js';
 import { formatTimecode } from '../../../src/domain/time.js';
 import { forDisplay, type Transcript } from '../../../src/transcribe/types.js';
 
@@ -82,7 +83,8 @@ export default function SidePanel({
               style={{ background: 'transparent', border: 'none', color: 'var(--muted)',
                 padding: '2px 0 6px', cursor: 'pointer' }}
             >
-              {expanded ? '▾' : '▸'} {transcript?.sentences.length ?? 0} sentences
+              <Icon name="chevron" size={10} {...(expanded ? { turn: 90 as const } : {})} />
+              {' '}{transcript?.sentences.length ?? 0} sentences
             </button>
             {expanded && (<>
             {!transcriptReady ? (

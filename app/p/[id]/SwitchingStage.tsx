@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import Icon from '../../Icon.js';
 import type { MasterClass, Performance } from '../../../src/domain/performance.js';
 import {
   MASTER_CLASSES, SPACES, isFootage, orderedScenes, sceneAt,
@@ -1333,10 +1334,10 @@ export default function SwitchingStage({
                   onClick={() => (player.playing ? player.pause() : void player.play())}
                   title={player.playing ? 'Pause' : 'Play the song'}
                   style={{
-                    width: 34, height: 30, padding: 0,
-                    fontSize: 'var(--text-sm)', flex: '0 0 auto',
+                    width: 34, height: 30, padding: 0, flex: '0 0 auto',
+                    display: 'grid', placeItems: 'center',
                   }}>
-            {player.playing ? '\u275a\u275a' : '\u25b6'}
+            <Icon name={player.playing ? 'pause' : 'play'} size={12} />
           </button>
           <span className="mono readout" style={{
             fontSize: 'var(--text-xs)', flex: '0 0 auto',

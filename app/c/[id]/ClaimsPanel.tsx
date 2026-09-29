@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Icon from '../../Icon.js';
 import { formatTimecode } from '../../../src/domain/time.js';
 
 /**
@@ -101,7 +102,7 @@ export default function ClaimsPanel({
             <p className="small muted" style={{ marginTop: 0 }}>
               <button className="small" onClick={() => setOpen(!open)}
                       style={{ padding: '0 4px', marginRight: 6 }}>
-                {open ? '▾' : '▸'}
+                <Icon name="chevron" size={10} {...(open ? { turn: 90 as const } : {})} />
               </button>
               Suggested by {data.detector.label} (v{data.detector.version}).
               {open && <> {data.detector.characteristics.summary}{' '}

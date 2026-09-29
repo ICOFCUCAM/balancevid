@@ -109,15 +109,10 @@ export default function SourceTransport({
         onClick={() => { if (playing) player?.pause(); else player?.play(); }}
         style={{ padding: '5px 9px', lineHeight: 0 }}
       >
-        {playing
-          ? (
-            <span aria-hidden="true" style={{
-              display: 'block', width: 11, height: 11,
-              borderLeft: '3px solid currentColor',
-              borderRight: '3px solid currentColor',
-            }} />
-          )
-          : <Icon name="play" size={11} />}
+        {/* Both states come from the set now. The pause used to be two
+            borders on an empty span — the same eleven pixels spelled a
+            third way, and a third thing to keep in step. */}
+        <Icon name={playing ? 'pause' : 'play'} size={11} />
       </button>
 
       {/*

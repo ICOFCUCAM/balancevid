@@ -13,6 +13,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import Brand from '../../Brand.js';
 import SignOut from '../../SignOut.js';
 import SourceTransport from './SourceTransport.js';
 import { useConfirm } from '../../Confirm.js';
@@ -970,19 +971,7 @@ export default function Studio({ conversationId }: { conversationId: string }) {
           * the workspace — which this room had no visible route to.
           * [D-24]
           */}
-        <a href="/" aria-label="BalanceVid" className="row" style={{
-          gap: 'var(--space-3)', textDecoration: 'none', color: 'inherit',
-          flex: '0 0 auto',
-        }}>
-          <span aria-hidden="true" style={{
-            width: 26, height: 26, borderRadius: 'var(--radius-md)',
-            display: 'grid', placeItems: 'center',
-            background: 'linear-gradient(180deg, #3f8ee8 0%, #2a6fcc 100%)',
-            color: '#fff', fontSize: 'var(--text-xs)', paddingLeft: 2,
-            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3),'
-              + ' 0 1px 3px rgba(26,78,150,0.5)',
-          }}>&#9654;</span>
-        </a>
+        <Brand wordmark={false} />
 
         <div className="grow" style={{ minWidth: 0 }}>
           <h1 style={{

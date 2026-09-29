@@ -817,3 +817,72 @@ describe('the application bar', () => {
     expect(shared, 'two places wear the same mark').toEqual([]);
   });
 });
+
+/**
+ * NOTHING IN THIS PRODUCT IS AN ICON MADE OF TEXT.  [D-04, D-14]
+ *
+ * Twenty-nine characters were doing an icon's job across fourteen
+ * files: the five nav tabs, the transport, two settings gears, four
+ * disclosure carets, a warning, a loop, a graphics tile, a music
+ * note, the legend swatches on the finished-video bar, two emoji,
+ * and the play triangle inside four hand-copied brand marks.
+ *
+ * `Icon.tsx` was written to replace them and named six of them in
+ * its opening paragraph. It shipped, the building and the studios
+ * were converted, and the characters stayed — because nothing was
+ * looking for them.
+ *
+ * WHY IT MATTERS, beyond consistency: a glyph is whatever font the
+ * reader happens to have. ◉ is a different weight on every platform,
+ * ⚠ and 🎙 render as full-colour emoji on macOS, ▨ is a different
+ * hatch in every family, and ▶ inside a 26px badge needed a
+ * hand-tuned `paddingLeft: 2` to look centred in whichever font the
+ * author was using.
+ */
+describe('glyphs', () => {
+  /* The Unicode blocks an icon gets reached for from: arrows,
+     geometric shapes, and the miscellaneous symbols and dingbats. */
+  const GLYPH = /[\u2190-\u21FF\u25A0-\u25FF\u2600-\u27BF]/u;
+  const ENTITY = /&#(\d+);/g;
+
+  /*
+   * Characters are legitimate in prose, in a title, and in the
+   * comments that explain why they were removed — so this looks at
+   * what is RENDERED: a character alone inside an element, or an
+   * HTML entity in that range, which is only ever written to draw
+   * one.
+   */
+  it('renders no character as a mark', () => {
+    const offenders: string[] = [];
+    for (const file of components()) {
+      const body = code(file);
+      for (const hit of body.matchAll(ENTITY)) {
+        const ch = String.fromCodePoint(Number(hit[1]));
+        if (GLYPH.test(ch)) offenders.push(`${named(file)}: ${hit[0]} (${ch})`);
+      }
+      /* `>◀</button>`, `{'▾'}`, `'● LIVE'` — a glyph next to a tag
+         boundary or alone in a string literal. */
+      for (const hit of body.matchAll(
+        new RegExp(`(?:>\\s*|'|\`)(${GLYPH.source}[^'\`<]{0,12})(?:\\s*<|'|\`)`, 'gu'))) {
+        offenders.push(`${named(file)}: ${hit[1]}`);
+      }
+    }
+    expect(offenders, 'use Icon — a glyph is whatever font the reader has')
+      .toEqual([]);
+  });
+
+  /*
+   * AND THE MARK IS ONE COMPONENT. It was four hand-copied blocks of
+   * gradient, bevel and tinted shadow, already diverging in size and
+   * padding. `StudioBar`'s own doc comment warns about exactly this
+   * for tabs — "a second copy would be a second place they go out of
+   * date" — and the logo had four.
+   */
+  it('draws the mark in one place', () => {
+    const copies = components()
+      .filter((file) => /linear-gradient\(180deg, #3f8ee8/.test(code(file)))
+      .map(named);
+    expect(copies, 'the mark is copied — use <Brand />')
+      .toEqual(['app/Brand.tsx']);
+  });
+});

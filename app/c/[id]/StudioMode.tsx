@@ -161,9 +161,37 @@ function TimelineBand({ timeline, onSeek }: { timeline: any; onSeek: (frame: num
           );
         })}
       </div>
+      {/*
+        * A KEY SHOWS THE THING IT IS A KEY FOR.  [U-19]
+        *
+        * This was "▇ source" and "▨ you" — two Unicode block
+        * characters standing in for the bar's two fills, in the text
+        * colour. They were not the bar's colours, they were not the
+        * bar's hatch, and ▨ in particular is a different pattern in
+        * every font. A legend whose swatch does not match the chart
+        * is worse than no legend: it invites you to match by shape
+        * and then gives you the wrong shape.
+        *
+        * The swatches are now the same two declarations the segments
+        * use, which is also why they cannot drift apart.
+        */}
       <div className="row small muted" style={{ marginTop: 6, gap: 14 }}>
-        <span>▇ source</span>
-        <span>▨ you</span>
+        <span className="row" style={{ gap: 5 }}>
+          <span aria-hidden="true" style={{
+            width: 11, height: 11, borderRadius: 2, flex: '0 0 auto',
+            background: 'var(--source-accent)',
+          }} />
+          source
+        </span>
+        <span className="row" style={{ gap: 5 }}>
+          <span aria-hidden="true" style={{
+            width: 11, height: 11, borderRadius: 2, flex: '0 0 auto',
+            background: 'var(--user-accent)',
+            backgroundImage: 'repeating-linear-gradient(45deg,'
+              + ' rgba(0,0,0,.25) 0 4px, transparent 4px 8px)',
+          }} />
+          you
+        </span>
         <span className="grow" />
         <span>{Math.round((timeline.sourceFrames / total) * 100)}% source material</span>
       </div>
@@ -694,13 +722,17 @@ function EvidenceItem({
                  style={{ gap: 6, marginTop: 8, flexWrap: 'nowrap' }}>
               <button className="small" data-testid="evidence-prev"
                       disabled={disabled || page <= 1}
-                      onClick={() => void patch({ page: page - 1 })}>←</button>
+                      onClick={() => void patch({ page: page - 1 })}
+                      style={{ lineHeight: 0 }}
+              ><Icon name="chevron" size={11} turn={180} /></button>
               <span className="grow mono" style={{ textAlign: 'center' }}>
                 Page {page} of {pageCount}
               </span>
               <button className="small" data-testid="evidence-next"
                       disabled={disabled || page >= pageCount}
-                      onClick={() => void patch({ page: page + 1 })}>→</button>
+                      onClick={() => void patch({ page: page + 1 })}
+                      style={{ lineHeight: 0 }}
+              ><Icon name="chevron" size={11} /></button>
             </div>
           )}
 

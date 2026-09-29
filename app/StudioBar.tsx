@@ -14,6 +14,7 @@
  */
 
 import Icon, { type IconName } from './Icon.js';
+import Brand from './Brand.js';
 
 export type StudioTab =
   | 'conversations' | 'studio-one' | 'studio-two' | 'online-tv'
@@ -108,24 +109,7 @@ export default function StudioBar({
         * a coloured shadow, and a grey one under a blue mark is the single
         * commonest tell of a logo pasted onto a page.
         */}
-      <a href="/" className="row" style={{
-        gap: 'var(--space-3)', textDecoration: 'none', color: 'inherit',
-        flex: '0 0 auto',
-      }}>
-        <span aria-hidden="true" style={{
-          width: 26, height: 26, borderRadius: 'var(--radius-md)',
-          display: 'grid', placeItems: 'center',
-          background: 'linear-gradient(180deg, #3f8ee8 0%, #2a6fcc 100%)',
-          color: '#fff', fontSize: 11, paddingLeft: 2,
-          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3),'
-            + ' 0 1px 3px rgba(26, 78, 150, 0.5)',
-        }}>&#9654;</span>
-        <strong style={{
-          fontSize: 'var(--text-md)', whiteSpace: 'nowrap',
-          fontWeight: 'var(--weight-bold)',
-          letterSpacing: 'var(--tracking-tight)',
-        }}>BalanceVid</strong>
-      </a>
+      <Brand />
 
       <nav className="row" data-testid="studio-nav" style={{ gap: 2, flexWrap: 'nowrap' }}>
         {tabs.map((tab) => {

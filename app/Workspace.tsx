@@ -1315,7 +1315,14 @@ function StudioCard({
               background: studio.accent, color: 'var(--text-on-accent)',
               fontSize: 'var(--text-xs)', fontWeight: 'var(--weight-semi)',
               boxShadow: 'var(--elev-2)',
-            }}>{studio.open} →</Link>
+            }}>
+              {/* The arrow is drawn: → is a different length, weight and
+                  baseline in every font, and there are three of these
+                  side by side on the same row. */}
+              <span className="row" style={{
+                gap: 6, justifyContent: 'center',
+              }}>{studio.open}<Icon name="arrow" size={13} /></span>
+            </Link>
           ) : (
             <button type="button" data-testid="open-studio" onClick={onToggle}
                     style={{
@@ -1326,7 +1333,11 @@ function StudioCard({
                       fontSize: 'var(--text-xs)',
                       fontWeight: 'var(--weight-semi)',
                       boxShadow: 'var(--elev-2)',
-                    }}>{studio.open} →</button>
+                    }}>
+              <span className="row" style={{
+                gap: 6, justifyContent: 'center',
+              }}>{studio.open}<Icon name="arrow" size={13} /></span>
+            </button>
           )}
           <button type="button" data-testid="new-in-studio"
                   aria-label={`New in ${studio.name}`}

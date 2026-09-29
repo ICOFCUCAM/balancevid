@@ -1,6 +1,7 @@
 'use client';
 
 import { formatTimecode } from '../../../src/domain/time.js';
+import Icon from '../../Icon.js';
 
 /**
  * The statement being answered, and the floor passing between two people.
@@ -167,7 +168,9 @@ export default function ClaimCard({
         </blockquote>
       </div>
 
-      <div aria-hidden style={{ color: 'var(--muted)', fontSize: 'var(--text-lg)', flex: '0 0 auto' }}>→</div>
+      <div aria-hidden style={{
+        color: 'var(--muted)', flex: '0 0 auto', lineHeight: 0,
+      }}><Icon name="arrow" size={16} /></div>
 
       {/* ---- and what you are doing about it ---------------------------- */}
       <div style={{ flex: '1 1 0', minWidth: 0 }}>

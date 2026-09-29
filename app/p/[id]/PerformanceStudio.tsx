@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Icon from '../../Icon.js';
 import type { Performance } from '../../../src/domain/performance.js';
 import { MASTER_CLASSES, SPACES, mayPublish } from '../../../src/domain/performance.js';
 import { EFFECT_LOOKS, SPACES_ARE_DRAWN } from '../../../src/domain/environment.js';
@@ -778,8 +779,8 @@ export default function PerformanceStudio(
               display: 'grid', placeItems: 'center',
               borderRadius: 'var(--radius-sm)',
               background: 'var(--studio-two-wash)',
-              color: 'var(--studio-two)', fontSize: 'var(--text-md)',
-            }}>&#9834;</span>
+              color: 'var(--studio-two)',
+            }}><Icon name="music" size={14} /></span>
             <span className="grow" style={{ minWidth: 0 }}>
               <span style={{
                 display: 'block', fontWeight: 'var(--weight-semi)',
