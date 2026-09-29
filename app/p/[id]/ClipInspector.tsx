@@ -116,7 +116,7 @@ export default function ClipInspector({
     const style = scene.transition ?? 'cut';
     return (
       <section className="module" data-testid="transition-inspector"
-               data-scene-id={scene.id} style={{ marginTop: 12 }}>
+               data-scene-id={scene.id} style={{ gridArea: 'inspector' }}>
         {head('Transition',
           `${before ? name(before.takeIds[0] ?? '') : 'the start'} → ${name(scene.takeIds[0] ?? '')}`
           + ` · ${formatMasterPosition(scene.fromSample)}`)}
@@ -179,7 +179,7 @@ export default function ClipInspector({
   /* ---- the clip itself  [MASTER-EDIT §2, §4] ------------------------- */
   return (
     <section className="module" data-testid="clip-inspector"
-             data-scene-id={scene.id} style={{ marginTop: 12 }}>
+             data-scene-id={scene.id} style={{ gridArea: 'inspector' }}>
       {head('Master clip',
         `${scene.label ? `${scene.label} · ` : ''}`
         + `${formatMasterPosition(scene.fromSample)} – ${formatMasterPosition(to)}`)}

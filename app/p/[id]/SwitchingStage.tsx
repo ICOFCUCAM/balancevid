@@ -713,7 +713,8 @@ export default function SwitchingStage({
       display: 'grid', minHeight: 0, gap: 12,
       gridTemplateColumns: 'minmax(250px, 330px) minmax(0, 1fr) minmax(290px, 360px)',
       gridTemplateAreas: '"takes stage panel" "timeline timeline timeline" '
-        + '"notes notes notes" "transport transport transport"',
+        + '"inspector inspector inspector" "notes notes notes" '
+        + '"transport transport transport"',
       alignItems: 'start',
     }}>
       {confirmDialog}
