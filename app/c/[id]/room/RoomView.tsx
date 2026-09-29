@@ -245,9 +245,29 @@ export default function RoomView({
                     whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {person.displayName}{person.me ? ' (you)' : ''}
                   </span>
+                  {/*
+                    * A WORD, NOT A PICTOGRAM. This was ✋ — an emoji,
+                    * so full colour on macOS and Windows, and
+                    * carrying a platform-chosen skin tone in a room
+                    * where the mark means "this person would like to
+                    * speak".
+                    *
+                    * I drew a hand for the icon set and measured it
+                    * at the size this row actually uses. Four
+                    * variants, and at 13px none of them reads as a
+                    * hand — they are all the same small blob. At
+                    * 40px they are fine, which is how an icon that
+                    * does not work ships.
+                    *
+                    * So it takes the object the product already has
+                    * for "this needs attention": the armed state
+                    * badge, with a word in it. Findable at a glance
+                    * down a rail of six people, legible at any size,
+                    * and not colour alone. [U-19]
+                    */}
                   {person.handRaisedAt && (
-                    <span data-testid="hand-up" title="Wants to speak"
-                          style={{ flex: '0 0 auto' }}>✋</span>
+                    <span className="state is-armed" data-testid="hand-up"
+                          title="Wants to speak">HAND</span>
                   )}
                 </div>
 

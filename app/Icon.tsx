@@ -24,7 +24,7 @@ export type IconName =
   | 'channels' | 'distribution' | 'settings' | 'search' | 'bell'
   | 'disk' | 'clock' | 'calendar' | 'play' | 'plus' | 'chevron'
   | 'arrow' | 'upload' | 'link' | 'live' | 'pencil' | 'sun' | 'moon'
-  | 'sound' | 'muted' | 'expand' | 'faders' | 'list';
+  | 'sound' | 'muted' | 'expand' | 'faders' | 'list' | 'mic';
 
 /* Each is the inner geometry; the frame and the stroke are set below. */
 const PATHS: Record<IconName, React.ReactNode> = {
@@ -158,6 +158,23 @@ const PATHS: Record<IconName, React.ReactNode> = {
     <>
       <path d="M7 4v5.2M7 14.8V20M12 4v9.2M12 18.8V20M17 4v2.2M17 11.8V20" />
       <path d="M5.2 9.2h3.6v5.6H5.2zM10.2 13.2h3.6v5.6h-3.6zM15.2 6.2h3.6v5.6h-3.6z" />
+    </>
+  ),
+  /*
+   * A MICROPHONE, not 🎙. The re-record button carried the emoji, which
+   * on macOS and Windows renders in FULL COLOUR — a studio-grey and
+   * gold pictogram on a dark desk whose whole palette is four
+   * neutrals and one accent. It is the only saturated object on the
+   * surface and it is on a secondary button. [brief §2]
+   *
+   * `sound` is a speaker, which is the other end of the signal chain;
+   * this is the end you talk into.
+   */
+  mic: (
+    <>
+      <rect x="9" y="3" width="6" height="11" rx="3" />
+      <path d="M5.8 11.4a6.2 6.2 0 0 0 12.4 0" />
+      <path d="M12 17.6V21M8.6 21h6.8" />
     </>
   ),
   sound: (

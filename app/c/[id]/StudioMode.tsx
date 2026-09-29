@@ -16,6 +16,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { INTERVENTION_TYPES, type InterventionType } from '../../../src/domain/document.js';
 import Mark from './Mark.js';
+import Icon from '../../Icon.js';
 import { LAYOUTS, TYPE_PRESENTATION } from '../../../src/domain/presentation.js';
 import { HOUSE_FPS, formatTimecode } from '../../../src/domain/time.js';
 
@@ -348,7 +349,7 @@ function InterventionCard({
                   onClick={() => onRerecord(intervention.id)}
                   title={canRecord ? 'Record another take; this one is kept' : 'Arm the camera first'}
                 >
-                  🎙 Re-record
+                  <Icon name="mic" size={13} /> Re-record
                 </button>
                 <button
                   className="danger"
