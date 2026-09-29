@@ -1158,6 +1158,81 @@ describe('the viewer pages', () => {
  * build gets fixed and forgotten rather than written down. This
  * turns it into a named rule with the reason attached.
  */
+/**
+ * ONE QUESTION, ONE ANSWER.  [D-19]
+ *
+ * The rule that decides whether a performance can be rendered was written
+ * twice: once properly, in `assertPerformanceRenderable`, and once again in
+ * the console, from the same timeline. The second copy is the one an author
+ * ever read, and it was wrong in two ways that the first one was not — it
+ * summed the gaps into a duration and printed it through
+ * `formatMasterPosition`, so `00:01.248 of the song has nothing on screen`
+ * named a clock position that meant nothing, and it never consulted
+ * `span.missing` at all, so the button stayed lit for a render the server
+ * would refuse.
+ *
+ * The lesson generalises past this one screen, so the ban does too: WHEN A
+ * DOMAIN FUNCTION DECIDES SOMETHING, A COMPONENT ASKS IT. Re-deriving an
+ * answer from the same inputs is how two surfaces come to disagree, and the
+ * one that disagrees is always the one in front of a person — the server's
+ * copy is exercised by tests, the console's by nobody.
+ */
+describe('one question, one answer', () => {
+  /*
+   * PROJECTING IS DERIVING. `projectPerformance` turns a document into
+   * spans, gaps and missing takes; every judgement a screen wants from it
+   * — can this render, how far from finished is it — has a domain function
+   * that asks it already. A component that projects is a component about to
+   * arrive at its own opinion.
+   *
+   * By the call rather than by the fields it produces: `.missing` alone
+   * flagged `data.missing` in the control room, which is a list of absent
+   * channel ASSETS off a fetch and nothing to do with a performance. The
+   * property is the derivation, not the word.
+   */
+  it('no component projects a performance to judge it', () => {
+    const offenders: string[] = [];
+    for (const file of components()) {
+      const body = code(file);
+      if (/\bprojectPerformance\s*\(/.test(body)) offenders.push(`${named(file)}: projects`);
+      if (/\btimeline\.gaps\b/.test(body)) offenders.push(`${named(file)}: reads gaps`);
+    }
+    expect(offenders, 'ask renderProblems() — the renderer does')
+      .toEqual([]);
+  });
+
+  /* And the screen that refuses a render asks the shared question. */
+  it('the render console asks it', () => {
+    expect(code(join(ROOT, 'app', 'p', '[id]', 'MasterRender.tsx')),
+      'MasterRender must ask renderProblems, not work it out')
+      .toContain('renderProblems(performance)');
+  });
+
+  /*
+   * AND THE SHARED ANSWER IS THE ONE THE RENDERER REFUSES WITH. A check the
+   * console calls and the invariant ignores would be the same two rules
+   * again, with one of them merely better dressed.
+   */
+  it('and the invariant refuses with it rather than around it', () => {
+    const invariants = readFileSync(
+      join(ROOT, 'src', 'domain', 'invariants.ts'), 'utf8');
+    const fn = invariants.slice(invariants.indexOf('export function assertPerformanceRenderable'));
+    const body = fn.slice(0, fn.indexOf('\nexport '));
+    expect(body, 'assertPerformanceRenderable must ask renderProblems')
+      .toContain('renderProblems(');
+    /*
+     * And keeps no second opinion beside it. By the FIELD and not by the
+     * name in front of it: the first version of this line named
+     * `timeline.gaps`, and a mutation that wrote
+     * `projectPerformance(performance).gaps` walked straight past it — the
+     * same "scoped to its example" mistake this whole suite is about,
+     * made inside the test for it.
+     */
+    expect(body, 'it is deciding for itself again')
+      .not.toMatch(/\.gaps\b|\.missing\b/);
+  });
+});
+
 describe('what the browser is allowed to import', () => {
   /* Server-side by construction: these reach `newId`, the
      filesystem, or both. */

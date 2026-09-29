@@ -2,9 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import type { Performance } from '../../../src/domain/performance.js';
-import { mayPublish, projectPerformance } from '../../../src/domain/performance.js';
+import { mayPublish, renderProblems } from '../../../src/domain/performance.js';
 import { EXPORT_PROFILES } from '../../../src/domain/presentation.js';
-import { formatMasterPosition } from '../../../src/domain/time.js';
 
 /**
  * The master render.  [Doctrine STUDIO-TWO §2, §14, S-4, INV-15]
@@ -46,9 +45,18 @@ export default function MasterRender({ performance }: { performance: Performance
   const [busy, setBusy] = useState(false);
 
   const id = performance.id;
-  const timeline = projectPerformance(performance);
   const publishable = mayPublish(performance.master);
-  const missing = timeline.gaps.reduce((sum, g) => sum + (g.toSample - g.fromSample), 0);
+  /*
+   * THE SAME QUESTION THE RENDERER ASKS, asked here so the answer is the
+   * same one. This used to be re-derived: gaps summed into a single number
+   * and that number printed through `formatMasterPosition`, which formats a
+   * POSITION — so "1.248 seconds of song are uncovered, somewhere" was shown
+   * as `00:01.248 of the song has nothing on screen`, a clock reading that
+   * names nowhere. And `span.missing` was never consulted at all, so a scene
+   * whose take runs out halfway left this button enabled and the author
+   * found out by pressing it and reading the server's refusal.
+   */
+  const problems = renderProblems(performance);
 
   const refresh = useCallback(async () => {
     const [renders, audioJobs] = await Promise.all([
@@ -115,7 +123,24 @@ export default function MasterRender({ performance }: { performance: Performance
     }
   };
 
-  const blocked = timeline.spans.length === 0 || timeline.gaps.length > 0;
+  /** Close a hole by starting the scene after it earlier. [INV-03] */
+  const cover = async (sceneId: string, fromSample: number) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/performances/${id}`, {
+        method: 'PATCH', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'cover-gap', sceneId, fromSample }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error ?? 'that hole could not be covered');
+      /* The document changed under the page, so the page has to be told. */
+      window.location.reload();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setBusy(false);
+    }
+  };
 
   return (
     <section style={{ marginTop: 18 }} data-testid="master-render">
@@ -148,16 +173,50 @@ export default function MasterRender({ performance }: { performance: Performance
         ))}
       </div>
 
-      {blocked ? (
-        <p className="small" data-testid="render-blocked"
-           style={{ marginTop: 10, maxWidth: 640, color: 'var(--warn)' }}>
-          {timeline.spans.length === 0
-            ? 'Nothing is on screen yet. Play the song and press a number to put '
-              + 'a take on it.'
-            : `${formatMasterPosition(missing)} of the song has nothing on screen. `
-              + 'A video cannot have a hole in it, so cover the rest before '
-              + 'rendering.'}
-        </p>
+      {problems.length > 0 ? (
+        /*
+         * ALL OF THEM, AND WHERE. One sentence naming a total told an author
+         * how much was missing and nothing about where to look for it; in a
+         * four-minute song a second and a quarter is unfindable. Each problem
+         * now names its own stretch of the clock, and the ones that can be
+         * closed mechanically carry the control that closes them — a
+         * diagnosis an author has to translate into an action is half a
+         * product. [D-14, U-04]
+         */
+        <ul data-testid="render-blocked" style={{
+          marginTop: 10, maxWidth: 640, padding: 0, listStyle: 'none',
+          display: 'flex', flexDirection: 'column', gap: 'var(--space-3)',
+        }}>
+          {problems.map((problem, index) => (
+            <li key={`${problem.kind}-${problem.fromSample ?? index}`}
+                data-testid="render-problem" data-kind={problem.kind}
+                className="row" style={{
+                  gap: 'var(--space-4)', alignItems: 'baseline', flexWrap: 'nowrap',
+                  padding: 'var(--space-3) var(--space-4)',
+                  background: 'var(--state-armed-wash)',
+                  border: 'var(--border) solid rgba(232,179,60,0.36)',
+                  boxShadow: 'inset 3px 0 0 var(--state-armed)',
+                  borderRadius: 'var(--radius-module)',
+                }}>
+              <span className="small grow" style={{ minWidth: 0, color: '#f0c66a' }}>
+                {problem.kind === 'no-scenes'
+                  ? 'Nothing is on screen yet. Play the song and press a number '
+                    + 'to put a take on it.'
+                  : problem.kind === 'gap'
+                    ? `Nothing is on screen ${problem.say.slice('no performance on them '.length)}.`
+                    : `${problem.say.charAt(0).toUpperCase()}${problem.say.slice(1)}.`}
+              </span>
+              {problem.extend && (
+                <button className="ctl sm" data-testid="cover-gap" disabled={busy}
+                        style={{ flex: '0 0 auto' }}
+                        onClick={() => void cover(
+                          problem.extend!.sceneId, problem.extend!.fromSample)}>
+                  {busy ? 'Covering\u2026' : 'Cover it'}
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
       ) : (
         <div style={{ marginTop: 10 }}>
           <button

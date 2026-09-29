@@ -30,7 +30,7 @@ import {
   type AudioMode, type MasterTrack, type Performance, type PerformanceTake, type Scene,
   AUDIO_MODES, MASTER_CLASSES, PERFORMANCE_SCHEMA_VERSION,
   TAKE_ACCENT_FALLBACK,
-  coverage, mayPublish, orderedScenes, plateFor, takeById,
+  coverage, mayPublish, orderedScenes, plateFor, renderProblems, takeById,
 } from './performance.js';
 import { type Samples, assertSamples } from './time.js';
 
@@ -365,6 +365,48 @@ export function moveScene(
     fail('there is already a scene starting at that moment');
   }
   scene.fromSample = toSample;
+}
+
+/**
+ * Close a hole by starting the next scene earlier.  [§8, INV-03]
+ *
+ * A gap is song with no picture, and every gap this product can produce has
+ * the same shape: the stretch before the first scene begins. The author's
+ * remedy has always been available — drag the boundary back — and has always
+ * been theirs to work out from a sentence. This is that drag, as one action,
+ * offered beside the sentence that names the hole.
+ *
+ * IT REFUSES A FIX THAT IS NOT ONE. Moving a scene back over the hole only
+ * works if the takes in it have picture that far back; if they do not, the
+ * gap is replaced by "these takes do not reach all of it", which is the same
+ * render refused for a different reason and a worse experience than not
+ * offering the button. So the move is made, the question is asked again, and
+ * anything short of an improvement is put back — with what went wrong said
+ * out loud, because "that did not work" teaches nobody anything.
+ *
+ * Nothing is rendered black to make this pass. A hole stays a hole until
+ * something covers it. [INV-03]
+ */
+export function coverGap(
+  performance: Performance, sceneId: string, fromSample: Samples,
+): void {
+  assertSamples(fromSample);
+  const scene = performance.scenes.find((s) => s.id === sceneId)
+    ?? fail(`no such scene: ${sceneId}`) as never;
+  if (fromSample >= scene.fromSample) {
+    fail('that scene already starts at or before there');
+  }
+  const before = renderProblems(performance);
+  const was = scene.fromSample;
+  moveScene(performance, sceneId, fromSample);
+  const after = renderProblems(performance);
+  if (after.length >= before.length) {
+    scene.fromSample = was;
+    const blame = after.find((problem) => !before.some((had) => had.say === problem.say));
+    fail(blame
+      ? `starting that scene earlier does not cover the hole: ${blame.say}`
+      : 'starting that scene earlier does not cover the hole');
+  }
 }
 
 export function removeScene(performance: Performance, sceneId: string): void {

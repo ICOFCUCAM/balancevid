@@ -5,7 +5,7 @@ import { TAKE_ACCENT_FALLBACK } from '../../../src/domain/performance.js';
 import Icon from '../../Icon.js';
 import type { MasterClass, Performance } from '../../../src/domain/performance.js';
 import {
-  MASTER_CLASSES, SPACES, isFootage, orderedScenes, sceneAt,
+  MASTER_CLASSES, SPACES, isFootage, orderedScenes, renderProblems, sceneAt,
 } from '../../../src/domain/performance.js';
 import { EFFECT_LOOKS, SPACE_LOOKS } from '../../../src/domain/environment.js';
 import { useConfirm } from '../../Confirm.js';
@@ -251,6 +251,20 @@ export default function SwitchingStage({
   const [showTransitions, setShowTransitions] = useState(false);
 
   const ordered = orderedScenes(performance);
+  /*
+   * WHERE THE HOLES ARE, ON THE TIMELINE, WHILE YOU WORK.  [INV-03, U-04]
+   *
+   * They were only ever named at the bottom of the page, at the moment of
+   * rendering, in a sentence — and a sentence cannot point. A stretch of
+   * song with nothing on it is a fact about the edit, so it belongs on the
+   * edit, drawn where it is: an author scrolling the timeline sees the hole
+   * before they ever reach the render button, and clicking it seeks there
+   * like clicking anywhere else on these lanes does.
+   *
+   * The same question the render console and the renderer ask. [D-19]
+   */
+  const holes = renderProblems(performance)
+    .filter((problem) => problem.fromSample !== undefined);
   const usable = performance.takes.filter((t) => t.durationSamples > 0);
   const slots = takeSlots(LAYOUTS[arrangement]!);
 
@@ -1239,6 +1253,27 @@ export default function SwitchingStage({
             <div data-testid="master-timeline" style={{
               position: 'relative', height: 44, borderTop: '1px solid var(--line)',
             }}>
+              {/*
+                * UNDER THE SCENES, not over them: a scene that covers this
+                * stretch is the answer, and the mark is what shows through
+                * where there is none. Hatched rather than flooded, because
+                * a solid amber band would read as a THING on the timeline,
+                * and a hole is the absence of one.
+                */}
+              {holes.map((hole) => (
+                <div key={`hole-${hole.kind}-${hole.fromSample}`}
+                     data-testid="timeline-hole" data-kind={hole.kind}
+                     title={hole.say}
+                     style={{
+                       position: 'absolute', top: 4, bottom: 4,
+                       left: pct(hole.fromSample!),
+                       width: pct(hole.toSample! - hole.fromSample!),
+                       borderRadius: 'var(--radius-screen)',
+                       border: 'var(--border) solid rgba(232,179,60,0.44)',
+                       backgroundImage: 'repeating-linear-gradient(45deg,'
+                         + ' rgba(232,179,60,0.16) 0 5px, transparent 5px 10px)',
+                     }} />
+              ))}
               {ordered.map((scene, i) => {
                 const to = ordered[i + 1]?.fromSample ?? duration;
                 const take = performance.takes.find((t) => t.id === scene.takeIds[0]);

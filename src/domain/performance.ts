@@ -64,7 +64,8 @@ import type { BeatGrid } from './beats.js';
 import type { RoomPlate } from './environment.js';
 import type { Id } from './ids.js';
 import {
-  type Frames, type Samples, HOUSE_SAMPLE_RATE, assertSamples, samplesToFrames,
+  type Frames, type Samples, HOUSE_SAMPLE_RATE, assertSamples, formatMasterPosition,
+  samplesToFrames,
 } from './time.js';
 
 export type PerformanceId = Id<'perf'>;
@@ -887,6 +888,125 @@ export function projectPerformance(
     totalOutputFrames: samplesToFrames(end) - zero,
     gaps,
   };
+}
+
+/* ------------------------------------------------------------------------ *
+ * WHY A RENDER IS REFUSED                                                    *
+ * ------------------------------------------------------------------------ */
+
+/**
+ * What is wrong with a performance, as something to act on.
+ *
+ * THIS EXISTS BECAUSE THE RULE WAS WRITTEN TWICE.  [D-19]
+ *
+ * `assertPerformanceRenderable` (invariants.ts) said it properly: which
+ * stretch, from where to where, and what to do about it. The console said it
+ * again, on its own, worse — it summed the gaps into one number and printed
+ * that number through `formatMasterPosition`, so "1.248 seconds are
+ * uncovered, somewhere" came out as `00:01.248 of the song has nothing on
+ * screen`, which reads as a POSITION and names nowhere. It also never asked
+ * about `span.missing` at all, so a scene naming a take that runs out
+ * halfway left the button enabled and the author found out by pressing it.
+ *
+ * One rule, one place, two callers: the console explains and blocks, the
+ * invariant refuses. The invariant cannot be the shared one — it imports
+ * `quoteHash` from `ids.ts` and so drags `node:crypto` into any browser
+ * bundle that touches it — which is why this lives here, beside the
+ * projection it reads. Same reason `TAKE_ACCENT_FALLBACK` does.
+ */
+export interface RenderProblem {
+  kind: 'no-scenes' | 'gap' | 'short-takes' | 'empty-scene';
+  /** Where on the song clock, for every kind that has a place. */
+  fromSample?: Samples;
+  toSample?: Samples;
+  /** Named by the scene and not reaching, for `short-takes`. */
+  takeIds?: TakeId[];
+  /** What is wrong and what to do, in one sentence, for a person. */
+  say: string;
+  /**
+   * A GAP A SCENE COULD SIMPLY BE EXTENDED OVER.
+   *
+   * Present when there is a scene starting exactly where the gap ends, which
+   * is the shape every gap has today: song before the first scene. Moving
+   * that scene back closes the hole in one action instead of making the
+   * author re-cut a boundary by hand.
+   *
+   * Positional, so a browser can compute it without reaching for the edit
+   * functions — whether the move actually helps is the server's to decide,
+   * because only the server may run the edit and re-ask this question.
+   */
+  extend?: { sceneId: SceneId; fromSample: Samples };
+}
+
+/**
+ * Everything standing between this performance and a file.
+ *
+ * All of them, not the first: an author is better served by being told all of
+ * what is wrong than by fixing one thing and pressing the button again. The
+ * invariant still fails on the first, because an exception is one sentence.
+ */
+export function renderProblems(
+  performance: Performance, window?: PerformanceWindow,
+): RenderProblem[] {
+  const timeline = projectPerformance(performance, window);
+  const problems: RenderProblem[] = [];
+
+  if (timeline.spans.length === 0) {
+    return [{
+      kind: 'no-scenes',
+      say: 'this performance has no scenes, so there is nothing to render',
+    }];
+  }
+
+  for (const gap of timeline.gaps) {
+    /* The scene that begins where the hole ends, if there is one. */
+    const next = performance.scenes.find((s) => s.fromSample === gap.toSample);
+    problems.push({
+      kind: 'gap',
+      fromSample: gap.fromSample,
+      toSample: gap.toSample,
+      say: `no performance on them from ${formatMasterPosition(gap.fromSample)} `
+        + `to ${formatMasterPosition(gap.toSample)} — put a take on that stretch, `
+        + 'or start the scene that follows it earlier',
+      ...(next ? { extend: { sceneId: next.id, fromSample: gap.fromSample } } : {}),
+    });
+  }
+
+  for (const span of timeline.spans) {
+    /*
+     * Named but absent, checked BEFORE the empty case, because when a scene
+     * names one take that does not reach it both are true and this is the one
+     * that says something the author can act on. "Names no take" would be
+     * accurate and unhelpful: they did name one.
+     */
+    if (span.missing.length > 0) {
+      problems.push({
+        kind: 'short-takes',
+        fromSample: span.fromSample,
+        toSample: span.toSample,
+        takeIds: [...span.missing],
+        say: `the scene from ${formatMasterPosition(span.fromSample)} to `
+          + `${formatMasterPosition(span.toSample)} expects `
+          + `${span.scene.takeIds.length} performance(s), but `
+          + `${span.missing.join(', ')} do not reach all of it — `
+          + 'either move the scene boundary or extend the take',
+      });
+    } else if (span.takes.length === 0) {
+      /*
+       * An empty scene. `setScene` refuses to make one, so reaching this means
+       * a document that was edited by something else — which is exactly when
+       * an invariant earns its place.
+       */
+      problems.push({
+        kind: 'empty-scene',
+        fromSample: span.fromSample,
+        toSample: span.toSample,
+        say: `the scene at ${formatMasterPosition(span.fromSample)} shows nobody`,
+      });
+    }
+  }
+
+  return problems;
 }
 
 /**

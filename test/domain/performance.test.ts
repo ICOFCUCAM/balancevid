@@ -15,13 +15,14 @@ import { describe, expect, it } from 'vitest';
 import {
   type MasterTrack, type Performance, type PerformanceTake,
   coverage, covered, covers, effectiveOffset, masterToTake, mayPublish,
-  orderedScenes, projectPerformance, sceneAt, takeToMaster,
+  orderedScenes, projectPerformance, renderProblems, sceneAt, takeToMaster,
   coversSpan,
 } from '../../src/domain/performance.js';
 import {
   addPlate,
-  addTake, classifyMaster, clearScenes, moveScene, newPerformance, nudgeTake, realign,
-  removeScene, removeTake, setAudioMode, setEnvironment, setScene, trimTake,
+  addTake, classifyMaster, clearScenes, coverGap, moveScene, newPerformance, nudgeTake,
+  realign, removeScene, removeTake, setAudioMode, setEnvironment, setScene, trimTake,
+  PerformanceEditError,
 } from '../../src/domain/performanceEdit.js';
 import {
   assertAlignmentInvariants, assertPerformanceRenderable, assertPublishable,
@@ -442,6 +443,129 @@ describe('the timeline the scenes make (S-4)', () => {
     const timeline = projectPerformance(p);
     expect(timeline.spans[0]!.takes).toEqual([]);
     expect(timeline.spans[0]!.missing).toEqual(['take_beach']);
+  });
+});
+
+/**
+ * WHY A RENDER IS REFUSED, SAID ONCE.  [D-19, INV-03]
+ *
+ * The rule was written twice: properly in `assertPerformanceRenderable`, and
+ * again — worse — in the console. The console's copy summed the gaps into
+ * one duration and printed it with `formatMasterPosition`, which formats a
+ * position, so an author read `00:01.248 of the song has nothing on screen`
+ * and reasonably looked at 00:01.248. It meant "one and a quarter seconds,
+ * somewhere in four minutes". And it never asked about `span.missing`, so the
+ * button stayed lit for a performance the server would refuse.
+ *
+ * What is checked here is that there is now ONE answer, that it carries a
+ * PLACE, and that the mechanical remedy refuses to pretend.
+ */
+describe('why a render is refused', () => {
+  const uncovered = () => {
+    const p = fiveTakes();
+    /* A minute of song before the first scene: a hole, and the only shape a
+       hole has in this model. */
+    setScene(p, secondsToSamples(60),
+      { layoutId: 'performance_full', takeIds: ['take_beach'] });
+    return p;
+  };
+
+  it('names where the hole is, not how much of it there is', () => {
+    const [gap, ...rest] = renderProblems(uncovered());
+    expect(rest).toEqual([]);
+    expect(gap!.kind).toBe('gap');
+    expect(gap!.fromSample).toBe(0);
+    expect(gap!.toSample).toBe(secondsToSamples(60));
+    /* The two ends of the stretch, on the clock. A total would be 01:00.000
+       too, and mean something else entirely — which is the bug. */
+    expect(gap!.say).toContain('00:00.000');
+    expect(gap!.say).toContain('01:00.000');
+  });
+
+  it('and reports a scene whose take falls short, which the console never did',
+    () => {
+      const p = fiveTakes();
+      setScene(p, 0, { layoutId: 'performance_full', takeIds: ['take_living_room'] });
+      trimTake(p, 'take_living_room', 0, secondsToSamples(30));
+      const [problem, ...rest] = renderProblems(p);
+      expect(rest).toEqual([]);
+      expect(problem!.kind).toBe('short-takes');
+      expect(problem!.takeIds).toEqual(['take_living_room']);
+      expect(problem!.say).toContain('do not reach all of it');
+    });
+
+  it('all of them at once, because fixing one at a time is a worse day', () => {
+    const p = fiveTakes();
+    setScene(p, secondsToSamples(60),
+      { layoutId: 'performance_full', takeIds: ['take_beach'] });
+    trimTake(p, 'take_beach', 0, secondsToSamples(90));
+    expect(renderProblems(p).map((problem) => problem.kind))
+      .toEqual(['gap', 'short-takes']);
+  });
+
+  it('a performance ready to render has nothing to say', () => {
+    const p = fiveTakes();
+    setScene(p, 0, { layoutId: 'performance_full', takeIds: ['take_living_room'] });
+    expect(renderProblems(p)).toEqual([]);
+  });
+
+  /*
+   * THE INVARIANT AND THE CONSOLE NOW AGREE BY CONSTRUCTION, and this is the
+   * test that keeps them agreeing: the sentence the author reads is the
+   * sentence the renderer refuses with.
+   */
+  it('and the renderer refuses with the same sentence the console shows', () => {
+    const p = uncovered();
+    const [gap] = renderProblems(p);
+    expect(() => assertPerformanceRenderable(p)).toThrow(gap!.say);
+  });
+});
+
+describe('closing a hole in one action', () => {
+  const uncovered = () => {
+    const p = fiveTakes();
+    setScene(p, secondsToSamples(60),
+      { layoutId: 'performance_full', takeIds: ['take_beach'] });
+    return p;
+  };
+
+  it('offers the scene that starts where the hole ends', () => {
+    const [gap] = renderProblems(uncovered());
+    expect(gap!.extend?.fromSample).toBe(0);
+  });
+
+  it('and starting it there closes the hole', () => {
+    const p = uncovered();
+    const [gap] = renderProblems(p);
+    coverGap(p, gap!.extend!.sceneId, gap!.extend!.fromSample);
+    expect(renderProblems(p)).toEqual([]);
+  });
+
+  /*
+   * THE ONE THAT MATTERS. A take trimmed to the second minute cannot cover
+   * the first, so dragging its scene back turns "nothing is on screen here"
+   * into "this take does not reach all of it" — the same render refused for
+   * a different reason, after a button that said it would fix it. It is put
+   * back, and the reason is said out loud.
+   */
+  it('and refuses when it would only trade one refusal for another', () => {
+    const p = uncovered();
+    trimTake(p, 'take_beach', secondsToSamples(60), secondsToSamples(240));
+    const [gap] = renderProblems(p);
+    const was = p.scenes[0]!.fromSample;
+    expect(() => coverGap(p, gap!.extend!.sceneId, gap!.extend!.fromSample))
+      .toThrow(PerformanceEditError);
+    expect(() => coverGap(p, gap!.extend!.sceneId, gap!.extend!.fromSample))
+      .toThrow(/do not reach all of it/);
+    /* And left exactly as it was. A refused edit that half-applied would be
+       worse than no button at all. */
+    expect(p.scenes[0]!.fromSample).toBe(was);
+  });
+
+  it('and will not drag a scene forwards under the name of covering', () => {
+    const p = uncovered();
+    expect(() => coverGap(p, p.scenes[0]!.id, secondsToSamples(90)))
+      .toThrow(/already starts at or before/);
   });
 });
 

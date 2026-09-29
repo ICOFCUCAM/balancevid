@@ -10,7 +10,7 @@ import { quoteHash } from './ids.js';
 import type { SourceItem, Timeline } from './timeline.js';
 import {
   type Performance, type PerformanceTake, type PerformanceWindow,
-  mayPublish, needsLicenceNote, plateFor, projectPerformance,
+  mayPublish, needsLicenceNote, plateFor, projectPerformance, renderProblems,
 } from './performance.js';
 import { needsMatte } from './environment.js';
 import type { Channel, ProgrammeSource } from './channel.js';
@@ -196,58 +196,30 @@ export function assertPublishable(performance: Performance): void {
 /**
  * A scene list a renderer can actually execute.
  *
- * Not one invariant but the set of things that make a Performance renderable,
- * checked together because an author is better served by being told all of
- * what is wrong than the first thing.
+ * WHAT IS WRONG IS DECIDED IN ONE PLACE, `renderProblems` in performance.ts,
+ * because this function used to decide it and the console decided it again —
+ * and the console's version was worse in two ways that only an author ever
+ * saw. A gap is a stretch of song with no picture: legal while composing,
+ * since the timeline exists to be looked at while it is incomplete, and not
+ * renderable, because the alternative is exporting black and calling it
+ * finished. All of that reasoning now lives next to the projection it reads.
+ *
+ * This still fails on the FIRST problem, because an exception is one
+ * sentence. The console shows them all, because a list is not.
  */
 export function assertPerformanceRenderable(
   performance: Performance, window?: PerformanceWindow,
 ): void {
+  const problems = renderProblems(performance, window);
+  const first = problems[0];
+  if (first) {
+    const gaps = problems.filter((problem) => problem.kind === 'gap').length;
+    fail('INV-03', first.kind === 'gap' && gaps > 1
+      ? `${gaps} stretch(es) of the song have ${first.say}`
+      : first.kind === 'gap' ? `a stretch of the song has ${first.say}` : first.say);
+  }
+
   const timeline = projectPerformance(performance, window);
-
-  if (timeline.spans.length === 0) {
-    fail('INV-03', 'this performance has no scenes, so there is nothing to render');
-  }
-
-  /*
-   * A gap is a stretch of song with no picture. Legal while composing — the
-   * timeline exists to be looked at while it is incomplete — and not
-   * renderable, because the alternative is exporting black and calling it
-   * finished.
-   */
-  if (timeline.gaps.length > 0) {
-    const first = timeline.gaps[0]!;
-    fail('INV-03',
-      `${timeline.gaps.length} stretch(es) of the song have no performance on them — `
-      + `the first from ${formatMasterPosition(first.fromSample)} to `
-      + `${formatMasterPosition(first.toSample)}`);
-  }
-
-  for (const span of timeline.spans) {
-    /*
-     * Named but absent, checked BEFORE the empty case, because when a scene
-     * names one take that does not reach it both are true and this is the one
-     * that says something the author can act on. "Names no take" would be
-     * accurate and unhelpful: they did name one.
-     */
-    if (span.missing.length > 0) {
-      const where = formatMasterPosition(span.fromSample);
-      const to = formatMasterPosition(span.toSample);
-      fail('INV-03',
-        `the scene from ${where} to ${to} expects ${span.scene.takeIds.length} `
-        + `performance(s), but ${span.missing.join(', ')} do not reach all of it — `
-        + 'either move the scene boundary or extend the take');
-    }
-    /*
-     * An empty scene. `setScene` refuses to make one, so reaching this means
-     * a document that was edited by something else — which is exactly when an
-     * invariant earns its place.
-     */
-    if (span.takes.length === 0) {
-      fail('INV-03',
-        `the scene at ${formatMasterPosition(span.fromSample)} shows nobody`);
-    }
-  }
 
   // INV-02, on the output clock: the spans must tile it with no gap or overlap.
   let expected = 0;
