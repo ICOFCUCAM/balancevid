@@ -199,3 +199,64 @@ describe('rounding', () => {
       'the building stopped being made of cards').toBeGreaterThan(5);
   });
 });
+
+/**
+ * THE LEGEND UNDER THE PICTURE IS MEASURED.  [brief §5]
+ *
+ * A broadcast monitor says what it is looking at. The easy way to
+ * ship that is to print the house format, because the house format is
+ * a constant and the constant is right almost always — and "almost
+ * always" is the failure mode that matters, since a legend is what an
+ * operator reads when the picture already looks wrong.
+ *
+ * So this holds the legend to reading the element rather than naming
+ * a format. It is a real risk and not a hypothetical one: the version
+ * of this component I did not ship had `1920×1080` in it.
+ */
+describe('the signal legend', () => {
+  const PROGRAM = code(join(ROOT, 'app', 't', '[id]', 'ChannelStudio.tsx'));
+  const LEGEND = PROGRAM.slice(PROGRAM.indexOf('function Legend('),
+    PROGRAM.indexOf('function Monitor('));
+
+  it('exists under Program Output', () => {
+    expect(LEGEND, 'the Legend component is gone').not.toBe('');
+    expect(PROGRAM, 'the legend is not mounted').toContain('<Legend on={on} />');
+  });
+
+  it('reads the picture rather than naming a format', () => {
+    expect(LEGEND).toContain('videoWidth');
+    expect(LEGEND).toContain('naturalWidth');
+    /*
+     * No raster written down. 1920, 1080, 1280, 720, 3840, 2160 —
+     * any of them in here means somebody decided what the signal is
+     * instead of asking it.
+     */
+    const asserted = [...LEGEND.matchAll(/\b(?:3840|2160|1920|1280|1080|720)\b/g)];
+    expect(asserted.map(([hit]) => hit),
+      'the legend states a raster instead of measuring one').toEqual([]);
+  });
+
+  /*
+   * AND IT SAYS SO WHEN THERE IS NOTHING TO MEASURE, rather than
+   * holding the last thing it saw. A stale raster on a dead input is
+   * the one thing worse than no raster at all.
+   */
+  it('admits to no signal', () => {
+    expect(LEGEND).toContain('NO SIGNAL');
+    expect(LEGEND).toMatch(/setFormat\(null\)/);
+  });
+
+  /*
+   * THE FRAME RATE IS ONLY CLAIMED WHERE IT IS KNOWABLE. A browser
+   * will not tell you a file's rate; a MediaStream track will tell
+   * you its own. So the number comes from track settings and is
+   * omitted otherwise — `rate !== null` rather than a fallback to
+   * HOUSE_FPS, which would print 30 over a 24 fps film.
+   */
+  it('claims a frame rate only from the track', () => {
+    expect(LEGEND).toContain('getSettings');
+    expect(LEGEND).toContain('rate !== null');
+    expect(LEGEND, 'the legend falls back to the house rate')
+      .not.toContain('HOUSE_FPS');
+  });
+});

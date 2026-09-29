@@ -12,6 +12,7 @@ import {
 import { SPACES } from '../../../src/domain/performance.js';
 import { SPACE_LOOKS } from '../../../src/domain/environment.js';
 import { PLATFORMS } from '../../../src/domain/distribution.js';
+import { LIVE_DELAY_MS } from '../../../src/domain/playout.js';
 import StudioBar from '../../StudioBar.js';
 import {
   MenuButton, MenuHost, RightClickHint, useRowMenu, type MenuEntry,
@@ -1070,6 +1071,7 @@ export default function ChannelStudio({
                   )}
                 </span>
               </div>
+              <Legend on={on} />
             </Frame>
 
             {/* ---- PREVIEW (NEXT) + MULTI-VIEW ------------------------- */}
@@ -4598,6 +4600,137 @@ function Scheduler({
           Tomorrow
         </button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * WHAT THE PICTURE ACTUALLY IS.  [brief §5, D-16, U-08, INV-02]
+ *
+ * Every broadcast monitor in the world carries a legend under the
+ * glass saying what it is looking at — raster, rate, and how far
+ * behind the transmission is. Program Output had a title, a mode
+ * badge and a picture, and nothing anywhere on the desk said what
+ * format the channel was in. That is the difference between a
+ * monitor and a `<video>` in a box.
+ *
+ * IT IS MEASURED, NEVER ASSERTED. The obvious version of this prints
+ * `1920×1080 · 30 fps` because that is the house format, and it is
+ * then wrong the first time somebody puts a phone video in the
+ * rotation — which, in a product whose whole premise is that people
+ * answer each other from wherever they are, is the second programme.
+ * A legend that lies about the signal is worse than no legend: it is
+ * the thing an operator checks when the picture looks wrong.
+ *
+ * So it reads the element. `videoWidth`/`videoHeight` on a playing
+ * file, `naturalWidth` on a still, and for a live feed the track's
+ * own settings — which is the only place a frame rate is honestly
+ * available, because a browser will not tell you a file's. When
+ * there is nothing to measure it says so rather than guessing.
+ */
+function Legend({ on }: { on: OnAir }) {
+  const [format, setFormat] = useState<string | null>(null);
+  const [rate, setRate] = useState<number | null>(null);
+
+  /*
+   * THE PICTURE IS NOT THIS COMPONENT'S CHILD. It is drawn by
+   * `Monitor` or by the live `<video>` above, both of which already
+   * existed and neither of which this pass is going to restructure
+   * to thread a ref through. [brief: do not create parallel systems]
+   * So the legend finds the picture in the well it sits under, and
+   * re-measures whenever the element says its dimensions arrived.
+   */
+  const measure = useCallback((host: HTMLElement | null) => {
+    if (!host) return undefined;
+    const well = host.previousElementSibling;
+    if (!well) return undefined;
+
+    const read = () => {
+      const video = well.querySelector('video');
+      const still = well.querySelector('img');
+      if (video && video.videoWidth > 0) {
+        setFormat(`${video.videoWidth}×${video.videoHeight}`);
+        const track = (video.srcObject as MediaStream | null)
+          ?.getVideoTracks?.()[0];
+        const fps = track?.getSettings?.().frameRate;
+        setRate(typeof fps === 'number' && fps > 0 ? Math.round(fps) : null);
+        return;
+      }
+      if (still && still.naturalWidth > 0) {
+        setFormat(`${still.naturalWidth}×${still.naturalHeight}`);
+        setRate(null);
+        return;
+      }
+      setFormat(null);
+      setRate(null);
+    };
+
+    read();
+    /*
+     * A raster arrives late and changes without a React render — a
+     * new segment, a track that renegotiates, a still that decodes.
+     * Polling a DOM property twice a second is the cheap correct
+     * answer where there is no event that fires for all three.
+     */
+    const timer = window.setInterval(read, 500);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const ratio = (() => {
+    if (!format) return null;
+    const [w, h] = format.split('×').map(Number);
+    if (!w || !h) return null;
+    const g = (a: number, b: number): number => (b === 0 ? a : g(b, a % b));
+    const d = g(w, h);
+    return `${w / d}:${h / d}`;
+  })();
+
+  return (
+    <div
+      data-testid="program-legend"
+      /*
+        * REACT 19 LETS A REF CALLBACK RETURN ITS OWN CLEANUP, which is
+        * what this needs and the reason there is no effect here. The
+        * first version of this held the interval's clear in state and
+        * ran it from a `useEffect` keyed on itself — a state update
+        * inside a ref callback, on every attach, to schedule a
+        * teardown React will now do properly.
+        */
+      ref={measure}
+      className="row"
+      style={{
+        gap: 'var(--space-4)', flex: '0 0 auto', flexWrap: 'nowrap',
+        padding: '5px 10px', minHeight: 24, overflow: 'hidden',
+        borderTop: 'var(--border) solid var(--console-rule)',
+        background: 'var(--console-inset)',
+      }}
+    >
+      <span className="mono readout" data-testid="program-format" style={{
+        fontSize: 'var(--text-2xs)', letterSpacing: '0.04em',
+        color: format ? 'var(--ink-200)' : 'var(--ink-400)',
+      }}>{format ?? 'NO SIGNAL'}</span>
+      {ratio && <span className="unit">{ratio}</span>}
+      {rate !== null && (
+        <span className="mono readout unit" data-testid="program-rate">
+          {rate} fps
+        </span>
+      )}
+      <span className="grow" />
+      {/*
+        * HOW FAR BEHIND THE TRANSMISSION IS. The desk shows the
+        * operator's own picture, not what a viewer has; twelve
+        * seconds is the gap, and a presenter who does not know that
+        * talks over themselves. It is only true while live, so it is
+        * only said while live. [LIVE_DELAY_MS]
+        */}
+      {on.kind === 'live' && (
+        <span className="mono readout" data-testid="program-delay" style={{
+          fontSize: 'var(--text-2xs)', letterSpacing: '0.04em',
+          color: 'var(--ink-300)',
+        }}>
+          TX +{Math.round(LIVE_DELAY_MS / 1000)}s
+        </span>
+      )}
     </div>
   );
 }
