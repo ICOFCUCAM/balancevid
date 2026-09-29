@@ -10,6 +10,7 @@ import {
 import { EFFECT_LOOKS, SPACE_LOOKS } from '../../../src/domain/environment.js';
 import { useConfirm } from '../../Confirm.js';
 import { useMenu, type MenuEntry } from '../../Menu.js';
+import ClipInspector, { type Selection } from './ClipInspector.js';
 import { LAYOUTS, takeSlots } from '../../../src/domain/presentation.js';
 import {
   BEATS_USABLE_CONFIDENCE, beatPositions, snapToBeat,
@@ -249,6 +250,17 @@ export default function SwitchingStage({
    * know what can be done to them. [D-19]
    */
   const { menu, onRow } = useMenu();
+  /*
+   * WHAT IS SELECTED ON THE MASTER VIDEO LANE.  [MASTER-EDIT §2, §3]
+   *
+   * The lane drew a block per scene and answered no click. Everything a
+   * person would want to do to one — swap its take, change its
+   * arrangement, change how it arrives, give it its own sound — existed
+   * as an operation and was reachable from four other places, none of them
+   * the block. Selecting a thing and being shown what it is, is how every
+   * editor has worked since they had mice.
+   */
+  const [selection, setSelection] = useState<Selection | null>(null);
   const [arrangement, setArrangement] = useState<string>('performance_full');
   const [pending, setPending] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -505,6 +517,8 @@ export default function SwitchingStage({
         event.preventDefault();
         if (player.playing) player.pause(); else void player.play();
       }
+      /* Esc puts the inspector away, as it closes everything else here. */
+      if (event.key === 'Escape') setSelection(null);
     };
     // Capture, so the page's other keys never swallow a switch mid-song.
     window.addEventListener('keydown', onKey, true);
@@ -699,7 +713,8 @@ export default function SwitchingStage({
       display: 'grid', minHeight: 0, gap: 12,
       gridTemplateColumns: 'minmax(250px, 330px) minmax(0, 1fr) minmax(290px, 360px)',
       gridTemplateAreas: '"takes stage panel" "timeline timeline timeline" '
-        + '"notes notes notes" "transport transport transport"',
+        + '"inspector inspector inspector" "notes notes notes" '
+        + '"transport transport transport"',
       alignItems: 'start',
     }}>
       {confirmDialog}
@@ -1426,10 +1441,21 @@ export default function SwitchingStage({
               {ordered.map((scene, i) => {
                 const to = ordered[i + 1]?.fromSample ?? duration;
                 const take = performance.takes.find((t) => t.id === scene.takeIds[0]);
+                const chosen = selection?.kind === 'clip'
+                  && selection.sceneId === scene.id;
                 return (
-                  <div key={scene.id} data-testid="timeline-scene"
+                  <button key={scene.id} type="button" data-testid="timeline-scene"
                        data-scene-id={scene.id} data-from={scene.fromSample}
+                       data-selected={chosen ? 'true' : 'false'}
+                       aria-pressed={chosen}
                        title={scene.label ?? LAYOUTS[scene.layoutId]?.label ?? scene.layoutId}
+                       /* Selecting must not also move the playhead — the
+                          lane column seeks on click, and a clip being
+                          inspected is not a place you asked to hear. */
+                       onClick={(event) => {
+                         event.stopPropagation();
+                         setSelection(chosen ? null : { kind: 'clip', sceneId: scene.id });
+                       }}
                        style={{
                          position: 'absolute', top: 4, bottom: 4,
                          left: pct(scene.fromSample), width: pct(to - scene.fromSample),
@@ -1437,8 +1463,14 @@ export default function SwitchingStage({
                          // above it are plainly about the same takes. [§2]
                          background: `${take?.accent ?? TAKE_ACCENT_FALLBACK}33`,
                          borderLeft: `3px solid ${take?.accent ?? TAKE_ACCENT_FALLBACK}`,
-                         borderRadius: 4, padding: '3px 6px', fontSize: 'var(--text-2xs)',
-                         overflow: 'hidden',
+                         borderRadius: 'var(--radius-screen)',
+                         padding: '3px 6px', fontSize: 'var(--text-2xs)',
+                         overflow: 'hidden', textAlign: 'left',
+                         font: 'inherit', color: 'inherit', cursor: 'pointer',
+                         /* The chosen clip is lit on its own outline, the
+                            same cue the rails use. [brief §3] */
+                         border: chosen ? '1px solid var(--accent)' : '1px solid transparent',
+                         boxShadow: chosen ? 'inset 0 0 0 1px rgba(63,142,232,0.35)' : 'none',
                        }}>
                     <span style={{ display: 'block', fontWeight: 600 }}>
                       {scene.takeIds.map((tid) =>
@@ -1447,7 +1479,55 @@ export default function SwitchingStage({
                     <span className="muted" style={{ fontSize: 'var(--text-2xs)' }}>
                       {clock(scene.fromSample)} – {clock(to)}
                     </span>
-                  </div>
+                  </button>
+                );
+              })}
+
+              {/*
+                * THE JOINS, AS THINGS.  [MASTER-EDIT §3]
+                *
+                * A transition is not a property of a clip you read down a
+                * list — it is the seam between two of them, and it is at a
+                * place on the timeline. A handle on that place is the only
+                * honest way to point at it. It is stored on the LATER scene,
+                * which is the same fact said in the document: `transition`
+                * is how a scene ARRIVES.
+                */}
+              {ordered.slice(1).map((scene) => {
+                const chosen = selection?.kind === 'join'
+                  && selection.sceneId === scene.id;
+                const style = scene.transition ?? 'cut';
+                return (
+                  <button key={`join-${scene.id}`} type="button"
+                          data-testid="timeline-join" data-scene-id={scene.id}
+                          data-style={style}
+                          data-selected={chosen ? 'true' : 'false'}
+                          aria-pressed={chosen}
+                          aria-label={`Transition at ${clock(scene.fromSample)}`}
+                          title={`${TRANSITIONS[style]?.label ?? style} · ${clock(scene.fromSample)}`}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setSelection(chosen ? null : { kind: 'join', sceneId: scene.id });
+                          }}
+                          style={{
+                            position: 'absolute', top: 0, bottom: 0,
+                            /* Centred ON the seam, because that is where it
+                               is — and wide enough to hit on a laptop. */
+                            left: `calc(${pct(scene.fromSample)} - 6px)`,
+                            width: 12, padding: 0, background: 'transparent',
+                            border: 0, cursor: 'pointer', display: 'grid',
+                            placeItems: 'center',
+                          }}>
+                    <span aria-hidden="true" style={{
+                      width: style === 'cut' ? 2 : 8, height: 14,
+                      borderRadius: 'var(--radius-screen)',
+                      background: chosen ? 'var(--accent)' : 'rgba(255,255,255,0.34)',
+                      /* A cut is a line; a mix is a band. Shape as well as
+                         colour, so the two are told apart without it. [U-19] */
+                      border: style === 'cut' ? 0
+                        : `1px solid ${chosen ? 'var(--accent)' : 'rgba(255,255,255,0.5)'}`,
+                    }} />
+                  </button>
                 );
               })}
               {beats && marks.map((at) => (
@@ -1467,6 +1547,33 @@ export default function SwitchingStage({
           </div>
         </div>
       </div>
+
+      {/*
+        * THE INSPECTOR SITS UNDER THE THING IT INSPECTS.  [MASTER-EDIT §2]
+        *
+        * Not in the composition rail, which sets the NEXT cut and would
+        * have to change meaning when something is selected — a mode, and
+        * an invisible one. Under the timeline it is beside the block it is
+        * about, and it is simply absent when nothing is selected.
+        */}
+      {selection && (
+        <ClipInspector
+          performance={performance} selection={selection} usable={usable}
+          busy={false}
+          onAct={(body) => {
+            if (body['action'] === 'move-scene-to-playhead') {
+              void patch({
+                action: 'move-scene', sceneId: body['sceneId'],
+                at: Math.round(player.positionNow()),
+              });
+              return;
+            }
+            if (body['action'] === 'remove-scene') setSelection(null);
+            void patch(body);
+          }}
+          onClose={() => setSelection(null)}
+        />
+      )}
 
       {/* ---- the transport (§7) ---------------------------------------- */}
       {/*
