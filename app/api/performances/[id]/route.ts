@@ -3,7 +3,7 @@ import { bookingsFor, refusalFor } from '../../../../src/domain/deletion.js';
 import { deletePerformance } from '../../../../src/store/performances.js';
 import { listChannels } from '../../../../src/store/channels.js';
 import { acceptBeats, setTempo,
-  classifyMaster, usePlate, setAudioMode, setSceneAudio, setTransition, setScene, moveScene, coverGap, coverWith, removeScene, labelScene, clearScenes, nudgeTake, trimTake, renameTake, renamePerformance, setEffect, setEnvironment, removeTake, setLoop, setFootageRights, PerformanceEditError } from '../../../../src/domain/performanceEdit.js';
+  classifyMaster, usePlate, setAudioMode, setSceneAudio, setTransition, setTransitionTiming, setScene, moveScene, coverGap, coverWith, removeScene, labelScene, clearScenes, nudgeTake, trimTake, renameTake, renamePerformance, setEffect, setEnvironment, removeTake, setLoop, setFootageRights, PerformanceEditError } from '../../../../src/domain/performanceEdit.js';
 import { projectPerformance, covered } from '../../../../src/domain/performance.js';
 import { assertAlignmentInvariants } from '../../../../src/domain/invariants.js';
 import { listJobs } from '../../../../src/store/queue.js';
@@ -97,6 +97,21 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
           break;
         case 'scene-transition':
           setTransition(draft, body['sceneId'], body['transition'] ?? null);
+          break;
+        /*
+         * How long the arrival takes and who pays for it. Null for either
+         * puts that one back to the style's own. [MASTER-EDIT §3]
+         */
+        case 'transition-timing':
+          /*
+           * `??` WOULD BE WRONG HERE. Absent and null mean different things
+           * to this edit — leave it alone, versus put it back to the style
+           * default — and collapsing them would make the alignment buttons
+           * reset the duration. [MASTER-EDIT §3]
+           */
+          setTransitionTiming(draft, body['sceneId'],
+            Object.hasOwn(body, 'frames') ? body['frames'] : undefined,
+            Object.hasOwn(body, 'align') ? body['align'] : undefined);
           break;
         case 'scene-audio':
           setSceneAudio(draft, body['sceneId'], body['mode'] ?? null);

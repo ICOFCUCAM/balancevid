@@ -1,10 +1,13 @@
 'use client';
 
 import type { AudioMode, Performance, Scene } from '../../../src/domain/performance.js';
-import { orderedScenes } from '../../../src/domain/performance.js';
+import { joinRoom, orderedScenes } from '../../../src/domain/performance.js';
 import { LAYOUTS, takeSlots } from '../../../src/domain/presentation.js';
-import { TRANSITIONS } from '../../../src/domain/transitions.js';
-import { formatMasterPosition } from '../../../src/domain/time.js';
+import {
+  MAX_TRANSITION_FRAMES, MIN_TRANSITION_FRAMES, TRANSITIONS, TRANSITION_ALIGNS,
+  transitionAlignOf, transitionOf,
+} from '../../../src/domain/transitions.js';
+import { HOUSE_FPS, formatMasterPosition, framesToSeconds } from '../../../src/domain/time.js';
 
 /**
  * What a segment of the Master Video IS, and what can be done to it.
@@ -40,18 +43,31 @@ import { formatMasterPosition } from '../../../src/domain/time.js';
  *   which is the one thing INV-03 exists to prevent. Moving a boundary is
  *   `moveScene`, and that is the honest operation here.
  *
- *   TRANSITION DURATION AND ALIGNMENT. A transition is paid for out of the
- *   two shots it joins — half from each — because the song does not get
- *   longer to make room for it (INV-03). Duration is therefore a constraint
- *   satisfaction problem against both neighbours' coverage, not a number
- *   box, and alignment changes which neighbour pays. Both are real and
- *   neither is a slider.
+ * TRANSITION DURATION AND ALIGNMENT USED TO BE ON THAT LIST, and the reason
+ * given was that duration "is a constraint satisfaction problem against both
+ * neighbours' coverage, not a number box". That was true about the
+ * constraint and wrong about the conclusion: the constraint is CHECKABLE.
+ * `joinProblems` is the same question MASTER CHECK asks before a render and
+ * the planner asks before it builds one, so the length can be the author's
+ * to set, with the + going dead at what the join can pay for and anything
+ * the server still refuses being put back with the reason. [MASTER-EDIT §3]
  */
 
 export type Selection =
   | { kind: 'clip'; sceneId: string }
   /** The join BETWEEN two scenes, stored on the later one. [MASTER-EDIT §3] */
   | { kind: 'join'; sceneId: string };
+
+/**
+ * A sixth of a second per press.
+ *
+ * Not one frame, which would take thirty presses to cross a second and
+ * teaches an author that the control is for pedants; not a quarter second,
+ * which cannot express the third-of-a-second default it starts from. Five
+ * frames divides the dissolve's ten and the fade's twenty-four is two
+ * presses off, which is close enough to walk to.
+ */
+const STEP = Math.round(HOUSE_FPS / 6);
 
 const AUDIO_LABELS: Record<AudioMode, string> = {
   music_and_mic: 'Song and whoever is on screen',
@@ -114,6 +130,23 @@ export default function ClipInspector({
   /* ---- the join between two takes  [MASTER-EDIT §3] ------------------ */
   if (selection.kind === 'join') {
     const style = scene.transition ?? 'cut';
+    const mix = transitionOf(scene).frames;
+    const align = transitionAlignOf(scene);
+    /*
+     * The ceiling is the smaller of the two: a length the AUTHOR may type,
+     * and a length this join can pay for. The room is asked of the same
+     * function the edit and MASTER CHECK ask, so the + going dead and the
+     * server refusing are the same answer arriving a moment apart. [D-19]
+     */
+    const room = joinRoom(ordered, index, performance.master.durationSamples);
+    const ceiling = Math.min(
+      MAX_TRANSITION_FRAMES,
+      align === 'before' ? room.before
+        : align === 'after' ? room.after
+          : Math.min(room.before, room.after) * 2,
+    );
+    const timing = (body: { frames?: number | null; align?: string }) =>
+      onAct({ action: 'transition-timing', sceneId: scene.id, ...body });
     return (
       <section className="module" data-testid="transition-inspector"
                data-scene-id={scene.id} style={{ gridArea: 'inspector' }}>
@@ -148,28 +181,67 @@ export default function ClipInspector({
               ))}
             </div>
           ))}
-          <div className="row" style={{ gap: 'var(--space-5)', flexWrap: 'wrap' }}>
-            <span className="module-sub">Duration</span>
-            <span className="readout" data-testid="transition-duration" style={{
-              fontSize: 'var(--text-sm)',
-            }}>
-              {(TRANSITIONS[style]?.frames ?? 0) === 0 ? 'instant'
-                : `${((TRANSITIONS[style]!.frames) / 25).toFixed(2)}s`}
-            </span>
-            <span className="module-sub">Alignment</span>
-            <span className="readout" style={{ fontSize: 'var(--text-sm)' }}>centred</span>
-          </div>
+          {mix > 0 && group('Duration', (
+            <div className="row" style={{ gap: 'var(--space-3)', flexWrap: 'wrap' }}>
+              {/* is-across, because a stepper whose − sits above its + is a
+                  list of two options and not a stepper. */}
+              <div className="ctl-bank is-across">
+                <button className="ctl" data-testid="transition-shorter"
+                        disabled={busy || mix - STEP < MIN_TRANSITION_FRAMES}
+                        title="A sixth of a second shorter"
+                        onClick={() => timing({ frames: mix - STEP })}>&minus;</button>
+                <button className="ctl" data-testid="transition-longer"
+                        disabled={busy || mix + STEP > ceiling}
+                        title={mix + STEP > ceiling
+                          ? 'the sections either side cannot pay for more'
+                          : 'A sixth of a second longer'}
+                        onClick={() => timing({ frames: mix + STEP })}>+</button>
+              </div>
+              <span className="readout" data-testid="transition-duration"
+                    style={{ fontSize: 'var(--text-sm)' }}>
+                {`${framesToSeconds(mix).toFixed(2)}s`}
+              </span>
+              <span className="module-sub" data-testid="transition-frames">
+                {`${mix} frames of ${ceiling}`}
+              </span>
+              {scene.transitionFrames !== undefined && (
+                <button className="ctl sm" data-testid="transition-default"
+                        disabled={busy} title="Back to this style's own length"
+                        onClick={() => timing({ frames: null })}>Default</button>
+              )}
+            </div>
+          ))}
+          {mix > 0 && group('Paid by', (
+            <div className="ctl-bank is-across">
+              {(Object.keys(TRANSITION_ALIGNS) as (keyof typeof TRANSITION_ALIGNS)[])
+                .map((id) => (
+                  <button key={id} className={`ctl${align === id ? ' is-on' : ''}`}
+                          data-testid="transition-align" data-align={id}
+                          aria-pressed={align === id} disabled={busy}
+                          title={TRANSITION_ALIGNS[id].hint}
+                          onClick={() => timing({ align: id })}>
+                    {TRANSITION_ALIGNS[id].label}
+                  </button>
+                ))}
+            </div>
+          ))}
           {/*
-            * SAID, NOT DRAWN AS A DEAD SLIDER. Both numbers are fixed for a
-            * reason an author is entitled to know, and a greyed box with no
-            * explanation teaches them to guess. [INV-03]
+            * THE SENTENCE STAYS, THE LAST CLAUSE GOES. It used to end "not
+            * yet yours to set", which described a constraint and drew the
+            * conclusion that the author could not have the control. The
+            * constraint is checkable — `joinProblems` is what MASTER CHECK
+            * and the planner ask — so what it now says is what actually
+            * binds, and the + goes dead at the bound rather than never
+            * having been there. [MASTER-EDIT §3, INV-03]
             */}
           <p className="small muted" style={{ margin: 0, maxWidth: 560 }}>
-            A transition is paid for out of the two shots it joins &mdash; half
-            from the end of one, half from the start of the next &mdash; because
-            the song does not get longer to make room for it. Duration and
-            alignment are not yet yours to set: both depend on whether the two
-            takes have picture across the overlap.
+            A transition is paid for out of the two shots it joins &mdash;
+            because the song does not get longer to make room for it. That is
+            what limits the length: {mix > 0
+              ? `this join can spend ${ceiling} frames before one of the two
+                 sections runs out, and both takes need picture across the
+                 whole overlap.`
+              : 'a cut is instant, so it costs neither of them anything.'}
           </p>
         </div>
       </section>

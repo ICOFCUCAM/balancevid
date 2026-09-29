@@ -428,7 +428,7 @@ pre-render validation
 | pre-render validation | HAVE — `assertPerformanceRenderable`, one shared answer |
 | no overlaps | HAVE by construction — a scene runs until the next begins |
 | no orphaned transition | HAVE — a transition is a field on the scene that arrives |
-| no transition crossing an invalid boundary | GAP — `transitions.ts` names the precondition (both takes must have picture across the overlap) and nothing checks it |
+| no transition crossing an invalid boundary | HAVE — `joinProblems` is the one answer MASTER CHECK, the planner and the duration edit all ask |
 | no negative or invalid durations | HAVE — `assertSamples`, `RangeError` on non-integers |
 
 ### P1 — Studio Two editing
@@ -442,7 +442,8 @@ pre-render validation
 | preserve the song clock | HAVE — `set-scene` at the scene's own sample, never the snapping path |
 | preserve synchronized takes | HAVE — takes are parallel; switching never re-times them |
 | trim | GAP — a scene has no out-point; moving a boundary is `moveScene` |
-| adjust transition duration | GAP — fixed per style |
+| adjust transition duration | HAVE — a stepper bounded by what the join can pay, and a `Default` to put it back |
+| choose which shot pays | HAVE — *Ends on the cut* / *Centred* / *Begins on the cut* |
 | preview | PARTIAL — the programme monitor shows the scene at the playhead; no scrub of the join |
 | **undo / redo** | HAVE — every edit to a performance records a version; ⌘Z / ⌘⇧Z and a control bank step through 50 of them |
 

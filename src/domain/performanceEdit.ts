@@ -23,17 +23,20 @@
 
 import { LAYOUTS, takeSlots } from './presentation.js';
 import { EFFECT_LOOKS, type RoomPlate, SPACE_LOOKS, needsMatte } from './environment.js';
-import { DEFAULT_TRANSITION, isTransition } from './transitions.js';
+import {
+  DEFAULT_TRANSITION, MAX_TRANSITION_FRAMES, MIN_TRANSITION_FRAMES,
+  type TransitionAlign, isTransition, isTransitionAlign, transitionOf,
+} from './transitions.js';
 import { newId } from './ids.js';
 import type { TakeId } from './document.js';
 import {
   type AudioMode, type MasterTrack, type Performance, type PerformanceTake, type Scene,
   AUDIO_MODES, MASTER_CLASSES, PERFORMANCE_SCHEMA_VERSION,
   TAKE_ACCENT_FALLBACK,
-  coverage, coversSpan, mayPublish, orderedScenes, plateFor, renderProblems,
-  takeById,
+  coverage, coversSpan, joinProblems, mayPublish, orderedScenes, plateFor,
+  renderProblems, takeById,
 } from './performance.js';
-import { type Samples, assertSamples } from './time.js';
+import { type Frames, type Samples, assertSamples } from './time.js';
 
 /**
  * A new Performance.
@@ -520,6 +523,86 @@ export function setTransition(
   }
   if (!isTransition(transition)) fail(`unknown transition: ${transition}`);
   scene.transition = transition;
+  /*
+   * A LENGTH SET FOR A DISSOLVE IS NOT A LENGTH FOR A FADE. Both exist in
+   * frames, so keeping the number would type-check and be wrong: eight
+   * frames is a brisk dissolve and a fade so short it reads as a flicker.
+   * Changing the style puts the length back to that style's own. The
+   * alignment is kept, because "who pays" is the author's taste about this
+   * join and does not change with what is drawn across it.
+   */
+  delete scene.transitionFrames;
+}
+
+/**
+ * How long the arrival takes, and which shot pays for it.
+ * [MASTER-EDIT §3, §12 P1, INV-03]
+ *
+ * THE REASON THIS WAS A READOUT AND IS NOW A CONTROL. Duration was written
+ * down as "not yet yours to set: both depend on whether the two takes have
+ * picture across the overlap" — which was true, and was a description of a
+ * constraint rather than a reason not to offer it. The constraint is
+ * checkable: `joinProblems` is the same question MASTER CHECK asks before a
+ * render and the planner asks before it builds one. So the length is the
+ * author's to set, and anything the join cannot pay for is put back with the
+ * reason said out loud, exactly as `coverGap` does. [D-19]
+ *
+ * THREE STATES, NOT TWO, FOR EACH ARGUMENT. `null` means "back to the
+ * style's own", which is how an author undoes a length without having to
+ * remember what it was. `undefined` means "leave that one alone" — and it
+ * has to exist, because the alignment buttons send an alignment and nothing
+ * else, and a two-state argument would read their silence as "reset the
+ * duration". Pressing *Centred* would quietly throw away the length the
+ * author had just dialled in, which is the kind of bug nobody reports
+ * because it looks like they mis-clicked.
+ */
+export function setTransitionTiming(
+  performance: Performance, sceneId: string,
+  frames: Frames | null | undefined, align: string | null | undefined,
+): void {
+  const scene = performance.scenes.find((s) => s.id === sceneId)
+    ?? fail(`no such scene: ${sceneId}`) as never;
+  const ordered = orderedScenes(performance);
+  if (ordered[0]?.id === scene.id) fail('nothing comes before that scene');
+  if (transitionOf(scene).frames === 0) {
+    fail('a cut has no length — choose a dissolve or a fade first');
+  }
+  if (align !== null && align !== undefined && !isTransitionAlign(align)) {
+    fail(`unknown alignment: ${align}`);
+  }
+  const wanted = align as TransitionAlign | null | undefined;
+  if (frames !== null && frames !== undefined) {
+    if (!Number.isSafeInteger(frames)) fail('a duration is a whole number of frames');
+    if (frames < MIN_TRANSITION_FRAMES) fail('a transition is at least one frame long');
+    if (frames > MAX_TRANSITION_FRAMES) {
+      fail(`${MAX_TRANSITION_FRAMES} frames is the longest a transition may be — `
+        + 'past that it is a shot of its own, not a join');
+    }
+  }
+
+  const hadFrames = scene.transitionFrames;
+  const hadAlign = scene.transitionAlign;
+  const before = new Set(joinProblems(performance));
+
+  if (frames === null) delete scene.transitionFrames;
+  else if (frames !== undefined) scene.transitionFrames = frames;
+  if (wanted === null) delete scene.transitionAlign;
+  else if (wanted !== undefined) scene.transitionAlign = wanted;
+
+  /*
+   * PUT BACK, NOT REFUSED IN ADVANCE. Working out beforehand whether a given
+   * length fits would be a fourth copy of the arithmetic in `joinSpan`, and
+   * the fourth copy is the one that disagrees. Asking the same question the
+   * render will ask, after the change, cannot drift from it.
+   */
+  const introduced = joinProblems(performance).find((problem) => !before.has(problem));
+  if (introduced !== undefined) {
+    if (hadFrames === undefined) delete scene.transitionFrames;
+    else scene.transitionFrames = hadFrames;
+    if (hadAlign === undefined) delete scene.transitionAlign;
+    else scene.transitionAlign = hadAlign;
+    fail(introduced);
+  }
 }
 
 /**
