@@ -468,3 +468,34 @@ describe('what sits on a picture', () => {
     expect(offenders, 'use rgba(0,0,0,0.72) — the plate alpha').toEqual([]);
   });
 });
+
+/**
+ * A PANEL TITLE IS A LEGEND, WHATEVER TAG IT USES.  [brief §13]
+ *
+ * The `<h2 style={{fontSize: 16}}>` route into a stray heading was
+ * closed in 35, and four titles had simply taken a different route:
+ * `<strong className="grow">The finished video</strong>`, and the
+ * same shape for Clips, Claims worth answering and — in the control
+ * room — Destinations. No font size to catch, no heading tag to
+ * catch, and the browser's bold default lands them somewhere between
+ * --text-base and --text-md depending on the container.
+ *
+ * The tell is that the text is a LITERAL. A `<strong>` wrapping
+ * `{entry.name}` or `{title}` is a value being emphasised, which is
+ * what the tag is for; a `<strong>` wrapping words typed into the
+ * source is a title, and a title on a desk is a legend.
+ */
+describe('titles', () => {
+  it('writes no panel title as a bold literal', () => {
+    const offenders: string[] = [];
+    for (const file of ['t', 'c', 'p']
+      .flatMap((route) => components(join(ROOT, 'app', route, '[id]')))) {
+      for (const hit of code(file).matchAll(
+        /<strong[^>]*className="[^"]*\bgrow\b[^"]*"[^>]*>\s*([A-Z][^<{]*?)\s*<\/strong>/g)) {
+        offenders.push(`${named(file)}: "${hit[1]}"`);
+      }
+    }
+    expect(offenders, 'use className="module-label" — a title is signage')
+      .toEqual([]);
+  });
+});

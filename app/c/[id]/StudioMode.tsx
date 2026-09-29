@@ -133,7 +133,7 @@ function TimelineBand({ timeline, onSeek }: { timeline: any; onSeek: (frame: num
   return (
     <div className="panel" style={{ marginBottom: 12 }}>
       <div className="row" style={{ marginBottom: 6 }}>
-        <strong className="grow">The finished video</strong>
+        <span className="module-label grow">The finished video</span>
         <span className="small muted mono">{formatTimecode(timeline.totalOutputFrames)}</span>
       </div>
       <div style={{ display: 'flex', height: 26, borderRadius: 4, overflow: 'hidden' }}>
@@ -862,7 +862,7 @@ function ClipsPanel({ conversationId }: { conversationId: string }) {
   return (
     <div className="panel" style={{ marginBottom: 12 }}>
       <div className="row">
-        <strong className="grow">Clips</strong>
+        <span className="module-label grow">Clips</span>
         <span className="small muted">
           Each point, on its own, vertical — the claim then your reply
         </span>

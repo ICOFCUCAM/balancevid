@@ -86,7 +86,7 @@ export default function ClaimsPanel({
     <div style={{ marginTop: 16, borderTop: '1px solid var(--line)', paddingTop: 12 }}
          data-testid="claims-panel">
       <div className="row" style={{ marginBottom: 6 }}>
-        <strong className="grow">Claims worth answering</strong>
+        <span className="module-label grow">Claims worth answering</span>
         <span className="small muted mono">{claims.length}</span>
       </div>
 

@@ -1870,7 +1870,7 @@ export default function ChannelStudio({
                 * with its sides cut off. [§15, U-22, D-21]
                 */}
               <div className="row">
-                <strong className="grow" style={{ fontSize: 'var(--text-sm)' }}>Destinations</strong>
+                <span className="module-label grow">Destinations</span>
                 <button className="small" data-testid="add-destination"
                         onClick={() => confirm({
                           question: 'Every destination carries the same '
