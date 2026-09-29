@@ -8,6 +8,7 @@ import {
 import { EXPORT_PROFILES } from '../../../src/domain/presentation.js';
 import { formatMasterPosition } from '../../../src/domain/time.js';
 import SoundModes from './SoundModes.js';
+import VideoTransport from '../../VideoTransport.js';
 import type { RenderJob } from './Deliver.js';
 
 /**
@@ -70,6 +71,9 @@ export default function MasterRender({
 }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /* The element goes into state as well, because the transport is a sibling
+     that needs it as a prop and a ref read during render is null. */
+  const [preview, setPreview] = useState<HTMLVideoElement | null>(null);
 
   const id = performance.id;
   const publishable = mayPublish(performance.master);
@@ -149,7 +153,7 @@ export default function MasterRender({
 
   return (
     <section className="module" data-testid="master-render"
-             data-state={master?.state ?? 'none'} style={{ marginTop: 12 }}>
+             data-state={master?.state ?? 'none'}>
       <header className="module-head">
         <span className="module-label">Master</span>
         <span className="module-sub grow" style={{
@@ -161,6 +165,39 @@ export default function MasterRender({
       <div className="module-body is-padded" style={{
         display: 'flex', flexDirection: 'column', gap: 'var(--space-5)',
       }}>
+        {/*
+          * THE MASTER, WATCHABLE.  [§14, U-04]
+          *
+          * The one file this studio exists to produce, and the only way to
+          * see it was to download it. A picture of the thing you just made,
+          * on the page where you made it, is not decoration: it is how an
+          * author finds the cut that landed a frame late without opening a
+          * second application.
+          *
+          * The same `<video>` and the same transport every other picture in
+          * this product uses, on the same square-cornered bed. [D-19]
+          */}
+        {master?.state === 'done' && planHash && (
+          <div style={{
+            border: 'var(--border) solid var(--line)',
+            borderRadius: 'var(--radius-screen)', overflow: 'hidden',
+            background: 'var(--screen-bed)',
+          }}>
+            <video
+              data-testid="master-preview"
+              src={`/api/performances/${id}/renders/${planHash}/file`}
+              playsInline preload="metadata"
+              ref={setPreview}
+              style={{
+                width: '100%', aspectRatio: '16 / 9', display: 'block',
+                border: 0, borderRadius: 0, objectFit: 'contain',
+                background: 'var(--screen-bed)',
+              }}
+            />
+            <VideoTransport video={preview} />
+          </div>
+        )}
+
         {/* ---- what the file is, whether or not it exists yet --------- */}
         <div className="row" style={{ gap: 'var(--space-5)', flexWrap: 'wrap' }}>
           <div className="grow" style={{ minWidth: 0 }}>

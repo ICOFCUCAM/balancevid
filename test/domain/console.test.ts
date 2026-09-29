@@ -1114,20 +1114,36 @@ describe('the viewer pages', () => {
   });
 
   /*
-   * AND THE TWO THAT NEEDED ONE USE THE SAME TRANSPORT. Two
-   * transports exist on purpose — Studio One's is built on a frame
-   * address because an editor cuts on frames [INV-02], a viewer's is
-   * built on seconds because a viewer watches. A THIRD would be the
+   * AND THERE ARE TWO TRANSPORTS, ON PURPOSE. Studio One's is built on a
+   * frame address because an editor cuts on frames [INV-02]; the other is
+   * built on seconds because watching is not cutting. A THIRD would be the
    * point at which they should have been merged.
+   *
+   * THE FIRST VERSION OF THIS PINNED THE LIST OF USERS, which is a
+   * different claim and the wrong one. It failed the moment Studio Two's
+   * MASTER module grew a preview of the finished file — a new USER of the
+   * seconds transport, which is the rule working exactly as intended, and
+   * the opposite of a third implementation. Counting the definitions is
+   * what it meant all along; who calls them is not a fact worth freezing.
    */
-  it('has one transport for viewers', () => {
-    const users = components()
-      .filter((file) => /<VideoTransport/.test(code(file)))
+  it('has two transports and no third', () => {
+    const transports = components()
+      .filter((file) => /export default function \w*Transport\b/.test(code(file)))
       .map(named).sort();
-    expect(users).toEqual([
-      'app/p/[id]/watch/Watch.tsx',
-      'app/t/[id]/watch/ChannelPlayer.tsx',
-    ]);
+    expect(transports, 'a third transport — merge it with one of these')
+      .toEqual(['app/VideoTransport.tsx', 'app/c/[id]/SourceTransport.tsx']);
+  });
+
+  /*
+   * And the frame-addressed one stays in the room that cuts on frames. A
+   * viewer handed a frame counter is being shown an edit surface.
+   */
+  it('and the frame transport never reaches a viewer', () => {
+    const users = components()
+      .filter((file) => /<SourceTransport/.test(code(file)))
+      .map(named);
+    expect(users.filter((file) => /\/watch\//.test(file)),
+      'a viewer counts seconds, not frames').toEqual([]);
   });
 
   /*
@@ -1302,6 +1318,52 @@ describe('the delivery half is made of the same material as the editor', () => {
     }
     expect(offenders, 'Delivery.tsx owns the poll — take the jobs as a prop')
       .toEqual([]);
+  });
+
+  /*
+   * THREE COLUMNS, NOT THREE STACKED PANELS. Master, Deliver and Publish
+   * are three acts in order, and an order reads left to right on a desk —
+   * the same reason the stage strip is a row. Stacked, each is as wide as
+   * the page and as short as its contents, which is how a 300px card ended
+   * up with a 300px column of empty dark beside it.
+   */
+  it('and stands the three acts side by side', () => {
+    const wiring = code(join(ROOT, 'app', 'p', '[id]', 'Delivery.tsx'));
+    expect(wiring, 'the three acts are stacked again')
+      .toMatch(/gridTemplateColumns: 'repeat\(auto-fit/);
+    /* And a short column stays short: a module stretched to match its
+       tallest neighbour is air inside a border, which is the thing being
+       fixed. */
+    expect(wiring, "a short column will stretch and fill with air")
+      .toMatch(/alignItems: 'start'/);
+  });
+
+  /*
+   * AND THE MASTER IS WATCHABLE WHERE IT IS MADE. The one file this studio
+   * exists to produce, and the only way to see it was to download it.
+   */
+  it('and shows the master rather than only offering it', () => {
+    expect(code(join(ROOT, 'app', 'p', '[id]', 'MasterRender.tsx')),
+      'the master can still only be downloaded, not watched')
+      .toContain('data-testid="master-preview"');
+  });
+
+  /*
+   * WHERE IT GOES NAMES SOMEWHERE FOR EVERYONE. A studio sold on its own
+   * has no channel, so a destinations list that held only channels said
+   * nothing at all to most of the people reading it. [CHANNEL §6, D-14]
+   */
+  it('and tells a studio-only owner where their file can go', () => {
+    const publish = code(join(ROOT, 'app', 'p', '[id]', 'PublishPanel.tsx'));
+    expect(publish, 'the destinations are channels only')
+      .toContain('POSTING');
+    /*
+     * AND PROMISES NOTHING IT CANNOT DO. Nothing in this product uploads
+     * to any platform; a control offering to connect one would be the only
+     * thing worse than the row not being there.
+     */
+    expect(publish, 'a Connect button that connects nothing')
+      .not.toMatch(/>\s*Connect\b/);
   });
 
   /*

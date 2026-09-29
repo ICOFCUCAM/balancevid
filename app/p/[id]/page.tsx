@@ -46,6 +46,20 @@ export default async function PerformancePage(
       initial={performance!}
       studioOneId={conversations[0]?.id}
       studioThreeId={channels[0]?.id}
+      /*
+       * WHERE THIS COULD GO. A channel can already broadcast a Studio Two
+       * render — `ProgrammeSource {kind:'render', document:'performance'}`
+       * — and the control room's library already lists performances. The
+       * door existed and opened only from the other side. [CHANNEL §5]
+       */
+      channels={channels.map((channel) => ({
+        id: channel.id,
+        name: channel.name,
+        rotation: (channel.rotation ?? []).flatMap((entry) =>
+          entry.source.kind === 'render' && entry.source.document === 'performance'
+            && entry.source.documentId === id
+            ? [{ entryId: entry.id, planHash: entry.source.planHash }] : []),
+      }))}
     />
   );
 }

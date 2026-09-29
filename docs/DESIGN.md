@@ -400,6 +400,24 @@ Four things fell out of it that are worth keeping:
   this product uses for something having gone wrong. Nothing has: a
   performance that has not been mastered is the ordinary condition of every
   performance for most of its life. It is a lamp that is not lit.
+- **Three columns, not three stacked panels.** Three acts in order read left
+  to right on a desk, the same reason the stage strip is a row. Stacked, each
+  is as wide as the page and as short as its contents — which is how a 300px
+  card ended up with a 300px column of empty dark beside it. `align-items:
+  start`, because a module stretched to match its tallest neighbour is air
+  inside a border, which is the thing being fixed.
+- **The master is watchable where it is made.** The one file this studio
+  exists to produce, and the only way to see it was to download it. Same
+  `<video>`, same transport, same square-cornered bed as every other picture.
+- **Where it goes names somewhere for everyone.** A studio sold on its own has
+  no channel, so a destinations list holding only channels said nothing to
+  most of the people reading it. Each platform row says the shape it wants,
+  whether that cut exists, and hands over the file. **There is no Connect
+  button**: nothing in this product uploads anywhere, every one of those
+  platforms needs an app review first (`PLATFORMS` records which and why), and
+  a control promising a connection nobody built is the only thing worse than
+  the row's absence. What the product can do — make the cut each place wants
+  — is what each row offers.
 - **Perform → Compose → Master → Deliver is a readout, not a wizard.**
   Nothing gates anything; every stage stays reachable at every moment (U-04).
   `stagesOf` lives in the domain because "is this performance composed" is a
@@ -429,6 +447,7 @@ is describing, and then walks straight past the next instance:
 | a screen has square corners | radii ≥ 8, written as digits, in three route folders | any radius above `--radius-screen`, token or digit, anywhere in `app/` |
 | why a render is refused | decided twice — properly in the invariant, worse in the console | `renderProblems`, asked by both |
 | red is for on air and for recording | `is-critical` anywhere near a testid | `.ctl` and `is-critical` in one class expression |
+| one transport for viewers | the exact list of files that used it | the count of files that DEFINE one |
 
 Each widening found more: nine corners, five near-blacks, five titles,
 fourteen sizes — and, the fifth time, twenty-two rounded pictures on six

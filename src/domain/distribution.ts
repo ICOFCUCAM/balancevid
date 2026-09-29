@@ -150,6 +150,42 @@ export function sending(
  * on this afternoon and one that waits on an app review, and a product that
  * showed them identically would be promising something it cannot deliver.
  */
+/**
+ * WHERE A FINISHED FILE GOES, as against where a live stream is pushed.
+ * [§14, CHANNEL §16]
+ *
+ * `PLATFORMS` above is about broadcasting: TikTok LIVE, YouTube LIVE, an
+ * RTMP server taking a stream right now. A performance is not a stream — it
+ * is a file somebody posts — and the posting flow is a different one with
+ * different permissions. What the two share is the fact that matters here:
+ * the SHAPE each audience watches in. TikTok is 9:16 whether you are
+ * streaming to it or posting to it, so that answer is read from the one
+ * table rather than written down twice. [D-19]
+ *
+ * THE LIST IS SHORT AND SAYS SO. Nothing in this product uploads to any of
+ * these; what it can do is make the cut each of them wants, which is most of
+ * the work and all of the part that needs a renderer. A row here is a
+ * statement about a shape, not a promise about a connection — which is why
+ * there is no "Connect" button anywhere near it. A button that connects
+ * nothing is worse than its absence, because absence is at least true.
+ */
+export const POSTING: { kind: DestinationKind; label: string }[] = [
+  { kind: 'youtube', label: 'YouTube' },
+  { kind: 'tiktok', label: 'TikTok' },
+  { kind: 'facebook', label: 'Facebook' },
+  { kind: 'x', label: 'X' },
+];
+
+/** The export profile that makes the cut a platform wants. */
+export function profileForShape(shape: Destination['shape']): string {
+  switch (shape) {
+    case '9:16': return 'vertical_9x16';
+    case '1:1': return 'square_1x1';
+    case '4:5': return 'portrait_4x5';
+    default: return 'youtube_16x9';
+  }
+}
+
 export const PLATFORMS: Record<DestinationKind, {
   label: string;
   shape: Destination['shape'];
