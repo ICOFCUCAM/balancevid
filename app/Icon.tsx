@@ -24,7 +24,7 @@ export type IconName =
   | 'channels' | 'distribution' | 'settings' | 'search' | 'bell'
   | 'disk' | 'clock' | 'calendar' | 'play' | 'plus' | 'chevron'
   | 'arrow' | 'upload' | 'link' | 'live' | 'pencil' | 'sun' | 'moon'
-  | 'sound' | 'muted' | 'expand';
+  | 'sound' | 'muted' | 'expand' | 'faders';
 
 /* Each is the inner geometry; the frame and the stroke are set below. */
 const PATHS: Record<IconName, React.ReactNode> = {
@@ -129,6 +129,20 @@ const PATHS: Record<IconName, React.ReactNode> = {
     <>
       <circle cx="12" cy="12" r="3.2" />
       <path d="M6.8 6.8a7.4 7.4 0 0 0 0 10.4M17.2 6.8a7.4 7.4 0 0 1 0 10.4" />
+    </>
+  ),
+  /*
+   * A MIXER IS FADERS. The control room's mixer toggle was ☰ — the
+   * Unicode trigram for heaven, which is three horizontal lines, which
+   * is a hamburger menu, which is what every reader takes it for. It
+   * opens a bank of channel strips. Three vertical travels with caps
+   * at different heights is the symbol for that, and it also says at a
+   * glance that the thing is a mixer rather than a list.
+   */
+  faders: (
+    <>
+      <path d="M7 4v5.2M7 14.8V20M12 4v9.2M12 18.8V20M17 4v2.2M17 11.8V20" />
+      <path d="M5.2 9.2h3.6v5.6H5.2zM10.2 13.2h3.6v5.6h-3.6zM15.2 6.2h3.6v5.6h-3.6z" />
     </>
   ),
   sound: (

@@ -121,7 +121,7 @@ export default function MasterRender({ performance }: { performance: Performance
     <section style={{ marginTop: 18 }} data-testid="master-render">
       {/* What this does is said on the button that does it. A paragraph over
           a control is a lecture before a question. */}
-      <h2 style={{ fontSize: 14, margin: '0 0 7px' }}
+      <h2 className="module-label" style={{ margin: '0 0 7px' }}
           title={'Your takes stay separate files until you press this. You can '
             + 'press it again after changing your mind without losing anything.'}>
         Make the video

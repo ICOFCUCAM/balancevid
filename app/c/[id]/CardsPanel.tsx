@@ -71,7 +71,7 @@ export default function CardsPanel({ conversationId }: { conversationId: string 
 
   return (
     <section style={{ marginTop: 22 }} data-testid="cards-panel">
-      <h3 style={{ fontSize: 16, marginBottom: 2 }}>Share cards</h3>
+      <h3 className="module-label" style={{ margin: '0 0 3px' }}>Share cards</h3>
       <p className="small muted" style={{ marginTop: 0, maxWidth: 640 }}>
         One card for each thing you answered: the claim, and what you said
         back. Made from the conversation, so nothing here is written twice.

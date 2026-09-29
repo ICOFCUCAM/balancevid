@@ -251,7 +251,7 @@ export default function PublishStage({
 
         {/* ---- the moments worth posting on their own -------------------- */}
         <section style={{ marginTop: 26 }} data-testid="publish-clips">
-          <h3 style={{ fontSize: 16, marginBottom: 2 }}>Share clips</h3>
+          <h3 className="module-label" style={{ margin: '0 0 3px' }}>Share clips</h3>
           <p className="small muted" style={{ marginTop: 0, maxWidth: 620 }}>
             A long conversation has no short form, but each exchange in it does:
             the statement, then your answer. Choose the ones worth posting —

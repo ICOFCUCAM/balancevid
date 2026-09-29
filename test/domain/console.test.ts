@@ -123,52 +123,34 @@ describe('the legend', () => {
   });
 
   /*
-   * AND THE DESKS ARE LOSING THEIR HAND-WRITTEN SIZES.
+   * AND THE STUDIOS WRITE NO SIZES BY HAND AT ALL.
    *
-   * The first draft of this test banned any `fontSize` of 15 or more on
-   * a desk, on the theory that a panel title at heading size is a
-   * heading that escaped. It failed on the Room's `<h1>` — which is a
-   * page title and genuinely a heading — and on a placeholder glyph
-   * sized 16 with opacity 0.4, which is furniture. A rule that fires on
-   * two correct things and one wrong one is measuring the wrong
-   * property.
+   * This started as a ratchet at 164, because the first draft — a ban
+   * on any `fontSize` of 15 or more on a desk — fired on the Room's
+   * `<h1>`, which is a page title and genuinely a heading, and on a
+   * placeholder glyph, which is furniture. A rule that is wrong about
+   * two things out of three is measuring the wrong property, so it
+   * became a countable budget instead: a number written by hand is a
+   * size chosen by eye against one screen, and you can simply count
+   * them.
    *
-   * What is actually true is narrower and countable: a type scale
-   * exists, a number written by hand is a size chosen by eye against
-   * one screen, and the desks are full of them. So it is a ratchet,
-   * like the raw colours. Lower it when a surface is converted.
+   * 164 → 25 → 6 → 0 over four commits, and at zero a budget is worse
+   * than a ban: it invites the next one. The scale has eight steps and
+   * they cover everything the three studios needed, which is the
+   * argument the number was standing in for all along.
    *
-   * 164 → 25 → 6. 10, 11, 12 and
-   * 13 ARE the scale — `--text-2xs` through `--text-base` are those
-   * exact pixels — so those were a rename with no visual change at
-   * all. The 8s and 9s were below the scale's floor and went up to it.
-   * The six left are heading rungs that need looking at rather than
-   * mapping.
-   */
-  const SIZES = 6;
-
-  /*
-   * AND IT NOW COVERS THE WHOLE OF THE THREE STUDIOS, not the five
-   * desk files. The narrow version was right while the desks were the
-   * only converted surfaces and everything around them was full of
-   * hand-written numbers — a ratchet you can satisfy by moving a
-   * `<span>` into a sibling file measures nothing.
-   *
-   * Every .tsx under the three studio routes now counts, which is 60
-   * files rather than 5, and the number is 6.
+   * The building is deliberately not included, for the same reason it
+   * keeps its rounding — this is a claim about what a console is made
+   * of, and the lobby is not one.
    */
   const STUDIOS = ['t', 'c', 'p']
     .flatMap((route) => components(join(ROOT, 'app', route, '[id]')));
 
-  it(`writes at most ${SIZES} sizes by hand across the studios`, () => {
-    const counts = STUDIOS.map((file) => ({
-      file: named(file),
-      n: (code(file).match(/fontSize:\s*\d/g) ?? []).length,
-    })).filter((row) => row.n > 0).sort((a, b) => b.n - a.n);
-    const total = counts.reduce((sum, row) => sum + row.n, 0);
-    expect(total, `${counts.length} files: ${counts.slice(0, 4)
-      .map((row) => `${row.file} (${row.n})`).join(', ')}`)
-      .toBeLessThanOrEqual(SIZES);
+  it('writes no size by hand anywhere in the three studios', () => {
+    const offenders = STUDIOS.flatMap((file) =>
+      (code(file).match(/fontSize:\s*\d+/g) ?? [])
+        .map((hit) => `${named(file)}: ${hit}`));
+    expect(offenders, 'the scale has eight steps — use one').toEqual([]);
   });
 });
 

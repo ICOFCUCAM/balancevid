@@ -14,6 +14,7 @@ import { SPACE_LOOKS } from '../../../src/domain/environment.js';
 import { PLATFORMS } from '../../../src/domain/distribution.js';
 import { LIVE_DELAY_MS } from '../../../src/domain/playout.js';
 import StudioBar from '../../StudioBar.js';
+import Icon from '../../Icon.js';
 import {
   MenuButton, MenuHost, RightClickHint, useRowMenu, type MenuEntry,
 } from '../../Menu.js';
@@ -1274,11 +1275,21 @@ export default function ChannelStudio({
               <button
                 type="button" aria-label="Mixer" data-testid="mixer-toggle"
                 onClick={() => setMixerOpen((open) => !open)}
+                /*
+                  * ☰ WAS NOT AN ICON. It is U+2630, the trigram for
+                  * heaven, and it is read as a hamburger menu by
+                  * everybody — over a button that opens the mixer. It
+                  * was also the last glyph-as-icon in the studios and
+                  * the last hand-written font size, which is not a
+                  * coincidence: a character used as a symbol has to be
+                  * sized like text because it IS text, and it renders
+                  * at a different weight on every platform.
+                  */
                 style={{
-                  border: 0, background: 'none', padding: 0, fontSize: 14,
+                  border: 0, background: 'none', padding: 0, lineHeight: 0,
                   cursor: 'pointer', color: mixerOpen ? 'var(--accent-soft)' : 'var(--muted)',
                 }}
-              >&#9776;</button>
+              ><Icon name="faders" size={15} /></button>
             )}
           />
 

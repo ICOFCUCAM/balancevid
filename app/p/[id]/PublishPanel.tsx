@@ -104,7 +104,7 @@ export default function PublishPanel({
 
   return (
     <section style={{ marginTop: 18 }} data-testid="publish">
-      <h2 style={{ fontSize: 14, margin: '0 0 7px' }}
+      <h2 className="module-label" style={{ margin: '0 0 7px' }}
           title={'A clip is the same video with a window on it \u2014 the same '
             + 'arrangement, the same backgrounds, the same sound \u2014 cut '
             + 'vertical for the places people watch one.'}>
