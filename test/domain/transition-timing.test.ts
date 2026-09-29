@@ -23,11 +23,11 @@ import { describe, expect, it } from 'vitest';
 import type { AssetId, TakeId } from '../../src/domain/document.js';
 import {
   type MasterTrack, type Performance, type PerformanceTake, type Scene,
-  joinProblems, joinRoom, joinSpan, masterCheck, orderedScenes,
+  allProblems, joinProblems, joinRoom, joinSpan, masterCheck, orderedScenes,
 } from '../../src/domain/performance.js';
 import {
-  PerformanceEditError, addTake, newPerformance, setScene, setTransition,
-  setTransitionTiming,
+  PerformanceEditError, addTake, coverGap, moveBoundary, moveScene,
+  newPerformance, setScene, setTransition, setTransitionTiming,
 } from '../../src/domain/performanceEdit.js';
 import {
   PerformancePlanError, buildPerformancePlan,
@@ -394,5 +394,101 @@ describe('the checklist and the render agree about a join', () => {
         expect(ticks(p), `${frames} frames, ${align}`).toBe(plans(p));
       }
     }
+  });
+});
+
+/*
+ * TRIM, WHICH IS A BOUNDARY MOVE.  [MASTER-EDIT §2, §12 P1, INV-03]
+ *
+ * A Scene has a start and no end, so there is no out-point to set and the
+ * honest operation is moving the boundary the next clip begins on. What has
+ * to be proved is that the guard is real — `moveScene` will happily open a
+ * hole, and the whole difference between switching and dragging is that the
+ * author dragging is looking at the consequence and would rather be stopped.
+ */
+describe('trim', () => {
+  /** Three clips, and a take under the middle one that does not reach far. */
+  function three(): { performance: Performance; scenes: Scene[] } {
+    const p = newPerformance('My Performance', master(), AT);
+    addTake(p, take('take_1'));
+    addTake(p, take('take_2', {
+      useFromSample: secondsToSamples(60),
+      useToSample: secondsToSamples(121),
+    }));
+    addTake(p, take('take_3'));
+    setScene(p, 0, { layoutId: 'performance_full', takeIds: ['take_1'] });
+    setScene(p, secondsToSamples(60),
+      { layoutId: 'performance_full', takeIds: ['take_2'] });
+    setScene(p, secondsToSamples(120),
+      { layoutId: 'performance_full', takeIds: ['take_3'] });
+    return { performance: p, scenes: orderedScenes(p) };
+  }
+
+  it('moves the boundary, and the clip before it grows by what this one lost', () => {
+    const { performance, scenes } = three();
+    const step = framesToSamples(5);
+    const first = scenes[0]!;
+    const middle = scenes[1]!;
+    const wasFirst = middle.fromSample - first.fromSample;
+    moveBoundary(performance, middle.id, middle.fromSample + step);
+    expect(middle.fromSample - first.fromSample).toBe(wasFirst + step);
+  });
+
+  /*
+   * There was a short-circuit here for the no-op case, and no mutation of it
+   * could be made to fail: `moveScene` writing the same number is not
+   * observable, so the branch was a saving nobody could measure guarding a
+   * path nobody could test. It is gone. The property it claimed is still
+   * worth pinning, which is what this is. [an assertion nobody has seen fail]
+   */
+  it('is nothing at all when the boundary is already there', () => {
+    const { performance, scenes } = three();
+    const middle = scenes[1]!;
+    const was = allProblems(performance);
+    moveBoundary(performance, middle.id, middle.fromSample);
+    expect(allProblems(performance)).toEqual(was);
+  });
+
+  /*
+   * THE DIFFERENCE FROM `moveScene`, which is the whole point. Dragging the
+   * middle clip's start back past where its take begins is a stretch of song
+   * with nothing on screen, and the author gets told rather than shown.
+   */
+  it('refuses a move that opens a hole, and puts the boundary back', () => {
+    const { performance, scenes } = three();
+    const middle = scenes[1]!;
+    const was = middle.fromSample;
+    const back = was - framesToSamples(30);
+    /* The unguarded operation allows it — that is what it is for. */
+    moveScene(performance, middle.id, back);
+    expect(allProblems(performance).length).toBeGreaterThan(0);
+    moveScene(performance, middle.id, was);
+
+    expect(() => moveBoundary(performance, middle.id, back)).toThrow();
+    expect(middle.fromSample).toBe(was);
+    expect(allProblems(performance)).toEqual([]);
+  });
+
+  it('refuses a move that breaks a transition it is not even touching', () => {
+    const { performance, scenes } = three();
+    const last = scenes[2]!;
+    setTransition(performance, last.id, 'fade');
+    setTransitionTiming(performance, last.id, 40, null);
+    expect(allProblems(performance)).toEqual([]);
+    /*
+     * Moving the LAST clip's start up to just after the middle one's leaves
+     * the fade nowhere to be paid from on the way in.
+     */
+    expect(() => moveBoundary(
+      performance, last.id, scenes[1]!.fromSample + framesToSamples(4),
+    )).toThrow(/longer than the sections it joins/);
+    expect(last.fromSample).toBe(secondsToSamples(120));
+  });
+
+  it('is a PerformanceEditError, so the route answers 400', () => {
+    const { performance, scenes } = three();
+    expect(() => moveBoundary(
+      performance, scenes[1]!.id, scenes[1]!.fromSample - framesToSamples(30),
+    )).toThrow(PerformanceEditError);
   });
 });

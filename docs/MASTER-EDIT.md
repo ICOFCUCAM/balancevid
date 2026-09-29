@@ -441,7 +441,7 @@ pre-render validation
 | add / remove a transition | HAVE — from the clip or from the join |
 | preserve the song clock | HAVE — `set-scene` at the scene's own sample, never the snapping path |
 | preserve synchronized takes | HAVE — takes are parallel; switching never re-times them |
-| trim | GAP — a scene has no out-point; moving a boundary is `moveScene` |
+| trim | HAVE — In and Out step the boundary, guarded: a scene still has no out-point, because its out IS the next clip's in, and the panel says so |
 | adjust transition duration | HAVE — a stepper bounded by what the join can pay, and a `Default` to put it back |
 | choose which shot pays | HAVE — *Ends on the cut* / *Centred* / *Begins on the cut* |
 | preview | PARTIAL — the programme monitor shows the scene at the playhead; no scrub of the join |

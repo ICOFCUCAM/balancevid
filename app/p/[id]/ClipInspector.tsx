@@ -7,7 +7,9 @@ import {
   MAX_TRANSITION_FRAMES, MIN_TRANSITION_FRAMES, TRANSITIONS, TRANSITION_ALIGNS,
   transitionAlignOf, transitionOf,
 } from '../../../src/domain/transitions.js';
-import { HOUSE_FPS, formatMasterPosition, framesToSeconds } from '../../../src/domain/time.js';
+import {
+  HOUSE_FPS, formatMasterPosition, framesToSamples, framesToSeconds,
+} from '../../../src/domain/time.js';
 
 /**
  * What a segment of the Master Video IS, and what can be done to it.
@@ -33,17 +35,18 @@ import { HOUSE_FPS, formatMasterPosition, framesToSeconds } from '../../../src/d
  * list of operations, two ways in — which is the rule the product's own Menu
  * component was built on. [D-19]
  *
- * WHAT IT DELIBERATELY DOES NOT HAVE YET, said out loud rather than drawn
- * as a dead control:
+ * TRIM EXISTS, AND IS A BOUNDARY MOVE. It was once on a list of things this
+ * deliberately did not have, with the reason that "a Scene has a
+ * `fromSample` and no end, which is what makes the picture track a PARTITION
+ * of the song and therefore continuous by construction". All of that is
+ * still true and none of it was a reason to withhold the control — it was a
+ * reason to shape it. So In and Out step the boundary rather than an
+ * out-point, the Out control is the NEXT clip's In under a different label,
+ * the last clip has no Out because the song ends where it ends, and the
+ * panel says so in a sentence rather than leaving an author to deduce it
+ * from a disabled button. [MASTER-EDIT §2, INV-03]
  *
- *   TRIM IN/OUT per segment. A Scene has a `fromSample` and no end — it runs
- *   until the next one begins, which is what makes the picture track a
- *   PARTITION of the song and therefore continuous by construction. Giving a
- *   scene its own out-point would let two scenes leave a hole between them,
- *   which is the one thing INV-03 exists to prevent. Moving a boundary is
- *   `moveScene`, and that is the honest operation here.
- *
- * TRANSITION DURATION AND ALIGNMENT USED TO BE ON THAT LIST, and the reason
+ * TRANSITION DURATION AND ALIGNMENT WERE ON THE SAME LIST, and the reason
  * given was that duration "is a constraint satisfaction problem against both
  * neighbours' coverage, not a number box". That was true about the
  * constraint and wrong about the conclusion: the constraint is CHECKABLE.
@@ -69,6 +72,9 @@ export type Selection =
  */
 const STEP = Math.round(HOUSE_FPS / 6);
 
+/** The same step, on the clock a boundary lives on. */
+const TRIM_STEP_SAMPLES = framesToSamples(STEP);
+
 const AUDIO_LABELS: Record<AudioMode, string> = {
   music_and_mic: 'Song and whoever is on screen',
   take_audio: 'Only this camera',
@@ -90,7 +96,23 @@ export default function ClipInspector({
   const scene = ordered[index];
   if (!scene) return null;
   const before = index > 0 ? ordered[index - 1] : undefined;
-  const to = ordered[index + 1]?.fromSample ?? performance.master.durationSamples;
+  const next = ordered[index + 1];
+  const to = next?.fromSample ?? performance.master.durationSamples;
+  const outTitle = next
+    ? "Move the boundary this clip ends on, which is the next clip's beginning"
+    : 'The song ends here, and the master is exactly as long as the song';
+  /**
+   * One step of trim, on whichever scene owns the boundary.
+   *
+   * The server may put it back — a boundary dragged past what the takes
+   * reach is a hole, and a hole is refused rather than drawn — so this asks
+   * and does not predict.
+   */
+  const trim = (id: string, direction: 1 | -1) => onAct({
+    action: 'move-boundary', sceneId: id,
+    at: Math.max(0, (ordered.find((s) => s.id === id)?.fromSample ?? 0)
+      + direction * TRIM_STEP_SAMPLES),
+  });
   const layout = LAYOUTS[scene.layoutId];
   const slots = takeSlots(layout ?? LAYOUTS['performance_full']!);
   const name = (id: string) =>
@@ -339,6 +361,69 @@ export default function ClipInspector({
           </select>
         ))}
 
+        {/*
+          * TRIM — and there is only one control per boundary, because there
+          * is only one boundary. A clip's out IS the next clip's in, so
+          * moving "the end of this one" and "the start of that one" would be
+          * two buttons wired to the same field, which is how an author comes
+          * to believe there is a gap between them. [MASTER-EDIT §2, INV-03]
+          */}
+        {group('Trim', (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+            <div className="row" style={{ gap: 'var(--space-3)', flexWrap: 'wrap' }}>
+              <span className="module-sub" style={{ minWidth: 28 }}>In</span>
+              <div className="ctl-bank is-across">
+                <button className="ctl" data-testid="trim-in-earlier"
+                        disabled={busy || scene.fromSample === 0}
+                        title={scene.fromSample === 0
+                          ? 'the song starts here'
+                          : `Start a sixth of a second earlier${before
+                            ? ', which is the same as lengthening the clip before it' : ''}`}
+                        onClick={() => trim(scene.id, -1)}>&minus;</button>
+                <button className="ctl" data-testid="trim-in-later"
+                        disabled={busy} title="Start a sixth of a second later"
+                        onClick={() => trim(scene.id, 1)}>+</button>
+              </div>
+              <span className="readout" data-testid="trim-in"
+                    style={{ fontSize: 'var(--text-sm)' }}>
+                {formatMasterPosition(scene.fromSample)}
+              </span>
+              <button className="ctl sm" data-testid="clip-start-here" disabled={busy}
+                      title="Move this clip's beginning to the playhead"
+                      onClick={() => onAct({
+                        action: 'move-scene-to-playhead', sceneId: scene.id,
+                      })}>
+                At playhead
+              </button>
+            </div>
+            <div className="row" style={{ gap: 'var(--space-3)', flexWrap: 'wrap' }}>
+              <span className="module-sub" style={{ minWidth: 28 }}>Out</span>
+              <div className="ctl-bank is-across">
+                <button className="ctl" data-testid="trim-out-earlier"
+                        disabled={busy || !next} title={outTitle}
+                        onClick={() => next && trim(next.id, -1)}>&minus;</button>
+                <button className="ctl" data-testid="trim-out-later"
+                        disabled={busy || !next} title={outTitle}
+                        onClick={() => next && trim(next.id, 1)}>+</button>
+              </div>
+              <span className="readout" data-testid="trim-out"
+                    style={{ fontSize: 'var(--text-sm)' }}>
+                {formatMasterPosition(to)}
+              </span>
+              <span className="module-sub" data-testid="clip-length">
+                {`${formatMasterPosition(to - scene.fromSample)} long`}
+              </span>
+            </div>
+            <p className="small muted" style={{ margin: 0 }}>
+              {next
+                ? `This clip ends where “${name(next.takeIds[0] ?? '')}” begins —
+                   one boundary, not two, which is why the picture cannot
+                   develop a hole between them.`
+                : 'The last clip runs to the end of the song, and the song is not yours to shorten.'}
+            </p>
+          </div>
+        ))}
+
         {/* AUDIO — this section only, when it differs. [S-7] */}
         {group('Audio', (
           <select data-testid="clip-audio" disabled={busy}
@@ -360,11 +445,6 @@ export default function ClipInspector({
         borderTop: 'var(--border) solid var(--console-rule)',
         display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap',
       }}>
-        <button className="ctl sm" data-testid="clip-start-here" disabled={busy}
-                title="move this clip's beginning to the playhead"
-                onClick={() => onAct({ action: 'move-scene-to-playhead', sceneId: scene.id })}>
-          Start at playhead
-        </button>
         <button className="ctl sm" data-testid="clip-remove" disabled={busy}
                 onClick={() => onAct({ action: 'remove-scene', sceneId: scene.id })}>
           Remove clip

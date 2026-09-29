@@ -1124,6 +1124,34 @@ export function joinProblems(performance: Performance): string[] {
 }
 
 /**
+ * EVERYTHING WRONG WITH THE DOCUMENT RIGHT NOW, as sentences a person reads.
+ *
+ * The guard every edit that can break something asks before and after
+ * itself. It exists because the two halves used to be asked separately, and
+ * separate questions can be traded against each other: an edit that closes
+ * a hole and breaks a dissolve in the same move passes a guard that only
+ * knows about holes.
+ *
+ * FOR `coverGap` THIS IS BELT AND BRACES AND IS SAID TO BE. Its rule is that
+ * problems must STRICTLY DECREASE, and every hole it is offered for is the
+ * stretch before the first scene, so the move it makes lengthens a section
+ * rather than shortening one and cannot take room away from a join. No
+ * reachable trade was found; the question is widened anyway, because the
+ * narrow version was right only for reasons outside itself. For
+ * `moveBoundary` the trade is real and there is a test that makes it.
+ *
+ * Sentences rather than objects, because the guard's whole job is to compare
+ * two readings and say what is NEW, and two problems are the same problem
+ * exactly when an author would read the same line twice. [D-19]
+ */
+export function allProblems(performance: Performance): string[] {
+  return [
+    ...renderProblems(performance).map((problem) => problem.say),
+    ...joinProblems(performance),
+  ];
+}
+
+/**
  * How many frames each side of a join could pay, if asked.
  *
  * Strictly less than the section itself, on both sides: a transition that
