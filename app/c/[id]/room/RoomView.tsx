@@ -350,7 +350,7 @@ export default function RoomView({
             )}
           </div>
           <div data-testid="room-stage" style={{
-            background: 'var(--screen-bed)', borderRadius: 2,
+            background: 'var(--screen-bed)', borderRadius: 'var(--radius-screen)',
             border: '1px solid var(--console-edge)',
             display: 'grid', placeItems: 'center', padding: 16, minHeight: 0,
           }}>
@@ -400,7 +400,7 @@ export default function RoomView({
                         * present, and not yet visible.
                         */
                       style={{
-                        borderRadius: 'var(--radius-md)',
+                        borderRadius: 'var(--radius-screen)',
                         border: `2px solid ${person.accent}`,
                         background: 'var(--screen-bed)', display: 'grid', placeItems: 'center',
                         minHeight: 120, position: 'relative', overflow: 'hidden',
@@ -733,7 +733,7 @@ function LiveTile({ stream, muted, name }: {
       data-testid="stage-video"
       style={{
         position: 'absolute', inset: 0, width: '100%', height: '100%',
-        objectFit: 'cover', background: '#0d1319',
+        objectFit: 'cover', background: 'var(--screen-bed)',
       }}
     />
   );

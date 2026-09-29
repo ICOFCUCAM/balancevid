@@ -547,7 +547,8 @@ export default function PerformanceStudio(
                         <span
                           data-testid="take-poster" aria-hidden="true"
                           style={{
-                            flex: '0 0 auto', width: 64, height: 38, borderRadius: 6,
+                            flex: '0 0 auto', width: 64, height: 38,
+                            borderRadius: 'var(--radius-screen)',
                             backgroundColor: `${take.accent ?? TAKE_ACCENT_FALLBACK}33`,
                             backgroundImage: `url(/api/performances/${performance.id}`
                               + `/takes/${take.id}/media?kind=poster)`,
@@ -613,7 +614,7 @@ export default function PerformanceStudio(
                     data-testid="performer-camera"
                     style={{
                       width: '100%', aspectRatio: '16 / 9', objectFit: 'cover',
-                      borderRadius: 2, background: 'var(--screen-bed)',
+                      borderRadius: 'var(--radius-screen)', background: 'var(--screen-bed)',
                       border: `2px solid ${recording.phase === 'recording'
                         ? '#e0674f' : 'var(--line)'}`,
                       display: recording.stream ? 'block' : 'none',

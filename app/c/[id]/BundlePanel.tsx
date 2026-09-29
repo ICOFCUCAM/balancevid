@@ -125,11 +125,13 @@ export default function BundlePanel({ conversationId, ready }: { conversationId:
                      target="_blank" rel="noreferrer">
                     <img alt={candidate.label} data-testid={`thumb-${candidate.kind}`}
                          src={`/api/conversations/${conversationId}/bundle?thumbnail=${candidate.id}`}
-                         style={{ width: '100%', borderRadius: 4, display: 'block' }} />
+                         style={{ width: '100%', display: 'block',
+                                  borderRadius: 'var(--radius-screen)' }} />
                   </a>
                 ) : (
                   <div className="small muted" style={{
-                    aspectRatio: '16 / 9', border: '1px dashed var(--line)', borderRadius: 4,
+                    aspectRatio: '16 / 9', border: '1px dashed var(--line)',
+                    borderRadius: 'var(--radius-screen)',
                     display: 'grid', placeItems: 'center', textAlign: 'center', padding: 4,
                   }}>{data.thumbnailJob?.state === 'failed'
                     ? 'could not be drawn'

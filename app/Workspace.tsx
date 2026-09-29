@@ -815,8 +815,8 @@ function Hero({
             style={{
               position: 'absolute', left: 12, bottom: 12,
               display: 'inline-flex', alignItems: 'center', gap: 6,
-              padding: '5px 10px', borderRadius: 'var(--radius-md)',
-              background: 'rgba(8, 11, 17, 0.66)',
+              padding: '5px 10px', borderRadius: 'var(--radius-screen)',
+              background: 'rgba(0,0,0,0.72)',
               border: '1px solid rgba(255,255,255,0.16)',
               color: 'var(--text-on-accent)', textDecoration: 'none',
               fontSize: 'var(--text-2xs)', fontWeight: 'var(--weight-semi)',
@@ -1278,9 +1278,9 @@ function StudioCard({
         }}><Still src={newest?.poster ?? null} /></span>
         <span style={{
           position: 'absolute', left: 12, top: 12,
-          width: 30, height: 30, borderRadius: 'var(--radius-md)',
+          width: 30, height: 30, borderRadius: 'var(--radius-screen)',
           display: 'grid', placeItems: 'center',
-          background: 'rgba(8, 11, 17, 0.62)',
+          background: 'rgba(0,0,0,0.72)',
           border: '1px solid rgba(255,255,255,0.14)',
           color: 'var(--text-on-accent)',
         }}><Icon name={studio.icon} size={15} /></span>
@@ -1438,8 +1438,8 @@ function RecentWork({
                 }}>
                   <span aria-hidden="true" style={{
                     flex: '0 0 auto', width: 46, height: 27,
-                    borderRadius: 'var(--radius-xs)', overflow: 'hidden',
-                    background: 'var(--surface-sunk)', position: 'relative',
+                    borderRadius: 'var(--radius-screen)', overflow: 'hidden',
+                    background: 'var(--screen-bed)', position: 'relative',
                   }}>
                     <Still src={record.poster} />
                   </span>
@@ -1536,9 +1536,9 @@ function Row({ record, items, onRow, open }: Rowed & { record: WorkRecord }) {
         flexWrap: 'nowrap',
       }}>
         <span aria-hidden="true" style={{
-          width: 62, height: 35, borderRadius: 'var(--radius-xs)',
+          width: 62, height: 35, borderRadius: 'var(--radius-screen)',
           flex: '0 0 auto', overflow: 'hidden', position: 'relative',
-          background: 'var(--surface-sunk)',
+          background: 'var(--screen-bed)',
         }}>
           <Still src={record.poster} />
         </span>

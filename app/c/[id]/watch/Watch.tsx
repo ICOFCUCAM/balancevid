@@ -282,7 +282,8 @@ export default function Watch({ conversationId }: { conversationId: string }) {
             <div style={{
               position: 'absolute', bottom: 14, left: 24, right: 24, textAlign: 'center',
               color: '#fff', fontWeight: 600, textShadow: '0 2px 6px #000',
-              background: 'rgba(0,0,0,.45)', borderRadius: 6, padding: '6px 10px',
+              background: 'rgba(0,0,0,0.72)', padding: '6px 10px',
+              borderRadius: 'var(--radius-screen)',
             }}>
               {caption}
             </div>

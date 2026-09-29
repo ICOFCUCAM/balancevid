@@ -183,7 +183,8 @@ function LayerMedia({
       return (
         <div className="small muted" style={{
           width: '100%', height: '100%', display: 'grid', placeItems: 'center',
-          background: '#141a20', lineHeight: 1.3, textAlign: 'center', padding: 8,
+          background: 'var(--screen-bed)', lineHeight: 1.3,
+          textAlign: 'center', padding: 8,
         }}>
           your response
         </div>
@@ -203,9 +204,9 @@ function LayerMedia({
     return evidence
       ? <img alt="" style={box}
              src={`/api/conversations/${conversationId}/evidence/${evidence.id}/media`} />
-      : <div style={{ width: '100%', height: '100%', background: '#0d1319' }} />;
+      : <div style={{ width: '100%', height: '100%', background: 'var(--screen-bed)' }} />;
   }
-  return <div style={{ width: '100%', height: '100%', background: '#0d1319' }} />;
+  return <div style={{ width: '100%', height: '100%', background: 'var(--screen-bed)' }} />;
 }
 
 /** The anchor frame, held still. The moment the author was looking at. */

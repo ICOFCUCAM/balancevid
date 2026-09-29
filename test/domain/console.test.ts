@@ -360,6 +360,11 @@ describe('the pictures', () => {
 
   it('names the screen radius once', () => {
     expect(CONSOLE).toMatch(/--radius-screen:\s*2px/);
+    /* The ban below subtracts from this. Renaming the token without
+       noticing would make its floor NaN, and `n <= NaN` is false for
+       every n — which fails loud rather than quiet, but says the
+       wrong thing when it does. */
+    expect(SCREEN_RADIUS, 'the picture ban has no floor to stand on').toBe(2);
   });
 
   /*
@@ -381,29 +386,141 @@ describe('the pictures', () => {
    * per-file counts above would pass if somebody added an eighth
    * picture at 10px in a new file, which is exactly how the first
    * seven got there.
+   *
+   * THIS TEST HAS NOW BEEN WRONG IN THREE SEPARATE WAYS, each of which
+   * hid pictures it was written to find — and each of which it passed
+   * while they were on screen:
+   *
+   *   1. THE FLOOR STARTED AT 8. Its own comment said a 6px self-view
+   *      had slipped through and that "a picture takes the picture
+   *      radius; there is no in-between" — and then left the floor at
+   *      8, so the sentence was true and the regex still was not. A
+   *      picture is rounded wrongly at 3 as much as at 10; the floor
+   *      is the screen radius itself.
+   *   2. THE DISCRIMINATOR WAS A LIST OF BLACKS. `#000|#08090b` was
+   *      how it recognised a picture, so naming those `--screen-bed`
+   *      in the commit before this one made this test blinder, not
+   *      safer: every bed it knew about stopped being spelled the way
+   *      it was looking for. A rule that reads colours by their digits
+   *      cannot survive the colours being named.
+   *   3. AND `\{[^{}]*\}` CANNOT SEE A NESTED BLOCK. Any style object
+   *      containing a conditional spread, or a template literal with
+   *      `${...}` in it, has a brace inside it — so the matcher
+   *      skipped precisely the elaborate elements, which are the ones
+   *      somebody fiddled with. Four of the seven pictures this found
+   *      were invisible to it for that reason alone, including a
+   *      multiview monitor at 6px sitting in the middle of Studio Two.
+   *
+   * So it matches a brace to its partner rather than to a character
+   * class, and asks what the element IS rather than what it is
+   * painted with.
    */
-  /*
-   * THE RADIUS BAN STARTS AT 8, which let a 6px self-view through in
-   * the Room — the one place where "a bit rounded" reads as friendly
-   * and is therefore most tempting. A picture takes the picture
-   * radius; there is no in-between.
-   */
-  it('rounds no video or canvas like a card', () => {
+  it('rounds no picture like a card', () => {
     const offenders: string[] = [];
-    for (const file of ['t', 'c', 'p']
-      .flatMap((route) => components(join(ROOT, 'app', route, '[id]')))) {
+    for (const file of components(join(ROOT, 'app'))) {
       const body = code(file);
-      /* A style block that sets a large radius and also says it is a
-         picture: an aspect ratio, a black bed, or object-fit. */
-      for (const [block] of body.matchAll(/\{[^{}]*borderRadius:\s*'?(?:[89]|[1-9]\d)(?:px)?'?[^{}]*\}/g)) {
-        if (/aspectRatio|objectFit|#000\b|#08090b/.test(block)) {
-          offenders.push(`${named(file)}: ${block.replace(/\s+/g, ' ').slice(0, 70)}`);
-        }
+      for (const hit of body.matchAll(
+        /borderRadius:\s*(?:'?(\d+)(?:px)?'?|'var\(--radius-([a-z]+)\)')/g)) {
+        if (hit[1] !== undefined && Number(hit[1]) <= SCREEN_RADIUS) continue;
+        if (hit[2] === 'screen') continue;
+        const block = enclosingBlock(body, hit.index);
+        if (!block) continue;
+        /*
+         * WHAT THE ELEMENT HOLDS COUNTS, NOT JUST HOW IT IS PAINTED.
+         * `<Still>` and `<Thumb>` set no shape of their own, so a well
+         * that holds one is the picture — and three poster wells on
+         * the home page carried a module radius and a `--surface-sunk`
+         * bed for exactly that reason. The style object's braces close
+         * before the children, so reading the block alone can never
+         * see them: the first attempt at this signal was in the
+         * pattern below and could not fire, which the mutation showed
+         * and reading it did not.
+         */
+        /* From where the BLOCK ends, not from where the radius was
+           found inside it — the block opens before the hit, so
+           adding its length to the hit's index lands somewhere past
+           the end and reads the wrong element. */
+        const end = body.lastIndexOf(block, hit.index) + block.length;
+        const after = body.slice(end, end + 300);
+        /* ONLY AS FAR AS THE NEXT ELEMENT. A flat window reached past
+           the element into its siblings and called a textarea and a
+           hero card pictures; the next `style={{` is where this one
+           stops being about this one. */
+        const cut = after.indexOf('style={{');
+        const what = block + (cut < 0 ? after : after.slice(0, cut));
+        if (!/aspectRatio|objectFit|screen-bed|backgroundSize:\s*'cover'|<(?:Still|Thumb)\b/
+          .test(what)) continue;
+        /* EXCEPT A WASH. `inset: -40` of somebody's own poster at
+           opacity 0.3 under blur(48px), bleeding off every edge of the
+           card it sits behind, is not a monitor and has no corners
+           anybody can see. The tell is the blur: a picture being
+           judged is never blurred. */
+        if (/filter:\s*'blur/.test(block)) continue;
+        offenders.push(`${named(file)}: ${block.replace(/\s+/g, ' ').slice(0, 70)}`);
       }
     }
     expect(offenders, 'a picture rounded like a card').toEqual([]);
   });
+
+  /*
+   * AND THE ONES ALREADY AT 2 SAY SO.  [D-19]
+   *
+   * Ten of them were spelled `borderRadius: 2` — five in the control
+   * room alone, on plates four lines from plates that used the token.
+   * They render identically today, which is exactly the problem: the
+   * ban above passes them, so the day the screen radius changes,
+   * ten pictures keep the old one and nobody finds out from a test.
+   * A token nobody references is a comment, and a token half the
+   * pictures reference is worse than none.
+   */
+  it('spells the screen radius as the token', () => {
+    const offenders: string[] = [];
+    for (const file of components(join(ROOT, 'app'))) {
+      const body = code(file);
+      for (const hit of body.matchAll(
+        new RegExp(`borderRadius:\\s*'?${SCREEN_RADIUS}(?:px)?'?`, 'g'))) {
+        const block = enclosingBlock(body, hit.index);
+        if (block && /rgba\(0,0,0,0\.72\)|screen-bed|aspectRatio|objectFit/.test(block)) {
+          offenders.push(`${named(file)}: ${hit[0]}`);
+        }
+      }
+    }
+    expect(offenders, "a picture's corner is var(--radius-screen)").toEqual([]);
+  });
 });
+
+/** What `--radius-screen` is, so the ban above has a floor and not a guess. */
+const SCREEN_RADIUS = Number(/--radius-screen:\s*(\d+)px/.exec(CONSOLE)?.[1] ?? NaN);
+
+/**
+ * The `{ ... }` an index sits inside, matched brace to brace.
+ *
+ * A style object in this codebase routinely contains another one — a
+ * `...(on ? { border } : {})`, a `` `${x}px` `` — and a character class
+ * stops at the first inner brace it meets. Counting depth is the only
+ * way to read the whole of the object somebody actually wrote.
+ */
+function enclosingBlock(body: string, at: number): string | null {
+  let depth = 0;
+  let start = -1;
+  for (let i = at; i >= 0; i -= 1) {
+    if (body[i] === '}') depth += 1;
+    else if (body[i] === '{') {
+      if (depth === 0) { start = i; break; }
+      depth -= 1;
+    }
+  }
+  if (start < 0) return null;
+  depth = 0;
+  for (let i = start; i < body.length; i += 1) {
+    if (body[i] === '{') depth += 1;
+    else if (body[i] === '}') {
+      depth -= 1;
+      if (depth === 0) return body.slice(start, i + 1);
+    }
+  }
+  return null;
+}
 
 /**
  * AN OSD IS PRINTED ON THE GLASS.  [brief §5, §19, U-20]
@@ -451,9 +568,19 @@ describe('what sits on a picture', () => {
    * viewer reads as "assembled from parts", and it is invisible in
    * any single screenshot.
    */
+  /*
+   * AND THE VIEWER'S PAGE IS A THIRD STUDIO, which this list did not
+   * know. It drew two plates on the same picture four lines apart —
+   * a claim at rgba(0,0,0,0.72) and a caption at rgba(0,0,0,.45) —
+   * and the near-black ban walked past the second because its alpha
+   * window starts at 0.6 and a caption scrim is lighter than a plate
+   * by convention. It is not a scrim: it is a box behind a line of
+   * text lying on a frame, which is the definition this suite uses.
+   */
   it.each([
     ['app/t/[id]/ChannelStudio.tsx', 3],
     ['app/p/[id]/SwitchingStage.tsx', 3],
+    ['app/c/[id]/watch/Watch.tsx', 2],
   ])('%s draws its plates one way', (file, atLeast) => {
     const body = code(join(ROOT, file));
     const plates = (body.match(/background: 'rgba\(0,0,0,0\.72\)'/g) ?? []).length;
@@ -469,7 +596,7 @@ describe('what sits on a picture', () => {
    * rather than by me. None is distinguishable from the others by
    * eye, which is the point: each was arrived at by eye.
    */
-  it('has no private near-black anywhere in the studios', () => {
+  it('has no private near-black anywhere in the product', () => {
     /*
      * BY SHAPE, NOT BY LIST. The first version named the two darks it
      * knew about; the next commit found a third, then a fourth, then a
@@ -486,8 +613,7 @@ describe('what sits on a picture', () => {
      * colour, and only one of them is a plate.
      */
     const offenders: string[] = [];
-    for (const file of ['t', 'c', 'p']
-      .flatMap((route) => components(join(ROOT, 'app', route, '[id]')))) {
+    for (const file of components(join(ROOT, 'app'))) {
       const body = code(file);
       for (const hit of body.matchAll(
         /background: '?rgba\(\s*(\d+),\s*(\d+),\s*(\d+),\s*(0?\.\d+)\s*\)/g)) {
@@ -500,6 +626,38 @@ describe('what sits on a picture', () => {
       }
     }
     expect(offenders, 'use rgba(0,0,0,0.72) — the plate alpha').toEqual([]);
+  });
+
+  /*
+   * AND NOBODY TYPES A BED EITHER.  [D-19, brief §4]
+   *
+   * The test above only reads `rgba(...)`, so the OPAQUE near-blacks
+   * went on being typed: #0d1319 six times — behind a canvas, behind
+   * a room video, twice behind a missing composition layer, behind a
+   * filmstrip cell, behind a layout diagram — plus #141a20 for an
+   * empty slot in the same component as one of them and #0b0d10
+   * behind a vertical preview. Eight surfaces, four values, one job.
+   *
+   * The job is the one `--screen-bed` names, and the diagram case is
+   * the one that proves it is not a preference: compose.ts pads with
+   * `color=black`, so a preview drawn on #0d1319 was showing a bluer
+   * frame than the file it is a preview of.
+   *
+   * By distance from black rather than by a list of the four, because
+   * the list is how the last four got here.
+   */
+  it('names the bed behind a picture, never types it', () => {
+    const offenders: string[] = [];
+    for (const file of components(join(ROOT, 'app'))) {
+      for (const hit of code(file).matchAll(
+        /background(?:Color)?: '#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})'/g)) {
+        const hex = hit[1]!.length === 3
+          ? hit[1]!.split('').map((c) => c + c).join('') : hit[1]!;
+        const [r, g, b] = [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16));
+        if (r! <= 40 && g! <= 40 && b! <= 46) offenders.push(`${named(file)}: #${hex}`);
+      }
+    }
+    expect(offenders, 'a bed is --screen-bed').toEqual([]);
   });
 });
 

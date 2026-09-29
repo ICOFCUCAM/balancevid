@@ -196,7 +196,8 @@ export default function PublishStage({
                   */}
                   <div style={{
                     display: 'grid', placeItems: 'center', height: 180,
-                    background: '#0b0d10', borderRadius: 6, overflow: 'hidden',
+                    background: 'var(--screen-bed)', overflow: 'hidden',
+                    borderRadius: 'var(--radius-screen)',
                   }}>
                     <div style={{
                       position: 'relative', height: '100%',

@@ -604,7 +604,7 @@ export default function SwitchingStage({
           data-layout={current?.layoutId ?? 'none'}
           style={{
             gridArea: 'stage', position: 'relative', aspectRatio: '16 / 9',
-            background: 'var(--screen-bed)', borderRadius: 2,
+            background: 'var(--screen-bed)', borderRadius: 'var(--radius-screen)',
             border: '1px solid var(--line)', overflow: 'hidden',
           }}
         >
@@ -644,7 +644,7 @@ export default function SwitchingStage({
                      backgroundImage:
                        `url(/api/performances/${performance.id}/takes/${take.id}/media?kind=poster)`,
                      backgroundSize: 'cover', backgroundPosition: 'center',
-                     borderRadius: 6, overflow: 'hidden',
+                     borderRadius: 'var(--radius-screen)', overflow: 'hidden',
                      /* A gutter between monitors, so five panels read as
                         five and not as one wide picture. A border rather than
                         an inset shadow, because a shadow draws under the
@@ -653,7 +653,7 @@ export default function SwitchingStage({
                         composition, and a gap the renderer will not draw
                         would be a preview that lies. */
                      ...(allTakes
-                       ? { border: '2px solid #05070a', boxSizing: 'border-box' as const }
+                       ? { border: '2px solid var(--screen-bed)', boxSizing: 'border-box' as const }
                        : {}),
                    }}>
                 {/*
@@ -798,7 +798,7 @@ export default function SwitchingStage({
                     * thing to go.
                     */
                    position: 'absolute', right: 10, top: 10, gap: 0,
-                   borderRadius: 2, overflow: 'hidden',
+                   borderRadius: 'var(--radius-screen)', overflow: 'hidden',
                    border: '1px solid rgba(255,255,255,0.16)',
                    background: 'rgba(0,0,0,0.72)',
                  }}>
