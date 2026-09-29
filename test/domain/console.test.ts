@@ -758,3 +758,62 @@ describe('the loud controls', () => {
     expect(key).toContain('var(--ring)');
   });
 });
+
+/**
+ * THE APPLICATION BAR IS DRAWN, NOT TYPED.  [D-04]
+ *
+ * `Icon.tsx` opens by naming the characters it exists to replace —
+ * "▣ ♪ ◉ ☰ ⌫ ⌦" — and the bar that sits above every studio screen
+ * was still using five of them, plus an arrow for Publish. They are
+ * whatever font happens to be installed: ◉ is a different weight on
+ * every platform, several render as emoji on macOS, and none share a
+ * baseline. A row of six is six optical sizes pretending to be a set.
+ *
+ * The set arrived, the building and the three studios were converted,
+ * and the one component common to all of them kept the glyphs — which
+ * is what "check what is already there" is for. [D-19]
+ */
+describe('the application bar', () => {
+  const BAR = code(join(ROOT, 'app', 'StudioBar.tsx'));
+
+  it('types no glyph as an icon', () => {
+    /* The Unicode blocks Icon.tsx names: arrows, geometric shapes,
+       and the miscellaneous symbols the trigrams live in. */
+    const found = [...BAR.matchAll(/'[\u2190-\u21FF\u25A0-\u25FF\u2630-\u267F]'/g)]
+      .map(([hit]) => hit);
+    expect(found, `${found.join(' ')} — use Icon`).toEqual([]);
+  });
+
+  it('takes its marks from the one set', () => {
+    expect(BAR).toMatch(/import Icon, \{ type IconName \}/);
+    expect(BAR).toMatch(/<Icon name=\{tab\.icon\}/);
+  });
+
+  /*
+   * AND NO TWO PLACES WEAR THE SAME MARK. Converting straight to the
+   * lit rail's mapping gave Conversations and Studio One the same
+   * speech bubble, one tab apart — a set is only a set if its members
+   * are told apart. Conversations took a new `list`, because it and
+   * Library are two anchors into two lists and should read as
+   * siblings.
+   */
+  it('gives every place its own mark', () => {
+    /*
+     * BY TAB, NOT BY OCCURRENCE. Every tab is written twice — once
+     * with an href and once dimmed with a hint for when there is
+     * nothing to point at — so counting `icon:` lines said eight
+     * marks for five places and called the duplicates a collision.
+     */
+    const marks = new Map<string, Set<string>>();
+    for (const hit of BAR.matchAll(
+      /id: '([a-z-]+)'[^}]*?icon: '([a-z]+)'/g)) {
+      const [, id, icon] = hit;
+      marks.set(icon!, (marks.get(icon!) ?? new Set()).add(id!));
+    }
+    expect(marks.size, 'the bar lost its icons').toBeGreaterThanOrEqual(5);
+    const shared = [...marks.entries()]
+      .filter(([, ids]) => ids.size > 1)
+      .map(([icon, ids]) => `${icon}: ${[...ids].join(' + ')}`);
+    expect(shared, 'two places wear the same mark').toEqual([]);
+  });
+});

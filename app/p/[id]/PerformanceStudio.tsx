@@ -338,7 +338,7 @@ export default function PerformanceStudio(
         extra={[{
           id: 'publish' as const,
           label: 'Publish',
-          glyph: '\u2191',
+          icon: 'upload' as const,
           ...(performance.scenes.length > 0
             ? {
               onClick: () => document.querySelector('[data-testid="publish"]')

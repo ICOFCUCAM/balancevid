@@ -24,7 +24,7 @@ export type IconName =
   | 'channels' | 'distribution' | 'settings' | 'search' | 'bell'
   | 'disk' | 'clock' | 'calendar' | 'play' | 'plus' | 'chevron'
   | 'arrow' | 'upload' | 'link' | 'live' | 'pencil' | 'sun' | 'moon'
-  | 'sound' | 'muted' | 'expand' | 'faders';
+  | 'sound' | 'muted' | 'expand' | 'faders' | 'list';
 
 /* Each is the inner geometry; the frame and the stroke are set below. */
 const PATHS: Record<IconName, React.ReactNode> = {
@@ -47,6 +47,21 @@ const PATHS: Record<IconName, React.ReactNode> = {
       <rect x="3" y="6" width="18" height="12" rx="2" />
       <path d="M8 21h8" opacity="0.5" />
       <path d="m10.5 10.5 4 2.2-4 2.2z" />
+    </>
+  ),
+  /*
+   * A LIST OF THINGS, as against `library`, which is a collection laid
+   * out. The application bar offers both — Conversations and Library
+   * are two anchors into two lists — and giving Conversations the
+   * speech bubble that Studio One already wears would have put the
+   * same mark on two different destinations one tab apart. Rows with a
+   * leading rule read as a list at 14px, where a stack of bubbles
+   * reads as a smudge.
+   */
+  list: (
+    <>
+      <path d="M4 6.5h16M4 12h16M4 17.5h11" />
+      <path d="M4 6.5v11" opacity="0.45" />
     </>
   ),
   library: (

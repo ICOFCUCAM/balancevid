@@ -13,6 +13,8 @@
  * spaces out of Studio Two's environment picker (INV-16).
  */
 
+import Icon, { type IconName } from './Icon.js';
+
 export type StudioTab =
   | 'conversations' | 'studio-one' | 'studio-two' | 'online-tv'
   | 'library' | 'publish';
@@ -20,7 +22,21 @@ export type StudioTab =
 export interface BarTab {
   id: StudioTab;
   label: string;
-  glyph: string;
+  /*
+   * A NAME FROM THE ONE ICON SET, not a character from the Unicode
+   * miscellaneous blocks. This was `glyph: string` holding ▢ ▣ ♪ ◉ ☷ —
+   * and `Icon.tsx` names those exact characters in its own opening
+   * paragraph as the thing it was written to replace. The set arrived,
+   * the building and the studios were converted, and the bar that sits
+   * above every one of those screens kept the glyphs. [D-19]
+   *
+   * They are whatever font happens to be installed: ◉ is a different
+   * weight on every platform, several render as emoji on macOS, and
+   * none of them share a baseline or an optical size with the others.
+   * A row of five is five different sizes pretending to be a set —
+   * which is exactly what the top of every studio screen was.
+   */
+  icon: IconName;
   href?: string;
   onClick?: () => void;
   hint?: string;
@@ -42,22 +58,22 @@ export default function StudioBar({
 }) {
   const tabs: BarTab[] = [
     {
-      id: 'conversations', label: 'Conversations', glyph: '▢',
+      id: 'conversations', label: 'Conversations', icon: 'list',
       href: '/#conversations',
     },
     studioOneId
-      ? { id: 'studio-one', label: 'Studio One', glyph: '▣', href: `/c/${studioOneId}` }
+      ? { id: 'studio-one', label: 'Studio One', icon: 'conversation', href: `/c/${studioOneId}` }
       : {
-        id: 'studio-one', label: 'Studio One', glyph: '▣',
+        id: 'studio-one', label: 'Studio One', icon: 'conversation',
         hint: 'No conversations yet — start one from the library',
       },
     studioTwoId || current === 'studio-two'
       ? {
-        id: 'studio-two', label: 'Studio Two', glyph: '♪',
+        id: 'studio-two', label: 'Studio Two', icon: 'music',
         ...(current === 'studio-two' ? {} : { href: `/p/${studioTwoId}` }),
       }
       : {
-        id: 'studio-two', label: 'Studio Two', glyph: '♪',
+        id: 'studio-two', label: 'Studio Two', icon: 'music',
         hint: 'No performances yet — start one from the library',
       },
     /*
@@ -68,14 +84,14 @@ export default function StudioBar({
      */
     studioThreeId || current === 'online-tv'
       ? {
-        id: 'online-tv', label: 'Online TV', glyph: '◉',
+        id: 'online-tv', label: 'Online TV', icon: 'broadcast',
         ...(current === 'online-tv' ? {} : { href: `/t/${studioThreeId}` }),
       }
       : {
-        id: 'online-tv', label: 'Online TV', glyph: '◉',
+        id: 'online-tv', label: 'Online TV', icon: 'broadcast',
         hint: 'No channels yet — start one from the library',
       },
-    { id: 'library', label: 'Library', glyph: '☷', href: '/#performances' },
+    { id: 'library', label: 'Library', icon: 'library', href: '/#performances' },
     ...(extra ?? []),
   ];
 
@@ -116,9 +132,14 @@ export default function StudioBar({
           const on = tab.id === current;
           const body = (
             <>
+              {/*
+                * The icon inherits `currentColor` and the row's opacity,
+                * so a chosen tab and a quiet one are the same drawing at
+                * two tones rather than two different weights of glyph.
+                */}
               <span aria-hidden="true" style={{
-                opacity: on ? 1 : 0.55, fontSize: 'var(--text-sm)',
-              }}>{tab.glyph}</span>
+                opacity: on ? 1 : 0.55, lineHeight: 0, flex: '0 0 auto',
+              }}><Icon name={tab.icon} size={14} /></span>
               {/*
                 * The bold width is reserved by an invisible copy of the
                 * label, so switching tabs changes no width and the row
