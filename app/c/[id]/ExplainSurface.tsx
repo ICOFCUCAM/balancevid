@@ -126,8 +126,11 @@ export default function ExplainSurface({
       style={{ position: 'absolute', inset: 0, cursor: 'crosshair', lineHeight: 0 }}
     >
       <div className="small" style={{
-        position: 'absolute', left: 12, top: 12, padding: '4px 10px', borderRadius: 5,
-        background: 'rgba(0,0,0,0.65)', color: '#fff', lineHeight: 1.3,
+        position: 'absolute', left: 12, top: 12, padding: '4px 10px',
+        borderRadius: 'var(--radius-screen)',
+        background: 'rgba(0,0,0,0.72)',
+        border: '1px solid rgba(255,255,255,0.14)',
+        color: 'rgba(255,255,255,0.94)', lineHeight: 1.3,
         pointerEvents: 'none',
       }}>
         Marking the frame — Escape to stop

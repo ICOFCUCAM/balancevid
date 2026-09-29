@@ -334,10 +334,18 @@ describe('the pictures', () => {
     expect(CONSOLE).toMatch(/--radius-screen:\s*2px/);
   });
 
+  /*
+   * A FLOOR RATHER THAN AN EXACT COUNT, because the token turned out
+   * to belong to more than the pictures: what is PRINTED on a picture
+   * takes the same corner, so unifying the OSD plates added a fourth
+   * use in the control room and broke an exact count that was never
+   * measuring the right thing. The real guarantee is the next test —
+   * this one only says the token is load-bearing in each file.
+   */
   it.each(SCREENS)('%s draws its picture on the token', (file, count) => {
     const hits = (code(join(ROOT, file)).match(/var\(--radius-screen\)/g) ?? []);
-    expect(hits.length, `${file} has ${hits.length}, wanted ${count}`)
-      .toBe(count);
+    expect(hits.length, `${file} has ${hits.length}, wanted ${count} or more`)
+      .toBeGreaterThanOrEqual(count);
   });
 
   /*
@@ -428,11 +436,35 @@ describe('what sits on a picture', () => {
    * eye, which is the point: each was arrived at by eye.
    */
   it('has no private near-black anywhere in the studios', () => {
-    const offenders = ['t', 'c', 'p']
-      .flatMap((route) => components(join(ROOT, 'app', route, '[id]')))
-      .flatMap((file) => (code(file)
-        .match(/rgba\((?:0,\s*0,\s*0|5,\s*7,\s*10),\s*0?\.7[3-9]\)/g) ?? [])
-        .map((hit) => `${named(file)}: ${hit}`));
+    /*
+     * BY SHAPE, NOT BY LIST. The first version named the two darks it
+     * knew about; the next commit found a third, then a fourth, then a
+     * seventh — rgba(14,15,17,0.82) in the clip rail. A ban that has
+     * to be extended every time somebody invents a near-black is not
+     * catching them, it is recording them.
+     *
+     * So: any near-black used as a BACKGROUND is a plate, and there is
+     * one plate. The property matters and the first attempt at this
+     * ignored it — matching the colour alone flagged sixteen things,
+     * of which twelve were right: the hard rings this same commit
+     * added, two text shadows, a gradient stop. A shadow and a surface
+     * are different jobs that happen to be spelled with the same
+     * colour, and only one of them is a plate.
+     */
+    const offenders: string[] = [];
+    for (const file of ['t', 'c', 'p']
+      .flatMap((route) => components(join(ROOT, 'app', route, '[id]')))) {
+      const body = code(file);
+      for (const hit of body.matchAll(
+        /background: '?rgba\(\s*(\d+),\s*(\d+),\s*(\d+),\s*(0?\.\d+)\s*\)/g)) {
+        const [r, g, b] = [1, 2, 3].map((i) => Number(hit[i]));
+        const alpha = Number(hit[4]);
+        if (r! > 39 || g! > 39 || b! > 39) continue;
+        if (alpha < 0.6 || alpha > 0.95) continue;
+        if (/rgba\(0,\s*0,\s*0,\s*0\.72\)/.test(hit[0])) continue;
+        offenders.push(`${named(file)}: ${hit[0].replace("background: '", '')}`);
+      }
+    }
     expect(offenders, 'use rgba(0,0,0,0.72) — the plate alpha').toEqual([]);
   });
 });

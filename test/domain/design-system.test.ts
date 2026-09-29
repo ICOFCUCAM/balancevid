@@ -571,13 +571,36 @@ describe('the console has no glass and no glow', () => {
    * immediately after the blur radius. A rule that only catches the
    * literal spelling catches the careless half and misses the clever
    * half, which is the wrong half to miss.
+   *
+   * AND THE SECOND VERSION MISSED A THIRD SPELLING: the clip rail's
+   * claim marker built its halo with `color-mix(in srgb, ...)`, which
+   * is none of `rgba(`, `${` or `var(`. Three spellings of the same
+   * decoration found over three commits is the argument for matching
+   * on the SHAPE — a blur radius with any colour after it — rather
+   * than on a list of ways to write a colour, which is what this now
+   * does. A genuine ambient shadow is dark and is spelled rgba(0,0,0.
    */
   it('glows only where a lamp glows', () => {
     const offenders: string[] = [];
     for (const file of components()) {
-      for (const [hit] of code(file).matchAll(
-        /(?<!inset )0 0 (?:[4-9]|[1-9]\d)px (?:rgba\(\d+,\s*\d+|\$\{|var\()/g)) {
-        offenders.push(`${named(file)}: ${hit.trim().slice(0, 52)}`);
+      const body = code(file);
+      /*
+       * ONE LAMP CANNOT LIVE IN status.css. `Dot` takes its colour as
+       * a prop — the encoder lamp, the guest lamps and the ingest
+       * lamps each pass a different token — so its halo has to be
+       * mixed in the component. It is a lamp by the rule's own words,
+       * so it is exempt by name and by span rather than by the file
+       * it happens to sit in. Everything else in that file still
+       * counts.
+       */
+      const lamp = body.indexOf('function Dot(');
+      const lampEnds = lamp < 0 ? -1
+        : body.indexOf('\nfunction ', lamp + 1);
+      for (const hit of body.matchAll(
+        /(?<!inset )0 0 (?:[4-9]|[1-9]\d)px (?!rgba\(0,\s*0,\s*0)[#$a-z(]/gi)) {
+        const at = hit.index ?? 0;
+        if (lamp >= 0 && at > lamp && (lampEnds < 0 || at < lampEnds)) continue;
+        offenders.push(`${named(file)}: ${hit[0].trim().slice(0, 52)}`);
       }
     }
     expect(offenders, `a glow outside status.css: ${offenders.join(' | ')}`)

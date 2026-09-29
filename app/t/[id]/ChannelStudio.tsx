@@ -3803,8 +3803,11 @@ function CameraTab({
           )}
           <span style={{
             position: 'absolute', left: 6, bottom: 5, padding: '2px 7px',
-            borderRadius: 4, background: 'rgba(5,7,10,0.8)', fontSize: 'var(--text-2xs)',
-            fontWeight: 600,
+            borderRadius: 'var(--radius-screen)',
+            background: 'rgba(0,0,0,0.72)',
+            border: '1px solid rgba(255,255,255,0.14)',
+            color: 'rgba(255,255,255,0.94)',
+            fontSize: 'var(--text-2xs)', fontWeight: 600,
           }}>You (Host)</span>
         </div>
         {/*

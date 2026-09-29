@@ -149,12 +149,34 @@ export default function ClipRail({
                     : 'preparing'}
                 </span>
               )}
-              {/* The kind of move, in its own colour, over its own frame. */}
+              {/*
+                * THE KIND OF MOVE, ON A LAMP RATHER THAN A FLOOD.
+                * [U-11, U-20, brief §19]
+                *
+                * This was a saturated plate of `item.accent` with near
+                * black text lying across the bottom of the poster —
+                * the third instance of the same object, after Online
+                * TV's ARMED pill and Studio Two's take labels. In a
+                * rail of six clips it is six saturated rectangles in
+                * six different colours stacked vertically, which is
+                * the loudest thing in Studio One and is labelling the
+                * quietest.
+                *
+                * Same answer as the other two: a dark plate with the
+                * colour as a bar down its leading edge. The kind is
+                * still colour-coded, still readable at a glance down
+                * the rail, and the pictures underneath come back.
+                */}
               <span style={{
                 position: 'absolute', left: 0, bottom: 0,
-                padding: '2px 6px', fontSize: 'var(--text-2xs)', letterSpacing: 0.6,
-                background: item.accent, color: '#0e0f11', fontWeight: 700,
-                borderTopRightRadius: 4,
+                padding: '2px 6px 2px 5px',
+                fontSize: 'var(--text-2xs)', letterSpacing: 0.6,
+                background: 'rgba(0,0,0,0.72)',
+                borderLeft: `3px solid ${item.accent}`,
+                borderTop: '1px solid rgba(255,255,255,0.14)',
+                borderRight: '1px solid rgba(255,255,255,0.14)',
+                color: 'rgba(255,255,255,0.94)', fontWeight: 700,
+                borderTopRightRadius: 'var(--radius-screen)',
               }}>
                 {item.label}
               </span>
@@ -165,8 +187,14 @@ export default function ClipRail({
                 <span data-testid="clip-speaker" style={{
                   position: 'absolute', right: 0, bottom: 0,
                   padding: '2px 6px', fontSize: 'var(--text-2xs)', letterSpacing: 0.4,
-                  background: 'rgba(14,15,17,0.82)', color: '#e8eaed',
-                  borderTopLeftRadius: 4,
+                  /* The agreed plate, not a seventh private near-black.
+                     This was rgba(14,15,17,0.82) — its own dark, its own
+                     alpha, next to a plate it is meant to pair with. */
+                  background: 'rgba(0,0,0,0.72)',
+                  border: '1px solid rgba(255,255,255,0.14)',
+                  borderRight: 0, borderBottom: 0,
+                  color: 'rgba(255,255,255,0.94)',
+                  borderTopLeftRadius: 'var(--radius-screen)',
                 }}>
                   {item.speakerName}
                 </span>
@@ -178,8 +206,17 @@ export default function ClipRail({
                   position: 'absolute', right: 5, top: 5,
                   width: 9, height: 9, transform: 'rotate(45deg)', borderRadius: 2,
                   background: 'var(--source-accent)',
-                  boxShadow: '0 0 6px color-mix(in srgb,'
-                    + ' var(--source-accent) 90%, transparent)',
+                  /*
+                    * NO HALO. This was a 6px bloom in the marker's own
+                    * hue, which on a 9px diamond is mostly bloom — and
+                    * the glow ban did not catch it because the ban
+                    * looked for `rgba(`, `${` or `var(` after the blur
+                    * radius and this one is assembled with `color-mix`.
+                    * Third spelling, same decoration. A hard ring at
+                    * full contrast is smaller, sharper and found
+                    * faster over a bright poster.
+                    */
+                  boxShadow: '0 0 0 1px rgba(0,0,0,0.65)',
                 }} />
               )}
             </div>

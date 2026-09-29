@@ -161,8 +161,11 @@ export default function Timeline({
               width: 11, height: 11, marginLeft: -5.5, marginTop: -5.5,
               background: 'var(--source-accent)',
               transform: 'rotate(45deg)', borderRadius: 2,
-              boxShadow: '0 0 8px color-mix(in srgb,'
-                + ' var(--source-accent) 90%, transparent)',
+              /* A hard ring, not a halo. Same marker as the clip rail's,
+                 and the same reason: on an 11px diamond an 8px bloom is
+                 mostly bloom, and a position marker has to be exactly
+                 where it says it is. [INV-02] */
+              boxShadow: '0 0 0 1px rgba(0,0,0,0.65)',
               zIndex: 3,
             }} />
           </>

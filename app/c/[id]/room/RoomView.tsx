@@ -416,7 +416,7 @@ export default function RoomView({
                            * not a material any broadcast graphic has
                            * ever been made of. [brief §19]
                            */
-                          background: 'rgba(0,0,0,0.68)',
+                          background: 'rgba(0,0,0,0.72)',
                           fontSize: 'var(--text-xs)',
                           fontWeight: 'var(--weight-medium)',
                           color: 'rgba(255,255,255,0.92)',
