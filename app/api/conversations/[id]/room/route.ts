@@ -3,10 +3,11 @@ import {
 } from '../../../../../src/domain/roomEdit.js';
 import { EditError } from '../../../../../src/domain/edit.js';
 import { inRoom, presenceOf, raisedHands } from '../../../../../src/domain/participants.js';
-import type { Conversation } from '../../../../../src/domain/document.js';
+import type { RoomHost } from '../../../../../src/domain/document.js';
 import { callerFor, isOwner } from '../../../../../src/auth/request.js';
 import { newInviteToken } from '../../../../../src/auth/guest.js';
-import { audit, loadConversation, mutateConversation } from '../../../../../src/store/repository.js';
+import { audit } from '../../../../../src/store/repository.js';
+import { loadRoomHost, mutateRoomHost } from '../../../../../src/store/rooms.js';
 import { fail, json } from '../../../../../src/web/http.js';
 import { roomView } from '../../../../../src/web/room.js';
 
@@ -24,9 +25,9 @@ type Params = { params: Promise<{ id: string }> };
  */
 export async function GET(request: Request, { params }: Params): Promise<Response> {
   const { id } = await params;
-  let conversation: Conversation;
+  let conversation: RoomHost;
   try {
-    conversation = await loadConversation(id);
+    conversation = await loadRoomHost(id);
   } catch {
     return fail(404, 'conversation not found');
   }
@@ -59,7 +60,7 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
   const now = new Date().toISOString();
 
   try {
-    const conversation = await mutateConversation(id, (draft) => {
+    const conversation = await mutateRoomHost(id, (draft) => {
       switch (body.action) {
         case 'open':
           openRoom(draft, {

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { roomBase } from '../../../../src/domain/document.js';
 
 /**
  * Before there is a room.  [Doctrine ROOM §6]
@@ -22,7 +23,7 @@ export default function OpenRoom({
     setBusy(true);
     setError(null);
     try {
-      const response = await fetch(`/api/conversations/${conversationId}/room`, {
+      const response = await fetch(`${roomBase(conversationId)}`, {
         method: 'POST', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ action: 'open', hostName: name.trim() || 'Host' }),
       });

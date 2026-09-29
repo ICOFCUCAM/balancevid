@@ -511,6 +511,91 @@ export interface Conversation {
 }
 
 /**
+ * WHATEVER A ROOM IS OPENED ON.  [Doctrine ROOM §6, CHANNEL §6, D-17]
+ *
+ * A room was a property of a Conversation because the first one was, and
+ * `channel.ts` recorded the consequence as a decision: "a channel going live
+ * names the conversation whose room it is coming out of rather than growing
+ * a second room of its own — a second room would be a second place
+ * invitations, staging and speaker detection could disagree."
+ *
+ * THE REASONING WAS RIGHT AND THE CONCLUSION WAS TOO NARROW. What must not
+ * be duplicated is the room's MACHINERY — one invite panel, one join route,
+ * one staging model, one speaker detector. Which DOCUMENT holds the record
+ * is a different question, and answering it "a conversation, always" made
+ * Online TV's guests depend on Studio One. The studios are sold separately;
+ * an account with only a channel had a Guests tab whose one path out read
+ * "Start one in Studio One and its room becomes available here", which is a
+ * dead end wearing the clothes of an instruction.
+ *
+ * So the room's functions take this instead of a Conversation. Nothing in
+ * `roomEdit`, `callerFor` or `roomView` ever wanted more than these three
+ * fields; a Conversation satisfies it by being one, and so now does a
+ * Channel. There is still exactly one implementation of a room.
+ */
+export interface RoomHost {
+  id: string;
+  participants?: Participant[];
+  room?: Room;
+  /*
+   * What the room is called, and what it is about, for the three lines of
+   * `roomView` that say so. A Conversation has a `title` and a `source` it
+   * is a conversation ABOUT; a Channel has a `name` and is about nothing but
+   * itself. Both spellings are here rather than one, because renaming either
+   * field on its own document to satisfy this interface would be the
+   * interface deciding what a channel is called.
+   */
+  title?: string;
+  name?: string;
+  source?: { title: string };
+  /*
+   * Read by `callerFor`, for the fall-through after a guest session fails:
+   * a published conversation is readable by strangers.
+   *
+   * NARROWED TO THE ONE FIELD THAT IS READ, rather than typed as
+   * `Publication`. A Conversation's publication and a Channel's are
+   * genuinely different records — one carries a plan hash and whether it
+   * may be answered, the other carries a broadcaster — and the only thing
+   * this interface needs to know is whether the thing has been taken down.
+   * Naming the whole of either would make a channel fail to be a RoomHost
+   * over a field no room has ever read.
+   */
+  publication?: { unpublishedAt?: string };
+}
+
+/**
+ * Which kind of document an id names.  [ROOM §6, CHANNEL §6]
+ *
+ * ONE DISCRIMINATOR, because three layers need the same answer: the store,
+ * to know which file to open; the routes, which live at
+ * `/api/conversations/…` or `/api/channels/…` because a path that says
+ * one while serving the other cannot be audited; and the browser, to build
+ * those paths. Three copies of `startsWith('chan_')` is three chances for a
+ * guest to be sent somewhere the policy never admitted them.
+ *
+ * `newId` has minted prefixed ids since the first commit, so this reads
+ * something already true rather than imposing a new convention.
+ */
+export function roomHostKind(id: string): 'conversation' | 'channel' | null {
+  if (id.startsWith('conv_')) return 'conversation';
+  if (id.startsWith('chan_')) return 'channel';
+  return null;
+}
+
+/**
+ * Where a host's room answers.
+ *
+ * Here and not in a component, because the store's dispatcher and this must
+ * agree on the same prefix — and an unknown id gets the conversation path,
+ * which 404s, rather than a thrown error in the middle of a render.
+ */
+export function roomBase(hostId: string): string {
+  return roomHostKind(hostId) === 'channel'
+    ? `/api/channels/${hostId}/room`
+    : `/api/conversations/${hostId}/room`;
+}
+
+/**
  * A room opened on a conversation.  [Doctrine ROOM §6, §7]
  *
  * "Generate invitation URL → Share URL through WhatsApp." The first

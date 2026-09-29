@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRoomMesh } from '../../c/[id]/room/useRoomMesh.js';
 import type { MixerSource } from './useBroadcastMixer.js';
+import { roomBase } from '../../../src/domain/document.js';
 
 /**
  * The people in the room, as things to compose.  [Doctrine CHANNEL §6, ROOM]
@@ -54,7 +55,7 @@ export function useBroadcastGuests({
     const read = async () => {
       try {
         const response = await fetch(
-          `/api/conversations/${roomId}/room`, { cache: 'no-store' });
+          `${roomBase(roomId)}`, { cache: 'no-store' });
         if (!response.ok || stopped) return;
         const data = await response.json() as {
           participants?: RoomParticipant[];

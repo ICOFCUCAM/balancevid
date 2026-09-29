@@ -6,6 +6,7 @@ import { TAKE_ACCENT_FALLBACK } from '../../../src/domain/performance.js';
 import { useConfirm } from '../../Confirm.js';
 import InvitePanel from '../../c/[id]/room/InvitePanel.js';
 import type { Channel } from '../../../src/domain/channel.js';
+import { roomBase } from '../../../src/domain/document.js';
 
 /**
  * Inviting people onto the broadcast.  [Doctrine CHANNEL §6, ROOM §3, §6, D-19]
@@ -92,7 +93,7 @@ export default function GuestsTab({
     if (!roomId) { setRoom(null); return; }
     try {
       const response = await fetch(
-        `/api/conversations/${roomId}/room`, { cache: 'no-store' });
+        `${roomBase(roomId)}`, { cache: 'no-store' });
       if (response.ok) setRoom(await response.json() as RoomView);
     } catch { /* momentarily unreachable; keep the last view. */ }
   }, [roomId]);
@@ -110,7 +111,7 @@ export default function GuestsTab({
     setBusy(true);
     setError(null);
     try {
-      const response = await fetch(`/api/conversations/${roomId}/room`, {
+      const response = await fetch(`${roomBase(roomId)}`, {
         method: 'POST', headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body),
       });
@@ -134,40 +135,63 @@ export default function GuestsTab({
     );
   }
 
-  /* ---- live, no room: choose one -------------------------------------- */
+  /* ---- live, no room: open one, or borrow one -------------------------- */
   if (!roomId) {
     return (
+      /*
+       * THIS TAB USED TO DEAD-END.  [§6, ROOM §6, D-17]
+       *
+       * "A broadcast takes its guests from a conversation's room" was the
+       * whole of it, and when there were no conversations the only thing on
+       * screen was "Start one in Studio One and its room becomes available
+       * here" — which is an instruction to buy another studio, written as
+       * if it were a next step. The studios are sold separately.
+       *
+       * So the broadcast's own room comes first, because it is the one that
+       * is always available and the one most broadcasts want: guests
+       * invited to THIS programme, on THIS channel, by a link. Borrowing a
+       * conversation's room stays, below it, for the case it was built for
+       * — a seminar already under way in Studio One that is going to air.
+       */
       <div data-testid="attach-room" style={{
-        display: 'flex', flexDirection: 'column', gap: 8,
+        display: 'flex', flexDirection: 'column', gap: 'var(--space-4)',
       }}>
         <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-xs)' }}>
-          {/*
-            * Said once, because it is the thing that explains the whole
-            * arrangement: the channel does not grow a room, it names one.
-            */}
-          A broadcast takes its guests from a conversation&rsquo;s room. Pick
-          the conversation and everybody staged in it is in the picture.
+          Guests come out of a room. Open one on this broadcast and send
+          people the link; everybody you bring to stage is in the picture.
         </p>
-        {choices.length === 0 ? (
-          <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-xs)' }}>
-            No conversations yet. Start one in Studio One and its room becomes
-            available here.
-          </p>
-        ) : (
-          <select
-            data-testid="room-choice" defaultValue=""
-            onChange={(event) => {
-              if (event.target.value) onAttach(event.target.value);
-            }}
-            style={{ fontSize: 'var(--text-sm)', padding: '7px 9px' }}
-          >
-            <option value="" disabled>Choose a conversation&hellip;</option>
-            {choices.map((conversation) => (
-              <option key={conversation.id} value={conversation.id}>
-                {conversation.title}
-              </option>
-            ))}
-          </select>
+        {/*
+          * NOT A CTA, because this is a desk — the same reasoning as
+          * `open-room` below it, which is the same action on a
+          * conversation. [brief §4]
+          */}
+        <button className="ctl" data-testid="open-broadcast-room"
+                disabled={busy}
+                onClick={() => onAttach(channel.id)}
+                style={{ width: '100%', padding: '7px 10px' }}>
+          Open a room on this broadcast
+        </button>
+        {choices.length > 0 && (
+          <>
+            <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-2xs)' }}>
+              Or take them from a conversation already running in Studio
+              One — everybody staged in it is in the picture.
+            </p>
+            <select
+              data-testid="room-choice" defaultValue=""
+              onChange={(event) => {
+                if (event.target.value) onAttach(event.target.value);
+              }}
+              style={{ fontSize: 'var(--text-sm)', padding: '7px 9px' }}
+            >
+              <option value="" disabled>Choose a conversation&hellip;</option>
+              {choices.map((conversation) => (
+                <option key={conversation.id} value={conversation.id}>
+                  {conversation.title}
+                </option>
+              ))}
+            </select>
+          </>
         )}
         {armed && (
           <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-2xs)' }}>
@@ -189,10 +213,14 @@ export default function GuestsTab({
         <span className="muted grow" style={{
           fontSize: 'var(--text-2xs)', letterSpacing: 0.8, fontWeight: 700,
         }}>ON STAGE</span>
-        <a className="small" href={`/c/${roomId}/room`} data-testid="to-room"
-           target="_blank" rel="noreferrer" style={{ fontSize: 'var(--text-2xs)' }}>
-          Open the room
-        </a>
+        {/* A conversation's room has a page of its own to stand in; a
+            broadcast's room is this desk, so there is nowhere else to go. */}
+        {roomId !== channel.id && (
+          <a className="small" href={`/c/${roomId}/room`} data-testid="to-room"
+             target="_blank" rel="noreferrer" style={{ fontSize: 'var(--text-2xs)' }}>
+            Open the room
+          </a>
+        )}
       </div>
 
       {guests.sources.length === 0 ? (
@@ -233,8 +261,9 @@ export default function GuestsTab({
         {room && !room.open ? (
           <>
             <p className="small muted" style={{ margin: '0 0 7px', fontSize: 'var(--text-xs)' }}>
-              This conversation&rsquo;s room has never been opened. Opening it
-              makes a link you can send to anybody.
+              {roomId === channel.id ? 'This broadcast' : 'This conversation'}
+              &rsquo;s room has never been opened. Opening it makes a link you
+              can send to anybody.
             </p>
             {/*
               * NOT A CTA, BECAUSE THIS IS A DESK. Opening the room is an
@@ -276,9 +305,12 @@ export default function GuestsTab({
 
       <button className="quiet sm" data-testid="detach-room"
               onClick={() => confirm({
-                question: 'Take this room off the broadcast? The room keeps '
-                  + 'running and its guests stay in it \u2014 it simply stops '
-                  + 'being the one this channel is looking at.',
+                question: roomId === channel.id
+                  ? 'Close this broadcast\u2019s room? The link stops working '
+                    + 'and its guests are no longer in the picture.'
+                  : 'Take this room off the broadcast? The room keeps '
+                    + 'running and its guests stay in it \u2014 it simply stops '
+                    + 'being the one this channel is looking at.',
                 verb: 'Take it off the broadcast',
                 danger: true,
                 go: () => onAttach(null),

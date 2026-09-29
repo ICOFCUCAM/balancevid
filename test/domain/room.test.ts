@@ -21,6 +21,13 @@ import {
 import { makeConversation, makeIntervention } from './fixtures.js';
 import type { AssetId, Conversation } from '../../src/domain/document.js';
 import { meIn, roomView } from '../../src/web/room.js';
+import { type RoomHost, roomBase, roomHostKind } from '../../src/domain/document.js';
+import {
+  joinRoom, openRoom, setStaged,
+} from '../../src/domain/roomEdit.js';
+import {
+  attachRoom, ChannelEditError, goLive, newChannel,
+} from '../../src/domain/channelEdit.js';
 
 /**
  * A participant, described by what HAPPENED to them rather than by a state.
@@ -374,5 +381,142 @@ describe('who a caller is in the room (ROOM §1, §12)', () => {
       participants: { id: string }[];
     };
     expect(view.participants.map((p) => p.id)).toEqual(['part_james', 'part_sarah']);
+  });
+});
+
+/**
+ * A BROADCAST'S OWN ROOM.  [Doctrine CHANNEL §6, ROOM §6, D-17, D-19]
+ *
+ * `channel.ts` used to record, as a decision, that "a channel going live
+ * names the conversation whose room it is coming out of rather than growing
+ * a second room of its own — a second room would be a second place
+ * invitations, staging and speaker detection could disagree."
+ *
+ * The reasoning is right and the conclusion was too narrow. What must not be
+ * duplicated is the room's MACHINERY; which document holds the record is a
+ * different question, and answering it "a conversation, always" made Online
+ * TV's guests depend on Studio One. The studios are sold separately, so an
+ * account with only a channel had a Guests tab whose one way forward read
+ * "Start one in Studio One and its room becomes available here".
+ *
+ * What these prove is the thing that makes it safe: a Channel is a
+ * `RoomHost`, and the SAME functions operate on it. Not a parallel
+ * implementation that happens to behave alike — the same `openRoom`, the
+ * same `joinRoom`, the same `setStaged`.
+ */
+describe('a broadcast can open a room of its own', () => {
+  const AT = '2026-01-01T09:00:00.000Z';
+  const live = () => {
+    const channel = newChannel('BalanceVid TV', 'Africa/Lagos', AT);
+    goLive(channel, 'Live', AT);
+    return channel;
+  };
+
+  /*
+   * A TYPE-LEVEL CLAIM, AND ONLY `tsc` CAN CHECK IT. Deleting `room?: Room`
+   * from `Channel` leaves every runtime assertion below passing —
+   * `openRoom` writes the property regardless, and vitest strips types
+   * rather than checking them. The mutation went green and the annotation
+   * on the next line is what caught it.
+   */
+  it('is a RoomHost by its type', () => {
+    const channel: RoomHost = live();
+    expect(roomHostKind(channel.id)).toBe('channel');
+  });
+
+  it('is a RoomHost, so the room\'s own functions take it', () => {
+    const channel = live();
+    const host = openRoom(channel, {
+      inviteToken: 'tok_abcdefghijklmnop', hostName: 'Broadcaster', now: AT,
+    });
+    expect(channel.room?.open).toBe(true);
+    expect(channel.participants?.map((p) => p.displayName)).toEqual(['Broadcaster']);
+    expect(channel.room?.stagedParticipantIds).toEqual([host.id]);
+  });
+
+  it('and a stranger joins it with the same joinRoom a conversation uses', () => {
+    const channel = live();
+    openRoom(channel, {
+      inviteToken: 'tok_abcdefghijklmnop', hostName: 'Broadcaster', now: AT,
+    });
+    const guest = joinRoom(channel, 'Amara', '2026-01-01T09:05:00.000Z');
+    expect(channel.participants?.map((p) => p.displayName))
+      .toEqual(['Broadcaster', 'Amara']);
+    /* In the room and not in the picture, which is the whole of §4. */
+    expect(channel.room?.stagedParticipantIds).not.toContain(guest.id);
+    setStaged(channel, [guest.id]);
+    expect(channel.room?.stagedParticipantIds).toEqual([guest.id]);
+  });
+
+  /*
+   * AND THE ROOM IT NAMES IS ITSELF. Every layer downstream — the poll, the
+   * invite link, the join route, the guest policy — resolves from that one
+   * id, which is why there is no second concept for "whose room this is".
+   */
+  it('names itself as the room, and refuses another broadcast\'s', () => {
+    const channel = live();
+    attachRoom(channel, channel.id);
+    expect(channel.live?.roomId).toBe(channel.id);
+
+    const other = live();
+    expect(() => attachRoom(channel, other.id)).toThrow(ChannelEditError);
+    expect(() => attachRoom(channel, other.id))
+      .toThrow(/cannot take its guests from another broadcast/);
+    /* And still says what it said before the refusal. */
+    expect(channel.live?.roomId).toBe(channel.id);
+  });
+
+  it('and refuses an id that names no room at all', () => {
+    const channel = live();
+    expect(() => attachRoom(channel, 'perf_0123456789abcdef')).toThrow(/not a room/);
+    expect(() => attachRoom(channel, 'nonsense')).toThrow(/not a room/);
+  });
+
+  /*
+   * A channel has a `name` where a conversation has a `title`, and is about
+   * nothing but itself where a conversation is about a source. The room
+   * view says so rather than showing a blank heading to everybody who
+   * joins.
+   */
+  it('and the room is called what the channel is called', () => {
+    const channel = live();
+    openRoom(channel, {
+      inviteToken: 'tok_abcdefghijklmnop', hostName: 'Broadcaster', now: AT,
+    });
+    const view = roomView(channel, true);
+    expect(view['title']).toBe('BalanceVid TV');
+    expect(view['sourceTitle']).toBeUndefined();
+  });
+});
+
+/**
+ * ONE DISCRIMINATOR, READ IN THREE LAYERS.
+ *
+ * The store opens a file by it, the routes live at a path because of it, and
+ * the browser builds that path from it. Three copies of
+ * `startsWith('chan_')` would be three chances for a guest to be sent to a
+ * path the security policy never admitted them to — and the one that
+ * drifted would be whichever nobody tested.
+ */
+describe('which document a room id names', () => {
+  it('reads the prefix newId has always minted', () => {
+    expect(roomHostKind('conv_0123456789abcdef')).toBe('conversation');
+    expect(roomHostKind('chan_0123456789abcdef')).toBe('channel');
+    expect(roomHostKind('perf_0123456789abcdef')).toBeNull();
+    expect(roomHostKind('')).toBeNull();
+  });
+
+  it('and sends each to the path its own handlers answer at', () => {
+    expect(roomBase('conv_abc')).toBe('/api/conversations/conv_abc/room');
+    expect(roomBase('chan_abc')).toBe('/api/channels/chan_abc/room');
+  });
+
+  /*
+   * An id that names nothing goes to the conversation path, which 404s.
+   * The alternative — throwing — would put an exception in the middle of
+   * a render for a URL somebody mistyped.
+   */
+  it('and an id that names nothing 404s rather than throwing mid-render', () => {
+    expect(roomBase('nonsense')).toBe('/api/conversations/nonsense/room');
   });
 });

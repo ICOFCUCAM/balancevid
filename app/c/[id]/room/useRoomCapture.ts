@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { measureVoice } from '../../../../src/domain/voice.js';
+import { roomBase } from '../../../../src/domain/document.js';
 
 /**
  * A participant's own camera, and their own microphone.  [Doctrine ROOM §2, §10]
@@ -105,7 +106,7 @@ export function useRoomCapture({
       previousRef.current = magnitudes;
       floorRef.current = reading.noiseFloor;
 
-      void fetch(`/api/conversations/${conversationId}/room/voice`, {
+      void fetch(`${roomBase(conversationId)}/voice`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({

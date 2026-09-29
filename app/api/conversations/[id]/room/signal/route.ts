@@ -1,6 +1,6 @@
 import { callerFor } from '../../../../../../src/auth/request.js';
 import { inRoom } from '../../../../../../src/domain/participants.js';
-import { loadConversation } from '../../../../../../src/store/repository.js';
+import { loadRoomHost } from '../../../../../../src/store/rooms.js';
 import { fail, json } from '../../../../../../src/web/http.js';
 import { meIn } from '../../../../../../src/web/room.js';
 
@@ -132,12 +132,12 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
 }
 
 async function authorise(request: Request, id: string): Promise<
-  { conversation: Awaited<ReturnType<typeof loadConversation>>; me: string }
+  { conversation: Awaited<ReturnType<typeof loadRoomHost>>; me: string }
   | { error: Response }
 > {
   let conversation;
   try {
-    conversation = await loadConversation(id);
+    conversation = await loadRoomHost(id);
   } catch {
     return { error: fail(404, 'conversation not found') };
   }

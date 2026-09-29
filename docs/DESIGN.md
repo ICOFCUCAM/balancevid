@@ -291,6 +291,62 @@ state underneath does not support.
 
 ---
 
+## The ninth decision: a studio sold on its own works on its own
+
+The three studios are separable products. A capability one of them promises
+must therefore be reachable from inside it, and Online TV's guests were not.
+
+The brief says a broadcaster "can bring people into the room", and everything
+needed for that existed: the invite panel, the join route, the guest session,
+the staging model, the speaker detection. What did not exist was a door. A
+channel's `roomId` named **a conversation's** room, by a decision recorded in
+`channel.ts`:
+
+> a channel going live names the conversation whose room it is coming out of
+> rather than growing a second room of its own — a second room would be a
+> second place invitations, staging and speaker detection could disagree.
+
+The reasoning is right. The conclusion was one word too wide. What must not be
+duplicated is the room's **machinery**; which document holds the record is a
+different question, and answering it "a conversation, always" meant an account
+with only Online TV met this, and nothing else:
+
+> No conversations yet. Start one in Studio One and its room becomes available
+> here.
+
+That is an instruction to buy a second studio, written in the shape of a next
+step.
+
+So `RoomHost` — `{ id, participants?, room? }` — is what the room's functions
+take, and a Channel is one. Nothing in `roomEdit`, `callerFor` or `roomView`
+ever wanted more than those fields; a Conversation satisfies it by being one.
+There is still exactly one invite panel, one join route, one staging model.
+"A channel does not grow a room of its own" became "a channel does not grow a
+room **implementation** of its own", which was always the part that mattered.
+
+Three consequences worth writing down:
+
+- **One discriminator, read in three layers.** The store opens a file by it,
+  the routes live at `/api/conversations/…` or `/api/channels/…` because of
+  it, and the browser builds those paths from it. `roomHostKind` is the single
+  place that reads the `conv_`/`chan_` prefix `newId` has always minted. Three
+  copies would be three chances to send a guest to a path the policy never
+  admitted them to, and the one that drifted would be whichever nobody tested.
+- **The route table is also the security policy.** `policy.ts` decides what a
+  caller without the owner's session may reach by matching paths, so
+  `/api/conversations/chan_…/room` would have been a rule nobody could audit.
+  The channel's six room routes are one-line re-exports of the conversation
+  ones — the same handlers, at an honest path — and the six policy entries are
+  written out rather than merged into a `conversations|channels` alternation,
+  because a boundary should have to be widened on purpose.
+- **A type-level claim needs a type-level test.** "A Channel is a RoomHost"
+  survived deleting `room?: Room` from `Channel`: `openRoom` writes the
+  property regardless and vitest strips types rather than checking them. Every
+  runtime assertion went green. What caught it was one annotation —
+  `const channel: RoomHost = live();` — and `tsc --noEmit`.
+
+---
+
 ## What the tests kept getting wrong
 
 Worth its own section, because it keeps happening the same way. A rule gets
@@ -304,6 +360,7 @@ is describing, and then walks straight past the next instance:
 | no bold-literal titles | `<strong className="grow">` | any `<strong>` that **is** its line |
 | no hand-written sizes | the three studio routes | the whole application |
 | a screen has square corners | radii ≥ 8, written as digits, in three route folders | any radius above `--radius-screen`, token or digit, anywhere in `app/` |
+| why a render is refused | decided twice — properly in the invariant, worse in the console | `renderProblems`, asked by both |
 
 Each widening found more: nine corners, five near-blacks, five titles,
 fourteen sizes — and, the fifth time, twenty-two rounded pictures on six

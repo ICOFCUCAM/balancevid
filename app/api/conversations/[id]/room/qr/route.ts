@@ -1,6 +1,6 @@
 import QRCode from 'qrcode';
 import { isOwner } from '../../../../../../src/auth/request.js';
-import { loadConversation } from '../../../../../../src/store/repository.js';
+import { loadRoomHost } from '../../../../../../src/store/rooms.js';
 import { fail } from '../../../../../../src/web/http.js';
 import { joinUrl } from '../../../../../../src/web/room.js';
 
@@ -29,7 +29,7 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
 
   let conversation;
   try {
-    conversation = await loadConversation(id);
+    conversation = await loadRoomHost(id);
   } catch {
     return fail(404, 'conversation not found');
   }

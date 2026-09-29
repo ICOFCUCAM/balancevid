@@ -229,6 +229,59 @@ describe('what a stranger may reach', () => {
     }
   });
 
+  /*
+   * AND A CHANNEL'S OWN ROOM IS A ROOM.  [CHANNEL §6, ROOM §6]
+   *
+   * A broadcast can open a room instead of borrowing a conversation's, so a
+   * guest arriving at one is a guest arriving at a room and reaches it by
+   * the same rules. The handlers behind these paths ARE the conversation
+   * ones, re-exported — but the POLICY is matched on the path, so a route
+   * that exists and a path the policy admits are two different facts and
+   * both have to be true.
+   */
+  it('admits a channel\'s own room by exactly the same rules', () => {
+    for (const path of [
+      '/api/channels/chan_abc/room',
+      '/api/channels/chan_abc/room/presence',
+      '/api/channels/chan_abc/room/signal',
+    ]) {
+      expect(mayBePublic(path, 'GET'), path).toBe(true);
+    }
+    for (const path of [
+      '/api/channels/chan_abc/room/join',
+      '/api/channels/chan_abc/room/presence',
+      '/api/channels/chan_abc/room/voice',
+      '/api/channels/chan_abc/room/signal',
+    ]) {
+      expect(mayBePublic(path, 'POST'), path).toBe(true);
+    }
+  });
+
+  it('and no wider than that — the rest of a channel stays the owner\'s', () => {
+    /*
+     * The failure this is written against: widening the room by matching
+     * `/api/channels/[id]/` and something, rather than the six paths that
+     * are a room. A channel's schedule, its live session, its destinations
+     * and its playlist are the broadcaster's own desk, and a guest holding
+     * an invite to the room must not reach any of them.
+     */
+    for (const path of [
+      '/api/channels/chan_abc',
+      '/api/channels/chan_abc/live',
+      '/api/channels/chan_abc/room/qr',
+      '/api/channels/chan_abc/roomx',
+      '/api/channels',
+    ]) {
+      for (const method of ['GET', 'POST', 'PATCH', 'DELETE']) {
+        expect(mayBePublic(path, method), `${method} ${path}`).toBe(false);
+      }
+    }
+    /* And the method rule holds here too. */
+    for (const method of ['DELETE', 'PATCH', 'PUT']) {
+      expect(mayBePublic('/api/channels/chan_abc/room/join', method), method).toBe(false);
+    }
+  });
+
   it('is private by default, so a route added tomorrow is not exposed', () => {
     expect(mayBePublic('/api/conversations/conv_abc/something-new', 'GET')).toBe(false);
     expect(mayBePublic('/admin', 'GET')).toBe(false);
