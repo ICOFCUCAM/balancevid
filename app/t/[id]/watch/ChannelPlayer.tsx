@@ -125,7 +125,7 @@ export default function ChannelPlayer({
         controls autoPlay playsInline muted
         {...(poster ? { poster } : {})}
         style={{
-          width: '100%', aspectRatio: '16 / 9', borderRadius: 10,
+          width: '100%', aspectRatio: '16 / 9', borderRadius: 'var(--radius-screen)',
           background: '#08090b', border: '1px solid var(--line)',
           display: 'block',
         }}

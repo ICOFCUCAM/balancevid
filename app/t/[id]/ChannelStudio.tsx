@@ -893,7 +893,7 @@ export default function ChannelStudio({
                    * "do not decorate the video". [brief §5]
                    */
                   position: 'relative', flex: '1 1 auto', minHeight: 150,
-                  margin: 9, background: '#000', borderRadius: 2,
+                  margin: 9, background: '#000', borderRadius: 'var(--radius-screen)',
                   border: '1px solid var(--console-edge)',
                   boxShadow: 'var(--console-well)', overflow: 'hidden',
                 }}
@@ -1096,7 +1096,7 @@ export default function ChannelStudio({
                 />
                 <div style={{
                   position: 'relative', flex: '1 1 auto', minHeight: 96,
-                  margin: 9, background: '#000', borderRadius: 2,
+                  margin: 9, background: '#000', borderRadius: 'var(--radius-screen)',
                   overflow: 'hidden',
                   border: `1px solid ${armed ? 'var(--ink-on-armed)' : 'var(--line)'}`,
                 }}>

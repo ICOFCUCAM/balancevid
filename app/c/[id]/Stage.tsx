@@ -65,7 +65,8 @@ export default function Stage({
       <div
         data-testid="stage-frame"
         style={{
-          position: 'relative', background: '#000', borderRadius: 8, overflow: 'hidden',
+          position: 'relative', background: '#000',
+          borderRadius: 'var(--radius-screen)', overflow: 'hidden',
           aspectRatio: String(ratio), lineHeight: 0,
           ...(fit === 'width'
             ? { width: '100%', maxHeight: '100%' }
@@ -87,7 +88,7 @@ export default function Stage({
           style={{
             position: 'absolute', top: 12, right: 12,
             width: '20%', maxWidth: 240, aspectRatio: '16 / 9',
-            objectFit: 'cover', borderRadius: 8,
+            objectFit: 'cover', borderRadius: 'var(--radius-screen)',
             border: `2px solid ${stance === 'yours' ? '#e0674f' : 'rgba(255,255,255,0.35)'}`,
             boxShadow: '0 6px 24px rgba(0,0,0,0.5)',
             display: cameraOn ? 'block' : 'none',

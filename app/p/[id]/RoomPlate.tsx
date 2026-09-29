@@ -257,7 +257,8 @@ function MattePreview({
       <canvas
         ref={canvasRef} width={PREVIEW_W} height={PREVIEW_H}
         data-testid="matte-preview"
-        style={{ width: PREVIEW_W, height: PREVIEW_H, borderRadius: 8,
+        style={{ width: PREVIEW_W, height: PREVIEW_H,
+          borderRadius: 'var(--radius-screen)',
           border: '1px solid var(--line)', background: '#0d1319' }}
       />
     </div>

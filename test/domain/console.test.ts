@@ -296,3 +296,59 @@ describe('the legend against a real picture', () => {
     expect(LEGEND).toMatch(/Math\.round\(fps\)/);
   });
 });
+
+/**
+ * A PICTURE IS NOT A THUMBNAIL.  [brief §4, §5]
+ *
+ * The surface this entire product exists to put a picture on was
+ * rounded at 8 and 10 pixels in seven places, including the two pages
+ * a VIEWER sees. Ten pixels on a video is the shape of a card in a
+ * feed, and that association is the wrong one for a broadcast
+ * monitor: a screen has square corners, and rounding them is the
+ * difference between a monitor and a thumbnail.
+ *
+ * The rule is a token rather than a number in seven files, so this
+ * checks the token is what the pictures actually use — a token
+ * nobody references is a comment.
+ */
+describe('the pictures', () => {
+  const SCREENS: [string, number][] = [
+    ['app/t/[id]/ChannelStudio.tsx', 2],
+    ['app/t/[id]/watch/ChannelPlayer.tsx', 1],
+    ['app/c/[id]/Stage.tsx', 2],
+    ['app/p/[id]/watch/Watch.tsx', 2],
+    ['app/p/[id]/RoomPlate.tsx', 1],
+  ];
+
+  it('names the screen radius once', () => {
+    expect(CONSOLE).toMatch(/--radius-screen:\s*2px/);
+  });
+
+  it.each(SCREENS)('%s draws its picture on the token', (file, count) => {
+    const hits = (code(join(ROOT, file)).match(/var\(--radius-screen\)/g) ?? []);
+    expect(hits.length, `${file} has ${hits.length}, wanted ${count}`)
+      .toBe(count);
+  });
+
+  /*
+   * AND NO PICTURE IS ROUNDED LIKE A CARD ANYWHERE IN THE STUDIOS. The
+   * per-file counts above would pass if somebody added an eighth
+   * picture at 10px in a new file, which is exactly how the first
+   * seven got there.
+   */
+  it('rounds no video or canvas like a card', () => {
+    const offenders: string[] = [];
+    for (const file of ['t', 'c', 'p']
+      .flatMap((route) => components(join(ROOT, 'app', route, '[id]')))) {
+      const body = code(file);
+      /* A style block that sets a large radius and also says it is a
+         picture: an aspect ratio, a black bed, or object-fit. */
+      for (const [block] of body.matchAll(/\{[^{}]*borderRadius:\s*'?(?:[89]|[1-9]\d)(?:px)?'?[^{}]*\}/g)) {
+        if (/aspectRatio|objectFit|#000\b|#08090b/.test(block)) {
+          offenders.push(`${named(file)}: ${block.replace(/\s+/g, ' ').slice(0, 70)}`);
+        }
+      }
+    }
+    expect(offenders, 'a picture rounded like a card').toEqual([]);
+  });
+});

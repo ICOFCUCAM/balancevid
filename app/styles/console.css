@@ -77,6 +77,23 @@
   /* Modest, and consistent. A module barely rounds; a control rounds. */
   --radius-module: 4px;
   --radius-control: 4px;
+
+  /*
+   * A SCREEN HAS SQUARE CORNERS.  [brief §4, §5]
+   *
+   * The one rectangle in this product that IS a television picture
+   * gets the tightest radius there is, and it is a token rather than
+   * a literal because there are seven of them: the program monitor,
+   * preview, the composition stage, the camera PiP, the matte preview
+   * and the two pages a VIEWER sees.
+   *
+   * Two pixels rather than zero, because a picture sits in a
+   * bordered well and a perfectly square corner against a 1px border
+   * shows the border's own mitre. Ten pixels is a thumbnail in a feed;
+   * that is the association, and it is the wrong one for the surface
+   * the whole product exists to put a picture on.
+   */
+  --radius-screen: 2px;
 }
 
 /* ------------------------------------------------------------------- *

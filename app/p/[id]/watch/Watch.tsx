@@ -43,7 +43,8 @@ export default function Watch({
           playsInline
           onError={() => setFailed(true)}
           style={{
-            width: '100%', maxWidth: 960, borderRadius: 10, background: '#08090b',
+            width: '100%', maxWidth: 960, background: '#08090b',
+            borderRadius: 'var(--radius-screen)',
             border: '1px solid var(--line)',
           }}
         />
@@ -72,7 +73,7 @@ export default function Watch({
                   playsInline
                   style={{
                     width: 180, aspectRatio: '9 / 16', objectFit: 'cover',
-                    borderRadius: 8, background: '#08090b',
+                    borderRadius: 'var(--radius-screen)', background: '#08090b',
                     border: '1px solid var(--line)',
                   }}
                 />
