@@ -24,6 +24,7 @@ import { join } from 'node:path';
 import type { AudioPiece } from '../domain/performanceAudio.js';
 import { HOUSE_SAMPLE_RATE } from '../domain/time.js';
 import { ffmpeg, type RunOptions } from './ffmpeg.js';
+import { cleanupFor } from '../domain/cleanup.js';
 
 const seconds = (samples: number): string => (samples / HOUSE_SAMPLE_RATE).toFixed(6);
 
@@ -70,6 +71,19 @@ export function mixGraph(
       // INV-14 exists to refuse, arriving by the back door.
       `aresample=${HOUSE_SAMPLE_RATE}`,
       ...(ratio === 1 ? [] : [`atempo=${ratio.toFixed(9)}`]),
+      /*
+       * THE ROOM, DEALT WITH BEFORE ANYTHING ELSE IS.  [MASTER-EDIT §8]
+       *
+       * Here rather than after the mix, because the noise belongs to ONE
+       * microphone: denoising the sum would mean an FFT denoiser deciding
+       * which parts of the song are the fan. And after `aresample`, because
+       * `highpass=f=90` means ninety hertz of the house rate and not of
+       * whatever rate the phone recorded at.
+       *
+       * Only a take, never the master, and the plan is what says which —
+       * `planPerformanceAudio` sets this field on take pieces alone.
+       */
+      ...(cleanupFor(piece.cleanup)?.stages ?? []),
     ];
     if (piece.fadeInSamples > 0) {
       steps.push(`afade=t=in:st=0:d=${seconds(piece.fadeInSamples)}`);

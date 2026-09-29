@@ -8,6 +8,7 @@ import {
   MASTER_CLASSES, SPACES, isFootage, orderedScenes, renderProblems, sceneAt,
 } from '../../../src/domain/performance.js';
 import { EFFECT_LOOKS, SPACE_LOOKS } from '../../../src/domain/environment.js';
+import { CLEANUPS } from '../../../src/domain/cleanup.js';
 import { useConfirm } from '../../Confirm.js';
 import { useMenu, type MenuEntry } from '../../Menu.js';
 import ClipInspector, { type Selection } from './ClipInspector.js';
@@ -1283,6 +1284,69 @@ export default function SwitchingStage({
                 }), 'effect-option',
                 { height: 48, glyph: <EffectGlyph id={look.id} />,
                   title: `${look.label} \u2014 ${look.hint}` }))}
+            </div>
+          )}
+
+          {/*
+            * SOUND, BESIDE PICTURE, BECAUSE IT IS THE SAME QUESTION ABOUT
+            * THE SAME TAKE.  [MASTER-EDIT §8, §12 P2]
+            *
+            * An Effect is what to do about the light the take was shot in;
+            * a Cleanup is what to do about the room it was recorded in. The
+            * benchmark files those under two different tabs and this does
+            * not, because in this product both are properties of one
+            * recording and the author is choosing between takes, not
+            * between panels. [U-18]
+            *
+            * WORDS AND NOT GLYPHS. There is no drawing of "a fridge in the
+            * background", and inventing one would be five tiles the author
+            * has to hover to read. [U-19]
+            */}
+          {sectionTitle('Sound')}
+          {!subject ? null : subject.hasAudio === false ? (
+            <p className="small muted" data-testid="cleanup-silent"
+               style={{ margin: 0 }}>
+              This take was recorded with no sound in it, so there is nothing
+              to clean.
+            </p>
+          ) : (
+            <div className="ctl-bank">
+              <button className={`ctl${!subject.cleanup ? ' is-on' : ''}`}
+                      data-testid="cleanup-option" data-cleanup="none"
+                      aria-pressed={!subject.cleanup}
+                      title="Leave the recording as it was made"
+                      onClick={() => void patch({
+                        action: 'set-cleanup', takeId: subject.id, cleanup: null,
+                      })}
+                      style={{ textAlign: 'left', padding: '7px 10px', display: 'block' }}>
+                <span style={{
+                  fontWeight: 'var(--weight-semi)', fontSize: 'var(--text-sm)',
+                  letterSpacing: 0, textTransform: 'none',
+                }}>As recorded</span>
+                <span className="muted" style={{
+                  display: 'block', fontSize: 'var(--text-2xs)', marginTop: 2,
+                  letterSpacing: 0, textTransform: 'none',
+                }}>Nothing is removed. The default, and often right.</span>
+              </button>
+              {Object.values(CLEANUPS).map((row) => (
+                <button key={row.id}
+                        className={`ctl${subject.cleanup === row.id ? ' is-on' : ''}`}
+                        data-testid="cleanup-option" data-cleanup={row.id}
+                        aria-pressed={subject.cleanup === row.id}
+                        onClick={() => void patch({
+                          action: 'set-cleanup', takeId: subject.id, cleanup: row.id,
+                        })}
+                        style={{ textAlign: 'left', padding: '7px 10px', display: 'block' }}>
+                  <span style={{
+                    fontWeight: 'var(--weight-semi)', fontSize: 'var(--text-sm)',
+                    letterSpacing: 0, textTransform: 'none',
+                  }}>{row.label}</span>
+                  <span className="muted" style={{
+                    display: 'block', fontSize: 'var(--text-2xs)', marginTop: 2,
+                    letterSpacing: 0, textTransform: 'none',
+                  }}>{row.hint}</span>
+                </button>
+              ))}
             </div>
           )}
 

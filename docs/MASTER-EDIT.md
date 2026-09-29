@@ -247,7 +247,7 @@ used* — and nothing about the recording itself.
 | crop / reframe | PARTIAL | `focus.ts` reframes a conversation; a take has no crop |
 | replace take | GAP | a source take is a recording; replacing it is uploading another |
 | stabilize | GAP | no `vidstab`/`deshake` anywhere in `src/` |
-| audio cleanup | GAP | no `afftdn`/`anlmdn`/`arnndn`/`speechnorm` anywhere in `src/` |
+| audio cleanup | HAVE | `setCleanup` with four named rows — the same shape as `setEffect`, on the take because a fan belongs to the recording and not to the stretch of song it is used over |
 
 ---
 
@@ -276,8 +276,8 @@ against `src/` rather than remembered:
 | chroma key | GAP | no `chromakey`; the matte is difference-based by design (INV-16) |
 | motion tracking | GAP | — |
 | stabilization | GAP | — |
-| audio denoise | GAP | — |
-| speech enhancement | GAP | — |
+| audio denoise | HAVE | `CLEANUPS`, per take — `highpass` + `afftdn`, measured in `test/render/cleanup.test.ts` |
+| speech enhancement | HAVE | the `Voice` and `Heavy` rows — `speechnorm` under a limiter, so the first shouted line does not clip |
 | hardware acceleration | GAP | no `nvenc`/`qsv`/`vaapi`/`videotoolbox` in the ffmpeg layer |
 | auto-reframe, object removal, edit-by-chat | GAP | AI surface, none of it present |
 
@@ -461,10 +461,24 @@ pre-render validation
 
 ### P2 — Professional finishing
 
-keyframes · masks · crop/reframe · colour adjustment · colour match · LUT ·
-stabilization · chroma key · audio denoise · de-reverb · speech enhancement ·
-captions — **all GAP except captions (HAVE) and colour adjustment (PARTIAL:
-four named looks).** See §6 for where each was checked.
+keyframes · masks · crop/reframe · colour match · LUT · stabilization ·
+chroma key · de-reverb — **GAP.**
+
+**HAVE:** captions · audio denoise · speech enhancement (`CLEANUPS`: four
+named rows on a take, never on the song, none of them changing the length
+by a sample).
+
+**PARTIAL:** colour adjustment (four named looks).
+
+**De-reverb is not on the way, and the reason is worth keeping.** There is
+no ffmpeg filter that removes a room. What exists is gating, which removes
+the reverb tail by silencing everything below a threshold — and on a sung
+phrase that is the end of every note. A feature called de-reverb that chops
+note endings is worse than no feature, because the author blames their
+singing. `arnndn` is the good denoiser and needs a trained model this
+product does not ship and cannot fetch at render time; when one is vendored
+it is a fifth row and nothing else changes. See §6 for where each was
+checked.
 
 ### P3 — Intelligent editing
 
