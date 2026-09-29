@@ -165,11 +165,13 @@ export function scoreTake(
     const spread = Math.min(1, colour!.ySpread / GOOD_SPREAD);
     score += WEIGHT.contrast * spread;
     if (spread < 0.55) says.push('flat — little contrast in the picture');
+    else if (spread >= 0.8) says.push('plenty of contrast');
 
     const off = Math.abs(colour!.y - IDEAL_Y) / IDEAL_Y;
     score += WEIGHT.exposure * Math.max(0, 1 - off);
     if (colour!.y < IDEAL_Y * 0.55) says.push('dark');
     else if (colour!.y > IDEAL_Y * 1.45) says.push('bright, close to clipping');
+    else if (off <= 0.2) says.push('well exposed');
   } else {
     says.push('colour not measured — match it to another take to find out');
   }
@@ -179,7 +181,25 @@ export function scoreTake(
     says.push('steadied');
   }
 
-  if (says.length === 0) says.push('nothing measured against it');
+  /*
+   * A LIST OF FAULTS UNDER "MEASURES BEST HERE" READS AS A CONTRADICTION,
+   * and until the screenshot there was nothing else it could contain.
+   *
+   * The interface says a name and then the reasons, so the reasons were
+   * carrying the whole argument for the take — and every line above except
+   * `steadied` was a COST. The recommendation came out as "Measures best
+   * here: Beach. dark." An author reading that cannot tell whether the
+   * ranking is recommending the take or warning them off it.
+   *
+   * So the two facts a reading can state in the take's favour are now
+   * stated. They are the same numbers already being scored, said out
+   * loud — not new opinions, and nothing here is scored for being said.
+   *
+   * The fallback needed the same correction: "nothing measured against
+   * it" was meant as "no measurement counts against this take" and reads
+   * as "nothing was measured", which is its opposite.
+   */
+  if (says.length === 0) says.push('nothing measured counts against it');
 
   return { takeId: take.id, label: take.label, score, covers, says };
 }

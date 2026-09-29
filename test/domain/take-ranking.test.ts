@@ -176,6 +176,44 @@ describe('scoring one take', () => {
       expect(entry.says.length, entry.label).toBeGreaterThan(0);
     }
   });
+
+  /*
+   * A RECOMMENDATION MADE ENTIRELY OF COMPLAINTS, which is what this
+   * shipped as and what a screenshot caught: the interface prints the
+   * take's name and then these lines, and every line it could print was
+   * a FAULT. "Measures best here: Beach. dark." reads as an argument
+   * against the take being recommended.
+   *
+   * Both of these are facts the reading already states and the score
+   * already counts. Saying them changes no number.
+   */
+  it('says what recommends a take, not only what is wrong with it', () => {
+    const p = performance([take('good', { colour: reading({ y: 128, ySpread: 110 }) })]);
+    const said = scoreTake(p, p.takes[0]!, ...WHOLE).says.join(' · ');
+    expect(said).toMatch(/plenty of contrast/);
+    expect(said).toMatch(/well exposed/);
+    expect(said).not.toMatch(/flat|dark|clipping/);
+  });
+
+  it('does not call a middling picture good', () => {
+    const p = performance([take('middling', { colour: reading({ y: 168, ySpread: 65 }) })]);
+    const said = scoreTake(p, p.takes[0]!, ...WHOLE).says.join(' · ');
+    expect(said).not.toMatch(/plenty of contrast|well exposed/);
+    expect(said).not.toMatch(/flat|dark|clipping/);
+  });
+
+  /*
+   * "NOTHING MEASURED AGAINST IT" WAS ITS OWN OPPOSITE. It meant "no
+   * measurement counts against this take" and read as "nothing was
+   * measured", which is the one thing it is not: the colour reading is
+   * there, it is unremarkable, and that is why the line is reached.
+   */
+  it('does not say a measured take was never measured', () => {
+    const p = performance([take('middling', { colour: reading({ y: 168, ySpread: 65 }) })]);
+    const said = scoreTake(p, p.takes[0]!, ...WHOLE).says.join(' · ');
+    expect(said).toMatch(/nothing measured counts against it/);
+    expect(said).not.toMatch(/colour not measured/);
+  });
 });
 
 describe('the best take', () => {

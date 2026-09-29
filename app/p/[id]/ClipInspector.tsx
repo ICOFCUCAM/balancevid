@@ -355,8 +355,17 @@ export default function ClipInspector({
                   Use it
                 </button>
               </div>
+              {/*
+                * "MEASURED:" AND NOT A BARE FRAGMENT, which is what the
+                * screenshot showed: a line reading "dark." on its own
+                * under the take's name, with nothing to say whether that
+                * was the reason for the recommendation or a warning about
+                * it. The reasons are fragments by design — they are
+                * readings, not sentences — so the lead-in is what makes
+                * them a sentence.
+                */}
               <p className="small muted" style={{ margin: '2px 0 0' }}>
-                {best.says.join(' \u00b7 ')}. Nothing here can hear a
+                Measured: {best.says.join(' \u00b7 ')}. Nothing here can hear a
                 performance &mdash; this is what was measured, not what is good.
               </p>
             </div>
