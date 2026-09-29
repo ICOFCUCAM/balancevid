@@ -4,7 +4,7 @@ import {
 } from '../../../../../../src/domain/stage.js';
 import { hostOf, inRoom } from '../../../../../../src/domain/participants.js';
 import type { ParticipantId } from '../../../../../../src/domain/participants.js';
-import { loadConversation, mutateConversation } from '../../../../../../src/store/repository.js';
+import { loadRoomHost, mutateRoomHost } from '../../../../../../src/store/rooms.js';
 import { fail, json } from '../../../../../../src/web/http.js';
 import { roomView } from '../../../../../../src/web/room.js';
 
@@ -56,7 +56,7 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
 
   let conversation;
   try {
-    conversation = await loadConversation(id);
+    conversation = await loadRoomHost(id);
   } catch {
     return fail(404, 'conversation not found');
   }
@@ -122,7 +122,7 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
     const active = decision.active;
     const present = (conversation.participants ?? []).find((p) => p.id === active);
     if (present && inRoom(present)) {
-      conversation = await mutateConversation(id, (draft) => {
+      conversation = await mutateRoomHost(id, (draft) => {
         if (draft.room) draft.room.stagedParticipantIds = [active];
       });
     }

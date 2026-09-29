@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { roomBase } from '../../../../src/domain/document.js';
 
 /**
  * Seeing and hearing each other, live.  [Doctrine ROOM §12]
@@ -153,7 +154,7 @@ export function useRoomMesh({
   const wanted = useRef<string[]>([]);
 
   const signal = useCallback(async (to: string, payload: unknown) => {
-    await fetch(`/api/conversations/${conversationId}/room/signal`, {
+    await fetch(`${roomBase(conversationId)}/signal`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ to, payload }),
     }).catch(() => { /* the peer will try again; a lost candidate is survivable. */ });
@@ -343,7 +344,7 @@ export function useRoomMesh({
       while (!stopped) {
         try {
           const response = await fetch(
-            `/api/conversations/${conversationId}/room/signal`, { cache: 'no-store' });
+            `${roomBase(conversationId)}/signal`, { cache: 'no-store' });
           if (response.ok) {
             const { messages } = await response.json() as {
               messages: { from: string; payload: any }[];

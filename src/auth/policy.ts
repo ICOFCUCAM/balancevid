@@ -60,6 +60,24 @@ const PUBLIC_PATTERNS: RegExp[] = [
   /^\/api\/conversations\/[A-Za-z0-9_-]+\/room$/,
   /^\/api\/conversations\/[A-Za-z0-9_-]+\/room\/presence$/,
   /^\/api\/conversations\/[A-Za-z0-9_-]+\/room\/signal$/,
+  /*
+   * AND THE SAME THREE FOR A CHANNEL'S OWN ROOM.  [CHANNEL §6]
+   *
+   * A broadcast takes its guests from a room, and a channel can now open
+   * one instead of borrowing a conversation's — so a guest arriving at a
+   * broadcast is a guest arriving at a room, and reaches it by exactly the
+   * rules above. The handlers behind these paths ARE the ones above,
+   * re-exported; what differs is only which document holds the record.
+   *
+   * WRITTEN OUT RATHER THAN MERGED INTO ONE PATTERN. A regex that matched
+   * `conversations|channels` in one alternation would be shorter and would
+   * also quietly admit any third collection somebody adds later. This list
+   * is the security boundary, and a boundary should have to be widened on
+   * purpose.
+   */
+  /^\/api\/channels\/[A-Za-z0-9_-]+\/room$/,
+  /^\/api\/channels\/[A-Za-z0-9_-]+\/room\/presence$/,
+  /^\/api\/channels\/[A-Za-z0-9_-]+\/room\/signal$/,
   // A published conversation's own pages. The route still checks that it IS
   // published — this only decides which routes are allowed to make that call.
   /^\/c\/[A-Za-z0-9_-]+\/watch\/?$/,
@@ -152,6 +170,16 @@ const GUEST_WRITABLE: { method: string; path: RegExp }[] = [
   { method: 'POST', path: /^\/api\/conversations\/[A-Za-z0-9_-]+\/room\/voice$/ },
   // Introducing two browsers to each other. [ROOM §12]
   { method: 'POST', path: /^\/api\/conversations\/[A-Za-z0-9_-]+\/room\/signal$/ },
+  /*
+   * The same four for a channel's own room, and the same method rule: each
+   * of these paths is named with the ONE verb a guest may use on it. The
+   * hole that taught this product to write it that way was a path-only
+   * allowance on interventions, which also answered DELETE. [ROOM §6]
+   */
+  { method: 'POST', path: /^\/api\/channels\/[A-Za-z0-9_-]+\/room\/join$/ },
+  { method: 'POST', path: /^\/api\/channels\/[A-Za-z0-9_-]+\/room\/presence$/ },
+  { method: 'POST', path: /^\/api\/channels\/[A-Za-z0-9_-]+\/room\/voice$/ },
+  { method: 'POST', path: /^\/api\/channels\/[A-Za-z0-9_-]+\/room\/signal$/ },
   /*
    * Recording, for a guest the host has put on stage. The route checks that
    * for itself — this only says the request is allowed to reach a route that

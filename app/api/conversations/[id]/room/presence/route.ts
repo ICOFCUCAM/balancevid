@@ -2,7 +2,8 @@ import { leaveRoom, lowerHand, raiseHand } from '../../../../../../src/domain/ro
 import { EditError } from '../../../../../../src/domain/edit.js';
 import { callerFor } from '../../../../../../src/auth/request.js';
 import { guestMay } from '../../../../../../src/auth/policy.js';
-import { audit, loadConversation, mutateConversation } from '../../../../../../src/store/repository.js';
+import { audit } from '../../../../../../src/store/repository.js';
+import { loadRoomHost, mutateRoomHost } from '../../../../../../src/store/rooms.js';
 import { fail, json } from '../../../../../../src/web/http.js';
 import { roomView } from '../../../../../../src/web/room.js';
 
@@ -28,7 +29,7 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
 
   let conversation;
   try {
-    conversation = await loadConversation(id);
+    conversation = await loadRoomHost(id);
   } catch {
     return fail(404, 'conversation not found');
   }
@@ -47,7 +48,7 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
 
   const now = new Date().toISOString();
   try {
-    const updated = await mutateConversation(id, (draft) => {
+    const updated = await mutateRoomHost(id, (draft) => {
       switch (body.action) {
         case 'raise-hand': raiseHand(draft, me, now); return;
         case 'lower-hand': lowerHand(draft, me); return;

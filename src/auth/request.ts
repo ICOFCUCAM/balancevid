@@ -10,7 +10,7 @@
  * one refactor away from being bypassed.
  */
 
-import type { Conversation } from '../domain/document.js';
+import type { RoomHost } from '../domain/document.js';
 import {
   ANONYMOUS, type Principal, isSignedIn, principalFor, sessionStillValid,
 } from '../domain/account.js';
@@ -122,7 +122,7 @@ export interface Caller {
 }
 
 export async function callerFor(
-  request: Request, conversation: Conversation,
+  request: Request, conversation: RoomHost,
 ): Promise<Caller> {
   if (await isOwner(request)) return { access: 'owner' };
 

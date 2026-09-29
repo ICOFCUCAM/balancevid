@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import InvitePanel from './InvitePanel.js';
 import { useRoomCapture } from './useRoomCapture.js';
 import { MESH_LIMIT, useRoomMesh } from './useRoomMesh.js';
+import { roomBase } from '../../../../src/domain/document.js';
 
 /**
  * The Conversation Room.  [Doctrine ROOM §1, §3, §4, §5, §8]
@@ -106,7 +107,7 @@ export default function RoomView({
   });
 
   const refresh = useCallback(async () => {
-    const response = await fetch(`/api/conversations/${conversationId}/room`,
+    const response = await fetch(`${roomBase(conversationId)}`,
       { cache: 'no-store' });
     if (response.ok) setRoom(await response.json());
   }, [conversationId]);

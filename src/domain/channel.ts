@@ -33,6 +33,8 @@
 import type { Id } from './ids.js';
 import type { ChannelIdentity } from './identity.js';
 import type { Destination } from './distribution.js';
+import type { Room } from './document.js';
+import type { Participant } from './participants.js';
 
 export type ChannelId = Id<'chan'>;
 export type ProgrammeId = Id<'prog'>;
@@ -342,7 +344,16 @@ export interface LiveSession {
   faultedAt?: string;
   /** When it was taken to air, which is not when it was armed. */
   takenAt?: string;
-  /** The room the people are in, where there are people. [ROOM §1, D-17] */
+  /**
+   * The room the people are in, where there are people. [ROOM §1, D-17]
+   *
+   * A CONVERSATION'S room, when the broadcaster has one to borrow. The
+   * channel's own room is on the channel (`Channel.room`) and needs no id,
+   * because it is here. Both paths lead to the same machinery; this one
+   * exists because bringing an existing seminar to air is a real thing to
+   * want, and a broadcaster who has Studio One should not have to invite
+   * the same people twice.
+   */
   roomId?: string;
   /**
    * Something rolled into the live show.  [§5]
@@ -403,6 +414,24 @@ export interface Channel {
   schemaVersion: number;
   id: ChannelId;
   name: string;
+  /**
+   * THE CHANNEL'S OWN ROOM, AND THE PEOPLE IN IT.  [§6, ROOM §6, D-17]
+   *
+   * A broadcast takes its guests from a room, and the only room it could
+   * name was a conversation's — so an account with Online TV and not
+   * Studio One had a Guests tab that dead-ended on "Start one in Studio
+   * One and its room becomes available here". The studios are sold
+   * separately; that sentence was an instruction to buy another one.
+   *
+   * These are the same two fields a Conversation carries, read by the same
+   * `roomEdit`, the same `callerFor`, the same `roomView` and invited
+   * through the same panel — a Channel is a `RoomHost` and nothing about
+   * the room is written twice. What used to be "a channel does not grow a
+   * room of its own" is now "a channel does not grow a room
+   * IMPLEMENTATION of its own", which was always the part that mattered.
+   */
+  room?: Room;
+  participants?: Participant[];
   /**
    * The zone the schedule is read in.  [§2]
    *

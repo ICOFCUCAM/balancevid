@@ -2,7 +2,8 @@ import { joinRoom } from '../../../../../../src/domain/roomEdit.js';
 import { EditError } from '../../../../../../src/domain/edit.js';
 import { guestCookie, issueGuest } from '../../../../../../src/auth/guest.js';
 import { isSecureRequest } from '../../../../../../src/auth/session.js';
-import { audit, loadConversation, mutateConversation } from '../../../../../../src/store/repository.js';
+import { audit } from '../../../../../../src/store/repository.js';
+import { loadRoomHost, mutateRoomHost } from '../../../../../../src/store/rooms.js';
 import { fail, json } from '../../../../../../src/web/http.js';
 import { roomView } from '../../../../../../src/web/room.js';
 
@@ -31,7 +32,7 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
 
   let conversation;
   try {
-    conversation = await loadConversation(id);
+    conversation = await loadRoomHost(id);
   } catch {
     return fail(404, 'that conversation could not be found');
   }
@@ -49,7 +50,7 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
   const now = new Date().toISOString();
   let participantId: string;
   try {
-    const updated = await mutateConversation(id, (draft) => {
+    const updated = await mutateRoomHost(id, (draft) => {
       const joined = joinRoom(draft, body.displayName ?? '', now);
       participantId = joined.id;
     });

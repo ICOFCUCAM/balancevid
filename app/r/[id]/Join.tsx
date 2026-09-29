@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import RoomView, { type RoomState } from '../../c/[id]/room/RoomView.js';
 import Brand from '../../Brand.js';
+import { roomBase } from '../../../src/domain/document.js';
 
 /**
  * Joining a room from a link.  [Doctrine ROOM §6, §12]
@@ -31,7 +32,7 @@ export default function Join({
     setBusy(true);
     setError(null);
     try {
-      const response = await fetch(`/api/conversations/${conversationId}/room/join`, {
+      const response = await fetch(`${roomBase(conversationId)}/join`, {
         method: 'POST', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ token, displayName: name.trim() }),
       });

@@ -8,7 +8,7 @@
  * disagree about is a credential.
  */
 import type { Caller } from '../auth/request.js';
-import type { Conversation } from '../domain/document.js';
+import type { Conversation, RoomHost } from '../domain/document.js';
 import { hostOf, inRoom, may, presenceOf, raisedHands } from '../domain/participants.js';
 
 /**
@@ -26,7 +26,7 @@ import { hostOf, inRoom, may, presenceOf, raisedHands } from '../domain/particip
  * connections — could find them.
  */
 export function meIn(
-  conversation: Conversation, caller: Caller,
+  conversation: RoomHost, caller: Caller,
 ): string | undefined {
   if (caller.participantId) return caller.participantId;
   if (caller.access === 'owner') return theHost(conversation);
@@ -34,7 +34,7 @@ export function meIn(
 }
 
 /** The owner's place in the list, in one expression rather than two. */
-function theHost(conversation: Conversation): string | undefined {
+function theHost(conversation: RoomHost): string | undefined {
   return hostOf(conversation.participants ?? [])?.id;
 }
 
@@ -46,7 +46,7 @@ function theHost(conversation: Conversation): string | undefined {
  * people the host never invited.
  */
 export function roomView(
-  conversation: Conversation, owner: boolean, meId?: string,
+  conversation: RoomHost, owner: boolean, meId?: string,
 ): Record<string, unknown> {
   // The host is the host participant, whether or not the route said so.
   const me = meId ?? (owner ? theHost(conversation) : undefined);
@@ -66,8 +66,10 @@ export function roomView(
 
   return {
     open: Boolean(room?.open),
-    title: conversation.title,
-    sourceTitle: conversation.source.title,
+    /* A conversation has a title; a channel has a name. [RoomHost] */
+    title: conversation.title ?? conversation.name,
+    /* And only a conversation is ABOUT something. */
+    sourceTitle: conversation.source?.title,
     speakerMode: room?.speakerMode ?? 'automatic',
     stagedParticipantIds: staged,
     pinnedParticipantId: room?.pinnedParticipantId ?? null,
@@ -107,7 +109,7 @@ export function joinUrl(origin: string, conversationId: string, token: string): 
  *   they like is not one a host controls.
  */
 
-export function mayRecord(conversation: Conversation, caller: Caller): boolean {
+export function mayRecord(conversation: RoomHost, caller: Caller): boolean {
   if (caller.access === 'owner') return true;
   if (caller.access !== 'participant' || !caller.participantId) return false;
   const staged: readonly string[] = conversation.room?.stagedParticipantIds ?? [];

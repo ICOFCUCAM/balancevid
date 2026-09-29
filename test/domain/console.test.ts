@@ -1188,6 +1188,50 @@ describe('the viewer pages', () => {
  * been built and rendered for a long time; what was missing was a way to
  * reach them from the thing they are about.
  */
+/**
+ * A STUDIO SOLD ON ITS OWN WORKS ON ITS OWN.  [CHANNEL §6, D-14]
+ *
+ * The three studios are separable products, so a capability one of them
+ * promises must not be reachable only by owning another. Online TV's brief
+ * says "you can bring people into the room"; its Guests tab said
+ *
+ *     No conversations yet. Start one in Studio One and its room becomes
+ *     available here.
+ *
+ * which is an instruction to buy a second studio, written in the shape of a
+ * next step. The invite panel existed, the join route existed, the staging
+ * existed — the DOOR was in another building.
+ *
+ * The rule is not testable in general, but its one instance is, and the
+ * instance is the one that dead-ended.
+ */
+describe('a studio sold on its own works on its own', () => {
+  const GUESTS = code(join(ROOT, 'app', 't', '[id]', 'GuestsTab.tsx'));
+
+  it('offers the broadcast a room of its own, needing no conversation', () => {
+    expect(GUESTS, 'the only way to guests is still through Studio One')
+      .toContain('open-broadcast-room');
+  });
+
+  it('and does not send a broadcaster to another studio to find one', () => {
+    expect(GUESTS, 'a dead end written in the shape of a next step')
+      .not.toMatch(/Start one in Studio One/);
+  });
+
+  /*
+   * AND IT IS STILL ONE ROOM. The point of widening `RoomHost` rather than
+   * writing a channel-shaped room was that there be no second invite panel,
+   * no second join route and no second staging model to drift.
+   */
+  it('and invites through the Room\'s own panel, not a second one', () => {
+    expect(GUESTS).toMatch(/import InvitePanel from/);
+    const panels = components(join(ROOT, 'app'))
+      .filter((file) => /export default function InvitePanel/.test(code(file)));
+    expect(panels.map(named), 'there is more than one invite panel')
+      .toEqual(['app/c/[id]/room/InvitePanel.tsx']);
+  });
+});
+
 describe('what can be done to what is on screen', () => {
   const STAGE = code(join(ROOT, 'app', 'p', '[id]', 'SwitchingStage.tsx'));
 

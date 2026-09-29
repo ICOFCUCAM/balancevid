@@ -25,6 +25,7 @@ import {
 } from './distribution.js';
 import { LAYOUTS } from './presentation.js';
 import { newId } from './ids.js';
+import { roomHostKind } from './document.js';
 
 export class ChannelEditError extends Error {}
 
@@ -985,8 +986,25 @@ export function attachRoom(channel: Channel, roomId?: string): void {
     ? channel.live
     : fail('nothing is live — press GO LIVE first, then invite people') as never;
   const wanted = roomId?.trim();
-  if (wanted) live.roomId = wanted;
-  else delete live.roomId;
+  if (wanted) {
+    /*
+     * THE CHANNEL'S OWN ROOM IS THE CHANNEL. [§6, ROOM §6]
+     *
+     * A broadcast that opens a room of its own names itself here, which is
+     * what makes every path downstream — the poll, the invite link, the
+     * join route, the guest policy — resolve to `/api/channels/…` without
+     * a second concept for "whose room this is". A channel naming a
+     * DIFFERENT channel is not that, and there is nothing it could sensibly
+     * mean: two broadcasts sharing one room would be two schedules cutting
+     * the same people to air.
+     */
+    const kind = roomHostKind(wanted);
+    if (kind === null) fail(`that is not a room: ${wanted}`);
+    if (kind === 'channel' && wanted !== channel.id) {
+      fail('a broadcast cannot take its guests from another broadcast\u2019s room');
+    }
+    live.roomId = wanted;
+  } else delete live.roomId;
 }
 
 /* ------------------------------------------------------------------------ *

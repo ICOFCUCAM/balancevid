@@ -13,7 +13,7 @@
  */
 
 import { EditError } from './edit.js';
-import type { Conversation, Room } from './document.js';
+import type { Room, RoomHost } from './document.js';
 import { newId } from './ids.js';
 import {
   hostOf, inRoom, type Participant, type ParticipantId, type ParticipantRole,
@@ -49,7 +49,7 @@ export interface OpenRoomOptions {
  * beside the participant list, but the first entry in it, so every rule about
  * staging, naming and attribution applies to them as it does to everyone.
  */
-export function openRoom(conversation: Conversation, options: OpenRoomOptions): Participant {
+export function openRoom(conversation: RoomHost, options: OpenRoomOptions): Participant {
   if (conversation.room?.open) throw new EditError('this conversation already has a room');
 
   const participants = conversation.participants ?? [];
@@ -89,7 +89,7 @@ export function openRoom(conversation: Conversation, options: OpenRoomOptions): 
  * session with it — `callerFor` refuses a closed room whatever cookie it is
  * shown.
  */
-export function closeRoom(conversation: Conversation, now: string): void {
+export function closeRoom(conversation: RoomHost, now: string): void {
   const room = requireRoom(conversation);
   room.open = false;
   for (const participant of conversation.participants ?? []) {
@@ -104,7 +104,7 @@ export function closeRoom(conversation: Conversation, now: string): void {
  * people already inside, because an invitation you cannot take back from the
  * people who used it is not one you can withdraw.
  */
-export function rotateInvite(conversation: Conversation, inviteToken: string, now: string): void {
+export function rotateInvite(conversation: RoomHost, inviteToken: string, now: string): void {
   const room = requireRoom(conversation);
   room.inviteToken = inviteToken;
   room.issuedAt = now;
@@ -118,7 +118,7 @@ export function rotateInvite(conversation: Conversation, inviteToken: string, no
  * participant record, which is what the guest session then names.
  */
 export function joinRoom(
-  conversation: Conversation, displayName: string, now: string,
+  conversation: RoomHost, displayName: string, now: string,
   role: ParticipantRole = 'audience',
 ): Participant {
   const room = requireRoom(conversation);
@@ -150,7 +150,7 @@ export function joinRoom(
 
 /** They closed the tab, or the host removed them. Their recordings remain. */
 export function leaveRoom(
-  conversation: Conversation, participantId: string, now: string,
+  conversation: RoomHost, participantId: string, now: string,
 ): void {
   const participant = requireParticipant(conversation, participantId);
   participant.leftAt = now;
@@ -162,13 +162,13 @@ export function leaveRoom(
 }
 
 /** Ask for the floor.  [ROOM §8] */
-export function raiseHand(conversation: Conversation, participantId: string, now: string): void {
+export function raiseHand(conversation: RoomHost, participantId: string, now: string): void {
   const participant = requireParticipant(conversation, participantId);
   if (!inRoom(participant)) throw new EditError('they are not in the room');
   participant.handRaisedAt = now;
 }
 
-export function lowerHand(conversation: Conversation, participantId: string): void {
+export function lowerHand(conversation: RoomHost, participantId: string): void {
   delete requireParticipant(conversation, participantId).handRaisedAt;
 }
 
@@ -180,7 +180,7 @@ export function lowerHand(conversation: Conversation, participantId: string): vo
  * hand comes down when they are brought in, because it has been answered.
  */
 export function setStaged(
-  conversation: Conversation, participantIds: string[],
+  conversation: RoomHost, participantIds: string[],
 ): void {
   const room = requireRoom(conversation);
   const staged: ParticipantId[] = [];
@@ -204,13 +204,13 @@ export function setStaged(
 
 /** How the stage is driven, and by whom.  [ROOM §3] */
 export function setSpeakerMode(
-  conversation: Conversation, mode: Room['speakerMode'],
+  conversation: RoomHost, mode: Room['speakerMode'],
 ): void {
   requireRoom(conversation).speakerMode = mode;
 }
 
 /** Pin someone, or release the pin.  [ROOM §3] */
-export function setPinned(conversation: Conversation, participantId: string | null): void {
+export function setPinned(conversation: RoomHost, participantId: string | null): void {
   const room = requireRoom(conversation);
   if (participantId === null) { delete room.pinnedParticipantId; return; }
   const participant = requireParticipant(conversation, participantId);
@@ -218,13 +218,13 @@ export function setPinned(conversation: Conversation, participantId: string | nu
   room.pinnedParticipantId = participant.id;
 }
 
-function requireRoom(conversation: Conversation): Room {
+function requireRoom(conversation: RoomHost): Room {
   const room = conversation.room;
   if (!room) throw new EditError('this conversation has no room');
   return room;
 }
 
-function requireParticipant(conversation: Conversation, participantId: string): Participant {
+function requireParticipant(conversation: RoomHost, participantId: string): Participant {
   const participant = (conversation.participants ?? []).find((p) => p.id === participantId);
   if (!participant) throw new EditError('no such participant');
   return participant;

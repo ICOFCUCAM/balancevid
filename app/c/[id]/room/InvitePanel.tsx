@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { roomBase } from '../../../../src/domain/document.js';
 
 /**
  * Inviting people.  [Doctrine ROOM §6, §7]
@@ -172,7 +173,7 @@ export default function InvitePanel({
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               alt="Scan to join this conversation"
-              src={`/api/conversations/${conversationId}/room/qr`}
+              src={`${roomBase(conversationId)}/qr`}
               style={{ width: 220, height: 220, display: 'block' }}
             />
           </div>
