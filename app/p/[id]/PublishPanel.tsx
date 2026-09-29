@@ -191,7 +191,8 @@ export default function PublishPanel({
               data-testid="card-image"
               src={`/api/performances/${id}/card?image=1`}
               alt="The link preview for this performance"
-              style={{ width: 360, borderRadius: 8, border: '1px solid var(--line)' }}
+              style={{ width: 360, borderRadius: 'var(--radius-screen)',
+                border: '1px solid var(--line)' }}
             />
           </div>
         )}

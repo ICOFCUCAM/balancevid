@@ -178,7 +178,7 @@ export default function PublishStage({
                   data-active={active ? 'true' : 'false'}
                   onClick={() => setFormat(entry.profileId)}
                   style={{
-                    textAlign: 'left', padding: 12, borderRadius: 10,
+                    textAlign: 'left', padding: 12, borderRadius: 'var(--radius-module)',
                     background: active ? 'var(--accent-wash)' : 'var(--panel)',
                     border: `1px solid ${active ? 'var(--accent)' : 'var(--line)'}`,
                   }}

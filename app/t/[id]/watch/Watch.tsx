@@ -179,7 +179,8 @@ export default function Watch({
 
           {now?.next && (
             <div className="row" data-testid="viewer-next" style={{
-              marginTop: 10, gap: 9, padding: '8px 11px', borderRadius: 8,
+              marginTop: 10, gap: 9, padding: '8px 11px',
+              borderRadius: 'var(--radius-module)',
               background: 'var(--panel-2)', border: '1px solid var(--line)',
               fontSize: 'var(--text-base)',
             }}>

@@ -174,18 +174,28 @@ describe('rounding', () => {
    * strongest "web app" signal an interface can emit, and the control
    * room was emitting it eight times.
    *
-   * THE DESKS ARE AT ZERO NOW, so this is a ban rather than a budget —
-   * for the five operating surfaces only. A circle is exempt, which
-   * the first version of this was not: `'50%'` on an avatar and a lamp
-   * matched the pattern, and a round thing being round is not a
-   * rounded corner.
+   * THE THREE STUDIOS ARE AT ZERO NOW, so this is a ban rather than a
+   * budget — and it covers every file under the studio routes, not the
+   * five desks. The narrow version was satisfied while eight 8px and
+   * 10px corners sat one import away in the panels the desks open: a
+   * slide writer, a clip rail, a publish chooser, the pages a viewer
+   * sees. A rule scoped to the files somebody already fixed is a
+   * record of past work, not a rule.
+   *
+   * A circle is exempt, which the first version of this was not:
+   * `'50%'` on an avatar and a lamp matched the pattern, and a round
+   * thing being round is not a rounded corner.
    */
   const LARGE = /borderRadius:\s*'?(?:(?:[89]|[1-9]\d)(?:px)?|var\(--radius-(?:lg|xl)\))(?!%)'?/g;
 
-  it.each(DESKS)('%s rounds nothing like a card', (file) => {
-    const found = [...code(join(ROOT, file)).matchAll(LARGE)]
-      .map(([hit]) => hit);
-    expect(found, `${file}: ${found.join(', ')}`).toEqual([]);
+  const ROOMS = ['t', 'c', 'p']
+    .flatMap((route) => components(join(ROOT, 'app', route, '[id]')));
+
+  it('rounds nothing like a card anywhere in the three studios', () => {
+    const found = ROOMS.flatMap((file) =>
+      [...code(file).matchAll(LARGE)].map(([hit]) => `${named(file)}: ${hit}`));
+    expect(found, 'modules take --radius-module, controls --radius-control, '
+      + 'pictures --radius-screen').toEqual([]);
   });
 
   /*

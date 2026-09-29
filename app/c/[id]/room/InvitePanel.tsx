@@ -166,7 +166,7 @@ export default function InvitePanel({
             */}
           <div style={{
             display: 'inline-block', padding: 'var(--space-5)',
-            borderRadius: 'var(--radius-lg)', background: '#fff',
+            borderRadius: 'var(--radius-module)', background: '#fff',
             boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
           }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}

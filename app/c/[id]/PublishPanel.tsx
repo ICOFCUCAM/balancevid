@@ -165,7 +165,8 @@ function SharePreview({ conversationId }: { conversationId: string }) {
         letterSpacing: 0.8, fontSize: 'var(--text-xs)', marginBottom: 6 }}>
         When you send this link
       </div>
-      <div style={{ border: '1px solid var(--line)', borderRadius: 8,
+      <div style={{ border: '1px solid var(--line)',
+        borderRadius: 'var(--radius-module)',
         overflow: 'hidden', background: 'var(--panel-2)' }}>
         {drawn ? (
           // eslint-disable-next-line @next/next/no-img-element

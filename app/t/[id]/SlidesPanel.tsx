@@ -217,7 +217,7 @@ export default function SlidesPanel({
       {writing && (
         <div data-testid="slide-writer" style={{
           display: 'flex', flexDirection: 'column', gap: 6, padding: 8,
-          borderRadius: 8, background: 'var(--panel-2)',
+          borderRadius: 'var(--radius-module)', background: 'var(--panel-2)',
           border: '1px solid var(--line)',
         }}>
           <div className="row" style={{ gap: 4, flexWrap: 'wrap' }}>
@@ -252,7 +252,8 @@ export default function SlidesPanel({
             style={{
               fontSize: 'var(--text-sm)', padding: '6px 9px', width: '100%', resize: 'vertical',
               font: 'inherit', background: 'var(--panel)',
-              border: '1px solid var(--line)', borderRadius: 8, color: 'inherit',
+              border: '1px solid var(--line)',
+              borderRadius: 'var(--radius-control)', color: 'inherit',
             }}
           />
           <button

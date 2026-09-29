@@ -50,7 +50,8 @@ export default function SidePanel({
       {label}
       {count ? (
         <span className="mono" style={{
-          marginLeft: 6, padding: '1px 5px', borderRadius: 8, fontSize: 'var(--text-xs)',
+          marginLeft: 6, padding: '1px 5px', fontSize: 'var(--text-xs)',
+          borderRadius: 'var(--radius-control)',
           background: 'rgba(255,255,255,0.09)',
         }}>{count}</span>
       ) : null}

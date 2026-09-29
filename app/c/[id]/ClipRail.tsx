@@ -258,7 +258,7 @@ export default function ClipRail({
         disabled={!canAdd}
         title={canAdd ? undefined : 'Enable your camera first'}
         style={{
-          width: '100%', padding: '10px 8px', borderRadius: 8,
+          width: '100%', padding: '10px 8px', borderRadius: 'var(--radius-control)',
           border: '1px dashed var(--line)', background: 'transparent',
           color: 'var(--muted)',
         }}
