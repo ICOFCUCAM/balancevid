@@ -64,9 +64,11 @@ import type { BeatGrid } from './beats.js';
 import type { RoomPlate } from './environment.js';
 import type { Id } from './ids.js';
 import {
-  type Frames, type Samples, HOUSE_SAMPLE_RATE, assertSamples, formatMasterPosition,
-  samplesToFrames,
+  type Frames, type Samples, HOUSE_FPS, HOUSE_SAMPLE_RATE, assertSamples,
+  formatMasterPosition, framesToSamples, samplesToFrames,
 } from './time.js';
+/* Browser-safe: `transitions.ts` reaches nothing but `time.ts`. */
+import { TRANSITIONS } from './transitions.js';
 
 export type PerformanceId = Id<'perf'>;
 export type SceneId = Id<'scene'>;
@@ -1007,6 +1009,292 @@ export function renderProblems(
   }
 
   return problems;
+}
+
+/* ------------------------------------------------------------------------ *
+ * MASTER CHECK                                                               *
+ * ------------------------------------------------------------------------ */
+
+/**
+ * Everything that must be true before a master is worth rendering.
+ * [MASTER-EDIT §13, §12 P0, INV-02, INV-03]
+ *
+ * A LIST OF TICKS IS A PROMISE, and the one thing this must never do is tick
+ * something it did not check. "Frame rate consistent" printed green because
+ * the product hopes so is worse than not printing it: it teaches an author
+ * to trust the list, and then spends that trust on the one render where it
+ * mattered. So every item here carries `says` — what was actually compared
+ * — and every item is computed from the document in front of it.
+ *
+ * TWO OF THEM COULD NOT BE CHECKED AS ASKED, and are therefore checked as
+ * something true instead:
+ *
+ *   A take carries no frame rate and no pixel size; it is conformed to the
+ *   house rate on ingest, and the document does not record what it was
+ *   before. So "frame rate consistent" asks the question the document CAN
+ *   answer — does every cut land on an exact frame boundary of the output
+ *   clock — which is INV-02 and is the failure that would actually show.
+ *
+ *   "Resolution valid" is about the OUTPUT, because that is the resolution
+ *   this render has. An encoder wants even dimensions and a profile that
+ *   exists.
+ *
+ * AND ONE OF THEM CLOSES A HOLE THE CODE ALREADY KNEW ABOUT. `transitions.ts`
+ * has said since it was written that a dissolve "has a precondition the
+ * planner has to check: both takes must have picture across the whole
+ * overlap, including the part that lies outside their own scenes" — and
+ * nothing checked it. A transition whose neighbours run out mid-mix is a
+ * render that dips to black in the middle of a dissolve.
+ */
+export interface MasterCheckItem {
+  id: string;
+  /** The line an author reads. */
+  label: string;
+  ok: boolean;
+  /** What was compared, so a tick means something. */
+  says: string;
+  /** The problems behind a failure, where they have a place on the clock. */
+  problems?: RenderProblem[];
+}
+
+export function masterCheck(
+  performance: Performance, profileId: string,
+  profiles: Record<string, { width: number; height: number; fps: number }>,
+): { items: MasterCheckItem[]; ready: boolean } {
+  const timeline = projectPerformance(performance);
+  const problems = renderProblems(performance);
+  const song = performance.master.durationSamples;
+  const scenes = orderedScenes(performance);
+  const byKind = (kind: RenderProblem['kind']) =>
+    problems.filter((problem) => problem.kind === kind);
+  const item = (
+    id: string, label: string, ok: boolean, says: string,
+    found: RenderProblem[] = [],
+  ): MasterCheckItem => ({
+    id, label, ok, says, ...(found.length > 0 ? { problems: found } : {}),
+  });
+
+  const items: MasterCheckItem[] = [];
+
+  /* 1. The song is a song, and the projection is as long as it. */
+  items.push(item('song', 'Song duration matches',
+    song > 0 && timeline.totalSamples === song,
+    song > 0
+      ? `${formatMasterPosition(timeline.totalSamples)} projected against `
+        + `${formatMasterPosition(song)} of song`
+      : 'the song has no duration'));
+
+  /* 2. Coverage: no hole of any kind, which is three problems in one line. */
+  const uncovered = [...byKind('gap'), ...byKind('short-takes'),
+    ...byKind('empty-scene'), ...byKind('no-scenes')];
+  items.push(item('covers', 'Video covers entire duration',
+    uncovered.length === 0,
+    uncovered.length === 0
+      ? 'every moment of the song has a take on it'
+      : `${uncovered.length} stretch(es) with nothing to show`,
+    uncovered));
+
+  /* 3. And the specific kind the brief names. */
+  const gaps = byKind('gap');
+  items.push(item('gaps', 'No timeline gaps', gaps.length === 0,
+    gaps.length === 0 ? 'the picture track begins at 00:00.000 and never stops'
+      : `${gaps.length} gap(s)`, gaps));
+
+  /*
+   * 4. Overlaps. Two scenes cannot overlap by construction — a scene runs
+   *    until the next one begins — so what CAN go wrong is two scenes
+   *    claiming the same instant, and spans that fail to tile the output
+   *    clock. Both are checked rather than assumed.
+   */
+  const starts = scenes.map((scene) => scene.fromSample);
+  const doubled = starts.length !== new Set(starts).size;
+  let tiles = true;
+  let expected = 0;
+  for (const span of timeline.spans) {
+    if (span.outputStartFrame !== expected) tiles = false;
+    expected += span.durationFrames;
+  }
+  items.push(item('overlaps', 'No overlapping master segments',
+    !doubled && tiles,
+    doubled ? 'two segments begin at the same instant'
+      : tiles ? `${timeline.spans.length} segment(s), edge to edge`
+        : 'the segments do not tile the output clock'));
+
+  /* 5. Every take a scene names still exists and has something in it. */
+  const missing = new Set<string>();
+  for (const scene of scenes) {
+    for (const id of scene.takeIds) {
+      const take = takeById(performance, id);
+      if (!take || take.durationSamples <= 0) missing.add(id);
+    }
+  }
+  items.push(item('sources', 'All source takes available', missing.size === 0,
+    missing.size === 0
+      ? `${new Set(scenes.flatMap((scene) => scene.takeIds)).size} take(s) in use`
+      : `${[...missing].join(', ')} named by a scene and not here`));
+
+  /*
+   * 6. THE PRECONDITION `transitions.ts` NAMED AND NOBODY CHECKED. A mix is
+   *    paid for out of both neighbours, so both must have picture across the
+   *    whole overlap — including the part outside their own scenes.
+   */
+  const badJoins: string[] = [];
+  for (let i = 1; i < scenes.length; i += 1) {
+    const scene = scenes[i]!;
+    /* By the table and not by `transitionFor`, which falls back to a cut —
+       a style nobody wrote must be reported, not silently downgraded. */
+    const style = TRANSITIONS[scene.transition ?? 'cut'];
+    if (!style) { badJoins.push(`${scene.transition} is not a transition`); continue; }
+    if (style.frames === 0) continue;
+    const half = framesToSamples(Math.ceil(style.frames / 2));
+    const from = Math.max(0, scene.fromSample - half);
+    const to = Math.min(song, scene.fromSample + half);
+    const both = [...(scenes[i - 1]?.takeIds ?? []), ...scene.takeIds];
+    for (const id of both) {
+      const take = takeById(performance, id);
+      if (!take || !coversSpan(take, from, to, song)) {
+        badJoins.push(`${take?.label ?? id} has no picture across the `
+          + `${style.label.toLowerCase()} at ${formatMasterPosition(scene.fromSample)}`);
+      }
+    }
+  }
+  items.push(item('transitions', 'Transitions valid', badJoins.length === 0,
+    badJoins.length === 0
+      ? `${Math.max(0, scenes.length - 1)} join(s), every mix covered on both sides`
+      : badJoins[0]!));
+
+  /*
+   * 7. Sound. The three modes fail differently: one needs a nominated vocal
+   *    that has audio, one needs the take on screen to have any.
+   */
+  const silent = (id: string) => takeById(performance, id)?.hasAudio === false;
+  let audioSays = 'the song, under the picture';
+  let audioOk = true;
+  const mode = performance.audio.mode;
+  if (mode === 'master_vocal') {
+    const vocal = performance.audio.vocalTakeId;
+    audioOk = Boolean(vocal && !silent(vocal));
+    audioSays = audioOk ? `one vocal throughout, from ${takeById(performance, vocal!)?.label}`
+      : 'the vocal take has no sound';
+  } else if (mode === 'take_audio') {
+    const mute = scenes.flatMap((scene) => scene.takeIds).filter(silent);
+    audioOk = mute.length === 0;
+    audioSays = audioOk ? 'every take on screen has its own sound'
+      : `${mute.length} take(s) on screen recorded no sound`;
+  }
+  items.push(item('audio', 'Audio present', audioOk, audioSays));
+
+  /*
+   * 8. Frames.
+   *
+   * THE FIRST VERSION OF THIS CRIED WOLF, which for a checklist is the
+   * worst thing it can do. It asked whether every cut lands exactly on a
+   * frame boundary — and a cut is placed from the playhead, so it lands
+   * wherever the song happened to be. At the house rate that is one sample
+   * in 1600: the scene I moved to 30000 while testing is 18.75 frames, and
+   * every cut an author makes by pressing a number is as arbitrary. The
+   * check would have failed on nearly every performance, for something the
+   * renderer handles by rounding, and an author would have learned to
+   * ignore the list.
+   *
+   * QUANTISATION IS NOT A DEFECT. `samplesToFrames` rounds to the nearest
+   * frame, which is by definition within half of one — 20ms at the house
+   * rate. What IS a defect is a segment shorter than a single frame: two
+   * cuts inside 1/25s leave a span that renders nothing at all, and
+   * nothing prevents one being made. That is the question worth asking.
+   */
+  const tooShort = timeline.spans.filter((span) => span.durationFrames < 1);
+  items.push(item('frames', 'Frame rate consistent', tooShort.length === 0,
+    tooShort.length === 0
+      ? `every segment at least one frame at ${HOUSE_FPS}fps, cuts quantised to the grid`
+      : `${tooShort.length} segment(s) shorter than a frame — they would render nothing`));
+
+  /* 9 and 10. The output's own shape, which is the only resolution there is. */
+  const profile = profiles[profileId];
+  items.push(item('resolution', 'Resolution valid',
+    Boolean(profile) && profile!.width > 0 && profile!.height > 0
+      && profile!.width % 2 === 0 && profile!.height % 2 === 0,
+    profile ? `${profile.width}×${profile.height}` : `no such profile: ${profileId}`));
+  items.push(item('aspect', 'Output aspect ratio valid', Boolean(profile),
+    profile ? `${(profile.width / profile.height).toFixed(4)} — every arrangement `
+      + 'reframes for it' : 'unknown'));
+
+  return { items, ready: items.every((entry) => entry.ok) };
+}
+
+/**
+ * How a hole could be closed, offering only what would close it.
+ * [MASTER-EDIT §13]
+ *
+ * THE BRIEF LISTS FIVE REMEDIES. Two of them cannot apply to a hole at the
+ * start of a song — there is no previous take to extend and no previous
+ * frame to freeze — and one of them ("add transition") is not a repair at
+ * all: a transition between two shots does not put a shot where there is
+ * none. Offering all five and failing on three is how a repair menu teaches
+ * somebody to stop reading it.
+ *
+ * AND "CHOOSE A TAKE" IS ONLY WORTH OFFERING FOR TAKES THAT REACH. The
+ * product already knows which ones do — `coversSpan` is the same question
+ * the timeline asks — so the list is the takes that would actually cover
+ * the stretch, and it says so when none of them would. A picker that lets
+ * you choose a take that does not reach has moved the error, not fixed it.
+ */
+export interface Repair {
+  id: 'use-next' | 'choose' | 'use-previous' | 'freeze';
+  label: string;
+  /** Why it is offered, or why it is not. */
+  says: string;
+  available: boolean;
+  /** For `choose`: the takes that would actually cover the stretch. */
+  takeIds?: TakeId[];
+}
+
+export function repairsFor(
+  performance: Performance, problem: RenderProblem,
+): Repair[] {
+  const song = performance.master.durationSamples;
+  const from = problem.fromSample ?? 0;
+  const to = problem.toSample ?? song;
+  const scenes = orderedScenes(performance);
+  const before = [...scenes].reverse().find((scene) => scene.fromSample < from);
+  const covering = performance.takes
+    .filter((take) => take.durationSamples > 0 && coversSpan(take, from, to, song))
+    .map((take) => take.id);
+
+  return [
+    {
+      id: 'use-next',
+      label: 'Use the next take',
+      available: Boolean(problem.extend),
+      says: problem.extend
+        ? 'start the scene that follows this stretch earlier'
+        : 'nothing follows this stretch',
+    },
+    {
+      id: 'choose',
+      label: 'Choose a take',
+      available: covering.length > 0,
+      says: covering.length > 0
+        ? `${covering.length} take(s) have picture across all of it`
+        : 'no take reaches across this stretch',
+      takeIds: covering,
+    },
+    {
+      id: 'use-previous',
+      label: 'Extend the previous take',
+      available: false,
+      says: before
+        ? 'a scene already runs up to this stretch — its TAKE is what falls '
+          + 'short, so extend or replace the take'
+        : 'nothing comes before this stretch',
+    },
+    {
+      id: 'freeze',
+      label: 'Freeze the previous frame',
+      available: false,
+      says: 'a still held from a take is not something the renderer can make yet',
+    },
+  ];
 }
 
 /**

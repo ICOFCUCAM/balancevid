@@ -25,7 +25,7 @@ export type IconName =
   | 'disk' | 'clock' | 'calendar' | 'play' | 'plus' | 'chevron'
   | 'arrow' | 'upload' | 'link' | 'live' | 'pencil' | 'sun' | 'moon'
   | 'sound' | 'muted' | 'expand' | 'faders' | 'list' | 'mic'
-  | 'stop' | 'next' | 'loop' | 'warning' | 'graphics' | 'pause';
+  | 'stop' | 'next' | 'loop' | 'warning' | 'graphics' | 'pause' | 'passed';
 
 /* Each is the inner geometry; the frame and the stroke are set below. */
 const PATHS: Record<IconName, React.ReactNode> = {
@@ -206,6 +206,13 @@ const PATHS: Record<IconName, React.ReactNode> = {
       <path d="M12 10v4.4M12 17.2v.1" />
     </>
   ),
+  /*
+   * A CHECK THAT PASSED. It was ✓, which is a font's opinion — thin and
+   * high in one family, a heavy ballot mark in another, and on some
+   * Android builds a green emoji. Drawn, it is the same tick at every
+   * size beside the same triangle. [U-19, D-04]
+   */
+  passed: <path d="M4.5 12.6 9.4 17.5 19.5 7" />,
   /*
    * A KEYER'S SOURCE: a frame with a plate laid into one corner,
    * which is what a bug or a lower third is. It was ◰.

@@ -3,7 +3,7 @@ import { bookingsFor, refusalFor } from '../../../../src/domain/deletion.js';
 import { deletePerformance } from '../../../../src/store/performances.js';
 import { listChannels } from '../../../../src/store/channels.js';
 import { acceptBeats, setTempo,
-  classifyMaster, usePlate, setAudioMode, setSceneAudio, setTransition, setScene, moveScene, coverGap, removeScene, labelScene, clearScenes, nudgeTake, trimTake, renameTake, renamePerformance, setEffect, setEnvironment, removeTake, setLoop, setFootageRights, PerformanceEditError } from '../../../../src/domain/performanceEdit.js';
+  classifyMaster, usePlate, setAudioMode, setSceneAudio, setTransition, setScene, moveScene, coverGap, coverWith, removeScene, labelScene, clearScenes, nudgeTake, trimTake, renameTake, renamePerformance, setEffect, setEnvironment, removeTake, setLoop, setFootageRights, PerformanceEditError } from '../../../../src/domain/performanceEdit.js';
 import { projectPerformance, covered } from '../../../../src/domain/performance.js';
 import { assertAlignmentInvariants } from '../../../../src/domain/invariants.js';
 import { listJobs } from '../../../../src/store/queue.js';
@@ -78,6 +78,10 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
         case 'move-scene': moveScene(draft, body['sceneId'], body['at']); break;
         /* Close a hole in one action, or say why it cannot be closed. [INV-03] */
         case 'cover-gap': coverGap(draft, body['sceneId'], body['fromSample']); break;
+        /* The other repair: a take that reaches, put on the hole. [§13] */
+        case 'cover-with':
+          coverWith(draft, body['fromSample'], body['toSample'], body['takeId']);
+          break;
         case 'remove-scene': removeScene(draft, body['sceneId']); break;
         case 'label-scene': labelScene(draft, body['sceneId'], body['label'] ?? null); break;
         /*
