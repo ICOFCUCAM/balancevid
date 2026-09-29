@@ -37,6 +37,28 @@
  * re-record.
  */
 
+/**
+ * What to draw a take in before it has been given a colour.
+ *
+ * `addTake` assigns one from `TAKE_ACCENTS`, so a stored document
+ * always has it — but the view renders takes mid-upload, mid-record
+ * and from older documents, and twelve places were each written
+ * `take.accent ?? '#3e7ca6'`. Twelve hand-copied literals of the
+ * first entry of that table, which would go stale in eleven of them
+ * the first time somebody reordered it.
+ *
+ * IT LIVES HERE AND NOT WITH THE TABLE, for the reason this file's
+ * own header gives: `performanceEdit` reaches `newId`, `newId`
+ * reaches `node:crypto`, and importing it from a client component
+ * breaks the build. That is exactly what the first attempt at this
+ * did — the header says "this codebase has learned that once
+ * already", and it has now learned it twice. The table imports the
+ * constant rather than the other way round, so there is one source
+ * of truth and the view can reach it.
+ */
+export const TAKE_ACCENT_FALLBACK = '#3e7ca6';
+
+
 import type { AssetId, Publication, TakeId } from './document.js';
 import type { BeatGrid } from './beats.js';
 import type { RoomPlate } from './environment.js';

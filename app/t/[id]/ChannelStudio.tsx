@@ -893,7 +893,7 @@ export default function ChannelStudio({
                    * "do not decorate the video". [brief §5]
                    */
                   position: 'relative', flex: '1 1 auto', minHeight: 150,
-                  margin: 9, background: '#000', borderRadius: 'var(--radius-screen)',
+                  margin: 9, background: 'var(--screen-bed)', borderRadius: 'var(--radius-screen)',
                   border: '1px solid var(--console-edge)',
                   boxShadow: 'var(--console-well)', overflow: 'hidden',
                 }}
@@ -1107,7 +1107,7 @@ export default function ChannelStudio({
                 />
                 <div style={{
                   position: 'relative', flex: '1 1 auto', minHeight: 96,
-                  margin: 9, background: '#000', borderRadius: 'var(--radius-screen)',
+                  margin: 9, background: 'var(--screen-bed)', borderRadius: 'var(--radius-screen)',
                   overflow: 'hidden',
                   border: `1px solid ${armed ? 'var(--ink-on-armed)' : 'var(--line)'}`,
                 }}>
@@ -2695,7 +2695,7 @@ function Row({
         <span style={{
           flex: '0 0 auto', width: 62, height: 35,
           borderRadius: 'var(--radius-xs)',
-          overflow: 'hidden', position: 'relative', background: '#000',
+          overflow: 'hidden', position: 'relative', background: 'var(--screen-bed)',
           boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.07),'
             + ' inset 0 1px 3px rgba(0,0,0,0.6)',
         }}>
@@ -3189,7 +3189,7 @@ function MultiView({
           style={{
             position: 'relative', minHeight: 44,
             borderRadius: 'var(--radius-sm)', padding: 0, minWidth: 0,
-            overflow: 'hidden', background: '#000', textAlign: 'left',
+            overflow: 'hidden', background: 'var(--screen-bed)', textAlign: 'left',
             font: 'inherit', color: 'inherit',
             cursor: tile.act ? 'pointer' : 'default',
             /*
@@ -3867,7 +3867,7 @@ function CameraTab({
       <div className="row" style={{ gap: 9, alignItems: 'stretch' }}>
         <div style={{
           flex: 1, minWidth: 0, position: 'relative', aspectRatio: '16 / 9',
-          borderRadius: 2, overflow: 'hidden', background: '#000',
+          borderRadius: 2, overflow: 'hidden', background: 'var(--screen-bed)',
           border: `1px solid ${armed ? 'var(--ink-on-armed)' : onAir ? 'var(--state-live-dim)' : 'var(--line)'}`,
         }}>
           {feed ? (

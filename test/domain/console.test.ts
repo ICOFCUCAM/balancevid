@@ -980,3 +980,63 @@ describe('the viewer pages', () => {
     expect(transport).toMatch(/!continuous && total > 0/);
   });
 });
+
+/**
+ * THE CLIENT BUNDLE DOES NOT REACH `node:crypto`.  [D-05, D-20]
+ *
+ * `performance.ts` opens by saying so: "a single import of `newId`
+ * drags `node:crypto` into the client bundle and breaks the build.
+ * This codebase has learned that once already, with the render
+ * planner's geometry."
+ *
+ * It has now learned it twice. Naming a colour constant meant
+ * importing it from somewhere, I reached for the module that holds
+ * the table it comes from — `performanceEdit` — and the build failed
+ * with `UnhandledSchemeError: Reading from "node:crypto"`. The split
+ * between the browser-safe module and the edit operations is load
+ * bearing, and nothing was checking it.
+ *
+ * The failure is loud, which is why it survived twice: a broken
+ * build gets fixed and forgotten rather than written down. This
+ * turns it into a named rule with the reason attached.
+ */
+describe('what the browser is allowed to import', () => {
+  /* Server-side by construction: these reach `newId`, the
+     filesystem, or both. */
+  const SERVER_ONLY = [
+    'performanceEdit', 'channelEdit', 'roomEdit', 'edit', 'ids',
+  ];
+
+  it('never pulls a server-only domain module into a component', () => {
+    const offenders: string[] = [];
+    for (const file of components()) {
+      for (const hit of code(file).matchAll(
+        /from '[^']*\/src\/domain\/([a-zA-Z]+)\.js'/g)) {
+        if (SERVER_ONLY.includes(hit[1]!)) {
+          offenders.push(`${named(file)} → ${hit[1]}`);
+        }
+      }
+    }
+    expect(offenders,
+      'that module reaches node:crypto — put the constant in a '
+      + 'browser-safe module and import it from there')
+      .toEqual([]);
+  });
+
+  /*
+   * AND THE ONE SOURCE OF TRUTH SURVIVED THE MOVE. The point of
+   * naming the fallback was to stop twelve copies going stale; a fix
+   * that leaves the table with its own literal would have kept the
+   * bug and added a constant.
+   */
+  it('builds the take palette from the named fallback', () => {
+    const edit = readFileSync(
+      join(ROOT, 'src', 'domain', 'performanceEdit.ts'), 'utf8');
+    const table = edit.slice(edit.indexOf('export const TAKE_ACCENTS'));
+    expect(table.slice(0, table.indexOf('];')))
+      .toContain('TAKE_ACCENT_FALLBACK');
+    expect(table.slice(0, table.indexOf('];')),
+      'the table still carries its own copy of the first colour')
+      .not.toContain("'#3e7ca6'");
+  });
+});

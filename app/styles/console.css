@@ -94,6 +94,23 @@
    * the whole product exists to put a picture on.
    */
   --radius-screen: 2px;
+
+  /*
+   * AND WHAT A PICTURE SITS ON.  [brief §5]
+   *
+   * Three blacks were doing this one job: `#000` thirty times, plus
+   * `#08090b` and `#05070a` on the wrappers around some of the same
+   * pictures — so a video letterboxing inside its own frame showed a
+   * seam between two nearly-identical darks, which is the one place
+   * a near-black is actually visible.
+   *
+   * True black, because a picture's bed is the only surface in the
+   * product that is not a surface: it is the absence of picture, and
+   * anything lighter than the darkest pixel a video can contain reads
+   * as a frame around the image rather than as part of it. Every
+   * other dark here is a material and gets a material's value.
+   */
+  --screen-bed: #000;
 }
 
 /* ------------------------------------------------------------------- *

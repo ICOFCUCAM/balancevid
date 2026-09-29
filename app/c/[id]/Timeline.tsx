@@ -280,7 +280,7 @@ export default function Timeline({
             <div style={{
               width: 62, height: 34, borderRadius: 5, overflow: 'hidden',
               border: `1px solid ${r.selected ? 'var(--user-accent)' : 'var(--line)'}`,
-              background: '#000',
+              background: 'var(--screen-bed)',
               display: 'grid', placeItems: 'center',
             }}>
               {r.thumbnailUrl && !failed.has(r.id) ? (

@@ -71,7 +71,7 @@ export default function CompositionStage({
 
   return (
     <div data-testid="composition-stage" data-layout={layout.id}
-         style={{ position: 'absolute', inset: 0, background: '#000', overflow: 'hidden' }}>
+         style={{ position: 'absolute', inset: 0, background: 'var(--screen-bed)', overflow: 'hidden' }}>
       {/*
         The backdrop. Two 16:9 panels inside a 16:9 frame cannot fill it, and
         flat black bars are the difference between a video that looks composed
@@ -141,7 +141,7 @@ function LayerMedia({
   focus?: { x: number; y: number; w: number; h: number };
 }) {
   const box: React.CSSProperties = {
-    width: '100%', height: '100%', background: '#000',
+    width: '100%', height: '100%', background: 'var(--screen-bed)',
     objectFit: layer.fit === 'contain' ? 'contain' : 'cover',
   };
 
@@ -155,7 +155,7 @@ function LayerMedia({
     if (focus) {
       return (
         <div style={{ width: '100%', height: '100%', overflow: 'hidden', position: 'relative',
-          background: '#000' }}>
+          background: 'var(--screen-bed)' }}>
           <SourceFrame
             conversationId={conversationId}
             frame={intervention.anchor.tSourceFrame}
@@ -164,7 +164,7 @@ function LayerMedia({
               width: `${100 / focus.w}%`, height: `${100 / focus.h}%`,
               left: `${(-focus.x / focus.w) * 100}%`,
               top: `${(-focus.y / focus.h) * 100}%`,
-              objectFit: 'fill', background: '#000',
+              objectFit: 'fill', background: 'var(--screen-bed)',
             }}
           />
         </div>

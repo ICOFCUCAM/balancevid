@@ -66,7 +66,7 @@ export default function Watch({
         <div style={{
           border: 'var(--border) solid var(--line)',
           borderRadius: 'var(--radius-screen)', overflow: 'hidden',
-          background: '#08090b',
+          background: 'var(--screen-bed)',
         }}>
           <video
             data-testid="published-video"
@@ -84,7 +84,7 @@ export default function Watch({
                 * loaded" into a sliver with a transport under it.
                 */
               width: '100%', aspectRatio: '16 / 9',
-              background: '#08090b', objectFit: 'contain',
+              background: 'var(--screen-bed)', objectFit: 'contain',
               borderRadius: 0, border: 0, display: 'block',
             }}
           />
@@ -129,13 +129,13 @@ function Clip({ url }: { url: string }) {
     <div style={{
       width: 180, border: 'var(--border) solid var(--line)',
       borderRadius: 'var(--radius-screen)', overflow: 'hidden',
-      background: '#08090b', flex: '0 0 auto',
+      background: 'var(--screen-bed)', flex: '0 0 auto',
     }}>
       <video
         data-testid="published-clip" src={url} playsInline ref={setVideo}
         style={{
           width: '100%', aspectRatio: '9 / 16', objectFit: 'cover',
-          borderRadius: 0, border: 0, display: 'block', background: '#08090b',
+          borderRadius: 0, border: 0, display: 'block', background: 'var(--screen-bed)',
         }}
       />
       {/* No clock and no scrub on a 180px-wide clip: play and mute is

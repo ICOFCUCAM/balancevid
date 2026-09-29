@@ -350,7 +350,7 @@ export default function RoomView({
             )}
           </div>
           <div data-testid="room-stage" style={{
-            background: '#000', borderRadius: 2,
+            background: 'var(--screen-bed)', borderRadius: 2,
             border: '1px solid var(--console-edge)',
             display: 'grid', placeItems: 'center', padding: 16, minHeight: 0,
           }}>
@@ -402,7 +402,7 @@ export default function RoomView({
                       style={{
                         borderRadius: 'var(--radius-md)',
                         border: `2px solid ${person.accent}`,
-                        background: '#000', display: 'grid', placeItems: 'center',
+                        background: 'var(--screen-bed)', display: 'grid', placeItems: 'center',
                         minHeight: 120, position: 'relative', overflow: 'hidden',
                         boxShadow: live
                           ? `0 0 0 3px ${person.accent}26, 0 4px 16px rgba(0,0,0,0.5)`

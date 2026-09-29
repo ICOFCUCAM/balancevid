@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { TAKE_ACCENT_FALLBACK } from '../../../src/domain/performance.js';
 import Icon from '../../Icon.js';
 import type { Performance } from '../../../src/domain/performance.js';
 import { MASTER_CLASSES, SPACES, mayPublish } from '../../../src/domain/performance.js';
@@ -506,7 +507,7 @@ export default function PerformanceStudio(
                           timeline lane and every block of the master video. */}
                       <span aria-hidden="true" style={{
                         width: 9, height: 9, borderRadius: '50%', flex: '0 0 auto',
-                        background: take.accent ?? '#3e7ca6',
+                        background: take.accent ?? TAKE_ACCENT_FALLBACK,
                         opacity: placed || footage ? 1 : 0.4,
                       }} />
                       <button
@@ -532,7 +533,7 @@ export default function PerformanceStudio(
                             : 'var(--console-control)',
                           border: '1px solid var(--console-seam)',
                           boxShadow: chosen
-                            ? `inset 3px 0 0 ${take.accent ?? '#3e7ca6'},`
+                            ? `inset 3px 0 0 ${take.accent ?? TAKE_ACCENT_FALLBACK},`
                               + ' var(--console-bevel-strong)'
                             : 'var(--console-bevel)',
                         }}
@@ -547,7 +548,7 @@ export default function PerformanceStudio(
                           data-testid="take-poster" aria-hidden="true"
                           style={{
                             flex: '0 0 auto', width: 64, height: 38, borderRadius: 6,
-                            backgroundColor: `${take.accent ?? '#3e7ca6'}33`,
+                            backgroundColor: `${take.accent ?? TAKE_ACCENT_FALLBACK}33`,
                             backgroundImage: `url(/api/performances/${performance.id}`
                               + `/takes/${take.id}/media?kind=poster)`,
                             backgroundSize: 'cover', backgroundPosition: 'center',
@@ -612,7 +613,7 @@ export default function PerformanceStudio(
                     data-testid="performer-camera"
                     style={{
                       width: '100%', aspectRatio: '16 / 9', objectFit: 'cover',
-                      borderRadius: 2, background: '#000',
+                      borderRadius: 2, background: 'var(--screen-bed)',
                       border: `2px solid ${recording.phase === 'recording'
                         ? '#e0674f' : 'var(--line)'}`,
                       display: recording.stream ? 'block' : 'none',

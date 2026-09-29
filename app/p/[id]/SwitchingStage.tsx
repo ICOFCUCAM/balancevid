@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { TAKE_ACCENT_FALLBACK } from '../../../src/domain/performance.js';
 import Icon from '../../Icon.js';
 import type { MasterClass, Performance } from '../../../src/domain/performance.js';
 import {
@@ -603,7 +604,7 @@ export default function SwitchingStage({
           data-layout={current?.layoutId ?? 'none'}
           style={{
             gridArea: 'stage', position: 'relative', aspectRatio: '16 / 9',
-            background: '#000', borderRadius: 2,
+            background: 'var(--screen-bed)', borderRadius: 2,
             border: '1px solid var(--line)', overflow: 'hidden',
           }}
         >
@@ -639,7 +640,7 @@ export default function SwitchingStage({
                      position: 'absolute',
                      left: `${rect.x * 100}%`, top: `${rect.y * 100}%`,
                      width: `${rect.w * 100}%`, height: `${rect.h * 100}%`,
-                     backgroundColor: `${take.accent ?? '#3e7ca6'}22`,
+                     backgroundColor: `${take.accent ?? TAKE_ACCENT_FALLBACK}22`,
                      backgroundImage:
                        `url(/api/performances/${performance.id}/takes/${take.id}/media?kind=poster)`,
                      backgroundSize: 'cover', backgroundPosition: 'center',
@@ -733,7 +734,7 @@ export default function SwitchingStage({
                   fontSize: 'var(--text-xs)', fontWeight: 600,
                   background: 'rgba(0,0,0,0.72)',
                   border: '1px solid rgba(255,255,255,0.14)',
-                  borderLeft: `3px solid ${take.accent ?? '#3e7ca6'}`,
+                  borderLeft: `3px solid ${take.accent ?? TAKE_ACCENT_FALLBACK}`,
                   color: 'rgba(255,255,255,0.94)',
                   maxWidth: 'calc(100% - 12px)', overflow: 'hidden',
                   textOverflow: 'ellipsis', whiteSpace: 'nowrap',
@@ -1135,7 +1136,7 @@ export default function SwitchingStage({
                       }}>
                 <span aria-hidden="true" style={{
                   width: 8, height: 8, borderRadius: '50%', flex: '0 0 auto',
-                  background: take.accent ?? '#3e7ca6',
+                  background: take.accent ?? TAKE_ACCENT_FALLBACK,
                   opacity: take.alignment.method === 'unplaced' ? 0.4 : 1,
                 }} />
                 <span style={{ fontWeight: 600 }}>{take.label}</span>
@@ -1222,8 +1223,8 @@ export default function SwitchingStage({
                     position: 'absolute', left: pct(from),
                     width: pct(Math.max(0, to - from)), top: 2, bottom: 2,
                     borderRadius: 3,
-                    border: `1px solid ${take.accent ?? '#3e7ca6'}`,
-                    backgroundColor: `${take.accent ?? '#3e7ca6'}22`,
+                    border: `1px solid ${take.accent ?? TAKE_ACCENT_FALLBACK}`,
+                    backgroundColor: `${take.accent ?? TAKE_ACCENT_FALLBACK}22`,
                     backgroundImage:
                       `url(/api/performances/${performance.id}/takes/${take.id}/media?kind=strip)`,
                     backgroundSize: '100% 100%',
@@ -1250,8 +1251,8 @@ export default function SwitchingStage({
                          left: pct(scene.fromSample), width: pct(to - scene.fromSample),
                          // The take's own colour, so this strip and the lanes
                          // above it are plainly about the same takes. [§2]
-                         background: `${take?.accent ?? '#3e7ca6'}33`,
-                         borderLeft: `3px solid ${take?.accent ?? '#3e7ca6'}`,
+                         background: `${take?.accent ?? TAKE_ACCENT_FALLBACK}33`,
+                         borderLeft: `3px solid ${take?.accent ?? TAKE_ACCENT_FALLBACK}`,
                          borderRadius: 4, padding: '3px 6px', fontSize: 'var(--text-2xs)',
                          overflow: 'hidden',
                        }}>
@@ -1398,7 +1399,7 @@ export default function SwitchingStage({
                       fontWeight: 'var(--weight-bold)',
                       fontSize: 'var(--text-sm)', cursor: 'pointer',
                       color: '#0a0c10',
-                      background: take.accent ?? '#3e7ca6',
+                      background: take.accent ?? TAKE_ACCENT_FALLBACK,
                       border: '1px solid rgba(0,0,0,0.4)',
                       borderTop: pending.includes(take.id)
                         ? '3px solid #fff' : '1px solid rgba(0,0,0,0.4)',

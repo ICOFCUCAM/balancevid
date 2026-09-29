@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { TAKE_ACCENT_FALLBACK } from '../../../src/domain/performance.js';
 
 import { useConfirm } from '../../Confirm.js';
 import InvitePanel from '../../c/[id]/room/InvitePanel.js';
@@ -209,7 +210,7 @@ export default function GuestsTab({
         }}>
           <span aria-hidden="true" style={{
             width: 8, height: 8, borderRadius: '50%', flex: '0 0 auto',
-            background: person.accent ?? '#3e7ca6',
+            background: person.accent ?? TAKE_ACCENT_FALLBACK,
           }} />
           <span className="grow" style={{
             minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis',

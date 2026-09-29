@@ -232,7 +232,7 @@ export default function Watch({ conversationId }: { conversationId: string }) {
       <p className="small muted" style={{ marginTop: 0 }}>{manifest.attribution}</p>
 
       <div className="panel" style={{ padding: 10, position: 'relative' }}>
-        <div style={{ position: 'relative', aspectRatio: '16 / 9', background: '#000' }}>
+        <div style={{ position: 'relative', aspectRatio: '16 / 9', background: 'var(--screen-bed)' }}>
           {isEmbedded ? (
             <iframe
               ref={frameRef}

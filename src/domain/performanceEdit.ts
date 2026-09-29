@@ -29,6 +29,7 @@ import type { TakeId } from './document.js';
 import {
   type AudioMode, type MasterTrack, type Performance, type PerformanceTake, type Scene,
   AUDIO_MODES, MASTER_CLASSES, PERFORMANCE_SCHEMA_VERSION,
+  TAKE_ACCENT_FALLBACK,
   coverage, mayPublish, orderedScenes, plateFor, takeById,
 } from './performance.js';
 import { type Samples, assertSamples } from './time.js';
@@ -102,7 +103,8 @@ const fail = (message: string): never => { throw new PerformanceEditError(messag
  * shows both, which is a worse confusion than having two short lists.
  */
 export const TAKE_ACCENTS = [
-  '#3e7ca6', '#4f8a5b', '#c99a2e', '#b5553f', '#8a6fb0', '#5f8f8f', '#c2794f',
+  TAKE_ACCENT_FALLBACK,
+  '#4f8a5b', '#c99a2e', '#b5553f', '#8a6fb0', '#5f8f8f', '#c2794f',
 ];
 
 export function addTake(performance: Performance, take: PerformanceTake): void {

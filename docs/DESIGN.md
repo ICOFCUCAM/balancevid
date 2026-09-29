@@ -252,6 +252,73 @@ sometimes lies is not a signal, it is decoration that happens to be red.
 
 ---
 
+## The eighth decision: a stranger is not an operator
+
+The first fifty-odd commits went into the surfaces somebody **operates**.
+The pages somebody is **sent** — three watch pages and the guest invite —
+turned out to have been built at three different times and to agree on
+nothing: one centred with a real transport, one flush left against a 960px
+video in a 1440px window, one with the brand mark and two without.
+
+- **The product's own transport, not the browser's.** Two viewer pages
+  still shipped `<video controls>`. On a desk that is merely unpolished;
+  on a published page its three-dot menu offers **Download** — an offer to
+  take somebody's work, made by the page that publishes it.
+- **Two transports, two clocks, on purpose.** Studio One's is a frame
+  address because an editor cuts on frames [INV-02, U-08]. A viewer
+  watches, so theirs is seconds; printing `00:00:12:14` at somebody
+  watching a song is precision theatre. Everything they genuinely share is
+  in `console.css`. A third is the signal to merge rather than to add.
+- **The mark is on every page a stranger can land on.** Most of all the
+  guest invite, which had no identity anywhere: a link from a colleague,
+  and a box asking for your name. That is the shape of a phishing page and
+  the one place a stranger has no prior context. A trust decision, not a
+  cosmetic one.
+- **A page may have one call to action.** Playing is ordinary, frequent
+  and reversible and takes a control; "Respond to this" is the premise of
+  the product [U-04] and stays loud.
+
+**And the label follows the fact.** A viewer arriving at an off-air channel
+read `This channel is not transmitting right now` immediately above
+`NOW PLAYING / Station Ident / 06:25 left`. Both true of different things —
+`title` is what the schedule says, `transmitting` is whether a segment is
+arriving — which is exactly why printing them together is a lie. It is the
+seventh decision again, one layer out: a surface may not assert what the
+state underneath does not support.
+
+---
+
+## What the tests kept getting wrong
+
+Worth its own section, because it happened four times and the same way each
+time. A rule would be written against the instances in front of it rather
+than against the thing it was describing, and would then walk straight past
+the next instance:
+
+| rule | was scoped to | is now |
+| --- | --- | --- |
+| no card rounding | five desk files | every studio file |
+| one plate on a picture | a list of known near-blacks | any near-black used as a background |
+| no bold-literal titles | `<strong className="grow">` | any `<strong>` that **is** its line |
+| no hand-written sizes | the three studio routes | the whole application |
+
+Each widening found more: nine corners, five near-blacks, five titles,
+fourteen sizes. **Write the rule against the property, not against the
+examples** — and when a widened rule fires on something correct, that is
+information about the rule. Widening the title ban flagged
+`Press <strong>GO LIVE</strong> — that arms the feed`, which is emphasis
+inside a sentence and exactly what the tag is for; the discriminator turned
+out to be neither the class nor the tag but whether the `<strong>` is the
+line or sits in one.
+
+**A loud failure is not a remembered one.** `performance.ts` opens by saying
+that importing `newId` drags `node:crypto` into the client bundle and that
+"this codebase has learned that once already". It has now learned it twice,
+because a broken build gets fixed and forgotten rather than written down.
+`console.test.ts` names the server-only modules now.
+
+---
+
 ## Where things live
 
 ```
@@ -269,15 +336,23 @@ app/styles/console.css     the material the three studios are made of
 app/styles/building.css    the lit ground the lobby is made of
 app/styles/platforms.css   the five distribution destinations
 app/Icon.tsx               one set of glyphs, on one grid
+app/Brand.tsx              the mark, in one place rather than four
+app/VideoTransport.tsx     a viewer's transport — seconds, not frames
 app/Confirm.tsx            asking before something irreversible
 app/Notice.tsx             saying something went wrong, out loud
 ```
+
+Two tokens in `console.css` carry the eighth decision:
+`--radius-screen` (2px, on anything that is a picture) and
+`--screen-bed` (true black, what a picture sits on — three different
+blacks were doing that job, and a video letterboxing inside its own
+frame showed the seam between them).
 
 ---
 
 ## The ratchet
 
-120 raw hex colours remain in components. The token system arrived after the
+76 raw hex colours remain in components. The token system arrived after the
 product did, and surfaces are converted as each is worked on.
 
 It read 244 until the regex was corrected: `&#9654;` is a play triangle, and
@@ -316,4 +391,4 @@ without noticing.
 - **No light theme** in the application. The published article and
   interactive player have one, and declare the speaker identities darkened
   for white; the studios do not.
-- **The remaining 120.** They are not wrong, they are just not yet named.
+- **The remaining 76.** They are not wrong, they are just not yet named.
