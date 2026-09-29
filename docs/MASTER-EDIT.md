@@ -566,7 +566,7 @@ being a promise.
 | automatic continuity repair suggestions | HAVE — the remedies, and `rankTakes` now says WHICH take to choose rather than how many reach |
 | best-take suggestions | HAVE — `rankTakes` over measured facts only, with the reasons it scored by; shown only where it disagrees with the take already there |
 | captions in Studio Two | HAVE — timed lyrics on the master, `performanceCues`, and the worker passing them at both performance render sites. **Not** Studio One's transcription, and the note above P3 says why |
-| automatic audio cleanup | HAVE — `adviseCleanup` from a measured noise floor; it never proposes the row with a known cost |
+| automatic audio cleanup | HAVE — `adviseCleanup` from a measured noise floor; it never proposes the row with a known cost, and `test/render/sound.test.ts` measures real recordings rather than hand-written readings |
 | AI first cut | HAVE — `proposeFirstCut`, offered only on an empty lane, and it proposes rather than writes |
 | auto-reframe · transcript editing | GAP |
 
