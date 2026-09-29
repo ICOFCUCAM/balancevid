@@ -5,7 +5,8 @@ import { TAKE_ACCENT_FALLBACK } from '../../../src/domain/performance.js';
 import Icon from '../../Icon.js';
 import type { MasterClass, Performance } from '../../../src/domain/performance.js';
 import {
-  MASTER_CLASSES, SPACES, isFootage, orderedScenes, renderProblems, sceneAt,
+  MASTER_CLASSES, SPACES, effectiveOffset, isFootage, orderedScenes,
+  renderProblems, sceneAt,
 } from '../../../src/domain/performance.js';
 import { EFFECT_LOOKS, SPACE_LOOKS } from '../../../src/domain/environment.js';
 import {
@@ -17,6 +18,9 @@ import {
 } from '../../../src/domain/takeRanking.js';
 import { useConfirm } from '../../Confirm.js';
 import { useMenu, type MenuEntry } from '../../Menu.js';
+import type { TakeId } from '../../../src/domain/document.js';
+import { nudgeSays } from './takeNudge.js';
+import { takeMenuItems } from './takeMenu.js';
 import ClipInspector, { type Selection } from './ClipInspector.js';
 import { LAYOUTS, takeSlots } from '../../../src/domain/presentation.js';
 import {
@@ -247,7 +251,16 @@ export default function SwitchingStage({
    * runs under all three. A rail in its own grid outside this one cannot
    * share a row with them.
    */
-  takesPanel?: React.ReactNode;
+  /*
+   * IT IS GIVEN THE TAKE MENU rather than building one. The rail is
+   * rendered up in the studio, and the things a take menu needs — the
+   * playhead, what a cut means, which take the stage is watching alone
+   * — all live down here. Passing the list down is what lets the row
+   * and the picture raise the SAME one. [D-19]
+   */
+  takesPanel?: (
+    takeMenu: (take: Performance['takes'][number]) => MenuEntry[],
+  ) => React.ReactNode;
 }) {
   const { confirm, dialog: confirmDialog } = useConfirm();
   /*
@@ -292,6 +305,19 @@ export default function SwitchingStage({
   const [snapped, setSnapped] = useState<number | null>(null);
   /** The transitions row is asked for from the transport, not always on. */
   const [showTransitions, setShowTransitions] = useState(false);
+  /** True between the pointer going down on the ruler and coming up. */
+  const [scrubbing, setScrubbing] = useState(false);
+  /** The lane column, so an x on the screen can be turned into a sample. */
+  const lanes = useRef<HTMLDivElement | null>(null);
+  /**
+   * The take being dragged along its lane, and how far, in samples.
+   *
+   * Local until the pointer comes up: the block follows the pointer at
+   * sixty frames a second and the DOCUMENT is written once, because a
+   * version per pointer move is sixty presses of undo to get back.
+   */
+  const [dragging, setDragging] = useState<
+    { takeId: string; at: number; by: number } | null>(null);
 
   const ordered = orderedScenes(performance);
   /*
@@ -331,8 +357,21 @@ export default function SwitchingStage({
   const usableIds = performance.takes
     .filter((t) => t.durationSamples > 0).map((t) => t.id);
   const [multiview, setMultiview] = useState<boolean | null>(null);
-  const allTakes = multiview ?? usableIds.length > 1;
-  const visible = allTakes ? usableIds : (current?.takeIds ?? []);
+  /*
+   * WATCHING ONE TAKE IS A THIRD VIEW, not a second player.
+   *
+   * "Every take should be playable independently" — and it already was,
+   * in the sense that the multiview plays all of them at once on the
+   * song's clock. What was missing is watching ONE without the others
+   * beside it, which is this: the same stage, the same transport, the
+   * same clock, one panel. A separate preview window would have been a
+   * second transport and a second answer to "where are we". [D-19]
+   */
+  const [solo, setSolo] = useState<TakeId | null>(null);
+  const soloed = solo && usableIds.includes(solo) ? solo : null;
+  const allTakes = !soloed && (multiview ?? usableIds.length > 1);
+  const visible = soloed
+    ? [soloed] : allTakes ? usableIds : (current?.takeIds ?? []);
 
   const beats = performance.beats;
 
@@ -629,6 +668,55 @@ export default function SwitchingStage({
   }, [arrangement, pending, player, slots, usable, write]);
 
   /*
+   * WHAT CAN BE DONE TO A TAKE, RAISED FROM EITHER PLACE.  [§7, S-3, D-19]
+   *
+   * The list is `takeMenuItems`, and this is the only definition of it in
+   * the product: the rail renders it on a row, the multiview renders it
+   * on the take's own picture, and neither writes out a verb of its own.
+   * A studio where right-clicking a take's picture offers different
+   * things from right-clicking its row is a studio with two answers to
+   * one question.
+   *
+   * NOT THE SCENE'S ENTRIES. `stageMenu` offers transitions, moving the
+   * boundary and removing the scene, and all of those are about the clip
+   * on air, not about the take that was clicked. Offering them from a
+   * picture that is NOT on air would be a menu whose items act on
+   * something other than the thing under the pointer.
+   */
+  const takeMenu = useCallback((
+    take: Performance['takes'][number],
+  ): MenuEntry[] => takeMenuItems(take, {
+    performance,
+    patch,
+    confirm,
+    at: () => player.positionNow(),
+    keyOf: (takeId) => {
+      const index = usableIds.indexOf(takeId as TakeId);
+      return index < 0 ? null : index + 1;
+    },
+    /*
+     * THE SAME CALL THE PICTURE MAKES. `choose` is what a left-click on
+     * a tile and a press of the number key both run — it fills the
+     * arrangement and writes the scene at the playhead — so the menu
+     * cannot mean something subtly different by "put it on screen".
+     */
+    place: (takeId) => {
+      const index = usableIds.indexOf(takeId as TakeId);
+      if (index >= 0) choose(index);
+    },
+    solo: soloed,
+    onSolo: (takeId) => {
+      setSolo(takeId as TakeId | null);
+      if (takeId) void player.play();
+    },
+    chosen: chosenTake,
+    onChoose: onChooseTake,
+  }), [
+    choose, chosenTake, confirm, onChooseTake, patch, performance, player,
+    soloed, usableIds,
+  ]);
+
+  /*
    * THE KEYS ARE ALWAYS LIVE.  [benchmark, §7]
    *
    * There used to be a button that armed them, which is a mode — and a mode
@@ -688,6 +776,17 @@ export default function SwitchingStage({
   }, [choose, player, step]);
 
   const duration = performance.master.durationSamples;
+  /*
+   * ONE DEFINITION OF WHERE AN X IS ON THE SONG, for the click and the
+   * drag alike, clamped to the song at both ends: there is nothing before
+   * the first sample, and by INV-03 nothing after the last.
+   */
+  const sampleAtX = useCallback((clientX: number): number => {
+    const box = lanes.current?.getBoundingClientRect();
+    if (!box || box.width <= 0) return 0;
+    const along = (clientX - box.left) / box.width;
+    return Math.max(0, Math.min(duration, Math.round(along * duration)));
+  }, [duration]);
   /*
    * Drawn for the first minute only. A four-minute song at 120 BPM is 480
    * marks, which is 480 elements to lay out on every repaint of a timeline
@@ -895,7 +994,7 @@ export default function SwitchingStage({
         alignSelf: 'stretch', minHeight: 0,
       }}>
         <div className="shell-scroll" style={{ position: 'absolute', inset: 0 }}>
-          {takesPanel}
+          {takesPanel?.(takeMenu)}
         </div>
       </div>
       <>
@@ -1058,6 +1157,17 @@ export default function SwitchingStage({
                   textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                 }}>
                   {allTakes && key > 0 ? `${key} · ` : ''}{take.label}
+                  {/*
+                    * AND WHETHER IT IS BEING HELD. A take pushed against
+                    * the song is playing at a different moment from the
+                    * ones beside it, and a multiview that does not say so
+                    * is four pictures that disagree for no stated reason.
+                    */}
+                  {nudgeSays(take) && (
+                    <span data-testid="monitor-nudge" style={{ opacity: 0.8 }}>
+                      {` · ${nudgeSays(take)}`}
+                    </span>
+                  )}
                 </span>
                 {/*
                   * Clicking a monitor is pressing its number. The same
@@ -1065,10 +1175,27 @@ export default function SwitchingStage({
                   * three ways in, one scene written. [§7]
                   */}
                 {allTakes && key > 0 && (
+                  /*
+                    * AND RIGHT-CLICKING IT IS THE THIRD WAY IN. The rail
+                    * has taught right-click-a-take-for-what-can-be-done
+                    * since the first week, and in the multiview the take
+                    * is the PICTURE — so the picture answered a left
+                    * click and ignored a right one, which is the rail's
+                    * lesson unlearned one panel away.
+                    *
+                    * The list is `tileMenu`, which is the cut this
+                    * button already performs plus the pushes from
+                    * `takeNudge.ts` — the same entries the rail offers,
+                    * from one definition, because two menus on one
+                    * object that differ is a studio with two answers to
+                    * one question. [D-19]
+                    */
                   <button type="button" data-testid="monitor-pick"
                           data-take-id={take.id}
-                          title={`Cut to ${take.label} — key ${key}`}
+                          title={`Cut to ${take.label} — key ${key}, `
+                            + 'or right-click for what else can be done to it'}
                           onClick={() => choose(key - 1)}
+                          {...onRow(take.label, () => takeMenu(take))}
                           style={{
                             position: 'absolute', inset: 0, padding: 0,
                             background: 'transparent', border: 0,
@@ -1730,12 +1857,47 @@ export default function SwitchingStage({
           </div>
 
           {/* Every lane, the same four minutes, one x per sample. */}
-          <div style={{ position: 'relative', flex: 1, minWidth: 0 }}
-               onClick={(e) => {
-                 const box = e.currentTarget.getBoundingClientRect();
-                 player.seek(Math.round(((e.clientX - box.left) / box.width) * duration));
-               }}>
-            <div data-testid="master-ruler" style={{ height: 18, position: 'relative' }}>
+          <div ref={lanes} style={{ position: 'relative', flex: 1, minWidth: 0 }}
+               onClick={(e) => player.seek(sampleAtX(e.clientX))}>
+            {/*
+              * THE RULER IS THE SCRUB STRIP, and until now the playhead
+              * could only be JUMPED to, never taken hold of.
+              *
+              * Clicking a lane has always seeked — so the position was
+              * reachable — but an author watching a take come in late
+              * wants to pull the line back to the exact moment before it
+              * and watch that moment again, and a click is one guess per
+              * press. Dragging is the same seek repeated while the
+              * pointer is down, which is why it is the SAME function: a
+              * scrub that landed on a different sample from a click at
+              * the same x would be two answers to "where is that".
+              *
+              * The pointer is captured, so a drag that leaves the strip
+              * — upwards over the monitors, or past the end of the song
+              * — keeps scrubbing and still ends when the button comes
+              * up. Clamped to the song at both ends by `sampleAtX`:
+              * there is nothing before zero, and INV-03 says there is
+              * nothing after the last sample either.
+              */}
+            <div data-testid="master-ruler"
+                 title="Drag to scrub \u2014 the song goes no earlier than its start"
+                 onPointerDown={(event) => {
+                   event.currentTarget.setPointerCapture(event.pointerId);
+                   setScrubbing(true);
+                   player.seek(sampleAtX(event.clientX));
+                 }}
+                 onPointerMove={(event) => {
+                   if (scrubbing) player.seek(sampleAtX(event.clientX));
+                 }}
+                 onPointerUp={(event) => {
+                   event.currentTarget.releasePointerCapture(event.pointerId);
+                   setScrubbing(false);
+                 }}
+                 onPointerCancel={() => setScrubbing(false)}
+                 style={{
+                   height: 18, position: 'relative',
+                   cursor: 'ew-resize', touchAction: 'none',
+                 }}>
               {ticks.map((at) => (
                 <span key={at} className="muted" style={{
                   position: 'absolute', left: pct(at * HOUSE_SAMPLE_RATE), top: 2,
@@ -1770,25 +1932,110 @@ export default function SwitchingStage({
 
             {usable.map((take) => {
               const placed = take.alignment.method !== 'unplaced';
-              const from = Math.max(0, take.alignment.offsetSamples);
+              /*
+               * `effectiveOffset`, NOT THE RAW MEASUREMENT. The planner,
+               * the mixer and the player all add the author's nudge to
+               * the offset; this lane did not, so a pushed take played in
+               * one place and drew in another. Nothing could show it
+               * until the nudge had a control — a divergence that was
+               * real for months and unreachable. [D-19]
+               */
+              const from = Math.max(0, effectiveOffset(take.alignment));
               const to = Math.min(duration, from + take.durationSamples);
+              /* Where it is being dragged to, while the pointer is down. */
+              const held = dragging?.takeId === take.id ? dragging : null;
+              const shown = held ? Math.max(0, from + held.by) : from;
               return (
                 <div key={take.id} data-testid="take-lane" data-take-id={take.id}
                      data-placed={placed ? 'true' : 'false'}
+                     data-from={shown}
                      style={{ position: 'relative', height: 30 }}>
-                  <div style={{
-                    position: 'absolute', left: pct(from),
-                    width: pct(Math.max(0, to - from)), top: 2, bottom: 2,
-                    borderRadius: 3,
-                    border: `1px solid ${take.accent ?? TAKE_ACCENT_FALLBACK}`,
-                    backgroundColor: `${take.accent ?? TAKE_ACCENT_FALLBACK}22`,
-                    backgroundImage:
-                      `url(/api/performances/${performance.id}/takes/${take.id}/media?kind=strip)`,
-                    backgroundSize: '100% 100%',
-                    // A take nobody has placed is drawn faint: it is at zero
-                    // because something had to be. [§10]
-                    opacity: placed ? 1 : 0.4,
-                  }} />
+                  {/*
+                    * DRAG THE TAKE ITSELF, which is the direct form of
+                    * the same push the menu makes exactly.
+                    *
+                    * "A take begins late — the user can drag it back."
+                    * The block IS the take on the song, so taking hold
+                    * of it and moving it is the most obvious thing in
+                    * the studio, and until now it was the one lane
+                    * nothing could be done to.
+                    *
+                    * IT WRITES THE NUDGE, NEVER THE MEASUREMENT. The
+                    * drag is the author correcting where the automatic
+                    * answer put it, which is exactly what
+                    * `alignment.nudgeSamples` is for — so a re-measure
+                    * later does not quietly undo it, and how far out
+                    * the machine was stays readable. [S-3, INV-14]
+                    *
+                    * ONE WRITE, ON RELEASE. The block follows the
+                    * pointer locally while it is down and the document
+                    * is written once at the end: a PATCH per pointer
+                    * move would be sixty versions of one decision, and
+                    * undo would have to be pressed sixty times.
+                    */}
+                  <div role="button" tabIndex={-1}
+                       data-testid="take-lane-block"
+                       title={`Drag to move ${take.label} against the song`
+                         + ' \u2014 right-click for what else can be done to it'}
+                       {...onRow(take.label, () => takeMenu(take))}
+                       onPointerDown={(event) => {
+                         event.currentTarget.setPointerCapture(event.pointerId);
+                         setDragging({ takeId: take.id, at: event.clientX, by: 0 });
+                       }}
+                       onPointerMove={(event) => {
+                         if (dragging?.takeId !== take.id) return;
+                         const box = lanes.current?.getBoundingClientRect();
+                         if (!box || box.width <= 0) return;
+                         const by = Math.round(
+                           ((event.clientX - dragging.at) / box.width) * duration);
+                         setDragging({ ...dragging, by });
+                       }}
+                       onPointerUp={(event) => {
+                         event.currentTarget.releasePointerCapture(event.pointerId);
+                         const by = dragging?.takeId === take.id ? dragging.by : 0;
+                         setDragging(null);
+                         /* A press that did not move is a press, not a drag. */
+                         if (by === 0) return;
+                         void patch({
+                           action: 'nudge-take', takeId: take.id,
+                           nudgeSamples: (take.alignment.nudgeSamples ?? 0) + by,
+                         });
+                       }}
+                       onPointerCancel={() => setDragging(null)}
+                       style={{
+                         position: 'absolute', left: pct(shown),
+                         width: pct(Math.max(0, to - from)), top: 2, bottom: 2,
+                         borderRadius: 3, padding: 0,
+                         border: `1px solid ${take.accent ?? TAKE_ACCENT_FALLBACK}`,
+                         backgroundColor: `${take.accent ?? TAKE_ACCENT_FALLBACK}22`,
+                         backgroundImage:
+                           `url(/api/performances/${performance.id}/takes/${take.id}/media?kind=strip)`,
+                         backgroundSize: '100% 100%',
+                         // A take nobody has placed is drawn faint: it is at zero
+                         // because something had to be. [§10]
+                         opacity: placed ? 1 : 0.4,
+                         cursor: held ? 'grabbing' : 'grab',
+                         touchAction: 'none',
+                       }} />
+                  {/*
+                    * WHAT THE DRAG IS DOING, IN WORDS, WHILE IT HAPPENS.
+                    * A block sliding under the pointer says which way;
+                    * it does not say how far, and "how far" is the whole
+                    * decision. [U-19]
+                    */}
+                  {held && held.by !== 0 && (
+                    <span data-testid="take-lane-drag" className="readout" style={{
+                      position: 'absolute', left: pct(shown), top: -2,
+                      padding: '1px 5px', fontSize: 'var(--text-2xs)',
+                      background: 'rgba(0,0,0,0.72)',
+                      border: '1px solid rgba(255,255,255,0.16)',
+                      borderRadius: 'var(--radius-screen)', whiteSpace: 'nowrap',
+                    }}>
+                      {formatMasterPosition(shown)}
+                      {` \u00b7 ${held.by > 0 ? '+' : '\u2212'}`}
+                      {formatMasterPosition(Math.abs(held.by))}
+                    </span>
+                  )}
                 </div>
               );
             })}
@@ -1919,10 +2166,32 @@ export default function SwitchingStage({
               ))}
             </div>
 
-            <div aria-hidden="true" style={{
+            {/*
+              * THE LINE, AND A HANDLE SAYING IT CAN BE TAKEN HOLD OF.
+              *
+              * The line itself stays `pointerEvents: none` — it is two
+              * pixels wide and moves ten times a second, which is the
+              * worst drag target a studio could offer. The pointer falls
+              * through it to the ruler underneath, which is the strip
+              * that actually scrubs, so the whole width of the song is
+              * grabbable rather than two pixels of it.
+              *
+              * The tab is what makes that discoverable: a grab handle
+              * drawn at the top of the line, in the ruler band, where
+              * the pointer already turns into a scrub cursor. Shape and
+              * cursor, not colour alone. [U-19]
+              */}
+            <div data-testid="playhead" aria-hidden="true" style={{
               position: 'absolute', top: 14, bottom: 0, width: 2,
               background: '#e0674f', left: pct(player.position), pointerEvents: 'none',
-            }} />
+            }}>
+              <span data-testid="playhead-grip" style={{
+                position: 'absolute', top: -13, left: -4, width: 10, height: 13,
+                borderRadius: '2px 2px 5px 5px',
+                background: '#e0674f',
+                boxShadow: scrubbing ? '0 0 0 2px rgba(224,103,79,0.35)' : 'none',
+              }} />
+            </div>
           </div>
         </div>
       </div>
@@ -2000,6 +2269,27 @@ export default function SwitchingStage({
             * row and a row of circles has gaps in it. Same key as
             * Online TV's transport, which is now the same shape.
             */}
+          {/*
+            * BACK TO THE VERY BEGINNING, as one press.
+            *
+            * The song's start is the position an author returns to more
+            * often than any other — every time they want to watch the
+            * opening again — and reaching it by dragging meant landing
+            * on sample 400 and wondering why the first frame looked
+            * wrong. A scrub can reach zero and a key can be held; this
+            * is the one that cannot miss.
+            */}
+          <button className="ctl" data-testid="player-start"
+                  disabled={!player.ready}
+                  onClick={() => player.seek(0)}
+                  title="Back to the start of the song"
+                  aria-label="Back to the start of the song"
+                  style={{
+                    width: 34, height: 30, padding: 0, flex: '0 0 auto',
+                    display: 'grid', placeItems: 'center',
+                  }}>
+            <Icon name="start" size={12} />
+          </button>
           <button className="ctl" data-testid="player-play"
                   disabled={!player.ready}
                   onClick={() => (player.playing ? player.pause() : void player.play())}

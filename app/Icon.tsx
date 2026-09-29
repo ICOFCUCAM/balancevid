@@ -25,7 +25,8 @@ export type IconName =
   | 'disk' | 'clock' | 'calendar' | 'play' | 'plus' | 'chevron'
   | 'arrow' | 'upload' | 'link' | 'live' | 'pencil' | 'sun' | 'moon'
   | 'sound' | 'muted' | 'expand' | 'faders' | 'list' | 'mic'
-  | 'stop' | 'next' | 'loop' | 'warning' | 'graphics' | 'pause' | 'passed';
+  | 'stop' | 'next' | 'start' | 'loop' | 'warning' | 'graphics' | 'pause'
+  | 'passed';
 
 /* Each is the inner geometry; the frame and the stroke are set below. */
 const PATHS: Record<IconName, React.ReactNode> = {
@@ -181,6 +182,17 @@ const PATHS: Record<IconName, React.ReactNode> = {
     </>
   ),
   /*
+   * `next` MIRRORED, deliberately, because they are one pair: the bar
+   * is the end you are going to and the triangle points at it. Drawn
+   * rather than rotated in CSS so it keeps the same stroke weight.
+   */
+  start: (
+    <>
+      <rect x="5.2" y="5.6" width="2.4" height="12.8" rx="0.8" />
+      <path d="M18 5.6 9 12l9 6.4z" />
+    </>
+  ),
+  /*
    * ROUND FOR EVER, which is what a rotation entry does. ↻ renders as
    * a different weight on every platform and as an emoji on some.
    *
@@ -308,7 +320,7 @@ const PATHS: Record<IconName, React.ReactNode> = {
 };
 
 /** `filled` is for the few that read as a shape rather than as a line. */
-const FILLED: IconName[] = ['play', 'home', 'stop', 'next', 'pause'];
+const FILLED: IconName[] = ['play', 'home', 'stop', 'next', 'start', 'pause'];
 
 export default function Icon({
   name, size = 16, strokeWidth, turn,

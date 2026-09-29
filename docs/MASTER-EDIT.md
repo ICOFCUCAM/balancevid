@@ -245,15 +245,29 @@ colour correction, stabilize, audio cleanup, crop/reframe, effects.
 **A master segment** should primarily edit *which portion of which take is
 used* — and nothing about the recording itself.
 
+**THE THREE OPERATIONS, NAMED APART.** Moving a take, trimming a take and
+reframing one act on three different things — WHEN it plays, WHICH PART of
+it exists, and WHAT PART OF THE PICTURE shows — and a flat list of verbs
+invites somebody to trim when they meant to move. The take menu prints them
+under those headings, and `Menu.tsx` gained a `section` for it.
+
+**AND THE MENU IS RAISED FROM THREE PLACES**, from one definition in
+`app/p/[id]/takeMenu.ts`: the row in the rail, the take's own PICTURE in
+the multiview, and its block on the timeline. A studio where a take's
+picture offers different verbs from a take's row has two answers to one
+question. [D-19]
+
 | brief | state | where |
 | --- | --- | --- |
-| trim start/end | HAVE | `trimTake(take, useFromSample, useToSample)` |
+| trim start/end | HAVE | `trimTake`, offered at the playhead as *Start it here* / *End it here* — the author is looking at the moment they mean, so typing it back as a timecode would be reading out what is already under the line |
+| play one take on its own | HAVE | a third stage view, not a second player: same transport, same clock, one panel |
+| move a take against the song | HAVE | `nudgeTake` had been written, planned, mixed and invariant-checked for months with NO way in. Now: drag its block, two alignments (to the song's start, to the playhead), frame and second steps, and an exact figure in milliseconds |
 | rename | HAVE | `renameTake` |
 | change environment | HAVE | `setEnvironment`, `SPACES` |
 | adjust background | HAVE | `usePlate`, the matte in `render/matte.ts` |
 | colour correction | PARTIAL | `setEffect` with four named looks, plus a measured match to another take; no controls of your own |
 | effects | PARTIAL | same four looks |
-| crop / reframe | PARTIAL | `focus.ts` reframes a conversation; a take has no crop |
+| crop / reframe | PARTIAL | `focus.ts` reframes a conversation; a take has no crop. The third of the three operations above, and the only one of them still missing |
 | replace take | GAP | a source take is a recording; replacing it is uploading another |
 | stabilize | HAVE | `setStabilize` with two named rows, measured before it is applied; cannot be on at the same time as a matted background (INV-16) |
 | audio cleanup | HAVE | `setCleanup` with four named rows — the same shape as `setEffect`, on the take because a fan belongs to the recording and not to the stretch of song it is used over |
@@ -644,6 +658,47 @@ part that lies outside their own scenes" — and nothing checked it.
 | Repair → Add transition | not offered — a transition between two shots does not put a shot where there is none |
 
 ---
+
+## §15  The timeline brief
+
+> "The important thing is to build these capabilities into the existing
+> take/timeline model, not create a second editing system."
+
+Measured first, as always — and the measuring is the point of this section,
+because on this brief **most of it was already there and only the way in
+was missing.** [D-19]
+
+| asked for | what was already built | what was missing |
+| --- | --- | --- |
+| every take playable | the multiview plays every take at once, on one clock | watching ONE on its own |
+| select a take from its picture | left-click a tile cuts to it | right-click did nothing on the picture, though the rail had taught right-click since the first week |
+| push a take forward or backward | `nudgeTake`, `alignment.nudgeSamples`, the planner, the mixer, the player and an invariant | **any way to reach it.** Nothing on any screen called it |
+| drag the take on its lane | — | the block was a plain div |
+| draggable playhead | clicking a lane seeked | a drag, a grip, and a clamp at both ends |
+| jump to the very start | — | one key that cannot miss |
+| align a late take | the arithmetic | the two entries that do the subtraction |
+| trim a take | `trimTake` | it at the playhead |
+| Move / Trim / Crop as three ideas | two of them | naming them apart on screen, and the third |
+| an editable song | — | **all of it** (§15.1) |
+| record into the timeline | recording, alignment, the whole take pipeline | starting it at the playhead instead of at 00:00 |
+| sound layers: SFX, ambience, voice-over | the song, and each take's own sound | the document has no object for a sound that is neither |
+
+One number says it best: **the take menu went from four verbs to seventeen,
+and exactly one line of new domain code was needed for them** — the rest was
+reaching operations the document had held all along. It also broke the menu
+component, which had never carried a list that long and ran off the bottom
+of a laptop screen with `Remove…` below the fold.
+
+### §15.1  The song is not yet an object you can edit
+
+> "The master song shouldn't be treated as an immutable background track."
+
+Today `MasterTrack` is an asset, a title, a class, a measured duration and
+the lyrics. There is no trim, no split, no fade, no gain, no second audio
+object of any kind — and INV-03 ties the length of every export to it, so
+this is the one ask on the brief that changes an invariant's input rather
+than adding a control to an existing field. It is the next piece of work,
+and it is a model change before it is a surface.
 
 ## §14  The larger vision
 

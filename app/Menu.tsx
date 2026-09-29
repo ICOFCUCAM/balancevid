@@ -1,7 +1,7 @@
 'use client';
 
 import {
-  createContext, useCallback, useContext, useEffect, useId,
+  Fragment, createContext, useCallback, useContext, useEffect, useId,
   useLayoutEffect, useRef, useState,
 } from 'react';
 
@@ -64,6 +64,20 @@ export interface MenuItem {
   disabled?: boolean | string;
   /** A one-line hint under the label. */
   hint?: string;
+  /**
+   * The group this verb belongs to, printed once above the first of them.
+   *
+   * FOR LISTS WHERE THE DISTINCTION IS THE POINT, and the take menu is
+   * the case it was added for: moving a take, trimming a take and
+   * reframing a take are three different operations on three different
+   * things — when it plays, which part of it exists, what part of the
+   * picture shows — and a flat list of fourteen verbs invites somebody
+   * to trim when they meant to move.
+   *
+   * Not a submenu: everything stays visible and reachable in one press,
+   * which is the whole argument for a menu over a panel of tabs.
+   */
+  section?: string;
 }
 
 /** A separator, for callers that build lists conditionally. */
@@ -235,6 +249,20 @@ export function useMenu() {
       style={{
         position: 'fixed', left: 0, top: 0, visibility: 'hidden', zIndex: 120,
         minWidth: 188, maxWidth: 300, padding: 'var(--space-2)',
+        /*
+         * TALLER THAN THE SCREEN IS A MENU WITH ITEMS NOBODY CAN REACH.
+         *
+         * Every list here was four or five verbs until the take menu
+         * became seventeen, and at that length the panel ran off the
+         * bottom of a laptop screen with "Remove…" below the fold and
+         * no way to scroll to it. Measured, not guessed: at a viewport
+         * of 800 the panel was 880 tall and its last item ended at 883.
+         *
+         * The cap is the viewport less the same 8px pad the placement
+         * uses, so the flip above the pointer keeps working — it reads
+         * the box AFTER this has bounded it.
+         */
+        maxHeight: 'calc(100vh - 16px)', overflowY: 'auto',
         display: 'flex', flexDirection: 'column', gap: 1,
         background: 'var(--surface-lift)',
         border: 'var(--border) solid var(--line-strong)',
@@ -259,6 +287,9 @@ export function useMenu() {
         const why = typeof item.disabled === 'string' ? item.disabled : undefined;
         const off = Boolean(item.disabled);
         const first = item.danger && !raised.items[index - 1]?.danger;
+        /* The first of its group, so the heading is printed once. */
+        const opens = Boolean(item.section)
+          && item.section !== raised.items[index - 1]?.section;
         const look: React.CSSProperties = {
           display: 'block', width: '100%', textAlign: 'left',
           font: 'inherit', fontSize: 'var(--text-sm)',
@@ -287,25 +318,40 @@ export function useMenu() {
             )}
           </>
         );
+        const heading = opens ? (
+          <div key={`${item.section!}-head`} data-testid="menu-section"
+               aria-hidden="true" style={{
+                 padding: 'var(--space-3) var(--space-3) var(--space-1)',
+                 fontSize: 'var(--text-2xs)', color: 'var(--ink-400)',
+                 textTransform: 'uppercase', letterSpacing: '0.07em',
+                 fontWeight: 'var(--weight-bold)',
+               }}>{item.section}</div>
+        ) : null;
         if (item.href && !off) {
           return (
-            <a key={item.label} role="menuitem" href={item.href}
+            <Fragment key={item.label}>
+              {heading}
+            <a role="menuitem" href={item.href}
                data-testid="menu-item" style={look} onClick={close}
                {...(item.external
                  ? { target: '_blank', rel: 'noreferrer' } : {})}>
               {body}
             </a>
+            </Fragment>
           );
         }
         return (
-          <button
-            key={item.label} type="button" role="menuitem"
-            data-testid="menu-item"
-            data-danger={item.danger ? 'true' : undefined}
-            aria-disabled={off || undefined}
-            onClick={() => chose(item)}
-            style={look}
-          >{body}</button>
+          <Fragment key={item.label}>
+            {heading}
+            <button
+              type="button" role="menuitem"
+              data-testid="menu-item"
+              data-danger={item.danger ? 'true' : undefined}
+              aria-disabled={off || undefined}
+              onClick={() => chose(item)}
+              style={look}
+            >{body}</button>
+          </Fragment>
         );
       })}
     </div>
