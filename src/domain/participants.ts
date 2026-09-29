@@ -237,11 +237,50 @@ export type Capability =
   | 'edit.own'
   | 'edit.conversation'
   | 'invite'
-  | 'publish';
+  | 'publish'
+  /*
+   * WHAT THEY MAY SWITCH ON.  [MASTER-EDIT §10, ROOM §3]
+   *
+   * The brief asks for per-guest camera, microphone and screen permission,
+   * and the temptation is a second permission system beside this one —
+   * "device permissions" alongside "capabilities". There is no reason for
+   * two. A capability is a sentence of the form "this person may ___", and
+   * "turn their camera on" is such a sentence. Putting it here means
+   * `may`, `grants`, `ROLE_DEFAULTS` and `capabilitiesOf` all work on it
+   * unchanged, and the permissions panel grows three rows rather than a
+   * second panel. [D-19]
+   *
+   * NAMED FOR THE DEVICE AND NOT FOR THE ACT. `use.camera` rather than
+   * `appear`: whether somebody appears in the finished video is a question
+   * about staging and the composition, which `mayBeStaged` and the layouts
+   * already answer. This is narrower and more literal — may this browser
+   * be asked for this device — and conflating the two would make
+   * withdrawing a camera also withdraw them from the edit.
+   */
+  | 'use.camera'
+  | 'use.microphone'
+  | 'use.screen';
 
 export const CAPABILITIES: readonly Capability[] = [
   'respond', 'edit.own', 'edit.conversation', 'invite', 'publish',
+  'use.camera', 'use.microphone', 'use.screen',
 ] as const;
+
+/** The three that are about hardware, for a panel that groups them. */
+export const DEVICE_CAPABILITIES: readonly Capability[] = [
+  'use.camera', 'use.microphone', 'use.screen',
+] as const;
+
+export const CAPABILITY_LABELS: Record<Capability, string> = {
+  respond: 'Record a response',
+  'edit.own': 'Edit their own recordings',
+  'edit.conversation': 'Edit the conversation',
+  invite: 'Invite other people',
+  publish: 'Publish',
+  'use.camera': 'Camera',
+  'use.microphone': 'Microphone',
+  'use.screen': 'Share their screen',
+};
 
 /**
  * What a role comes with, before anybody grants anything.
@@ -256,12 +295,24 @@ export const CAPABILITIES: readonly Capability[] = [
  * not thereby somebody who may re-order the argument they are answering in.
  */
 const ROLE_DEFAULTS: Record<ParticipantRole, readonly Capability[]> = {
-  host: ['respond', 'edit.own', 'edit.conversation', 'invite', 'publish'],
-  speaker: ['respond', 'edit.own'],
-  // Present, may ask for the floor, contributes nothing until brought in.
+  host: [
+    'respond', 'edit.own', 'edit.conversation', 'invite', 'publish',
+    'use.camera', 'use.microphone', 'use.screen',
+  ],
+  /*
+   * A SPEAKER GETS A CAMERA AND A MICROPHONE AND NOT A SCREEN. They were
+   * invited to be seen and heard, which is what the role means. Sharing a
+   * screen is putting something else in front of the audience, and it is
+   * the one device act that can show a room something nobody in it
+   * expected — so it is grantable, and granted deliberately.
+   */
+  speaker: ['respond', 'edit.own', 'use.camera', 'use.microphone'],
+  // Present, may ask for the floor, contributes nothing until brought in —
+  // and nothing includes their camera. Bringing somebody up is `setStaged`
+  // plus a grant, which is two decisions because they are two decisions.
   audience: [],
   // Not a voice: an editor shapes the conversation and never appears in it,
-  // so they have no own material to edit and nothing to say.
+  // so they have no own material to edit, nothing to say, and no devices.
   editor: ['edit.conversation'],
 };
 

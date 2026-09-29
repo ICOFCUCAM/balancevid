@@ -20,8 +20,9 @@ import { describe, expect, it } from 'vitest';
 
 import type { AssetId, TakeId } from '../../src/domain/document.js';
 import type {
-  MasterTrack, Performance, PerformanceTake, RoomPlate,
+  MasterTrack, Performance, PerformanceTake,
 } from '../../src/domain/performance.js';
+import type { RoomPlate } from '../../src/domain/environment.js';
 import { buildPerformancePlan } from '../../src/domain/performancePlan.js';
 import {
   NO_STABILIZER, STABILIZERS, isStabilizer, stabilizerFor, transformArgs,

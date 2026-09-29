@@ -1,5 +1,6 @@
 import {
-  closeRoom, openRoom, rotateInvite, setPinned, setSpeakerMode, setStaged,
+  closeRoom, openRoom, rotateInvite, setGrant, setInviteTerms, setPinned,
+  setSpeakerMode, setStaged,
 } from '../../../../../src/domain/roomEdit.js';
 import { EditError } from '../../../../../src/domain/edit.js';
 import { inRoom, presenceOf, raisedHands } from '../../../../../src/domain/participants.js';
@@ -56,6 +57,16 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
     speakerMode?: 'automatic' | 'manual' | 'host' | 'conversation';
     staged?: string[];
     pinned?: string | null;
+    /* The terms on the door. Each field absent means "leave it alone" and
+       null means "take it off". [MASTER-EDIT §10] */
+    participantId?: string;
+    capability?: string;
+    granted?: boolean | null;
+    terms?: {
+      as?: 'speaker' | 'audience' | 'editor' | null;
+      expiresAt?: string | null;
+      grants?: Record<string, boolean> | null;
+    };
   };
   const now = new Date().toISOString();
 
@@ -78,6 +89,24 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
           setSpeakerMode(draft, body.speakerMode);
           return;
         case 'pin': setPinned(draft, body.pinned ?? null); return;
+        /*
+         * WHO THE LINK ADMITS, WITH WHAT, UNTIL WHEN. Not a revocation:
+         * tightening an invitation must not break the one already sent,
+         * so the token is untouched and `rotate-invite` stays the way to
+         * withdraw a link. [MASTER-EDIT §10]
+         */
+        /* One person's camera, after they are already in. [§10] */
+        case 'grant':
+          if (!body.participantId || !body.capability) {
+            throw new EditError('a person and a permission are required');
+          }
+          setGrant(draft, body.participantId, body.capability as never,
+            body.granted ?? null);
+          return;
+        case 'invite-terms':
+          if (!body.terms) throw new EditError('no terms were given');
+          setInviteTerms(draft, body.terms);
+          return;
         default: throw new EditError(`unknown action: ${body.action}`);
       }
     });

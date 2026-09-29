@@ -16,6 +16,7 @@ import { EditError } from './edit.js';
 import type { Room, RoomHost } from './document.js';
 import { newId } from './ids.js';
 import {
+  CAPABILITIES, type Capability, type CapabilityGrants,
   hostOf, inRoom, type Participant, type ParticipantId, type ParticipantRole,
 } from './participants.js';
 
@@ -111,6 +112,136 @@ export function rotateInvite(conversation: RoomHost, inviteToken: string, now: s
 }
 
 /**
+ * Is this invitation still good.  [MASTER-EDIT §10, D-06]
+ *
+ * A PURE PREDICATE OVER THE ROOM AND A CLOCK, so the join route, the join
+ * operation and the panel that draws the link all answer the same question
+ * — and a test can ask it without a server. [D-19]
+ *
+ * AN UNREADABLE DATE IS A GOOD INVITATION, and that is the safe direction
+ * here rather than the usual one. A room whose `expiresAt` is corrupt would
+ * otherwise lock every guest out of a live conversation, which is a much
+ * worse failure than a link that outlives its terms — and the host can
+ * still rotate the token, which is the revocation that always works.
+ */
+export function inviteOpen(
+  room: { open: boolean; terms?: { expiresAt?: string } }, now: string,
+): boolean {
+  if (!room.open) return false;
+  const until = room.terms?.expiresAt;
+  if (!until) return true;
+  const at = Date.parse(until);
+  if (!Number.isFinite(at)) return true;
+  return Date.parse(now) < at;
+}
+
+/**
+ * Say what the link admits people as, and until when.  [MASTER-EDIT §10]
+ *
+ * `null` for any field clears it, which is how a host takes an expiry off
+ * without having to remember what it was. The token is untouched: changing
+ * the terms is not a revocation, and making it one would mean a host could
+ * not tighten an invitation without breaking the one they already sent.
+ */
+export function setInviteTerms(
+  conversation: RoomHost,
+  terms: {
+    as?: 'speaker' | 'audience' | 'editor' | null;
+    expiresAt?: string | null;
+    grants?: CapabilityGrants | null;
+  },
+): void {
+  const room = requireRoom(conversation);
+  const next: NonNullable<Room['terms']> = { ...room.terms };
+
+  if (terms.as !== undefined) {
+    if (terms.as === null) delete next.as;
+    else {
+      if (!['speaker', 'audience', 'editor'].includes(terms.as)) {
+        throw new EditError(`a link cannot admit somebody as ${terms.as}`);
+      }
+      next.as = terms.as;
+    }
+  }
+  if (terms.expiresAt !== undefined) {
+    if (terms.expiresAt === null) delete next.expiresAt;
+    else {
+      const at = Date.parse(terms.expiresAt);
+      if (!Number.isFinite(at)) throw new EditError('that is not a date');
+      next.expiresAt = new Date(at).toISOString();
+    }
+  }
+  if (terms.grants !== undefined) {
+    if (terms.grants === null) delete next.grants;
+    else {
+      for (const key of Object.keys(terms.grants)) {
+        if (!CAPABILITIES.includes(key as Capability)) {
+          throw new EditError(`there is no such permission: ${key}`);
+        }
+      }
+      next.grants = { ...terms.grants };
+    }
+  }
+
+  /* Nothing said is no terms at all, rather than an empty object that
+     reads as somebody having decided three times to decide nothing. */
+  if (Object.keys(next).length === 0) delete room.terms;
+  else room.terms = next;
+}
+
+/**
+ * Grant or withhold one capability for one person.  [MASTER-EDIT §10, ROOM §3]
+ *
+ * THE OTHER HALF OF §10. The terms say what everybody arriving on the link
+ * gets; this is the per-GUEST half the brief actually asked for — turning
+ * one person's camera on after they are in the room, without changing what
+ * the next arrival gets.
+ *
+ * `null` puts the capability back to whatever their role gives, which is
+ * different from granting or withholding it: a role whose defaults change
+ * later should carry this person with it, and a stored `true` that merely
+ * echoes today's default would silently pin them to the old answer. Which
+ * is why `CapabilityGrants` is sparse. [U-22 §2]
+ *
+ * THE HOST IS NOT A SUBJECT OF THIS. `may` returns true for a host
+ * whatever the grants say — a grants object that could withhold `publish`
+ * from them would be a way to lock somebody out of their own work — so
+ * writing one would be a control that appears to work and does nothing.
+ */
+export function setGrant(
+  conversation: RoomHost, participantId: string,
+  capability: Capability, granted: boolean | null,
+): void {
+  const participant = requireParticipant(conversation, participantId);
+  if (!CAPABILITIES.includes(capability)) {
+    throw new EditError(`there is no such permission: ${capability}`);
+  }
+  if (participant.role === 'host') {
+    throw new EditError('the host may do everything, and cannot be limited');
+  }
+  /*
+   * WRITTEN IN PLACE, AND THAT IS DELIBERATE RATHER THAN CARELESS.
+   *
+   * The aliasing hazard here is real — a participant who arrived on a link
+   * must not share the link's grants object, or turning one guest's camera
+   * on would turn it on for everybody who joins afterwards. It is defended
+   * where the alias would be BORN, in `joinRoom`, which copies.
+   *
+   * Copying here as well would be a second guard against the same hazard,
+   * and two guards for one thing cannot both be tested: with either in
+   * place, removing the other changes nothing an assertion can see. A
+   * defence nobody can show working is a defence nobody can show has
+   * stopped working. One guard, at the source, with a test that bites.
+   */
+  const grants = participant.grants ?? {};
+  if (granted === null) delete grants[capability];
+  else grants[capability] = granted;
+
+  if (Object.keys(grants).length === 0) delete participant.grants;
+  else participant.grants = grants;
+}
+
+/**
  * Someone follows the link and says who they are.  [ROOM §6, §12]
  *
  * A display name and nothing else: the brief is explicit that a participant
@@ -119,10 +250,19 @@ export function rotateInvite(conversation: RoomHost, inviteToken: string, now: s
  */
 export function joinRoom(
   conversation: RoomHost, displayName: string, now: string,
-  role: ParticipantRole = 'audience',
+  role?: ParticipantRole,
 ): Participant {
   const room = requireRoom(conversation);
   if (!room.open) throw new EditError('this room is closed');
+  /*
+   * AND THE LINK HAS TO STILL BE GOOD.  [MASTER-EDIT §10, D-06]
+   *
+   * Checked here as well as at the route, for the reason every check in
+   * this product is checked twice: the route is one caller and this is the
+   * operation. A second way into `joinRoom` added tomorrow gets the clock
+   * without being told about it.
+   */
+  if (!inviteOpen(room, now)) throw new EditError('that invitation has expired');
 
   const name = displayName.trim();
   if (!name) throw new EditError('a name is needed, so people know who is speaking');
@@ -133,10 +273,28 @@ export function joinRoom(
     throw new EditError('this room is full');
   }
 
+  /*
+   * THE TERMS DECIDE, UNLESS THE CALLER SAID OTHERWISE. A caller who names
+   * a role means it — that is how the host adds somebody directly — and
+   * everybody arriving through the link gets what the link says. [§10]
+   */
+  const terms = room.terms;
+  const arriving: ParticipantRole = role ?? terms?.as ?? 'audience';
   const participant: Participant = {
     id: newId('part') as ParticipantId,
     displayName: name,
-    role,
+    role: arriving,
+    /*
+     * COPIED ONTO THE PERSON, NOT READ BACK FROM THE ROOM. An invitation
+     * describes an ARRIVAL: changing the terms afterwards must not
+     * silently change what the people already in the room may do, and
+     * reading the room's grants at permission-check time would do exactly
+     * that. Sparse, so a participant carrying nothing is a participant
+     * nobody made a decision about. [U-22 §2]
+     */
+    ...(role === undefined && terms?.grants && Object.keys(terms.grants).length > 0
+      ? { grants: { ...terms.grants } }
+      : {}),
     // Cycle the palette by arrival, so two people rarely share a colour and
     // nobody has to choose one before they can speak.
     accent: PARTICIPANT_ACCENTS[participants.length % PARTICIPANT_ACCENTS.length]!,

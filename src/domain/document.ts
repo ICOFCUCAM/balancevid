@@ -10,7 +10,9 @@
 
 import type { Frames } from './time.js';
 import type { Id } from './ids.js';
-import type { Participant, ParticipantId } from './participants.js';
+import type {
+  CapabilityGrants, Participant, ParticipantId,
+} from './participants.js';
 import type { AiOrigin, SuggestionDecision } from './suggestions.js';
 import type { ProviderId } from './providers.js';
 
@@ -602,6 +604,44 @@ export function roomBase(hostId: string): string {
  * implementation owns no messaging platform and needs none: what it owns is
  * a link that is safe to paste anywhere, and a record of who it let in.
  */
+/**
+ * The terms on the door.  [MASTER-EDIT §10, ROOM §6, D-06]
+ *
+ * ONE LINK, ONE SET OF TERMS, and that is a design decision rather than a
+ * simplification. A second link with different terms is a second token, a
+ * second thing to revoke and a second thing to get wrong — and the host
+ * can already change any one person after they arrive. What this fixes is
+ * the DEFAULT everybody arrives on, which is the thing that does not scale.
+ */
+export interface InviteTerms {
+  /**
+   * The role this link admits. Absent means `audience`, as before.
+   *
+   * Never `host`. The host is whoever opened the room; a link that minted
+   * hosts would be a link that could be forwarded to somebody who could
+   * then close the room on the person who sent it.
+   */
+  as?: 'speaker' | 'audience' | 'editor';
+  /**
+   * After this moment the link is refused.  [D-06]
+   *
+   * Absent means no clock, which is what every existing invitation has.
+   * An expiry is not a substitute for rotating the token — it is the
+   * answer to a link forwarded once and living in a chat thread for a
+   * year, which rotation only fixes if somebody remembers to rotate.
+   */
+  expiresAt?: string;
+  /**
+   * Capabilities this link's holders arrive with, over their role's.
+   *
+   * The same sparse shape a participant's own grants use, and written onto
+   * each participant as they join rather than consulted later — so
+   * changing the terms does not silently change what people already in the
+   * room may do. An invitation describes an arrival.
+   */
+  grants?: CapabilityGrants;
+}
+
 export interface Room {
   /**
    * The secret in the invitation link.
@@ -614,6 +654,19 @@ export interface Room {
   inviteToken: string;
   /** Rotating this is how an invitation is withdrawn. */
   issuedAt: string;
+  /**
+   * WHAT THE LINK ADMITS SOMEBODY AS.  [MASTER-EDIT §10]
+   *
+   * The invitation was a door: a token said "you may come in" and did not
+   * say as what, with which devices, or until when. Everybody arrived as
+   * `audience` with nothing, and the host then changed each of them by
+   * hand — which works for one guest and does not work for a broadcast.
+   *
+   * ABSENT MEANS WHAT IT ALWAYS MEANT, which is the whole migration: a
+   * room opened before this field existed admits an audience member with
+   * their role's defaults and no clock, exactly as it did yesterday.
+   */
+  terms?: InviteTerms;
   /** Closed rooms accept nobody, whatever link they hold. */
   open: boolean;
   /**

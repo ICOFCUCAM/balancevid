@@ -5,6 +5,7 @@ import InvitePanel from './InvitePanel.js';
 import { useRoomCapture } from './useRoomCapture.js';
 import { MESH_LIMIT, useRoomMesh } from './useRoomMesh.js';
 import { roomBase } from '../../../../src/domain/document.js';
+import type { InviteTerms } from '../../../../src/domain/document.js';
 
 /**
  * The Conversation Room.  [Doctrine ROOM §1, §3, §4, §5, §8]
@@ -39,6 +40,8 @@ export interface RoomState {
   }[];
   hands: string[];
   inviteToken?: string;
+  /** The terms on the door, owner only. [MASTER-EDIT §10] */
+  terms?: InviteTerms;
   meId?: string;
 }
 
@@ -572,6 +575,8 @@ export default function RoomView({
                   sourceTitle={room.sourceTitle}
                   busy={busy}
                   onRotate={() => void act({ action: 'rotate-invite' })}
+                  terms={room.terms}
+                  onTerms={(terms) => void act({ action: 'invite-terms', terms })}
                 />
               </div>
             </>
