@@ -29,7 +29,7 @@ export default function Watch({
     <div className="shell">
       <header className="shell-bar">
         <div className="grow" style={{ minWidth: 0 }}>
-          <h1 style={{ fontSize: 17, margin: 0, whiteSpace: 'nowrap',
+          <h1 style={{ fontSize: 'var(--text-lg)', margin: 0, whiteSpace: 'nowrap',
             overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</h1>
           {author && <div className="small muted">by {author}</div>}
         </div>
@@ -43,7 +43,8 @@ export default function Watch({
           playsInline
           onError={() => setFailed(true)}
           style={{
-            width: '100%', maxWidth: 960, borderRadius: 10, background: '#08090b',
+            width: '100%', maxWidth: 960, background: '#08090b',
+            borderRadius: 'var(--radius-screen)',
             border: '1px solid var(--line)',
           }}
         />
@@ -61,7 +62,7 @@ export default function Watch({
 
         {clips.length > 0 && (
           <section style={{ marginTop: 18 }} data-testid="published-clips">
-            <h2 style={{ fontSize: 14, marginBottom: 6 }}>Clips</h2>
+            <h2 style={{ fontSize: 'var(--text-base)', marginBottom: 6 }}>Clips</h2>
             <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
               {clips.map((clip) => (
                 <video
@@ -72,7 +73,7 @@ export default function Watch({
                   playsInline
                   style={{
                     width: 180, aspectRatio: '9 / 16', objectFit: 'cover',
-                    borderRadius: 8, background: '#08090b',
+                    borderRadius: 'var(--radius-screen)', background: '#08090b',
                     border: '1px solid var(--line)',
                   }}
                 />

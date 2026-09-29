@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import Icon from '../../Icon.js';
 
 /**
  * Reading from the screen while you speak.  [Doctrine U-06, U-33, D-07]
@@ -80,7 +81,7 @@ export default function Reader({
     >
       <header className="row" style={{ gap: 8, padding: '10px 14px',
         borderBottom: '1px solid var(--line)', flexWrap: 'nowrap' }}>
-        <strong className="grow" style={{ fontSize: 14, whiteSpace: 'nowrap',
+        <strong className="grow" style={{ fontSize: 'var(--text-base)', whiteSpace: 'nowrap',
           overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</strong>
         <button className="small" onClick={() => setZoom((z) => Math.max(0.6, z - 0.2))}
                 aria-label="Smaller">−</button>
@@ -118,12 +119,16 @@ export default function Reader({
         {pageCount > 1 ? (
           <>
             <button className="small" data-testid="reader-prev" disabled={page <= 1}
-                    onClick={() => onPage(page - 1)}>←</button>
+                    onClick={() => onPage(page - 1)}
+                    style={{ lineHeight: 0 }}
+            ><Icon name="chevron" size={11} turn={180} /></button>
             <span className="grow mono" style={{ textAlign: 'center' }}>
               {page} / {pageCount}
             </span>
             <button className="small" data-testid="reader-next" disabled={page >= pageCount}
-                    onClick={() => onPage(page + 1)}>→</button>
+                    onClick={() => onPage(page + 1)}
+                    style={{ lineHeight: 0 }}
+            ><Icon name="chevron" size={11} /></button>
           </>
         ) : <span className="grow muted">Space scrolls · Escape closes</span>}
       </footer>

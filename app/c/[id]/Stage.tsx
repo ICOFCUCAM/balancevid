@@ -65,7 +65,8 @@ export default function Stage({
       <div
         data-testid="stage-frame"
         style={{
-          position: 'relative', background: '#000', borderRadius: 8, overflow: 'hidden',
+          position: 'relative', background: '#000',
+          borderRadius: 'var(--radius-screen)', overflow: 'hidden',
           aspectRatio: String(ratio), lineHeight: 0,
           ...(fit === 'width'
             ? { width: '100%', maxHeight: '100%' }
@@ -87,7 +88,7 @@ export default function Stage({
           style={{
             position: 'absolute', top: 12, right: 12,
             width: '20%', maxWidth: 240, aspectRatio: '16 / 9',
-            objectFit: 'cover', borderRadius: 8,
+            objectFit: 'cover', borderRadius: 'var(--radius-screen)',
             border: `2px solid ${stance === 'yours' ? '#e0674f' : 'rgba(255,255,255,0.35)'}`,
             boxShadow: '0 6px 24px rgba(0,0,0,0.5)',
             display: cameraOn ? 'block' : 'none',
@@ -110,7 +111,7 @@ export default function Stage({
             <div className="small" style={{ opacity: 0.7, marginBottom: 4 }}>
               You are answering
             </div>
-            <div style={{ fontSize: 18, maxWidth: '75%' }}>
+            <div style={{ fontSize: 'var(--text-lg)', maxWidth: '75%' }}>
               “{claim}”
             </div>
           </div>
@@ -136,10 +137,23 @@ export function StageStatus({
     <div className="row" style={{ gap: 12, alignItems: 'center', flexWrap: 'nowrap' }}>
       <span aria-hidden style={{
         width: 10, height: 10, borderRadius: '50%', background: state.dot,
-        boxShadow: `0 0 10px ${state.dot}`, flex: '0 0 auto',
+        /* A hard ring, not a bloom — see design-system.test.ts. */
+        boxShadow: '0 0 0 1px rgba(0,0,0,0.5)', flex: '0 0 auto',
       }} />
       <div style={{ minWidth: 0 }}>
-        <div data-testid="stance" style={{ fontSize: 17, fontWeight: 600, lineHeight: 1.15 }}>
+        {/*
+          * THE STATE, AT THE SIZE A STATE IS. 17px semibold is a
+          * heading, and this is one word that changes between four
+          * values — READY, RECORDING, YOURS, HELD. A desk sets that as
+          * a legend and lets the lamp beside it carry the weight, which
+          * is also what stops it competing with the timecode it sits
+          * next to. [brief §13]
+          */}
+        <div data-testid="stance" style={{
+          fontSize: 'var(--text-xs)', fontWeight: 'var(--weight-bold)',
+          lineHeight: 1.3, letterSpacing: '0.09em',
+          textTransform: 'uppercase',
+        }}>
           {state.title}
         </div>
         <div className="small muted" data-testid="stance-hint">{state.hint}</div>

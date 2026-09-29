@@ -80,7 +80,7 @@ export default function InvitePanel({
   return (
     <div data-testid="invite-panel">
       <div className="small muted" style={{ textTransform: 'uppercase',
-        letterSpacing: 0.8, fontSize: 11, marginBottom: 6 }}>
+        letterSpacing: '0.1em', fontSize: 'var(--text-2xs)', marginBottom: 6 }}>
         {heading ?? 'Invite people to this conversation'}
       </div>
 
@@ -112,7 +112,7 @@ export default function InvitePanel({
           * twitch on press — a control that resizes when you use it is
           * the smallest possible way to feel cheap.
           */}
-        <button className="primary sm" data-testid="invite-copy"
+        <button className="ctl" data-testid="invite-copy"
                 onClick={() => void copy()}
                 style={{ flex: '0 0 auto', minWidth: 86 }}>
           {copied ? 'Copied' : 'Copy link'}
@@ -166,7 +166,7 @@ export default function InvitePanel({
             */}
           <div style={{
             display: 'inline-block', padding: 'var(--space-5)',
-            borderRadius: 'var(--radius-lg)', background: '#fff',
+            borderRadius: 'var(--radius-module)', background: '#fff',
             boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
           }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}

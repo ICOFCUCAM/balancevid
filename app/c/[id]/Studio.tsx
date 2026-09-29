@@ -13,7 +13,9 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import Brand from '../../Brand.js';
 import SignOut from '../../SignOut.js';
+import SourceTransport from './SourceTransport.js';
 import { useConfirm } from '../../Confirm.js';
 import { useMenu, type MenuEntry } from '../../Menu.js';
 import SearchPanel from './SearchPanel.js';
@@ -969,19 +971,7 @@ export default function Studio({ conversationId }: { conversationId: string }) {
           * the workspace — which this room had no visible route to.
           * [D-24]
           */}
-        <a href="/" aria-label="BalanceVid" className="row" style={{
-          gap: 'var(--space-3)', textDecoration: 'none', color: 'inherit',
-          flex: '0 0 auto',
-        }}>
-          <span aria-hidden="true" style={{
-            width: 26, height: 26, borderRadius: 'var(--radius-md)',
-            display: 'grid', placeItems: 'center',
-            background: 'linear-gradient(180deg, #3f8ee8 0%, #2a6fcc 100%)',
-            color: '#fff', fontSize: 11, paddingLeft: 2,
-            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3),'
-              + ' 0 1px 3px rgba(26,78,150,0.5)',
-          }}>&#9654;</span>
-        </a>
+        <Brand wordmark={false} />
 
         <div className="grow" style={{ minWidth: 0 }}>
           <h1 style={{
@@ -1016,7 +1006,7 @@ export default function Studio({ conversationId }: { conversationId: string }) {
           <button role="tab" data-testid="mode-live"
                   aria-selected={mode === 'live'} className={mode === 'live' ? 'selected' : undefined}
                   onClick={() => setMode('live')}
-                  style={{ borderRadius: '8px 0 0 8px', padding: '7px 14px' }}>
+                  style={{ borderRadius: '3px 0 0 3px', padding: '7px 14px' }}>
             Live
           </button>
           <button role="tab" data-testid="mode-studio"
@@ -1028,7 +1018,7 @@ export default function Studio({ conversationId }: { conversationId: string }) {
           <button role="tab" data-testid="mode-publish"
                   aria-selected={mode === 'publish'} className={mode === 'publish' ? 'selected' : undefined}
                   onClick={() => setMode('publish')}
-                  style={{ borderRadius: '0 8px 8px 0', padding: '7px 14px' }}>
+                  style={{ borderRadius: '0 3px 3px 0', padding: '7px 14px' }}>
             Publish
           </button>
         </div>
@@ -1174,7 +1164,6 @@ export default function Studio({ conversationId }: { conversationId: string }) {
               <video
                 ref={videoRef}
                 src={`/api/conversations/${conversationId}/source`}
-                controls
                 playsInline
                 onLoadedMetadata={(e) => {
                   const v = e.currentTarget;
@@ -1199,7 +1188,7 @@ export default function Studio({ conversationId }: { conversationId: string }) {
                 lineHeight: 1.5,
               }}>
                 <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 15, marginBottom: 4 }}>Preparing your video</div>
+                  <div style={{ fontSize: 'var(--text-md)', marginBottom: 4 }}>Preparing your video</div>
                   <div className="small">
                     This happens once. You can start responding as soon as it appears.
                   </div>
@@ -1207,6 +1196,23 @@ export default function Studio({ conversationId }: { conversationId: string }) {
               </div>
             )}
           </Stage>
+          {/*
+            * THE TRANSPORT, UNDER THE PICTURE RATHER THAN ACROSS IT.
+            * The browser's bar floated over the bottom of the frame,
+            * which is the one part of a source somebody is most often
+            * looking at — a lower third, a caption, a name super. A
+            * desk puts its transport below the monitor. [brief §12]
+            */}
+          {!isEmbedded && ready && (
+            <SourceTransport
+              video={videoRef.current}
+              player={sourcePlayerRef.current}
+              currentFrame={currentFrame}
+              durationFrames={
+                snapshot?.conversation?.source?.durationFrames ?? 0}
+              onSeek={seekTo}
+            />
+          )}
           {readerOpen && (
             <Reader
               title={readingDoc?.title ?? 'Your notes'}
@@ -1485,11 +1491,26 @@ export default function Studio({ conversationId }: { conversationId: string }) {
               </>
             )}
 
+            {/*
+              * WHAT KIND OF MOVE THIS WILL BE, which is the setting the
+              * lower third of the finished video is cut from — so it
+              * belongs beside the key that starts the recording, and it
+              * belongs at the size of a technical readout rather than
+              * of a form field. [U-11]
+              */}
             <select
               aria-label="Kind of response"
+              data-testid="response-type"
               value={type}
               onChange={(e) => setType(e.target.value as InterventionType)}
-              style={{ width: 'auto' }}
+              style={{
+                width: 'auto', padding: '6px 9px',
+                fontSize: 'var(--text-2xs)', letterSpacing: '0.07em',
+                textTransform: 'uppercase',
+                background: 'var(--console-control)',
+                borderColor: 'var(--console-edge)',
+                borderRadius: 'var(--radius-control)',
+              }}
             >
               {INTERVENTION_TYPES.map((t) => (
                 <option key={t} value={t}>{TYPE_PRESENTATION[t].lowerThird}</option>
@@ -1513,13 +1534,26 @@ export default function Studio({ conversationId }: { conversationId: string }) {
             >
               Notes
             </button>
+            {/*
+              * THE ONE LOUD CONTROL IN STUDIO ONE, and it earns it:
+              * nothing in this room can be done until the camera is up,
+              * and until it is, this is the only thing to press. It was
+              * `.primary` — the product's generic filled blue — and it
+              * is a console control now, so it belongs to the same
+              * family as GO LIVE and TAKE LIVE rather than to the
+              * sign-up button on a marketing page.
+              */}
             {phase === 'cold' && (
-              <button className="primary" data-testid="enable-camera" onClick={() => void arm()}>
+              <button className="ctl is-key" data-testid="enable-camera"
+                      onClick={() => void arm()}
+                      style={{ padding: '8px 14px' }}>
                 Enable camera
               </button>
             )}
             {recording && (
-              <button className="primary" data-testid="continue-button" onClick={() => resume()}>
+              <button className="ctl is-critical" data-testid="continue-button"
+                      style={{ padding: '8px 14px' }}
+                      onClick={() => resume()}>
                 Continue
               </button>
             )}

@@ -89,9 +89,7 @@ export default function ClipRail({
        */
       aria-label="Your responses"
     >
-      <div className="small muted" style={{
-        textTransform: 'uppercase', letterSpacing: 0.8, fontSize: 11, marginBottom: 8,
-      }}>
+      <div className="module-label" style={{ marginBottom: 8 }}>
         Your clips
       </div>
 
@@ -111,16 +109,31 @@ export default function ClipRail({
             data-selected={chosen ? 'true' : 'false'}
             onClick={() => onSelect(item.id)}
             {...rowMenu(item)}
+            /*
+              * A CLIP IS A SOURCE IN A RAIL, not a card in a feed. Each
+              * sat on its own panel with an 8px radius and eight pixels
+              * of gap, so eleven responses read as eleven objects rather
+              * than as one rail with eleven entries — and the chosen one
+              * was outlined AND tinted, which is two cues for one state.
+              *
+              * Same treatment as the playlist in 06 and Studio Two's
+              * takes in 25: a shared face, a hairline between
+              * neighbours, and the chosen one lit on its leading edge.
+              */
             style={{
-              display: 'block', width: '100%', textAlign: 'left', marginBottom: 8,
-              padding: 8, borderRadius: 8,
-              background: chosen ? 'var(--accent-wash)' : 'var(--panel)',
-              border: `1px solid ${chosen ? 'var(--accent)' : 'var(--line)'}`,
+              display: 'block', width: '100%', textAlign: 'left',
+              marginBottom: 4, padding: 8, borderRadius: 3,
+              background: chosen
+                ? 'var(--console-control-hover)' : 'var(--console-control)',
+              border: '1px solid var(--console-seam)',
+              boxShadow: chosen
+                ? 'inset 2px 0 0 var(--accent), var(--console-bevel-strong)'
+                : 'var(--console-bevel)',
             }}
           >
             <div style={{
               position: 'relative', width: '100%', aspectRatio: '16 / 9',
-              borderRadius: 5, overflow: 'hidden', background: '#0d1319',
+              borderRadius: 2, overflow: 'hidden', background: '#000',
               display: 'grid', placeItems: 'center', marginBottom: 6,
             }}>
               {item.posterUrl ? (
@@ -128,7 +141,7 @@ export default function ClipRail({
                      style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               ) : (
                 <span className="small" style={{
-                  fontSize: 10, textAlign: 'center', padding: '0 4px', lineHeight: 1.25,
+                  fontSize: 'var(--text-2xs)', textAlign: 'center', padding: '0 4px', lineHeight: 1.25,
                   color: item.state === 'failed' ? 'var(--bad)' : 'var(--muted)',
                 }}>
                   {item.state === 'failed' ? 'did not save'
@@ -136,12 +149,34 @@ export default function ClipRail({
                     : 'preparing'}
                 </span>
               )}
-              {/* The kind of move, in its own colour, over its own frame. */}
+              {/*
+                * THE KIND OF MOVE, ON A LAMP RATHER THAN A FLOOD.
+                * [U-11, U-20, brief §19]
+                *
+                * This was a saturated plate of `item.accent` with near
+                * black text lying across the bottom of the poster —
+                * the third instance of the same object, after Online
+                * TV's ARMED pill and Studio Two's take labels. In a
+                * rail of six clips it is six saturated rectangles in
+                * six different colours stacked vertically, which is
+                * the loudest thing in Studio One and is labelling the
+                * quietest.
+                *
+                * Same answer as the other two: a dark plate with the
+                * colour as a bar down its leading edge. The kind is
+                * still colour-coded, still readable at a glance down
+                * the rail, and the pictures underneath come back.
+                */}
               <span style={{
                 position: 'absolute', left: 0, bottom: 0,
-                padding: '2px 6px', fontSize: 9, letterSpacing: 0.6,
-                background: item.accent, color: '#0e0f11', fontWeight: 700,
-                borderTopRightRadius: 4,
+                padding: '2px 6px 2px 5px',
+                fontSize: 'var(--text-2xs)', letterSpacing: 0.6,
+                background: 'rgba(0,0,0,0.72)',
+                borderLeft: `3px solid ${item.accent}`,
+                borderTop: '1px solid rgba(255,255,255,0.14)',
+                borderRight: '1px solid rgba(255,255,255,0.14)',
+                color: 'rgba(255,255,255,0.94)', fontWeight: 700,
+                borderTopRightRadius: 'var(--radius-screen)',
               }}>
                 {item.label}
               </span>
@@ -151,9 +186,15 @@ export default function ClipRail({
               {item.speakerName && (
                 <span data-testid="clip-speaker" style={{
                   position: 'absolute', right: 0, bottom: 0,
-                  padding: '2px 6px', fontSize: 9, letterSpacing: 0.4,
-                  background: 'rgba(14,15,17,0.82)', color: '#e8eaed',
-                  borderTopLeftRadius: 4,
+                  padding: '2px 6px', fontSize: 'var(--text-2xs)', letterSpacing: 0.4,
+                  /* The agreed plate, not a seventh private near-black.
+                     This was rgba(14,15,17,0.82) — its own dark, its own
+                     alpha, next to a plate it is meant to pair with. */
+                  background: 'rgba(0,0,0,0.72)',
+                  border: '1px solid rgba(255,255,255,0.14)',
+                  borderRight: 0, borderBottom: 0,
+                  color: 'rgba(255,255,255,0.94)',
+                  borderTopLeftRadius: 'var(--radius-screen)',
                 }}>
                   {item.speakerName}
                 </span>
@@ -165,27 +206,36 @@ export default function ClipRail({
                   position: 'absolute', right: 5, top: 5,
                   width: 9, height: 9, transform: 'rotate(45deg)', borderRadius: 2,
                   background: 'var(--source-accent)',
-                  boxShadow: '0 0 6px color-mix(in srgb,'
-                    + ' var(--source-accent) 90%, transparent)',
+                  /*
+                    * NO HALO. This was a 6px bloom in the marker's own
+                    * hue, which on a 9px diamond is mostly bloom — and
+                    * the glow ban did not catch it because the ban
+                    * looked for `rgba(`, `${` or `var(` after the blur
+                    * radius and this one is assembled with `color-mix`.
+                    * Third spelling, same decoration. A hard ring at
+                    * full contrast is smaller, sharper and found
+                    * faster over a bright poster.
+                    */
+                  boxShadow: '0 0 0 1px rgba(0,0,0,0.65)',
                 }} />
               )}
             </div>
 
             <div className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
-              <span className="mono small" style={{ fontSize: 12 }}>
+              <span className="mono small" style={{ fontSize: 'var(--text-sm)' }}>
                 {item.durationFrames > 0
                   ? formatTimecode(item.durationFrames).slice(3, 8)
                   : '--:--'}
               </span>
               <span className="grow" />
-              <span className="mono small muted" style={{ fontSize: 11 }}>
+              <span className="mono small muted" style={{ fontSize: 'var(--text-xs)' }}>
                 Source {formatTimecode(item.tSourceFrame).slice(3, 8)}
               </span>
             </div>
 
             {item.quote && (
               <div className="small muted" style={{
-                fontSize: 11, marginTop: 3, lineHeight: 1.3,
+                fontSize: 'var(--text-xs)', marginTop: 3, lineHeight: 1.3,
                 display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
                 overflow: 'hidden',
               }}>
@@ -200,7 +250,7 @@ export default function ClipRail({
             */}
             {item.state === 'failed' && (
               <div data-testid="clip-failed" style={{ marginTop: 5 }}>
-                <div className="small" style={{ color: 'var(--bad)', fontSize: 11,
+                <div className="small" style={{ color: 'var(--bad)', fontSize: 'var(--text-xs)',
                   lineHeight: 1.3 }}>
                   This recording did not finish saving.
                   {item.error ? ` ${item.error}` : ''}
@@ -220,7 +270,7 @@ export default function ClipRail({
                     style={{
                       display: 'inline-block', marginTop: 4, padding: '3px 8px',
                       borderRadius: 5, border: '1px solid var(--line)',
-                      background: 'var(--panel-2)', cursor: 'pointer', fontSize: 11,
+                      background: 'var(--panel-2)', cursor: 'pointer', fontSize: 'var(--text-xs)',
                     }}
                   >
                     Try again
@@ -231,7 +281,7 @@ export default function ClipRail({
 
             {item.state === 'waiting' && (
               <div className="small muted" data-testid="clip-waiting"
-                   style={{ marginTop: 4, fontSize: 11, lineHeight: 1.3 }}>
+                   style={{ marginTop: 4, fontSize: 'var(--text-xs)', lineHeight: 1.3 }}>
                 Waiting to be prepared.
               </div>
             )}
@@ -245,7 +295,7 @@ export default function ClipRail({
         disabled={!canAdd}
         title={canAdd ? undefined : 'Enable your camera first'}
         style={{
-          width: '100%', padding: '10px 8px', borderRadius: 8,
+          width: '100%', padding: '10px 8px', borderRadius: 'var(--radius-control)',
           border: '1px dashed var(--line)', background: 'transparent',
           color: 'var(--muted)',
         }}

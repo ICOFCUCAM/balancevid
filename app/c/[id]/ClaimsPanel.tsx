@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Icon from '../../Icon.js';
 import { formatTimecode } from '../../../src/domain/time.js';
 
 /**
@@ -86,7 +87,7 @@ export default function ClaimsPanel({
     <div style={{ marginTop: 16, borderTop: '1px solid var(--line)', paddingTop: 12 }}
          data-testid="claims-panel">
       <div className="row" style={{ marginBottom: 6 }}>
-        <strong className="grow">Claims worth answering</strong>
+        <span className="module-label grow">Claims worth answering</span>
         <span className="small muted mono">{claims.length}</span>
       </div>
 
@@ -101,7 +102,7 @@ export default function ClaimsPanel({
             <p className="small muted" style={{ marginTop: 0 }}>
               <button className="small" onClick={() => setOpen(!open)}
                       style={{ padding: '0 4px', marginRight: 6 }}>
-                {open ? '▾' : '▸'}
+                <Icon name="chevron" size={10} {...(open ? { turn: 90 as const } : {})} />
               </button>
               Suggested by {data.detector.label} (v{data.detector.version}).
               {open && <> {data.detector.characteristics.summary}{' '}
@@ -148,7 +149,7 @@ export default function ClaimsPanel({
                 <>
                   <textarea rows={3} value={draft} data-testid="claim-edit"
                             onChange={(e) => setDraft(e.target.value)}
-                            style={{ width: '100%', fontSize: 13 }} />
+                            style={{ width: '100%', fontSize: 'var(--text-base)' }} />
                   <p className="small muted" style={{ margin: '2px 0 6px' }}>
                     Narrow it to the part that matters. It has to stay the
                     source's own words — your wording belongs in a note.

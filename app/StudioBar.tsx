@@ -13,6 +13,9 @@
  * spaces out of Studio Two's environment picker (INV-16).
  */
 
+import Icon, { type IconName } from './Icon.js';
+import Brand from './Brand.js';
+
 export type StudioTab =
   | 'conversations' | 'studio-one' | 'studio-two' | 'online-tv'
   | 'library' | 'publish';
@@ -20,7 +23,21 @@ export type StudioTab =
 export interface BarTab {
   id: StudioTab;
   label: string;
-  glyph: string;
+  /*
+   * A NAME FROM THE ONE ICON SET, not a character from the Unicode
+   * miscellaneous blocks. This was `glyph: string` holding ▢ ▣ ♪ ◉ ☷ —
+   * and `Icon.tsx` names those exact characters in its own opening
+   * paragraph as the thing it was written to replace. The set arrived,
+   * the building and the studios were converted, and the bar that sits
+   * above every one of those screens kept the glyphs. [D-19]
+   *
+   * They are whatever font happens to be installed: ◉ is a different
+   * weight on every platform, several render as emoji on macOS, and
+   * none of them share a baseline or an optical size with the others.
+   * A row of five is five different sizes pretending to be a set —
+   * which is exactly what the top of every studio screen was.
+   */
+  icon: IconName;
   href?: string;
   onClick?: () => void;
   hint?: string;
@@ -42,22 +59,22 @@ export default function StudioBar({
 }) {
   const tabs: BarTab[] = [
     {
-      id: 'conversations', label: 'Conversations', glyph: '▢',
+      id: 'conversations', label: 'Conversations', icon: 'list',
       href: '/#conversations',
     },
     studioOneId
-      ? { id: 'studio-one', label: 'Studio One', glyph: '▣', href: `/c/${studioOneId}` }
+      ? { id: 'studio-one', label: 'Studio One', icon: 'conversation', href: `/c/${studioOneId}` }
       : {
-        id: 'studio-one', label: 'Studio One', glyph: '▣',
+        id: 'studio-one', label: 'Studio One', icon: 'conversation',
         hint: 'No conversations yet — start one from the library',
       },
     studioTwoId || current === 'studio-two'
       ? {
-        id: 'studio-two', label: 'Studio Two', glyph: '♪',
+        id: 'studio-two', label: 'Studio Two', icon: 'music',
         ...(current === 'studio-two' ? {} : { href: `/p/${studioTwoId}` }),
       }
       : {
-        id: 'studio-two', label: 'Studio Two', glyph: '♪',
+        id: 'studio-two', label: 'Studio Two', icon: 'music',
         hint: 'No performances yet — start one from the library',
       },
     /*
@@ -68,14 +85,14 @@ export default function StudioBar({
      */
     studioThreeId || current === 'online-tv'
       ? {
-        id: 'online-tv', label: 'Online TV', glyph: '◉',
+        id: 'online-tv', label: 'Online TV', icon: 'broadcast',
         ...(current === 'online-tv' ? {} : { href: `/t/${studioThreeId}` }),
       }
       : {
-        id: 'online-tv', label: 'Online TV', glyph: '◉',
+        id: 'online-tv', label: 'Online TV', icon: 'broadcast',
         hint: 'No channels yet — start one from the library',
       },
-    { id: 'library', label: 'Library', glyph: '☷', href: '/#performances' },
+    { id: 'library', label: 'Library', icon: 'library', href: '/#performances' },
     ...(extra ?? []),
   ];
 
@@ -92,33 +109,21 @@ export default function StudioBar({
         * a coloured shadow, and a grey one under a blue mark is the single
         * commonest tell of a logo pasted onto a page.
         */}
-      <a href="/" className="row" style={{
-        gap: 'var(--space-3)', textDecoration: 'none', color: 'inherit',
-        flex: '0 0 auto',
-      }}>
-        <span aria-hidden="true" style={{
-          width: 26, height: 26, borderRadius: 'var(--radius-md)',
-          display: 'grid', placeItems: 'center',
-          background: 'linear-gradient(180deg, #3f8ee8 0%, #2a6fcc 100%)',
-          color: '#fff', fontSize: 11, paddingLeft: 2,
-          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3),'
-            + ' 0 1px 3px rgba(26, 78, 150, 0.5)',
-        }}>&#9654;</span>
-        <strong style={{
-          fontSize: 'var(--text-md)', whiteSpace: 'nowrap',
-          fontWeight: 'var(--weight-bold)',
-          letterSpacing: 'var(--tracking-tight)',
-        }}>BalanceVid</strong>
-      </a>
+      <Brand />
 
       <nav className="row" data-testid="studio-nav" style={{ gap: 2, flexWrap: 'nowrap' }}>
         {tabs.map((tab) => {
           const on = tab.id === current;
           const body = (
             <>
+              {/*
+                * The icon inherits `currentColor` and the row's opacity,
+                * so a chosen tab and a quiet one are the same drawing at
+                * two tones rather than two different weights of glyph.
+                */}
               <span aria-hidden="true" style={{
-                opacity: on ? 1 : 0.55, fontSize: 'var(--text-sm)',
-              }}>{tab.glyph}</span>
+                opacity: on ? 1 : 0.55, lineHeight: 0, flex: '0 0 auto',
+              }}><Icon name={tab.icon} size={14} /></span>
               {/*
                 * The bold width is reserved by an invisible copy of the
                 * label, so switching tabs changes no width and the row
@@ -147,10 +152,19 @@ export default function StudioBar({
            */
           const style = {
             display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
-            padding: '14px var(--space-5)', fontSize: 'var(--text-base)',
+            /*
+             * THE PLACES ARE SIGNAGE, like every other legend in the
+             * product since 02. These are the six rooms of the
+             * building; a person reads them once and then navigates by
+             * position. Sentence case at 13px made them compete with
+             * the title of whatever room you are actually in, two
+             * centimetres to the left. [brief §13]
+             */
+            padding: '14px var(--space-4)', fontSize: 'var(--text-2xs)',
+            letterSpacing: '0.09em', textTransform: 'uppercase',
             textDecoration: 'none', whiteSpace: 'nowrap' as const,
             background: 'none', border: 0, borderRadius: 0,
-            borderBottom: `2px solid ${on ? '#3f8ee8' : 'transparent'}`,
+            borderBottom: `2px solid ${on ? 'var(--accent)' : 'transparent'}`,
             color: on ? '#7fb4ee' : 'var(--text-dim)',
             fontWeight: on ? 'var(--weight-bold)' : 'var(--weight-medium)',
             opacity: on || tab.href || tab.onClick ? 1 : 0.38,

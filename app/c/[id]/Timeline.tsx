@@ -161,8 +161,11 @@ export default function Timeline({
               width: 11, height: 11, marginLeft: -5.5, marginTop: -5.5,
               background: 'var(--source-accent)',
               transform: 'rotate(45deg)', borderRadius: 2,
-              boxShadow: '0 0 8px color-mix(in srgb,'
-                + ' var(--source-accent) 90%, transparent)',
+              /* A hard ring, not a halo. Same marker as the clip rail's,
+                 and the same reason: on an 11px diamond an 8px bloom is
+                 mostly bloom, and a position marker has to be exactly
+                 where it says it is. [INV-02] */
+              boxShadow: '0 0 0 1px rgba(0,0,0,0.65)',
               zIndex: 3,
             }} />
           </>
@@ -170,12 +173,13 @@ export default function Timeline({
         {dragging && (
           <div data-testid="timeline-drop" style={{
             position: 'absolute', left: at(dragging.frame), top: -5, bottom: -5, width: 2,
-            background: '#e0b24f', boxShadow: '0 0 8px rgba(224,178,79,0.8)',
+            background: '#e0b24f',
+            boxShadow: '0 0 0 1px rgba(0,0,0,0.5)',
           }} />
         )}
         <div data-testid="timeline-playhead" style={{
           position: 'absolute', left: at(currentFrame), top: -4, bottom: -4, width: 2,
-          background: '#fff', boxShadow: '0 0 6px rgba(255,255,255,0.6)',
+          background: '#fff', boxShadow: '0 0 0 1px rgba(0,0,0,0.55)',
         }} />
       </div>
 
@@ -205,7 +209,7 @@ export default function Timeline({
               display: 'grid', placeItems: 'center',
               color: 'var(--user-accent)',
             }}>
-              <span style={{ fontSize: 9, letterSpacing: 0.4, textAlign: 'center',
+              <span style={{ fontSize: 'var(--text-2xs)', letterSpacing: 0.4, textAlign: 'center',
                 lineHeight: 1.15, padding: '0 2px' }}>
                 YOUR<br />RESPONSE
               </span>
@@ -301,14 +305,14 @@ export default function Timeline({
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                 />
               ) : (
-                <span className="small muted" style={{ fontSize: 10 }}>
+                <span className="small muted" style={{ fontSize: 'var(--text-2xs)' }}>
                   {formatTimecode(r.durationFrames).slice(3, 8)}
                 </span>
               )}
             </div>
             {dragging?.id === r.id && (
               <div className="small mono" data-testid="timeline-drop-time" style={{
-                marginTop: 2, color: '#e0b24f', fontSize: 10,
+                marginTop: 2, color: '#e0b24f', fontSize: 'var(--text-2xs)',
               }}>
                 {formatTimecode(dragging.frame).slice(0, 8)}
               </div>

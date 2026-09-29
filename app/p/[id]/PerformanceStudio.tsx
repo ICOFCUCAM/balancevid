@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Icon from '../../Icon.js';
 import type { Performance } from '../../../src/domain/performance.js';
 import { MASTER_CLASSES, SPACES, mayPublish } from '../../../src/domain/performance.js';
 import { EFFECT_LOOKS, SPACES_ARE_DRAWN } from '../../../src/domain/environment.js';
@@ -338,7 +339,7 @@ export default function PerformanceStudio(
         extra={[{
           id: 'publish' as const,
           label: 'Publish',
-          glyph: '\u2191',
+          icon: 'upload' as const,
           ...(performance.scenes.length > 0
             ? {
               onClick: () => document.querySelector('[data-testid="publish"]')
@@ -376,9 +377,26 @@ export default function PerformanceStudio(
           chosenTake={chosenTake}
           onChooseTake={setChosenTake}
           takesPanel={(
+            /*
+              * A MODULE IS THE COLUMN, NOT A CARD AT THE TOP OF IT.
+              * [brief §3, §4]
+              *
+              * The takes rail shrink-wrapped its two takes and stopped,
+              * leaving two thirds of the left column as bare desk with
+              * a bordered rectangle floating at the top of it. That is
+              * the single most recognisable "dashboard" shape there is,
+              * and it was the largest one left in this studio.
+              *
+              * On a desk a rail runs the height of the bay it is in —
+              * because the bay is the rail's, not because it has enough
+              * to put in it. Empty space belongs INSIDE the module,
+              * under the last take, where it reads as room for more
+              * takes rather than as a gap in the furniture.
+              */
             <div className="panel" data-testid="takes" style={{
               minWidth: 0, padding: 10, display: 'flex',
               flexDirection: 'column', gap: 8,
+              height: '100%', minHeight: 0,
             }}>
               {/*
                 * THE TAKES COLUMN.  [benchmark, §2, §5, §7]
@@ -399,29 +417,47 @@ export default function PerformanceStudio(
                 justifyContent: 'space-between', alignItems: 'center', gap: 8,
               }}>
                 <span className="row" style={{ gap: 7, alignItems: 'center' }}>
-                  <span style={{ fontSize: 15, fontWeight: 700 }}>Takes</span>
-                  <span className="small muted" data-testid="take-count" style={{
-                    fontSize: 11, padding: '1px 7px', borderRadius: 9,
-                    background: 'var(--panel-2)', border: '1px solid var(--line)',
-                  }}>{performance.takes.length}</span>
+                  <span className="module-label">Takes</span>
+                  {/*
+                    * A COUNT IS A NUMBER, not a pill. It sat in a
+                    * rounded capsule with its own border — the shape
+                    * of a notification badge, which is a thing you are
+                    * supposed to act on. This is how many takes there
+                    * are.
+                    */}
+                  <span className="mono readout" data-testid="take-count" style={{
+                    fontSize: 'var(--text-2xs)', color: 'var(--ink-400)',
+                  }}>{String(performance.takes.length).padStart(2, '0')}</span>
                 </span>
                 {recording.phase === 'idle' && (
                   <button
-                    className="primary" data-testid="arm" disabled={!ready}
+                    className="ctl" data-testid="arm" disabled={!ready}
                     title={'Opens the camera and loads the song into your headphones. '
                       + 'Wear them — a song out loud goes into the microphone with your '
                       + 'voice, and the video then carries it twice.'}
                     onClick={() => void recording.arm()}
-                    style={{ padding: '6px 11px', fontSize: 12, flex: '0 0 auto' }}
+                    style={{ padding: '6px 11px', flex: '0 0 auto' }}
                   >
-                    {ready ? '+ Record Take' : 'Preparing\u2026'}
+                    {ready ? '+ Record take' : 'Preparing\u2026'}
                   </button>
                 )}
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+              {/*
+                * THE LIST TAKES THE SLACK AND SCROLLS INSIDE IT, so the
+                * two things that are not takes — the camera when it is
+                * armed, and the two ways to bring footage in — keep
+                * their place at the foot of the module. Before this the
+                * whole column scrolled, which meant arming the camera
+                * could push the record button out of sight at the
+                * moment you were about to use it.
+                */}
+              <div style={{
+                display: 'flex', flexDirection: 'column', gap: 7,
+                flex: '1 1 auto', minHeight: 0, overflowY: 'auto',
+              }}>
                 {performance.takes.length === 0 && recording.phase === 'idle' && (
-                  <p className="small muted" style={{ margin: 0, fontSize: 11 }}>
+                  <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-xs)' }}>
                     Record against the song, or bring in something you filmed.
                   </p>
                 )}
@@ -480,12 +516,25 @@ export default function PerformanceStudio(
                         style={{
                           flex: '1 1 auto', minWidth: 0, display: 'flex',
                           gap: 9, alignItems: 'center', padding: 7,
-                          borderRadius: 9, textAlign: 'left', font: 'inherit',
+                          borderRadius: 3, textAlign: 'left', font: 'inherit',
                           color: 'inherit', cursor: 'pointer',
+                          /*
+                           * A TAKE IS A SOURCE, and the chosen one is
+                           * lit on its leading edge in the take's OWN
+                           * colour — the thread that runs through the
+                           * rail, the stage badge, the number key and
+                           * every block of the master video. It was
+                           * outlined in that colour and tinted blue,
+                           * which is two cues saying different things.
+                           */
                           background: chosen
-                            ? 'rgba(45,110,200,0.16)' : 'var(--panel-2)',
-                          border: `1px solid ${chosen
-                            ? (take.accent ?? '#3d7fd6') : 'var(--line)'}`,
+                            ? 'var(--console-control-hover)'
+                            : 'var(--console-control)',
+                          border: '1px solid var(--console-seam)',
+                          boxShadow: chosen
+                            ? `inset 3px 0 0 ${take.accent ?? '#3e7ca6'},`
+                              + ' var(--console-bevel-strong)'
+                            : 'var(--console-bevel)',
                         }}
                       >
                         {/*
@@ -506,18 +555,18 @@ export default function PerformanceStudio(
                         />
                         <span style={{ minWidth: 0, flex: 1 }}>
                           <span style={{
-                            fontWeight: 600, fontSize: 13, display: 'block',
+                            fontWeight: 600, fontSize: 'var(--text-base)', display: 'block',
                             overflow: 'hidden', textOverflow: 'ellipsis',
                             whiteSpace: 'nowrap',
                           }}>{take.label}</span>
                           <span className="small muted" style={{
-                            fontSize: 11, display: 'block', overflow: 'hidden',
+                            fontSize: 'var(--text-xs)', display: 'block', overflow: 'hidden',
                             textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                           }}>
                             {footage || placed ? where : 'not placed yet'}
                           </span>
                           <span className="small muted" style={{
-                            fontSize: 11, display: 'block',
+                            fontSize: 'var(--text-xs)', display: 'block',
                             fontFamily: 'ui-monospace, monospace',
                           }}>
                             {take.durationSamples > 0
@@ -556,13 +605,14 @@ export default function PerformanceStudio(
                 <section data-testid="record" style={{
                   display: 'flex', flexDirection: 'column', gap: 8,
                   borderTop: '1px solid var(--line)', paddingTop: 8,
+                  flex: '0 0 auto',
                 }}>
                   <video
                     ref={recording.videoRef} autoPlay muted playsInline
                     data-testid="performer-camera"
                     style={{
                       width: '100%', aspectRatio: '16 / 9', objectFit: 'cover',
-                      borderRadius: 8, background: '#0d1319',
+                      borderRadius: 2, background: '#000',
                       border: `2px solid ${recording.phase === 'recording'
                         ? '#e0674f' : 'var(--line)'}`,
                       display: recording.stream ? 'block' : 'none',
@@ -597,14 +647,14 @@ export default function PerformanceStudio(
                           ))}
                         </select>
                         {!measured && (
-                          <span className="small muted" style={{ fontSize: 11 }}>
+                          <span className="small muted" style={{ fontSize: 'var(--text-xs)' }}>
                             Measure your room in Set up to stand anywhere else.
                           </span>
                         )}
                       </div>
                       <div className="row" style={{ gap: 6 }}>
                         <button
-                          className="primary" data-testid="start-take"
+                          className="ctl is-critical" data-testid="start-take"
                           disabled={recording.phase === 'finishing'}
                           onClick={() => void recording.start(label,
                             environment === 'original'
@@ -623,7 +673,7 @@ export default function PerformanceStudio(
                   )}
 
                   {recording.phase === 'counting' && (
-                    <div data-testid="count-in" style={{ fontWeight: 600, fontSize: 18 }}>
+                    <div data-testid="count-in" style={{ fontWeight: 600, fontSize: 'var(--text-lg)' }}>
                       Get ready\u2026
                     </div>
                   )}
@@ -631,11 +681,11 @@ export default function PerformanceStudio(
                   {recording.phase === 'recording' && (
                     <>
                       <div data-testid="recording-now"
-                           style={{ fontWeight: 600, color: '#e0674f', fontSize: 15 }}>
+                           style={{ fontWeight: 600, color: '#e0674f', fontSize: 'var(--text-md)' }}>
                         Recording \u00b7 {formatMasterPosition(
                           Math.round(recording.position * HOUSE_SAMPLE_RATE))} of {songLength}
                       </div>
-                      <button className="primary" data-testid="stop-take"
+                      <button className="ctl is-critical" data-testid="stop-take"
                               onClick={recording.stop}>Stop</button>
                     </>
                   )}
@@ -656,6 +706,7 @@ export default function PerformanceStudio(
                 <div style={{
                   display: 'flex', gap: 6, alignItems: 'stretch',
                   borderTop: '1px solid var(--line)', paddingTop: 8,
+                  flex: '0 0 auto',
                 }}>
                   <UploadTake
                     compact
@@ -698,13 +749,13 @@ export default function PerformanceStudio(
           */}
         <details data-testid="setup" open={performance.takes.length === 0}
                  style={{ marginTop: 14, borderTop: '1px solid var(--line)', paddingTop: 10 }}>
-          <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
+          <summary style={{ cursor: 'pointer', fontSize: 'var(--text-base)', fontWeight: 600 }}>
             Set up
           </summary>
         {/* ---- what may be done with this music ---------------------- */}
         <section className="panel" data-testid="master-rights" style={{ padding: 12 }}>
           <div className="small muted" style={{ textTransform: 'uppercase',
-            letterSpacing: 0.8, fontSize: 11, marginBottom: 6 }}>
+            letterSpacing: '0.1em', fontSize: 'var(--text-2xs)', marginBottom: 6 }}>
             This music
           </div>
           {/*
@@ -728,8 +779,8 @@ export default function PerformanceStudio(
               display: 'grid', placeItems: 'center',
               borderRadius: 'var(--radius-sm)',
               background: 'var(--studio-two-wash)',
-              color: 'var(--studio-two)', fontSize: 'var(--text-md)',
-            }}>&#9834;</span>
+              color: 'var(--studio-two)',
+            }}><Icon name="music" size={14} /></span>
             <span className="grow" style={{ minWidth: 0 }}>
               <span style={{
                 display: 'block', fontWeight: 'var(--weight-semi)',
@@ -765,7 +816,7 @@ export default function PerformanceStudio(
                   licence: performance.master.licence ?? null,
                 })}
                 style={{
-                  padding: '5px 10px', fontSize: 12,
+                  padding: '5px 10px', fontSize: 'var(--text-sm)',
                   background: performance.master.class === cls
                     ? 'var(--accent-wash)' : undefined,
                   borderColor: performance.master.class === cls ? 'var(--accent)' : undefined,
@@ -790,7 +841,7 @@ export default function PerformanceStudio(
                  data-latency={latencySamples}
                  style={{ padding: 12, marginTop: 16 }}>
           <div className="small muted" style={{ textTransform: 'uppercase',
-            letterSpacing: 0.8, fontSize: 11, marginBottom: 6 }}>
+            letterSpacing: '0.1em', fontSize: 'var(--text-2xs)', marginBottom: 6 }}>
             This device
           </div>
           <div className="row" style={{ gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -814,7 +865,7 @@ export default function PerformanceStudio(
               {describeCalibration(device.calibration)}
             </span>
           </div>
-          <p className="small muted" style={{ fontSize: 11, marginTop: 6,
+          <p className="small muted" style={{ fontSize: 'var(--text-xs)', marginTop: 6,
             marginBottom: 0, maxWidth: 640 }}>
             {/* The one instruction that makes the measurement possible, and the
                 opposite of the one recording needs. [S-3] */}

@@ -1,0 +1,51 @@
+/*
+ * WHERE ELSE THE PROGRAMME GOES.  [Doctrine CHANNEL §15, U-19, D-19]
+ *
+ * One master broadcast output, and destinations that receive it. The
+ * distribution panel lists five of them, and a column of five identical
+ * grey squares is a column nobody scans — the whole value of a platform
+ * badge is being recognised before it is read.
+ *
+ * So each carries its platform's colour, and each also carries letters,
+ * because the colour is never the only cue: somebody who cannot separate
+ * the red from the blue still reads YT and f. [U-19]
+ *
+ * THEY ARE LETTERFORMS AND NOT THE BRANDS' OWN MARKS, deliberately. A
+ * trademarked logo redistributed inside a product is a licensing
+ * question nobody here has asked, and two letters in the right colour
+ * do the same job.
+ *
+ * AND THEY LIVE HERE RATHER THAN IN THE COMPONENT because the ratchet
+ * refused them inline, which was the correct answer: the same five
+ * colours are wanted by the control room's Stream Output panel, and a
+ * colour written in two components is a colour that will be written
+ * differently. This file is what the ratchet was for. [D-19]
+ */
+
+:root {
+  --platform-youtube: #d33227;
+  --platform-youtube-wash: rgba(211, 50, 39, 0.14);
+  --platform-facebook: #2a7ae4;
+  --platform-facebook-wash: rgba(42, 122, 228, 0.14);
+  --platform-tiktok: #d9dde3;
+  --platform-tiktok-wash: rgba(217, 221, 227, 0.10);
+  --platform-x: #d9dde3;
+  --platform-x-wash: rgba(217, 221, 227, 0.10);
+}
+
+/*
+ * ON A LIT GROUND THE TWO MONOCHROME ONES INVERT, and the other two
+ * darken. #d33227 is 4.0:1 against white — under the bar for the small
+ * bold letters it carries — and a near-white TikTok mark on a white card
+ * is not a mark at all.
+ */
+[data-ground='light'] {
+  --platform-youtube: #b8271c;
+  --platform-youtube-wash: rgba(184, 39, 28, 0.10);
+  --platform-facebook: #1559b8;
+  --platform-facebook-wash: rgba(21, 89, 184, 0.10);
+  --platform-tiktok: #1d1f24;
+  --platform-tiktok-wash: rgba(29, 31, 36, 0.07);
+  --platform-x: #1d1f24;
+  --platform-x-wash: rgba(29, 31, 36, 0.07);
+}

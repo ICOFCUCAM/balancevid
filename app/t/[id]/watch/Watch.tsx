@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Brand from '../../../Brand.js';
 import ChannelPlayer from './ChannelPlayer.js';
 
 /**
@@ -67,14 +68,7 @@ export default function Watch({
   return (
     <div className="shell">
       <header className="shell-bar" style={{ gap: 12 }}>
-        <span aria-hidden="true" style={{
-          width: 26, height: 26, borderRadius: 'var(--radius-md)',
-          display: 'grid', placeItems: 'center',
-          background: 'linear-gradient(180deg, #3f8ee8 0%, #2a6fcc 100%)',
-          color: '#fff', fontSize: 11, paddingLeft: 2, flex: '0 0 auto',
-          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3),'
-            + ' 0 1px 3px rgba(26,78,150,0.5)',
-        }}>&#9654;</span>
+        <Brand wordmark={false} />
         <div className="grow" style={{ minWidth: 0 }}>
           <h1 style={{
             fontSize: 'var(--text-lg)', margin: 0, whiteSpace: 'nowrap',
@@ -108,7 +102,7 @@ export default function Watch({
             border: '1px solid rgba(255,140,128,0.5)',
             color: '#fff', fontSize: 'var(--text-2xs)',
             fontWeight: 'var(--weight-bold)', letterSpacing: '0.09em',
-            boxShadow: '0 0 14px rgba(226,59,46,0.45),'
+            boxShadow: '0 0 0 1px rgba(0,0,0,0.5),'
               + ' inset 0 1px 0 rgba(255,255,255,0.22)',
           }}>
             <span className="lamp is-live" style={{
@@ -171,7 +165,7 @@ export default function Watch({
             </div>
             {remaining !== null && (
               <div className="mono muted" data-testid="viewer-remaining"
-                   style={{ fontSize: 12, flex: '0 0 auto' }}>
+                   style={{ fontSize: 'var(--text-sm)', flex: '0 0 auto' }}>
                 {hms(remaining)} left
               </div>
             )}
@@ -179,12 +173,13 @@ export default function Watch({
 
           {now?.next && (
             <div className="row" data-testid="viewer-next" style={{
-              marginTop: 10, gap: 9, padding: '8px 11px', borderRadius: 8,
+              marginTop: 10, gap: 9, padding: '8px 11px',
+              borderRadius: 'var(--radius-module)',
               background: 'var(--panel-2)', border: '1px solid var(--line)',
-              fontSize: 13,
+              fontSize: 'var(--text-base)',
             }}>
               <span className="muted" style={{
-                fontSize: 9, letterSpacing: 0.8, fontWeight: 700, flex: '0 0 auto',
+                fontSize: 'var(--text-2xs)', letterSpacing: 0.8, fontWeight: 700, flex: '0 0 auto',
               }}>NEXT</span>
               <span style={{
                 minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis',
@@ -193,7 +188,7 @@ export default function Watch({
             </div>
           )}
 
-          <p className="small muted" style={{ marginTop: 16, fontSize: 11 }}>
+          <p className="small muted" style={{ marginTop: 16, fontSize: 'var(--text-xs)' }}>
             {/* A channel is not a video: it was here before you opened it and
                 it will be here after you close it. Saying so is the one thing
                 that tells a viewer what kind of page this is. */}

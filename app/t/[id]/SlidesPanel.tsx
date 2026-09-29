@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import Icon from '../../Icon.js';
 import type { Channel, ProgrammeSource } from '../../../src/domain/channel.js';
 import { type Deck, slideOnAir, sourceForSlide, step } from '../../../src/domain/deck.js';
 
@@ -157,13 +158,13 @@ export default function SlidesPanel({
     }}>
       <div className="row" style={{ flexWrap: 'nowrap' }}>
         <span className="muted grow" style={{
-          fontSize: 9, letterSpacing: 0.8, fontWeight: 700,
+          fontSize: 'var(--text-2xs)', letterSpacing: 0.8, fontWeight: 700,
         }}>SLIDES</span>
         <button
           className="small" data-testid="write-slide" disabled={busy}
           onClick={() => setWriting((open) => !open)}
           style={{
-            border: 0, background: 'none', padding: 0, fontSize: 11,
+            border: 0, background: 'none', padding: 0, fontSize: 'var(--text-xs)',
             color: '#5c9ee0', cursor: 'pointer', marginRight: 9,
           }}
         >+ Write</button>
@@ -171,7 +172,7 @@ export default function SlidesPanel({
           className="small" data-testid="add-deck" disabled={busy}
           onClick={() => file.current?.click()}
           style={{
-            border: 0, background: 'none', padding: 0, fontSize: 11,
+            border: 0, background: 'none', padding: 0, fontSize: 'var(--text-xs)',
             color: '#5c9ee0', cursor: 'pointer',
           }}
         >+ Upload</button>
@@ -187,7 +188,7 @@ export default function SlidesPanel({
       </div>
 
       {decks.length === 0 ? (
-        <p className="small muted" style={{ margin: 0, fontSize: 11 }}>
+        <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-xs)' }}>
           Upload a PowerPoint, a PDF or a Word document and each page becomes
           a slide you can put on air.
         </p>
@@ -195,7 +196,7 @@ export default function SlidesPanel({
         <select
           data-testid="deck-choice" value={chosen ?? ''}
           onChange={(event) => setChosen(event.target.value)}
-          style={{ fontSize: 12, padding: '6px 9px' }}
+          style={{ fontSize: 'var(--text-sm)', padding: '6px 9px' }}
         >
           {decks.map((candidate) => (
             <option key={candidate.id} value={candidate.id}>
@@ -217,7 +218,7 @@ export default function SlidesPanel({
       {writing && (
         <div data-testid="slide-writer" style={{
           display: 'flex', flexDirection: 'column', gap: 6, padding: 8,
-          borderRadius: 8, background: 'var(--panel-2)',
+          borderRadius: 'var(--radius-module)', background: 'var(--panel-2)',
           border: '1px solid var(--line)',
         }}>
           <div className="row" style={{ gap: 4, flexWrap: 'wrap' }}>
@@ -229,7 +230,7 @@ export default function SlidesPanel({
                 aria-pressed={layout === option}
                 onClick={() => setLayout(option)}
                 style={{
-                  padding: '3px 8px', fontSize: 10, borderRadius: 5,
+                  padding: '3px 8px', fontSize: 'var(--text-2xs)', borderRadius: 5,
                   border: `1px solid ${layout === option ? '#3d7fd6' : 'var(--line)'}`,
                   background: layout === option
                     ? 'rgba(45,110,200,0.22)' : 'transparent',
@@ -241,7 +242,7 @@ export default function SlidesPanel({
             data-testid="slide-heading" value={heading}
             onChange={(event) => setHeading(event.target.value)}
             placeholder={layout === 'quote' ? 'Who said it (optional)' : 'Heading'}
-            style={{ fontSize: 12, padding: '6px 9px' }}
+            style={{ fontSize: 'var(--text-sm)', padding: '6px 9px' }}
           />
           <textarea
             data-testid="slide-text" value={text} rows={3}
@@ -250,13 +251,14 @@ export default function SlidesPanel({
               ? 'The quotation'
               : 'Words. A blank line starts a paragraph; \u201c- \u201d starts a bullet.'}
             style={{
-              fontSize: 12, padding: '6px 9px', width: '100%', resize: 'vertical',
+              fontSize: 'var(--text-sm)', padding: '6px 9px', width: '100%', resize: 'vertical',
               font: 'inherit', background: 'var(--panel)',
-              border: '1px solid var(--line)', borderRadius: 8, color: 'inherit',
+              border: '1px solid var(--line)',
+              borderRadius: 'var(--radius-control)', color: 'inherit',
             }}
           />
           <button
-            className="primary small" data-testid="make-slide" disabled={busy}
+            className="ctl" data-testid="make-slide" disabled={busy}
             onClick={() => { void write(); }}
           >
             {busy ? 'Drawing\u2026' : deck ? 'Add to this deck' : 'Start a deck'}
@@ -282,7 +284,7 @@ export default function SlidesPanel({
             ) : (
               <span className="muted" style={{
                 position: 'absolute', inset: 0, display: 'grid',
-                placeItems: 'center', fontSize: 11,
+                placeItems: 'center', fontSize: 'var(--text-xs)',
               }}>Not on air</span>
             )}
           </div>
@@ -292,10 +294,10 @@ export default function SlidesPanel({
               className="small" data-testid="slide-back"
               disabled={!onAir || !step(deck, at, -1)}
               onClick={() => go(-1)}
-              style={{ flex: '0 0 auto', padding: '7px 11px' }}
-            >&#9664;</button>
+              style={{ flex: '0 0 auto', padding: '7px 11px', lineHeight: 0 }}
+            ><Icon name="chevron" size={12} turn={180} /></button>
             <span className="mono grow" data-testid="slide-position" style={{
-              textAlign: 'center', fontSize: 12, fontWeight: 700,
+              textAlign: 'center', fontSize: 'var(--text-sm)', fontWeight: 700,
             }}>
               {at >= 0 ? `${at + 1} / ${deck.slides.length}`
                 : `— / ${deck.slides.length}`}
@@ -308,13 +310,13 @@ export default function SlidesPanel({
                   : 'That is the last slide')
                 : 'Only while you are live'}
               onClick={() => go(1)}
-              style={{ flex: '0 0 auto', padding: '7px 11px' }}
-            >&#9654;</button>
+              style={{ flex: '0 0 auto', padding: '7px 11px', lineHeight: 0 }}
+            ><Icon name="chevron" size={12} /></button>
             <button
               className="small" data-testid="slide-blank" disabled={at < 0}
               title="Take the slides down and go back to the room"
               onClick={onRollOut}
-              style={{ flex: '0 0 auto', padding: '7px 10px', fontSize: 11 }}
+              style={{ flex: '0 0 auto', padding: '7px 10px', fontSize: 'var(--text-xs)' }}
             >Blank</button>
           </div>
         </>
@@ -322,7 +324,7 @@ export default function SlidesPanel({
 
       {note && (
         <p className="small muted" data-testid="slides-note"
-           style={{ margin: 0, fontSize: 11 }}>{note}</p>
+           style={{ margin: 0, fontSize: 'var(--text-xs)' }}>{note}</p>
       )}
     </div>
   );

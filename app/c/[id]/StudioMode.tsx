@@ -16,6 +16,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { INTERVENTION_TYPES, type InterventionType } from '../../../src/domain/document.js';
 import Mark from './Mark.js';
+import Icon from '../../Icon.js';
 import { LAYOUTS, TYPE_PRESENTATION } from '../../../src/domain/presentation.js';
 import { HOUSE_FPS, formatTimecode } from '../../../src/domain/time.js';
 
@@ -133,7 +134,7 @@ function TimelineBand({ timeline, onSeek }: { timeline: any; onSeek: (frame: num
   return (
     <div className="panel" style={{ marginBottom: 12 }}>
       <div className="row" style={{ marginBottom: 6 }}>
-        <strong className="grow">The finished video</strong>
+        <span className="module-label grow">The finished video</span>
         <span className="small muted mono">{formatTimecode(timeline.totalOutputFrames)}</span>
       </div>
       <div style={{ display: 'flex', height: 26, borderRadius: 4, overflow: 'hidden' }}>
@@ -160,9 +161,37 @@ function TimelineBand({ timeline, onSeek }: { timeline: any; onSeek: (frame: num
           );
         })}
       </div>
+      {/*
+        * A KEY SHOWS THE THING IT IS A KEY FOR.  [U-19]
+        *
+        * This was "▇ source" and "▨ you" — two Unicode block
+        * characters standing in for the bar's two fills, in the text
+        * colour. They were not the bar's colours, they were not the
+        * bar's hatch, and ▨ in particular is a different pattern in
+        * every font. A legend whose swatch does not match the chart
+        * is worse than no legend: it invites you to match by shape
+        * and then gives you the wrong shape.
+        *
+        * The swatches are now the same two declarations the segments
+        * use, which is also why they cannot drift apart.
+        */}
       <div className="row small muted" style={{ marginTop: 6, gap: 14 }}>
-        <span>▇ source</span>
-        <span>▨ you</span>
+        <span className="row" style={{ gap: 5 }}>
+          <span aria-hidden="true" style={{
+            width: 11, height: 11, borderRadius: 2, flex: '0 0 auto',
+            background: 'var(--source-accent)',
+          }} />
+          source
+        </span>
+        <span className="row" style={{ gap: 5 }}>
+          <span aria-hidden="true" style={{
+            width: 11, height: 11, borderRadius: 2, flex: '0 0 auto',
+            background: 'var(--user-accent)',
+            backgroundImage: 'repeating-linear-gradient(45deg,'
+              + ' rgba(0,0,0,.25) 0 4px, transparent 4px 8px)',
+          }} />
+          you
+        </span>
         <span className="grow" />
         <span>{Math.round((timeline.sourceFrames / total) * 100)}% source material</span>
       </div>
@@ -348,7 +377,7 @@ function InterventionCard({
                   onClick={() => onRerecord(intervention.id)}
                   title={canRecord ? 'Record another take; this one is kept' : 'Arm the camera first'}
                 >
-                  🎙 Re-record
+                  <Icon name="mic" size={13} /> Re-record
                 </button>
                 <button
                   className="danger"
@@ -693,13 +722,17 @@ function EvidenceItem({
                  style={{ gap: 6, marginTop: 8, flexWrap: 'nowrap' }}>
               <button className="small" data-testid="evidence-prev"
                       disabled={disabled || page <= 1}
-                      onClick={() => void patch({ page: page - 1 })}>←</button>
+                      onClick={() => void patch({ page: page - 1 })}
+                      style={{ lineHeight: 0 }}
+              ><Icon name="chevron" size={11} turn={180} /></button>
               <span className="grow mono" style={{ textAlign: 'center' }}>
                 Page {page} of {pageCount}
               </span>
               <button className="small" data-testid="evidence-next"
                       disabled={disabled || page >= pageCount}
-                      onClick={() => void patch({ page: page + 1 })}>→</button>
+                      onClick={() => void patch({ page: page + 1 })}
+                      style={{ lineHeight: 0 }}
+              ><Icon name="chevron" size={11} /></button>
             </div>
           )}
 
@@ -719,7 +752,7 @@ function EvidenceItem({
             >
               {enlarged ? 'Showing the passage large' : 'Show the marked part large'}
             </button>
-            <span className="muted" style={{ fontSize: 11 }}>
+            <span className="muted" style={{ fontSize: 'var(--text-xs)' }}>
               {region
                 ? 'The marked part fills the screen while you read it.'
                 : 'Drag a box over the part you are reading first.'}
@@ -862,7 +895,7 @@ function ClipsPanel({ conversationId }: { conversationId: string }) {
   return (
     <div className="panel" style={{ marginBottom: 12 }}>
       <div className="row">
-        <strong className="grow">Clips</strong>
+        <span className="module-label grow">Clips</span>
         <span className="small muted">
           Each point, on its own, vertical — the claim then your reply
         </span>

@@ -162,10 +162,11 @@ function SharePreview({ conversationId }: { conversationId: string }) {
   return (
     <div data-testid="share-preview" style={{ margin: '10px 0' }}>
       <div className="small muted" style={{ textTransform: 'uppercase',
-        letterSpacing: 0.8, fontSize: 11, marginBottom: 6 }}>
+        letterSpacing: 0.8, fontSize: 'var(--text-xs)', marginBottom: 6 }}>
         When you send this link
       </div>
-      <div style={{ border: '1px solid var(--line)', borderRadius: 8,
+      <div style={{ border: '1px solid var(--line)',
+        borderRadius: 'var(--radius-module)',
         overflow: 'hidden', background: 'var(--panel-2)' }}>
         {drawn ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -184,9 +185,9 @@ function SharePreview({ conversationId }: { conversationId: string }) {
           </div>
         )}
         <div style={{ padding: '8px 10px', borderTop: '1px solid var(--line)' }}>
-          <div style={{ fontWeight: 600, fontSize: 13 }}>{card.title}</div>
+          <div style={{ fontWeight: 600, fontSize: 'var(--text-base)' }}>{card.title}</div>
           <div className="small muted" style={{ marginTop: 2 }}>{card.description}</div>
-          <div className="small muted" style={{ marginTop: 4, fontSize: 11 }}>
+          <div className="small muted" style={{ marginTop: 4, fontSize: 'var(--text-xs)' }}>
             {origin.replace(/^https?:\/\//, '')}
           </div>
         </div>

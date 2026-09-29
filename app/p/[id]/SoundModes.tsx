@@ -79,7 +79,12 @@ export default function SoundModes({
 
   return (
     <section style={{ marginTop: 18 }} data-testid="sound">
-      <h2 style={{ fontSize: 14, margin: '0 0 7px' }}>Sound</h2>
+      {/*
+        * A LEGEND, like every other section label in the product since
+        * 02. This was an `<h2>` at 14px — a document heading over three
+        * cards, in a room whose loudest thing should be the picture.
+        */}
+      <h2 className="module-label" style={{ margin: '0 0 7px' }}>Sound</h2>
 
       {/* Three across, because they are three answers to one question and a
           column of three makes the third look like an afterthought. */}
@@ -102,14 +107,30 @@ export default function SoundModes({
                 ? { vocalTakeId: performance.audio.vocalTakeId ?? withSound[0]?.id }
                 : {}),
             })}
+            /*
+              * THREE MUTUALLY EXCLUSIVE CHOICES, which is a control and
+              * not three cards. They were three bordered rectangles in
+              * a row with a 13px semibold title each — the shape of a
+              * pricing table — and the chosen one turned blue. On a
+              * desk this is a bank of three positions: they share a
+              * face, the chosen one is lit, and the sentence under each
+              * is the explanation rather than a second heading.
+              */
+            className={`ctl${mode === option.id ? ' is-on' : ''}`}
             style={{
-              textAlign: 'left', padding: '7px 10px',
-              background: mode === option.id ? 'var(--accent-wash)' : undefined,
-              borderColor: mode === option.id ? 'var(--accent)' : undefined,
+              textAlign: 'left', padding: '8px 11px',
+              display: 'block', height: '100%',
             }}
           >
-            <div style={{ fontWeight: 600, fontSize: 13 }}>{option.label}</div>
-            <div className="small muted" style={{ fontSize: 11 }}>{option.hint}</div>
+            <div style={{
+              fontWeight: 'var(--weight-semi)', fontSize: 'var(--text-sm)',
+              letterSpacing: 0, textTransform: 'none',
+            }}>{option.label}</div>
+            <div style={{
+              fontSize: 'var(--text-2xs)', color: 'var(--ink-300)',
+              marginTop: 2, letterSpacing: 0, textTransform: 'none',
+              lineHeight: 'var(--leading-snug)',
+            }}>{option.hint}</div>
           </button>
         ))}
       </div>
@@ -146,7 +167,7 @@ export default function SoundModes({
 
       {scenes.length > 0 && (
         <details style={{ marginTop: 10 }} data-testid="scene-audio">
-          <summary className="small muted" style={{ cursor: 'pointer', fontSize: 12 }}
+          <summary className="small muted" style={{ cursor: 'pointer', fontSize: 'var(--text-sm)' }}
                    title={'For the chorus that should carry the crowd from the stage '
                      + 'take while everything else stays on the studio vocal.'}>
             One section at a time
@@ -164,7 +185,7 @@ export default function SoundModes({
                   action: 'scene-audio', sceneId: scene.id,
                   mode: e.target.value === '' ? null : e.target.value,
                 })}
-                style={{ fontSize: 11, padding: '2px 6px', width: 'auto' }}
+                style={{ fontSize: 'var(--text-xs)', padding: '2px 6px', width: 'auto' }}
               >
                 <option value="">same as the rest</option>
                 {MODES.map((option) => (

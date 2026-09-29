@@ -12,7 +12,9 @@ import {
 import { SPACES } from '../../../src/domain/performance.js';
 import { SPACE_LOOKS } from '../../../src/domain/environment.js';
 import { PLATFORMS } from '../../../src/domain/distribution.js';
+import { LIVE_DELAY_MS } from '../../../src/domain/playout.js';
 import StudioBar from '../../StudioBar.js';
+import Icon from '../../Icon.js';
 import {
   MenuButton, MenuHost, RightClickHint, useRowMenu, type MenuEntry,
 } from '../../Menu.js';
@@ -565,10 +567,10 @@ export default function ChannelStudio({
           }}>
             <Dot on={on.kind !== 'off'} colour={on.kind === 'live' ? 'var(--state-live)'
               : on.kind === 'emergency' || on.kind === 'backup' ? 'var(--ink-on-armed)' : 'var(--accent)'} />
-            <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.4 }}>
+            <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, letterSpacing: 0.4 }}>
               {on.kind === 'off' ? 'OFF AIR' : 'ON AIR'}
             </span>
-            <span className="mono" style={{ fontSize: 12 }}>{hms(elapsedMs)}</span>
+            <span className="mono" style={{ fontSize: 'var(--text-sm)' }}>{hms(elapsedMs)}</span>
           </span>
         )}
         trailing={(
@@ -610,26 +612,29 @@ export default function ChannelStudio({
           <div className="row" style={{
             gap: 6, padding: '8px 9px 0', flexWrap: 'nowrap', flex: '0 0 auto',
           }}>
+            {/*
+              * NOT A CTA. This was a full-width filled blue button at the
+              * top of the rail — the single most SaaS-looking object in
+              * the room, and the brightest thing on a screen whose
+              * brightest thing should be the programme. Adding to a
+              * playlist is an ordinary, frequent, reversible action; it
+              * gets an ordinary control. [brief §4]
+              */}
             <button
-              type="button" className="primary" data-testid="add-to-playlist"
+              type="button" className="ctl" data-testid="add-to-playlist"
+              aria-expanded={adding}
               onClick={() => { setAdding((open) => !open); setRailTab('library'); }}
-              style={{
-                flex: 1, padding: '7px 10px', fontSize: 12,
-                background: 'var(--accent-deep)', borderColor: 'var(--accent-deep)',
-              }}
+              style={{ flex: 1, padding: '7px 10px' }}
             >
-              + Add to Playlist
+              + Add to playlist
             </button>
             <button
               type="button" aria-label="Search" data-testid="rail-search"
               onClick={() => setFilter((value) => (value === null ? '' : null))}
-              style={{
-                flex: '0 0 auto', width: 32, padding: 0, height: 30,
-                background: filter === null ? 'var(--panel-2)' : 'rgba(45,110,200,0.22)',
-                border: `1px solid ${filter === null ? 'var(--line)' : 'var(--accent)'}`,
-                borderRadius: 8, cursor: 'pointer', color: 'inherit',
-              }}
-            >&#9906;</button>
+              className={`ctl${filter === null ? '' : ' is-on'}`}
+              aria-pressed={filter !== null}
+              style={{ flex: '0 0 auto', width: 32, padding: 0, height: 30 }}
+            ><Icon name="search" size={13} /></button>
           </div>
 
           {filter !== null && (
@@ -638,7 +643,7 @@ export default function ChannelStudio({
                 autoFocus value={filter} data-testid="rail-filter"
                 onChange={(event) => setFilter(event.target.value)}
                 placeholder="Find something…"
-                style={{ fontSize: 12, padding: '6px 9px' }}
+                style={{ fontSize: 'var(--text-sm)', padding: '6px 9px' }}
               />
             </div>
           )}
@@ -650,7 +655,7 @@ export default function ChannelStudio({
             */}
           {adding && (
             <p className="small muted" style={{
-              margin: 0, padding: '7px 10px 0', fontSize: 11,
+              margin: 0, padding: '7px 10px 0', fontSize: 'var(--text-xs)',
             }}>
               {pickedItem
                 ? `“${pickedItem.title}” — put it in the loop, or give it a time.`
@@ -832,7 +837,7 @@ export default function ChannelStudio({
 
           <div className="row" style={{
             borderTop: '1px solid var(--line)', padding: '7px 10px',
-            fontSize: 10, gap: 8, flex: '0 0 auto',
+            fontSize: 'var(--text-2xs)', gap: 8, flex: '0 0 auto',
           }}>
             {/* THE CLAIM, ON SCREEN: everything scheduled against the files
                 behind it. Six showings of one film is still one file. [D-18] */}
@@ -860,25 +865,11 @@ export default function ChannelStudio({
             gridTemplateColumns: 'minmax(0, 1.75fr) minmax(0, 1fr)',
           }}>
             {/* ---- PROGRAM OUTPUT (LIVE STREAM) ------------------------ */}
-            <Frame testid="program-output">
+            <Frame testid="program-output" well>
               <Head
                 text="Program Output"
-                sub="(Live Stream)"
-                right={(
-                  <span data-testid="program-mode" data-mode={on.kind} style={{
-                    padding: '3px 9px', borderRadius: 4, fontSize: 10,
-                    fontWeight: 800, letterSpacing: 0.6, color: 'var(--ink-000)',
-                    background: on.kind === 'live' ? 'var(--state-live-dim)'
-                      : on.kind === 'emergency' ? '#b3431f'
-                        : on.kind === 'backup' ? 'var(--state-armed-dim)'
-                          : on.kind === 'off' ? 'var(--ink-500)' : 'var(--accent-deep)',
-                  }}>
-                    {on.kind === 'live' ? '● ON AIR'
-                      : on.kind === 'emergency' ? 'EMERGENCY'
-                        : on.kind === 'backup' ? 'BACKUP'
-                          : on.kind === 'off' ? 'OFF AIR' : '● ON AIR'}
-                  </span>
-                )}
+                sub="Live stream"
+                right={<Status testid="program-mode" mode={on.kind} {...AIR[on.kind]} />}
               />
               {/*
                 * THE BIGGEST THING IN THE ROOM, because it is the only one
@@ -892,9 +883,19 @@ export default function ChannelStudio({
                 data-on-air={on.kind !== 'off' ? 'true' : 'false'}
                 data-mode={on.kind}
                 style={{
+                  /*
+                   * THE FRAME AROUND THE TRANSMISSION. 8px of rounding
+                   * on the one rectangle in the product that IS a
+                   * television picture — a screen has square corners,
+                   * and rounding them is the difference between a
+                   * monitor and a thumbnail. True black inside, a
+                   * hairline around it, nothing else: the brief's
+                   * "do not decorate the video". [brief §5]
+                   */
                   position: 'relative', flex: '1 1 auto', minHeight: 150,
-                  margin: 9, background: 'var(--ink-900)', borderRadius: 8,
-                  border: '1px solid var(--line)', overflow: 'hidden',
+                  margin: 9, background: '#000', borderRadius: 'var(--radius-screen)',
+                  border: '1px solid var(--console-edge)',
+                  boxShadow: 'var(--console-well)', overflow: 'hidden',
                 }}
               >
                 {on.kind === 'live' && on.source.kind === 'live' ? (
@@ -951,42 +952,58 @@ export default function ChannelStudio({
                 <span data-testid="monitor-clock" className="mono" style={{
                   position: 'absolute', right: 10, top: 10,
                   padding: '3px var(--space-3)',
-                  borderRadius: 'var(--radius-xs)',
-                  background: 'rgba(8,10,14,0.62)',
-                  backdropFilter: 'blur(10px) saturate(1.1)',
-                  WebkitBackdropFilter: 'blur(10px) saturate(1.1)',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.08)',
+                  /*
+                   * A MONITOR OSD IS PRINTED ON THE GLASS, not floated
+                   * over it. These three plates were frosted glass —
+                   * `backdrop-filter: blur(10px) saturate(1.1)` — which
+                   * is the one material the brief rules out by name,
+                   * and on a broadcast monitor it is actively wrong: a
+                   * blurred sample of the picture behind a status
+                   * readout means the readout changes appearance with
+                   * the programme, and the thing it is over is the
+                   * thing you are judging. Flat, opaque, square. It
+                   * also costs a compositor pass per frame on a surface
+                   * that repaints thirty times a second. [brief §19]
+                   */
+                  borderRadius: 2,
+                  background: 'rgba(0,0,0,0.72)',
+                  border: '1px solid rgba(255,255,255,0.14)',
                   fontSize: 'var(--text-xs)',
                   fontVariantNumeric: 'tabular-nums',
-                  color: 'rgba(255,255,255,0.92)',
+                  letterSpacing: '0.02em',
+                  color: 'rgba(255,255,255,0.94)',
                 }}>{clock(now)}</span>
 
                 <span data-testid="on-air-lamp" data-mode={on.kind} style={{
                   position: 'absolute', left: 10, top: 10,
                   padding: '3px var(--space-3)',
-                  borderRadius: 'var(--radius-xs)',
+                  borderRadius: 2,
                   fontSize: 'var(--text-2xs)',
                   fontWeight: 'var(--weight-bold)',
-                  letterSpacing: '0.08em',
+                  letterSpacing: '0.1em',
                   background: on.kind === 'live'
-                    ? 'linear-gradient(180deg, #e8483a, #c33327)'
+                    ? 'var(--state-live-dim)'
                     : on.kind === 'backup' || on.kind === 'emergency'
-                      ? 'linear-gradient(180deg, #a8821f, #8e6a1f)'
-                      : on.kind === 'off' ? 'rgba(8,10,14,0.62)'
-                        : 'rgba(45,110,200,0.62)',
-                  backdropFilter: 'blur(10px)',
-                  WebkitBackdropFilter: 'blur(10px)',
+                      ? '#8e6a1f'
+                      : on.kind === 'off' ? 'rgba(0,0,0,0.72)'
+                        : 'rgba(0,0,0,0.72)',
                   border: `1px solid ${on.kind === 'live'
-                    ? 'rgba(255,140,128,0.55)' : 'rgba(255,255,255,0.12)'}`,
-                  boxShadow: on.kind === 'live'
-                    ? '0 0 12px rgba(226,59,46,0.45),'
-                      + ' inset 0 1px 0 rgba(255,255,255,0.22)'
-                    : 'inset 0 1px 0 rgba(255,255,255,0.08)',
+                    ? '#ff6d5c' : 'rgba(255,255,255,0.14)'}`,
                   color: on.kind === 'off'
-                    ? 'rgba(255,255,255,0.6)' : 'var(--ink-000)',
+                    ? 'rgba(255,255,255,0.72)' : 'var(--ink-000)',
                 }}>
-                  {on.kind === 'live' ? '● LIVE'
+                  {/* A lamp is a drawn circle, not U+25CF — which is a
+                      different diameter and a different baseline in
+                      every font, inside a plate 14 pixels tall. */}
+                  {on.kind === 'live' && (
+                    <span aria-hidden="true" style={{
+                      width: 5, height: 5, borderRadius: '50%',
+                      background: 'currentColor', flex: '0 0 auto',
+                      marginRight: 4, display: 'inline-block',
+                      verticalAlign: 'middle',
+                    }} />
+                  )}
+                  {on.kind === 'live' ? 'LIVE'
                     : on.kind === 'backup' ? 'BACKUP'
                       : on.kind === 'emergency' ? 'EMERGENCY'
                         : on.kind === 'off' ? 'OFF AIR' : 'ON AIR'}
@@ -996,12 +1013,9 @@ export default function ChannelStudio({
                   <span data-testid="now-playing-chip" style={{
                     position: 'absolute', left: 10, bottom: 10, maxWidth: '62%',
                     padding: '4px var(--space-4)',
-                    borderRadius: 'var(--radius-sm)',
-                    background: 'rgba(8,10,14,0.62)',
-                    backdropFilter: 'blur(12px) saturate(1.1)',
-                    WebkitBackdropFilter: 'blur(12px) saturate(1.1)',
-                    border: '1px solid rgba(255,255,255,0.1)',
-                    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.08)',
+                    borderRadius: 2,
+                    background: 'rgba(0,0,0,0.72)',
+                    border: '1px solid rgba(255,255,255,0.14)',
                     fontSize: 'var(--text-xs)',
                     color: 'rgba(255,255,255,0.94)',
                     overflow: 'hidden', textOverflow: 'ellipsis',
@@ -1049,12 +1063,13 @@ export default function ChannelStudio({
                       color: 'var(--ink-000)', fontSize: 'var(--text-2xs)',
                       letterSpacing: '0.09em',
                       fontWeight: 'var(--weight-bold)',
-                      boxShadow: '0 0 10px rgba(226,59,46,0.5)',
+                      boxShadow: '0 0 0 1px rgba(0,0,0,0.55)',
                       textShadow: 'none',
                     }}>{channel.identity?.liveLamp?.text ?? 'LIVE'}</span>
                   )}
                 </span>
               </div>
+              <Legend on={on} />
             </Frame>
 
             {/* ---- PREVIEW (NEXT) + MULTI-VIEW ------------------------- */}
@@ -1069,11 +1084,30 @@ export default function ChannelStudio({
               display: 'grid', gap: 10, minWidth: 0, minHeight: 0,
               gridTemplateRows: 'minmax(0, 1fr) minmax(0, 1fr)',
             }}>
-              <Frame testid="preview-next">
-                <Head text="Preview" sub="(Next)" />
+              <Frame testid="preview-next" well>
+                <Head
+                  text="Preview"
+                  sub="Next"
+                  /*
+                    * PREVIEW REPORTS ITS STATE WHERE PROGRAM REPORTS ITS
+                    * STATE. These two monitors are read together — that is
+                    * the entire reason a gallery has two — and one of them
+                    * was saying what it was doing in a badge in its head
+                    * while the other said it in a pill lying on the
+                    * picture. Same object, same corner, same words.
+                    */
+                  right={armed
+                    ? <Status testid="preview-mode" mode="armed"
+                              tone="is-armed" text="Armed" />
+                    : upNext
+                      ? <Status testid="preview-mode" mode="queued"
+                                tone="is-off" text="Next" />
+                      : <Status testid="preview-mode" mode="empty"
+                                tone="is-off" text="Empty" />}
+                />
                 <div style={{
                   position: 'relative', flex: '1 1 auto', minHeight: 96,
-                  margin: 9, background: 'var(--ink-900)', borderRadius: 8,
+                  margin: 9, background: '#000', borderRadius: 'var(--radius-screen)',
                   overflow: 'hidden',
                   border: `1px solid ${armed ? 'var(--ink-on-armed)' : 'var(--line)'}`,
                 }}>
@@ -1098,12 +1132,12 @@ export default function ChannelStudio({
                   ) : (
                     <span className="small muted" style={{
                       position: 'absolute', inset: 0, display: 'grid',
-                      placeItems: 'center', fontSize: 11,
+                      placeItems: 'center', fontSize: 'var(--text-xs)',
                     }}>Nothing queued</span>
                   )}
                   <span data-testid="preview-title" style={{
                     position: 'absolute', left: 0, right: 0, bottom: 0,
-                    padding: '14px 9px 6px', fontSize: 11, fontWeight: 600,
+                    padding: '14px 9px 6px', fontSize: 'var(--text-xs)', fontWeight: 600,
                     background: 'linear-gradient(180deg, transparent, rgba(5,7,10,0.92))',
                     overflow: 'hidden', textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap',
@@ -1111,23 +1145,16 @@ export default function ChannelStudio({
                     {armed ? 'The live studio — armed'
                       : upNext?.title ?? '—'}
                   </span>
-                  {armed && (
-                    <span style={{
-                      position: 'absolute', left: 8, top: 8, padding: '2px 7px',
-                      borderRadius: 3, fontSize: 9, fontWeight: 800,
-                      background: 'var(--state-armed-dim)', color: 'var(--ink-000)', letterSpacing: 0.6,
-                    }}>ARMED</span>
-                  )}
                 </div>
               </Frame>
 
               <Frame testid="multi-view">
                 <Head
                   text="Multi-view"
-                  sub="(Sources)"
+                  sub="Sources"
                   right={(
                     <span className="muted" style={{
-                      fontSize: 10, whiteSpace: 'nowrap', flex: '0 0 auto',
+                      fontSize: 'var(--text-2xs)', whiteSpace: 'nowrap', flex: '0 0 auto',
                     }}>
                       {guests.sources.length || 1} in mix
                     </span>
@@ -1147,13 +1174,19 @@ export default function ChannelStudio({
 
           {/* ---- 24/7 SCHEDULE ---------------------------------------- */}
           <Frame testid="schedule-deck">
-            <div className="row" style={{
-              gap: 9, padding: '7px 10px', borderBottom: '1px solid var(--line)',
-              flexWrap: 'wrap',
-            }}>
-              <strong style={{ fontSize: 13 }}>24/7 Schedule</strong>
-              <span className="small muted" data-testid="schedule-day" style={{
-                fontSize: 11,
+            {/*
+              * THE SCHEDULE'S HEAD IS THE SAME LEGEND AS EVERY OTHER
+              * MODULE'S. It was hand-written rather than a `Head`,
+              * because it carries three controls — so it kept a 13px
+              * bold title while the five modules around it became
+              * legends, and it was the last sentence-case heading in
+              * the room. The markup stays hand-written; only the voice
+              * changes. [brief §13]
+              */}
+            <div className="row module-head" style={{ flexWrap: 'wrap' }}>
+              <span className="module-label">24/7 Schedule</span>
+              <span className="module-sub" data-testid="schedule-day" style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4,
               }}>
                 {sameDay(windowNow, now, channel.timezone)
                   ? 'Today'
@@ -1161,7 +1194,7 @@ export default function ChannelStudio({
                     weekday: 'short', day: 'numeric', month: 'short',
                     timeZone: channel.timezone,
                   })}
-                {' ▾'}
+                <Icon name="chevron" size={9} turn={90} />
               </span>
               <span className="grow" />
               <Strip
@@ -1186,7 +1219,7 @@ export default function ChannelStudio({
                 * control room somebody reaches for in a hurry. [D-22]
                 */}
               <label className="row" data-testid="auto-play" style={{
-                gap: 6, fontSize: 11, margin: 0, cursor: 'pointer',
+                gap: 6, fontSize: 'var(--text-xs)', margin: 0, cursor: 'pointer',
               }} title="Keep the timeline on the clock. The transmission is unaffected.">
                 <input
                   type="checkbox" checked={pinned === null}
@@ -1198,10 +1231,12 @@ export default function ChannelStudio({
                 <span className="row" style={{ gap: 4 }}>
                   <button className="small" data-testid="window-back"
                           onClick={() => setPinned((at) => (at ?? now) - HOUR)}
-                          style={{ padding: '2px 7px' }}>&#9664;</button>
+                          style={{ padding: '2px 7px', lineHeight: 0 }}
+                  ><Icon name="chevron" size={11} turn={180} /></button>
                   <button className="small" data-testid="window-forward"
                           onClick={() => setPinned((at) => (at ?? now) + HOUR)}
-                          style={{ padding: '2px 7px' }}>&#9654;</button>
+                          style={{ padding: '2px 7px', lineHeight: 0 }}
+                  ><Icon name="chevron" size={11} /></button>
                 </span>
               )}
             </div>
@@ -1255,55 +1290,84 @@ export default function ChannelStudio({
               <button
                 type="button" aria-label="Mixer" data-testid="mixer-toggle"
                 onClick={() => setMixerOpen((open) => !open)}
+                /*
+                  * ☰ WAS NOT AN ICON. It is U+2630, the trigram for
+                  * heaven, and it is read as a hamburger menu by
+                  * everybody — over a button that opens the mixer. It
+                  * was also the last glyph-as-icon in the studios and
+                  * the last hand-written font size, which is not a
+                  * coincidence: a character used as a symbol has to be
+                  * sized like text because it IS text, and it renders
+                  * at a different weight on every platform.
+                  */
                 style={{
-                  border: 0, background: 'none', padding: 0, fontSize: 14,
+                  border: 0, background: 'none', padding: 0, lineHeight: 0,
                   cursor: 'pointer', color: mixerOpen ? 'var(--accent-soft)' : 'var(--muted)',
                 }}
-              >&#9776;</button>
+              ><Icon name="faders" size={15} /></button>
             )}
           />
 
           <div className="row" style={{
             gap: 6, padding: '0 9px 8px', flexWrap: 'nowrap', flex: '0 0 auto',
           }}>
+            {/*
+              * THE ONE LOUD CONTROL IN THIS PANEL, and only one.
+              *
+              * GO LIVE and END LIVE were two equal pills side by side —
+              * a filled red one and an outlined red one — which is a
+              * pair of SaaS buttons and, worse, gives equal visual
+              * weight to arming and to stopping. On a desk exactly one
+              * of these is available at any moment, and the other is
+              * the way back. So the available one is the loud one and
+              * the other recedes, which also means the panel's
+              * appearance says which state you are in before you read
+              * a word of it. [brief §7]
+              *
+              * `.ctl.is-key` is a legend on a lit surface rather than a
+              * CTA: uppercase, tracked, a 4px radius and a one-pixel
+              * bevel instead of a 10px pill with a shadow.
+              *
+              * IT IS NOT RED, AND ITS OWN TOOLTIP SAYS WHY: "Nothing
+              * reaches the wire until you press TAKE LIVE — the
+              * programme keeps playing until then." GO LIVE brings the
+              * camera up in PREVIEW. It was wearing the colour this
+              * desk uses for transmission, two feet from the button
+              * that actually transmits, while its own copy explained
+              * that it does not. Red is for on air and for recording;
+              * this is neither. [U-19, U-20]
+              */}
             <button
-              className="primary" data-testid="go-live"
+              className={`ctl${onAir ? '' : ' is-key'}`}
+              data-testid="go-live"
               disabled={onAir}
               title={'Brings the camera up and shows it to you in PREVIEW. '
                 + 'Nothing reaches the wire until you press TAKE LIVE — the '
                 + 'programme keeps playing until then.'}
               onClick={goLive}
-              style={{
-                flex: 1, padding: '8px 10px', fontSize: 12,
-                background: onAir ? 'var(--panel-2)' : 'var(--state-live-dim)',
-                borderColor: onAir ? 'var(--line)' : 'var(--state-live-dim)',
-                opacity: onAir ? 0.5 : 1,
-              }}
+              style={{ flex: 1, padding: '8px 10px' }}
             >
-              &#9679; Go Live
+              Go live
             </button>
             <button
-              className="small" data-testid="end-live"
+              className={`ctl${onAir ? ' is-armed-danger' : ''}`}
+              data-testid="end-live"
               disabled={!onAir}
               title="Return to program. The schedule resumes where the clock says."
               onClick={endLive}
-              style={{
-                flex: 1, padding: '8px 10px', fontSize: 12,
-                borderColor: onAir ? 'var(--state-live-dim)' : 'var(--line)',
-                color: onAir ? '#e07a6b' : 'var(--muted)',
-              }}
+              style={{ flex: 1, padding: '8px 10px' }}
             >
-              End Live
+              End live
             </button>
             <button
               type="button" aria-label="Channel settings" data-testid="identity-gear"
               onClick={() => setDeskTab('graphics')}
               style={{
                 flex: '0 0 auto', width: 32, height: 32, padding: 0,
-                borderRadius: 8, border: '1px solid var(--line)',
+                borderRadius: 3, border: '1px solid var(--console-seam)',
                 background: 'var(--panel-2)', color: 'inherit', cursor: 'pointer',
               }}
-            >&#9881;</button>
+            ><Icon name="settings" size={14} /></button>
           </div>
 
           <Strip
@@ -1331,7 +1395,7 @@ export default function ChannelStudio({
                 */
               <div data-testid="mixer-panel" style={{
                 display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 9,
-                padding: 7, borderRadius: 8, background: 'var(--panel-2)',
+                padding: 7, borderRadius: 3, background: 'var(--console-control)',
                 border: '1px solid var(--line)',
               }}>
                 {(['auto', 'performance_full', 'performance_half',
@@ -1344,11 +1408,8 @@ export default function ChannelStudio({
                       data-option={option} data-chosen={chosenOne ? 'true' : 'false'}
                       aria-pressed={chosenOne}
                       onClick={() => setArrangement(option === 'auto' ? undefined : option)}
-                      style={{
-                        padding: '3px 7px', fontSize: 10, borderRadius: 5,
-                        border: `1px solid ${chosenOne ? 'var(--accent)' : 'var(--line)'}`,
-                        background: chosenOne ? 'rgba(45,110,200,0.22)' : 'transparent',
-                      }}
+                      className={`ctl${chosenOne ? ' is-on' : ''}`}
+                      style={{ padding: '3px 8px', fontSize: 'var(--text-2xs)' }}
                     >
                       {option === 'auto'
                         ? `Auto (${arrangementFor(guests.sources.length)
@@ -1422,35 +1483,57 @@ export default function ChannelStudio({
             {/* ---- NOW PLAYING / NEXT / UPCOMING ---------------------- */}
             <div data-testid="now-next" style={{ marginTop: 11 }}>
               <Section text="Now Playing" />
-              <div className="panel" style={{ padding: 9 }}>
+              {/*
+                * WHAT IS OUT, AND HOW FAR THROUGH. This is the one
+                * readout on the desk somebody checks without being
+                * prompted — "how long have I got" — so the elapsed
+                * figure is the bright thing and the total is dim,
+                * rather than the two being equal weight in the faint
+                * grey they both had.
+                */}
+              <div style={{
+                padding: 9, borderRadius: 3,
+                background: 'var(--console-control)',
+                border: 'var(--border) solid var(--console-seam)',
+                boxShadow: 'var(--console-bevel)',
+              }}>
                 <div style={{
-                  fontSize: 13, fontWeight: 600, overflow: 'hidden',
+                  fontSize: 'var(--text-sm)', fontWeight: 'var(--weight-semi)',
+                  overflow: 'hidden',
                   textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                 }}>{titleOf(on)}</div>
                 <div style={{
-                  height: 4, borderRadius: 2, background: 'var(--panel-2)',
-                  margin: '7px 0 5px', overflow: 'hidden',
+                  height: 3, background: 'var(--console-inset)',
+                  boxShadow: 'var(--console-well)',
+                  margin: '8px 0 6px', overflow: 'hidden',
                 }}>
                   <div data-testid="now-progress" style={{
                     height: '100%',
                     width: totalMs > 0
                       ? `${Math.min(100, (intoMs / totalMs) * 100)}%` : '100%',
-                    background: on.kind === 'live' ? 'var(--state-live-dim)' : 'var(--accent-deep)',
+                    background: on.kind === 'live'
+                      ? 'var(--state-live)' : 'var(--accent)',
                   }} />
                 </div>
-                <div className="row mono muted" style={{ fontSize: 10 }}>
-                  <span className="grow">{hms(intoMs)}</span>
-                  <span>{totalMs > 0 ? hms(totalMs) : '—'}</span>
+                <div className="row" style={{ fontSize: 'var(--text-2xs)' }}>
+                  <span className="grow mono readout" style={{
+                    color: 'var(--ink-050)',
+                  }}>{hms(intoMs)}</span>
+                  <span className="mono readout" style={{
+                    color: 'var(--ink-400)',
+                  }}>{totalMs > 0 ? hms(totalMs) : '—'}</span>
                 </div>
               </div>
 
               <div className="row" data-testid="next-in" style={{
-                marginTop: 8, padding: '6px 9px', borderRadius: 7,
-                background: 'var(--panel-2)', border: '1px solid var(--line)',
-                fontSize: 11, gap: 7,
+                marginTop: 6, padding: '6px 9px',
+                borderTop: 'var(--border) solid var(--console-rule)',
+                fontSize: 'var(--text-xs)', gap: 7,
               }}>
-                <span className="muted">Next in</span>
-                <span className="mono" style={{ fontWeight: 700 }}>
+                <span className="module-label">Next in</span>
+                <span className="mono readout" style={{
+                  fontWeight: 'var(--weight-bold)', color: 'var(--ink-050)',
+                }}>
                   {(on.kind === 'programme' || on.kind === 'rotation')
                     ? hms(Math.max(0, on.untilMs - now)) : '—'}
                 </span>
@@ -1464,7 +1547,7 @@ export default function ChannelStudio({
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {segments.slice(1, 6).map((segment) => (
                   <div key={segment.fromMs} className="row" data-testid="upcoming-row"
-                       style={{ gap: 8, fontSize: 11 }}>
+                       style={{ gap: 8, fontSize: 'var(--text-xs)' }}>
                     <span className="mono muted" style={{ flex: '0 0 auto' }}>
                       {clock(segment.fromMs)}
                     </span>
@@ -1472,13 +1555,13 @@ export default function ChannelStudio({
                       flex: 1, minWidth: 0, overflow: 'hidden',
                       textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                     }}>{segment.title}</span>
-                    <span className="muted" style={{ flex: '0 0 auto', fontSize: 10 }}>
+                    <span className="muted" style={{ flex: '0 0 auto', fontSize: 'var(--text-2xs)' }}>
                       {offsetLabel(segment.toMs - segment.fromMs)}
                     </span>
                   </div>
                 ))}
                 {segments.length <= 1 && (
-                  <p className="small muted" style={{ margin: 0, fontSize: 11 }}>
+                  <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-xs)' }}>
                     Put something in the loop and the channel is never off air.
                   </p>
                 )}
@@ -1521,7 +1604,17 @@ export default function ChannelStudio({
           * of those can truncate without anybody being harmed.
           */
         gridTemplateColumns: 'minmax(0, 1fr) max-content minmax(0, 1fr)',
-        background: 'linear-gradient(180deg, var(--ink-850), var(--ink-900))',
+        /*
+          * A MASTER CONTROL STRIP IS PART OF THE CHASSIS, not a footer
+          * laid over it. It carried a top-to-bottom gradient, which is
+          * a decorative device and the one thing on a desk that says
+          * "this was styled" — a real strip is one tone with a lit top
+          * edge, because that is what a piece of extruded metal looks
+          * like under a room light. [brief §12, §15]
+          */
+        background: 'var(--console-chassis)',
+        borderTop: 'var(--border) solid var(--console-edge)',
+        boxShadow: 'var(--console-bevel)',
       }}>
         <div className="row" style={{
           gap: 'var(--space-4)', minWidth: 0, flexWrap: 'nowrap',
@@ -1589,7 +1682,7 @@ export default function ChannelStudio({
               width: 12, height: 12, borderRadius: 'var(--radius-full)',
               background: onAir && keeping ? 'var(--ink-000)' : 'transparent',
               boxShadow: onAir && keeping
-                ? '0 0 4px rgba(255,255,255,0.6)'
+                ? '0 0 0 1px rgba(0,0,0,0.5)'
                 : 'inset 0 0 0 2px var(--state-live-dim)',
             }} />
           </button>
@@ -1622,7 +1715,7 @@ export default function ChannelStudio({
           <Meter value={levels['master']?.energy ?? 0} label="Program" />
 
           <span className="small muted" style={{
-            fontSize: 11, minWidth: 0, overflow: 'hidden',
+            fontSize: 'var(--text-xs)', minWidth: 0, overflow: 'hidden',
             textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           }}>
             {/*
@@ -1655,72 +1748,77 @@ export default function ChannelStudio({
           gap: 'var(--space-3)', flexWrap: 'nowrap', flex: '0 0 auto',
         }}>
           <button
-            className="small" data-testid="stop-live" disabled={!onAir}
+            className="ctl" data-testid="stop-live" disabled={!onAir}
             aria-label="Take program" title="Stop the live source and return to program"
             onClick={endLive}
             style={{ padding: '7px 11px' }}
-          >&#9632;</button>
+          ><Icon name="stop" size={12} /></button>
           <button
-            className="small" data-testid="resume-program" disabled={!emergency}
+            className="ctl" data-testid="resume-program" disabled={!emergency}
             aria-label="Resume programme"
             title="Clear the emergency and let the schedule take the air again"
             onClick={() => void patch({ action: 'emergency', source: null })}
             style={{ padding: '7px 11px' }}
-          >&#9654;</button>
+          ><Icon name="play" size={12} /></button>
           <button
-            className="small" data-testid="next-item"
+            className="ctl" data-testid="next-item"
             disabled={channel.rotation.length === 0}
             title="Cut to the next item in the loop now"
             onClick={() => void patch({ action: 'next' })}
             style={{ padding: '7px 11px' }}
-          >&#9654;&#9612; Next</button>
+          ><Icon name="next" size={12} /> Next</button>
 
+          {/*
+            * A DIVIDER BETWEEN GROUPS OF CONTROLS, at the weight of a
+            * seam rather than of a border. It separates transport from
+            * the two controls that change what is on air, which is the
+            * one grouping in this strip that matters.
+            */}
           <span aria-hidden="true" style={{
-            width: 1, alignSelf: 'stretch', background: 'var(--line)', margin: '0 3px',
+            width: 1, alignSelf: 'stretch', margin: '2px 5px',
+            background: 'var(--console-seam)',
           }} />
 
           {armed ? (
             <button
-              className="primary" data-testid="take-live"
+              className="ctl is-critical" data-testid="take-live"
               title="Cut the live feed to air"
               onClick={() => void patch({ action: 'take-live' })}
               /*
                 * THE MOST CONSEQUENTIAL BUTTON ON THE PAGE, and the only
-                * one allowed to look it. It carries the live red as a lit
-                * surface rather than a flat fill, and a halo in its own
-                * hue — so when it is pressable it is the brightest thing
-                * in the transport and nothing else has to be dimmed to
-                * make that true.
+                * one still allowed to look it — but the HALO goes. It
+                * wore a 3px glow in its own hue, which is the one
+                * decoration the brief rules out by name, and it was
+                * doing a job the surface already does: the button is
+                * the only lit red object in a bar of grey ones.
+                *
+                * Prominence now comes from being lit, tracked and
+                * uppercase, which is what the legend on a real take
+                * button looks like. [brief §12, §19]
                 */
               style={{
-                background: 'linear-gradient(180deg, #e8483a, #c33327)',
-                borderColor: '#f05a4a',
-                color: 'var(--text-on-accent)',
                 padding: 'var(--space-3) var(--space-6)',
                 fontSize: 'var(--text-sm)',
-                fontWeight: 'var(--weight-bold)',
-                letterSpacing: '0.02em',
-                boxShadow: '0 0 0 3px var(--state-live-glow),'
-                  + ' inset 0 1px 0 rgba(255,255,255,0.22)',
               }}
             >
-              Take Live
+              Take live
             </button>
           ) : (
             <button
-              className="small" data-testid="take-live" disabled
+              className="ctl" data-testid="take-live" disabled
               title={onAir
                 ? 'Already on air.'
                 : 'Press GO LIVE first — the feed is armed into PREVIEW, and '
                   + 'TAKE LIVE is what puts it on the wire.'}
-              style={{ padding: '7px 14px', fontSize: 12 }}
+              style={{ padding: 'var(--space-3) var(--space-6)' }}
             >
-              Take Live
+              Take live
             </button>
           )}
 
           <button
-            className="small" data-testid="emergency"
+            className={`ctl ${emergency ? 'is-critical' : 'is-armed-danger'}`}
+            data-testid="emergency"
             title={emergency
               ? 'Cut back to whatever the channel would be showing'
               : 'Cut away immediately. Beats live.'}
@@ -1745,26 +1843,21 @@ export default function ChannelStudio({
               * So it waits as a red-edged outline and only fills when it
               * is actually holding the channel off its schedule.
               */
-            style={emergency
-              ? {
-                background: 'linear-gradient(180deg, #d4402f, #b03327)',
-                borderColor: '#e85643', color: 'var(--ink-000)',
-                padding: 'var(--space-3) var(--space-5)',
-                fontSize: 'var(--text-sm)',
-                fontWeight: 'var(--weight-bold)',
-                boxShadow: '0 0 0 3px rgba(226,59,46,0.22),'
-                  + ' inset 0 1px 0 rgba(255,255,255,0.2)',
-                whiteSpace: 'nowrap',
-              }
-              : {
-                borderColor: 'rgba(200,70,55,0.5)', color: '#e0806f',
-                background: 'rgba(200,70,55,0.07)',
-                padding: 'var(--space-3) var(--space-5)',
-                fontSize: 'var(--text-sm)',
-                whiteSpace: 'nowrap',
-              }}
+            style={{
+              padding: 'var(--space-3) var(--space-5)',
+              fontSize: 'var(--text-sm)',
+              whiteSpace: 'nowrap',
+            }}
           >
-            {emergency ? '⚠ Clear Emergency' : '⚠ Emergency'}
+            {/*
+              * ⚠ IS AN EMOJI ON macOS — a yellow-and-black road sign
+              * in full colour, on the most consequential button on
+              * the desk. The one control whose mark must be
+              * unmistakable was wearing a glyph the platform
+              * redraws. [U-19]
+              */}
+            <Icon name="warning" size={12} />
+            {emergency ? 'Clear Emergency' : 'Emergency'}
           </button>
         </div>
 
@@ -1777,8 +1870,11 @@ export default function ChannelStudio({
           <details data-testid="stream-output" style={{ position: 'relative' }}>
             <summary className="small" style={{
               listStyle: 'none', cursor: 'pointer', padding: '6px 10px',
-              borderRadius: 8, border: '1px solid var(--line)',
-              background: 'var(--panel-2)', fontSize: 11, whiteSpace: 'nowrap',
+              borderRadius: 3, border: '1px solid var(--console-seam)',
+              background: 'var(--panel-2)', fontSize: 'var(--text-xs)', whiteSpace: 'nowrap',
+              /* An icon renders as a block; the row has to be one too or
+                 the caret drops onto a line of its own. */
+              display: 'inline-flex', alignItems: 'center', gap: 5,
             }}>
               Stream Output
               {' '}
@@ -1795,7 +1891,8 @@ export default function ChannelStudio({
                   (destination) => destination.enabled
                     && destination.kind !== 'own').length})
               </span>
-              {' ▾'}
+              {/* A caret is the chevron at a quarter turn, not ▾. */}
+              <Icon name="chevron" size={10} turn={90} />
             </summary>
             <div className="panel" style={{
               position: 'absolute', right: 0, bottom: 'calc(100% + 7px)', width: 300,
@@ -1809,7 +1906,7 @@ export default function ChannelStudio({
                 * with its sides cut off. [§15, U-22, D-21]
                 */}
               <div className="row">
-                <strong className="grow" style={{ fontSize: 12 }}>Destinations</strong>
+                <span className="module-label grow">Destinations</span>
                 <button className="small" data-testid="add-destination"
                         onClick={() => confirm({
                           question: 'Every destination carries the same '
@@ -1835,17 +1932,17 @@ export default function ChannelStudio({
                         })}
                         style={{
                           border: 0, background: 'none', padding: 0,
-                          color: 'var(--accent-soft)', fontSize: 11, cursor: 'pointer',
+                          color: 'var(--accent-soft)', fontSize: 'var(--text-xs)', cursor: 'pointer',
                         }}>
                   + Add
                 </button>
               </div>
-              <p className="small muted" style={{ margin: 0, fontSize: 10 }}>
+              <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-2xs)' }}>
                 This channel is always one of the outputs — the playout
                 engine writes its HLS whatever is listed here.
               </p>
               {(channel.destinations ?? []).length === 0 && (
-                <p className="small muted" style={{ margin: 0, fontSize: 11 }}>
+                <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-xs)' }}>
                   Nothing else. Add a destination to send the same programme
                   somewhere else.
                 </p>
@@ -1866,7 +1963,7 @@ export default function ChannelStudio({
                        data-testid="destination" data-kind={destination.kind}
                        data-state={state}
                        style={{
-                         gap: 7, fontSize: 11, padding: '5px 7px', borderRadius: 6,
+                         gap: 7, fontSize: 'var(--text-xs)', padding: '5px 7px', borderRadius: 6,
                          background: 'var(--panel-2)', border: '1px solid var(--line)',
                        }}>
                     <button
@@ -1888,10 +1985,10 @@ export default function ChannelStudio({
                       minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap',
                     }}>{destination.label}</span>
-                    <span className="muted" style={{ fontSize: 9 }}>
+                    <span className="muted" style={{ fontSize: 'var(--text-2xs)' }}>
                       {destination.shape}
                     </span>
-                    <span className="muted" style={{ fontSize: 9, fontWeight: 700 }}
+                    <span className="muted" style={{ fontSize: 'var(--text-2xs)', fontWeight: 700 }}
                           title={platform?.needsReview ? platform.hint : undefined}>
                       {state}
                     </span>
@@ -1902,7 +1999,7 @@ export default function ChannelStudio({
                       })}
                       style={{
                         border: 0, background: 'none', padding: '0 2px',
-                        color: 'var(--bad)', cursor: 'pointer', fontSize: 12,
+                        color: 'var(--bad)', cursor: 'pointer', fontSize: 'var(--text-sm)',
                       }}
                     >&times;</button>
                   </div>
@@ -1911,7 +2008,7 @@ export default function ChannelStudio({
               {(channel.destinations ?? []).some(
                 (destination) => destination.enabled
                   && PLATFORMS[destination.kind]?.needsReview) && (
-                <p className="small muted" style={{ margin: 0, fontSize: 10 }}>
+                <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-2xs)' }}>
                   {/* Said plainly rather than shown as a working switch: a
                       platform whose Live products are behind an app review is
                       not something this can turn on for you. */}
@@ -1940,7 +2037,7 @@ export default function ChannelStudio({
           <span className="row" data-testid="server-lamp"
                 data-engine={health?.engine ?? 'unknown'}
                 data-stream={health?.stream ?? 'unknown'}
-                style={{ gap: 6, fontSize: 11, flex: '0 0 auto' }}
+                style={{ gap: 6, fontSize: 'var(--text-xs)', flex: '0 0 auto' }}
                 title={[health?.says, ...violations, error]
                   .filter(Boolean).join(' \u00b7 ')
                   || 'Segments are being written and every reference has a '
@@ -1973,7 +2070,7 @@ export default function ChannelStudio({
             */}
           <span className="row" data-testid="publish-lamp"
                 data-published={published ? 'true' : 'false'} style={{
-                  gap: 6, fontSize: 11, flex: '0 0 auto',
+                  gap: 6, fontSize: 'var(--text-xs)', flex: '0 0 auto',
                 }}
                 title={published
                   ? 'Anybody with the link can watch this channel.'
@@ -1985,16 +2082,16 @@ export default function ChannelStudio({
           <a className="btn small" data-testid="view-channel"
              href={`/t/${id}/watch`} target="_blank" rel="noreferrer"
              title="Open the channel the way a viewer gets it: the transmission, twelve seconds behind."
-             style={{ padding: '6px 11px', fontSize: 11, whiteSpace: 'nowrap' }}>
+             style={{ padding: '6px 11px', fontSize: 'var(--text-xs)', whiteSpace: 'nowrap' }}>
             View Channel
           </a>
 
           <details data-testid="channel-settings" style={{ position: 'relative' }}>
             <summary aria-label="Channel settings" style={{
               listStyle: 'none', cursor: 'pointer', padding: '5px 8px',
-              borderRadius: 8, border: '1px solid var(--line)',
-              background: 'var(--panel-2)', fontSize: 13,
-            }}>&#9881;</summary>
+              borderRadius: 3, border: '1px solid var(--console-seam)',
+              background: 'var(--panel-2)', fontSize: 'var(--text-base)',
+            }}><Icon name="settings" size={14} /></summary>
             <div className="panel" style={{
               position: 'absolute', right: 0, bottom: 'calc(100% + 7px)', width: 290,
               padding: 10, display: 'flex', flexDirection: 'column', gap: 7,
@@ -2008,7 +2105,7 @@ export default function ChannelStudio({
                 * about it. [§9]
                 */}
               <div className="row">
-                <span className="grow" style={{ fontSize: 12, fontWeight: 600 }}>
+                <span className="grow" style={{ fontSize: 'var(--text-sm)', fontWeight: 600 }}>
                   Safe playlist
                 </span>
                 <button
@@ -2024,13 +2121,13 @@ export default function ChannelStudio({
                     }
                   }}
                   style={channel.backup
-                    ? { borderColor: 'var(--state-armed-dim)', color: 'var(--ink-on-armed)', fontSize: 11 }
-                    : { fontSize: 11 }}
+                    ? { borderColor: 'var(--state-armed-dim)', color: 'var(--ink-on-armed)', fontSize: 'var(--text-xs)' }
+                    : { fontSize: 'var(--text-xs)' }}
                 >
                   {channel.backup ? 'Clear' : 'Set from pick'}
                 </button>
               </div>
-              <p className="small muted" style={{ margin: 0, fontSize: 11 }}>
+              <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-xs)' }}>
                 {channel.backup
                   ? `A lost feed falls to “${nameOf(channel.backup)}” for a `
                     + 'minute, then back to the loop.'
@@ -2040,7 +2137,7 @@ export default function ChannelStudio({
               <div className="row" style={{
                 borderTop: '1px solid var(--line)', paddingTop: 7,
               }}>
-                <span className="grow" style={{ fontSize: 12, fontWeight: 600 }}>
+                <span className="grow" style={{ fontSize: 'var(--text-sm)', fontWeight: 600 }}>
                   Audience
                 </span>
                 <button
@@ -2072,16 +2169,16 @@ export default function ChannelStudio({
                     });
                   }}
                   style={published
-                    ? { borderColor: 'var(--state-armed-dim)', color: 'var(--ink-on-armed)', fontSize: 11 }
+                    ? { borderColor: 'var(--state-armed-dim)', color: 'var(--ink-on-armed)', fontSize: 'var(--text-xs)' }
                     : {
                       background: 'var(--accent-deep)', borderColor: 'var(--accent-deep)', color: 'var(--ink-000)',
-                      fontSize: 11,
+                      fontSize: 'var(--text-xs)',
                     }}
                 >
                   {published ? 'Take off air' : 'Publish'}
                 </button>
               </div>
-              <p className="small muted" style={{ margin: 0, fontSize: 11 }}>
+              <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-xs)' }}>
                 {/*
                   * SAID PLAINLY, because it is the one thing about publishing
                   * a channel that is not obvious: nothing is copied and
@@ -2100,17 +2197,17 @@ export default function ChannelStudio({
                     readOnly data-testid="public-link"
                     value={`${origin}/t/${id}/watch`}
                     onFocus={(event) => event.currentTarget.select()}
-                    style={{ fontSize: 11, padding: '5px 8px' }}
+                    style={{ fontSize: 'var(--text-xs)', padding: '5px 8px' }}
                   />
                 </div>
               )}
               <div className="row" style={{
-                borderTop: '1px solid var(--line)', paddingTop: 7, fontSize: 11,
+                borderTop: '1px solid var(--line)', paddingTop: 7, fontSize: 'var(--text-xs)',
               }}>
                 <span className="grow muted">Timezone</span>
                 <span className="mono">{channel.timezone}</span>
               </div>
-              <div className="row" style={{ fontSize: 11 }}>
+              <div className="row" style={{ fontSize: 'var(--text-xs)' }}>
                 <span className="grow muted">Referenced files</span>
                 <span className="mono">{assets}</span>
               </div>
@@ -2120,7 +2217,7 @@ export default function ChannelStudio({
 
         {(violations.length > 0 || error || health?.says) && (
           <p className="small" data-testid="violations" style={{
-            gridColumn: '1 / -1', margin: '4px 0 0', fontSize: 11,
+            gridColumn: '1 / -1', margin: '4px 0 0', fontSize: 'var(--text-xs)',
             color: error || health?.engine !== 'running'
               ? 'var(--bad)' : 'var(--warn)',
           }}>
@@ -2154,18 +2251,42 @@ export default function ChannelStudio({
  * ======================================================================== */
 
 /** A panel with a head and a body, which is every box in the benchmark. */
+/**
+ * A MODULE OF ONE CONSOLE, not a card on a page.  [console.css]
+ *
+ * WHAT CHANGED AND WHY IT IS ONE COMPONENT. Every container in this room
+ * — Program Output, Preview, Multi-view, Live Studio, the schedule, the
+ * rail — is a `Frame`. That is the whole reason the room can be
+ * re-faced without moving anything: one component is the face of all of
+ * them, and nothing about where they sit or what they hold is touched.
+ *
+ * Three things go and one arrives:
+ *
+ *   THE 10px RADIUS GOES TO 4. Eight soft rectangles in a grid is the
+ *     strongest "web app" signal an interface can emit, and it was
+ *     emitting it eight times.
+ *   THE DROP SHADOW GOES. `--elev-1` says "floating above the page",
+ *     which is what a card does and not what a module does. A module is
+ *     machined into the desk.
+ *   THE FACE DROPS to `--console-face`, a fiftieth of a stop above the
+ *     chassis instead of a clear step above it.
+ *   A ONE-PIXEL BEVEL ARRIVES along the top edge, which is how a
+ *     physical panel catches a room light and the only depth cue that
+ *     works on a near-black surface.
+ *
+ * `is-well` is for the containers that hold a picture. A programme sits
+ * BELOW the surface of the desk, and true black belongs in exactly one
+ * place: inside the frame.
+ */
 function Frame({
-  testid, children,
-}: { testid: string; children: React.ReactNode }) {
+  testid, children, well,
+}: { testid: string; children: React.ReactNode; well?: boolean }) {
   return (
-    <section data-testid={testid} style={{
-      display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0,
-      height: '100%', borderRadius: 'var(--radius-lg)',
-      border: 'var(--border) solid var(--line)',
-      background: 'var(--surface-raised)', overflow: 'hidden',
-      /* The light edge that makes a panel sit on the room. [elevation] */
-      boxShadow: 'var(--elev-1)',
-    }}>
+    <section
+      data-testid={testid}
+      className={`module${well ? ' is-well' : ''}`}
+      style={{ minWidth: 0, height: '100%', overflow: 'hidden' }}
+    >
       {children}
     </section>
   );
@@ -2183,29 +2304,32 @@ function Head({
       * separates from a shelf — and then the eye finds the six panel
       * titles in this room without reading any of them.
       */
-    <div className="row" style={{
-      gap: 'var(--space-3)', padding: 'var(--space-3) var(--space-5)',
-      borderBottom: 'var(--border) solid var(--line)',
-      background: 'linear-gradient(180deg,'
-        + ' rgba(255,255,255,0.022), rgba(255,255,255,0))',
-      minHeight: 34, flexWrap: 'nowrap', flex: '0 0 auto',
+    <div className="row module-head" style={{
+      flexWrap: 'nowrap', minWidth: 0,
     }}>
-      <strong style={{
-        fontSize: 'var(--text-base)', minWidth: 0, overflow: 'hidden',
-        textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        fontWeight: 'var(--weight-semi)',
-        letterSpacing: 'var(--tracking-tight)',
-      }}>{text}</strong>
+      {/*
+        * THE LABEL IS TECHNICAL METADATA, NOT A HEADING. "Program
+        * Output" set as a 13px semibold sentence is a section title in
+        * a document — it competes with the one thing in the module that
+        * should be bright, which is the state. The same words at 10px,
+        * uppercase, tracked out and dim are a legend on a piece of
+        * equipment: read once, then ignored, which is what a panel
+        * label is for.
+        *
+        * The shelf goes with it. A head with its own lighter ground was
+        * a lid on a box, and a console has no boxes — a hairline under
+        * the legend is the whole separation a module needs.
+        */}
+      <span className="module-label" style={{
+        minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis',
+      }}>{text}</span>
       {sub && (
         /*
           * The qualifier is a whisper, not a second title: it answers
           * "which one" for somebody already looking, and competing with
           * the name would make every head two things to read.
           */
-        <span style={{
-          fontSize: 'var(--text-xs)', flex: '0 0 auto', whiteSpace: 'nowrap',
-          color: 'var(--text-faint)', fontWeight: 'var(--weight-normal)',
-        }}>{sub}</span>
+        <span className="module-sub" style={{ flex: '0 0 auto' }}>{sub}</span>
       )}
       <span className="grow" />
       {right}
@@ -2242,14 +2366,51 @@ function Strip({
       * as colour. [elevation, D-04]
       */
     <div className="row" data-testid={testid} style={{
-      gap: 0, flexWrap: 'nowrap', flex: '0 0 auto',
+      /*
+       * THE STRIP ITSELF HAS TO BE ABLE TO SHRINK. Commit 11 made the
+       * five desk labels shrink and they still clipped, because the
+       * container they are in was `flex: 0 0 auto` — it takes its
+       * content width and overflows its panel, so no amount of
+       * shrinking inside it changes anything. Fixing the children of a
+       * box that cannot itself give way is the ordinary way to spend
+       * two attempts on one bug.
+       *
+       * Neither variant may STRETCH: the compact one is a segmented
+       * control that must not spread itself across a header, and the
+       * wide one heads a panel it already spans.
+       *
+       * AND `flex: 1 1 auto` WAS THE WRONG WAY TO SAY IT. `flex` acts
+       * on its parent's MAIN axis, and this strip has two parents: the
+       * desk's header, which is a row, and the left rail's `Frame`,
+       * which is a column. In the row it did what commit 11 wanted; in
+       * the column `flex-grow: 1` made the tab strip eat every pixel
+       * of vertical slack in the rail — a 220px-tall tab strip with
+       * the playlist crushed into the bottom half of the panel, which
+       * is what that empty upper half in the control room was.
+       *
+       * THE COMPACT ONE HAD THE SAME BUG FOR THE SAME REASON. It was
+       * `flex: 0 0 auto` so that it would not stretch, which also
+       * meant it could not give way — and the Live Studio's desk strip
+       * is the compact variant with FIVE labels in a 328px column, so
+       * it overflowed by seventeen pixels and clipped AUDIO to "AUDI".
+       * That is the third time this exact clip has been fixed, twice
+       * on the wrong element: 05 widened the labels, 11 shrank them
+       * inside a box that could not shrink, and 21 fixed the wide
+       * variant while the desk strip was quietly the compact one.
+       *
+       * Both variants now say the same three things. Growing and
+       * shrinking are two properties; the shorthand sets both, and
+       * only one of them was ever wanted.
+       */
+      gap: 0, flexWrap: 'nowrap',
+      flexGrow: 0, flexShrink: 1, flexBasis: 'auto', minWidth: 0,
       borderBottom: compact ? 0 : 'var(--border) solid var(--line)',
       ...(compact
         ? {
-          border: 'var(--border) solid var(--line)',
-          borderRadius: 'var(--radius-md)', padding: 2,
-          background: 'var(--surface-sunk)',
-          boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.4)',
+          border: 'var(--border) solid var(--console-seam)',
+          borderRadius: '3px', padding: 2,
+          background: 'var(--console-inset)',
+          boxShadow: 'var(--console-well)',
         }
         : {}),
     }}>
@@ -2262,32 +2423,71 @@ function Strip({
             aria-pressed={chosen}
             onClick={() => onChange(option.id)}
             style={{
-              flex: compact ? '0 0 auto' : '1 1 0',
+              /*
+                * A SEGMENT SHRINKS ONLY WHEN IT HAS TO. `0 1 auto`
+                * keeps the compact control's segments at their label
+                * width while there is room — which is what a segmented
+                * control should look like — and lets them ellipsise
+                * rather than clip when there is not.
+                */
+              flex: compact ? '0 1 auto' : '1 1 0',
+              /*
+               * THEY HAVE TO FIT. Uppercasing and tracking these out in
+               * 05 widened the five Live Studio desks past their panel
+               * and clipped AUDIO to "AUDI" — a legend that does not
+               * fit is worse than the sentence case it replaced. They
+               * shrink now, and the tracking is lighter on the wide
+               * variant, which has five labels to seat rather than
+               * three.
+               */
+              minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              /*
+                * THE PADDING FOLLOWS THE COUNT, not the variant. A
+                * five-up compact strip in a 330px column has 64px a
+                * segment; eight of those pixels were air at each end.
+                */
               padding: compact
-                ? 'var(--space-2) var(--space-4)'
-                : 'var(--space-4) var(--space-2)',
+                ? `var(--space-2) ${options.length > 3
+                  ? 'var(--space-3)' : 'var(--space-4)'}`
+                : 'var(--space-4) var(--space-1)',
               minHeight: compact ? 24 : 32,
               font: 'inherit',
-              fontSize: compact ? 'var(--text-xs)' : 'var(--text-sm)',
-              fontWeight: chosen ? 'var(--weight-bold)' : 'var(--weight-medium)',
+              /*
+               * A TAB IS A LEGEND, NOT A LABEL. These name the five
+               * desks in the Live Studio and the three views of the
+               * schedule; they are signage, read by shape and position,
+               * and they were set as sentence-case UI text competing
+               * with everything else on the panel.
+               */
+              fontSize: 'var(--text-2xs)',
+              /*
+                * AND SO DOES THE TRACKING. The wide variant already
+                * tracked lighter "because it has five labels to seat
+                * rather than three" — the right reason attached to the
+                * wrong property. The Live Studio's compact strip has
+                * five labels too, and at 0.08em they did not fit.
+                */
+              letterSpacing: options.length > 3 ? '0.04em' : '0.08em',
+              textTransform: 'uppercase',
+              fontWeight: chosen ? 'var(--weight-bold)' : 'var(--weight-semi)',
               cursor: 'pointer',
-              color: chosen
-                ? (compact ? 'var(--ink-000)' : '#7fb4ee')
-                : 'var(--text-faint)',
-              background: compact
-                ? (chosen
-                  ? 'linear-gradient(180deg, var(--accent), var(--accent-deep))'
-                  : 'transparent')
-                : 'none',
+              /*
+               * THE CHOSEN SEGMENT WAS A FILLED BLUE CHIP with a
+               * gradient and a raise — the exact "bright SaaS button"
+               * the brief rules out for a selected state. On a desk a
+               * chosen segment is a LIT one: it comes forward by a
+               * couple of per cent of lightness and keeps a hard edge
+               * underneath it. The blue is in the edge, not the fill.
+               */
+              color: chosen ? 'var(--ink-000)' : 'var(--ink-300)',
+              background: compact && chosen
+                ? 'var(--console-control-hover)' : 'transparent',
               border: 0,
-              borderRadius: compact ? 'var(--radius-sm)' : 0,
-              borderBottom: compact
-                ? 0
-                : `2px solid ${chosen ? 'var(--accent)' : 'transparent'}`,
-              /* The raise: only the chosen segment leaves the track. */
-              boxShadow: compact && chosen
-                ? 'inset 0 1px 0 rgba(255,255,255,0.18), 0 1px 2px rgba(0,0,0,0.4)'
-                : 'none',
+              borderRadius: compact ? '2px' : 0,
+              borderBottom: `2px solid ${chosen
+                ? 'var(--accent)' : 'transparent'}`,
+              boxShadow: compact && chosen ? 'var(--console-bevel)' : 'none',
               transition: 'color var(--motion-fast) var(--ease-out),'
                 + ' background-color var(--motion-fast) var(--ease-out),'
                 + ' border-color var(--motion-fast) var(--ease-out)',
@@ -2369,11 +2569,13 @@ function Meter({ value, label }: { value: number; label: string }) {
         * using. Unlit segments now sit just above the ground they are
         * on: present, dark, and clearly a scale.
         *
-        * The lit ones gain a glow in their own colour. A segment that
-        * is merely filled reads as a coloured rectangle; one that is
-        * lit reads as a signal, and this is the only place in the room
-        * where a number is being read as a continuous quantity rather
-        * than as a figure. [CHANNEL §9]
+        * AND THE LIT ONES DO NOT GLOW. Each had a 4px bloom in its own
+        * colour, which on eight segments three pixels wide is eight
+        * overlapping halos — the meter reads as a smear of colour
+        * rather than as a count of lit segments, and counting the
+        * segments is the entire job. A meter is the one instrument on
+        * a desk that must be read at a glance and precisely at the
+        * same time. Flat, hard-edged, on a dark scale. [brief §9, §18]
         */}
       {Array.from({ length: 8 }, (_unused, index) => {
         const colour = index > 6 ? 'var(--state-live)'
@@ -2383,8 +2585,6 @@ function Meter({ value, label }: { value: number; label: string }) {
           <span key={index} aria-hidden="true" style={{
             width: 3, height: 5 + index * 1.6, borderRadius: 1,
             background: on ? colour : 'rgba(255,255,255,0.09)',
-            boxShadow: on ? `0 0 4px ${index > 6 ? 'rgba(226,59,46,0.7)'
-              : index > 4 ? 'rgba(215,154,43,0.6)' : 'rgba(79,157,99,0.5)'}` : 'none',
             transition: 'background-color 60ms linear',
           }} />
         );
@@ -2440,17 +2640,26 @@ function Row({
         * marker on its leading edge, because it is no longer one of the
         * list: it is the one you picked.
         */
+      /*
+        * A LIST, NOT A STACK OF CARDS. Rows sat on their own tinted
+        * surface, each with a radius, a border and two pixels of gap —
+        * which is a column of small cards. A playlist is a LIST: the
+        * rows share a face and are separated by one hairline, so twenty
+        * of them read as one object with twenty entries rather than as
+        * twenty objects.
+        *
+        * The chosen one is the exception and is marked on its leading
+        * edge rather than outlined and tinted. An outline in a column
+        * of outlines has to be found by comparison; a bar on the
+        * leading edge is found without. [D-04, U-19, brief §4]
+        */
       style={{
         display: 'flex', gap: 'var(--space-3)', alignItems: 'center',
         padding: 'var(--space-3)',
-        borderRadius: chosen ? 'var(--radius-md)' : 'var(--radius-sm)',
-        marginBottom: 2,
-        background: chosen ? 'rgba(63,142,232,0.14)' : 'var(--surface-float)',
-        border: `1px solid ${chosen ? 'var(--accent)' : 'transparent'}`,
-        borderBottom: chosen
-          ? '1px solid #3f8ee8'
-          : '1px solid var(--ink-700)',
-        boxShadow: chosen ? 'inset 3px 0 0 #3f8ee8' : 'none',
+        background: chosen ? 'var(--console-control)' : 'transparent',
+        borderBottom: '1px solid var(--console-rule)',
+        boxShadow: chosen
+          ? 'inset 2px 0 0 var(--accent), var(--console-bevel)' : 'none',
         transition: 'background-color var(--motion-fast) var(--ease-out)',
       }}
     >
@@ -2460,10 +2669,15 @@ function Row({
         * faintest tone the ramp offers — present when counted, silent
         * when scanned.
         */}
-      <span className="mono" style={{
-        flex: '0 0 auto', width: 14, fontSize: 'var(--text-2xs)',
+      {/*
+        * TWO DIGITS, LIKE EVERY OTHER ORDINAL IN THIS ROOM. A "9" above
+        * a "10" is a ragged left edge on a column whose only job is to
+        * be counted down.
+        */}
+      <span className="mono readout" style={{
+        flex: '0 0 auto', width: 16, fontSize: 'var(--text-2xs)',
         textAlign: 'right', color: 'var(--ink-400)',
-      }}>{index}</span>
+      }}>{String(index).padStart(2, '0')}</span>
       <button
         type="button" onClick={onClick}
         style={{
@@ -2574,11 +2788,12 @@ function PlaylistRail({
             badge={playing ? (
               <span style={{
                 flex: '0 0 auto', padding: '1px 5px', borderRadius: 3,
-                background: 'var(--state-live-dim)', color: 'var(--ink-000)', fontSize: 8,
+                background: 'var(--state-live-dim)', color: 'var(--ink-000)', fontSize: 'var(--text-2xs)',
                 fontWeight: 800, letterSpacing: 0.5,
               }}>LIVE</span>
             ) : entry.loop ? (
-              <span className="muted" style={{ fontSize: 9 }}>&#8635;</span>
+              <span className="muted" style={{ lineHeight: 0 }}
+                    title="Plays round for ever"><Icon name="loop" size={11} /></span>
             ) : undefined}
             about={title}
             items={() => [
@@ -2603,7 +2818,7 @@ function PlaylistRail({
           />
         );
       })}
-      <p className="small muted" style={{ margin: '6px 2px 0', fontSize: 10 }}>
+      <p className="small muted" style={{ margin: '6px 2px 0', fontSize: 'var(--text-2xs)' }}>
         {/* The one sentence D-18 is about, next to the thing it is about. */}
         The loop plays round for ever. Scheduling something twice adds no file.
       </p>
@@ -2626,7 +2841,7 @@ function LibraryRail({
 }) {
   if (items.length === 0) {
     return (
-      <p className="small muted" style={{ margin: 0, fontSize: 11 }}>
+      <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-xs)' }}>
         Nothing finished yet. Make a video in Studio One or Studio Two and it
         appears here — as a reference, never as a copy.
       </p>
@@ -2714,12 +2929,12 @@ function SchedulesRail({
             badge={broken ? (
               <span style={{
                 flex: '0 0 auto', padding: '1px 5px', borderRadius: 3,
-                background: 'var(--state-live-dim)', color: 'var(--ink-000)', fontSize: 8, fontWeight: 800,
+                background: 'var(--state-live-dim)', color: 'var(--ink-000)', fontSize: 'var(--text-2xs)', fontWeight: 800,
               }}>NO FILE</span>
             ) : liveId === entry.id ? (
               <span style={{
                 flex: '0 0 auto', padding: '1px 5px', borderRadius: 3,
-                background: 'var(--state-live-dim)', color: 'var(--ink-000)', fontSize: 8, fontWeight: 800,
+                background: 'var(--state-live-dim)', color: 'var(--ink-000)', fontSize: 'var(--text-2xs)', fontWeight: 800,
               }}>LIVE</span>
             ) : undefined}
             about={title}
@@ -2742,20 +2957,20 @@ function SchedulesRail({
         aside={(
           <button className="small" data-testid="add-block" onClick={onAddBlock}
                   style={{
-                    border: 0, background: 'none', padding: 0, fontSize: 11,
+                    border: 0, background: 'none', padding: 0, fontSize: 'var(--text-xs)',
                     color: 'var(--accent-soft)', cursor: 'pointer',
                   }}>+ Add</button>
         )}
       />
       {blocks.length === 0 ? (
-        <p className="small muted" style={{ margin: 0, fontSize: 11 }}>
+        <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-xs)' }}>
           None. The channel&rsquo;s own loop runs all day.
         </p>
       ) : blocks.map((block) => (
         <div key={block.id} className="row" data-testid="block-row"
              data-block-id={block.id}
              style={{
-               gap: 8, fontSize: 11, padding: '5px 7px', borderRadius: 6,
+               gap: 8, fontSize: 'var(--text-xs)', padding: '5px 7px', borderRadius: 6,
                marginBottom: 4, background: 'var(--panel-2)',
                border: '1px solid var(--line)',
              }}>
@@ -2766,7 +2981,7 @@ function SchedulesRail({
             minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
           }}>{block.name}</span>
-          <span className="muted" style={{ fontSize: 10 }}>
+          <span className="muted" style={{ fontSize: 'var(--text-2xs)' }}>
             {block.rotation.length} in its loop
           </span>
           <button type="button" data-testid="remove-block"
@@ -2829,10 +3044,33 @@ function MultiView({
 
   const rolledIn = Boolean(channel.live?.segment);
 
+  /*
+   * WHAT IS ACTUALLY GOING OUT, which is not what `live` meant.
+   *
+   * `live` was doing three jobs on this grid: "the camera is on air"
+   * (tile 1), "something is scheduled" (tile 5) and "a bug is
+   * configured" (tile 6). With a blue outline that was merely vague.
+   * With the program tally 03 gave it, it became a lie — three sources
+   * claiming the air at once, in a panel whose own header said "1 in
+   * mix".
+   *
+   * `whatIsOn` already knows the answer and is the same function the
+   * playout engine uses, so the tally cannot disagree with the
+   * transmitter. Exactly one of the first two can be true at a time.
+   */
+  const transmitting = on.kind !== 'off';
+  const roomOnProgram = on.kind === 'live';
+  const playerOnProgram = on.kind === 'programme' || on.kind === 'rotation'
+    || on.kind === 'emergency' || on.kind === 'backup';
+
   const tiles: {
     n: number; label: string; sub: string; live: boolean;
+    /** Lit, but not on program: an overlay that is keyed over it. */
+    on?: boolean;
     stream?: MediaStream | null; source?: ProgrammeSource; href?: string;
-    glyph?: string;
+    /* A drawn mark, not a character — see Icon.tsx. The em dash
+       fallback is text, which is why this is a node. */
+    glyph?: React.ReactNode;
     /** What clicking it does, and what to say when it cannot. */
     act?: () => void; why?: string;
   }[] = [
@@ -2844,7 +3082,8 @@ function MultiView({
      * not a gallery button's.
      */
     {
-      n: 1, label: 'Camera 1', sub: 'Host', live: onAir && Boolean(camera),
+      n: 1, label: 'Camera 1', sub: 'Host',
+      live: roomOnProgram && Boolean(camera),
       stream: camera,
       ...(rolledIn ? { act: onBackToRoom } : {}),
       why: onAir
@@ -2885,7 +3124,7 @@ function MultiView({
     },
     {
       n: 5, label: 'Media Player', sub: scheduled ? nameOf(scheduled) : 'Idle',
-      live: Boolean(scheduled),
+      live: playerOnProgram && Boolean(scheduled),
       ...(scheduled ? { source: scheduled } : {}),
       ...(onAir && scheduled ? { act: () => onTake(scheduled) } : {}),
       why: scheduled
@@ -2896,8 +3135,17 @@ function MultiView({
     {
       n: 6, label: 'Graphics',
       sub: channel.identity?.bug?.text ?? channel.name,
-      live: Boolean(channel.identity?.bug || channel.identity?.lowerThird),
-      glyph: '◰',
+      /*
+       * AN OVERLAY IS NOT A SOURCE ON PROGRAM. Graphics is drawn OVER
+       * whatever is going out; it never has the air to itself. Giving
+       * it the program tally put two red bars in a grid whose whole
+       * job is to say which single thing is on — so it says ON,
+       * quietly, which is what a keyer's indicator says.
+       */
+      on: transmitting
+        && Boolean(channel.identity?.bug || channel.identity?.lowerThird),
+      live: false,
+      glyph: <Icon name="graphics" size={15} />,
       act: onGraphics,
       why: 'Open the identity controls',
     },
@@ -2925,11 +3173,18 @@ function MultiView({
             * edge is what makes six of them read as one instrument
             * instead of six floating rectangles. [elevation]
             *
-            * THE LIVE ONE IS NOT JUST OUTLINED. An outline in a grid of
-            * outlines is found by comparison — the eye has to check all
-            * six. A tinted halo around it is found without comparison,
-            * which is the difference between reading a rack and glancing
-            * at one.
+            * THE LIVE ONE WEARS A TALLY. It had a tinted halo — a 2px
+            * blue glow spreading outside the tile — which finds the eye
+            * but is the wrong object: a halo is a web affordance, and a
+            * switcher has never had one. A rack tells you what is on air
+            * with a TALLY: a hard bar along the top edge of the monitor,
+            * in the colour of the bus it is on. It is found just as
+            * fast, it costs no pixels outside the tile, and it is what
+            * the equipment this is imitating actually does.
+            *
+            * Red for program, blue for preview, because those are the
+            * two buses and an operator already knows which is which.
+            * [brief §6 — "a restrained blue/white active edge"]
             */
           style={{
             position: 'relative', minHeight: 44,
@@ -2942,12 +3197,17 @@ function MultiView({
              * greyed: an operator watching six sources needs to see the one
              * they cannot cut to as much as the ones they can.
              */
-            opacity: tile.act || tile.live ? 1 : 0.72,
-            border: `1px solid ${tile.live ? 'var(--accent)' : 'var(--ink-600)'}`,
+            opacity: tile.act || tile.live ? 1 : 0.7,
+            border: `1px solid ${tile.live
+              ? 'rgba(226,59,46,0.55)'
+              : tile.on ? 'rgba(63,142,232,0.45)' : 'var(--console-seam)'}`,
             boxShadow: tile.live
-              ? '0 0 0 2px rgba(79,138,214,0.3), 0 2px 8px rgba(0,0,0,0.5),'
-                + ' inset 0 0 0 1px rgba(255,255,255,0.06)'
-              : 'inset 0 1px 3px rgba(0,0,0,0.6)',
+              ? 'inset 0 3px 0 0 var(--state-live),'
+                + ' inset 0 0 0 1px rgba(226,59,46,0.16)'
+              : tile.on
+                ? 'inset 0 2px 0 0 var(--accent),'
+                  + ' inset 0 1px 3px rgba(0,0,0,0.6)'
+                : 'inset 0 1px 3px rgba(0,0,0,0.6)',
             transition: 'box-shadow var(--motion-fast) var(--ease-out),'
               + ' border-color var(--motion-fast) var(--ease-out),'
               + ' opacity var(--motion-fast) var(--ease-out)',
@@ -2968,7 +3228,7 @@ function MultiView({
           ) : (
             <span aria-hidden="true" className="muted" style={{
               position: 'absolute', inset: 0, display: 'grid',
-              placeItems: 'center', fontSize: 16, opacity: 0.4,
+              placeItems: 'center', fontSize: 'var(--text-md)', opacity: 0.4,
             }}>{tile.glyph ?? '—'}</span>
           )}
           {/*
@@ -2977,15 +3237,26 @@ function MultiView({
             * the picture: a number over moving video is unreadable for
             * whichever frames happen to be pale behind it.
             */}
-          <span className="mono" style={{
-            position: 'absolute', left: 4, top: 4,
-            padding: '1px 5px', borderRadius: 'var(--radius-xs)',
+          {/*
+            * ZERO-PADDED, because inputs on a switcher are 01..24 and a
+            * bare "1" beside a "12" is a different width and a different
+            * object. It sits below the tally bar rather than over it.
+            */}
+          <span className="mono readout" style={{
+            position: 'absolute', left: 0, top: tile.live ? 3 : 0,
+            padding: '2px 5px 2px 4px',
+            borderBottomRightRadius: 'var(--radius-xs)',
+            /* The same plate alpha as every other OSD in the product.
+               This was 0.78 — a fourth private near-black, arrived at
+               by eye on this one tile. No hairline, because a plate
+               seated into a corner has only two edges to draw and a
+               border on those two reads as a torn label. */
             background: 'rgba(0,0,0,0.72)',
-            border: '1px solid rgba(255,255,255,0.1)',
-            fontSize: 'var(--text-2xs)', lineHeight: 1.3,
+            fontSize: 'var(--text-2xs)', lineHeight: 1.25,
             fontWeight: 'var(--weight-bold)',
-            color: tile.live ? '#9cc6f5' : 'var(--ink-100)',
-          }}>{tile.n}</span>
+            letterSpacing: '0.04em',
+            color: tile.live ? '#ff9c91' : 'var(--ink-200)',
+          }}>{String(tile.n).padStart(2, '0')}</span>
           {/*
             * THE NAME PLATE. A single-stop gradient leaves a visible seam
             * where it starts; three stops with an eased middle is what
@@ -3004,10 +3275,33 @@ function MultiView({
               overflow: 'hidden', textOverflow: 'ellipsis',
               whiteSpace: 'nowrap', color: 'var(--ink-000)',
             }}>{tile.label}</span>
-            <span style={{
-              display: 'block', overflow: 'hidden', textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap', color: 'rgba(255,255,255,0.62)',
-            }}>{tile.sub}</span>
+            <span className="row" style={{
+              gap: 5, flexWrap: 'nowrap', minWidth: 0,
+            }}>
+              <span className="grow" style={{
+                minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap', color: 'rgba(255,255,255,0.62)',
+              }}>{tile.sub}</span>
+              {/*
+                * STATUS, IN A WORD, on every input. The brief asks each
+                * source to say availability as well as identity, and a
+                * tile that says only its name leaves "can I cut to this"
+                * to be discovered by clicking. LIVE / READY / — is the
+                * whole vocabulary, and it survives greyscale because it
+                * is a word. [brief §8, U-19]
+                */}
+              <span style={{
+                flex: '0 0 auto', fontSize: 'var(--text-2xs)',
+                fontWeight: 'var(--weight-bold)', letterSpacing: '0.08em',
+                color: tile.live ? '#ff9c91'
+                  : tile.on ? 'rgba(146, 194, 240, 0.95)'
+                    : tile.act ? 'rgba(146, 214, 166, 0.92)'
+                      : 'rgba(255,255,255,0.35)',
+              }}>
+                {tile.live ? 'LIVE' : tile.on ? 'ON'
+                  : tile.act ? 'READY' : '\u2014'}
+              </span>
+            </span>
           </span>
         </button>
       ))}
@@ -3066,8 +3360,8 @@ function Timeline({
       }}>
         <span style={{
           display: 'block', fontSize: 'var(--text-2xs)',
-          fontWeight: 'var(--weight-semi)', color: 'var(--text-faint)',
-          letterSpacing: '0.02em',
+          fontWeight: 'var(--weight-bold)', color: 'var(--ink-300)',
+          letterSpacing: '0.1em', textTransform: 'uppercase',
         }}>{name}</span>
         {note && (
           <span style={{
@@ -3098,14 +3392,40 @@ function Timeline({
       {/* ---- the ruler ------------------------------------------------ */}
       <div className="row" style={{ alignItems: 'stretch' }}>
         <span style={{ flex: '0 0 auto', width: 96 }} />
-        <div style={{ position: 'relative', flex: 1, minWidth: 0, height: 18 }}>
+        {/*
+          * A RULE IS A RULE, NOT A ROW OF NUMBERS.
+          *
+          * The time scale was five clock readings floating in eighteen
+          * pixels of air, and a reading with nothing under it does not
+          * say WHERE it is — the eye has to drop a plumb line by guess
+          * to find which pixel 00:30 actually means. Every measuring
+          * instrument ever made solves this the same way: the number
+          * sits above a mark, and the mark touches the thing being
+          * measured.
+          *
+          * So each label now has a tick descending to the first lane,
+          * and a baseline runs the width. Nothing else changes — same
+          * step, same labels, same positions. [brief §11]
+          */}
+        <div style={{
+          position: 'relative', flex: 1, minWidth: 0, height: 20,
+          borderBottom: 'var(--border) solid var(--console-edge)',
+        }}>
           {Array.from({ length: ticks + 1 }, (_unused, index) => {
             const at = windowFrom + index * STEP_MS;
             return (
-              <span key={index} className="muted mono" style={{
-                position: 'absolute', top: 0, left: across(at), fontSize: 9,
-                transform: index === 0 ? 'none' : 'translateX(-50%)',
-              }}>{clock(at)}</span>
+              <span key={index}>
+                <span className="mono readout" style={{
+                  position: 'absolute', top: 1, left: across(at),
+                  fontSize: 'var(--text-2xs)', color: 'var(--ink-300)',
+                  letterSpacing: '0.04em',
+                  transform: index === 0 ? 'none' : 'translateX(-50%)',
+                }}>{clock(at)}</span>
+                <span aria-hidden="true" style={{
+                  position: 'absolute', bottom: 0, left: across(at),
+                  width: 1, height: 5, background: 'var(--console-edge)',
+                }} />
+              </span>
             );
           })}
         </div>
@@ -3135,8 +3455,18 @@ function Timeline({
                   position: 'absolute', top: 4, bottom: 4,
                   left: across(segment.fromMs),
                   width: `calc(${across(segment.toMs)} - ${across(segment.fromMs)})`,
-                  minWidth: 3, padding: '3px 5px', borderRadius: 5,
-                  textAlign: 'left', font: 'inherit', fontSize: 10,
+                  /*
+                   * A PROGRAMME BLOCK IS A CLIP IN A TRACK, and a clip
+                   * has square ends. The 5px radius rounded both ends of
+                   * every block, which puts four pixels of empty track
+                   * either side of a thing whose whole meaning is
+                   * "occupies exactly this span" — and where two
+                   * programmes butt up against each other it drew a gap
+                   * that is not there. 2px, which is a cut edge rather
+                   * than a pill. [brief §11]
+                   */
+                  minWidth: 3, padding: '3px 5px', borderRadius: 2,
+                  textAlign: 'left', font: 'inherit', fontSize: 'var(--text-2xs)',
                   color: 'inherit', cursor: id ? 'pointer' : 'default',
                   overflow: 'hidden',
                   /*
@@ -3148,17 +3478,34 @@ function Timeline({
                     : segment.on.kind === 'live' ? 'rgba(192,57,43,0.32)'
                       : segment.on.kind === 'emergency'
                         || segment.on.kind === 'backup' ? 'rgba(201,154,46,0.26)'
-                        : segment.on.kind === 'programme' ? 'rgba(45,110,200,0.34)'
-                          : 'rgba(45,110,200,0.15)',
-                  border: `1px solid ${broken ? 'var(--state-live-dim)'
-                    : isChosen || holds ? 'var(--accent-soft)' : 'var(--line)'}`,
+                        : segment.on.kind === 'programme' ? 'rgba(45,110,200,0.26)'
+                          : 'rgba(45,110,200,0.12)',
+                  /*
+                   * THE ONE ON AIR IS LIT ALONG ITS TOP EDGE, the same
+                   * tally the multi-view learned in 03. It was outlined
+                   * in the same accent as the chosen one, so "what is
+                   * going out right now" and "what I clicked" were the
+                   * same mark on a lane of forty blocks.
+                   */
+                  borderTop: holds
+                    ? '2px solid var(--state-live)'
+                    : `1px solid ${broken ? 'var(--state-live-dim)'
+                      : isChosen ? 'var(--accent-soft)' : 'var(--console-edge)'}`,
+                  borderRight: `1px solid ${broken ? 'var(--state-live-dim)'
+                    : isChosen ? 'var(--accent-soft)' : 'var(--console-edge)'}`,
+                  borderBottom: `1px solid ${broken ? 'var(--state-live-dim)'
+                    : isChosen ? 'var(--accent-soft)' : 'var(--console-edge)'}`,
+                  borderLeft: `1px solid ${broken ? 'var(--state-live-dim)'
+                    : isChosen ? 'var(--accent-soft)' : 'var(--console-edge)'}`,
+                  boxShadow: isChosen
+                    ? 'inset 0 0 0 1px rgba(127,180,238,0.35)' : 'none',
                 }}
               >
                 <span style={{
                   display: 'block', overflow: 'hidden', textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap', fontWeight: 600,
                 }}>{segment.title}</span>
-                <span className="muted" style={{ fontSize: 9 }}>
+                <span className="muted" style={{ fontSize: 'var(--text-2xs)' }}>
                   {offsetLabel(segment.toMs - segment.fromMs)}
                   {broken ? ' · missing' : ''}
                 </span>
@@ -3215,7 +3562,7 @@ function Timeline({
               <div key={`g${segment.fromMs}`} data-testid="graphics-cell" style={{
                 position: 'absolute', top: 3, bottom: 3, left: across(segment.fromMs),
                 width: `calc(${across(toMs)} - ${across(segment.fromMs)})`,
-                minWidth: 3, borderRadius: 4, padding: '0 5px', fontSize: 9,
+                minWidth: 3, borderRadius: 4, padding: '0 5px', fontSize: 'var(--text-2xs)',
                 lineHeight: '24px', overflow: 'hidden', whiteSpace: 'nowrap',
                 textOverflow: 'ellipsis',
                 background: 'rgba(125,86,196,0.45)', border: '1px solid #8a6fd0',
@@ -3227,7 +3574,7 @@ function Timeline({
           })}
           {(!lowerThird || lowerThird.show === 'never') && (
             <span className="muted" style={{
-              position: 'absolute', left: 8, top: 5, fontSize: 9,
+              position: 'absolute', left: 8, top: 5, fontSize: 'var(--text-2xs)',
             }}>No lower thirds — set them in Graphics</span>
           )}
         </Lane>
@@ -3237,7 +3584,7 @@ function Timeline({
           <div data-testid="audio-lane" style={{
             position: 'absolute', inset: '3px 0', borderRadius: 4,
             background: 'rgba(42,140,140,0.20)', border: '1px solid #2f7f7f',
-            padding: '0 6px', fontSize: 9, lineHeight: '19px', color: '#8fd2d2',
+            padding: '0 6px', fontSize: 'var(--text-2xs)', lineHeight: '19px', color: '#8fd2d2',
             overflow: 'hidden', whiteSpace: 'nowrap',
           }}>
             Master Audio (Program)
@@ -3257,21 +3604,54 @@ function Timeline({
             position: 'absolute', top: 0, bottom: 0, width: 2,
             left: `calc(96px + (100% - 96px) * `
               + `${(now - windowFrom) / (windowTo - windowFrom)})`,
+            /*
+             * THE GLOW GOES. It was an 8px bloom in the playhead's own
+             * hue, which on a lane of tinted blocks reads as the line
+             * being out of focus. A playhead is a hairline you trust to
+             * be exactly where it says — bloom is the opposite claim.
+             * 1px of solid red with a hard 1px dark edge either side is
+             * both thinner and easier to find, because the eye locks on
+             * to the edge contrast rather than the brightness.
+             */
             background: 'var(--state-live)', pointerEvents: 'none', zIndex: 5,
-            boxShadow: '0 0 8px rgba(226,59,46,0.65)',
+            boxShadow: '0 0 0 1px rgba(0,0,0,0.55)',
           }}>
-            <span className="mono" style={{
-              position: 'absolute', top: -20, left: -34,
-              padding: '1px var(--space-3)',
-              borderRadius: 'var(--radius-xs)',
-              background: 'linear-gradient(180deg, #e8483a, #c33327)',
+            {/*
+              * THE FLAG IS A FLAG, not a pill. Square-cornered, seated
+              * on the ruler, pointing at its own line — which is what a
+              * timecode marker looks like on every edit system, and
+              * what makes it read as attached to the playhead rather
+              * than floating near it.
+              *
+              * IT SAYS THE TIME AND NOTHING ELSE, for two reasons.
+              *
+              * The first is that it was LYING. It read "ON AIR 01:15",
+              * and the playhead is drawn whenever now falls inside the
+              * window — which it does at four in the morning on a
+              * channel that is off air. A red flag claiming ON AIR over
+              * a dead schedule is the third instance of this same bug
+              * in this pass, and the same answer applies: a marker
+              * reports where it is, and `whatIsOn` is the only thing
+              * that reports what is happening. [U-20]
+              *
+              * The second is that at ninety-four pixels it ran into the
+              * next ruler label and clipped it to ":30" — a fragment
+              * that reads as a different, wrong time. Occluding a
+              * number entirely is fine and every edit system does it;
+              * occluding two thirds of one is not. At forty pixels it
+              * clears a 145px label step, and a direct hit now covers a
+              * label rather than shaving it.
+              */}
+            <span className="mono readout" data-testid="playhead-flag" style={{
+              position: 'absolute', top: -19, left: -1,
+              padding: '2px 6px 2px 5px',
+              borderRadius: '0 2px 2px 0',
+              background: 'var(--state-live-dim)',
+              borderLeft: '2px solid var(--state-live)',
               color: 'var(--ink-000)', fontSize: 'var(--text-2xs)',
               fontWeight: 'var(--weight-bold)', whiteSpace: 'nowrap',
-              letterSpacing: '0.05em',
-              boxShadow: '0 1px 4px rgba(0,0,0,0.5),'
-                + ' inset 0 1px 0 rgba(255,255,255,0.2)',
-              fontVariantNumeric: 'tabular-nums',
-            }}>ON AIR {clock(now)}</span>
+              letterSpacing: '0.07em',
+            }}>{clock(now)}</span>
           </div>
         )}
       </div>
@@ -3297,7 +3677,7 @@ function ListView({
           <div key={segment.fromMs} className="row" data-testid="list-row"
                data-playing={holds ? 'true' : 'false'}
                style={{
-                 gap: 10, padding: '6px 8px', borderRadius: 6, fontSize: 12,
+                 gap: 10, padding: '6px 8px', borderRadius: 6, fontSize: 'var(--text-sm)',
                  background: holds ? 'rgba(45,110,200,0.16)' : 'transparent',
                  borderBottom: '1px solid var(--line)',
                }}>
@@ -3308,20 +3688,20 @@ function ListView({
               flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis',
               whiteSpace: 'nowrap', fontWeight: holds ? 700 : 500,
             }}>{segment.title}</span>
-            <span className="muted" style={{ flex: '0 0 auto', fontSize: 10 }}>
+            <span className="muted" style={{ flex: '0 0 auto', fontSize: 'var(--text-2xs)' }}>
               {segment.on.kind === 'off' ? 'off air'
                 : segment.on.kind === 'rotation'
                   ? (segment.on.blockName ?? 'the loop')
                   : segment.on.kind}
             </span>
-            <span className="mono muted" style={{ flex: '0 0 auto', fontSize: 10 }}>
+            <span className="mono muted" style={{ flex: '0 0 auto', fontSize: 'var(--text-2xs)' }}>
               {offsetLabel(segment.toMs - segment.fromMs)}
             </span>
           </div>
         );
       })}
       {channel.backup && (
-        <p className="small muted" style={{ margin: '8px 2px 0', fontSize: 10 }}>
+        <p className="small muted" style={{ margin: '8px 2px 0', fontSize: 'var(--text-2xs)' }}>
           If a live feed fails, &ldquo;{nameOf(channel.backup)}&rdquo; holds the
           air for a minute, then the loop resumes.
         </p>
@@ -3359,7 +3739,7 @@ function CalendarView({
         ))}
         {Array.from({ length: 5 }, (_unused, mark) => (
           <span key={mark} className="muted mono" style={{
-            position: 'absolute', top: 0, fontSize: 9,
+            position: 'absolute', top: 0, fontSize: 'var(--text-2xs)',
             left: `calc(${(mark * 6 / 24) * 100}% + 3px)`,
           }}>{String(mark * 6).padStart(2, '0')}:00</span>
         ))}
@@ -3367,7 +3747,7 @@ function CalendarView({
           <div key={block.id} data-testid="calendar-block" style={{
             position: 'absolute', top: 14, bottom: 2,
             left: `${(block.fromMinute / (24 * 60)) * 100}%`,
-            padding: '0 6px', borderRadius: 4, fontSize: 9, lineHeight: '14px',
+            padding: '0 6px', borderRadius: 4, fontSize: 'var(--text-2xs)', lineHeight: '14px',
             whiteSpace: 'nowrap',
             background: block.id === holding
               ? 'rgba(45,110,200,0.38)' : 'rgba(45,110,200,0.16)',
@@ -3377,7 +3757,7 @@ function CalendarView({
       </div>
 
       {blocks.length === 0 && (
-        <p className="small muted" style={{ margin: 0, fontSize: 11 }}>
+        <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-xs)' }}>
           No day-parts. Add one in Schedules and the channel gets a morning
           that is different from its evening.
         </p>
@@ -3387,35 +3767,35 @@ function CalendarView({
         <div key={block.id} className="panel" data-testid="calendar-row"
              data-block-id={block.id} style={{ padding: 9 }}>
           <div className="row" style={{ gap: 8 }}>
-            <span className="mono muted" style={{ fontSize: 11 }}>
+            <span className="mono muted" style={{ fontSize: 'var(--text-xs)' }}>
               {atMinute(block.fromMinute)}
             </span>
-            <strong className="grow" style={{ fontSize: 12 }}>{block.name}</strong>
+            <strong className="grow" style={{ fontSize: 'var(--text-sm)' }}>{block.name}</strong>
             {block.id === holding && (
               <span style={{
                 padding: '1px 6px', borderRadius: 3, background: 'var(--accent-deep)',
-                fontSize: 9, fontWeight: 800,
+                fontSize: 'var(--text-2xs)', fontWeight: 800,
               }}>ON AIR</span>
             )}
             <button className="small" data-testid="add-to-block"
                     onClick={() => onAddToBlock(block)}
                     style={{
-                      border: 0, background: 'none', padding: 0, fontSize: 11,
+                      border: 0, background: 'none', padding: 0, fontSize: 'var(--text-xs)',
                       color: 'var(--accent-soft)', cursor: 'pointer',
                     }}>+ Add pick</button>
           </div>
           {block.rotation.length === 0 ? (
-            <p className="small muted" style={{ margin: '5px 0 0', fontSize: 10 }}>
+            <p className="small muted" style={{ margin: '5px 0 0', fontSize: 'var(--text-2xs)' }}>
               Empty — the channel&rsquo;s own loop runs through this block.
             </p>
           ) : block.rotation.map((entry) => (
             <div key={entry.id} className="row" data-testid="block-entry"
-                 style={{ gap: 8, fontSize: 11, marginTop: 4 }}>
+                 style={{ gap: 8, fontSize: 'var(--text-xs)', marginTop: 4 }}>
               <span style={{
                 flex: 1, minWidth: 0, overflow: 'hidden',
                 textOverflow: 'ellipsis', whiteSpace: 'nowrap',
               }}>{entry.title ?? nameOf(entry.source)}</span>
-              <span className="mono muted" style={{ fontSize: 10 }}>
+              <span className="mono muted" style={{ fontSize: 'var(--text-2xs)' }}>
                 {offsetLabel(entry.durationMs)}
               </span>
               <button type="button" data-testid="remove-from-block"
@@ -3429,7 +3809,7 @@ function CalendarView({
         </div>
       ))}
 
-      <p className="small muted" style={{ margin: 0, fontSize: 10 }}>
+      <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-2xs)' }}>
         {listing.length} fixed {listing.length === 1 ? 'slot sits' : 'slots sit'}
         {' '}above all of this — the first one today is at{' '}
         {listing[0] ? clock(programmeStart(listing[0])) : '—'}.
@@ -3487,7 +3867,7 @@ function CameraTab({
       <div className="row" style={{ gap: 9, alignItems: 'stretch' }}>
         <div style={{
           flex: 1, minWidth: 0, position: 'relative', aspectRatio: '16 / 9',
-          borderRadius: 8, overflow: 'hidden', background: 'var(--ink-900)',
+          borderRadius: 2, overflow: 'hidden', background: '#000',
           border: `1px solid ${armed ? 'var(--ink-on-armed)' : onAir ? 'var(--state-live-dim)' : 'var(--line)'}`,
         }}>
           {feed ? (
@@ -3501,13 +3881,16 @@ function CameraTab({
           ) : (
             <span className="small muted" style={{
               position: 'absolute', inset: 0, display: 'grid',
-              placeItems: 'center', fontSize: 11, textAlign: 'center', padding: 10,
+              placeItems: 'center', fontSize: 'var(--text-xs)', textAlign: 'center', padding: 10,
             }}>Camera off. GO LIVE brings it up.</span>
           )}
           <span style={{
             position: 'absolute', left: 6, bottom: 5, padding: '2px 7px',
-            borderRadius: 4, background: 'rgba(5,7,10,0.8)', fontSize: 10,
-            fontWeight: 600,
+            borderRadius: 'var(--radius-screen)',
+            background: 'rgba(0,0,0,0.72)',
+            border: '1px solid rgba(255,255,255,0.14)',
+            color: 'rgba(255,255,255,0.94)',
+            fontSize: 'var(--text-2xs)', fontWeight: 600,
           }}>You (Host)</span>
         </div>
         {/*
@@ -3528,7 +3911,7 @@ function CameraTab({
         <select
           data-testid="camera-choice" value={cameraId ?? ''}
           onChange={(event) => onCamera(event.target.value || undefined)}
-          style={{ fontSize: 11, padding: '6px 8px' }}
+          style={{ fontSize: 'var(--text-xs)', padding: '6px 8px' }}
         >
           <option value="">Camera — the system default</option>
           {devices.cameras.map((device) => (
@@ -3540,7 +3923,7 @@ function CameraTab({
         <select
           data-testid="mic-choice" value={micId ?? ''}
           onChange={(event) => onMic(event.target.value || undefined)}
-          style={{ fontSize: 11, padding: '6px 8px' }}
+          style={{ fontSize: 'var(--text-xs)', padding: '6px 8px' }}
         >
           <option value="">Microphone — the system default</option>
           {devices.microphones.map((device) => (
@@ -3562,13 +3945,13 @@ function CameraTab({
           data-testid="quality-choice" value={quality.id}
           disabled={qualityLocked}
           onChange={(event) => onQuality(event.target.value as QualityId)}
-          style={{ fontSize: 11, padding: '6px 8px' }}
+          style={{ fontSize: 'var(--text-xs)', padding: '6px 8px' }}
         >
           {QUALITY_ORDER.map((id) => (
             <option key={id} value={id}>{QUALITIES[id]!.label}</option>
           ))}
         </select>
-        <p className="small muted" style={{ margin: 0, fontSize: 10 }}>
+        <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-2xs)' }}>
           {qualityLocked
             /*
              * NOT A LIMITATION BEING APOLOGISED FOR. Resizing the canvas
@@ -3590,7 +3973,7 @@ function CameraTab({
            * the good copy. What would be dishonest is letting somebody
            * choose Maximum, watch the monitor, and think nothing happened.
            */
-          <p className="small muted" style={{ margin: 0, fontSize: 10 }}>
+          <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-2xs)' }}>
             The channel transmits at {transmission.height}p, so viewers see
             {' '}{transmission.height}p — the extra detail is kept in the
             recording of this session.
@@ -3603,13 +3986,13 @@ function CameraTab({
            * numbered rather than named. Saying why beats a list of
            * "Camera 1, Camera 2" that looks like a fault. [§23]
            */
-          <p className="small muted" style={{ margin: 0, fontSize: 10 }}>
+          <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-2xs)' }}>
             Your browser will not name the devices until you allow access.
             Go live once and the real names appear.
           </p>
         )}
         {devices.cameras.length === 0 && (
-          <p className="small muted" style={{ margin: 0, fontSize: 10 }}>
+          <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-2xs)' }}>
             No camera found. A phone works as one over USB (Continuity
             Camera, Camo, EpocCam, or Android&rsquo;s webcam mode), and a
             professional camera works through a UVC capture card — both
@@ -3619,7 +4002,7 @@ function CameraTab({
       </div>
 
       <div data-testid="feed-health" style={{
-        fontSize: 11, padding: '6px 8px', borderRadius: 7, marginTop: 8,
+        fontSize: 'var(--text-xs)', padding: '6px 8px', borderRadius: 7, marginTop: 8,
         background: 'var(--panel-2)', border: '1px solid var(--line)',
       }}>
         <div className="row" style={{ gap: 8 }}>
@@ -3663,7 +4046,7 @@ function CameraTab({
               }} />
             </div>
             <p className="small muted" data-testid="feed-rate-note" style={{
-              margin: '5px 0 0', fontSize: 10,
+              margin: '5px 0 0', fontSize: 'var(--text-2xs)',
             }}>{rateSentence(encoder.rate, quality)}</p>
           </>
         )}
@@ -3678,9 +4061,12 @@ function CameraTab({
       <Section
         text="Background / Virtual Set"
         aside={(
-          <span className="muted" style={{ fontSize: 10 }}>
+          <span className="muted" style={{
+            fontSize: 'var(--text-2xs)',
+            display: 'inline-flex', alignItems: 'center', gap: 4,
+          }}>
             {spaceId ? SPACE_LOOKS[spaceId]?.label ?? spaceId : 'None'}
-            {' ▾'}
+            <Icon name="chevron" size={9} turn={90} />
           </span>
         )}
       />
@@ -3696,19 +4082,76 @@ function CameraTab({
               aria-pressed={chosen}
               onClick={() => onSpace(chosen ? '' : space.id)}
               title={space.label}
+              /*
+                * AN ASSET IN A LIBRARY, not a swatch in a palette. Ten
+                * rounded squares in a five-across grid with a caption
+                * under each is the shape of a colour picker, and these
+                * are SETS — the room a presenter is composited into.
+                * Square corners, a seam between neighbours instead of
+                * a gap, and the chosen one lit along its top edge in
+                * the same accent the rest of the room now uses for
+                * "this is the one". [brief §10]
+                */
               style={{
-                padding: 0, aspectRatio: '1 / 1', borderRadius: 6,
+                padding: 0, aspectRatio: '1 / 1', borderRadius: 2,
                 overflow: 'hidden', cursor: 'pointer', position: 'relative',
                 background: SPACE_SWATCHES[space.id] ?? '#1b2028',
-                border: `1px solid ${chosen ? 'var(--accent)' : 'var(--line)'}`,
-                boxShadow: chosen ? '0 0 0 1px rgba(61,127,214,0.5)' : 'none',
+                border: `1px solid ${chosen
+                  ? 'var(--accent)' : 'var(--console-seam)'}`,
+                borderTopWidth: chosen ? 2 : 1,
+                borderTopColor: chosen ? 'var(--accent)' : 'var(--console-seam)',
+                opacity: chosen ? 1 : 0.82,
               }}
             >
+              {/*
+                * 7px WAS NOT A SIZE, IT WAS AN APOLOGY. The type scale
+                * bottoms at 10px for a reason — below that a label is a
+                * grey smear that tells you a word is present without
+                * telling you which. The plate is a scrim on the picture
+                * now rather than a caption bar under it, which buys the
+                * three pixels back without the tile growing.
+                */}
+              {/*
+                * AND IT WRAPS RATHER THAN ELLIPSISING. Five tiles
+                * across a 330px column is 56 pixels; "Recording
+                * Studio" wants about 85, so on one line it became
+                * "Recordi…" — which does not distinguish it from a
+                * Recording Booth, and four of the ten sets were in
+                * that state. An ellipsis is the right answer for a
+                * programme title, where the first words identify it
+                * and the row can be widened. It is the wrong answer
+                * for a fixed grid of ten proper nouns, all of which
+                * have to be told apart at a glance.
+                *
+                * Two lines, clamped, which is what Studio Two's larger
+                * tiles have always done with the same ten labels — so
+                * this also stops the same set being named two
+                * different ways in two rooms. [brief §13, D-19]
+                */}
               <span style={{
                 position: 'absolute', left: 0, right: 0, bottom: 0,
-                fontSize: 7, lineHeight: '11px', textAlign: 'center',
-                background: 'rgba(5,7,10,0.72)', overflow: 'hidden',
-                textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                fontSize: 'var(--text-2xs)', lineHeight: '12px',
+                padding: '2px 3px', textAlign: 'center',
+                letterSpacing: '-0.01em',
+                color: chosen ? 'var(--ink-000)' : 'var(--ink-100)',
+                /*
+                  * A PLATE, NOT A FADE. The scrim reached full
+                  * opacity 35% down the label — fine under one line,
+                  * and under two it left the FIRST line sitting on
+                  * the raw swatch. Four of the ten sets are light
+                  * (Modern Room is near-white, Beach and Mountain are
+                  * pale sky), so "Modern" was grey on grey while
+                  * "Room" underneath it was white on black.
+                  *
+                  * It is the same plate every other label on a
+                  * picture in this product uses, which also means the
+                  * tone is measured rather than dependent on which
+                  * set happens to be behind it. [brief §19]
+                  */
+                background: 'rgba(0,0,0,0.72)',
+                display: '-webkit-box', WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical', overflow: 'hidden',
+                overflowWrap: 'break-word',
               }}>{space.label}</span>
             </button>
           );
@@ -3742,7 +4185,7 @@ function VMeter({ value, tint = 'var(--state-ok)' }: { value: number; tint?: str
         width: '100%', height: `${lit * 100}%`,
         background: `linear-gradient(0deg, ${tint}, var(--state-warn) 78%,`
           + ' var(--state-live))',
-        boxShadow: lit > 0.92 ? '0 0 6px rgba(226,59,46,0.7)' : 'none',
+        boxShadow: lit > 0.92 ? 'inset 0 0 0 1px rgba(255,160,150,0.5)' : 'none',
         transition: 'height 60ms linear',
       }} />
     </span>
@@ -3777,9 +4220,9 @@ function ScreensTab({
     <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
       <div className="panel" style={{ padding: 9 }}>
         <div className="muted" style={{
-          fontSize: 9, letterSpacing: 0.8, fontWeight: 700,
+          fontSize: 'var(--text-2xs)', letterSpacing: 0.8, fontWeight: 700,
         }}>ROLLED IN</div>
-        <div style={{ fontSize: 12, fontWeight: 600 }}>
+        <div style={{ fontSize: 'var(--text-sm)', fontWeight: 600 }}>
           {up ? nameOf(up) : 'Nothing — the room is on air'}
         </div>
       </div>
@@ -3802,7 +4245,7 @@ function ScreensTab({
           Back to the room
         </button>
       </div>
-      <p className="small muted" style={{ margin: 0, fontSize: 11 }}>
+      <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-xs)' }}>
         {picked
           ? `Ready: “${picked.title}”.`
           : 'Pick something in the Library and it can go up over the feed.'}
@@ -3815,19 +4258,19 @@ function ScreensTab({
       }}>
         <div className="row" style={{ flexWrap: 'nowrap' }}>
           <span className="muted grow" style={{
-            fontSize: 9, letterSpacing: 0.8, fontWeight: 700,
+            fontSize: 'var(--text-2xs)', letterSpacing: 0.8, fontWeight: 700,
           }}>LIVE SCREEN</span>
           {share.sharing && (
             <span style={{
               padding: '1px 6px', borderRadius: 3, background: 'var(--studio-tv)',
-              color: 'var(--ink-000)', fontSize: 8, fontWeight: 800, letterSpacing: 0.5,
+              color: 'var(--ink-000)', fontSize: 'var(--text-2xs)', fontWeight: 800, letterSpacing: 0.5,
             }}>IN THE MIX</span>
           )}
         </div>
         {share.sharing ? (
           <>
             <div className="row" style={{
-              gap: 7, fontSize: 11, padding: '5px 7px', borderRadius: 6,
+              gap: 7, fontSize: 'var(--text-xs)', padding: '5px 7px', borderRadius: 6,
               flexWrap: 'nowrap', background: 'var(--panel-2)',
               border: '1px solid var(--line)',
             }}>
@@ -3854,7 +4297,7 @@ function ScreensTab({
             >
               Share a tab, window or screen
             </button>
-            <p className="small muted" style={{ margin: 0, fontSize: 10 }}>
+            <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-2xs)' }}>
               {/*
                 * Said once, because it is the difference between this and
                 * everything else in the tab: a shared screen JOINS the
@@ -3866,7 +4309,7 @@ function ScreensTab({
           </>
         )}
         {share.error && (
-          <p className="small" style={{ margin: 0, color: 'var(--bad)', fontSize: 11 }}>
+          <p className="small" style={{ margin: 0, color: 'var(--bad)', fontSize: 'var(--text-xs)' }}>
             {share.error}
           </p>
         )}
@@ -3906,11 +4349,11 @@ function GraphicsTab({
   const identity = channel.identity;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <p className="small muted" style={{ margin: 0, fontSize: 11 }}>
+      <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-xs)' }}>
         Drawn onto the broadcast, never onto your videos.
       </p>
 
-      <label className="small" style={{ margin: 0, fontSize: 11 }}>
+      <label className="small" style={{ margin: 0, fontSize: 'var(--text-xs)' }}>
         Station bug
         <input
           data-testid="bug-text"
@@ -3923,7 +4366,7 @@ function GraphicsTab({
               opacity: identity?.bug?.opacity ?? 0.85,
             },
           })}
-          style={{ fontSize: 12, padding: '6px 9px', marginTop: 3 }}
+          style={{ fontSize: 'var(--text-sm)', padding: '6px 9px', marginTop: 3 }}
         />
       </label>
 
@@ -3942,11 +4385,8 @@ function GraphicsTab({
                     corner, opacity: identity?.bug?.opacity ?? 0.85,
                   },
                 })}
-                style={{
-                  padding: '3px 7px', fontSize: 10, borderRadius: 5,
-                  border: `1px solid ${chosen ? 'var(--accent)' : 'var(--line)'}`,
-                  background: chosen ? 'rgba(45,110,200,0.22)' : 'transparent',
-                }}
+                className={`ctl${chosen ? ' is-on' : ''}`}
+                style={{ padding: '3px 8px', fontSize: 'var(--text-2xs)' }}
               >{corner.replace('-', ' ')}</button>
             );
           })}
@@ -3968,17 +4408,14 @@ function GraphicsTab({
                     ? { presenter: identity.lowerThird.presenter } : {}),
                 },
               })}
-              style={{
-                flex: 1, padding: '5px 4px', fontSize: 10, borderRadius: 6,
-                border: `1px solid ${chosen ? 'var(--accent)' : 'var(--line)'}`,
-                background: chosen ? 'rgba(45,110,200,0.22)' : 'transparent',
-              }}
+              className={`ctl${chosen ? ' is-on' : ''}`}
+              style={{ flex: 1, padding: '5px 4px', fontSize: 'var(--text-2xs)' }}
             >{show}</button>
           );
         })}
       </div>
 
-      <label className="small" style={{ margin: 0, fontSize: 11 }}>
+      <label className="small" style={{ margin: 0, fontSize: 'var(--text-xs)' }}>
         Presenter
         <input
           data-testid="presenter"
@@ -3991,11 +4428,11 @@ function GraphicsTab({
               presenter: event.target.value,
             },
           })}
-          style={{ fontSize: 12, padding: '6px 9px', marginTop: 3 }}
+          style={{ fontSize: 'var(--text-sm)', padding: '6px 9px', marginTop: 3 }}
         />
       </label>
 
-      <label className="small" style={{ margin: 0, fontSize: 11 }}>
+      <label className="small" style={{ margin: 0, fontSize: 'var(--text-xs)' }}>
         LIVE lamp
         <input
           data-testid="live-lamp"
@@ -4006,10 +4443,10 @@ function GraphicsTab({
               text: event.target.value,
             },
           })}
-          style={{ fontSize: 12, padding: '6px 9px', marginTop: 3 }}
+          style={{ fontSize: 'var(--text-sm)', padding: '6px 9px', marginTop: 3 }}
         />
       </label>
-      <p className="small muted" style={{ margin: 0, fontSize: 10 }}>
+      <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-2xs)' }}>
         The lamp is drawn only while the channel is actually live. A channel
         whose LIVE light is part of its logo is a channel lying to its viewers.
       </p>
@@ -4035,36 +4472,86 @@ function AudioTab({
   keeping: boolean;
   onKeep: (keep: boolean) => void;
 }) {
+  /*
+   * A MIXER IS A STRIP OF CHANNELS, NOT A COLUMN OF CARDS.
+   *
+   * Every channel had its own rounded rectangle with its own border and
+   * a gap under it — so four microphones read as four objects rather
+   * than as four channels of one desk. On real equipment the channels
+   * share a face and are separated by a hairline, and the MASTER is set
+   * apart from them: it is not another input, it is what they sum to.
+   *
+   * The master gets a rule beneath it and a slightly lighter face; the
+   * inputs run underneath as a list. Nothing moves, nothing is removed,
+   * and the meters are the same meters. [brief §9]
+   */
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+    <div style={{
+      display: 'flex', flexDirection: 'column',
+      border: 'var(--border) solid var(--console-seam)',
+      borderRadius: 3, overflow: 'hidden',
+      background: 'var(--console-inset)',
+    }}>
       <div className="row" data-testid="master-audio" style={{
-        gap: 8, padding: '7px 9px', borderRadius: 7, fontSize: 11,
-        background: 'var(--panel-2)', border: '1px solid var(--line)',
+        gap: 8, padding: '7px 9px', fontSize: 'var(--text-xs)',
+        background: 'var(--console-control)',
+        borderBottom: 'var(--border) solid var(--console-edge)',
+        boxShadow: 'var(--console-bevel)',
+        flexWrap: 'nowrap',
       }}>
-        <span className="grow" style={{ fontWeight: 600 }}>Master (Program)</span>
+        <span className="grow module-label" style={{ color: 'var(--ink-200)' }}>
+          Master
+        </span>
         <Meter value={levels['master']?.energy ?? 0} label="master" />
-        <span className="mono muted" style={{ fontSize: 10 }}>
+        {/*
+          * THE RATE IS A READOUT. A number that changes every second,
+          * beside a meter, in a proportional face, re-flows on every
+          * tick — which is the shimmer that makes a mixer look cheap.
+          */}
+        <span className="mono readout" style={{
+          fontSize: 'var(--text-2xs)', color: 'var(--ink-300)',
+          minWidth: 52, textAlign: 'right',
+        }}>
           {encoder.running ? `${Math.round(encoder.rate / 1000)} kB/s` : '—'}
         </span>
       </div>
 
       {guests.sources.length === 0 ? (
-        <p className="small muted" style={{ margin: 0, fontSize: 11 }}>
+        <p style={{
+          margin: 0, padding: '8px 9px', fontSize: 'var(--text-2xs)',
+          color: 'var(--ink-300)',
+        }}>
           {onAir ? 'One microphone: yours.'
             : 'Nothing is live. Microphones appear when the stage does.'}
         </p>
-      ) : guests.sources.map((person) => (
+      ) : guests.sources.map((person, index) => (
         <div key={person.id} className="row" data-testid="audio-channel" style={{
-          gap: 8, fontSize: 11, padding: '5px 7px', borderRadius: 6,
-          background: 'var(--panel-2)', border: '1px solid var(--line)',
+          gap: 8, fontSize: 'var(--text-xs)', padding: '5px 9px',
+          flexWrap: 'nowrap',
+          borderTop: index === 0
+            ? 0 : 'var(--border) solid var(--console-rule)',
         }}>
+          {/* Channels are numbered on a desk, and counted from one. */}
+          <span className="mono readout" style={{
+            flex: '0 0 auto', width: 16, fontSize: 'var(--text-2xs)',
+            color: 'var(--ink-400)', textAlign: 'right',
+          }}>{String(index + 1).padStart(2, '0')}</span>
           <span className="grow" style={{
             minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
           }}>{person.label ?? person.id}</span>
-          <span className="muted" style={{ fontSize: 9 }}>
-            {(levels[person.id]?.speech ?? 0) > 0.5 ? 'voice' : ''}
-          </span>
+          {/*
+            * SPEAKING, as a word rather than as a meter reading. A
+            * level meter says how loud; it does not say whether that
+            * is a voice or a chair moving, and the stage follows the
+            * voice. [ROOM §4]
+            */}
+          <span style={{
+            flex: '0 0 auto', fontSize: 'var(--text-2xs)',
+            letterSpacing: '0.07em',
+            color: (levels[person.id]?.speech ?? 0) > 0.5
+              ? 'var(--ink-on-ok)' : 'transparent',
+          }}>VOICE</span>
           <Meter value={levels[person.id]?.energy ?? 0} label={person.label ?? 'mic'} />
         </div>
       ))}
@@ -4075,10 +4562,11 @@ function AudioTab({
         * be able to read, not just press. [§8]
         */}
       <label className="row" data-testid="keep-live-label" style={{
-        gap: 8, fontSize: 12, padding: '7px 9px', borderRadius: 7, margin: 0,
+        gap: 8, fontSize: 'var(--text-xs)', padding: '8px 9px', margin: 0,
         flexWrap: 'nowrap', alignItems: 'flex-start',
-        border: `1px solid ${keeping ? 'var(--state-live-dim)' : 'var(--line)'}`,
-        background: keeping ? 'rgba(192,57,43,0.14)' : 'var(--panel-2)',
+        borderTop: 'var(--border) solid var(--console-edge)',
+        boxShadow: keeping ? 'inset 2px 0 0 var(--state-live)' : 'none',
+        background: keeping ? 'var(--state-live-wash)' : 'var(--console-control)',
       }}>
         <input
           type="checkbox" checked={keeping} disabled={!onAir}
@@ -4086,7 +4574,7 @@ function AudioTab({
         />
         <span style={{ minWidth: 0 }}>
           <span style={{ fontWeight: 600 }}>Save this live session</span>
-          <span className="muted" style={{ display: 'block', fontSize: 10 }}>
+          <span className="muted" style={{ display: 'block', fontSize: 'var(--text-2xs)' }}>
             {keeping
               ? 'It becomes an archived recording when you end it.'
               : 'Off: the live buffer is discarded after the broadcast.'}
@@ -4227,16 +4715,12 @@ function Scheduler({
             data-chosen={minutes === option ? 'true' : 'false'}
             aria-pressed={minutes === option}
             onClick={() => setMinutes(option)}
-            style={{
-              padding: '5px 4px', fontSize: 11, borderRadius: 7,
-              border: `1px solid ${minutes === option ? 'var(--accent)' : 'var(--line)'}`,
-              background: minutes === option
-                ? 'rgba(45,110,200,0.22)' : 'var(--panel-2)',
-            }}
+            className={`ctl${minutes === option ? ' is-on' : ''}`}
+            style={{ padding: '5px 4px', fontSize: 'var(--text-2xs)' }}
           >{option} min</button>
         ))}
       </div>
-      <label className="row muted" style={{ gap: 6, fontSize: 11, margin: 0 }}>
+      <label className="row muted" style={{ gap: 6, fontSize: 'var(--text-xs)', margin: 0 }}>
         <input type="checkbox" data-testid="loop-it" checked={loop}
                onChange={(event) => setLoop(event.target.checked)} />
         Play it again until the slot is over
@@ -4248,7 +4732,7 @@ function Scheduler({
         * channel plays round and round forever. A fixed time is the second,
         * for the thing that has to be at nine. [§2, §4]
         */}
-      <button className="primary small" data-testid="add-to-loop"
+      <button className="ctl" data-testid="add-to-loop"
               onClick={() => onRotate(minutes * MINUTE, loop)}
               style={{ width: '100%', padding: '6px 10px' }}>
         Add to the loop
@@ -4272,6 +4756,211 @@ function Scheduler({
     </div>
   );
 }
+
+/**
+ * WHAT THE PICTURE ACTUALLY IS.  [brief §5, D-16, U-08, INV-02]
+ *
+ * Every broadcast monitor in the world carries a legend under the
+ * glass saying what it is looking at — raster, rate, and how far
+ * behind the transmission is. Program Output had a title, a mode
+ * badge and a picture, and nothing anywhere on the desk said what
+ * format the channel was in. That is the difference between a
+ * monitor and a `<video>` in a box.
+ *
+ * IT IS MEASURED, NEVER ASSERTED. The obvious version of this prints
+ * `1920×1080 · 30 fps` because that is the house format, and it is
+ * then wrong the first time somebody puts a phone video in the
+ * rotation — which, in a product whose whole premise is that people
+ * answer each other from wherever they are, is the second programme.
+ * A legend that lies about the signal is worse than no legend: it is
+ * the thing an operator checks when the picture looks wrong.
+ *
+ * So it reads the element. `videoWidth`/`videoHeight` on a playing
+ * file, `naturalWidth` on a still, and for a live feed the track's
+ * own settings — which is the only place a frame rate is honestly
+ * available, because a browser will not tell you a file's. When
+ * there is nothing to measure it says so rather than guessing.
+ */
+function Legend({ on }: { on: OnAir }) {
+  const [format, setFormat] = useState<string | null>(null);
+  const [rate, setRate] = useState<number | null>(null);
+
+  /*
+   * THE PICTURE IS NOT THIS COMPONENT'S CHILD. It is drawn by
+   * `Monitor` or by the live `<video>` above, both of which already
+   * existed and neither of which this pass is going to restructure
+   * to thread a ref through. [brief: do not create parallel systems]
+   * So the legend finds the picture in the well it sits under, and
+   * re-measures whenever the element says its dimensions arrived.
+   */
+  const measure = useCallback((host: HTMLElement | null) => {
+    if (!host) return undefined;
+    const well = host.previousElementSibling;
+    if (!well) return undefined;
+
+    const read = () => {
+      const video = well.querySelector('video');
+      const still = well.querySelector('img');
+      if (video && video.videoWidth > 0) {
+        setFormat(`${video.videoWidth}×${video.videoHeight}`);
+        const track = (video.srcObject as MediaStream | null)
+          ?.getVideoTracks?.()[0];
+        const fps = track?.getSettings?.().frameRate;
+        setRate(typeof fps === 'number' && fps > 0 ? Math.round(fps) : null);
+        return;
+      }
+      if (still && still.naturalWidth > 0) {
+        setFormat(`${still.naturalWidth}×${still.naturalHeight}`);
+        setRate(null);
+        return;
+      }
+      setFormat(null);
+      setRate(null);
+    };
+
+    read();
+    /*
+     * A raster arrives late and changes without a React render — a
+     * new segment, a track that renegotiates, a still that decodes.
+     * Polling a DOM property twice a second is the cheap correct
+     * answer where there is no event that fires for all three.
+     */
+    const timer = window.setInterval(read, 500);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  /*
+   * A RATIO IS ONLY WORTH SAYING WHEN IT IS A RATIO PEOPLE USE.
+   *
+   * A canvas feed at 1464×823 reduces to 1464:823, because the two
+   * numbers are coprime — which is true, useless, and wider than the
+   * raster it is explaining. Broadcast ratios are all small: 16:9,
+   * 4:3, 1:1, 9:16, 21:9. So it is printed when both terms are small
+   * and dropped when they are not, which is the honest reading of "a
+   * feed that is not a standard shape has no standard name".
+   *
+   * Found by measuring a real non-standard feed rather than by
+   * thinking about it — 1920×1080 reduces to 16:9 and every test I
+   * would have written by hand used 1920×1080.
+   */
+  const ratio = (() => {
+    if (!format) return null;
+    const [w, h] = format.split('×').map(Number);
+    if (!w || !h) return null;
+    const g = (a: number, b: number): number => (b === 0 ? a : g(b, a % b));
+    const d = g(w, h);
+    const [a, c] = [w / d, h / d];
+    return a <= 32 && c <= 32 ? `${a}:${c}` : null;
+  })();
+
+  return (
+    <div
+      data-testid="program-legend"
+      /*
+        * REACT 19 LETS A REF CALLBACK RETURN ITS OWN CLEANUP, which is
+        * what this needs and the reason there is no effect here. The
+        * first version of this held the interval's clear in state and
+        * ran it from a `useEffect` keyed on itself — a state update
+        * inside a ref callback, on every attach, to schedule a
+        * teardown React will now do properly.
+        */
+      ref={measure}
+      className="row"
+      style={{
+        gap: 'var(--space-4)', flex: '0 0 auto', flexWrap: 'nowrap',
+        padding: '5px 10px', minHeight: 24, overflow: 'hidden',
+        borderTop: 'var(--border) solid var(--console-rule)',
+        background: 'var(--console-inset)',
+      }}
+    >
+      <span className="mono readout" data-testid="program-format" style={{
+        fontSize: 'var(--text-2xs)', letterSpacing: '0.04em',
+        color: format ? 'var(--ink-200)' : 'var(--ink-400)',
+      }}>{format ?? 'NO SIGNAL'}</span>
+      {ratio && <span className="unit">{ratio}</span>}
+      {rate !== null && (
+        <span className="mono readout unit" data-testid="program-rate">
+          {rate} fps
+        </span>
+      )}
+      <span className="grow" />
+      {/*
+        * HOW FAR BEHIND THE TRANSMISSION IS. The desk shows the
+        * operator's own picture, not what a viewer has; twelve
+        * seconds is the gap, and a presenter who does not know that
+        * talks over themselves. It is only true while live, so it is
+        * only said while live. [LIVE_DELAY_MS]
+        */}
+      {on.kind === 'live' && (
+        <span className="mono readout" data-testid="program-delay" style={{
+          fontSize: 'var(--text-2xs)', letterSpacing: '0.04em',
+          color: 'var(--ink-300)',
+        }}>
+          TX +{Math.round(LIVE_DELAY_MS / 1000)}s
+        </span>
+      )}
+    </div>
+  );
+}
+
+/**
+ * WHAT A MODULE IS DOING, said one way.  [brief §6, §13, U-19, U-20]
+ *
+ * There were two of these, hand-written, forty lines apart. Program
+ * Output's lived in its head: 10px, weight 800, 4px corners, a filled
+ * plate in one of five raw colours. Preview's lay on the picture at
+ * 9px with 3px corners and a sixth colour. They report the same kind
+ * of fact about the two monitors a gallery exists to let you read
+ * TOGETHER, and they did not look like the same kind of thing.
+ *
+ * The badge is `.state`, which the desk already had. The change is not
+ * that it is prettier — it is that a filled plate SHOUTS, and four of
+ * the five things it was shouting are ordinary. A channel playing its
+ * rotation at three in the morning is not an alarm. So the tint is a
+ * wash with a lamp in front of it, and the one state that genuinely
+ * is an alarm — the red button — is the only one that reads as one.
+ *
+ * NOT COLOUR ALONE. Every state carries its own word, so the tone is
+ * confirmation and never the message. [U-19]
+ */
+function Status({
+  testid, mode, tone, text,
+}: {
+  testid: string;
+  /** For tests and for the DOM to be readable. Not styling. */
+  mode: string;
+  tone: 'is-live' | 'is-on' | 'is-armed' | 'is-critical' | 'is-off';
+  text: string;
+}) {
+  return (
+    <span className={`state ${tone}`} data-testid={testid} data-mode={mode}>
+      {text}
+    </span>
+  );
+}
+
+/**
+ * THE FIVE THINGS A CHANNEL CAN BE DOING, and the words for them.
+ *
+ * A table rather than a nested ternary because the ternary it replaces
+ * was five deep across two properties and had to be read twice to see
+ * that `programme` and `rotation` fell through to the same arm. Five
+ * states, one line each, and adding a sixth is adding a line.
+ *
+ * `live` and the rest are deliberately NOT the same tone: red means a
+ * person is on air, and a rotation block is the machine playing to
+ * nobody. Telling an operator those are the same event is the single
+ * most consequential lie this desk could tell. [U-20]
+ */
+const AIR: Record<OnAir['kind'],
+{ tone: 'is-live' | 'is-on' | 'is-armed' | 'is-critical' | 'is-off'; text: string }> = {
+  live: { tone: 'is-live', text: 'On air' },
+  emergency: { tone: 'is-critical', text: 'Emergency' },
+  backup: { tone: 'is-armed', text: 'Backup' },
+  programme: { tone: 'is-on', text: 'On air' },
+  rotation: { tone: 'is-on', text: 'On air' },
+  off: { tone: 'is-off', text: 'Off air' },
+};
 
 /**
  * The confidence monitor.  [§7]
@@ -4303,7 +4992,7 @@ function Monitor({
         <br />
         {/* Honest: the feed's encoder writes to the channel's buffer, and a
             monitor of a feed that has not started is a monitor of nothing. */}
-        <span style={{ fontSize: 11 }}>
+        <span style={{ fontSize: 'var(--text-xs)' }}>
           {on.kind === 'live' && on.session.roomId
             ? 'Coming out of the room' : 'Waiting for the feed'}
         </span>
@@ -4321,7 +5010,7 @@ function Monitor({
       }}>
         {source.note ?? 'Live event'}
         <br />
-        <span style={{ fontSize: 11 }}>
+        <span style={{ fontSize: 'var(--text-xs)' }}>
           Nobody is live — the loop is on air
         </span>
       </div>

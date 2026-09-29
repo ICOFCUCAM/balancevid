@@ -1,6 +1,7 @@
 'use client';
 
 import { formatTimecode } from '../../../src/domain/time.js';
+import Icon from '../../Icon.js';
 
 /**
  * The statement being answered, and the floor passing between two people.
@@ -94,10 +95,11 @@ export default function ClaimCard({
           <span aria-hidden style={{
             width: 10, height: 10, borderRadius: '50%',
             background: 'var(--user-accent)',
-            boxShadow: '0 0 10px var(--user-accent)', flex: '0 0 auto',
+            /* A hard ring, not a bloom — see design-system.test.ts. */
+            boxShadow: '0 0 0 1px rgba(0,0,0,0.5)', flex: '0 0 auto',
           }} />
           <div className="grow">
-            <div style={{ fontSize: 17, fontWeight: 600, lineHeight: 1.15 }}>
+            <div style={{ fontSize: 'var(--text-lg)', fontWeight: 600, lineHeight: 1.15 }}>
               Your response
             </div>
             <div className="small muted">
@@ -145,7 +147,7 @@ export default function ClaimCard({
       {/* ---- what the source said --------------------------------------- */}
       <div style={{ flex: '1 1 0', minWidth: 0 }}>
         <div className="row small muted" style={{ gap: 8, marginBottom: 2 }}>
-          <span style={{ textTransform: 'uppercase', fontSize: 11, letterSpacing: 0.6 }}>
+          <span style={{ textTransform: 'uppercase', fontSize: 'var(--text-xs)', letterSpacing: 0.6 }}>
             Source statement
           </span>
           <span className="mono" data-testid="claim-card-time">
@@ -155,7 +157,7 @@ export default function ClaimCard({
         <blockquote
           data-testid="claim-card-quote"
           style={{
-            margin: 0, fontSize: 16, lineHeight: 1.35,
+            margin: 0, fontSize: 'var(--text-md)', lineHeight: 1.35,
             // Their words, set as their words. No emphasis that reads as doubt.
             fontStyle: 'normal',
             display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
@@ -166,12 +168,14 @@ export default function ClaimCard({
         </blockquote>
       </div>
 
-      <div aria-hidden style={{ color: 'var(--muted)', fontSize: 18, flex: '0 0 auto' }}>→</div>
+      <div aria-hidden style={{
+        color: 'var(--muted)', flex: '0 0 auto', lineHeight: 0,
+      }}><Icon name="arrow" size={16} /></div>
 
       {/* ---- and what you are doing about it ---------------------------- */}
       <div style={{ flex: '1 1 0', minWidth: 0 }}>
         <div className="small muted" style={{
-          textTransform: 'uppercase', fontSize: 11, letterSpacing: 0.6, marginBottom: 2,
+          textTransform: 'uppercase', fontSize: 'var(--text-xs)', letterSpacing: 0.6, marginBottom: 2,
         }}>
           Your response
         </div>
@@ -185,7 +189,7 @@ export default function ClaimCard({
           <div className="row" style={{ gap: 10, flexWrap: 'nowrap' }}>
             <kbd style={{
               padding: '6px 14px', borderRadius: 6, border: '1px solid var(--line)',
-              background: 'rgba(255,255,255,0.06)', fontSize: 13, letterSpacing: 1,
+              background: 'rgba(255,255,255,0.06)', fontSize: 'var(--text-base)', letterSpacing: 1,
               flex: '0 0 auto',
             }}>SPACE</kbd>
             <span className="grow small muted">

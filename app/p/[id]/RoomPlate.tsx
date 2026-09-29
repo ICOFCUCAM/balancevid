@@ -97,7 +97,7 @@ export default function RoomPlate({
   return (
     <section className="panel" data-testid="room-plate" style={{ padding: 12, marginTop: 16 }}>
       <div className="small muted" style={{ textTransform: 'uppercase',
-        letterSpacing: 0.8, fontSize: 11, marginBottom: 6 }}>
+        letterSpacing: 0.8, fontSize: 'var(--text-xs)', marginBottom: 6 }}>
         Your room
       </div>
       <p className="small muted" style={{ marginTop: 0, maxWidth: 640 }}>
@@ -149,11 +149,11 @@ export default function RoomPlate({
                   ))}
                 </select>
               </div>
-              <p className="small muted" style={{ fontSize: 11, maxWidth: 260 }}>
+              <p className="small muted" style={{ fontSize: 'var(--text-xs)', maxWidth: 260 }}>
                 {/* Said here rather than discovered in the export. [§4, S-6] */}
                 {SPACES_ARE_DRAWN}
               </p>
-              <p className="small muted" style={{ fontSize: 11, maxWidth: 260 }}>
+              <p className="small muted" style={{ fontSize: 'var(--text-xs)', maxWidth: 260 }}>
                 This preview keys against the same plate, at the same threshold,
                 as the finished video. If it flickers here it will flicker there.
               </p>
@@ -257,7 +257,8 @@ function MattePreview({
       <canvas
         ref={canvasRef} width={PREVIEW_W} height={PREVIEW_H}
         data-testid="matte-preview"
-        style={{ width: PREVIEW_W, height: PREVIEW_H, borderRadius: 8,
+        style={{ width: PREVIEW_W, height: PREVIEW_H,
+          borderRadius: 'var(--radius-screen)',
           border: '1px solid var(--line)', background: '#0d1319' }}
       />
     </div>

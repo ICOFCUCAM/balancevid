@@ -1,0 +1,193 @@
+/*
+ * THE BUILDING IS LIT; THE ROOMS ARE NOT.  [Doctrine D-24, D-04, U-19]
+ *
+ * DESIGN.md says the product has no light theme, and gives the reason: a
+ * broadcast desk is operated in a dark room, often beside a live monitor,
+ * and a white panel next to a picture ruins both the picture and your
+ * night vision. That reason is about the STUDIOS. It was never about the
+ * lobby.
+ *
+ * The building — home, the library, the lists — is where somebody arrives,
+ * reads, chooses and leaves. It is browsed in daylight on a laptop, it is
+ * the screen a stranger is shown first, and none of it sits next to a
+ * picture that has to be judged. So it is light, and the three studios
+ * stay exactly as dark as they were.
+ *
+ * HOW, AND WHY IT IS ONLY FOURTEEN LINES OF VALUES. Every surface in this
+ * product names a token rather than a colour — `--surface-raised`,
+ * `--ink-300`, `--line` — so a second ground is a second set of values for
+ * the same names, not a second stylesheet. `Workspace.tsx` was converted
+ * to tokens in full, which is the only reason this is possible at all: a
+ * page with 30 raw hex colours in it cannot be relit.
+ *
+ * THE RAMP IS INVERTED BY ROLE, NOT BY NUMBER. `--ink-900` does not mean
+ * "dark", it means "furthest back", and `--ink-050` means "what you read".
+ * On a light ground the furthest back is nearly white and what you read is
+ * nearly black, so the names keep their meaning and every component that
+ * uses them keeps working. A ramp inverted by hue instead would have made
+ * `--ink-400` — the tone for a row's ordinal — the most prominent thing on
+ * the page.
+ *
+ * MEASURED, LIKE THE OTHER ONE. Every text tone is checked against the
+ * LIGHTEST surface it can appear on, which here is #ffffff:
+ *
+ *   ink-050  #121720  → 17.96:1   body and headings
+ *   ink-200  #414854  →  9.21:1   secondary text
+ *   ink-300  #565d6a  →  6.63:1   faint text
+ *   ink-400  #69717f  →  4.92:1   non-text — and it clears the TEXT bar
+ *                                 here, where on dark it only made 3.02
+ *
+ * THE RAIL IS OUTSIDE THIS SCOPE and therefore still dark, which is the
+ * whole shape of the thing: navigation sits behind the work, the work is
+ * lit, and stepping into a studio is stepping into a dark room on purpose
+ * rather than by accident.
+ */
+
+[data-ground='light'] {
+  /* ---- the ramp, by role -------------------------------------------- */
+  --ink-900: #e6eaf1;
+  --ink-850: #edf0f5;
+  --ink-800: #f4f6fa;
+  --ink-750: #fafbfd;
+  --ink-700: #ffffff;
+  --ink-650: #ffffff;
+  --ink-600: #ffffff;
+  --ink-550: #e3e7ee;
+  --ink-500: #ccd3dd;
+  --ink-450: #9aa3b2;
+  --ink-400: #69717f;
+  --ink-300: #565d6a;
+  --ink-200: #414854;
+  --ink-100: #252b35;
+  --ink-050: #121720;
+  --ink-000: #080b11;
+
+  /*
+   * A WELL IS STILL DARK, because a well holds a picture. Inverting it
+   * would put a white rectangle behind every empty thumbnail, and an
+   * empty thumbnail would then be the brightest object on the page.
+   */
+  --surface-sunk: #0b0f16;
+  --surface-base: var(--ink-800);
+  --surface-raised: #ffffff;
+  --surface-float: #ffffff;
+  --surface-lift: #ffffff;
+
+  --line-soft: #eef1f6;
+  --line: var(--ink-550);
+  --line-strong: var(--ink-500);
+
+  --text: var(--ink-050);
+  --text-dim: var(--ink-200);
+  --text-faint: var(--ink-300);
+  --muted: var(--ink-300);
+  --bg: var(--surface-base);
+  --panel: var(--surface-raised);
+  --panel-2: #f7f9fc;
+
+  /*
+   * ON A LIGHT GROUND THE SHADOW DOES THE WORK, which is the exact
+   * reverse of the dark rule. There, one pixel of white at four per cent
+   * lifted a panel further than forty pixels of blur; here a light edge
+   * is invisible on white and a soft shadow is what separates a card
+   * from the page. Same idea — light comes from above — read the other
+   * way round.
+   */
+  --elev-1: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --elev-2: 0 1px 3px rgba(15, 23, 42, 0.07), 0 1px 2px rgba(15, 23, 42, 0.04);
+  --elev-3: 0 4px 12px rgba(15, 23, 42, 0.08), 0 1px 3px rgba(15, 23, 42, 0.05);
+  --elev-4: 0 16px 40px rgba(15, 23, 42, 0.16), 0 2px 8px rgba(15, 23, 42, 0.07);
+
+  /*
+   * THE ACCENT DARKENS. #3f8ee8 is 4.92:1 against the dark desk and
+   * 2.96:1 against white — so the blue that was a legible link on the
+   * studio floor is under the bar the moment the page is lit. The
+   * building takes the deep weight as its accent and reserves the bright
+   * one for fills, which carry white text either way.
+   */
+  --accent: #1d63c9;
+  --accent-deep: #17509f;
+  --accent-soft: #3f8ee8;
+  --accent-wash: rgba(29, 99, 201, 0.09);
+
+  /* The states keep their hue and lose the glow they needed on black. */
+  --state-live: #d93a2b;
+  --state-live-dim: #b3241a;
+  --state-live-wash: rgba(217, 58, 43, 0.10);
+  --state-ok: #1f7a43;
+  --state-ok-wash: rgba(31, 122, 67, 0.10);
+  --state-warn: #a96a06;
+  --state-bad: #c2321f;
+  --state-bad-wash: rgba(194, 50, 31, 0.09);
+  --state-armed: #a97806;
+  --state-armed-wash: rgba(169, 120, 6, 0.10);
+  --state-off: var(--ink-450);
+  --state-off-wash: rgba(154, 163, 178, 0.16);
+  --ink-on-bad: #a8291a;
+  --ink-on-armed: #8a6205;
+  --ink-on-ok: #1a6a3a;
+
+  /* The studios keep their identity; only the wash has to be re-tuned. */
+  --studio-one-veil: rgba(47, 111, 208, 0.13);
+  --studio-two-veil: rgba(125, 86, 196, 0.13);
+  --studio-tv-veil: rgba(28, 126, 102, 0.13);
+  --studio-one-wash: rgba(47, 111, 208, 0.08);
+  --studio-two-wash: rgba(125, 86, 196, 0.08);
+  --studio-tv-wash: rgba(28, 126, 102, 0.08);
+
+  background: var(--surface-base);
+  color: var(--text);
+  /*
+   * DARK-ON-LIGHT WANTS SUBPIXEL RENDERING BACK. The greyscale smoothing
+   * in globals.css exists because light text on dark is rendered heavier
+   * than it is drawn; that correction is wrong the other way round, and
+   * at 11px it thins the labels this page is mostly made of.
+   */
+  -webkit-font-smoothing: auto;
+  -moz-osx-font-smoothing: auto;
+}
+
+/*
+ * A CARD IS A CARD EVERYWHERE, and on white it needs a hairline as well
+ * as a shadow — a shadow alone reads as a smudge under a bright panel.
+ */
+[data-ground='light'] .panel {
+  background: var(--surface-raised);
+  border: var(--border) solid var(--line);
+  box-shadow: var(--elev-1);
+}
+
+[data-ground='light'] a { color: var(--accent); }
+
+/*
+ * A BUTTON ON A LIT PAGE IS NOT THE SAME OBJECT. The dark one is a
+ * raised slab: lighter than its surroundings, with a light top edge. On
+ * white there is nothing lighter to be, so it is a bordered surface that
+ * darkens on hover — which is what a button has looked like on a light
+ * interface for thirty years, and is not a thing to be clever about.
+ */
+[data-ground='light'] button,
+[data-ground='light'] .btn {
+  background: #ffffff;
+  border-color: var(--line-strong);
+  color: var(--text);
+  box-shadow: var(--elev-1);
+}
+[data-ground='light'] button:hover:not(:disabled),
+[data-ground='light'] .btn:hover:not(:disabled) {
+  background: #f6f8fb;
+  border-color: var(--ink-450);
+}
+[data-ground='light'] button:disabled {
+  background: #f4f6fa;
+  color: var(--ink-450);
+  box-shadow: none;
+}
+[data-ground='light'] input,
+[data-ground='light'] select,
+[data-ground='light'] textarea {
+  background: #ffffff;
+  border-color: var(--line-strong);
+  color: var(--text);
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.05);
+}

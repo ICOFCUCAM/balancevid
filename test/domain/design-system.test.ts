@@ -73,7 +73,7 @@ describe('raw colour in components', () => {
    * If this fails on a new feature, the fix is a token, not a bigger
    * number — and the tokens are in `app/styles/`.
    */
-  const BUDGET = 142;
+  const BUDGET = 120;
 
   it(`is at or below ${BUDGET} occurrences, and falling`, () => {
     const counts = components()
@@ -516,5 +516,94 @@ describe('a chosen control', () => {
     }
     expect(offenders, `state stored for tests and not announced: ${
       offenders.join(', ')}`).toEqual([]);
+  });
+});
+
+/**
+ * THE MATERIALS A BROADCAST DESK IS NOT MADE OF.  [brief §4, §19]
+ *
+ * The art-direction brief rules out five things by name, and each of
+ * them is something a person adds in good faith to make a surface look
+ * more finished: glass, glow, big gradients, deep rounding, floating
+ * cards. Every one of them was somewhere in this product.
+ *
+ * They are banned here rather than merely removed because the failure
+ * mode is not "somebody puts them all back" — it is one blur on one
+ * overlay, added by somebody who has not read a brief written a year
+ * earlier, on the day they are making a plate legible over a bright
+ * shot. Which is exactly how the three on the programme monitor got
+ * there.
+ */
+const named = (file: string) => file.slice(file.indexOf('app/'));
+
+describe('the console has no glass and no glow', () => {
+  /*
+   * GLASSMORPHISM. On a broadcast monitor it is not merely a fashion:
+   * a blurred sample of the picture behind a status readout means the
+   * readout changes appearance with the programme, and the programme
+   * is the thing being judged. It also costs a compositor pass per
+   * frame on a surface that repaints thirty times a second.
+   */
+  it('frosts nothing', () => {
+    const offenders: string[] = [];
+    for (const file of components()) {
+      if (/backdropFilter|backdrop-filter/.test(code(file))) {
+        offenders.push(named(file));
+      }
+    }
+    expect(offenders, `frosted glass in: ${offenders.join(', ')}`).toEqual([]);
+  });
+
+  /*
+   * A GLOW IS A SPREAD SHADOW IN THE OBJECT'S OWN HUE, and on a dark
+   * desk it reads as the object being out of focus. The playhead, the
+   * take button, the emergency and the live tile all had one; a
+   * hairline at full contrast is found faster and stays sharp.
+   *
+   * The lamps are the exception and are allowed exactly one: a tally
+   * light has had a halo since the 1950s, it is the cue that survives
+   * being seen in peripheral vision, and `status.css` is where it
+   * lives. Anything outside that file is somebody decorating.
+   *
+   * THE FIRST VERSION OF THIS MISSED A GLOW ASSEMBLED IN A TEMPLATE
+   * LITERAL. The level meter built one per segment as
+   * `` `0 0 4px ${colour}` ``, and the pattern was looking for `rgba(`
+   * immediately after the blur radius. A rule that only catches the
+   * literal spelling catches the careless half and misses the clever
+   * half, which is the wrong half to miss.
+   *
+   * AND THE SECOND VERSION MISSED A THIRD SPELLING: the clip rail's
+   * claim marker built its halo with `color-mix(in srgb, ...)`, which
+   * is none of `rgba(`, `${` or `var(`. Three spellings of the same
+   * decoration found over three commits is the argument for matching
+   * on the SHAPE — a blur radius with any colour after it — rather
+   * than on a list of ways to write a colour, which is what this now
+   * does. A genuine ambient shadow is dark and is spelled rgba(0,0,0.
+   */
+  it('glows only where a lamp glows', () => {
+    const offenders: string[] = [];
+    for (const file of components()) {
+      const body = code(file);
+      /*
+       * ONE LAMP CANNOT LIVE IN status.css. `Dot` takes its colour as
+       * a prop — the encoder lamp, the guest lamps and the ingest
+       * lamps each pass a different token — so its halo has to be
+       * mixed in the component. It is a lamp by the rule's own words,
+       * so it is exempt by name and by span rather than by the file
+       * it happens to sit in. Everything else in that file still
+       * counts.
+       */
+      const lamp = body.indexOf('function Dot(');
+      const lampEnds = lamp < 0 ? -1
+        : body.indexOf('\nfunction ', lamp + 1);
+      for (const hit of body.matchAll(
+        /(?<!inset )0 0 (?:[4-9]|[1-9]\d)px (?!rgba\(0,\s*0,\s*0)[#$a-z(]/gi)) {
+        const at = hit.index ?? 0;
+        if (lamp >= 0 && at > lamp && (lampEnds < 0 || at < lampEnds)) continue;
+        offenders.push(`${named(file)}: ${hit[0].trim().slice(0, 52)}`);
+      }
+    }
+    expect(offenders, `a glow outside status.css: ${offenders.join(' | ')}`)
+      .toEqual([]);
   });
 });

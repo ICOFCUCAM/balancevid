@@ -71,7 +71,7 @@ export default function CardsPanel({ conversationId }: { conversationId: string 
 
   return (
     <section style={{ marginTop: 22 }} data-testid="cards-panel">
-      <h3 style={{ fontSize: 16, marginBottom: 2 }}>Share cards</h3>
+      <h3 className="module-label" style={{ margin: '0 0 3px' }}>Share cards</h3>
       <p className="small muted" style={{ marginTop: 0, maxWidth: 640 }}>
         One card for each thing you answered: the claim, and what you said
         back. Made from the conversation, so nothing here is written twice.
@@ -127,14 +127,14 @@ export default function CardsPanel({ conversationId }: { conversationId: string 
               )}
               <div style={{ minWidth: 0 }}>
                 <div className="small" style={{ color: 'var(--muted)' }}>{card.eyebrow}</div>
-                <div style={{ fontSize: 13, margin: '2px 0' }}>
+                <div style={{ fontSize: 'var(--text-base)', margin: '2px 0' }}>
                   {card.claim.quoted ? `“${card.claim.text}”` : card.claim.text}
                 </div>
                 <div className="small" style={{
                   color: card.response.kind === 'unheard' ? 'var(--muted)' : 'inherit',
                   fontStyle: card.response.kind === 'unheard' ? 'italic' : 'normal',
                 }}>
-                  <strong style={{ fontSize: 10, letterSpacing: '.08em' }}>
+                  <strong style={{ fontSize: 'var(--text-2xs)', letterSpacing: '.08em' }}>
                     {card.label.toUpperCase()}
                   </strong>{' '}
                   {card.response.text}

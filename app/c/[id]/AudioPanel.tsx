@@ -77,7 +77,7 @@ export default function AudioPanel({
 
   return (
     <section style={{ marginTop: 22 }} data-testid="audio-panel">
-      <h3 style={{ fontSize: 16, marginBottom: 2 }}>Listen to it</h3>
+      <h3 className="module-label" style={{ margin: '0 0 3px' }}>Listen to it</h3>
       <p className="small muted" style={{ marginTop: 0, maxWidth: 640 }}>
         The same conversation as an audio file, with a chapter at every moment
         you interrupted. Taken from the video rather than assembled again, so

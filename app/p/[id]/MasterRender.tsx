@@ -121,7 +121,7 @@ export default function MasterRender({ performance }: { performance: Performance
     <section style={{ marginTop: 18 }} data-testid="master-render">
       {/* What this does is said on the button that does it. A paragraph over
           a control is a lecture before a question. */}
-      <h2 style={{ fontSize: 14, margin: '0 0 7px' }}
+      <h2 className="module-label" style={{ margin: '0 0 7px' }}
           title={'Your takes stay separate files until you press this. You can '
             + 'press it again after changing your mind without losing anything.'}>
         Make the video
@@ -138,7 +138,7 @@ export default function MasterRender({ performance }: { performance: Performance
             aria-pressed={shape === profileId}
             onClick={() => setShape(profileId)}
             style={{
-              padding: '5px 10px', fontSize: 12,
+              padding: '5px 10px', fontSize: 'var(--text-sm)',
               background: shape === profileId ? 'var(--accent-wash)' : undefined,
               borderColor: shape === profileId ? 'var(--accent)' : undefined,
             }}
@@ -216,7 +216,7 @@ export default function MasterRender({ performance }: { performance: Performance
                     <button className="small" data-testid="make-audio"
                             disabled={busy || audioState(planHash) === 'working'}
                             onClick={() => void audio(planHash)}
-                            style={{ padding: '2px 8px', fontSize: 11 }}>
+                            style={{ padding: '2px 8px', fontSize: 'var(--text-xs)' }}>
                       {audioState(planHash) === 'working' ? 'Taking the audio…'
                         : audioState(planHash) === 'done' ? 'Take it again'
                         : 'Make an audio file'}

@@ -258,8 +258,11 @@ export default function Watch({ conversationId }: { conversationId: string }) {
           {inResponse && current?.claim && (
             <div style={{
               position: 'absolute', top: 12, left: 12, right: 12,
-              padding: '8px 12px', borderRadius: 6, fontStyle: 'italic',
-              background: 'rgba(0,0,0,.6)', color: '#fff', fontSize: 15,
+              padding: '8px 12px', fontStyle: 'italic',
+              borderRadius: 'var(--radius-screen)',
+              background: 'rgba(0,0,0,0.72)',
+              border: '1px solid rgba(255,255,255,0.14)',
+              color: 'rgba(255,255,255,0.94)', fontSize: 'var(--text-md)',
             }}>
               “{current.claim}”
             </div>

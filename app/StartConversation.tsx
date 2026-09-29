@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import Icon from './Icon.js';
 import { useRouter } from 'next/navigation';
 
 /**
@@ -320,7 +321,9 @@ export default function StartConversation() {
             ) : (
               <div data-testid="preview-placeholder"
                    style={{ textAlign: 'center', padding: 16, lineHeight: 1.4 }}>
-                <div aria-hidden style={{ fontSize: 26, opacity: 0.5 }}>▸</div>
+                <div aria-hidden style={{ opacity: 0.5, lineHeight: 0 }}>
+                  <Icon name="chevron" size={22} />
+                </div>
                 <div className="small" style={{ marginTop: 4, wordBreak: 'break-word' }}>
                   {preview?.fileName ?? preview?.title ?? 'Your video'}
                 </div>
@@ -377,7 +380,8 @@ export default function StartConversation() {
           style={{ background: 'transparent', border: 'none', color: 'var(--muted)',
             padding: '6px 0', cursor: 'pointer' }}
         >
-          {details ? '▾' : '▸'} Source information — creator, link, rights and attribution
+          <Icon name="chevron" size={10} {...(details ? { turn: 90 as const } : {})} />
+          {' '}Source information — creator, link, rights and attribution
         </button>
 
         {details && (

@@ -151,7 +151,7 @@ export default function RoomView({
     <div className="shell">
       <header className="shell-bar">
         <div className="grow" style={{ minWidth: 0 }}>
-          <h1 style={{ fontSize: 17, margin: 0, whiteSpace: 'nowrap',
+          <h1 style={{ fontSize: 'var(--text-lg)', margin: 0, whiteSpace: 'nowrap',
             overflow: 'hidden', textOverflow: 'ellipsis' }}>{room.title}</h1>
           <div className="small muted">
             {room.sourceTitle} · {present.length}{' '}
@@ -176,11 +176,37 @@ export default function RoomView({
         gap: 14, padding: '14px 20px',
       }}>
         {/* ---- who is here, and where they stand ---------------------- */}
-        <aside className="shell-scroll" data-testid="people-rail" aria-label="People">
-          <div className="small muted" style={{ textTransform: 'uppercase',
-            letterSpacing: 0.8, fontSize: 11, marginBottom: 8 }}>
-            In the room
+        {/*
+          * THE ROOM IS ONE RAIL, NOT A STACK OF CARDS IN A VOID.
+          * [brief §3, §4]
+          *
+          * Each person was their own bordered `.panel` with its own
+          * margin, under a bare legend, in a column that stopped after
+          * the last one — so a room with one person in it was a small
+          * rectangle floating at the top of nine hundred pixels of
+          * empty desk, and a room with six was six rectangles with
+          * gaps between them. Both read as a dashboard; neither reads
+          * as the list of who is here.
+          *
+          * Same shape the takes rail took in 39: one module that runs
+          * the height of its bay, with a head, and people as ROWS
+          * inside it separated by a rule. A row's borders are its
+          * neighbours, which is why a list looks like a list.
+          */}
+        <aside className="panel" data-testid="people-rail" aria-label="People"
+               style={{
+                 display: 'flex', flexDirection: 'column', minHeight: 0,
+                 height: '100%', padding: 0, overflow: 'hidden',
+               }}>
+          <div className="module-head">
+            <span className="module-label grow">In the room</span>
+            <span className="mono readout" data-testid="room-count" style={{
+              fontSize: 'var(--text-2xs)', color: 'var(--ink-400)',
+            }}>{String(present.length).padStart(2, '0')}</span>
           </div>
+          <div className="shell-scroll" style={{
+            flex: '1 1 auto', minHeight: 0, overflowY: 'auto',
+          }}>
 
           {present.map((person) => {
             const isStaged = staged.has(person.id);
@@ -192,9 +218,23 @@ export default function RoomView({
                 data-testid="room-person"
                 data-participant-id={person.id}
                 data-presence={person.presence}
-                className="panel"
-                style={{ padding: 9, marginBottom: 7, borderColor: isStaged
-                  ? 'var(--source-accent)' : 'var(--line)' }}
+                style={{
+                  padding: '8px 10px',
+                  borderBottom: '1px solid var(--console-rule)',
+                  /*
+                    * ON STAGE IS SAID BY A LIT LEADING EDGE, which is
+                    * how every rail in this product says "this one" —
+                    * the takes rail, the clip rail, the schedule's
+                    * running block. It was said by recolouring the
+                    * whole card's border, an object that no longer
+                    * exists and that in a stack of six put six
+                    * competing outlines on the screen.
+                    */
+                  borderLeft: `3px solid ${isStaged
+                    ? 'var(--source-accent)' : 'transparent'}`,
+                  background: isStaged
+                    ? 'var(--console-control)' : 'transparent',
+                }}
               >
                 <div className="row" style={{ gap: 8, flexWrap: 'nowrap' }}>
                   <span aria-hidden style={{
@@ -205,9 +245,29 @@ export default function RoomView({
                     whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {person.displayName}{person.me ? ' (you)' : ''}
                   </span>
+                  {/*
+                    * A WORD, NOT A PICTOGRAM. This was ✋ — an emoji,
+                    * so full colour on macOS and Windows, and
+                    * carrying a platform-chosen skin tone in a room
+                    * where the mark means "this person would like to
+                    * speak".
+                    *
+                    * I drew a hand for the icon set and measured it
+                    * at the size this row actually uses. Four
+                    * variants, and at 13px none of them reads as a
+                    * hand — they are all the same small blob. At
+                    * 40px they are fine, which is how an icon that
+                    * does not work ships.
+                    *
+                    * So it takes the object the product already has
+                    * for "this needs attention": the armed state
+                    * badge, with a word in it. Findable at a glance
+                    * down a rail of six people, legible at any size,
+                    * and not colour alone. [U-19]
+                    */}
                   {person.handRaisedAt && (
-                    <span data-testid="hand-up" title="Wants to speak"
-                          style={{ flex: '0 0 auto' }}>✋</span>
+                    <span className="state is-armed" data-testid="hand-up"
+                          title="Wants to speak">HAND</span>
                   )}
                 </div>
 
@@ -238,7 +298,7 @@ export default function RoomView({
                           ? room.stagedParticipantIds.filter((id) => id !== person.id)
                           : [...room.stagedParticipantIds, person.id],
                       })}
-                      style={{ padding: '3px 8px', fontSize: 11 }}
+                      style={{ padding: '3px 8px', fontSize: 'var(--text-xs)' }}
                     >
                       {isStaged ? 'Take off stage' : 'Bring in'}
                     </button>
@@ -250,7 +310,7 @@ export default function RoomView({
                       onClick={() => void act({
                         action: 'pin', pinned: pinned ? null : person.id,
                       })}
-                      style={{ padding: '3px 8px', fontSize: 11 }}
+                      style={{ padding: '3px 8px', fontSize: 'var(--text-xs)' }}
                     >
                       {pinned ? 'Unpin' : 'Pin'}
                     </button>
@@ -261,15 +321,18 @@ export default function RoomView({
           })}
 
           {present.length === 0 && (
-            <p className="small muted">Nobody yet. Send someone the link.</p>
+            <p className="small muted" style={{ padding: '10px 12px', margin: 0 }}>
+              Nobody yet. Send someone the link.
+            </p>
           )}
+          </div>
         </aside>
 
         {/* ---- what the viewer would see ------------------------------ */}
         <section style={{ minHeight: 0, display: 'grid', gridTemplateRows: 'auto 1fr' }}>
           <div className="row" style={{ gap: 10, marginBottom: 8, flexWrap: 'nowrap' }}>
             <div className="small muted grow" style={{ textTransform: 'uppercase',
-              letterSpacing: 0.8, fontSize: 11 }}>
+              letterSpacing: '0.1em', fontSize: 'var(--text-2xs)' }}>
               On stage
             </div>
             {/*
@@ -287,7 +350,8 @@ export default function RoomView({
             )}
           </div>
           <div data-testid="room-stage" style={{
-            background: '#08090b', borderRadius: 10, border: '1px solid var(--line)',
+            background: '#000', borderRadius: 2,
+            border: '1px solid var(--console-edge)',
             display: 'grid', placeItems: 'center', padding: 16, minHeight: 0,
           }}>
             {onStage.length === 0 ? (
@@ -406,9 +470,16 @@ export default function RoomView({
                         <span style={{
                           position: 'absolute', right: 0, bottom: 0,
                           padding: '2px var(--space-4)',
-                          background: 'rgba(8,10,14,0.6)',
-                          backdropFilter: 'blur(10px)',
-                          WebkitBackdropFilter: 'blur(10px)',
+                          /*
+                           * A NAME SUPER IS PRINTED ON THE PICTURE, not
+                           * frosted over it — the last glass surface in
+                           * the product, and the one most likely to be
+                           * over a moving face. A blurred sample of
+                           * somebody's chin behind their own name is
+                           * not a material any broadcast graphic has
+                           * ever been made of. [brief §19]
+                           */
+                          background: 'rgba(0,0,0,0.72)',
                           fontSize: 'var(--text-xs)',
                           fontWeight: 'var(--weight-medium)',
                           color: 'rgba(255,255,255,0.92)',
@@ -430,10 +501,11 @@ export default function RoomView({
           {host ? (
             <>
               <div className="small muted" style={{ textTransform: 'uppercase',
-                letterSpacing: 0.8, fontSize: 11, marginBottom: 6 }}>
+                letterSpacing: '0.1em', fontSize: 'var(--text-2xs)', marginBottom: 6 }}>
                 Speaker mode
               </div>
-              <div data-testid="speaker-mode" style={{ marginBottom: 8 }}>
+              <div className="ctl-bank" data-testid="speaker-mode"
+                   style={{ marginBottom: 8 }}>
                 {MODES.map((mode) => (
                   <button
                     key={mode.id}
@@ -443,17 +515,33 @@ export default function RoomView({
                     aria-pressed={room.speakerMode === mode.id}
                     disabled={busy}
                     onClick={() => void act({ action: 'speaker-mode', speakerMode: mode.id })}
+                    /*
+                      * FOUR MUTUALLY EXCLUSIVE POSITIONS, which is one
+                      * control and not four cards. Same bank as Studio
+                      * Two's sound modes in 17: they share a face, the
+                      * chosen one is lit along its leading edge, and
+                      * the sentence under each is an explanation.
+                      *
+                      * They now share EDGES as well as a face. Four
+                      * pixels of air between four `.ctl`s leaves four
+                      * objects that happen to agree; a seam makes them
+                      * one piece of metal with positions cut into it.
+                      */
+                    className={`ctl${room.speakerMode === mode.id ? ' is-on' : ''}`}
                     style={{
-                      display: 'block', width: '100%', textAlign: 'left', marginBottom: 5,
-                      padding: '7px 10px', borderRadius: 7,
-                      background: room.speakerMode === mode.id
-                        ? 'var(--accent-wash)' : 'var(--panel-2)',
-                      border: `1px solid ${room.speakerMode === mode.id
-                        ? 'var(--accent)' : 'var(--line)'}`,
+                      display: 'block', width: '100%', textAlign: 'left',
+                      padding: '8px 11px',
                     }}
                   >
-                    <div style={{ fontWeight: 600, fontSize: 13 }}>{mode.label}</div>
-                    <div className="small muted" style={{ fontSize: 11 }}>{mode.hint}</div>
+                    <div style={{
+                      fontWeight: 'var(--weight-semi)', fontSize: 'var(--text-sm)',
+                      letterSpacing: 0, textTransform: 'none',
+                    }}>{mode.label}</div>
+                    <div style={{
+                      fontSize: 'var(--text-2xs)', color: 'var(--ink-300)',
+                      marginTop: 2, letterSpacing: 0, textTransform: 'none',
+                      lineHeight: 'var(--leading-snug)',
+                    }}>{mode.hint}</div>
                   </button>
                 ))}
               </div>
@@ -490,7 +578,7 @@ export default function RoomView({
             /* A guest's side: what they may do, which is about themselves. */
             <div data-testid="guest-controls">
               <div className="small muted" style={{ textTransform: 'uppercase',
-                letterSpacing: 0.8, fontSize: 11, marginBottom: 6 }}>
+                letterSpacing: '0.1em', fontSize: 'var(--text-2xs)', marginBottom: 6 }}>
                 You
               </div>
               <p className="small muted" style={{ marginTop: 0, lineHeight: 1.45 }}>
@@ -503,7 +591,7 @@ export default function RoomView({
                   Put my hand down
                 </button>
               ) : (
-                <button className="primary" data-testid="raise-hand" disabled={busy}
+                <button className="ctl is-key" data-testid="raise-hand" disabled={busy}
                         onClick={() => void act({ action: 'raise-hand' }, 'room/presence')}>
                   I&rsquo;d like to speak
                 </button>
@@ -535,20 +623,30 @@ export default function RoomView({
             ref={capture.videoRef} autoPlay muted playsInline
             data-testid="my-camera"
             style={{
-              width: 132, aspectRatio: '16 / 9', objectFit: 'cover', borderRadius: 6,
+              width: 132, aspectRatio: '16 / 9', objectFit: 'cover',
+              /* Your own camera is a picture like any other. 6px slipped
+                 under the radius ban, which only looks for 8 and above. */
+              borderRadius: 'var(--radius-screen)',
               border: `2px solid ${capture.recording ? '#e0674f' : 'var(--line)'}`,
               display: capture.armed ? 'block' : 'none', flex: '0 0 auto',
             }}
           />
           <div className="grow" style={{ minWidth: 0 }}>
             {capture.recording ? (
-              <div data-testid="recording-now" style={{ fontWeight: 600, color: '#e0674f' }}>
+              /*
+                * THE STATE OF THE ROOM IS A LEGEND. Three values —
+                * recording, armed, off — set as a bold sentence above
+                * an explanation, which reads as a heading and competes
+                * with the one control beside it. [brief §13]
+                */
+              <div className="module-label" data-testid="recording-now"
+                   style={{ color: 'var(--ink-on-bad)' }}>
                 Recording you
               </div>
             ) : capture.armed ? (
-              <div style={{ fontWeight: 600 }}>Microphone on</div>
+              <div className="module-label">Microphone on</div>
             ) : (
-              <div style={{ fontWeight: 600 }}>Microphone off</div>
+              <div className="module-label">Microphone off</div>
             )}
             <div className="small muted">
               {capture.recording
@@ -559,11 +657,22 @@ export default function RoomView({
             </div>
           </div>
           {capture.armed ? (
-            <button className="small" data-testid="mic-off" onClick={capture.disarm}>
+            <button className="ctl" data-testid="mic-off" onClick={capture.disarm}>
               Turn off
             </button>
           ) : (
-            <button className="primary" data-testid="mic-on" onClick={() => void capture.arm()}>
+            /*
+              * THE ONE LOUD CONTROL IN THE ROOM. Nothing here works
+              * until the microphone is on — the room cannot tell who
+              * is speaking, so the stage cannot follow anybody — which
+              * makes this the same kind of object as ENABLE CAMERA in
+              * Studio One and GO LIVE in the control room. It should
+              * look like their sibling rather than like a sign-up
+              * button.
+              */
+            <button className="ctl is-key" data-testid="mic-on"
+                    onClick={() => void capture.arm()}
+                    style={{ padding: '8px 14px' }}>
               Turn on camera and microphone
             </button>
           )}

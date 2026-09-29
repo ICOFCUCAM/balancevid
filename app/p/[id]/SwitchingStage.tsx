@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import Icon from '../../Icon.js';
 import type { MasterClass, Performance } from '../../../src/domain/performance.js';
 import {
   MASTER_CLASSES, SPACES, isFootage, orderedScenes, sceneAt,
@@ -476,16 +477,32 @@ export default function SwitchingStage({
         gap: 'var(--space-2)',
         padding: opts.swatch ? 'var(--space-2)' : 'var(--space-2) 3px',
         minHeight: 0,
-        borderRadius: 'var(--radius-md)',
+        /*
+         * ONE RENDERER, THREE GRIDS — composition, environment and
+         * effects all come through here, which is why this is the
+         * whole of Studio Two's option language in one place.
+         *
+         * IT WAS A SAAS CARD GRID: an 8px radius, a blue gradient fill
+         * on the chosen one and a drop shadow lifting it off the page.
+         * Twenty of them in a column is twenty floating rectangles,
+         * and the chosen one announced itself by becoming a different
+         * colour of object rather than by being the lit one.
+         *
+         * Now: 3px, a seam instead of a border, and the chosen tile
+         * comes forward two per cent with a lit top edge. Same rule as
+         * the multi-view in 03, the tab strips in 05 and the virtual
+         * sets in 10 — one grammar for "this is the one", across four
+         * surfaces that used to have four. [brief §4, §10]
+         */
+        borderRadius: 3,
         cursor: opts.disabled ? 'not-allowed' : 'pointer',
-        border: `1px solid ${isChosen ? '#4f8ad6' : 'var(--line-soft)'}`,
+        border: `1px solid ${isChosen
+          ? 'var(--accent)' : 'var(--console-seam)'}`,
+        borderTopWidth: isChosen ? 2 : 1,
         background: isChosen
-          ? 'linear-gradient(180deg, rgba(79,138,214,0.26),'
-            + ' rgba(79,138,214,0.14))'
-          : 'var(--surface-float)',
+          ? 'var(--console-control-hover)' : 'var(--console-control)',
         boxShadow: isChosen
-          ? 'inset 0 1px 0 rgba(255,255,255,0.14), 0 2px 6px rgba(0,0,0,0.4)'
-          : 'inset 0 1px 0 rgba(255,255,255,0.025)',
+          ? 'var(--console-bevel-strong)' : 'var(--console-bevel)',
         color: 'inherit', font: 'inherit',
         fontSize: 'var(--text-2xs)', lineHeight: 1.25,
         fontWeight: isChosen ? 'var(--weight-semi)' : 'var(--weight-normal)',
@@ -586,7 +603,7 @@ export default function SwitchingStage({
           data-layout={current?.layoutId ?? 'none'}
           style={{
             gridArea: 'stage', position: 'relative', aspectRatio: '16 / 9',
-            background: '#05070a', borderRadius: 10,
+            background: '#000', borderRadius: 2,
             border: '1px solid var(--line)', overflow: 'hidden',
           }}
         >
@@ -689,10 +706,35 @@ export default function SwitchingStage({
                     puts it: bottom left of its own panel — with the key in
                     front of it on the multiview, because that is the whole
                     point of looking at them all at once. */}
+                {/*
+                  * THE TAKE'S COLOUR IS A LAMP, NOT A FLOOD.  [U-20, §19]
+                  *
+                  * This was a saturated plate of `take.accent` with near
+                  * black text, lying on the picture — the same object
+                  * Online TV's ARMED pill was, and it is worse here
+                  * because there is one per monitor and their colours
+                  * differ, so two takes side by side put two different
+                  * loud rectangles on two pictures you are comparing.
+                  * The colour is the loudest thing on a frame it is
+                  * supposed to be labelling.
+                  *
+                  * The take rail already says which take is which by
+                  * lighting its leading edge in the take's own colour.
+                  * That is the product's one language for take
+                  * identity, so this is the same object at monitor
+                  * scale: a dark OSD plate with the colour as a bar
+                  * down its leading edge. Identity survives, the
+                  * picture wins, and the two monitors stop competing.
+                  */}
                 <span style={{
-                  position: 'absolute', left: 6, bottom: 6, padding: '3px 7px',
-                  borderRadius: 4, fontSize: 11, fontWeight: 600,
-                  background: take.accent ?? '#3e7ca6', color: '#0a0c10',
+                  position: 'absolute', left: 6, bottom: 6,
+                  padding: '3px 7px 3px 6px',
+                  borderRadius: 'var(--radius-screen)',
+                  fontSize: 'var(--text-xs)', fontWeight: 600,
+                  background: 'rgba(0,0,0,0.72)',
+                  border: '1px solid rgba(255,255,255,0.14)',
+                  borderLeft: `3px solid ${take.accent ?? '#3e7ca6'}`,
+                  color: 'rgba(255,255,255,0.94)',
                   maxWidth: 'calc(100% - 12px)', overflow: 'hidden',
                   textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                 }}>
@@ -717,9 +759,21 @@ export default function SwitchingStage({
               </div>
             );
           })}
-          <div style={{
+          {/*
+            * AND THE CLOCK IS THE SAME PLATE AS EVERY OTHER OSD. It was
+            * a 4px-cornered box in its own near-black; the programme
+            * monitor's three plates settled on flat black at 72% with a
+            * hairline of light and a 2px corner in commit 14, and there
+            * is no reason for this studio's clock to be a different
+            * object from that studio's clock.
+            */}
+          <div className="readout" style={{
             position: 'absolute', left: 10, top: 10, padding: '3px 8px',
-            borderRadius: 4, background: 'rgba(5,7,10,0.78)', fontSize: 11,
+            borderRadius: 'var(--radius-screen)',
+            background: 'rgba(0,0,0,0.72)',
+            border: '1px solid rgba(255,255,255,0.14)',
+            color: 'rgba(255,255,255,0.94)',
+            fontSize: 'var(--text-xs)',
             fontFamily: 'ui-monospace, monospace',
           }}>
             {formatMasterPosition(Math.round(player.position))} / {clock(duration)}
@@ -733,10 +787,19 @@ export default function SwitchingStage({
           {usableIds.length > 1 && (
             <div className="row" data-testid="stage-view" data-mode={allTakes ? 'all' : 'program'}
                  style={{
+                   /*
+                    * AN OSD CONTROL, printed on the monitor rather
+                    * than floated over it — same rule the programme
+                    * monitor's plates learned in 14. Square, opaque,
+                    * and the chosen half is LIT rather than filled
+                    * blue: at 11px over a picture, a 55%-alpha blue
+                    * fill is a coloured smear whose text is the first
+                    * thing to go.
+                    */
                    position: 'absolute', right: 10, top: 10, gap: 0,
-                   borderRadius: 6, overflow: 'hidden',
-                   border: '1px solid rgba(255,255,255,0.18)',
-                   background: 'rgba(5,7,10,0.78)',
+                   borderRadius: 2, overflow: 'hidden',
+                   border: '1px solid rgba(255,255,255,0.16)',
+                   background: 'rgba(0,0,0,0.72)',
                  }}>
               {([['program', 'Program'], ['all', 'All takes']] as const).map(([id, text]) => {
                 const on = (id === 'all') === allTakes;
@@ -747,8 +810,14 @@ export default function SwitchingStage({
                           onClick={() => setMultiview(id === 'all')}
                           style={{
                             border: 0, borderRadius: 0, padding: '4px 10px',
-                            fontSize: 11, cursor: 'pointer', color: 'inherit',
-                            background: on ? 'rgba(45,110,200,0.55)' : 'transparent',
+                            fontSize: 'var(--text-2xs)', cursor: 'pointer',
+                            letterSpacing: '0.07em', textTransform: 'uppercase',
+                            fontWeight: on
+                              ? 'var(--weight-bold)' : 'var(--weight-semi)',
+                            color: on ? 'var(--ink-000)' : 'rgba(255,255,255,0.58)',
+                            background: on ? 'rgba(255,255,255,0.1)' : 'transparent',
+                            borderBottom: `2px solid ${on
+                              ? 'var(--accent)' : 'transparent'}`,
                           }}>
                     {text}
                   </button>
@@ -778,7 +847,7 @@ export default function SwitchingStage({
         <aside data-testid="composition-panel" className="shell-scroll"
                style={{
                  position: 'absolute', inset: 0,
-                 border: '1px solid var(--line)', borderRadius: 10,
+                 border: '1px solid var(--console-edge)', borderRadius: 2,
                  padding: '4px 12px 8px', background: 'var(--panel)',
                }}>
           {sectionTitle('Composition')}
@@ -826,7 +895,7 @@ export default function SwitchingStage({
           {subject && isFootage(subject) ? (
             <>
               {sectionTitle('Footage', (
-                <span className="small muted" style={{ fontSize: 10 }}>{subject.label}</span>
+                <span className="small muted" style={{ fontSize: 'var(--text-2xs)' }}>{subject.label}</span>
               ))}
               {/* Four across, the environment group's shape, because this
                   group stands where that one would. */}
@@ -841,7 +910,7 @@ export default function SwitchingStage({
 
               {sectionTitle('Whose footage', (
                 <span className="small" style={{
-                  fontSize: 10,
+                  fontSize: 'var(--text-2xs)',
                   color: subject.rights && subject.rights !== 'third_party'
                     ? 'var(--muted)' : 'var(--warn)',
                 }}>
@@ -893,7 +962,7 @@ export default function SwitchingStage({
                   'footage-rights', { height: 48 }))}
               </div>
               {subject.rightsNote && (
-                <p className="small muted" style={{ fontSize: 10, margin: '6px 0 0' }}>
+                <p className="small muted" style={{ fontSize: 'var(--text-2xs)', margin: '6px 0 0' }}>
                   {subject.rightsNote}
                 </p>
               )}
@@ -904,14 +973,14 @@ export default function SwitchingStage({
             'Background / Environment',
             <span className="row" style={{ gap: 8, alignItems: 'baseline' }}>
               {subject && (
-                <span className="small muted" style={{ fontSize: 10 }}>{subject.label}</span>
+                <span className="small muted" style={{ fontSize: 'var(--text-2xs)' }}>{subject.label}</span>
               )}
               {SPACES.length > 6 && (
                 <button type="button" className="small" data-testid="view-all-spaces"
                         onClick={() => setAllSpaces(!allSpaces)}
                         style={{
                           border: 0, background: 'none', padding: 0, cursor: 'pointer',
-                          color: '#5c9ee0', fontSize: 11,
+                          color: '#5c9ee0', fontSize: 'var(--text-xs)',
                         }}>
                   {allSpaces ? 'Show fewer' : 'View all'}
                 </button>
@@ -919,7 +988,7 @@ export default function SwitchingStage({
             </span>,
           )}
           {!subject ? (
-            <p className="small muted" style={{ fontSize: 11, margin: 0 }}>
+            <p className="small muted" style={{ fontSize: 'var(--text-xs)', margin: 0 }}>
               Record or upload a take first.
             </p>
           ) : (
@@ -998,7 +1067,7 @@ export default function SwitchingStage({
       <div data-testid="performance-timeline" style={{
         gridArea: 'timeline',
         border: 'var(--border) solid var(--line)',
-        borderRadius: 'var(--radius-lg)',
+        borderRadius: 'var(--radius-module)',
         background: 'var(--ink-850)', overflow: 'hidden',
         boxShadow: 'var(--elev-1)',
       }}>
@@ -1023,7 +1092,7 @@ export default function SwitchingStage({
               }}>
                 MASTER SONG
               </div>
-              <div className="small muted" style={{ fontSize: 10, overflow: 'hidden',
+              <div className="small muted" style={{ fontSize: 'var(--text-2xs)', overflow: 'hidden',
                 textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {performance.master.title}
               </div>
@@ -1038,17 +1107,17 @@ export default function SwitchingStage({
               {beats?.acceptedBy && (
                 <span className="row" data-testid="tempo"
                       style={{ gap: 4, marginTop: 2 }}>
-                  <span className="small muted" style={{ fontSize: 10 }}>
+                  <span className="small muted" style={{ fontSize: 'var(--text-2xs)' }}>
                     {Math.round(beats.bpm)} BPM
                   </span>
                   <button className="small" data-testid="halve-tempo"
                           title={`Half time \u2014 ${Math.round(beats.bpm / 2)} BPM`}
                           onClick={() => void tempo(beats.bpm / 2)}
-                          style={{ padding: '0 5px', fontSize: 10 }}>&frac12;</button>
+                          style={{ padding: '0 5px', fontSize: 'var(--text-2xs)' }}>&frac12;</button>
                   <button className="small" data-testid="double-tempo"
                           title={`Double time \u2014 ${Math.round(beats.bpm * 2)} BPM`}
                           onClick={() => void tempo(beats.bpm * 2)}
-                          style={{ padding: '0 5px', fontSize: 10 }}>2&times;</button>
+                          style={{ padding: '0 5px', fontSize: 'var(--text-2xs)' }}>2&times;</button>
                 </span>
               )}
             </div>
@@ -1059,7 +1128,7 @@ export default function SwitchingStage({
                       style={{
                         display: 'flex', alignItems: 'center', gap: 7, width: '100%',
                         height: 30, padding: '0 10px', border: 0, font: 'inherit',
-                        fontSize: 11, textAlign: 'left', cursor: 'pointer',
+                        fontSize: 'var(--text-xs)', textAlign: 'left', cursor: 'pointer',
                         color: 'inherit',
                         background: subject?.id === take.id
                           ? 'rgba(45,110,200,0.16)' : 'transparent',
@@ -1095,7 +1164,7 @@ export default function SwitchingStage({
                           go: () => void patch({ action: 'clear-scenes' }),
                         })}
                         style={{
-                          border: 0, background: 'none', padding: 0, fontSize: 10,
+                          border: 0, background: 'none', padding: 0, fontSize: 'var(--text-2xs)',
                           fontWeight: 500, color: 'var(--muted)', cursor: 'pointer',
                         }}>Clear</button>
               )}
@@ -1112,7 +1181,7 @@ export default function SwitchingStage({
               {ticks.map((at) => (
                 <span key={at} className="muted" style={{
                   position: 'absolute', left: pct(at * HOUSE_SAMPLE_RATE), top: 2,
-                  fontSize: 9, fontFamily: 'ui-monospace, monospace',
+                  fontSize: 'var(--text-2xs)', fontFamily: 'ui-monospace, monospace',
                   transform: at === 0 ? 'none' : 'translateX(-50%)',
                 }}>{clock(at * HOUSE_SAMPLE_RATE)}</span>
               ))}
@@ -1122,7 +1191,7 @@ export default function SwitchingStage({
               {ordered.filter((s) => s.label).map((scene) => (
                 <span key={scene.id} style={{
                   position: 'absolute', left: pct(scene.fromSample), top: 0,
-                  fontSize: 10, paddingLeft: 5, color: 'rgba(255,255,255,0.72)',
+                  fontSize: 'var(--text-2xs)', paddingLeft: 5, color: 'rgba(255,255,255,0.72)',
                 }}>{scene.label}</span>
               ))}
               <svg width="100%" height="36" style={{ position: 'absolute', top: 14 }}
@@ -1183,14 +1252,14 @@ export default function SwitchingStage({
                          // above it are plainly about the same takes. [§2]
                          background: `${take?.accent ?? '#3e7ca6'}33`,
                          borderLeft: `3px solid ${take?.accent ?? '#3e7ca6'}`,
-                         borderRadius: 4, padding: '3px 6px', fontSize: 10,
+                         borderRadius: 4, padding: '3px 6px', fontSize: 'var(--text-2xs)',
                          overflow: 'hidden',
                        }}>
                     <span style={{ display: 'block', fontWeight: 600 }}>
                       {scene.takeIds.map((tid) =>
                         performance.takes.find((t) => t.id === tid)?.label ?? '?').join(' + ')}
                     </span>
-                    <span className="muted" style={{ fontSize: 9 }}>
+                    <span className="muted" style={{ fontSize: 'var(--text-2xs)' }}>
                       {clock(scene.fromSample)} – {clock(to)}
                     </span>
                   </div>
@@ -1238,25 +1307,44 @@ export default function SwitchingStage({
          * panel 360, and a centre computed from unequal sides is not one.
          */
         gridTemplateColumns: '1fr auto 1fr',
-        border: '1px solid var(--line)', borderRadius: 10,
-        background: 'var(--panel)', padding: '10px 14px',
+        /*
+         * A TRANSPORT IS PART OF THE DESK. It was a rounded card
+         * floating under the stage; it is the strip the edit is driven
+         * from, which makes it the same object as Online TV's master
+         * control bar. Same face, same bevel, same 4px. [brief §12]
+         */
+        border: '1px solid var(--console-edge)',
+        borderRadius: 'var(--radius-module)',
+        background: 'var(--console-face)',
+        boxShadow: 'var(--console-bevel)',
+        padding: '9px 13px',
       }}>
         {/* ---- left: play, position, monitoring level ---------------- */}
         <div className="row" style={{ gap: 10, alignItems: 'center', minWidth: 0 }}>
-          <button className="primary" data-testid="player-play" disabled={!player.ready}
+          {/*
+            * A 40px BLUE CIRCLE IS A MEDIA-PLAYER BUTTON, which is the
+            * right object on a podcast page and the wrong one on a
+            * desk. Every transport ever built — tape, vision mixer,
+            * edit controller — uses square keys, because they sit in a
+            * row and a row of circles has gaps in it. Same key as
+            * Online TV's transport, which is now the same shape.
+            */}
+          <button className="ctl" data-testid="player-play"
+                  disabled={!player.ready}
                   onClick={() => (player.playing ? player.pause() : void player.play())}
                   title={player.playing ? 'Pause' : 'Play the song'}
                   style={{
-                    width: 40, height: 40, borderRadius: '50%', padding: 0,
-                    fontSize: 14, flex: '0 0 auto',
+                    width: 34, height: 30, padding: 0, flex: '0 0 auto',
+                    display: 'grid', placeItems: 'center',
                   }}>
-            {player.playing ? '\u275a\u275a' : '\u25b6'}
+            <Icon name={player.playing ? 'pause' : 'play'} size={12} />
           </button>
-          <span style={{
-            fontFamily: 'ui-monospace, monospace', fontSize: 13, flex: '0 0 auto',
+          <span className="mono readout" style={{
+            fontSize: 'var(--text-xs)', flex: '0 0 auto',
+            color: 'var(--ink-050)',
           }}>
             {formatMasterPosition(Math.round(player.position))}
-            <span className="muted"> / {clock(duration)}</span>
+            <span style={{ color: 'var(--ink-400)' }}> / {clock(duration)}</span>
           </span>
           {/*
             * MONITORING, NOT MIXING. This is how loud the song is in the room
@@ -1266,7 +1354,7 @@ export default function SwitchingStage({
             */}
           <label className="row" style={{ gap: 5, alignItems: 'center', minWidth: 0 }}
                  title="How loud the song is here. The render is unaffected.">
-            <span aria-hidden="true" style={{ fontSize: 12, opacity: 0.7 }}>
+            <span aria-hidden="true" style={{ fontSize: 'var(--text-sm)', opacity: 0.7 }}>
               {player.volume === 0 ? '\ud83d\udd07' : '\ud83d\udd0a'}
             </span>
             <input
@@ -1275,7 +1363,7 @@ export default function SwitchingStage({
               aria-label="Monitoring volume"
               value={Math.round(player.volume * 100)}
               onChange={(e) => player.setVolume(Number(e.target.value) / 100)}
-              style={{ width: 74, accentColor: '#3d7fd6' }}
+              style={{ width: 74, accentColor: 'var(--accent)' }}
             />
           </label>
         </div>
@@ -1294,13 +1382,27 @@ export default function SwitchingStage({
                     data-take-id={take.id}
                     onClick={() => choose(index)}
                     title={`${take.label} \u2014 key ${index + 1}`}
+                    /*
+                      * THE NUMBER KEYS ARE INPUTS ON A SWITCHER, and
+                      * they keep the take's own colour because that
+                      * colour is the thread running through the rail,
+                      * the stage badge and every block of the master.
+                      * What changes is the shape: 3px rather than 7,
+                      * and the armed one is marked with a tally along
+                      * its top edge rather than outlined in white —
+                      * an outline changes the key's size by two pixels
+                      * and the row shifts as you arm one. [§7]
+                      */
                     style={{
-                      width: 34, height: 34, borderRadius: 7, padding: 0,
-                      fontWeight: 700, fontSize: 13, cursor: 'pointer',
+                      width: 32, height: 30, borderRadius: 3, padding: 0,
+                      fontWeight: 'var(--weight-bold)',
+                      fontSize: 'var(--text-sm)', cursor: 'pointer',
                       color: '#0a0c10',
                       background: take.accent ?? '#3e7ca6',
-                      border: pending.includes(take.id)
-                        ? '2px solid #fff' : '1px solid rgba(0,0,0,0.35)',
+                      border: '1px solid rgba(0,0,0,0.4)',
+                      borderTop: pending.includes(take.id)
+                        ? '3px solid #fff' : '1px solid rgba(0,0,0,0.4)',
+                      boxShadow: 'var(--console-bevel)',
                     }}>
               {index + 1}
             </button>
@@ -1310,7 +1412,7 @@ export default function SwitchingStage({
         {/* ---- right: what acts on the whole edit -------------------- */}
         <div className="row" style={{
           gap: 6, justifyContent: 'flex-end', flexWrap: 'nowrap',
-          fontSize: 12, whiteSpace: 'nowrap',
+          fontSize: 'var(--text-sm)', whiteSpace: 'nowrap',
         }}>
           {beats && (
             <button className="small" data-testid="snap-to-beat"
@@ -1343,7 +1445,7 @@ export default function SwitchingStage({
             * knows them. A second button that started a render would be a
             * second place the rights gate could be got wrong. [§14, INV-15]
             */}
-          <button className="primary" data-testid="to-master"
+          <button className="ctl" data-testid="to-master"
                   disabled={ordered.length === 0}
                   onClick={() => document.querySelector('[data-testid="master-render"]')
                     ?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>
@@ -1380,7 +1482,7 @@ export default function SwitchingStage({
       {/* ---- how one scene becomes the next (§11) ---------------------- */}
       {ordered.length > 1 && showTransitions && (
         <div className="row" data-testid="transitions" style={{ gap: 8, flexWrap: 'wrap' }}>
-          <span className="small muted" style={{ fontSize: 11 }}>Transitions</span>
+          <span className="small muted" style={{ fontSize: 'var(--text-xs)' }}>Transitions</span>
           {ordered.slice(1).map((scene) => (
             <select key={scene.id} className="small" data-testid="scene-transition"
                     data-scene-id={scene.id}
@@ -1389,7 +1491,7 @@ export default function SwitchingStage({
                       action: 'set-transition', sceneId: scene.id,
                       transition: e.target.value === 'cut' ? null : e.target.value,
                     })}
-                    style={{ width: 'auto', fontSize: 11, padding: '2px 6px' }}>
+                    style={{ width: 'auto', fontSize: 'var(--text-xs)', padding: '2px 6px' }}>
               {Object.values(TRANSITIONS).map((t) => (
                 <option key={t.id} value={t.id}>
                   {clock(scene.fromSample)} · {t.label}

@@ -60,7 +60,7 @@ export default function PeopleRail({
       {people.length > 1 && (
         <>
           <div className="small muted" style={{
-            textTransform: 'uppercase', letterSpacing: 0.8, fontSize: 11, marginBottom: 8,
+            textTransform: 'uppercase', letterSpacing: 0.8, fontSize: 'var(--text-xs)', marginBottom: 8,
           }}>
             People
           </div>
@@ -72,7 +72,7 @@ export default function PeopleRail({
                     data-person={person.id}
                     style={{
                       display: 'flex', alignItems: 'baseline', gap: 8,
-                      padding: '4px 2px', fontSize: 13,
+                      padding: '4px 2px', fontSize: 'var(--text-base)',
                     }}>
                   {/* The colour they are in the video, so the rail and the
                       finished picture name the same person. [U-20] */}
@@ -82,7 +82,7 @@ export default function PeopleRail({
                     opacity: state?.dim ? 0.45 : 1,
                   }} />
                   <span style={{ opacity: state?.dim ? 0.7 : 1 }}>{person.displayName}</span>
-                  <span className="small muted" style={{ marginLeft: 'auto', fontSize: 11 }}>
+                  <span className="small muted" style={{ marginLeft: 'auto', fontSize: 'var(--text-xs)' }}>
                     {/* What they contributed, which is what a studio rail is
                         for — not whether they are connected right now. */}
                     {state ? state.label : person.responses === 1

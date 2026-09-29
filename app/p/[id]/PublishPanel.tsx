@@ -104,7 +104,7 @@ export default function PublishPanel({
 
   return (
     <section style={{ marginTop: 18 }} data-testid="publish">
-      <h2 style={{ fontSize: 14, margin: '0 0 7px' }}
+      <h2 className="module-label" style={{ margin: '0 0 7px' }}
           title={'A clip is the same video with a window on it \u2014 the same '
             + 'arrangement, the same backgrounds, the same sound \u2014 cut '
             + 'vertical for the places people watch one.'}>
@@ -140,7 +140,7 @@ export default function PublishPanel({
                 Make a vertical clip
               </button>
             </div>
-            <div className="small muted" style={{ marginTop: 3, fontSize: 11 }}>
+            <div className="small muted" style={{ marginTop: 3, fontSize: 'var(--text-xs)' }}>
               {/* The ranking, said out loud so it can be disagreed with. */}
               {candidate.reasons.join(' · ')}
             </div>
@@ -191,7 +191,8 @@ export default function PublishPanel({
               data-testid="card-image"
               src={`/api/performances/${id}/card?image=1`}
               alt="The link preview for this performance"
-              style={{ width: 360, borderRadius: 8, border: '1px solid var(--line)' }}
+              style={{ width: 360, borderRadius: 'var(--radius-screen)',
+                border: '1px solid var(--line)' }}
             />
           </div>
         )}
