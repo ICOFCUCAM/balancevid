@@ -194,6 +194,21 @@ export interface PerformanceShot extends ShotBase {
      */
     effect?: EffectLook;
     /**
+     * The grade that brings this take towards another one.
+     * [MASTER-EDIT §8, §12 P2]
+     *
+     * SEPARATE FROM `effect`, AND APPLIED FIRST. A match is a correction —
+     * make this camera agree with that one — and a look is a decision —
+     * make it warmer than either. Folding them into one set of numbers
+     * would be arithmetic that is only approximately right, because
+     * contrast multiplies around a midpoint that the brightness before it
+     * has already moved. Two passes are exactly right and cost one filter.
+     *
+     * Carried as a resolved look for the same reason `effect` is: the
+     * renderer applies four numbers and never learns what a match is.
+     */
+    match?: EffectLook;
+    /**
      * What to put behind this performer, and how to cut them out. [§4, S-6]
      *
      * Complete: the plate to difference against, the threshold measured from

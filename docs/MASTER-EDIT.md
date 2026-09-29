@@ -242,7 +242,7 @@ used* — and nothing about the recording itself.
 | rename | HAVE | `renameTake` |
 | change environment | HAVE | `setEnvironment`, `SPACES` |
 | adjust background | HAVE | `usePlate`, the matte in `render/matte.ts` |
-| colour correction | PARTIAL | `setEffect` with four named looks; no controls of your own |
+| colour correction | PARTIAL | `setEffect` with four named looks, plus a measured match to another take; no controls of your own |
 | effects | PARTIAL | same four looks |
 | crop / reframe | PARTIAL | `focus.ts` reframes a conversation; a take has no crop |
 | replace take | GAP | a source take is a recording; replacing it is uploading another |
@@ -271,7 +271,7 @@ against `src/` rather than remembered:
 | text-based editing | PARTIAL | Studio One has the transcript and quote anchoring; no cut-by-transcript |
 | keyframes | GAP | every effect is constant across a shot |
 | ripple editing | GAP | moving a boundary moves one boundary |
-| colour matching | GAP | no shot-to-shot match |
+| colour matching | HAVE | `signalstats` per take, `matchLook` between two, applied through the same `effectChain` a named look uses |
 | LUT / colour tools | GAP | no `lut3d`; four named looks and `eq` |
 | chroma key | GAP | no `chromakey`; the matte is difference-based by design (INV-16) |
 | motion tracking | GAP | — |
@@ -461,12 +461,14 @@ pre-render validation
 
 ### P2 — Professional finishing
 
-keyframes · masks · crop/reframe · colour match · LUT · stabilization ·
-chroma key · de-reverb — **GAP.**
+keyframes · masks · crop/reframe · LUT · stabilization · chroma key ·
+de-reverb — **GAP.**
 
 **HAVE:** captions · audio denoise · speech enhancement (`CLEANUPS`: four
 named rows on a take, never on the song, none of them changing the length
-by a sample).
+by a sample) · **colour match** (`signalstats` per take, a bounded grade
+between two, riding the same `effectChain` a named look does — so a match
+and a look compose, in that order, and there is no second grading path).
 
 **PARTIAL:** colour adjustment (four named looks).
 

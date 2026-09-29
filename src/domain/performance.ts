@@ -60,6 +60,7 @@ export const TAKE_ACCENT_FALLBACK = '#3e7ca6';
 
 
 import type { AssetId, Publication, TakeId } from './document.js';
+import type { ColourReading } from './colour.js';
 import type { BeatGrid } from './beats.js';
 import type { RoomPlate } from './environment.js';
 import type { Id } from './ids.js';
@@ -530,6 +531,30 @@ export interface PerformanceTake {
    * somebody's voice sounds before they have heard it.
    */
   cleanup?: string;
+  /**
+   * What this take's picture measures.  [MASTER-EDIT §8, U-02]
+   *
+   * Absent means nobody has looked. Measuring costs a pass over the media,
+   * so it happens when a match is asked for rather than on every ingest —
+   * and the reading is kept, because a take does not change colour.
+   */
+  colour?: ColourReading;
+  /**
+   * Another take this one is graded towards.  [MASTER-EDIT §8, §12 P2]
+   *
+   * A REFERENCE AND NOT A GRADE. Storing the computed correction would
+   * freeze it: re-measure either take, or trim one to a different part of
+   * the song, and the stored numbers would be silently wrong. Storing WHICH
+   * take to match means the grade is derived every time from whatever the
+   * two currently measure, which is the same reason a scene stores a take
+   * id rather than a copy of the take.
+   *
+   * A take cannot match itself, and the chain is one deep: matching A to B
+   * while B matches C grades A towards B AS MEASURED, not towards C. Two
+   * hops would be a graph with cycles in it and an author who cannot say
+   * what any take will look like.
+   */
+  matchTo?: TakeId;
   /**
    * Which plate this take is matted against. [§4, S-6, INV-16]
    *

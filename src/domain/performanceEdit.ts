@@ -28,6 +28,7 @@ import {
   type TransitionAlign, isTransition, isTransitionAlign, transitionOf,
 } from './transitions.js';
 import { NO_CLEANUP, isCleanup } from './cleanup.js';
+import { type ColourReading, isMeasured } from './colour.js';
 import { newId } from './ids.js';
 import type { TakeId } from './document.js';
 import {
@@ -874,6 +875,71 @@ export function setCleanup(
       `"${take.label}" was recorded with no sound in it — there is nothing to clean`);
   }
   take.cleanup = cleanup;
+}
+
+/**
+ * What this take measured, written down.  [MASTER-EDIT §8, U-02]
+ *
+ * The render layer does the looking; this records it. Separate from
+ * `matchColour` below because measuring and deciding are different acts:
+ * a reading is a fact about the media and survives the author changing
+ * their mind about which take to match.
+ */
+export function setColourReading(
+  performance: Performance, takeId: string, reading: ColourReading,
+): void {
+  const take = takeById(performance, takeId);
+  if (!take) throw new PerformanceEditError(`no take ${takeId} in this performance`);
+  take.colour = reading;
+}
+
+/**
+ * Grade this take towards another one.  [MASTER-EDIT §8, §12 P2]
+ *
+ * THE REFERENCE, NOT THE GRADE. Storing the computed correction would
+ * freeze it against measurements that can change; storing which take to
+ * match means the grade is derived from whatever the two currently measure.
+ *
+ * ONE HOP, AND THE REFUSALS ARE WHAT MAKE THAT TRUE. A take cannot match
+ * itself, and cannot match a take that is itself matching something —
+ * because then "what will this look like" has an answer that depends on
+ * traversal order, and a cycle has no answer at all. The planner follows no
+ * chain; this is what stops one being built.
+ */
+export function matchColour(
+  performance: Performance, takeId: string, toTakeId: string | null,
+): void {
+  const take = takeById(performance, takeId);
+  if (!take) throw new PerformanceEditError(`no take ${takeId} in this performance`);
+  if (toTakeId === null) {
+    delete take.matchTo;
+    return;
+  }
+  if (toTakeId === takeId) {
+    throw new PerformanceEditError('a take already looks like itself');
+  }
+  const to = takeById(performance, toTakeId);
+  if (!to) throw new PerformanceEditError(`no take ${toTakeId} in this performance`);
+  if (to.matchTo) {
+    throw new PerformanceEditError(
+      `"${to.label}" is itself matched to another take — match to that one instead`);
+  }
+  if (!isMeasured(take.colour) || !isMeasured(to.colour)) {
+    throw new PerformanceEditError(
+      'both takes have to be measured before they can be matched');
+  }
+  /*
+   * AND NOTHING MAY BECOME A CHAIN BEHIND OUR BACK. This take may already
+   * be somebody else's reference; making it match a third would turn their
+   * one hop into two. Refused for the same reason as above, and said from
+   * the other side so the author knows which take to look at.
+   */
+  const follower = performance.takes.find((other) => other.matchTo === take.id);
+  if (follower) {
+    throw new PerformanceEditError(
+      `"${follower.label}" is matched to this take — unmatch it first`);
+  }
+  take.matchTo = to.id as TakeId;
 }
 
 /* ------------------------------------------------------------------------ *

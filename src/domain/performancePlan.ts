@@ -31,6 +31,7 @@ import {
   projectPerformance, unpublishableFootage,
 } from './performance.js';
 import { effectFor, matteFeather, matteThreshold, needsMatte } from './environment.js';
+import { matchLook } from './colour.js';
 import { planPerformanceAudio } from './performanceAudio.js';
 import {
   type ExportProfile, EXPORT_PROFILES, LAYOUTS, captionStyleFor,
@@ -414,6 +415,26 @@ function performanceShot(
       ...(() => {
         const effect = effectFor(take.effect);
         return effect ? { effect } : {};
+      })(),
+      /*
+       * THE MATCH IS DERIVED HERE AND NOT STORED, so re-measuring either
+       * take, or trimming one to a different stretch of the song, changes
+       * the grade rather than leaving a frozen correction behind. One hop:
+       * the reference's OWN match, if it has one, is not followed, because
+       * a chain would be a graph with cycles in it. [MASTER-EDIT §8]
+       */
+      ...(() => {
+        if (!take.matchTo) return {};
+        const to = performance.takes.find((other) => other.id === take.matchTo);
+        const numbers = matchLook(take.colour, to?.colour);
+        return numbers
+          ? { match: {
+            id: 'match',
+            label: 'Matched',
+            hint: `Graded towards "${to?.label ?? 'another take'}".`,
+            ...numbers,
+          } }
+          : {};
       })(),
       ...(backdropFor(performance, take) ?? {}),
     })),
