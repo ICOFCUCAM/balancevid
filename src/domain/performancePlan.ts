@@ -27,10 +27,9 @@ import { assertPerformanceRenderable } from './invariants.js';
 import { sha256 } from './ids.js';
 import {
   type Performance, type PerformanceSpan, type PerformanceTake, type PerformanceWindow,
-  coversSpan, mayPublish, mayShowMasterPicture, plateFor, projectPerformance,
-  unpublishableFootage,
+  coversSpan, joinSpan, mayPublish, mayShowMasterPicture, plateFor,
+  projectPerformance, unpublishableFootage,
 } from './performance.js';
-import { overlapSplit, transitionFor } from './transitions.js';
 import { effectFor, matteFeather, matteThreshold, needsMatte } from './environment.js';
 import { planPerformanceAudio } from './performanceAudio.js';
 import {
@@ -277,10 +276,16 @@ function withTransitions(
     const next = out[i + 1] as PerformanceShot | undefined;
     if (!next) continue;
     const span = timeline.spans[i + 1]!;
-    const style = transitionFor(span.scene.transition);
-    if (style.frames <= 0) continue;
+    /*
+     * The style, the alignment and the two spans come from `joinSpan`, which
+     * is also what MASTER CHECK asks. The planner used to work this out for
+     * itself with a second copy of the arithmetic, and a second copy is a
+     * second answer waiting to happen. [D-19]
+     */
+    const join = joinSpan(span.scene, performance.master.durationSamples);
+    if (!join) continue;
+    const { style, before, after } = join;
 
-    const { before, after } = overlapSplit(style);
     const where = formatMasterPosition(span.fromSample);
     if (shot.durationFrames <= before || next.durationFrames <= after) {
       throw new PerformancePlanError(
@@ -294,9 +299,7 @@ function withTransitions(
      * a clip's output clock starts at the clip, and converting its frames back
      * to samples would place a chorus clip's dissolve at the top of the song.
      */
-    const boundary = span.fromSample;
-    const fromSample = boundary - framesToSamples(before);
-    const toSample = boundary + framesToSamples(after);
+    const { fromSample, toSample } = join;
     for (const [side, takes] of [['leaving', shot.takes], ['arriving', next.takes]] as const) {
       for (const entry of takes) {
         const take = performance.takes.find((t) => t.id === entry.takeId);

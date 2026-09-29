@@ -15,6 +15,7 @@
 
 import Icon, { type IconName } from './Icon.js';
 import Brand from './Brand.js';
+import type { StudioId } from '../src/domain/account.js';
 
 export type StudioTab =
   | 'conversations' | 'studio-one' | 'studio-two' | 'online-tv'
@@ -45,8 +46,20 @@ export interface BarTab {
 
 export default function StudioBar({
   current, studioOneId, studioTwoId, studioThreeId, extra, trailing, lamp,
+  owned,
 }: {
   current: StudioTab;
+  /**
+   * The studios this account has, or absent for all of them.
+   * [MASTER-EDIT §11]
+   *
+   * ABSENT MEANS ALL THREE, matching the record the answer comes from, so a
+   * bar rendered by a surface that has not been taught about plans shows
+   * what it always showed rather than an empty row. The boundary is
+   * `isOwner`; this is the courtesy of not drawing a door that will not
+   * open.
+   */
+  owned?: StudioId[];
   studioOneId?: string;
   studioTwoId?: string;
   studioThreeId?: string;
@@ -57,7 +70,8 @@ export default function StudioBar({
   /** Shown before the trailing text: a channel's on-air lamp and clock. */
   lamp?: React.ReactNode;
 }) {
-  const tabs: BarTab[] = [
+  const has = (id: StudioId) => owned === undefined || owned.includes(id);
+  const all: BarTab[] = [
     {
       id: 'conversations', label: 'Conversations', icon: 'list',
       href: '/#conversations',
@@ -95,6 +109,19 @@ export default function StudioBar({
     { id: 'library', label: 'Library', icon: 'library', href: '/#performances' },
     ...(extra ?? []),
   ];
+  const tabs: BarTab[] = all.filter((tab) => {
+    /*
+     * A tab for a studio this account does not have is removed, not dimmed.
+     * The dimmed state above says "you have this and it is empty", which
+     * invites; this is not an invitation, and there is nothing to sell it
+     * with. Conversations and Library stay, because what an account holds
+     * is still its own whatever it may open. [MASTER-EDIT §11]
+     */
+    if (tab.id === 'studio-one') return has('studio-one');
+    if (tab.id === 'studio-two') return has('studio-two');
+    if (tab.id === 'online-tv') return has('online-tv');
+    return true;
+  });
 
   return (
     <header className="shell-bar" style={{

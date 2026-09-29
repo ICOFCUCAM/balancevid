@@ -391,15 +391,27 @@ ACCOUNT
 
 | brief | state | where |
 | --- | --- | --- |
-| each studio works without the others | PARTIAL | Online TV no longer needs Studio One for guests (`Channel.room`); nothing else has been audited |
+| each studio works without the others | HAVE | Online TV no longer needs Studio One for guests (`Channel.room`), and each studio's store refuses when the account does not hold it |
 | shared room technology, separate concepts | HAVE | one `RoomHost`, one `roomEdit`, one `InvitePanel`; the wording differs per studio |
-| an account model | PARTIAL | `Account` exists — id, sessions, `OWNER_ACCOUNT_ID`. It is single-tenant and has no plan |
-| **entitlements per studio** | GAP | no `plan`, `entitlement`, `tier` or `subscription` anywhere in `src/domain` |
-| navigation reflects what is owned | GAP | the bar shows all three studios unconditionally |
+| an account model | PARTIAL | `Account` exists — id, sessions, studios, `OWNER_ACCOUNT_ID`. Still single-tenant; there is a plan but no billing |
+| **entitlements per studio** | HAVE | `Account.studios`, `ownsStudio`, and `requireStudio` at every door into the three stores — the data layer, per D-06 |
+| navigation reflects what is owned | HAVE | the bar drops the tab, the rail drops the row, the building drops the section |
 
-This is the one item on the list that is **not** a feature. It is a field on
-`Account` and a rule every surface consults, and it gets harder to add the
-longer the product assumes all three.
+This was the one item on the list that is **not** a feature. It is a field on
+`Account` and a rule every surface consults, and it got harder to add the
+longer the product assumed all three — so it was done before the billing
+rather than after.
+
+**Where the rule lives, and the two places it does not.** A dimmed tab is a
+courtesy: the URL is still typeable. `isOwner` was tried first, because
+ninety-odd routes already call it and it already loads the account — and it
+does not work, because the studio has to come from the request's path and
+server components pass their cookie as `new Request('http://local/')`, a
+request with no path. Those calls read as protected and were nothing. The
+middleware sees every real path and its own opening paragraph rules it out:
+it "has no business reading storage", and a plan lives in the account
+document. So the gate is in the store, which is where D-06 puts isolation
+and where `tenancy.test.ts` already says this product's data layer is.
 
 ---
 
@@ -428,7 +440,7 @@ pre-render validation
 | pre-render validation | HAVE — `assertPerformanceRenderable`, one shared answer |
 | no overlaps | HAVE by construction — a scene runs until the next begins |
 | no orphaned transition | HAVE — a transition is a field on the scene that arrives |
-| no transition crossing an invalid boundary | GAP — `transitions.ts` names the precondition (both takes must have picture across the overlap) and nothing checks it |
+| no transition crossing an invalid boundary | HAVE — `joinProblems` is the one answer MASTER CHECK, the planner and the duration edit all ask |
 | no negative or invalid durations | HAVE — `assertSamples`, `RangeError` on non-integers |
 
 ### P1 — Studio Two editing
@@ -441,8 +453,9 @@ pre-render validation
 | add / remove a transition | HAVE — from the clip or from the join |
 | preserve the song clock | HAVE — `set-scene` at the scene's own sample, never the snapping path |
 | preserve synchronized takes | HAVE — takes are parallel; switching never re-times them |
-| trim | GAP — a scene has no out-point; moving a boundary is `moveScene` |
-| adjust transition duration | GAP — fixed per style |
+| trim | HAVE — In and Out step the boundary, guarded: a scene still has no out-point, because its out IS the next clip's in, and the panel says so |
+| adjust transition duration | HAVE — a stepper bounded by what the join can pay, and a `Default` to put it back |
+| choose which shot pays | HAVE — *Ends on the cut* / *Centred* / *Begins on the cut* |
 | preview | PARTIAL — the programme monitor shows the scene at the playhead; no scrub of the join |
 | **undo / redo** | HAVE — every edit to a performance records a version; ⌘Z / ⌘⇧Z and a control bank step through 50 of them |
 

@@ -21,8 +21,10 @@ import {
 import type { AuditEntry } from './repository.js';
 import { paths, safe } from './paths.js';
 import { historyState, recordVersion, stepHistory } from './history.js';
+import { requireStudio } from './entitlement.js';
 
 export async function savePerformance(performance: Performance): Promise<void> {
+  await requireStudio('studio-two');
   const dir = paths.performance(performance.id);
   await mkdir(join(dir, 'assets'), { recursive: true });
   const target = paths.performanceDocument(performance.id);
@@ -34,6 +36,7 @@ export async function savePerformance(performance: Performance): Promise<void> {
 }
 
 export async function loadPerformance(id: string): Promise<Performance> {
+  await requireStudio('studio-two');
   const raw = await readFile(paths.performanceDocument(safe(id)), 'utf8');
   const parsed = JSON.parse(raw) as Performance;
   if (parsed.schemaVersion > PERFORMANCE_SCHEMA_VERSION) {
@@ -63,6 +66,7 @@ function migrate(performance: Performance): Performance {
 }
 
 export async function listPerformances(): Promise<Performance[]> {
+  await requireStudio('studio-two');
   let entries: string[];
   try {
     entries = await readdir(paths.performances());
@@ -85,6 +89,7 @@ export async function listPerformances(): Promise<Performance[]> {
 export async function mutatePerformance(
   id: string, change: (draft: Performance) => void | Promise<void>,
 ): Promise<Performance> {
+  await requireStudio('studio-two');
   const performance = await loadPerformance(id);
   /*
    * THE STATE BEFORE THE FIRST EDIT, or undo has nowhere to go back to.
@@ -112,6 +117,8 @@ export async function mutatePerformance(
 export async function stepPerformance(
   id: string, direction: -1 | 1,
 ): Promise<Performance | null> {
+  await requireStudio('studio-two');
+  await requireStudio('studio-two');
   const document = await stepHistory(id, direction);
   if (document === null) return null;
   const performance = document as Performance;
@@ -122,12 +129,15 @@ export async function stepPerformance(
 export async function auditPerformance(
   id: string, entry: Omit<AuditEntry, 'at'>,
 ): Promise<void> {
+  await requireStudio('studio-two');
+  await requireStudio('studio-two');
   await mkdir(paths.performance(id), { recursive: true });
   const line = JSON.stringify({ at: new Date().toISOString(), ...entry });
   await appendFile(paths.performanceAudit(id), `${line}\n`, 'utf8');
 }
 
 export async function readPerformanceAudit(id: string): Promise<AuditEntry[]> {
+  await requireStudio('studio-two');
   try {
     const raw = await readFile(paths.performanceAudit(safe(id)), 'utf8');
     return raw.split('\n').filter(Boolean).map((line) => JSON.parse(line) as AuditEntry);
@@ -147,5 +157,6 @@ export async function readPerformanceAudit(id: string): Promise<AuditEntry[]> {
  * copy of.
  */
 export async function deletePerformance(id: string): Promise<void> {
+  await requireStudio('studio-two');
   await rm(paths.performance(safe(id)), { recursive: true, force: true });
 }

@@ -19,8 +19,10 @@ import { join } from 'node:path';
 import { CHANNEL_SCHEMA_VERSION, type Channel } from '../domain/channel.js';
 import type { AuditEntry } from './repository.js';
 import { paths, safe } from './paths.js';
+import { requireStudio } from './entitlement.js';
 
 export async function saveChannel(channel: Channel): Promise<void> {
+  await requireStudio('online-tv');
   const dir = paths.channel(channel.id);
   await mkdir(join(dir, 'assets'), { recursive: true });
   const target = paths.channelDocument(channel.id);
@@ -32,6 +34,7 @@ export async function saveChannel(channel: Channel): Promise<void> {
 }
 
 export async function loadChannel(id: string): Promise<Channel> {
+  await requireStudio('online-tv');
   const raw = await readFile(paths.channelDocument(safe(id)), 'utf8');
   const parsed = JSON.parse(raw) as Channel;
   if (parsed.schemaVersion > CHANNEL_SCHEMA_VERSION) {
@@ -56,6 +59,7 @@ function migrate(channel: Channel): Channel {
 }
 
 export async function listChannels(): Promise<Channel[]> {
+  await requireStudio('online-tv');
   let entries: string[];
   try {
     entries = await readdir(paths.channels());
@@ -72,6 +76,7 @@ export async function listChannels(): Promise<Channel[]> {
 export async function mutateChannel(
   id: string, change: (draft: Channel) => void | Promise<void>,
 ): Promise<Channel> {
+  await requireStudio('online-tv');
   const channel = await loadChannel(id);
   await change(channel);
   await saveChannel(channel);
@@ -91,6 +96,7 @@ export async function mutateChannel(
  * asset to account for.
  */
 export async function channelAssetIds(id: string): Promise<string[]> {
+  await requireStudio('online-tv');
   let entries: string[];
   try {
     entries = await readdir(paths.channelAssets(safe(id)), { withFileTypes: true })
@@ -113,12 +119,15 @@ export async function channelAssetIds(id: string): Promise<string[]> {
 export async function auditChannel(
   id: string, entry: Omit<AuditEntry, 'at'>,
 ): Promise<void> {
+  await requireStudio('online-tv');
+  await requireStudio('online-tv');
   await mkdir(paths.channel(id), { recursive: true });
   const line = JSON.stringify({ at: new Date().toISOString(), ...entry });
   await appendFile(paths.channelAudit(id), `${line}\n`, 'utf8');
 }
 
 export async function readChannelAudit(id: string): Promise<AuditEntry[]> {
+  await requireStudio('online-tv');
   try {
     const raw = await readFile(paths.channelAudit(safe(id)), 'utf8');
     return raw.split('\n').filter(Boolean).map((line) => JSON.parse(line) as AuditEntry);
@@ -142,5 +151,6 @@ export async function readChannelAudit(id: string): Promise<AuditEntry[]> {
  * before being asked.
  */
 export async function deleteChannel(id: string): Promise<void> {
+  await requireStudio('online-tv');
   await rm(paths.channel(safe(id)), { recursive: true, force: true });
 }

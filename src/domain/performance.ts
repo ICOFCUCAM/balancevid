@@ -68,7 +68,10 @@ import {
   formatMasterPosition, framesToSamples, samplesToFrames,
 } from './time.js';
 /* Browser-safe: `transitions.ts` reaches nothing but `time.ts`. */
-import { TRANSITIONS } from './transitions.js';
+import {
+  type TransitionAlign, type Transition, TRANSITIONS, transitionAlignOf, overlapSplit,
+  transitionOf,
+} from './transitions.js';
 
 export type PerformanceId = Id<'perf'>;
 export type SceneId = Id<'scene'>;
@@ -663,6 +666,14 @@ export interface Scene {
   takeIds: TakeId[];
   /** How it arrives. [§11] */
   transition?: string;
+  /**
+   * How long the arrival takes, when the author has said. Absent means the
+   * style's own length, which is what almost every join should keep.
+   * [MASTER-EDIT §3]
+   */
+  transitionFrames?: Frames;
+  /** Which of the two shots pays for it. Absent means centred. */
+  transitionAlign?: TransitionAlign;
   /** The author's name for it — "Chorus", "Verse 2". [§15] */
   label?: string;
   /** Where this scene's sound comes from, when it differs. [S-7] */
@@ -1015,6 +1026,151 @@ export function renderProblems(
  * MASTER CHECK                                                               *
  * ------------------------------------------------------------------------ */
 
+/* ------------------------------------------------------------------------ *
+ *  A join, as time.  [MASTER-EDIT §3, INV-03, D-19]
+ * ------------------------------------------------------------------------ */
+
+/**
+ * Where a transition lies on the song clock, and who paid for it.
+ *
+ * THIS EXISTED TWICE, AND THE TWO AGREED ONLY BY LUCK. The planner spent
+ * `overlapSplit`'s asymmetric before/after; MASTER CHECK spent
+ * `ceil(frames/2)` on both sides. Those are the same span for an even
+ * length and different for an odd one, and both lengths in the table are
+ * even — ten frames and twenty-four — so nothing had ever disagreed.
+ *
+ * The moment an author can type nine, they do: the split pays five and four,
+ * the check asks for five and five, and MASTER CHECK ticks a join whose
+ * render the planner then refuses — which is precisely the failure the
+ * checklist exists to prevent. So this is one answer with three callers
+ * BEFORE the control that would have split them ships, not after. [D-19]
+ *
+ * Null for a cut, because a cut is not a length of time and has nothing to
+ * ask of its neighbours.
+ */
+export interface JoinSpan {
+  style: Transition;
+  align: TransitionAlign;
+  /** Frames taken from the shot being left, and from the one arriving. */
+  before: Frames;
+  after: Frames;
+  /** The same span on the song clock, clamped to the song. */
+  fromSample: Samples;
+  toSample: Samples;
+}
+
+export function joinSpan(
+  scene: Scene, song: Samples,
+): JoinSpan | null {
+  const style = transitionOf(scene);
+  if (style.frames <= 0) return null;
+  const align = transitionAlignOf(scene);
+  const { before, after } = overlapSplit(style, align);
+  return {
+    style,
+    align,
+    before,
+    after,
+    fromSample: Math.max(0, scene.fromSample - framesToSamples(before)),
+    toSample: Math.min(song, scene.fromSample + framesToSamples(after)),
+  };
+}
+
+/**
+ * Every join whose neighbours cannot pay for it, said in the author's words.
+ *
+ * Asked by MASTER CHECK before a render, and by the edit that sets a
+ * duration, which makes the change and puts it back if this list got longer.
+ * An author is never left holding a document that fails a check they could
+ * have been stopped from reaching.
+ */
+export function joinProblems(performance: Performance): string[] {
+  const scenes = orderedScenes(performance);
+  const song = performance.master.durationSamples;
+  const out: string[] = [];
+  for (let i = 1; i < scenes.length; i += 1) {
+    const scene = scenes[i]!;
+    /* By the table and not by `transitionFor`, which falls back to a cut —
+       a style nobody wrote must be reported, not silently downgraded. */
+    if (scene.transition !== undefined && !Object.hasOwn(TRANSITIONS, scene.transition)) {
+      out.push(`${scene.transition} is not a transition`);
+      continue;
+    }
+    const join = joinSpan(scene, song);
+    if (!join) continue;
+    const where = formatMasterPosition(scene.fromSample);
+    /*
+     * THE NEIGHBOURS MUST HAVE THE TIME BEFORE THEY CAN HAVE THE PICTURE. A
+     * mix longer than the section it eats into does not shorten that section,
+     * it deletes it, and the planner refuses such a plan outright. Saying so
+     * here means the author reads it in the checklist rather than in a
+     * failed render.
+     */
+    const room = joinRoom(scenes, i, song);
+    if (join.before > room.before || join.after > room.after) {
+      out.push(`the ${join.style.label.toLowerCase()} at ${where} is longer than `
+        + 'the sections it joins — shorten it, or move the boundary');
+      continue;
+    }
+    for (const id of [...(scenes[i - 1]?.takeIds ?? []), ...scene.takeIds]) {
+      const take = takeById(performance, id);
+      if (!take || !coversSpan(take, join.fromSample, join.toSample, song)) {
+        out.push(`${take?.label ?? id} has no picture across the `
+          + `${join.style.label.toLowerCase()} at ${where}`);
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * EVERYTHING WRONG WITH THE DOCUMENT RIGHT NOW, as sentences a person reads.
+ *
+ * The guard every edit that can break something asks before and after
+ * itself. It exists because the two halves used to be asked separately, and
+ * separate questions can be traded against each other: an edit that closes
+ * a hole and breaks a dissolve in the same move passes a guard that only
+ * knows about holes.
+ *
+ * FOR `coverGap` THIS IS BELT AND BRACES AND IS SAID TO BE. Its rule is that
+ * problems must STRICTLY DECREASE, and every hole it is offered for is the
+ * stretch before the first scene, so the move it makes lengthens a section
+ * rather than shortening one and cannot take room away from a join. No
+ * reachable trade was found; the question is widened anyway, because the
+ * narrow version was right only for reasons outside itself. For
+ * `moveBoundary` the trade is real and there is a test that makes it.
+ *
+ * Sentences rather than objects, because the guard's whole job is to compare
+ * two readings and say what is NEW, and two problems are the same problem
+ * exactly when an author would read the same line twice. [D-19]
+ */
+export function allProblems(performance: Performance): string[] {
+  return [
+    ...renderProblems(performance).map((problem) => problem.say),
+    ...joinProblems(performance),
+  ];
+}
+
+/**
+ * How many frames each side of a join could pay, if asked.
+ *
+ * Strictly less than the section itself, on both sides: a transition that
+ * consumed a whole shot would leave the picture track with a scene of zero
+ * length, which the planner treats as a broken plan rather than a short one.
+ */
+export function joinRoom(
+  scenes: readonly Scene[], index: number, song: Samples,
+): { before: Frames; after: Frames } {
+  const scene = scenes[index];
+  const previous = scenes[index - 1];
+  if (!scene || !previous) return { before: 0, after: 0 };
+  const end = scenes[index + 1]?.fromSample ?? song;
+  return {
+    before: Math.max(0, samplesToFrames(scene.fromSample - previous.fromSample) - 1),
+    after: Math.max(0, samplesToFrames(end - scene.fromSample) - 1),
+  };
+}
+
 /**
  * Everything that must be true before a master is worth rendering.
  * [MASTER-EDIT §13, §12 P0, INV-02, INV-03]
@@ -1134,30 +1290,11 @@ export function masterCheck(
       : `${[...missing].join(', ')} named by a scene and not here`));
 
   /*
-   * 6. THE PRECONDITION `transitions.ts` NAMED AND NOBODY CHECKED. A mix is
-   *    paid for out of both neighbours, so both must have picture across the
-   *    whole overlap — including the part outside their own scenes.
+   * 6. THE PRECONDITION `transitions.ts` NAMED AND NOBODY CHECKED — now one
+   *    function, asked here and by the planner and by the edit that sets a
+   *    duration, so the three can never disagree. [D-19]
    */
-  const badJoins: string[] = [];
-  for (let i = 1; i < scenes.length; i += 1) {
-    const scene = scenes[i]!;
-    /* By the table and not by `transitionFor`, which falls back to a cut —
-       a style nobody wrote must be reported, not silently downgraded. */
-    const style = TRANSITIONS[scene.transition ?? 'cut'];
-    if (!style) { badJoins.push(`${scene.transition} is not a transition`); continue; }
-    if (style.frames === 0) continue;
-    const half = framesToSamples(Math.ceil(style.frames / 2));
-    const from = Math.max(0, scene.fromSample - half);
-    const to = Math.min(song, scene.fromSample + half);
-    const both = [...(scenes[i - 1]?.takeIds ?? []), ...scene.takeIds];
-    for (const id of both) {
-      const take = takeById(performance, id);
-      if (!take || !coversSpan(take, from, to, song)) {
-        badJoins.push(`${take?.label ?? id} has no picture across the `
-          + `${style.label.toLowerCase()} at ${formatMasterPosition(scene.fromSample)}`);
-      }
-    }
-  }
+  const badJoins = joinProblems(performance);
   items.push(item('transitions', 'Transitions valid', badJoins.length === 0,
     badJoins.length === 0
       ? `${Math.max(0, scenes.length - 1)} join(s), every mix covered on both sides`

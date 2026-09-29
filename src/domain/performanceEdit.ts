@@ -23,17 +23,20 @@
 
 import { LAYOUTS, takeSlots } from './presentation.js';
 import { EFFECT_LOOKS, type RoomPlate, SPACE_LOOKS, needsMatte } from './environment.js';
-import { DEFAULT_TRANSITION, isTransition } from './transitions.js';
+import {
+  DEFAULT_TRANSITION, MAX_TRANSITION_FRAMES, MIN_TRANSITION_FRAMES,
+  type TransitionAlign, isTransition, isTransitionAlign, transitionOf,
+} from './transitions.js';
 import { newId } from './ids.js';
 import type { TakeId } from './document.js';
 import {
   type AudioMode, type MasterTrack, type Performance, type PerformanceTake, type Scene,
   AUDIO_MODES, MASTER_CLASSES, PERFORMANCE_SCHEMA_VERSION,
   TAKE_ACCENT_FALLBACK,
-  coverage, coversSpan, mayPublish, orderedScenes, plateFor, renderProblems,
-  takeById,
+  allProblems, coverage, coversSpan, mayPublish, orderedScenes, plateFor,
+  renderProblems, takeById,
 } from './performance.js';
-import { type Samples, assertSamples } from './time.js';
+import { type Frames, type Samples, assertSamples } from './time.js';
 
 /**
  * A new Performance.
@@ -397,16 +400,63 @@ export function coverGap(
   if (fromSample >= scene.fromSample) {
     fail('that scene already starts at or before there');
   }
-  const before = renderProblems(performance);
+  /*
+   * ASKED OF THE WHOLE DOCUMENT, not of the holes alone. `renderProblems`
+   * says nothing about transitions, and an edit judged by half the questions
+   * can pass by trading one against the other. No such trade was found for
+   * THIS operation — the hole is always the stretch before the first scene,
+   * so the move lengthens a section rather than shortening one — but a guard
+   * that is right for reasons outside itself is one refactor from being
+   * wrong, and it asks the same question the others ask. [D-19]
+   */
+  const before = allProblems(performance);
   const was = scene.fromSample;
   moveScene(performance, sceneId, fromSample);
-  const after = renderProblems(performance);
+  const after = allProblems(performance);
   if (after.length >= before.length) {
     scene.fromSample = was;
-    const blame = after.find((problem) => !before.some((had) => had.say === problem.say));
+    const blame = after.find((problem) => !before.includes(problem));
     fail(blame
-      ? `starting that scene earlier does not cover the hole: ${blame.say}`
+      ? `starting that scene earlier does not cover the hole: ${blame}`
       : 'starting that scene earlier does not cover the hole');
+  }
+}
+
+/**
+ * Trim: move the boundary this clip starts at.  [MASTER-EDIT §2, §12 P1]
+ *
+ * TRIM IN A PARTITION IS A BOUNDARY MOVE, and saying so is the whole design.
+ * A Scene has a `fromSample` and no end — it runs until the next one begins
+ * — which is what makes the picture track continuous by construction and is
+ * why this product cannot produce the gap-between-two-clips that every
+ * sequencer can. Giving a scene its own out-point would buy a trim control
+ * and sell INV-03 to pay for it.
+ *
+ * So there is no out-point. A clip's out IS the next clip's in, one clip's
+ * trim is its neighbour's, and the inspector says that on screen rather than
+ * pretending otherwise. The last clip has no out at all, because the song
+ * ends where the song ends.
+ *
+ * WHAT THIS ADDS OVER `moveScene` IS THE GUARD. `moveScene` refuses a
+ * collision and the far end of the song and nothing else, which is right for
+ * switching — a live decision is the author's and is not second-guessed —
+ * and wrong for dragging, where the author is looking at the consequence and
+ * would rather be stopped than shown a hole. Same operation, same document,
+ * one more question asked. [D-19]
+ */
+export function moveBoundary(
+  performance: Performance, sceneId: string, toSample: Samples,
+): void {
+  assertSamples(toSample);
+  const scene = performance.scenes.find((s) => s.id === sceneId)
+    ?? fail(`no such scene: ${sceneId}`) as never;
+  const before = allProblems(performance);
+  const was = scene.fromSample;
+  moveScene(performance, sceneId, toSample);
+  const introduced = allProblems(performance).find((p) => !before.includes(p));
+  if (introduced !== undefined) {
+    scene.fromSample = was;
+    fail(introduced);
   }
 }
 
@@ -433,11 +483,11 @@ export function coverWith(
   if (!coversSpan(chosen, at, toSample, performance.master.durationSamples)) {
     fail(`${chosen.label} has no picture across all of that stretch`);
   }
-  const before = renderProblems(performance).length;
+  const before = allProblems(performance).length;
   const scene = setScene(performance, at, {
     layoutId: 'performance_full', takeIds: [takeId],
   });
-  if (renderProblems(performance).length >= before) {
+  if (allProblems(performance).length >= before) {
     performance.scenes = performance.scenes.filter((entry) => entry.id !== scene.id);
     fail('putting a take there does not close the hole');
   }
@@ -520,6 +570,86 @@ export function setTransition(
   }
   if (!isTransition(transition)) fail(`unknown transition: ${transition}`);
   scene.transition = transition;
+  /*
+   * A LENGTH SET FOR A DISSOLVE IS NOT A LENGTH FOR A FADE. Both exist in
+   * frames, so keeping the number would type-check and be wrong: eight
+   * frames is a brisk dissolve and a fade so short it reads as a flicker.
+   * Changing the style puts the length back to that style's own. The
+   * alignment is kept, because "who pays" is the author's taste about this
+   * join and does not change with what is drawn across it.
+   */
+  delete scene.transitionFrames;
+}
+
+/**
+ * How long the arrival takes, and which shot pays for it.
+ * [MASTER-EDIT §3, §12 P1, INV-03]
+ *
+ * THE REASON THIS WAS A READOUT AND IS NOW A CONTROL. Duration was written
+ * down as "not yet yours to set: both depend on whether the two takes have
+ * picture across the overlap" — which was true, and was a description of a
+ * constraint rather than a reason not to offer it. The constraint is
+ * checkable: `joinProblems` is the same question MASTER CHECK asks before a
+ * render and the planner asks before it builds one. So the length is the
+ * author's to set, and anything the join cannot pay for is put back with the
+ * reason said out loud, exactly as `coverGap` does. [D-19]
+ *
+ * THREE STATES, NOT TWO, FOR EACH ARGUMENT. `null` means "back to the
+ * style's own", which is how an author undoes a length without having to
+ * remember what it was. `undefined` means "leave that one alone" — and it
+ * has to exist, because the alignment buttons send an alignment and nothing
+ * else, and a two-state argument would read their silence as "reset the
+ * duration". Pressing *Centred* would quietly throw away the length the
+ * author had just dialled in, which is the kind of bug nobody reports
+ * because it looks like they mis-clicked.
+ */
+export function setTransitionTiming(
+  performance: Performance, sceneId: string,
+  frames: Frames | null | undefined, align: string | null | undefined,
+): void {
+  const scene = performance.scenes.find((s) => s.id === sceneId)
+    ?? fail(`no such scene: ${sceneId}`) as never;
+  const ordered = orderedScenes(performance);
+  if (ordered[0]?.id === scene.id) fail('nothing comes before that scene');
+  if (transitionOf(scene).frames === 0) {
+    fail('a cut has no length — choose a dissolve or a fade first');
+  }
+  if (align !== null && align !== undefined && !isTransitionAlign(align)) {
+    fail(`unknown alignment: ${align}`);
+  }
+  const wanted = align as TransitionAlign | null | undefined;
+  if (frames !== null && frames !== undefined) {
+    if (!Number.isSafeInteger(frames)) fail('a duration is a whole number of frames');
+    if (frames < MIN_TRANSITION_FRAMES) fail('a transition is at least one frame long');
+    if (frames > MAX_TRANSITION_FRAMES) {
+      fail(`${MAX_TRANSITION_FRAMES} frames is the longest a transition may be — `
+        + 'past that it is a shot of its own, not a join');
+    }
+  }
+
+  const hadFrames = scene.transitionFrames;
+  const hadAlign = scene.transitionAlign;
+  const before = new Set(allProblems(performance));
+
+  if (frames === null) delete scene.transitionFrames;
+  else if (frames !== undefined) scene.transitionFrames = frames;
+  if (wanted === null) delete scene.transitionAlign;
+  else if (wanted !== undefined) scene.transitionAlign = wanted;
+
+  /*
+   * PUT BACK, NOT REFUSED IN ADVANCE. Working out beforehand whether a given
+   * length fits would be a fourth copy of the arithmetic in `joinSpan`, and
+   * the fourth copy is the one that disagrees. Asking the same question the
+   * render will ask, after the change, cannot drift from it.
+   */
+  const introduced = allProblems(performance).find((problem) => !before.has(problem));
+  if (introduced !== undefined) {
+    if (hadFrames === undefined) delete scene.transitionFrames;
+    else scene.transitionFrames = hadFrames;
+    if (hadAlign === undefined) delete scene.transitionAlign;
+    else scene.transitionAlign = hadAlign;
+    fail(introduced);
+  }
 }
 
 /**

@@ -6,6 +6,8 @@ import { listConversations } from '../../../src/store/repository.js';
 import { listPerformances } from '../../../src/store/performances.js';
 import { streamQuality } from '../../../src/domain/quality.js';
 import ChannelStudio from './ChannelStudio.js';
+import { studiosOf } from '../../../src/domain/account.js';
+import { theAccount } from '../../../src/store/accounts.js';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,6 +45,7 @@ export default async function ChannelPage(
       initial={channel!}
       studioOneId={conversations[0]?.id}
       studioTwoId={performances[0]?.id}
+      owned={studiosOf(await theAccount())}
       /*
        * THE INSTANT THIS PAGE WAS DRAWN.
        *

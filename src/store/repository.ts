@@ -15,6 +15,7 @@ import {
 import { join } from 'node:path';
 import { SCHEMA_VERSION, type Conversation } from '../domain/document.js';
 import { paths, safe } from './paths.js';
+import { requireStudio } from './entitlement.js';
 
 export interface AuditEntry {
   at: string;
@@ -25,6 +26,7 @@ export interface AuditEntry {
 }
 
 export async function saveConversation(conversation: Conversation): Promise<void> {
+  await requireStudio('studio-one');
   const dir = paths.conversation(conversation.id);
   await mkdir(join(dir, 'assets'), { recursive: true });
   const target = paths.document(conversation.id);
@@ -35,6 +37,7 @@ export async function saveConversation(conversation: Conversation): Promise<void
 }
 
 export async function loadConversation(id: string): Promise<Conversation> {
+  await requireStudio('studio-one');
   const raw = await readFile(paths.document(safe(id)), 'utf8');
   const parsed = JSON.parse(raw) as Conversation;
   if (parsed.schemaVersion > SCHEMA_VERSION) {
@@ -48,6 +51,7 @@ export async function loadConversation(id: string): Promise<Conversation> {
 }
 
 export async function listConversations(): Promise<Conversation[]> {
+  await requireStudio('studio-one');
   let entries: string[];
   try {
     entries = await readdir(paths.conversations());
@@ -63,12 +67,14 @@ export async function listConversations(): Promise<Conversation[]> {
 
 /** Append-only. The product's claim is accountability; it applies to itself. */
 export async function audit(id: string, entry: Omit<AuditEntry, 'at'>): Promise<void> {
+  await requireStudio('studio-one');
   await mkdir(paths.conversation(id), { recursive: true });
   const line = JSON.stringify({ at: new Date().toISOString(), ...entry });
   await appendFile(paths.audit(id), `${line}\n`, 'utf8');
 }
 
 export async function readAudit(id: string): Promise<AuditEntry[]> {
+  await requireStudio('studio-one');
   try {
     const raw = await readFile(paths.audit(safe(id)), 'utf8');
     return raw.split('\n').filter(Boolean).map((l) => JSON.parse(l) as AuditEntry);
@@ -91,6 +97,7 @@ export async function readAudit(id: string): Promise<AuditEntry[]> {
 export async function withConversationLock<T>(
   id: string, fn: () => Promise<T>, timeoutMs = 15_000,
 ): Promise<T> {
+  await requireStudio('studio-one');
   const lock = join(paths.conversation(safe(id)), '.lock');
   const deadline = Date.now() + timeoutMs;
   await mkdir(paths.conversation(id), { recursive: true });
@@ -116,6 +123,7 @@ export async function withConversationLock<T>(
 export async function mutateConversation(
   id: string, mutate: (conversation: Conversation) => void | Promise<void>,
 ): Promise<Conversation> {
+  await requireStudio('studio-one');
   return withConversationLock(id, async () => {
     const conversation = await loadConversation(id);
     await mutate(conversation);
@@ -139,5 +147,6 @@ export async function mutateConversation(
  * no quota to make it worth it.
  */
 export async function deleteConversation(id: string): Promise<void> {
+  await requireStudio('studio-one');
   await rm(paths.conversation(safe(id)), { recursive: true, force: true });
 }

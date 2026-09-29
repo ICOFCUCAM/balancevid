@@ -19,6 +19,8 @@
  * satisfied properly. Recorded in Appendix B as a scope change.
  */
 
+import type { StudioId } from '../domain/account.js';
+
 // (the shapes below are structural: both documents carry a `publication`)
 
 /**
@@ -298,3 +300,57 @@ export const OWNER_ONLY = [
   'render', 'clips.make', 'bundle.read', 'conversations.list',
   'room.open', 'room.close', 'room.stage', 'room.remove-participant',
 ] as const;
+
+/* ------------------------------------------------------------------------ *
+ *  Which studio a request is for.  [MASTER-EDIT §11, D-06, D-19]
+ * ------------------------------------------------------------------------ */
+
+/**
+ * The studio a path belongs to, or null for the parts of the building that
+ * belong to none of them.
+ *
+ * A PREFIX TABLE AND NOTHING CLEVER, for the same reason the public
+ * allowlist above is one: a rule nobody can read is a rule nobody can audit.
+ * The difference from that list is the default. Public access is deny-by-
+ * default because a route added tomorrow must not be accidentally open;
+ * studio ownership is null-by-default because a route added tomorrow must
+ * not be accidentally UNREACHABLE — an entitlement bug that hides the sign-in
+ * page or the health check is an outage, and one that leaves a new route
+ * open to an owner who has every studio is nothing at all.
+ *
+ * So the two defaults point in opposite directions on purpose, and each one
+ * points at the failure that costs less.
+ */
+const STUDIO_PATHS: [RegExp, StudioId][] = [
+  /* Studio One: a conversation, and everything hung off one. */
+  [/^\/c\//, 'studio-one'],
+  [/^\/api\/conversations(\/|$)/, 'studio-one'],
+  /* Studio Two: a performance. */
+  [/^\/p\//, 'studio-two'],
+  [/^\/api\/performances(\/|$)/, 'studio-two'],
+  /* Online TV: a channel. */
+  [/^\/t\//, 'online-tv'],
+  [/^\/api\/channels(\/|$)/, 'online-tv'],
+];
+
+export function studioForPath(pathname: string): StudioId | null {
+  for (const [pattern, studio] of STUDIO_PATHS) {
+    if (pattern.test(pathname)) return studio;
+  }
+  return null;
+}
+
+/**
+ * THE ROOM IS NOT A STUDIO, and that is the one exception worth writing out.
+ *
+ * `/r/<token>` is a guest arriving at an invitation. It is reachable without
+ * the owner's session at all (see the public patterns above), it is answered
+ * by `callerFor` against that room's own invite token, and the guest has no
+ * account and therefore no plan. Running it through this table would ask
+ * "does the guest own Studio One?" of somebody who owns nothing — and the
+ * answer would be no, so every guest link in the product would stop working.
+ *
+ * It is absent from the table rather than special-cased in the check,
+ * because a rule with an exception inside it is a rule two people read two
+ * ways.
+ */

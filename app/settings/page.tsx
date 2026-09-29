@@ -1,4 +1,5 @@
 import { theAccount } from '../../src/store/accounts.js';
+import { studiosOf } from '../../src/domain/account.js';
 import { bytesLabel, diskSpace } from '../../src/store/space.js';
 import { runtime } from '../../src/web/runtime.js';
 import pkg from '../../package.json' with { type: 'json' };
@@ -27,7 +28,10 @@ export default async function SettingsPage() {
   const [account, space] = await Promise.all([theAccount(), diskSpace()]);
   return (
     <Settings
-      account={{ id: account.id, name: account.name, createdAt: account.createdAt }}
+      account={{
+        id: account.id, name: account.name, createdAt: account.createdAt,
+        studios: studiosOf(account),
+      }}
       runtime={runtime()}
       version={`v${(pkg as { version: string }).version}`}
       space={{

@@ -41,6 +41,57 @@ export interface Transition {
   mix: 'none' | 'dissolve' | 'black';
 }
 
+/**
+ * WHICH SHOT PAYS FOR THE OVERLAP.  [MASTER-EDIT §3, INV-03]
+ *
+ * Centred is what every editor defaults to and what an author dragging a
+ * boundary expects: the moment they chose is the middle of the change. The
+ * other two exist because that moment is often a downbeat, and a change that
+ * has FINISHED by the downbeat reads differently from one that starts there.
+ * `before` spends the whole overlap out of the outgoing shot, so the new
+ * picture is fully up on the boundary; `after` spends it out of the incoming
+ * one, so the old picture is still whole as the boundary passes.
+ *
+ * None of the three makes the song longer. That is the point of naming them
+ * at all: the question is never "how much time do I add", it is "who pays".
+ */
+export type TransitionAlign = 'centred' | 'before' | 'after';
+
+export const TRANSITION_ALIGNS: Record<TransitionAlign, { label: string; hint: string }> = {
+  before: {
+    label: 'Ends on the cut',
+    hint: 'The arriving shot is fully up by the boundary. Paid by the one leaving.',
+  },
+  centred: {
+    label: 'Centred',
+    hint: 'Half from each side. The boundary is the middle of the change.',
+  },
+  after: {
+    label: 'Begins on the cut',
+    hint: 'The leaving shot is still whole at the boundary. Paid by the one arriving.',
+  },
+};
+
+export const DEFAULT_TRANSITION_ALIGN: TransitionAlign = 'centred';
+
+export function isTransitionAlign(value: string): value is TransitionAlign {
+  return Object.hasOwn(TRANSITION_ALIGNS, value);
+}
+
+/**
+ * The longest a mix may be, before anything is asked of the neighbours.
+ *
+ * Two seconds. Past that a dissolve stops being a join between two shots and
+ * becomes a shot of its own that happens to hold two performances, and an
+ * author who wants that wants a layout rather than a transition. The
+ * neighbours usually bind first and bind harder; this is the ceiling that
+ * does not depend on where the boundary happens to sit.
+ */
+export const MAX_TRANSITION_FRAMES: Frames = Math.round(HOUSE_FPS * 2);
+
+/** A transition is a length of time, so the shortest one is one frame. */
+export const MIN_TRANSITION_FRAMES: Frames = 1;
+
 /** A third of a second: long enough to read as a dissolve, short enough to
  *  stay musical at any tempo this product is likely to see. */
 const DISSOLVE_FRAMES = Math.round(HOUSE_FPS / 3);
@@ -70,6 +121,29 @@ export function transitionFor(id: string | undefined): Transition {
 
 export function isTransition(id: string): boolean {
   return Object.hasOwn(TRANSITIONS, id);
+}
+
+/**
+ * The transition a scene actually has: the style, plus the author's length.
+ *
+ * A COPY, NEVER THE TABLE ROW. `TRANSITIONS` is module state shared by every
+ * performance in the process; writing one author's duration into it would
+ * change the dissolve in everybody else's song, and the bug would present as
+ * a render that came out wrong for no reason anybody could point at. So the
+ * override is applied to a copy and the table stays the table.
+ */
+export function transitionOf(
+  scene: { transition?: string; transitionFrames?: Frames },
+): Transition {
+  const style = transitionFor(scene.transition);
+  if (style.frames === 0) return style;             /* A cut has no length. */
+  if (scene.transitionFrames === undefined) return style;
+  return { ...style, frames: scene.transitionFrames };
+}
+
+export function transitionAlignOf(scene: { transitionAlign?: string }): TransitionAlign {
+  const value = scene.transitionAlign;
+  return value !== undefined && isTransitionAlign(value) ? value : DEFAULT_TRANSITION_ALIGN;
 }
 
 /**
@@ -107,13 +181,23 @@ export function mixExpression(transition: Transition, frames: Frames): string {
 /**
  * How the overlap is paid for, in frames taken from each side.
  *
- * Centred on the boundary, which is what every editor's default does and what
- * an author dragging a boundary expects: the moment they chose is the middle
- * of the change, not the end of it. An odd length gives the extra frame to the
+ * Centred by default, which is what every editor's default does and what an
+ * author dragging a boundary expects: the moment they chose is the middle of
+ * the change, not the end of it. An odd length gives the extra frame to the
  * outgoing shot, so a one-frame asymmetry always falls on the picture being
  * left rather than the one being arrived at.
+ *
+ * The other two alignments put the whole overlap on one side. They are not
+ * the centred split with a zero substituted in — they answer a different
+ * question, which is which shot the author is willing to lose time from —
+ * but they are answered HERE rather than anywhere else because every
+ * consumer of a transition needs exactly these two numbers out of it. [D-19]
  */
-export function overlapSplit(transition: Transition): { before: Frames; after: Frames } {
+export function overlapSplit(
+  transition: Transition, align: TransitionAlign = DEFAULT_TRANSITION_ALIGN,
+): { before: Frames; after: Frames } {
+  if (align === 'before') return { before: transition.frames, after: 0 };
+  if (align === 'after') return { before: 0, after: transition.frames };
   const after = Math.floor(transition.frames / 2);
   return { before: transition.frames - after, after };
 }

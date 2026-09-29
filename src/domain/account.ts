@@ -58,12 +58,58 @@ export const ACCOUNT_SCHEMA_VERSION = 1;
  */
 export const OWNER_ACCOUNT_ID = 'acct_owner' as AccountId;
 
+/**
+ * THE THREE STUDIOS, AS THINGS THAT CAN BE SOLD SEPARATELY.
+ * [MASTER-EDIT §11, D-14, U-24]
+ *
+ * The brief is explicit: a customer buying Studio One only must not
+ * automatically receive Studio Two's takes, Online TV's broadcast guests, or
+ * a channel. The underlying room technology is shared — one `RoomHost`, one
+ * `roomEdit`, one `InvitePanel` — and the ENTITLEMENT is not.
+ *
+ * Named by the tab an author sees rather than by the document they hold,
+ * because the tab is what is bought. `online-tv` and not `studio-three` for
+ * the reason the bar already gives: the other two are named for what
+ * somebody working in them is doing, and a channel is the only one of the
+ * three that exists while nobody is in it. [CHANNEL §1, D-18]
+ */
+export type StudioId = 'studio-one' | 'studio-two' | 'online-tv';
+
+export const STUDIOS: Record<StudioId, { label: string; holds: string }> = {
+  'studio-one': { label: 'Studio One', holds: 'conversations' },
+  'studio-two': { label: 'Studio Two', holds: 'performances' },
+  'online-tv': { label: 'Online TV', holds: 'channels' },
+};
+
+export const ALL_STUDIOS: readonly StudioId[] =
+  Object.keys(STUDIOS) as StudioId[];
+
+export function isStudioId(value: string): value is StudioId {
+  return Object.hasOwn(STUDIOS, value);
+}
+
 export interface Account {
   schemaVersion: number;
   id: AccountId;
   /** What to call them. Display only; nothing keys off it. */
   name: string;
   createdAt: string;
+  /**
+   * WHICH STUDIOS THIS ACCOUNT HAS.  [MASTER-EDIT §11]
+   *
+   * ABSENT MEANS ALL THREE, and that is the whole migration. The same
+   * reasoning as `sessionsValidFrom` below and for the same reason: every
+   * instance running today has no such field, and a default of "none" or
+   * "the first one" would mean the deploy that adds this takes two studios
+   * away from everybody who already had them. A field that says nothing
+   * must mean what was true before it existed.
+   *
+   * So an empty array is a real answer — an account with nothing — and
+   * `undefined` is the absence of a plan rather than a plan of nothing.
+   * `studiosOf` is the only place that distinction is read, so it is the
+   * only place it can be got wrong.
+   */
+  studios?: StudioId[];
   /**
    * SESSIONS ISSUED BEFORE THIS MOMENT ARE VOID.  [D-06]
    *
@@ -93,6 +139,31 @@ export interface Account {
    * field means "a line has been drawn"; no line is no field.
    */
   sessionsValidFrom?: string;
+}
+
+/**
+ * What this account actually has.
+ *
+ * Unknown entries are dropped rather than trusted, because the list is read
+ * from a JSON file that a forward version of this product may have written
+ * a fourth studio into, and a name this build does not understand is not a
+ * permission this build can honour.
+ */
+export function studiosOf(account: Pick<Account, 'studios'>): StudioId[] {
+  if (account.studios === undefined) return [...ALL_STUDIOS];
+  return account.studios.filter((id) => isStudioId(id));
+}
+
+/**
+ * May this account use that studio.
+ *
+ * The question every surface asks, so that none of them has to know how the
+ * answer is stored. When there is billing it changes here and nowhere. [D-19]
+ */
+export function ownsStudio(
+  account: Pick<Account, 'studios'>, studio: StudioId,
+): boolean {
+  return studiosOf(account).includes(studio);
 }
 
 /**
