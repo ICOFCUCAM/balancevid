@@ -537,3 +537,50 @@ describe('a bank of positions', () => {
       .toMatch(/className="ctl-bank" data-testid="speaker-mode"/);
   });
 });
+
+/**
+ * A COMPONENT WITH TWO PARENTS CANNOT USE `flex`.  [brief §3]
+ *
+ * `Strip` is the tab strip in both the Live Studio's header, which is
+ * a ROW, and the left rail's Frame, which is a COLUMN. `flex` acts on
+ * whichever axis its parent happens to be, so `flex: 1 1 auto` —
+ * added to let the labels shrink horizontally — also told the strip
+ * to grow VERTICALLY in the rail. It ate every spare pixel: a 220px
+ * tall tab strip with the playlist crushed into the bottom half of
+ * the panel, which is what the empty upper half of the control room's
+ * left column was for twenty commits.
+ *
+ * Growing and shrinking are two properties. The shorthand sets both,
+ * and only one of them was ever wanted.
+ */
+describe('the tab strip', () => {
+  const STRIP = (() => {
+    const body = code(join(ROOT, 'app', 't', '[id]', 'ChannelStudio.tsx'));
+    const at = body.indexOf('function Strip(');
+    return body.slice(at, body.indexOf('\nfunction ', at + 1));
+  })();
+
+  it('never grows, on either axis', () => {
+    const grows = [...STRIP.matchAll(/flex: '[1-9]/g)].map(([hit]) => hit);
+    expect(grows, 'flex shorthand with a grow factor — say flexShrink instead')
+      .toEqual([]);
+  });
+
+  it('is still allowed to give way', () => {
+    expect(STRIP).toMatch(/flexShrink: 1/);
+    expect(STRIP).toMatch(/minWidth: 0/);
+  });
+
+  /*
+   * AND THE LABELS ARE SPACED BY HOW MANY THERE ARE. The wide variant
+   * already tracked lighter "because it has five labels to seat rather
+   * than three" — the right reason attached to the wrong property, so
+   * the COMPACT five-up strip kept 0.08em and clipped AUDIO to "AUDI"
+   * for the third time in this pass.
+   */
+  it('spaces labels by their count, not by the variant', () => {
+    expect(STRIP, 'tracking still keys off `compact`')
+      .not.toMatch(/letterSpacing: compact \?/);
+    expect(STRIP).toMatch(/letterSpacing: options\.length > 3/);
+  });
+});

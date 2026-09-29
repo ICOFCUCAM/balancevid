@@ -2339,11 +2339,35 @@ function Strip({
        * box that cannot itself give way is the ordinary way to spend
        * two attempts on one bug.
        *
-       * The compact one stays fixed: it is a segmented control with
-       * three short labels and it must not stretch across a header.
+       * Neither variant may STRETCH: the compact one is a segmented
+       * control that must not spread itself across a header, and the
+       * wide one heads a panel it already spans.
+       *
+       * AND `flex: 1 1 auto` WAS THE WRONG WAY TO SAY IT. `flex` acts
+       * on its parent's MAIN axis, and this strip has two parents: the
+       * desk's header, which is a row, and the left rail's `Frame`,
+       * which is a column. In the row it did what commit 11 wanted; in
+       * the column `flex-grow: 1` made the tab strip eat every pixel
+       * of vertical slack in the rail — a 220px-tall tab strip with
+       * the playlist crushed into the bottom half of the panel, which
+       * is what that empty upper half in the control room was.
+       *
+       * THE COMPACT ONE HAD THE SAME BUG FOR THE SAME REASON. It was
+       * `flex: 0 0 auto` so that it would not stretch, which also
+       * meant it could not give way — and the Live Studio's desk strip
+       * is the compact variant with FIVE labels in a 328px column, so
+       * it overflowed by seventeen pixels and clipped AUDIO to "AUDI".
+       * That is the third time this exact clip has been fixed, twice
+       * on the wrong element: 05 widened the labels, 11 shrank them
+       * inside a box that could not shrink, and 21 fixed the wide
+       * variant while the desk strip was quietly the compact one.
+       *
+       * Both variants now say the same three things. Growing and
+       * shrinking are two properties; the shorthand sets both, and
+       * only one of them was ever wanted.
        */
       gap: 0, flexWrap: 'nowrap',
-      ...(compact ? { flex: '0 0 auto' } : { flex: '1 1 auto', minWidth: 0 }),
+      flexGrow: 0, flexShrink: 1, flexBasis: 'auto', minWidth: 0,
       borderBottom: compact ? 0 : 'var(--border) solid var(--line)',
       ...(compact
         ? {
@@ -2363,7 +2387,14 @@ function Strip({
             aria-pressed={chosen}
             onClick={() => onChange(option.id)}
             style={{
-              flex: compact ? '0 0 auto' : '1 1 0',
+              /*
+                * A SEGMENT SHRINKS ONLY WHEN IT HAS TO. `0 1 auto`
+                * keeps the compact control's segments at their label
+                * width while there is room — which is what a segmented
+                * control should look like — and lets them ellipsise
+                * rather than clip when there is not.
+                */
+              flex: compact ? '0 1 auto' : '1 1 0',
               /*
                * THEY HAVE TO FIT. Uppercasing and tracking these out in
                * 05 widened the five Live Studio desks past their panel
@@ -2375,8 +2406,14 @@ function Strip({
                */
               minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
+              /*
+                * THE PADDING FOLLOWS THE COUNT, not the variant. A
+                * five-up compact strip in a 330px column has 64px a
+                * segment; eight of those pixels were air at each end.
+                */
               padding: compact
-                ? 'var(--space-2) var(--space-4)'
+                ? `var(--space-2) ${options.length > 3
+                  ? 'var(--space-3)' : 'var(--space-4)'}`
                 : 'var(--space-4) var(--space-1)',
               minHeight: compact ? 24 : 32,
               font: 'inherit',
@@ -2388,7 +2425,14 @@ function Strip({
                * with everything else on the panel.
                */
               fontSize: 'var(--text-2xs)',
-              letterSpacing: compact ? '0.08em' : '0.04em',
+              /*
+                * AND SO DOES THE TRACKING. The wide variant already
+                * tracked lighter "because it has five labels to seat
+                * rather than three" — the right reason attached to the
+                * wrong property. The Live Studio's compact strip has
+                * five labels too, and at 0.08em they did not fit.
+                */
+              letterSpacing: options.length > 3 ? '0.04em' : '0.08em',
               textTransform: 'uppercase',
               fontWeight: chosen ? 'var(--weight-bold)' : 'var(--weight-semi)',
               cursor: 'pointer',
