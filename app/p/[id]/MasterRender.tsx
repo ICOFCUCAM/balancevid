@@ -273,8 +273,8 @@ export default function MasterRender({
           * nine things that were fine.
           */}
         <MasterCheck performance={performance} profileId={MASTER_PROFILE}
-                     busy={busy} onRepair={(body) => void repair(id, body,
-                       setBusy, setError)} />
+                     busy={busy}
+                     onRepair={(body) => repair(id, body, setBusy, setError)} />
 
         {/* ---- the one button that makes a file ----------------------- */}
         <div className="row" style={{ gap: 'var(--space-4)', flexWrap: 'wrap' }}>
@@ -329,10 +329,21 @@ export default function MasterRender({
  * refusals matter more than the successes here — `coverGap` and `coverWith`
  * both put the document back rather than trading one refusal for another.
  */
+/**
+ * Returns the refusal, or null.
+ *
+ * IT USED TO RETURN NOTHING and only set `setError`, which puts the
+ * message at the top of this panel. That was fine while every repair was a
+ * button two lines from there. It stopped being fine when the check list
+ * grew a paste box: a refusal about lyrics appeared above a panel the
+ * author had scrolled past, which is the same as not appearing. The
+ * message still goes to `setError` for everybody, and now it also comes
+ * back so a control can say it where it happened. [U-19]
+ */
 async function repair(
   id: string, body: Record<string, unknown>,
   setBusy: (busy: boolean) => void, setError: (message: string | null) => void,
-): Promise<void> {
+): Promise<string | null> {
   setBusy(true);
   setError(null);
   try {
@@ -344,8 +355,11 @@ async function repair(
     if (!response.ok) throw new Error(data.error ?? 'that repair did not work');
     /* The document changed under the page, so the page has to be told. */
     window.location.reload();
+    return null;
   } catch (e) {
-    setError(e instanceof Error ? e.message : String(e));
+    const said = e instanceof Error ? e.message : String(e);
+    setError(said);
     setBusy(false);
+    return said;
   }
 }

@@ -383,16 +383,35 @@ export default function SwitchingStage({
     }
   }, [onChanged, performance.id]);
 
-  const patch = useCallback(async (body: Record<string, unknown>) => {
+  /**
+   * Returns the refusal, or null.
+   *
+   * IT USED TO RETURN NOTHING, and that was fine while every caller was a
+   * control at the bottom of the stage, beside the line that shows
+   * `error`. It stopped being fine the moment MASTER CHECK grew a control
+   * of its own: the check list is most of a page below that line, so a
+   * refusal about lyrics appeared somewhere the author pasting them could
+   * not see — which is the same as not appearing. The message still goes
+   * to `error` for everybody else, and now it also comes back so a caller
+   * far from that line can say it where it happened. [U-19]
+   */
+  const patch = useCallback(async (
+    body: Record<string, unknown>,
+  ): Promise<string | null> => {
     setError(null);
     const response = await fetch(`/api/performances/${performance.id}`, {
       method: 'PATCH', headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body),
     });
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) { setError(data.error ?? 'that did not work'); return; }
+    if (!response.ok) {
+      const said = data.error ?? 'that did not work';
+      setError(said);
+      return said as string;
+    }
     onChanged(data.performance);
     void readHistory();
+    return null;
   }, [onChanged, performance.id, readHistory]);
 
   /**
@@ -2110,7 +2129,10 @@ export default function SwitchingStage({
           {pending.length} of {slots} chosen. Pick {slots - pending.length} more.
         </p>
       )}
-      {error && <p className="small" style={{ color: 'var(--bad)', margin: 0 }}>{error}</p>}
+      {error && (
+        <p className="small" data-testid="stage-error"
+           style={{ color: 'var(--bad)', margin: 0 }}>{error}</p>
+      )}
       </div>
     </div>
   );

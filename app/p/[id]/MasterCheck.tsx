@@ -37,11 +37,19 @@ export default function MasterCheck({
   performance: Performance;
   profileId: string;
   busy: boolean;
-  onRepair: (body: Record<string, unknown>) => void;
+  /** Answers with the refusal, or null, so a control can say it where
+     it happened rather than at the top of a panel nobody is looking at. */
+  onRepair: (body: Record<string, unknown>) => Promise<string | null>;
 }) {
   const [open, setOpen] = useState<string | null>(null);
   const { items, ready } = masterCheck(performance, profileId, EXPORT_PROFILES);
-  const failed = items.filter((item) => !item.ok);
+  /*
+   * ADVISORY LINES ARE NOT ISSUES. `ready` does not count them, so the
+   * header must not either — "1 issue" above a Create button that works
+   * is the header and the button disagreeing in front of the author.
+   */
+  const failed = items.filter((item) => !item.ok && !item.advisory);
+  const advised = items.filter((item) => !item.ok && item.advisory);
   /*
    * ONE ISSUE, ONE PLACE TO FIX IT. A hole at the front fails both "Video
    * covers entire duration" and "No timeline gaps" — correctly, they are
@@ -63,7 +71,10 @@ export default function MasterCheck({
       <div className="module-head" style={{ borderBottom: 0 }}>
         <span className="module-label">Master check</span>
         <span className="module-sub grow" style={{ minWidth: 0 }}>
-          {ready ? 'ready to create master'
+          {ready
+            ? (advised.length > 0
+              ? `ready to create master — ${advised.length} worth doing first`
+              : 'ready to create master')
             : `${failed.length} issue${failed.length === 1 ? '' : 's'}`}
         </span>
         <span className={`state ${ready ? 'is-on' : 'is-armed'}`}
@@ -75,7 +86,8 @@ export default function MasterCheck({
       <ul style={{ margin: 0, padding: '0 10px 8px', listStyle: 'none' }}>
         {items.map((item) => (
           <li key={item.id} data-testid="check-item" data-check={item.id}
-              data-ok={item.ok ? 'true' : 'false'}>
+              data-ok={item.ok ? 'true' : 'false'}
+              data-advisory={item.advisory ? 'true' : 'false'}>
             <div className="row" style={{
               gap: 'var(--space-3)', alignItems: 'baseline', flexWrap: 'nowrap',
               padding: '3px 0',
@@ -88,17 +100,47 @@ export default function MasterCheck({
               <span aria-hidden="true" style={{
                 flex: '0 0 auto', width: 14, display: 'grid',
                 placeItems: 'center',
-                color: item.ok ? 'var(--accent-soft)' : '#f0c66a',
+                color: item.ok ? 'var(--accent-soft)'
+                  : item.advisory ? 'var(--text-faint)' : '#f0c66a',
               }}><Icon name={item.ok ? 'passed' : 'warning'} size={12} /></span>
               <span style={{
                 flex: '0 0 auto', fontSize: 'var(--text-sm)',
-                color: item.ok ? 'var(--text)' : '#f0c66a',
+                color: item.ok ? 'var(--text)'
+                  : item.advisory ? 'var(--text-faint)' : '#f0c66a',
               }}>{item.label}</span>
+              {/*
+                * A WORD, NOT A SHADE. An advisory line is drawn quieter
+                * than a blocking one AND says which it is, because eight
+                * per cent of people cannot separate those two greys and
+                * all of them can read. [U-19]
+                */}
+              {!item.ok && item.advisory && (
+                <span className="module-sub" data-testid="check-advisory"
+                      style={{ flex: '0 0 auto' }}>worth doing</span>
+              )}
               <span className="muted grow" style={{
                 minWidth: 0, fontSize: 'var(--text-2xs)',
                 overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
               }}>{item.says}</span>
             </div>
+
+            {/*
+              * THE WORDS, OFFERED BESIDE THE LINE THAT ASKS FOR THEM.
+              * [INV-07, MASTER-EDIT §12 P3]
+              *
+              * The same shape as a gap's repair below: the list says what
+              * is wrong and the remedy hangs off it, rather than sending
+              * an author to look for a Lyrics panel somewhere else. It is
+              * the only remedy here that is a paste rather than a button,
+              * because the words are the author's and nothing in this
+              * product can invent them.
+              */}
+            {item.id === 'captions' && !item.ok && (
+              <Lyrics performance={performance} busy={busy}
+                      open={open === 'captions'}
+                      onToggle={() => setOpen(open === 'captions' ? null : 'captions')}
+                      onRepair={onRepair} />
+            )}
 
             {/* ---- what is wrong, where, and how to close it --------- */}
             {item.problems?.filter((problem) => {
@@ -120,6 +162,92 @@ export default function MasterCheck({
   );
 }
 
+/**
+ * Paste the words.  [INV-07, MASTER-EDIT §12 P3]
+ *
+ * LRC AND NOTHING ELSE, said in the placeholder rather than discovered by
+ * being refused. The product will not place a line by guesswork — a
+ * four-minute song with twenty lines is not twelve seconds a line — so an
+ * author pasting plain lyrics needs to know before they paste, not after.
+ */
+function Lyrics({
+  performance, busy, open, onToggle, onRepair,
+}: {
+  performance: Performance;
+  busy: boolean;
+  open: boolean;
+  onToggle: () => void;
+  /** Answers with the refusal, or null, so a control can say it where
+     it happened rather than at the top of a panel nobody is looking at. */
+  onRepair: (body: Record<string, unknown>) => Promise<string | null>;
+}) {
+  const [text, setText] = useState('');
+  /*
+   * SAID HERE, NOT AT THE TOP OF THE PANEL. The reason untimed lyrics are
+   * refused is the interesting half of this control, and it has to land
+   * beside the box the author just pasted into.
+   */
+  const [said, setSaid] = useState<string | null>(null);
+  const lines = performance.master.lyrics?.length ?? 0;
+
+  return (
+    <div data-testid="check-lyrics" style={{
+      margin: '3px 0 7px 22px', padding: 'var(--space-3) var(--space-4)',
+      background: 'var(--console-inset)',
+      border: 'var(--border) solid var(--console-edge)',
+      borderRadius: 'var(--radius-module)',
+    }}>
+      <div className="row" style={{ gap: 'var(--space-4)', flexWrap: 'nowrap' }}>
+        <span className="grow small muted" style={{ minWidth: 0 }}>
+          {lines === 0
+            ? 'A song has its words before it has a video.'
+            : `${lines} line(s) so far, and they stop before the singing does.`}
+        </span>
+        <button className="ctl sm" data-testid="lyrics-toggle" onClick={onToggle}>
+          {open ? 'Close' : 'Paste lyrics'}
+        </button>
+      </div>
+      {open && (
+        <div style={{ marginTop: 'var(--space-3)' }}>
+          <textarea data-testid="lyrics-text" rows={6} disabled={busy}
+                    value={text} onChange={(event) => setText(event.target.value)}
+                    placeholder={'[00:12.00]I walked the long way round\n'
+                      + '[00:16.50]And found you waiting there'}
+                    style={{
+                      width: '100%', fontSize: 'var(--text-sm)',
+                      fontFamily: 'var(--font-mono)',
+                    }} />
+          <p className="small muted" style={{ margin: '4px 0 6px' }}>
+            LRC &mdash; a timestamp before each line, which is what lyrics
+            sites and karaoke tools export. Nothing here will place a line
+            by guesswork: a caption that drifts from the voice is the first
+            thing a viewer notices.
+          </p>
+          {said && (
+            <p className="small" data-testid="lyrics-said"
+               style={{ color: 'var(--bad)', margin: '0 0 6px' }}>{said}</p>
+          )}
+          <div className="row" style={{ gap: 'var(--space-3)' }}>
+            <button className="ctl sm" data-testid="lyrics-save" disabled={busy || !text.trim()}
+                    onClick={() => {
+                      void onRepair({ action: 'set-lyrics', lrc: text })
+                        .then((refusal) => setSaid(refusal));
+                    }}>
+              Use these
+            </button>
+            {lines > 0 && (
+              <button className="ctl sm" data-testid="lyrics-clear" disabled={busy}
+                      onClick={() => onRepair({ action: 'set-lyrics', lrc: null })}>
+                Remove
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Issue({
   performance, problem, busy, open, onToggle, onRepair,
 }: {
@@ -128,7 +256,9 @@ function Issue({
   busy: boolean;
   open: boolean;
   onToggle: () => void;
-  onRepair: (body: Record<string, unknown>) => void;
+  /** Answers with the refusal, or null, so a control can say it where
+     it happened rather than at the top of a panel nobody is looking at. */
+  onRepair: (body: Record<string, unknown>) => Promise<string | null>;
 }) {
   const [choice, setChoice] = useState<string>('');
   const where = problem.fromSample !== undefined && problem.toSample !== undefined

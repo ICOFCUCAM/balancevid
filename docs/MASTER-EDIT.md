@@ -265,7 +265,7 @@ against `src/` rather than remembered:
 | snapping | HAVE | `snapToBeat`, off until the author accepts the grid |
 | multi-camera editing | HAVE | this *is* Studio Two — synchronized takes on one song clock |
 | transitions | PARTIAL | cut, dissolve, fade; fixed duration, centred |
-| captions | HAVE | `render/subtitles.ts`, ASS |
+| captions | HAVE | `render/subtitles.ts`, ASS — and now on a performance too, which it was not |
 | vertical 9:16 | HAVE | `EXPORT_PROFILES`, and layouts per aspect family |
 | masks | PARTIAL | a *difference* matte against a plate; no drawable mask |
 | text-based editing | PARTIAL | Studio One has the transcript and quote anchoring; no cut-by-transcript |
@@ -508,13 +508,43 @@ checked.
 
 ### P3 — Intelligent editing
 
+**Captions were the first of these, and doing it found an invariant that was
+quietly false.** INV-07 says every export carries captions and an attribution
+block. A performance export carried the attribution and no captions at all —
+the worker passed cues at three of its four `compose` call sites and not at
+the performance one.
+
+**Studio One's transcription is not the fix.** Its captions come from speech,
+and speech recognition on *singing* is bad: held vowels, melisma, a backing
+track in the same band as the voice. A caption track that is wrong two lines
+in five is worse than none, because a deaf viewer cannot tell which two — and
+D-04's argument for captions is that they are the accessible form of what was
+said, not an approximation of it. So the words come from the author, who has
+them: a song has lyrics before it has a video.
+
+**And the timings come from the author too**, in LRC, which every karaoke
+tool and lyrics site exports. The product never places a line by guesswork: a
+four-minute song with twenty lines is not twelve seconds a line, and a caption
+drifting from the voice is the first thing a viewer notices. Plain lyrics are
+refused with that reason rather than spread evenly.
+
+**MASTER CHECK gained its first advisory line**, and it is the only one.
+INV-07 is asked for and not enforced, because refusing to render would make
+the invariant true by breaking every performance made before there was a field
+to put lyrics in — the invariant enforced against the author rather than for
+the viewer. An advisory line is shown, counts for nothing, and blocks nothing;
+a test asserts that `captions` is the only line carrying it, because the
+moment that flag becomes a way to demote an inconvenient check the list stops
+being a promise.
+
+
 | item | state |
 | --- | --- |
 | automatic gap detection | HAVE |
 | beat-aware cuts | HAVE — `snapToBeat`, off until the author accepts the grid |
 | automatic continuity repair suggestions | PARTIAL — one remedy (extend the next scene), and it refuses when it would not help |
 | best-take suggestions | PARTIAL — `suggestions.ts` and `performanceClips.ts` rank clip candidates |
-| automatic captions | PARTIAL — transcription exists in Studio One; not wired to Studio Two |
+| captions in Studio Two | HAVE — timed lyrics on the master, `performanceCues`, and the worker passing them at both performance render sites. **Not** Studio One's transcription, and the note above P3 says why |
 | auto-reframe · automatic audio cleanup · transcript editing · AI first cut | GAP |
 
 ### P4 — Studio-specific distribution

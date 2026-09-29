@@ -61,6 +61,7 @@ export const TAKE_ACCENT_FALLBACK = '#3e7ca6';
 
 import type { AssetId, Publication, TakeId } from './document.js';
 import type { ColourReading } from './colour.js';
+import type { LyricLine } from './lyrics.js';
 import type { BeatGrid } from './beats.js';
 import type { RoomPlate } from './environment.js';
 import type { Id } from './ids.js';
@@ -197,6 +198,23 @@ export interface MasterTrack {
    * that have to agree. [S-10]
    */
   countInSamples?: Samples;
+  /**
+   * The words, timed to the song.  [MASTER-EDIT §12 P3, INV-07]
+   *
+   * ON THE MASTER, NOT ON A TAKE, and that is the whole reason this is a
+   * short field rather than a subsystem. Every take of a song sings the
+   * same words at the same moments — that is what makes them takes of the
+   * same song — so the lyrics belong to the thing they all share. Putting
+   * them on a take would mean five copies that can disagree, and a switch
+   * between takes that changes the captions.
+   *
+   * Absent means no captions, which is honest rather than ideal: INV-07
+   * asks every export to carry them, and a performance whose author has
+   * not pasted any cannot. MASTER CHECK says so rather than the render
+   * refusing, because refusing would break every performance made before
+   * this field existed.
+   */
+  lyrics?: LyricLine[];
   /** Detected, and therefore a suggestion until used. [§11, INV-06] */
   bpm?: number;
   /**
@@ -1269,6 +1287,23 @@ export interface MasterCheckItem {
   says: string;
   /** The problems behind a failure, where they have a place on the clock. */
   problems?: RenderProblem[];
+  /**
+   * A line that OUGHT to be true rather than one that MUST be.
+   * [INV-07, MASTER-EDIT §12 P3]
+   *
+   * There is exactly one, and it earned the distinction rather than
+   * inventing it. INV-07 asks every export to carry captions, and until
+   * lyrics existed a performance could not — so every performance made
+   * before that field would fail the list and be unable to render. That
+   * would be the invariant enforced against the author instead of for the
+   * viewer.
+   *
+   * So an advisory line is shown, is counted in nothing, and blocks
+   * nothing. The moment this becomes a way to demote an inconvenient
+   * check, the list stops being a promise: the test asserts that only
+   * `captions` carries it.
+   */
+  advisory?: boolean;
 }
 
 export function masterCheck(
@@ -1359,6 +1394,35 @@ export function masterCheck(
       : badJoins[0]!));
 
   /*
+   * 6b. CAPTIONS, WHICH INV-07 ASKS OF EVERY EXPORT AND A PERFORMANCE
+   *     COULD NOT CARRY. The words now exist as a field on the master; what
+   *     is checked is whether this author has pasted any, and whether they
+   *     reach the end of the song.
+   *
+   *     A WARNING AND NOT A REFUSAL, deliberately. Making the render refuse
+   *     would make INV-07 true by breaking every performance made before
+   *     there was a field to put lyrics in, which is the invariant enforced
+   *     against the author rather than for the viewer. The list is where a
+   *     thing that ought to be true and is not belongs.
+   */
+  const lyrics = performance.master.lyrics ?? [];
+  const lastWord = lyrics.reduce((furthest, line) =>
+    Math.max(furthest, line.toSample), 0);
+  /* Two thirds, because an outro with no words in it is normal and a
+     caption track that stops halfway through the singing is not. */
+  const reaches = lyrics.length > 0 && lastWord >= song * (2 / 3);
+  items.push({
+    ...item('captions', 'Captions', lyrics.length > 0 && reaches,
+      lyrics.length === 0
+        ? 'no lyrics yet — every export is supposed to carry captions (INV-07)'
+        : reaches
+          ? `${lyrics.length} line(s), to ${formatMasterPosition(lastWord)}`
+          : `${lyrics.length} line(s), but the last one is at `
+            + `${formatMasterPosition(lastWord)} of ${formatMasterPosition(song)}`),
+    advisory: true,
+  });
+
+  /*
    * 7. Sound. The three modes fail differently: one needs a nominated vocal
    *    that has audio, one needs the take on screen to have any.
    */
@@ -1414,7 +1478,16 @@ export function masterCheck(
     profile ? `${(profile.width / profile.height).toFixed(4)} — every arrangement `
       + 'reframes for it' : 'unknown'));
 
-  return { items, ready: items.every((entry) => entry.ok) };
+  /*
+   * ADVISORY LINES ARE NOT COUNTED. `ready` gates the Create button, so a
+   * line that blocks it is a refusal however it is drawn — and the one
+   * advisory line here exists precisely because refusing would break work
+   * that predates the field it asks about.
+   */
+  return {
+    items,
+    ready: items.every((entry) => entry.advisory || entry.ok),
+  };
 }
 
 /**

@@ -13,7 +13,8 @@
 import type { Conversation } from '../domain/document.js';
 import { hasSeveralVoices, participantFor } from '../domain/document.js';
 import type { Timeline } from '../domain/timeline.js';
-import type { Frames } from '../domain/time.js';
+import { type Frames, samplesToFrames } from '../domain/time.js';
+import { lyricsInWindow } from '../domain/lyrics.js';
 import { forDisplay, type Transcript, type TranscriptSentence } from '../transcribe/types.js';
 import type { Cue, CueWord } from './subtitles.js';
 
@@ -132,4 +133,38 @@ function push(cues: Cue[], cue: Cue): void {
   // Overlapping cues make libass stack them; nudge the boundary instead.
   if (previous && cue.startFrame < previous.endFrame) previous.endFrame = cue.startFrame;
   cues.push(cue);
+}
+
+/**
+ * A performance's captions: the words of the song, on the output clock.
+ * [MASTER-EDIT §12 P3; Doctrine INV-07, U-08, U-22]
+ *
+ * SEPARATE FROM `buildCues` AND NOT A BRANCH INSIDE IT, because the two
+ * answer different questions from different material. `buildCues` walks a
+ * timeline of source and response items and reads a transcript per item;
+ * a performance has one clock — the song — and one set of words shared by
+ * every take. A single function taking a union of two documents would be
+ * two functions with a flag, and the flag would be the only thing anybody
+ * read. [D-19]
+ *
+ * WHAT IS THE SAME IS THE OUTPUT: `Cue[]` in output frames, which is what
+ * `buildAss`, `buildSrt` and `buildVtt` already consume. So a performance
+ * gets burnt-in captions, a sidecar .srt and a .vtt without one line of
+ * the subtitle renderer knowing a performance exists.
+ *
+ * `speaker: 'user'` for every line, which is true and is also the only
+ * honest answer: the performer IS the one speaking, and there is no source
+ * being answered. No `speakerName`, because a name on every line of a song
+ * is noise — the same judgement `buildCues` makes for a solo conversation.
+ */
+export function performanceCues(
+  lines: readonly { fromSample: number; toSample: number; text: string }[],
+  window?: { fromSample: number; toSample: number },
+): Cue[] {
+  return lyricsInWindow(lines, window).map((line) => ({
+    startFrame: samplesToFrames(line.fromSample),
+    endFrame: samplesToFrames(line.toSample),
+    speaker: 'user' as const,
+    text: line.text,
+  }));
 }

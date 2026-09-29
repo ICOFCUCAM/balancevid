@@ -40,7 +40,7 @@ import { resolveTranscriber } from '../transcribe/index.js';
 import {
   loadAllTakeTranscripts, loadTranscript, saveTakeTranscript, saveTranscript,
 } from '../store/transcripts.js';
-import { buildCues } from '../render/cues.js';
+import { buildCues, performanceCues } from '../render/cues.js';
 import { archiveUpload, archiveWeb, type ArchiveResult } from '../evidence/archive.js';
 import { projectTimeline } from '../domain/timeline.js';
 import { buildBundle, conversationChapters } from '../publish/bundle.js';
@@ -523,6 +523,18 @@ async function renderPerformance(job: Job): Promise<Job> {
   const result = await compose(plan, {
     workDir,
     outputPath,
+    /*
+     * THE WORDS OF THE SONG.  [INV-07]
+     *
+     * A performance export used to carry the attribution block and no
+     * captions at all — this call site was the only one of the four that
+     * passed no cues, which is half of "every export carries captions and
+     * an attribution block" quietly not being true. Empty when the author
+     * has pasted no lyrics, which MASTER CHECK says out loud rather than
+     * the render refusing: refusing would break every performance made
+     * before there was a field to put them in.
+     */
+    cues: performanceCues(performance.master.lyrics ?? []),
     resolveAsset: (assetId) => paths.performanceAsset(id, `${assetId}mezz`, 'mp4'),
     /*
      * The normalised master, not the author's upload: what alignment measured
@@ -601,6 +613,9 @@ async function renderPerformanceClip(job: Job): Promise<Job> {
   const result = await compose(plan, {
     workDir,
     outputPath,
+    /* The same words, shifted to the clip's own zero — a chorus clip
+       carrying master timings would show the first verse. [U-22] */
+    cues: performanceCues(performance.master.lyrics ?? [], span),
     resolveAsset: (assetId) => paths.performanceAsset(id, `${assetId}mezz`, 'mp4'),
     masterAudioPath: paths.performanceAsset(
       id, `${performance.master.assetId}mezz`, 'webm'),
