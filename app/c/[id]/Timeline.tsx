@@ -206,7 +206,7 @@ export default function Timeline({
               display: 'grid', placeItems: 'center',
               color: 'var(--user-accent)',
             }}>
-              <span style={{ fontSize: 9, letterSpacing: 0.4, textAlign: 'center',
+              <span style={{ fontSize: 'var(--text-2xs)', letterSpacing: 0.4, textAlign: 'center',
                 lineHeight: 1.15, padding: '0 2px' }}>
                 YOUR<br />RESPONSE
               </span>

@@ -1143,7 +1143,7 @@ export default function SwitchingStage({
               {ticks.map((at) => (
                 <span key={at} className="muted" style={{
                   position: 'absolute', left: pct(at * HOUSE_SAMPLE_RATE), top: 2,
-                  fontSize: 9, fontFamily: 'ui-monospace, monospace',
+                  fontSize: 'var(--text-2xs)', fontFamily: 'ui-monospace, monospace',
                   transform: at === 0 ? 'none' : 'translateX(-50%)',
                 }}>{clock(at * HOUSE_SAMPLE_RATE)}</span>
               ))}
@@ -1221,7 +1221,7 @@ export default function SwitchingStage({
                       {scene.takeIds.map((tid) =>
                         performance.takes.find((t) => t.id === tid)?.label ?? '?').join(' + ')}
                     </span>
-                    <span className="muted" style={{ fontSize: 9 }}>
+                    <span className="muted" style={{ fontSize: 'var(--text-2xs)' }}>
                       {clock(scene.fromSample)} – {clock(to)}
                     </span>
                   </div>

@@ -138,12 +138,14 @@ describe('the legend', () => {
    * one screen, and the desks are full of them. So it is a ratchet,
    * like the raw colours. Lower it when a surface is converted.
    *
-   * 164 → 25 in one commit, which is not 139 decisions: 10, 11, 12 and
+   * 164 → 25 → 6. 10, 11, 12 and
    * 13 ARE the scale — `--text-2xs` through `--text-base` are those
-   * exact pixels — so those were a rename with no visual change at all.
-   * What is left is the genuinely off-scale, and those are decisions.
+   * exact pixels — so those were a rename with no visual change at
+   * all. The 8s and 9s were below the scale's floor and went up to it.
+   * The six left are heading rungs that need looking at rather than
+   * mapping.
    */
-  const SIZES = 25;
+  const SIZES = 6;
 
   it(`writes at most ${SIZES} sizes by hand across the desks`, () => {
     const counts = DESKS.map((file) => ({
@@ -263,5 +265,39 @@ describe('the signal legend', () => {
     expect(LEGEND).toContain('rate !== null');
     expect(LEGEND, 'the legend falls back to the house rate')
       .not.toContain('HOUSE_FPS');
+  });
+});
+
+/**
+ * WHAT MEASURING A REAL FEED TAUGHT THE LEGEND.
+ *
+ * Both of these were found by pointing the desk at an actual picture
+ * rather than by reasoning about one, and neither would have been
+ * caught by a test written from the same head that wrote the code —
+ * because that head reaches for 1920×1080, and 1920×1080 is the one
+ * input where both bugs are invisible.
+ */
+describe('the legend against a real picture', () => {
+  const PROGRAM = code(join(ROOT, 'app', 't', '[id]', 'ChannelStudio.tsx'));
+  const LEGEND = PROGRAM.slice(PROGRAM.indexOf('function Legend('),
+    PROGRAM.indexOf('function Status('));
+
+  /*
+   * A COPRIME RASTER HAS NO RATIO. A 1464×823 canvas feed reduced to
+   * "1464:823" — true, useless, and wider on screen than the raster it
+   * was explaining. Broadcast ratios are all small, so the reduction
+   * is only printed when it stays small.
+   */
+  it('prints a ratio only when it is one people use', () => {
+    expect(LEGEND).toMatch(/<=\s*32/);
+  });
+
+  /*
+   * AND THE RATE IS NEVER ROUNDED INTO THE HOUSE RATE. The same feed
+   * ran at 24; a legend that snapped it to 30 because 30 is the house
+   * rate would be stating the desk's assumption as the signal's fact.
+   */
+  it('reports the rate the track gives', () => {
+    expect(LEGEND).toMatch(/Math\.round\(fps\)/);
   });
 });

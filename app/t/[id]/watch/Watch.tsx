@@ -184,7 +184,7 @@ export default function Watch({
               fontSize: 'var(--text-base)',
             }}>
               <span className="muted" style={{
-                fontSize: 9, letterSpacing: 0.8, fontWeight: 700, flex: '0 0 auto',
+                fontSize: 'var(--text-2xs)', letterSpacing: 0.8, fontWeight: 700, flex: '0 0 auto',
               }}>NEXT</span>
               <span style={{
                 minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis',

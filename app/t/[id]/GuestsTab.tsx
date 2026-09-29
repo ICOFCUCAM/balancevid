@@ -186,7 +186,7 @@ export default function GuestsTab({
       {dialog}
       <div className="row" style={{ flexWrap: 'nowrap' }}>
         <span className="muted grow" style={{
-          fontSize: 9, letterSpacing: 0.8, fontWeight: 700,
+          fontSize: 'var(--text-2xs)', letterSpacing: 0.8, fontWeight: 700,
         }}>ON STAGE</span>
         <a className="small" href={`/c/${roomId}/room`} data-testid="to-room"
            target="_blank" rel="noreferrer" style={{ fontSize: 'var(--text-2xs)' }}>

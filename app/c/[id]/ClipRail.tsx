@@ -152,7 +152,7 @@ export default function ClipRail({
               {/* The kind of move, in its own colour, over its own frame. */}
               <span style={{
                 position: 'absolute', left: 0, bottom: 0,
-                padding: '2px 6px', fontSize: 9, letterSpacing: 0.6,
+                padding: '2px 6px', fontSize: 'var(--text-2xs)', letterSpacing: 0.6,
                 background: item.accent, color: '#0e0f11', fontWeight: 700,
                 borderTopRightRadius: 4,
               }}>
@@ -164,7 +164,7 @@ export default function ClipRail({
               {item.speakerName && (
                 <span data-testid="clip-speaker" style={{
                   position: 'absolute', right: 0, bottom: 0,
-                  padding: '2px 6px', fontSize: 9, letterSpacing: 0.4,
+                  padding: '2px 6px', fontSize: 'var(--text-2xs)', letterSpacing: 0.4,
                   background: 'rgba(14,15,17,0.82)', color: '#e8eaed',
                   borderTopLeftRadius: 4,
                 }}>

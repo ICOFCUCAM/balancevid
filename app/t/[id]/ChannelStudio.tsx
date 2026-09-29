@@ -1938,10 +1938,10 @@ export default function ChannelStudio({
                       minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap',
                     }}>{destination.label}</span>
-                    <span className="muted" style={{ fontSize: 9 }}>
+                    <span className="muted" style={{ fontSize: 'var(--text-2xs)' }}>
                       {destination.shape}
                     </span>
-                    <span className="muted" style={{ fontSize: 9, fontWeight: 700 }}
+                    <span className="muted" style={{ fontSize: 'var(--text-2xs)', fontWeight: 700 }}
                           title={platform?.needsReview ? platform.hint : undefined}>
                       {state}
                     </span>
@@ -2697,11 +2697,11 @@ function PlaylistRail({
             badge={playing ? (
               <span style={{
                 flex: '0 0 auto', padding: '1px 5px', borderRadius: 3,
-                background: 'var(--state-live-dim)', color: 'var(--ink-000)', fontSize: 8,
+                background: 'var(--state-live-dim)', color: 'var(--ink-000)', fontSize: 'var(--text-2xs)',
                 fontWeight: 800, letterSpacing: 0.5,
               }}>LIVE</span>
             ) : entry.loop ? (
-              <span className="muted" style={{ fontSize: 9 }}>&#8635;</span>
+              <span className="muted" style={{ fontSize: 'var(--text-2xs)' }}>&#8635;</span>
             ) : undefined}
             about={title}
             items={() => [
@@ -2837,12 +2837,12 @@ function SchedulesRail({
             badge={broken ? (
               <span style={{
                 flex: '0 0 auto', padding: '1px 5px', borderRadius: 3,
-                background: 'var(--state-live-dim)', color: 'var(--ink-000)', fontSize: 8, fontWeight: 800,
+                background: 'var(--state-live-dim)', color: 'var(--ink-000)', fontSize: 'var(--text-2xs)', fontWeight: 800,
               }}>NO FILE</span>
             ) : liveId === entry.id ? (
               <span style={{
                 flex: '0 0 auto', padding: '1px 5px', borderRadius: 3,
-                background: 'var(--state-live-dim)', color: 'var(--ink-000)', fontSize: 8, fontWeight: 800,
+                background: 'var(--state-live-dim)', color: 'var(--ink-000)', fontSize: 'var(--text-2xs)', fontWeight: 800,
               }}>LIVE</span>
             ) : undefined}
             about={title}
@@ -3318,7 +3318,7 @@ function Timeline({
               <span key={index}>
                 <span className="mono readout" style={{
                   position: 'absolute', top: 1, left: across(at),
-                  fontSize: 9, color: 'var(--ink-300)',
+                  fontSize: 'var(--text-2xs)', color: 'var(--ink-300)',
                   letterSpacing: '0.04em',
                   transform: index === 0 ? 'none' : 'translateX(-50%)',
                 }}>{clock(at)}</span>
@@ -3406,7 +3406,7 @@ function Timeline({
                   display: 'block', overflow: 'hidden', textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap', fontWeight: 600,
                 }}>{segment.title}</span>
-                <span className="muted" style={{ fontSize: 9 }}>
+                <span className="muted" style={{ fontSize: 'var(--text-2xs)' }}>
                   {offsetLabel(segment.toMs - segment.fromMs)}
                   {broken ? ' · missing' : ''}
                 </span>
@@ -3463,7 +3463,7 @@ function Timeline({
               <div key={`g${segment.fromMs}`} data-testid="graphics-cell" style={{
                 position: 'absolute', top: 3, bottom: 3, left: across(segment.fromMs),
                 width: `calc(${across(toMs)} - ${across(segment.fromMs)})`,
-                minWidth: 3, borderRadius: 4, padding: '0 5px', fontSize: 9,
+                minWidth: 3, borderRadius: 4, padding: '0 5px', fontSize: 'var(--text-2xs)',
                 lineHeight: '24px', overflow: 'hidden', whiteSpace: 'nowrap',
                 textOverflow: 'ellipsis',
                 background: 'rgba(125,86,196,0.45)', border: '1px solid #8a6fd0',
@@ -3475,7 +3475,7 @@ function Timeline({
           })}
           {(!lowerThird || lowerThird.show === 'never') && (
             <span className="muted" style={{
-              position: 'absolute', left: 8, top: 5, fontSize: 9,
+              position: 'absolute', left: 8, top: 5, fontSize: 'var(--text-2xs)',
             }}>No lower thirds — set them in Graphics</span>
           )}
         </Lane>
@@ -3485,7 +3485,7 @@ function Timeline({
           <div data-testid="audio-lane" style={{
             position: 'absolute', inset: '3px 0', borderRadius: 4,
             background: 'rgba(42,140,140,0.20)', border: '1px solid #2f7f7f',
-            padding: '0 6px', fontSize: 9, lineHeight: '19px', color: '#8fd2d2',
+            padding: '0 6px', fontSize: 'var(--text-2xs)', lineHeight: '19px', color: '#8fd2d2',
             overflow: 'hidden', whiteSpace: 'nowrap',
           }}>
             Master Audio (Program)
@@ -3523,8 +3523,27 @@ function Timeline({
               * timecode marker looks like on every edit system, and
               * what makes it read as attached to the playhead rather
               * than floating near it.
+              *
+              * IT SAYS THE TIME AND NOTHING ELSE, for two reasons.
+              *
+              * The first is that it was LYING. It read "ON AIR 01:15",
+              * and the playhead is drawn whenever now falls inside the
+              * window — which it does at four in the morning on a
+              * channel that is off air. A red flag claiming ON AIR over
+              * a dead schedule is the third instance of this same bug
+              * in this pass, and the same answer applies: a marker
+              * reports where it is, and `whatIsOn` is the only thing
+              * that reports what is happening. [U-20]
+              *
+              * The second is that at ninety-four pixels it ran into the
+              * next ruler label and clipped it to ":30" — a fragment
+              * that reads as a different, wrong time. Occluding a
+              * number entirely is fine and every edit system does it;
+              * occluding two thirds of one is not. At forty pixels it
+              * clears a 145px label step, and a direct hit now covers a
+              * label rather than shaving it.
               */}
-            <span className="mono readout" style={{
+            <span className="mono readout" data-testid="playhead-flag" style={{
               position: 'absolute', top: -19, left: -1,
               padding: '2px 6px 2px 5px',
               borderRadius: '0 2px 2px 0',
@@ -3533,7 +3552,7 @@ function Timeline({
               color: 'var(--ink-000)', fontSize: 'var(--text-2xs)',
               fontWeight: 'var(--weight-bold)', whiteSpace: 'nowrap',
               letterSpacing: '0.07em',
-            }}>ON AIR {clock(now)}</span>
+            }}>{clock(now)}</span>
           </div>
         )}
       </div>
@@ -3621,7 +3640,7 @@ function CalendarView({
         ))}
         {Array.from({ length: 5 }, (_unused, mark) => (
           <span key={mark} className="muted mono" style={{
-            position: 'absolute', top: 0, fontSize: 9,
+            position: 'absolute', top: 0, fontSize: 'var(--text-2xs)',
             left: `calc(${(mark * 6 / 24) * 100}% + 3px)`,
           }}>{String(mark * 6).padStart(2, '0')}:00</span>
         ))}
@@ -3629,7 +3648,7 @@ function CalendarView({
           <div key={block.id} data-testid="calendar-block" style={{
             position: 'absolute', top: 14, bottom: 2,
             left: `${(block.fromMinute / (24 * 60)) * 100}%`,
-            padding: '0 6px', borderRadius: 4, fontSize: 9, lineHeight: '14px',
+            padding: '0 6px', borderRadius: 4, fontSize: 'var(--text-2xs)', lineHeight: '14px',
             whiteSpace: 'nowrap',
             background: block.id === holding
               ? 'rgba(45,110,200,0.38)' : 'rgba(45,110,200,0.16)',
@@ -3656,7 +3675,7 @@ function CalendarView({
             {block.id === holding && (
               <span style={{
                 padding: '1px 6px', borderRadius: 3, background: 'var(--accent-deep)',
-                fontSize: 9, fontWeight: 800,
+                fontSize: 'var(--text-2xs)', fontWeight: 800,
               }}>ON AIR</span>
             )}
             <button className="small" data-testid="add-to-block"
@@ -4065,7 +4084,7 @@ function ScreensTab({
     <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
       <div className="panel" style={{ padding: 9 }}>
         <div className="muted" style={{
-          fontSize: 9, letterSpacing: 0.8, fontWeight: 700,
+          fontSize: 'var(--text-2xs)', letterSpacing: 0.8, fontWeight: 700,
         }}>ROLLED IN</div>
         <div style={{ fontSize: 'var(--text-sm)', fontWeight: 600 }}>
           {up ? nameOf(up) : 'Nothing — the room is on air'}
@@ -4103,12 +4122,12 @@ function ScreensTab({
       }}>
         <div className="row" style={{ flexWrap: 'nowrap' }}>
           <span className="muted grow" style={{
-            fontSize: 9, letterSpacing: 0.8, fontWeight: 700,
+            fontSize: 'var(--text-2xs)', letterSpacing: 0.8, fontWeight: 700,
           }}>LIVE SCREEN</span>
           {share.sharing && (
             <span style={{
               padding: '1px 6px', borderRadius: 3, background: 'var(--studio-tv)',
-              color: 'var(--ink-000)', fontSize: 8, fontWeight: 800, letterSpacing: 0.5,
+              color: 'var(--ink-000)', fontSize: 'var(--text-2xs)', fontWeight: 800, letterSpacing: 0.5,
             }}>IN THE MIX</span>
           )}
         </div>
@@ -4674,13 +4693,28 @@ function Legend({ on }: { on: OnAir }) {
     return () => window.clearInterval(timer);
   }, []);
 
+  /*
+   * A RATIO IS ONLY WORTH SAYING WHEN IT IS A RATIO PEOPLE USE.
+   *
+   * A canvas feed at 1464×823 reduces to 1464:823, because the two
+   * numbers are coprime — which is true, useless, and wider than the
+   * raster it is explaining. Broadcast ratios are all small: 16:9,
+   * 4:3, 1:1, 9:16, 21:9. So it is printed when both terms are small
+   * and dropped when they are not, which is the honest reading of "a
+   * feed that is not a standard shape has no standard name".
+   *
+   * Found by measuring a real non-standard feed rather than by
+   * thinking about it — 1920×1080 reduces to 16:9 and every test I
+   * would have written by hand used 1920×1080.
+   */
   const ratio = (() => {
     if (!format) return null;
     const [w, h] = format.split('×').map(Number);
     if (!w || !h) return null;
     const g = (a: number, b: number): number => (b === 0 ? a : g(b, a % b));
     const d = g(w, h);
-    return `${w / d}:${h / d}`;
+    const [a, c] = [w / d, h / d];
+    return a <= 32 && c <= 32 ? `${a}:${c}` : null;
   })();
 
   return (
