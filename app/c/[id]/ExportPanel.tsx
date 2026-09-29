@@ -55,7 +55,7 @@ export default function ExportPanel({
     <div className="panel" style={{ marginTop: 16 }}>
       <div className="row">
         <div className="grow">
-          <strong>Finish and publish</strong>
+          <span className="module-label">Finish and publish</span>
           <div className="small muted">
             {embedded
               ? 'This video stays on its own platform, so your responses publish '

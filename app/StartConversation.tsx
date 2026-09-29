@@ -214,7 +214,7 @@ export default function StartConversation() {
     return (
       <div data-testid="start-choose">
         {filePicker}
-        <h2 style={{ fontSize: 26, marginBottom: 4 }}>Bring a video into the conversation</h2>
+        <h2 style={{ fontSize: 'var(--text-xl)', marginBottom: 4 }}>Bring a video into the conversation</h2>
         <p className="muted" style={{ marginTop: 0, maxWidth: 560 }}>
           Upload a video or paste a link, then respond to it throughout —
           interrupting wherever you have something to say.
@@ -288,10 +288,10 @@ export default function StartConversation() {
       )}
 
       <div style={{ position: 'relative', zIndex: 1 }}>
-        <div className="small muted" style={{ textTransform: 'uppercase', letterSpacing: 0.8, fontSize: 11 }}>
+        <div className="small muted" style={{ textTransform: 'uppercase', letterSpacing: 0.8, fontSize: 'var(--text-xs)' }}>
           New conversation
         </div>
-        <h2 style={{ fontSize: 26, margin: '2px 0 16px' }}>Start a conversation</h2>
+        <h2 style={{ fontSize: 'var(--text-xl)', margin: '2px 0 16px' }}>Start a conversation</h2>
 
         <div className="row" style={{ gap: 16, alignItems: 'flex-start', marginBottom: 18 }}>
           {/*
@@ -327,7 +327,7 @@ export default function StartConversation() {
                 <div className="small" style={{ marginTop: 4, wordBreak: 'break-word' }}>
                   {preview?.fileName ?? preview?.title ?? 'Your video'}
                 </div>
-                <div className="small muted" style={{ fontSize: 11, marginTop: 2 }}>
+                <div className="small muted" style={{ fontSize: 'var(--text-xs)', marginTop: 2 }}>
                   The picture appears once it plays
                 </div>
               </div>
@@ -335,7 +335,7 @@ export default function StartConversation() {
           </div>
 
           <div className="grow" style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 20, fontWeight: 600, lineHeight: 1.25 }} data-testid="preview-title">
+            <div style={{ fontSize: 'var(--text-lg)', fontWeight: 600, lineHeight: 1.25 }} data-testid="preview-title">
               {sourceTitle || preview?.title}
             </div>
             {preview?.author && <div className="muted" style={{ marginTop: 2 }}>{preview.author}</div>}

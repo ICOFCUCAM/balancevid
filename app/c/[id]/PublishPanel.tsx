@@ -38,7 +38,7 @@ export default function PublishPanel({
 
   return (
     <div className="panel" style={{ marginTop: 12 }}>
-      <strong>Publish</strong>
+      <span className="module-label">Publish</span>
       {live ? (
         <>
           <p className="small muted" style={{ marginTop: 2 }}>

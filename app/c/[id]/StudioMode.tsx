@@ -78,7 +78,7 @@ export default function StudioMode({
       {conversation.source?.class === 'B' ? (
         <div className="panel" data-testid="no-composed-export"
              style={{ marginBottom: 12, lineHeight: 1.45 }}>
-          <strong>What publishes</strong>
+          <span className="module-label">What publishes</span>
           <p className="small muted" style={{ margin: '4px 0 0' }}>
             A player that runs the original and cuts to you at each of your
             moments, with your recordings, the statements you answered and the

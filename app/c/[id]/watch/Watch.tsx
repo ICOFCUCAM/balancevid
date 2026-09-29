@@ -18,6 +18,8 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import Icon from '../../../Icon.js';
+import Brand from '../../../Brand.js';
 import { HOUSE_FPS, formatTimecode } from '../../../../src/domain/time.js';
 
 type Manifest = any;
@@ -217,6 +219,15 @@ export default function Watch({ conversationId }: { conversationId: string }) {
 
   return (
     <div className="wrap" style={{ maxWidth: 900 }}>
+      {/*
+        * THE MARK, which the channel's watch page has had all along
+        * and the other two did not. Three pages a stranger can be
+        * sent, and until now a person sent two of them had nothing
+        * telling them the two came from the same place. [D-14]
+        */}
+      <div className="row" style={{ gap: 'var(--space-4)', marginBottom: 'var(--space-5)' }}>
+        <Brand />
+      </div>
       <h1 style={{ marginBottom: 2 }}>{manifest.title}</h1>
       <p className="small muted" style={{ marginTop: 0 }}>{manifest.attribution}</p>
 
@@ -279,7 +290,24 @@ export default function Watch({ conversationId }: { conversationId: string }) {
         </div>
 
         <div className="row" style={{ marginTop: 10 }}>
-          <button className="primary" onClick={playing ? stop : start}>
+          {/*
+            * A TRANSPORT IS NOT A CALL TO ACTION. This was the
+            * product's filled blue `.primary` — a 10px pill with a
+            * drop shadow — on the control that starts playback. The
+            * same object came off every desk in the art-direction
+            * pass for the same reason: playing is ordinary, frequent
+            * and reversible, and a control that loud teaches the eye
+            * to go there instead of to the picture.
+            *
+            * The page's one loud control stays loud: "Respond to
+            * this", further down, is the whole premise of the
+            * product [U-04] and is the thing a stranger is actually
+            * being asked to do. A page may have a call to action; it
+            * may not have two. [brief §4]
+            */}
+          <button className="ctl" onClick={playing ? stop : start}
+                  style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+            <Icon name={playing ? 'pause' : 'play'} size={11} />
             {playing ? 'Pause' : 'Play the conversation'}
           </button>
           <span className="small muted grow">
@@ -296,7 +324,7 @@ export default function Watch({ conversationId }: { conversationId: string }) {
       </div>
 
       <div className="panel" style={{ marginTop: 12 }}>
-        <strong>The conversation</strong>
+        <span className="module-label">The conversation</span>
         <div className="small muted" style={{ marginBottom: 8 }}>
           {isEmbedded
             ? 'The original plays on its own platform. Only the responses are ours.'
@@ -328,8 +356,20 @@ export default function Watch({ conversationId }: { conversationId: string }) {
                 </span>
               </>
             )}
-            <button className="small" onClick={() => { setPlaying(true); playingRef.current = true; runSegment(i); }}>
-              play
+            {/*
+              * `play` in lower case was the only lower-case control
+              * label in the product, seven times down one list. A
+              * row's action is an icon with a name a screen reader
+              * can read, which is also what every rail in the three
+              * studios settled on.
+              */}
+            <button className="ctl" title="Play this part"
+                    aria-label={segment.kind === 'source'
+                      ? `Play the source from ${segment.fromTimecode}`
+                      : `Play your ${segment.typeLabel.toLowerCase()}`}
+                    onClick={() => { setPlaying(true); playingRef.current = true; runSegment(i); }}
+                    style={{ padding: '5px 9px', lineHeight: 0, flex: '0 0 auto' }}>
+              <Icon name="play" size={11} />
             </button>
           </div>
         ))}
@@ -337,7 +377,7 @@ export default function Watch({ conversationId }: { conversationId: string }) {
 
       {manifest.lineage?.length > 0 && (
         <div className="panel" style={{ marginTop: 12 }}>
-          <strong>This is part of an exchange</strong>
+          <span className="module-label">This is part of an exchange</span>
           <div className="small muted" style={{ marginBottom: 6 }}>
             Oldest first. Every response records what it answered.
           </div>
@@ -404,7 +444,7 @@ function RespondButton({ conversationId }: { conversationId: string }) {
     <div className="panel" style={{ marginTop: 12 }}>
       <div className="row">
         <div className="grow">
-          <strong>Respond to this</strong>
+          <span className="module-label">Respond to this</span>
           <div className="small muted">
             Its author allowed responses. You will be answering this exact
             version, even if they change theirs later.

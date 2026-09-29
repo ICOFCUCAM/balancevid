@@ -151,7 +151,7 @@ export function useRecordActions(onDeleted: (record: WorkRecord) => void) {
           <span style={{ color: 'var(--text-dim)' }}>{refused.why}</span>
         </span>
         <button type="button" onClick={() => setRefused(null)}
-                style={{ flex: '0 0 auto', padding: '4px 9px', fontSize: 11 }}>
+                style={{ flex: '0 0 auto', padding: '4px 9px', fontSize: 'var(--text-xs)' }}>
           Close
         </button>
       </div>

@@ -62,10 +62,10 @@ export default function StartPerformance() {
   return (
     <div data-testid="start-performance">
       <div className="small muted" style={{ textTransform: 'uppercase',
-        letterSpacing: 0.8, fontSize: 11 }}>
+        letterSpacing: 0.8, fontSize: 'var(--text-xs)' }}>
         Performance Studio
       </div>
-      <h2 style={{ fontSize: 20, margin: '4px 0 6px' }}>Perform against a song</h2>
+      <h2 style={{ fontSize: 'var(--text-lg)', margin: '4px 0 6px' }}>Perform against a song</h2>
       <p className="small muted" style={{ marginTop: 0, maxWidth: 460 }}>
         One song, many performances, all on the same clock. Record yourself as
         often as you like and cut between them afterwards.
@@ -100,13 +100,13 @@ export default function StartPerformance() {
                   data-chosen={masterClass === choice.id ? 'true' : 'false'}
                   aria-pressed={masterClass === choice.id}
                   onClick={() => setMasterClass(choice.id)}
-                  style={{ padding: '5px 10px', fontSize: 12 }}
+                  style={{ padding: '5px 10px', fontSize: 'var(--text-sm)' }}
                 >
                   {choice.label}
                 </button>
               ))}
             </div>
-            <span className="small muted" data-testid="master-class-hint" style={{ fontSize: 11 }}>
+            <span className="small muted" data-testid="master-class-hint" style={{ fontSize: 'var(--text-xs)' }}>
               {CHOICES.find((c) => c.id === masterClass)!.hint}
             </span>
           </div>
