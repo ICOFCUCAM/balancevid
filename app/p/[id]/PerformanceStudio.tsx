@@ -14,7 +14,7 @@ import { MenuButton, RightClickHint, useMenu, type MenuEntry } from '../../Menu.
 import { useMasterRecording } from './useMasterRecording.js';
 import UploadTake from './UploadTake.js';
 import SwitchingStage from './SwitchingStage.js';
-import Delivery from './Delivery.js';
+import Delivery, { type ChannelDestination } from './Delivery.js';
 import RoomPlate from './RoomPlate.js';
 import { useCalibration } from './useCalibration.js';
 import StudioBar from '../../StudioBar.js';
@@ -55,8 +55,9 @@ const CLASS_LABELS: Record<string, { label: string; hint: string }> = {
 };
 
 export default function PerformanceStudio(
-  { initial, studioOneId, studioThreeId }: {
+  { initial, studioOneId, studioThreeId, channels = [] }: {
     initial: Performance; studioOneId?: string; studioThreeId?: string;
+    channels?: ChannelDestination[];
   },
 ) {
   const [performance, setPerformance] = useState(initial);
@@ -738,7 +739,8 @@ export default function PerformanceStudio(
           * poll. The controls inside are the same controls. [D-19]
           */}
         {performance.takes.some((t) => t.durationSamples > 0)
-          && <Delivery performance={performance} onChanged={setPerformance} />}
+          && <Delivery performance={performance} onChanged={setPerformance}
+                       channels={channels} />}
         {/*
           * Setting up: done once, then never again. Open by default until
           * there is a take, because an empty studio's only useful action is

@@ -107,7 +107,13 @@ export default function SoundModes({
         * that happen to agree. A mode selector on a desk is one piece of
         * metal with positions cut into it. [brief §4]
         */}
-      <div className="ctl-bank is-across" style={{ flexWrap: 'wrap' }}>
+      {/*
+        * A COLUMN, BECAUSE IT LIVES IN ONE. Three positions laid across a
+        * 516px module wrap two-and-one, which is a bank with a corner
+        * knocked off it. Down the module they are three positions on one
+        * piece of metal, which is what they are.
+        */}
+      <div className="ctl-bank">
         {MODES.map((option) => (
           <button
             key={option.id}
@@ -134,7 +140,7 @@ export default function SoundModes({
             className={`ctl${mode === option.id ? ' is-on' : ''}`}
             style={{
               textAlign: 'left', padding: '8px 11px',
-              display: 'block', flex: '1 1 210px', minWidth: 0,
+              display: 'block', minWidth: 0,
             }}
           >
             <div style={{

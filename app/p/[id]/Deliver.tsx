@@ -40,8 +40,19 @@ export interface RenderJob {
   result?: Record<string, unknown> | null;
 }
 
-/** §14's shapes other than the master, in the order an author wants them. */
-const VERSIONS = ['vertical_9x16', 'square_1x1', 'portrait_4x5'] as const;
+/**
+ * §14's four shapes, the master first.
+ *
+ * THE MASTER IS IN THE LIST. It was left out on the reasoning that a thing
+ * is not a version of itself, which is true and unhelpful: the question this
+ * list answers is "which files exist", and the file everything else is cut
+ * from is the first one an author looks for. Making it is MASTER's job and
+ * still is — this row says whether it is there and hands it to you, the
+ * same as the other three.
+ */
+const VERSIONS = [
+  'youtube_16x9', 'vertical_9x16', 'square_1x1', 'portrait_4x5',
+] as const;
 
 export default function Deliver({
   performance, jobs, clipJobs, masterReady, blocked, onRendered,
@@ -83,7 +94,7 @@ export default function Deliver({
     latestFor(jobs, profileId)?.state === 'done').length;
 
   return (
-    <section className="module" data-testid="deliver" style={{ marginTop: 12 }}>
+    <section className="module" data-testid="deliver">
       <header className="module-head">
         <span className="module-label">Deliver</span>
         <span className="module-sub grow" style={{ minWidth: 0 }}>
@@ -115,7 +126,14 @@ export default function Deliver({
                 minWidth: 0, fontSize: 'var(--text-sm)',
                 fontWeight: 'var(--weight-medium)',
                 overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-              }}>{profile.label}</span>
+              }}>
+                {profile.label}
+                {profileId === MASTER_PROFILE && (
+                  <span className="module-sub" style={{ marginLeft: 'var(--space-3)' }}>
+                    master
+                  </span>
+                )}
+              </span>
               <span className="muted readout" style={{
                 fontSize: 'var(--text-2xs)', flex: '0 0 auto',
               }}>{profile.width}&times;{profile.height}</span>
@@ -126,14 +144,15 @@ export default function Deliver({
                    style={{ flex: '0 0 auto' }}>Download</a>
               ) : (
                 <button className="ctl sm" data-testid="make-version"
-                        disabled={busy || Boolean(blocked) || !masterReady}
+                        disabled={busy || Boolean(blocked)
+                          || (profileId !== MASTER_PROFILE && !masterReady)}
                         /*
                          * DISABLED ITEMS SAY WHY, the same rule the menus
                          * follow. "Make the master first" is a fact an
                          * author can act on; a grey button is a puzzle.
                          */
-                        title={blocked ?? (masterReady ? undefined
-                          : 'make the master video first')}
+                        title={blocked ?? (masterReady || profileId === MASTER_PROFILE
+                          ? undefined : 'make the master video first')}
                         onClick={() => void post('/renders', {
                           exportProfileId: profileId,
                           allowUnpublishable: !publishable,
