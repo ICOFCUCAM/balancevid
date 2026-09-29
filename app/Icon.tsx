@@ -24,7 +24,8 @@ export type IconName =
   | 'channels' | 'distribution' | 'settings' | 'search' | 'bell'
   | 'disk' | 'clock' | 'calendar' | 'play' | 'plus' | 'chevron'
   | 'arrow' | 'upload' | 'link' | 'live' | 'pencil' | 'sun' | 'moon'
-  | 'sound' | 'muted' | 'expand' | 'faders' | 'list' | 'mic';
+  | 'sound' | 'muted' | 'expand' | 'faders' | 'list' | 'mic'
+  | 'stop' | 'next' | 'loop' | 'warning' | 'graphics';
 
 /* Each is the inner geometry; the frame and the stroke are set below. */
 const PATHS: Record<IconName, React.ReactNode> = {
@@ -87,10 +88,28 @@ const PATHS: Record<IconName, React.ReactNode> = {
       <path d="m8.2 10.9 7.6-3.3M8.2 13.1l7.6 3.3" />
     </>
   ),
+  /*
+   * SETTINGS WAS A SUN.  [U-19]
+   *
+   * A circle with six radial ticks is a simplified gear at 40px and a
+   * small sunburst at 14 — which is a problem in a set that also
+   * contains `sun`, because `sun` is a circle with eight radial
+   * ticks. Rendered side by side they are the same drawing at two
+   * densities, and the lit building puts them on the SAME SCREEN: the
+   * rail's Settings row, and the ground toggle that switches the lobby
+   * between light and dark.
+   *
+   * Two horizontal tracks with knobs instead. Unmistakably a control
+   * panel, and the horizontal counterpart to `faders`, which is the
+   * vertical one — orientation carries the difference between "the
+   * settings" and "the mixer", which is a distinction this product
+   * actually needs to draw.
+   */
   settings: (
     <>
-      <circle cx="12" cy="12" r="3" />
-      <path d="M12 3v2.2M12 18.8V21M4.2 7.5l1.9 1.1M17.9 15.4l1.9 1.1M4.2 16.5l1.9-1.1M17.9 8.6l1.9-1.1" />
+      <path d="M4 7.5h16M4 16.5h16" />
+      <circle cx="15" cy="7.5" r="2.6" />
+      <circle cx="9" cy="16.5" r="2.6" />
     </>
   ),
   search: (
@@ -126,6 +145,64 @@ const PATHS: Record<IconName, React.ReactNode> = {
   ),
   play: <path d="M8.5 5.6 18.5 12l-10 6.4z" />,
   plus: <path d="M12 5.5v13M5.5 12h13" />,
+  /*
+   * THE TRANSPORT, which is the row a person's hand rests on. It was
+   * &#9632; &#9654; &#9654;&#9612; — the Unicode geometric shapes,
+   * whose optical sizes do not match each other: the black square is
+   * drawn to a different cap height from the black triangle in every
+   * font, so a stop and a play side by side are two different weights
+   * of mark. On the one bar in the product that is pressed most.
+   */
+  /*
+   * SIZED AGAINST `play`, NOT AGAINST THE GRID. A square that occupies
+   * the same 11 units as the triangle's bounding box READS smaller,
+   * because a triangle is half the ink of its box and the eye
+   * compares ink. Rendered side by side at 13, 15 and 40, 12.8 units
+   * is the square that weighs what the triangle weighs.
+   */
+  stop: <rect x="5.6" y="5.6" width="12.8" height="12.8" rx="1.2" />,
+  next: (
+    <>
+      <path d="M6 5.6 15 12l-9 6.4z" />
+      <rect x="16.4" y="5.6" width="2.4" height="12.8" rx="0.8" />
+    </>
+  ),
+  /*
+   * ROUND FOR EVER, which is what a rotation entry does. ↻ renders as
+   * a different weight on every platform and as an emoji on some.
+   *
+   * ONE arrow rather than two: the two-arrow version is the obvious
+   * drawing and at 13px it is a grey knot. The single sweep with a
+   * head reads as "round again" at every size in the product.
+   */
+  loop: (
+    <>
+      <path d="M19 12a7 7 0 1 1-2.6-5.4" />
+      <path d="M16.6 2.4v4.6h-4.6" />
+    </>
+  ),
+  /*
+   * THE ONE THAT MUST NOT BE MISTAKEN. The emergency control read
+   * "⚠ Emergency", and ⚠ is one of the characters that renders as a
+   * full-colour emoji on macOS — a yellow-and-black road sign on the
+   * most consequential button on the desk. [U-19]
+   */
+  warning: (
+    <>
+      <path d="M12 3.8 21.4 20H2.6z" />
+      <path d="M12 10v4.4M12 17.2v.1" />
+    </>
+  ),
+  /*
+   * A KEYER'S SOURCE: a frame with a plate laid into one corner,
+   * which is what a bug or a lower third is. It was ◰.
+   */
+  graphics: (
+    <>
+      <rect x="3" y="4.5" width="18" height="15" rx="1.5" />
+      <path d="M6.5 15.2h8" strokeWidth={2.6} />
+    </>
+  ),
   chevron: <path d="m9.5 5.5 6.5 6.5-6.5 6.5" />,
   arrow: <path d="M5 12h13m-5.5-5.5L18 12l-5.5 5.5" />,
   upload: (
@@ -211,11 +288,21 @@ const PATHS: Record<IconName, React.ReactNode> = {
 };
 
 /** `filled` is for the few that read as a shape rather than as a line. */
-const FILLED: IconName[] = ['play', 'home'];
+const FILLED: IconName[] = ['play', 'home', 'stop', 'next'];
 
 export default function Icon({
-  name, size = 16, strokeWidth,
-}: { name: IconName; size?: number; strokeWidth?: number }) {
+  name, size = 16, strokeWidth, turn,
+}: {
+  name: IconName; size?: number; strokeWidth?: number;
+  /*
+   * A CHEVRON POINTS FOUR WAYS AND IS ONE DRAWING. Four icons for
+   * four directions is four things to keep in agreement; a quarter
+   * turn is the same stroke, the same weight and the same optical
+   * centre, rotated. It is on the element rather than in the path so
+   * the geometry stays readable in the table above.
+   */
+  turn?: 90 | 180 | 270;
+}) {
   const solid = FILLED.includes(name);
   return (
     <svg
@@ -226,7 +313,11 @@ export default function Icon({
       strokeWidth={strokeWidth ?? 1.6}
       strokeLinecap="round" strokeLinejoin="round"
       /* `block` or the line-height of the parent adds a phantom descender. */
-      style={{ display: 'block', flex: '0 0 auto' }}
+      style={{
+        display: 'block',
+        flex: '0 0 auto',
+        ...(turn ? { transform: `rotate(${turn}deg)` } : {}),
+      }}
     >
       {PATHS[name]}
     </svg>

@@ -634,7 +634,7 @@ export default function ChannelStudio({
               className={`ctl${filter === null ? '' : ' is-on'}`}
               aria-pressed={filter !== null}
               style={{ flex: '0 0 auto', width: 32, padding: 0, height: 30 }}
-            >&#9906;</button>
+            ><Icon name="search" size={13} /></button>
           </div>
 
           {filter !== null && (
@@ -1174,14 +1174,16 @@ export default function ChannelStudio({
               */}
             <div className="row module-head" style={{ flexWrap: 'wrap' }}>
               <span className="module-label">24/7 Schedule</span>
-              <span className="module-sub" data-testid="schedule-day">
+              <span className="module-sub" data-testid="schedule-day" style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+              }}>
                 {sameDay(windowNow, now, channel.timezone)
                   ? 'Today'
                   : new Date(windowNow).toLocaleDateString('en-GB', {
                     weekday: 'short', day: 'numeric', month: 'short',
                     timeZone: channel.timezone,
                   })}
-                {' \u25be'}
+                <Icon name="chevron" size={9} turn={90} />
               </span>
               <span className="grow" />
               <Strip
@@ -1218,10 +1220,12 @@ export default function ChannelStudio({
                 <span className="row" style={{ gap: 4 }}>
                   <button className="small" data-testid="window-back"
                           onClick={() => setPinned((at) => (at ?? now) - HOUR)}
-                          style={{ padding: '2px 7px' }}>&#9664;</button>
+                          style={{ padding: '2px 7px', lineHeight: 0 }}
+                  ><Icon name="chevron" size={11} turn={180} /></button>
                   <button className="small" data-testid="window-forward"
                           onClick={() => setPinned((at) => (at ?? now) + HOUR)}
-                          style={{ padding: '2px 7px' }}>&#9654;</button>
+                          style={{ padding: '2px 7px', lineHeight: 0 }}
+                  ><Icon name="chevron" size={11} /></button>
                 </span>
               )}
             </div>
@@ -1352,7 +1356,7 @@ export default function ChannelStudio({
                 borderRadius: 3, border: '1px solid var(--console-seam)',
                 background: 'var(--panel-2)', color: 'inherit', cursor: 'pointer',
               }}
-            >&#9881;</button>
+            ><Icon name="settings" size={14} /></button>
           </div>
 
           <Strip
@@ -1737,21 +1741,21 @@ export default function ChannelStudio({
             aria-label="Take program" title="Stop the live source and return to program"
             onClick={endLive}
             style={{ padding: '7px 11px' }}
-          >&#9632;</button>
+          ><Icon name="stop" size={12} /></button>
           <button
             className="ctl" data-testid="resume-program" disabled={!emergency}
             aria-label="Resume programme"
             title="Clear the emergency and let the schedule take the air again"
             onClick={() => void patch({ action: 'emergency', source: null })}
             style={{ padding: '7px 11px' }}
-          >&#9654;</button>
+          ><Icon name="play" size={12} /></button>
           <button
             className="ctl" data-testid="next-item"
             disabled={channel.rotation.length === 0}
             title="Cut to the next item in the loop now"
             onClick={() => void patch({ action: 'next' })}
             style={{ padding: '7px 11px' }}
-          >&#9654;&#9612; Next</button>
+          ><Icon name="next" size={12} /> Next</button>
 
           {/*
             * A DIVIDER BETWEEN GROUPS OF CONTROLS, at the weight of a
@@ -1834,7 +1838,15 @@ export default function ChannelStudio({
               whiteSpace: 'nowrap',
             }}
           >
-            {emergency ? '⚠ Clear Emergency' : '⚠ Emergency'}
+            {/*
+              * ⚠ IS AN EMOJI ON macOS — a yellow-and-black road sign
+              * in full colour, on the most consequential button on
+              * the desk. The one control whose mark must be
+              * unmistakable was wearing a glyph the platform
+              * redraws. [U-19]
+              */}
+            <Icon name="warning" size={12} />
+            {emergency ? 'Clear Emergency' : 'Emergency'}
           </button>
         </div>
 
@@ -1849,6 +1861,9 @@ export default function ChannelStudio({
               listStyle: 'none', cursor: 'pointer', padding: '6px 10px',
               borderRadius: 3, border: '1px solid var(--console-seam)',
               background: 'var(--panel-2)', fontSize: 'var(--text-xs)', whiteSpace: 'nowrap',
+              /* An icon renders as a block; the row has to be one too or
+                 the caret drops onto a line of its own. */
+              display: 'inline-flex', alignItems: 'center', gap: 5,
             }}>
               Stream Output
               {' '}
@@ -1865,7 +1880,8 @@ export default function ChannelStudio({
                   (destination) => destination.enabled
                     && destination.kind !== 'own').length})
               </span>
-              {' ▾'}
+              {/* A caret is the chevron at a quarter turn, not ▾. */}
+              <Icon name="chevron" size={10} turn={90} />
             </summary>
             <div className="panel" style={{
               position: 'absolute', right: 0, bottom: 'calc(100% + 7px)', width: 300,
@@ -2064,7 +2080,7 @@ export default function ChannelStudio({
               listStyle: 'none', cursor: 'pointer', padding: '5px 8px',
               borderRadius: 3, border: '1px solid var(--console-seam)',
               background: 'var(--panel-2)', fontSize: 'var(--text-base)',
-            }}>&#9881;</summary>
+            }}><Icon name="settings" size={14} /></summary>
             <div className="panel" style={{
               position: 'absolute', right: 0, bottom: 'calc(100% + 7px)', width: 290,
               padding: 10, display: 'flex', flexDirection: 'column', gap: 7,
@@ -2765,7 +2781,8 @@ function PlaylistRail({
                 fontWeight: 800, letterSpacing: 0.5,
               }}>LIVE</span>
             ) : entry.loop ? (
-              <span className="muted" style={{ fontSize: 'var(--text-2xs)' }}>&#8635;</span>
+              <span className="muted" style={{ lineHeight: 0 }}
+                    title="Plays round for ever"><Icon name="loop" size={11} /></span>
             ) : undefined}
             about={title}
             items={() => [
@@ -3040,7 +3057,9 @@ function MultiView({
     /** Lit, but not on program: an overlay that is keyed over it. */
     on?: boolean;
     stream?: MediaStream | null; source?: ProgrammeSource; href?: string;
-    glyph?: string;
+    /* A drawn mark, not a character — see Icon.tsx. The em dash
+       fallback is text, which is why this is a node. */
+    glyph?: React.ReactNode;
     /** What clicking it does, and what to say when it cannot. */
     act?: () => void; why?: string;
   }[] = [
@@ -3115,7 +3134,7 @@ function MultiView({
       on: transmitting
         && Boolean(channel.identity?.bug || channel.identity?.lowerThird),
       live: false,
-      glyph: '◰',
+      glyph: <Icon name="graphics" size={15} />,
       act: onGraphics,
       why: 'Open the identity controls',
     },
@@ -4031,9 +4050,12 @@ function CameraTab({
       <Section
         text="Background / Virtual Set"
         aside={(
-          <span className="muted" style={{ fontSize: 'var(--text-2xs)' }}>
+          <span className="muted" style={{
+            fontSize: 'var(--text-2xs)',
+            display: 'inline-flex', alignItems: 'center', gap: 4,
+          }}>
             {spaceId ? SPACE_LOOKS[spaceId]?.label ?? spaceId : 'None'}
-            {' ▾'}
+            <Icon name="chevron" size={9} turn={90} />
           </span>
         )}
       />
