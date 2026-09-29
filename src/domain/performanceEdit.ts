@@ -30,7 +30,8 @@ import {
   type AudioMode, type MasterTrack, type Performance, type PerformanceTake, type Scene,
   AUDIO_MODES, MASTER_CLASSES, PERFORMANCE_SCHEMA_VERSION,
   TAKE_ACCENT_FALLBACK,
-  coverage, mayPublish, orderedScenes, plateFor, renderProblems, takeById,
+  coverage, coversSpan, mayPublish, orderedScenes, plateFor, renderProblems,
+  takeById,
 } from './performance.js';
 import { type Samples, assertSamples } from './time.js';
 
@@ -407,6 +408,40 @@ export function coverGap(
       ? `starting that scene earlier does not cover the hole: ${blame.say}`
       : 'starting that scene earlier does not cover the hole');
   }
+}
+
+/**
+ * Put a take on a stretch that has nothing on it.  [MASTER-EDIT §13]
+ *
+ * The other repair. `coverGap` drags the following scene back over the hole,
+ * which is right when that scene's takes reach; this puts a NEW scene at the
+ * start of the hole with a take that does. Both end with the hole closed and
+ * neither renders black to get there.
+ *
+ * IT REFUSES A TAKE THAT WOULD NOT COVER IT, for the same reason `coverGap`
+ * refuses a move that does not help: a repair that swaps "nothing is on
+ * screen here" for "this take does not reach all of it" has moved the error.
+ * The caller is told which takes would work — `repairsFor` computes exactly
+ * that — so reaching this message means something raced.
+ */
+export function coverWith(
+  performance: Performance, at: Samples, toSample: Samples, takeId: string,
+): Scene {
+  assertSamples(at);
+  assertSamples(toSample);
+  const chosen = take(performance, takeId);
+  if (!coversSpan(chosen, at, toSample, performance.master.durationSamples)) {
+    fail(`${chosen.label} has no picture across all of that stretch`);
+  }
+  const before = renderProblems(performance).length;
+  const scene = setScene(performance, at, {
+    layoutId: 'performance_full', takeIds: [takeId],
+  });
+  if (renderProblems(performance).length >= before) {
+    performance.scenes = performance.scenes.filter((entry) => entry.id !== scene.id);
+    fail('putting a take there does not close the hole');
+  }
+  return scene;
 }
 
 export function removeScene(performance: Performance, sceneId: string): void {

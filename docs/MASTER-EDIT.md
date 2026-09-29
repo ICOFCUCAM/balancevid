@@ -472,3 +472,98 @@ Already true and worth keeping true: Studio One publishes a conversation,
 Studio Two publishes a performance with its attribution (INV-07), Online TV
 transmits. Three publish routes, three watch pages, one render engine
 underneath.
+
+---
+
+## §13  MASTER CHECK
+
+Before rendering, ten named checks and a state:
+
+```
+MASTER CHECK                                    PASSED
+✓ Song duration matches       00:05.000 projected against 00:05.000 of song
+✓ Video covers entire duration  every moment of the song has a take on it
+✓ No timeline gaps          the picture track begins at 00:00.000 and never stops
+✓ No overlapping master segments            2 segment(s), edge to edge
+✓ All source takes available                       2 take(s) in use
+✓ Transitions valid        1 join(s), every mix covered on both sides
+✓ Audio present                             the song, under the picture
+✓ Frame rate consistent   every segment at least one frame, cuts quantised
+✓ Resolution valid                                      1920×1080
+✓ Output aspect ratio valid      1.7778 — every arrangement reframes for it
+```
+
+and when something is wrong:
+
+```
+MASTER CHECK                                   BLOCKED   3 issues
+⚠ Video covers entire duration      1 stretch(es) with nothing to show
+    00:00.000 – 00:00.625   No visual source              [Repair]
+      Use the next take         start the scene that follows it earlier
+      Choose a take…  [Put it on]   2 take(s) have picture across all of it
+      Extend the previous take      nothing comes before this stretch
+      Freeze the previous frame     not something the renderer can make yet
+```
+
+**A list of ticks is a promise, and the one way to break it is to tick
+something nobody checked.** So every line carries what it *compared*, and
+each is computed from the document in front of it. Two were checked as
+something true rather than as asked, and say so in the code: a take carries
+no frame rate or pixel size (it is conformed on ingest), so "frame rate
+consistent" asks what the document can answer, and "resolution" is about the
+output, which is the only resolution this render has.
+
+**The first version of the frame check cried wolf**, which for a checklist is
+the worst failure available. It asked whether every cut lands exactly on a
+frame boundary — and a cut is placed from the playhead, so at the house rate
+that is one sample in 1600. It would have failed on nearly every performance
+for something the renderer handles by rounding. What it asks now is whether
+any segment is shorter than a single frame, which is a real defect nothing
+prevents.
+
+**And it closed a hole the code already knew about.** `transitions.ts` has
+said since it was written that a mix "has a precondition the planner has to
+check: both takes must have picture across the whole overlap, including the
+part that lies outside their own scenes" — and nothing checked it.
+
+| brief | state |
+| --- | --- |
+| ten named checks | HAVE — `masterCheck()` |
+| ready / issue state | HAVE |
+| the issue's place on the clock | HAVE |
+| Repair → Use next take | HAVE — `coverGap` |
+| Repair → Choose a take | HAVE — `coverWith`, offering only takes that reach |
+| Repair → Use previous take | GAP, and said: a scene already runs up to the stretch; its TAKE is what falls short |
+| Repair → Freeze previous frame | GAP, and said: the renderer has no still-from-take source |
+| Repair → Add transition | not offered — a transition between two shots does not put a shot where there is none |
+
+---
+
+## §14  The larger vision
+
+> CyberLink → professional general-purpose editing
+> BalanceVid → professional production system with intelligent editing
+> inside three specialized studios
+
+```
+                    BALANCEVID
+       ┌─────────────────┼──────────────────┐
+   STUDIO ONE        STUDIO TWO         ONLINE TV
+ Conversation       Performance          Broadcast
+       ↓                 ↓                  ↓
+   Respond/Edit      Takes/Master        Programme
+       ↓                 ↓                  ↓
+   Conversation       Master Video       Playout
+       └─────────────────┼──────────────────┘
+                         ↓
+                  DISTRIBUTION
+          Web / YouTube / TikTok / Facebook / X / BalanceVid
+```
+
+And the engineering order, which this work follows:
+
+> Make the Studio Two continuity/repair + clickable Master Video editing the
+> immediate engineering priority. The CyberLink capability integration should
+> come after the underlying editing model is robust, because otherwise you
+> risk putting professional controls on top of a timeline that can still
+> produce a 1.248-second hole.

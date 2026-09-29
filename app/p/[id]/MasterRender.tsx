@@ -7,6 +7,7 @@ import {
 } from '../../../src/domain/performance.js';
 import { EXPORT_PROFILES } from '../../../src/domain/presentation.js';
 import { formatMasterPosition } from '../../../src/domain/time.js';
+import MasterCheck from './MasterCheck.js';
 import SoundModes from './SoundModes.js';
 import VideoTransport from '../../VideoTransport.js';
 import type { RenderJob } from './Deliver.js';
@@ -262,46 +263,18 @@ export default function MasterRender({
           <SoundModes performance={performance} onChanged={onChanged} />
         )}
 
-        {/* ---- and why it cannot be made, when it cannot -------------- */}
-        {problems.length > 0 && (
-          /*
-           * ALL OF THEM, AND WHERE. One sentence naming a total told an
-           * author how much was missing and nothing about where to look;
-           * in a four-minute song a second and a quarter is unfindable.
-           * The holes are also drawn on the timeline, which is where an
-           * author meets them first. [D-14, U-04]
-           */
-          <ul data-testid="render-blocked" style={{
-            margin: 0, padding: 0, listStyle: 'none',
-            display: 'flex', flexDirection: 'column', gap: 'var(--space-3)',
-          }}>
-            {problems.map((problem, index) => (
-              <li key={`${problem.kind}-${problem.fromSample ?? index}`}
-                  data-testid="render-problem" data-kind={problem.kind}
-                  className="row" style={{
-                    gap: 'var(--space-4)', alignItems: 'baseline', flexWrap: 'nowrap',
-                    padding: 'var(--space-3) var(--space-4)',
-                    background: 'var(--state-armed-wash)',
-                    border: 'var(--border) solid rgba(232,179,60,0.36)',
-                    boxShadow: 'inset 3px 0 0 var(--state-armed)',
-                    borderRadius: 'var(--radius-module)',
-                  }}>
-                <span className="small grow" style={{ minWidth: 0, color: '#f0c66a' }}>
-                  {sentence(problem.kind, problem.say)}
-                </span>
-                {problem.extend && (
-                  <button className="ctl sm" data-testid="cover-gap" disabled={busy}
-                          style={{ flex: '0 0 auto' }}
-                          onClick={() => void cover(
-                            id, problem.extend!.sceneId, problem.extend!.fromSample,
-                            setBusy, setError)}>
-                    Extend scene
-                  </button>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
+        {/*
+          * MASTER CHECK.  [MASTER-EDIT §13]
+          *
+          * This was a list of what was WRONG, and only that. An author
+          * about to start a four-minute render wants to know what was
+          * looked at — the value of a green list is that it says the
+          * render is worth starting, and a refusal says nothing about the
+          * nine things that were fine.
+          */}
+        <MasterCheck performance={performance} profileId={MASTER_PROFILE}
+                     busy={busy} onRepair={(body) => void repair(id, body,
+                       setBusy, setError)} />
 
         {/* ---- the one button that makes a file ----------------------- */}
         <div className="row" style={{ gap: 'var(--space-4)', flexWrap: 'wrap' }}>
@@ -348,21 +321,16 @@ export default function MasterRender({
   );
 }
 
-/** A problem, as a sentence rather than a fragment. */
-function sentence(kind: string, say: string): string {
-  if (kind === 'no-scenes') {
-    return 'Nothing is on screen yet. Play the song and press a number to put '
-      + 'a take on it.';
-  }
-  if (kind === 'gap') {
-    return `Nothing is on screen ${say.slice('no performance on them '.length)}.`;
-  }
-  return `${say.charAt(0).toUpperCase()}${say.slice(1)}.`;
-}
-
-/** Close a hole by starting the scene after it earlier. [INV-03] */
-async function cover(
-  id: string, sceneId: string, fromSample: number,
+/**
+ * Apply a repair.  [MASTER-EDIT §13]
+ *
+ * One path for every remedy, because they are all the same shape: a PATCH
+ * that either closes the hole or refuses with the reason it would not. The
+ * refusals matter more than the successes here — `coverGap` and `coverWith`
+ * both put the document back rather than trading one refusal for another.
+ */
+async function repair(
+  id: string, body: Record<string, unknown>,
   setBusy: (busy: boolean) => void, setError: (message: string | null) => void,
 ): Promise<void> {
   setBusy(true);
@@ -370,10 +338,10 @@ async function cover(
   try {
     const response = await fetch(`/api/performances/${id}`, {
       method: 'PATCH', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ action: 'cover-gap', sceneId, fromSample }),
+      body: JSON.stringify(body),
     });
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.error ?? 'that hole could not be covered');
+    if (!response.ok) throw new Error(data.error ?? 'that repair did not work');
     /* The document changed under the page, so the page has to be told. */
     window.location.reload();
   } catch (e) {

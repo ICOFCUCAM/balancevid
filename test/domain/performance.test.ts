@@ -15,14 +15,14 @@ import { describe, expect, it } from 'vitest';
 import {
   type MasterTrack, type Performance, type PerformanceTake,
   coverage, covered, covers, effectiveOffset, masterToTake, mayPublish,
-  orderedScenes, projectPerformance, renderProblems, sceneAt, stageNow, stagesOf,
-  takeToMaster, coversSpan,
+  masterCheck, orderedScenes, projectPerformance, renderProblems, repairsFor,
+  sceneAt, stageNow, stagesOf, takeToMaster, coversSpan,
 } from '../../src/domain/performance.js';
 import {
   addPlate,
   addTake, classifyMaster, clearScenes, coverGap, moveScene, newPerformance, nudgeTake,
   realign, removeScene, removeTake, setAudioMode, setEnvironment, setScene, trimTake,
-  publishPerformance, PerformanceEditError,
+  coverWith, publishPerformance, setTransition, PerformanceEditError,
 } from '../../src/domain/performanceEdit.js';
 import {
   assertAlignmentInvariants, assertPerformanceRenderable, assertPublishable,
@@ -33,7 +33,7 @@ import {
   beatsToSamples, framesToSamples, samplesToFrames, secondsToSamples,
 } from '../../src/domain/time.js';
 import type { AssetId, TakeId } from '../../src/domain/document.js';
-import { LAYOUTS, takeSlots } from '../../src/domain/presentation.js';
+import { EXPORT_PROFILES, LAYOUTS, takeSlots } from '../../src/domain/presentation.js';
 
 const AT = '2026-09-24T12:00:00.000Z';
 /** Four minutes, which is a song. */
@@ -889,5 +889,173 @@ describe('where the work has got to', () => {
     /* Cut the first minute back out from under it. */
     moveScene(p, p.scenes[0]!.id, secondsToSamples(60));
     expect(stageNow(stagesOf(p, renders))).toBe(1);
+  });
+});
+
+
+/**
+ * MASTER CHECK.  [MASTER-EDIT §13, §12 P0]
+ *
+ * A LIST OF TICKS IS A PROMISE. The one thing it must never do is tick
+ * something it did not check — a green line printed because the product
+ * hopes so teaches an author to trust the list, and then spends that trust
+ * on the render where it mattered. So what is proved here is not that the
+ * checks pass on a good performance (easy, and nearly worthless) but that
+ * each one FAILS when its own fact is false.
+ */
+describe('master check', () => {
+  const ready = () => {
+    const p = fiveTakes();
+    setScene(p, 0, { layoutId: 'performance_full', takeIds: ['take_living_room'] });
+    return p;
+  };
+  const run = (p: Performance) => masterCheck(p, 'youtube_16x9', EXPORT_PROFILES);
+  const of = (p: Performance, id: string) =>
+    run(p).items.find((item) => item.id === id)!;
+
+  it('passes a performance that is ready, and says what it compared', () => {
+    const { items, ready: ok } = run(ready());
+    expect(ok).toBe(true);
+    expect(items.map((item) => item.id)).toEqual([
+      'song', 'covers', 'gaps', 'overlaps', 'sources', 'transitions',
+      'audio', 'frames', 'resolution', 'aspect',
+    ]);
+    /* Every line says what it measured, or the tick means nothing. */
+    for (const item of items) expect(item.says.length, item.id).toBeGreaterThan(0);
+  });
+
+  it('and each check fails on its own fact', () => {
+    /* Coverage and gaps: a song with nothing at the front. */
+    const holed = fiveTakes();
+    setScene(holed, secondsToSamples(60),
+      { layoutId: 'performance_full', takeIds: ['take_beach'] });
+    expect(of(holed, 'gaps').ok).toBe(false);
+    expect(of(holed, 'covers').ok).toBe(false);
+    expect(of(holed, 'gaps').problems?.[0]?.fromSample).toBe(0);
+    /* And the rest of the list is still green — a failure is not a mood. */
+    expect(of(holed, 'sources').ok).toBe(true);
+    expect(of(holed, 'resolution').ok).toBe(true);
+
+    /* Sources: a take a scene names, taken away. */
+    const orphan = ready();
+    removeTake(orphan, 'take_beach');
+    expect(of(orphan, 'sources').ok).toBe(true);
+
+    /* Audio: the vocal mode with a take that recorded none. */
+    const mute = fiveTakes();
+    mute.takes[1]!.hasAudio = false;
+    setScene(mute, 0, { layoutId: 'performance_full', takeIds: ['take_living_room'] });
+    setAudioMode(mute, 'master_vocal', 'take_living_room');
+    expect(of(mute, 'audio').ok).toBe(true);
+    mute.audio.vocalTakeId = mute.takes[1]!.id;
+    expect(of(mute, 'audio').ok).toBe(false);
+    expect(of(mute, 'audio').says).toMatch(/no sound/);
+
+    /*
+     * Frames: a segment shorter than one frame renders nothing. The first
+     * version of this check asked whether every cut landed exactly ON a
+     * frame, which fails for any cut placed from a playhead — 120000
+     * samples is 62.5 frames and is an ordinary position. A checklist that
+     * cries wolf is worse than no checklist.
+     */
+    const sliver = ready();
+    expect(of(sliver, 'frames').ok).toBe(true);
+    setScene(sliver, 100, { layoutId: 'performance_full', takeIds: ['take_studio'] });
+    expect(of(sliver, 'frames').ok).toBe(false);
+    expect(of(sliver, 'frames').says).toMatch(/shorter than a frame/);
+
+    /* And an ordinary mid-frame cut is not a failure. */
+    const normal = ready();
+    setScene(normal, 120000, { layoutId: 'performance_full', takeIds: ['take_studio'] });
+    expect(of(normal, 'frames').ok).toBe(true);
+
+    /* Resolution: a profile nobody wrote. */
+    expect(masterCheck(ready(), 'imax_70mm', EXPORT_PROFILES)
+      .items.find((item) => item.id === 'resolution')!.ok).toBe(false);
+  });
+
+  /*
+   * THE ONE THAT CLOSES A KNOWN HOLE. `transitions.ts` has said since it was
+   * written that a mix "has a precondition the planner has to check: both
+   * takes must have picture across the whole overlap, including the part
+   * that lies outside their own scenes" — and nothing checked it. A
+   * dissolve whose neighbour runs out mid-mix dips to black.
+   */
+  it('and catches a dissolve whose neighbour has no picture under it', () => {
+    const p = fiveTakes();
+    setScene(p, 0, { layoutId: 'performance_full', takeIds: ['take_living_room'] });
+    const second = setScene(p, secondsToSamples(60),
+      { layoutId: 'performance_full', takeIds: ['take_beach'] });
+    expect(of(p, 'transitions').ok).toBe(true);
+
+    setTransition(p, second.id, 'dissolve');
+    expect(of(p, 'transitions').ok).toBe(true);
+
+    /* Now take the first take away from under the overlap. */
+    trimTake(p, 'take_living_room', 0, secondsToSamples(59));
+    expect(of(p, 'transitions').ok).toBe(false);
+    expect(of(p, 'transitions').says).toMatch(/no picture across the dissolve/);
+
+    /* A cut needs no overlap, so it is fine where a dissolve is not. */
+    setTransition(p, second.id, 'cut');
+    expect(of(p, 'transitions').ok).toBe(true);
+  });
+});
+
+/**
+ * AND THE REPAIRS OFFER ONLY WHAT WOULD REPAIR.  [MASTER-EDIT §13]
+ *
+ * The brief lists five remedies. Two cannot apply to a hole at the start of
+ * a song — there is no previous take to extend and no previous frame to
+ * freeze — and offering all five and failing on three is how a repair menu
+ * teaches somebody to stop reading it.
+ */
+describe('repairing a hole', () => {
+  const holed = () => {
+    const p = fiveTakes();
+    setScene(p, secondsToSamples(60),
+      { layoutId: 'performance_full', takeIds: ['take_beach'] });
+    return p;
+  };
+
+  it('offers the next take and a choice, and says why not the other two', () => {
+    const p = holed();
+    const [gap] = renderProblems(p);
+    const repairs = repairsFor(p, gap!);
+    expect(repairs.map((repair) => `${repair.id}:${repair.available}`)).toEqual([
+      'use-next:true', 'choose:true', 'use-previous:false', 'freeze:false',
+    ]);
+    for (const repair of repairs) expect(repair.says.length).toBeGreaterThan(0);
+  });
+
+  /*
+   * AND "CHOOSE A TAKE" LISTS ONLY TAKES THAT REACH. A picker offering one
+   * that does not cover the stretch has moved the error, not fixed it.
+   */
+  it('and lists only the takes with picture across all of it', () => {
+    const p = holed();
+    trimTake(p, 'take_studio', secondsToSamples(30), secondsToSamples(240));
+    const [gap] = renderProblems(p);
+    const choose = repairsFor(p, gap!).find((repair) => repair.id === 'choose')!;
+    expect(choose.takeIds).not.toContain('take_studio');
+    expect(choose.takeIds).toContain('take_living_room');
+  });
+
+  it('and putting one on closes the hole', () => {
+    const p = holed();
+    const [gap] = renderProblems(p);
+    coverWith(p, gap!.fromSample!, gap!.toSample!, 'take_living_room');
+    expect(renderProblems(p)).toEqual([]);
+  });
+
+  it('and refuses a take that would not cover it', () => {
+    const p = holed();
+    trimTake(p, 'take_studio', secondsToSamples(30), secondsToSamples(240));
+    const [gap] = renderProblems(p);
+    const was = p.scenes.length;
+    expect(() => coverWith(p, gap!.fromSample!, gap!.toSample!, 'take_studio'))
+      .toThrow(/no picture across all of that stretch/);
+    /* And left exactly as it was. */
+    expect(p.scenes.length).toBe(was);
   });
 });
