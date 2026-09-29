@@ -886,3 +886,73 @@ describe('glyphs', () => {
       .toEqual(['app/Brand.tsx']);
   });
 });
+
+/**
+ * THE PAGES A STRANGER LANDS ON.  [D-04, D-14, U-01]
+ *
+ * Studio One's operator stopped seeing `<video controls>` in commit
+ * 12 of the art-direction pass, under an essay calling it "the
+ * single least premium object a video product can ship". The
+ * AUDIENCE kept it: the channel's watch page, the performance's, and
+ * every vertical clip on it.
+ *
+ * On a viewer page it is worse than on a desk. It is the product's
+ * public face, and its three-dot menu offers **Download** — an offer
+ * to take somebody's published work, made by the page that publishes
+ * it.
+ */
+describe('the viewer pages', () => {
+  const VIEWERS = [
+    'app/t/[id]/watch/ChannelPlayer.tsx',
+    'app/p/[id]/watch/Watch.tsx',
+    'app/c/[id]/watch/Watch.tsx',
+  ];
+
+  it.each(VIEWERS)('%s ships no native control bar', (file) => {
+    const body = code(join(ROOT, file));
+    /* `controls` as a bare JSX attribute on an element. */
+    expect(body, 'a viewer sees the browser\'s own bar, and its Download menu')
+      .not.toMatch(/^\s*controls$/m);
+    expect(body).not.toMatch(/<video[^>]*\scontrols[\s/>]/);
+  });
+
+  /*
+   * AND THE TWO THAT NEEDED ONE USE THE SAME TRANSPORT. Two
+   * transports exist on purpose — Studio One's is built on a frame
+   * address because an editor cuts on frames [INV-02], a viewer's is
+   * built on seconds because a viewer watches. A THIRD would be the
+   * point at which they should have been merged.
+   */
+  it('has one transport for viewers', () => {
+    const users = components()
+      .filter((file) => /<VideoTransport/.test(code(file)))
+      .map(named).sort();
+    expect(users).toEqual([
+      'app/p/[id]/watch/Watch.tsx',
+      'app/t/[id]/watch/ChannelPlayer.tsx',
+    ]);
+  });
+
+  /*
+   * NOW PLAYING IS A CLAIM ABOUT THE VIEWER'S SCREEN. The channel
+   * page made it unconditionally, directly under its own notice that
+   * the channel is not transmitting — so a stranger arriving off air
+   * read both at once. `title` is what the SCHEDULE says; only
+   * `transmitting` says anything is arriving.
+   *
+   * The first fix then reintroduced the same lie four lines higher:
+   * the transport's `live` prop meant "no scrubber" and was also
+   * drawing a red LIVE badge. Two facts, two props.
+   */
+  it('says NOW PLAYING only when something is', () => {
+    const watch = code(join(ROOT, 'app', 't', '[id]', 'watch', 'Watch.tsx'));
+    expect(watch).toMatch(/transmitting \? 'NOW PLAYING' : 'SCHEDULED'/);
+    expect(watch, 'the countdown runs on something that is not running')
+      .toMatch(/remaining !== null && now\?\.transmitting/);
+
+    const transport = code(join(ROOT, 'app', 'VideoTransport.tsx'));
+    expect(transport, 'the LIVE badge is drawn from a layout prop')
+      .toMatch(/\{onAir && \(/);
+    expect(transport).toMatch(/!continuous && total > 0/);
+  });
+});

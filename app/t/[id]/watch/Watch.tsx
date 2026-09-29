@@ -115,7 +115,8 @@ export default function Watch({
 
       <div className="shell-body shell-scroll" style={{ padding: '16px 20px' }}>
         <div style={{ maxWidth: 1000, margin: '0 auto' }}>
-          <ChannelPlayer channelId={channelId} />
+          <ChannelPlayer channelId={channelId}
+                         onAir={Boolean(now?.transmitting)} />
 
           {/*
             * A SENTENCE INSTEAD OF A SPINNER.  [§18]
@@ -147,14 +148,38 @@ export default function Watch({
             </p>
           )}
 
-          <div className="row" data-testid="viewer-now" style={{
-            marginTop: 12, gap: 12, alignItems: 'baseline',
-          }}>
+          {/*
+            * NOW PLAYING IS A CLAIM ABOUT THE VIEWER'S SCREEN, and this
+            * block was making it unconditionally — directly under the
+            * notice saying the channel is not transmitting. A stranger
+            * arriving off air read, in this order:
+            *
+            *     This channel is not transmitting right now.
+            *     NOW PLAYING
+            *     Station Ident
+            *     06:25 left
+            *
+            * Both sentences are true of different things, which is
+            * exactly why putting them together is a lie. `title` is
+            * what the SCHEDULE says should be going out; `transmitting`
+            * is whether any segment is actually arriving. The channel
+            * can have a perfect listing and a dead playout engine, and
+            * that is the state a viewer most needs told plainly.
+            *
+            * So the label follows the fact: NOW PLAYING when something
+            * is arriving, SCHEDULED when it is not. Same bug as the
+            * multi-view tally and the playhead flag — a surface
+            * asserting something the state underneath does not
+            * support. [U-20]
+            */}
+          <div className="row" data-testid="viewer-now"
+               data-transmitting={now?.transmitting ? 'true' : 'false'}
+               style={{ marginTop: 12, gap: 12, alignItems: 'baseline' }}>
             <div className="grow" style={{ minWidth: 0 }}>
               <div style={{
                 fontSize: 'var(--text-2xs)', letterSpacing: '0.09em',
                 fontWeight: 'var(--weight-bold)', color: 'var(--text-faint)',
-              }}>NOW PLAYING</div>
+              }}>{now?.transmitting ? 'NOW PLAYING' : 'SCHEDULED'}</div>
               <div style={{
                 fontSize: 'var(--text-lg)', fontWeight: 'var(--weight-semi)',
                 letterSpacing: 'var(--tracking-tight)',
@@ -163,7 +188,13 @@ export default function Watch({
                 {now?.title ?? '—'}
               </div>
             </div>
-            {remaining !== null && (
+            {/*
+              * AND THE COUNTDOWN ONLY RUNS ON SOMETHING THAT IS
+              * RUNNING. "06:25 left" of a programme the viewer cannot
+              * see is a progress bar for a thing that is not
+              * happening.
+              */}
+            {remaining !== null && now?.transmitting && (
               <div className="mono muted" data-testid="viewer-remaining"
                    style={{ fontSize: 'var(--text-sm)', flex: '0 0 auto' }}>
                 {hms(remaining)} left
