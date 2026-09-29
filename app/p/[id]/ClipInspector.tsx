@@ -3,6 +3,8 @@
 import type { AudioMode, Performance, Scene } from '../../../src/domain/performance.js';
 import { joinRoom, orderedScenes } from '../../../src/domain/performance.js';
 import { LAYOUTS, takeSlots } from '../../../src/domain/presentation.js';
+import JoinPreview from './JoinPreview.js';
+import { bestTake } from '../../../src/domain/takeRanking.js';
 import {
   MAX_TRANSITION_FRAMES, MIN_TRANSITION_FRAMES, TRANSITIONS, TRANSITION_ALIGNS,
   transitionAlignOf, transitionOf,
@@ -203,6 +205,18 @@ export default function ClipInspector({
               ))}
             </div>
           ))}
+          {/*
+            * WATCHING IT, BEFORE CHOOSING IT.  [MASTER-EDIT §3, §12 P1]
+            *
+            * Above the length and the alignment, because it is what those
+            * two are FOR: an author sets a duration by looking at the
+            * result, and a number chosen without one is a guess they find
+            * out about at the export. Only for a mix — a cut has no
+            * overlap to scrub.
+            */}
+          {mix > 0 && before && (
+            <JoinPreview performance={performance} scene={scene} before={before} />
+          )}
           {mix > 0 && group('Duration', (
             <div className="row" style={{ gap: 'var(--space-3)', flexWrap: 'wrap' }}>
               {/* is-across, because a stepper whose − sits above its + is a
@@ -313,6 +327,50 @@ export default function ClipInspector({
             ))}
           </div>
         ))}
+
+        {/*
+          * WHICH TAKE MEASURES BEST OVER THIS CLIP, and why.
+          * [MASTER-EDIT §12 P3, U-15]
+          *
+          * Beside the source picker rather than instead of it: the ranking
+          * is over measured facts — sync, sound, contrast, exposure — and
+          * it cannot hear a performance. The take an author wants is
+          * frequently not the one that measures best, which is why this
+          * says a name and a reason and does not change anything.
+          *
+          * Shown only when it disagrees with what is already there. A
+          * recommendation that repeats the current choice is noise on
+          * every clip in the song.
+          */}
+        {(() => {
+          const best = bestTake(performance, scene.fromSample, to);
+          if (!best || (scene.takeIds as string[]).includes(best.takeId)) return null;
+          return (
+            <div data-testid="best-take" style={{ gridColumn: '1 / -1' }}>
+              <div className="row" style={{ gap: 'var(--space-3)', flexWrap: 'wrap' }}>
+                <span className="module-sub">Measures best here</span>
+                <span style={{ fontSize: 'var(--text-sm)' }}>{best.label}</span>
+                <button className="ctl sm" data-testid="use-best" disabled={busy}
+                        onClick={() => rewrite([best.takeId, ...ids().slice(1)])}>
+                  Use it
+                </button>
+              </div>
+              {/*
+                * "MEASURED:" AND NOT A BARE FRAGMENT, which is what the
+                * screenshot showed: a line reading "dark." on its own
+                * under the take's name, with nothing to say whether that
+                * was the reason for the recommendation or a warning about
+                * it. The reasons are fragments by design — they are
+                * readings, not sentences — so the lead-in is what makes
+                * them a sentence.
+                */}
+              <p className="small muted" style={{ margin: '2px 0 0' }}>
+                Measured: {best.says.join(' \u00b7 ')}. Nothing here can hear a
+                performance &mdash; this is what was measured, not what is good.
+              </p>
+            </div>
+          );
+        })()}
 
         {/* COMPOSITION — the arrangements this many takes can fill. [U-18] */}
         {group('Composition', (

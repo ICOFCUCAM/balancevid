@@ -147,6 +147,38 @@ export function transitionAlignOf(scene: { transitionAlign?: string }): Transiti
 }
 
 /**
+ * HOW MUCH OF EACH PICTURE, AT FRAME N OF THE OVERLAP.
+ * [§11, MASTER-EDIT §12 P1]
+ *
+ * THE ONE DEFINITION, AND `mixExpression` BELOW IS THE SAME RAMP WRITTEN
+ * FOR FFMPEG. Two consumers need this: the renderer, which needs it as a
+ * string ffmpeg can evaluate per pixel, and the studio's monitor, which
+ * needs it as a number to set an opacity with — because a preview of a
+ * dissolve that fades at a different rate from the render is a preview
+ * that lies, and the author only finds out at the export.
+ *
+ * Neither can be derived from the other: an expression string cannot be
+ * called, and a function cannot be handed to a filter graph. So the ramp
+ * is stated once here, written out once below, and a test evaluates the
+ * expression at every frame and compares it to this. [D-19]
+ */
+export function mixAt(
+  transition: Transition, n: Frames, frames: Frames,
+): { a: number; b: number } {
+  const last = Math.max(1, frames - 1);
+  if (transition.mix === 'black') {
+    return {
+      a: Math.max(0, 1 - (2 * n) / last),
+      b: Math.max(0, (2 * n) / last - 1),
+    };
+  }
+  /* A cut has no overlap to be partway through: before it, the old
+     picture; at it and after, the new one. */
+  if (transition.mix === 'none') return { a: n <= 0 ? 1 : 0, b: n <= 0 ? 0 : 1 };
+  return { a: 1 - n / last, b: n / last };
+}
+
+/**
  * The mix, as a per-pixel expression over the overlap.
  * [§11, S-8, INV-02]
  *

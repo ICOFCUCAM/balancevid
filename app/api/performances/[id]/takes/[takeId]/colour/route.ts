@@ -1,8 +1,12 @@
 import { isOwner } from '../../../../../../../src/auth/request.js';
-import { matchColour, setColourReading } from '../../../../../../../src/domain/performanceEdit.js';
+import {
+  matchColour, setColourReading, setSoundReading,
+} from '../../../../../../../src/domain/performanceEdit.js';
 import { PerformanceEditError } from '../../../../../../../src/domain/performanceEdit.js';
 import { matchQuality } from '../../../../../../../src/domain/colour.js';
-import { measureColour } from '../../../../../../../src/render/ingest.js';
+import {
+  measureColour, measureSound,
+} from '../../../../../../../src/render/ingest.js';
 import { loadPerformance, mutatePerformance } from '../../../../../../../src/store/performances.js';
 import { paths } from '../../../../../../../src/store/paths.js';
 import { fail, json } from '../../../../../../../src/web/http.js';
@@ -52,14 +56,21 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
    * minutes of video is not a thing to hold a document for.
    */
   const readings = new Map<string, Awaited<ReturnType<typeof measureColour>>>();
+  const heard = new Map<string, Awaited<ReturnType<typeof measureSound>>>();
   for (const wanted of [takeId, ...(to ? [to] : [])]) {
     const take = performance.takes.find((each) => each.id === wanted);
     if (!take) return fail(404, `no take ${wanted} in this performance`);
     try {
+      const media = paths.performanceAsset(id, `${take.assetId}mezz`, 'mp4');
       readings.set(wanted, await measureColour(
-        paths.performanceAsset(id, `${take.assetId}mezz`, 'mp4'),
-        take.durationSamples / 48_000,
-      ));
+        media, take.durationSamples / 48_000));
+      /*
+       * AND THE SOUND, IN THE SAME PASS OVER THE SAME FILE. Looking at a
+       * take is one act to an author; making them press a second button
+       * to have it listened to as well would be the product's internal
+       * division of labour showing through. [MASTER-EDIT §12 P3]
+       */
+      heard.set(wanted, await measureSound(media));
     } catch (error) {
       /* The reason, not just the verdict: "could not be measured" sends an
          author looking at their take when the fault is this machine. */
@@ -72,6 +83,9 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
     const updated = await mutatePerformance(id, (draft) => {
       for (const [wanted, reading] of readings) {
         setColourReading(draft, wanted, reading);
+      }
+      for (const [wanted, reading] of heard) {
+        setSoundReading(draft, wanted, reading);
       }
       matchColour(draft, takeId, to);
     });

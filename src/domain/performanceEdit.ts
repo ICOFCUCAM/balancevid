@@ -27,9 +27,10 @@ import {
   DEFAULT_TRANSITION, MAX_TRANSITION_FRAMES, MIN_TRANSITION_FRAMES,
   type TransitionAlign, isTransition, isTransitionAlign, transitionOf,
 } from './transitions.js';
-import { NO_CLEANUP, isCleanup } from './cleanup.js';
+import { type SoundReading, NO_CLEANUP, isCleanup } from './cleanup.js';
 import { type ColourReading, isMeasured } from './colour.js';
 import { NO_STABILIZER, isStabilizer } from './stabilize.js';
+import { LyricsError, parseLrc } from './lyrics.js';
 import { newId } from './ids.js';
 import type { TakeId } from './document.js';
 import {
@@ -909,6 +910,22 @@ export function setColourReading(
 }
 
 /**
+ * What this take's sound measured, written down.  [MASTER-EDIT §12 P3, U-02]
+ *
+ * The render layer listens; this records. Separate from `setCleanup` for
+ * the reason `setColourReading` is separate from `matchColour`: a reading
+ * is a fact about the media and survives the author changing their mind
+ * about what to do with it.
+ */
+export function setSoundReading(
+  performance: Performance, takeId: string, reading: SoundReading,
+): void {
+  const take = takeById(performance, takeId);
+  if (!take) throw new PerformanceEditError(`no take ${takeId} in this performance`);
+  take.sound = reading;
+}
+
+/**
  * Grade this take towards another one.  [MASTER-EDIT §8, §12 P2]
  *
  * THE REFERENCE, NOT THE GRADE. Storing the computed correction would
@@ -955,6 +972,38 @@ export function matchColour(
       `"${follower.label}" is matched to this take — unmatch it first`);
   }
   take.matchTo = to.id as TakeId;
+}
+
+/**
+ * The words of the song, timed.  [MASTER-EDIT §12 P3, INV-07]
+ *
+ * Takes LRC text rather than parsed lines, so the one place that decides
+ * what a timestamp means is `parseLrc` and a route cannot invent a second
+ * reading of `[00:01.5]`. `null` takes them off.
+ *
+ * ON THE MASTER, because every take of a song sings the same words at the
+ * same moments — that is what makes them takes of the same song.
+ */
+export function setLyrics(
+  performance: Performance, lrc: string | null,
+): void {
+  if (lrc === null || lrc.trim() === '') {
+    delete performance.master.lyrics;
+    return;
+  }
+  /*
+   * `LyricsError` is turned into the edit's own error here rather than
+   * left to escape, because every caller of this module catches
+   * `PerformanceEditError` and answers 400. A parser error crossing that
+   * boundary would come back as a 404 saying the performance was not
+   * found, which is a lie about a file the author is looking at.
+   */
+  try {
+    performance.master.lyrics = parseLrc(lrc, performance.master.durationSamples);
+  } catch (error) {
+    throw new PerformanceEditError(
+      error instanceof LyricsError ? error.message : 'those lyrics could not be read');
+  }
 }
 
 /**

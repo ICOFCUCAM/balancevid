@@ -181,6 +181,15 @@ Recorded so the brief is checked rather than remembered. `HAVE` means it
 works today; `DOMAIN` means the operation exists and nothing on screen reaches
 it; `GAP` means it does not exist.
 
+**A NOTE ON READING THIS DOCUMENT.** The §1–§4 tables below were written
+when the brief first arrived and record what was true THEN. Several rows in
+them said `GAP` for months after the thing was built, because the habit was
+to update the priority tables at the bottom and not the measurement at the
+top — which made the record lie about the product in the one direction that
+matters, understating it, and made the same gap look open twice. They have
+been brought up to date, and the lesson is worth more than the correction:
+a measurement is only worth keeping if it is re-measured.
+
 | brief | state | where |
 | --- | --- | --- |
 | §1 gaps found before render | HAVE | `renderProblems()` in `performance.ts`, asked by the console, the timeline and the invariant |
@@ -188,21 +197,21 @@ it; `GAP` means it does not exist.
 | §1 render refused while incomplete | HAVE | `Create master video` disabled; `assertPerformanceRenderable` refuses |
 | §1 `MASTER VIDEO · INCOMPLETE` on the lane | GAP | the lane has no state of its own |
 | §1 Use next take (start the next scene earlier) | HAVE | `coverGap()`, offered as **Extend scene** |
-| §1 Extend previous take | GAP | needs a scene END, which the model does not have — a scene runs until the next one starts |
+| §1 Extend previous take | HAVE, as a boundary move | it needed "a scene END, which the model does not have" — and trim showed that was the wrong shape for the question. Moving the boundary extends the previous take by construction |
 | §1 Insert another take / Cover with selected take | DOMAIN | `setScene(at, …)` does it; only the monitor's menu reaches it, not the gap |
 | §1 Freeze previous frame | GAP | no still-from-take source in the renderer |
 | §1 Remove gap | GAP | means moving every later scene earlier; no such operation |
-| §2 click a block to inspect it | GAP | `timeline-scene` has no click |
+| §2 click a block to inspect it | HAVE | selects it and opens the inspector |
 | §2 replace source | HAVE | monitor menu, `Replace with …` — and it does not move the boundary |
-| §2 trim in/out per segment | GAP | `trimTake` trims a TAKE for the whole performance; a scene has no in/out of its own |
+| §2 trim in/out per segment | HAVE | In and Out step the boundary — a scene still has no out-point, because its out IS the next clip's in, and the panel says so |
 | §2 composition per segment | DOMAIN | `setScene` takes a `layoutId`; the composition rail sets the NEXT scene, not the selected one |
 | §2 audio per segment | DOMAIN | `setSceneAudio`, behind the Audio settings disclosure |
 | §3 transition stored between takes | HAVE | `scene.transition` is how a scene ARRIVES — the join, stored on the later side |
-| §3 click the join | GAP | no transition handle on the timeline |
-| §3 adjustable duration | GAP | `TRANSITIONS` fixes frames per style |
-| §3 alignment | GAP | always centred: half from each side, by `INV-03` (the song does not get longer) |
+| §3 click the join | HAVE | `timeline-join` handles, and the transition inspector behind them |
+| §3 adjustable duration | HAVE | a stepper bounded by what the join can pay |
+| §3 alignment | HAVE | *Ends on the cut* / *Centred* / *Begins on the cut* — none of them lengthens the song (INV-03) |
 | §4 replace without moving the clock | HAVE | monitor menu; `patch` not `write`, so beat-snapping cannot drag the boundary |
-| §4 replace from the timeline block | GAP | same missing click as §2 |
+| §4 replace from the timeline block | HAVE | the clip inspector's source picker, at the scene's own sample |
 
 **What this says.** Most of §4 and much of §1 are built. The shape of the gap
 is consistent: **the operations exist in the domain and the timeline is
@@ -236,15 +245,29 @@ colour correction, stabilize, audio cleanup, crop/reframe, effects.
 **A master segment** should primarily edit *which portion of which take is
 used* — and nothing about the recording itself.
 
+**THE THREE OPERATIONS, NAMED APART.** Moving a take, trimming a take and
+reframing one act on three different things — WHEN it plays, WHICH PART of
+it exists, and WHAT PART OF THE PICTURE shows — and a flat list of verbs
+invites somebody to trim when they meant to move. The take menu prints them
+under those headings, and `Menu.tsx` gained a `section` for it.
+
+**AND THE MENU IS RAISED FROM THREE PLACES**, from one definition in
+`app/p/[id]/takeMenu.ts`: the row in the rail, the take's own PICTURE in
+the multiview, and its block on the timeline. A studio where a take's
+picture offers different verbs from a take's row has two answers to one
+question. [D-19]
+
 | brief | state | where |
 | --- | --- | --- |
-| trim start/end | HAVE | `trimTake(take, useFromSample, useToSample)` |
+| trim start/end | HAVE | `trimTake`, offered at the playhead as *Start it here* / *End it here* — the author is looking at the moment they mean, so typing it back as a timecode would be reading out what is already under the line |
+| play one take on its own | HAVE | a third stage view, not a second player: same transport, same clock, one panel |
+| move a take against the song | HAVE | `nudgeTake` had been written, planned, mixed and invariant-checked for months with NO way in. Now: drag its block, two alignments (to the song's start, to the playhead), frame and second steps, and an exact figure in milliseconds |
 | rename | HAVE | `renameTake` |
 | change environment | HAVE | `setEnvironment`, `SPACES` |
 | adjust background | HAVE | `usePlate`, the matte in `render/matte.ts` |
 | colour correction | PARTIAL | `setEffect` with four named looks, plus a measured match to another take; no controls of your own |
 | effects | PARTIAL | same four looks |
-| crop / reframe | PARTIAL | `focus.ts` reframes a conversation; a take has no crop |
+| crop / reframe | PARTIAL | `focus.ts` reframes a conversation; a take has no crop. The third of the three operations above, and the only one of them still missing |
 | replace take | GAP | a source take is a recording; replacing it is uploading another |
 | stabilize | HAVE | `setStabilize` with two named rows, measured before it is applied; cannot be on at the same time as a matted background (INV-16) |
 | audio cleanup | HAVE | `setCleanup` with four named rows — the same shape as `setEffect`, on the take because a fan belongs to the recording and not to the stretch of song it is used over |
@@ -265,7 +288,7 @@ against `src/` rather than remembered:
 | snapping | HAVE | `snapToBeat`, off until the author accepts the grid |
 | multi-camera editing | HAVE | this *is* Studio Two — synchronized takes on one song clock |
 | transitions | PARTIAL | cut, dissolve, fade; fixed duration, centred |
-| captions | HAVE | `render/subtitles.ts`, ASS |
+| captions | HAVE | `render/subtitles.ts`, ASS — and now on a performance too, which it was not |
 | vertical 9:16 | HAVE | `EXPORT_PROFILES`, and layouts per aspect family |
 | masks | PARTIAL | a *difference* matte against a plate; no drawable mask |
 | text-based editing | PARTIAL | Studio One has the transcript and quote anchoring; no cut-by-transcript |
@@ -362,7 +385,7 @@ What §10 asks for beyond that, measured:
 | guest **roles** | HAVE | `Room.terms.as` says what the link admits people as; the join route no longer always mints `audience`. The names stay `host / speaker / audience / editor` — they describe what somebody does in a conversation, which Guest / Co-host / Contributor does not |
 | per-guest **camera / mic / screen** permission | HAVE | `use.camera`, `use.microphone`, `use.screen` are capabilities like any other, so `may`, `grants` and `ROLE_DEFAULTS` work on them unchanged. Set for everyone on the link (`terms.grants`) or for one person after they arrive (`setGrant`), and enforced at `mayRecord` rather than in the browser |
 | invitation **expiry** | HAVE | `Room.terms.expiresAt` and `inviteOpen`; an expired link answers exactly as a wrong one does (D-03). Rotation is still the revocation that always works — an expiry is for a link living in a chat thread for a year |
-| role chosen **at invitation time** | GAP | one link, one role for everyone who follows it |
+| role chosen **at invitation time** | HAVE | `Room.terms.as`. Still one link and one role — a second link would be a second thing to revoke — but the host sets what that role is |
 
 The three gaps were one shape: **an invitation was a door, not a door with
 terms on it.** A token said "you may come in"; it did not say as what, with
@@ -453,6 +476,18 @@ pre-render validation
 
 ### P1 — Studio Two editing
 
+**Closed.** Every row below is HAVE. The last one was the join preview,
+and building it turned up the thing worth recording here: the renderer
+states its cross-fade as an ffmpeg expression and a browser cannot call
+one, so previewing a dissolve meant a second statement of the same ramp.
+That is exactly the shape D-19 warns about, and the answer is not to
+pretend otherwise but to make the two provably equal — `mixAt` is the
+definition, `mixExpression` is it written for ffmpeg, and a test
+evaluates the expression at every frame of every length against the
+function. A preview that fades at a different rate from the render is
+worse than no preview: it is a measurement the author trusts and
+should not.
+
 | item | state |
 | --- | --- |
 | click a Master Video segment | HAVE — selects it and opens the inspector |
@@ -464,7 +499,7 @@ pre-render validation
 | trim | HAVE — In and Out step the boundary, guarded: a scene still has no out-point, because its out IS the next clip's in, and the panel says so |
 | adjust transition duration | HAVE — a stepper bounded by what the join can pay, and a `Default` to put it back |
 | choose which shot pays | HAVE — *Ends on the cut* / *Centred* / *Begins on the cut* |
-| preview | PARTIAL — the programme monitor shows the scene at the playhead; no scrub of the join |
+| preview | HAVE — the join inspector stacks both takes and scrubs the overlap a frame at a time, cross-faded by `mixAt`, which is the definition the renderer's own ffmpeg expression is written from. A test evaluates that expression at every frame against it, because a preview fading at a different rate from the render is worse than no preview |
 | **undo / redo** | HAVE — every edit to a performance records a version; ⌘Z / ⌘⇧Z and a control bank step through 50 of them |
 
 ### P2 — Professional finishing
@@ -508,14 +543,46 @@ checked.
 
 ### P3 — Intelligent editing
 
+**Captions were the first of these, and doing it found an invariant that was
+quietly false.** INV-07 says every export carries captions and an attribution
+block. A performance export carried the attribution and no captions at all —
+the worker passed cues at three of its four `compose` call sites and not at
+the performance one.
+
+**Studio One's transcription is not the fix.** Its captions come from speech,
+and speech recognition on *singing* is bad: held vowels, melisma, a backing
+track in the same band as the voice. A caption track that is wrong two lines
+in five is worse than none, because a deaf viewer cannot tell which two — and
+D-04's argument for captions is that they are the accessible form of what was
+said, not an approximation of it. So the words come from the author, who has
+them: a song has lyrics before it has a video.
+
+**And the timings come from the author too**, in LRC, which every karaoke
+tool and lyrics site exports. The product never places a line by guesswork: a
+four-minute song with twenty lines is not twelve seconds a line, and a caption
+drifting from the voice is the first thing a viewer notices. Plain lyrics are
+refused with that reason rather than spread evenly.
+
+**MASTER CHECK gained its first advisory line**, and it is the only one.
+INV-07 is asked for and not enforced, because refusing to render would make
+the invariant true by breaking every performance made before there was a field
+to put lyrics in — the invariant enforced against the author rather than for
+the viewer. An advisory line is shown, counts for nothing, and blocks nothing;
+a test asserts that `captions` is the only line carrying it, because the
+moment that flag becomes a way to demote an inconvenient check the list stops
+being a promise.
+
+
 | item | state |
 | --- | --- |
 | automatic gap detection | HAVE |
 | beat-aware cuts | HAVE — `snapToBeat`, off until the author accepts the grid |
-| automatic continuity repair suggestions | PARTIAL — one remedy (extend the next scene), and it refuses when it would not help |
-| best-take suggestions | PARTIAL — `suggestions.ts` and `performanceClips.ts` rank clip candidates |
-| automatic captions | PARTIAL — transcription exists in Studio One; not wired to Studio Two |
-| auto-reframe · automatic audio cleanup · transcript editing · AI first cut | GAP |
+| automatic continuity repair suggestions | HAVE — the remedies, and `rankTakes` now says WHICH take to choose rather than how many reach |
+| best-take suggestions | HAVE — `rankTakes` over measured facts only, with the reasons it scored by; shown only where it disagrees with the take already there |
+| captions in Studio Two | HAVE — timed lyrics on the master, `performanceCues`, and the worker passing them at both performance render sites. **Not** Studio One's transcription, and the note above P3 says why |
+| automatic audio cleanup | HAVE — `adviseCleanup` from a measured noise floor; it never proposes the row with a known cost, and `test/render/sound.test.ts` measures real recordings rather than hand-written readings |
+| AI first cut | HAVE — `proposeFirstCut`, offered only on an empty lane, and it proposes rather than writes |
+| auto-reframe · transcript editing | GAP |
 
 ### P4 — Studio-specific distribution
 
@@ -591,6 +658,47 @@ part that lies outside their own scenes" — and nothing checked it.
 | Repair → Add transition | not offered — a transition between two shots does not put a shot where there is none |
 
 ---
+
+## §15  The timeline brief
+
+> "The important thing is to build these capabilities into the existing
+> take/timeline model, not create a second editing system."
+
+Measured first, as always — and the measuring is the point of this section,
+because on this brief **most of it was already there and only the way in
+was missing.** [D-19]
+
+| asked for | what was already built | what was missing |
+| --- | --- | --- |
+| every take playable | the multiview plays every take at once, on one clock | watching ONE on its own |
+| select a take from its picture | left-click a tile cuts to it | right-click did nothing on the picture, though the rail had taught right-click since the first week |
+| push a take forward or backward | `nudgeTake`, `alignment.nudgeSamples`, the planner, the mixer, the player and an invariant | **any way to reach it.** Nothing on any screen called it |
+| drag the take on its lane | — | the block was a plain div |
+| draggable playhead | clicking a lane seeked | a drag, a grip, and a clamp at both ends |
+| jump to the very start | — | one key that cannot miss |
+| align a late take | the arithmetic | the two entries that do the subtraction |
+| trim a take | `trimTake` | it at the playhead |
+| Move / Trim / Crop as three ideas | two of them | naming them apart on screen, and the third |
+| an editable song | — | **all of it** (§15.1) |
+| record into the timeline | recording, alignment, the whole take pipeline | starting it at the playhead instead of at 00:00 |
+| sound layers: SFX, ambience, voice-over | the song, and each take's own sound | the document has no object for a sound that is neither |
+
+One number says it best: **the take menu went from four verbs to seventeen,
+and exactly one line of new domain code was needed for them** — the rest was
+reaching operations the document had held all along. It also broke the menu
+component, which had never carried a list that long and ran off the bottom
+of a laptop screen with `Remove…` below the fold.
+
+### §15.1  The song is not yet an object you can edit
+
+> "The master song shouldn't be treated as an immutable background track."
+
+Today `MasterTrack` is an asset, a title, a class, a measured duration and
+the lyrics. There is no trim, no split, no fade, no gain, no second audio
+object of any kind — and INV-03 ties the length of every export to it, so
+this is the one ask on the brief that changes an invariant's input rather
+than adding a control to an existing field. It is the next piece of work,
+and it is a model change before it is a surface.
 
 ## §14  The larger vision
 

@@ -17,6 +17,7 @@ import SwitchingStage from './SwitchingStage.js';
 import Delivery, { type ChannelDestination } from './Delivery.js';
 import RoomPlate from './RoomPlate.js';
 import { useCalibration } from './useCalibration.js';
+import { nudgeItems, nudgeSays } from './takeNudge.js';
 import StudioBar from '../../StudioBar.js';
 import type { StudioId } from '../../../src/domain/account.js';
 
@@ -283,45 +284,6 @@ export default function PerformanceStudio(
     },
   ];
 
-  const takeItems = (take: Performance['takes'][number]): MenuEntry[] => [
-    {
-      label: 'Make this the chosen take',
-      disabled: chosenTake === take.id ? 'It already is' : false,
-      onSelect: () => setChosenTake(take.id),
-    },
-    {
-      label: 'Rename\u2026',
-      onSelect: () => confirm({
-        question: 'A take\u2019s name is what the rail, the timeline and the '
-          + 'lower third will all call it.',
-        field: { label: 'What is this take called?', initial: take.label },
-        verb: 'Rename it',
-        go: (next) => {
-          if (next && next !== take.label) {
-            void patch({ action: 'rename-take', takeId: take.id, label: next });
-          }
-        },
-      }),
-    },
-    {
-      label: take.loop ? 'Stop looping it' : 'Loop it',
-      hint: 'A looped take fills a scene longer than the take itself',
-      onSelect: () => void patch({
-        action: 'set-loop', takeId: take.id, loop: !take.loop,
-      }),
-    },
-    {
-      label: 'Remove\u2026',
-      danger: true,
-      onSelect: () => confirm({
-        question: `Remove \u201c${take.label}\u201d? Every scene cut from it `
-          + 'goes with it, and it cannot be undone.',
-        verb: 'Remove the take',
-        danger: true,
-        go: () => void patch({ action: 'remove-take', takeId: take.id }),
-      }),
-    },
-  ];
 
 
 
@@ -379,7 +341,7 @@ export default function PerformanceStudio(
           onChanged={setPerformance}
           chosenTake={chosenTake}
           onChooseTake={setChosenTake}
-          takesPanel={(
+          takesPanel={(takeMenu) => (
             /*
               * A MODULE IS THE COLUMN, NOT A CARD AT THE TOP OF IT.
               * [brief §3, §4]
@@ -497,7 +459,7 @@ export default function PerformanceStudio(
                     <div
                       key={take.id} data-testid="take-row" data-take-id={take.id}
                       data-filled="true" data-offset={take.alignment.offsetSamples}
-                      {...onRow(take.label, () => takeItems(take))}
+                      {...onRow(take.label, () => takeMenu(take))}
                       style={{
                         display: 'flex', gap: 8, alignItems: 'center',
                         minWidth: 0, position: 'relative',
@@ -568,6 +530,20 @@ export default function PerformanceStudio(
                             textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                           }}>
                             {footage || placed ? where : 'not placed yet'}
+                            {/*
+                              * AND WHETHER IT HAS BEEN PUSHED. A take
+                              * held a few frames behind the others is a
+                              * decision somebody made, and a rail that
+                              * does not show it is a rail where the
+                              * reason a take sounds late is invisible.
+                              * Said in words, never by position alone.
+                              * [U-19]
+                              */}
+                            {nudgeSays(take) && (
+                              <span data-testid="take-nudge">
+                                {` \u00b7 ${nudgeSays(take)}`}
+                              </span>
+                            )}
                           </span>
                           <span className="small muted" style={{
                             fontSize: 'var(--text-xs)', display: 'block',
@@ -594,7 +570,7 @@ export default function PerformanceStudio(
                         * list is the one you press by accident. [D-19]
                         */}
                       <MenuButton about={take.label} small
-                                  items={() => takeItems(take)}
+                                  items={() => takeMenu(take)}
                                   open={fromButton} />
                     </div>
                   );

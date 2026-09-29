@@ -61,6 +61,8 @@ export const TAKE_ACCENT_FALLBACK = '#3e7ca6';
 
 import type { AssetId, Publication, TakeId } from './document.js';
 import type { ColourReading } from './colour.js';
+import type { LyricLine } from './lyrics.js';
+import type { SoundReading } from './cleanup.js';
 import type { BeatGrid } from './beats.js';
 import type { RoomPlate } from './environment.js';
 import type { Id } from './ids.js';
@@ -197,6 +199,23 @@ export interface MasterTrack {
    * that have to agree. [S-10]
    */
   countInSamples?: Samples;
+  /**
+   * The words, timed to the song.  [MASTER-EDIT §12 P3, INV-07]
+   *
+   * ON THE MASTER, NOT ON A TAKE, and that is the whole reason this is a
+   * short field rather than a subsystem. Every take of a song sings the
+   * same words at the same moments — that is what makes them takes of the
+   * same song — so the lyrics belong to the thing they all share. Putting
+   * them on a take would mean five copies that can disagree, and a switch
+   * between takes that changes the captions.
+   *
+   * Absent means no captions, which is honest rather than ideal: INV-07
+   * asks every export to carry them, and a performance whose author has
+   * not pasted any cannot. MASTER CHECK says so rather than the render
+   * refusing, because refusing would break every performance made before
+   * this field existed.
+   */
+  lyrics?: LyricLine[];
   /** Detected, and therefore a suggestion until used. [§11, INV-06] */
   bpm?: number;
   /**
@@ -539,6 +558,13 @@ export interface PerformanceTake {
    * and the reading is kept, because a take does not change colour.
    */
   colour?: ColourReading;
+  /**
+   * What this take's sound measures.  [MASTER-EDIT §12 P3, U-02]
+   *
+   * Absent means nobody has listened. Kept once taken, like the colour
+   * reading and for the same reason: a take does not change.
+   */
+  sound?: SoundReading;
   /**
    * Which stabilizer this take is put through.  [MASTER-EDIT §5, §8, §12 P2]
    *
@@ -1269,6 +1295,23 @@ export interface MasterCheckItem {
   says: string;
   /** The problems behind a failure, where they have a place on the clock. */
   problems?: RenderProblem[];
+  /**
+   * A line that OUGHT to be true rather than one that MUST be.
+   * [INV-07, MASTER-EDIT §12 P3]
+   *
+   * There is exactly one, and it earned the distinction rather than
+   * inventing it. INV-07 asks every export to carry captions, and until
+   * lyrics existed a performance could not — so every performance made
+   * before that field would fail the list and be unable to render. That
+   * would be the invariant enforced against the author instead of for the
+   * viewer.
+   *
+   * So an advisory line is shown, is counted in nothing, and blocks
+   * nothing. The moment this becomes a way to demote an inconvenient
+   * check, the list stops being a promise: the test asserts that only
+   * `captions` carries it.
+   */
+  advisory?: boolean;
 }
 
 export function masterCheck(
@@ -1359,6 +1402,35 @@ export function masterCheck(
       : badJoins[0]!));
 
   /*
+   * 6b. CAPTIONS, WHICH INV-07 ASKS OF EVERY EXPORT AND A PERFORMANCE
+   *     COULD NOT CARRY. The words now exist as a field on the master; what
+   *     is checked is whether this author has pasted any, and whether they
+   *     reach the end of the song.
+   *
+   *     A WARNING AND NOT A REFUSAL, deliberately. Making the render refuse
+   *     would make INV-07 true by breaking every performance made before
+   *     there was a field to put lyrics in, which is the invariant enforced
+   *     against the author rather than for the viewer. The list is where a
+   *     thing that ought to be true and is not belongs.
+   */
+  const lyrics = performance.master.lyrics ?? [];
+  const lastWord = lyrics.reduce((furthest, line) =>
+    Math.max(furthest, line.toSample), 0);
+  /* Two thirds, because an outro with no words in it is normal and a
+     caption track that stops halfway through the singing is not. */
+  const reaches = lyrics.length > 0 && lastWord >= song * (2 / 3);
+  items.push({
+    ...item('captions', 'Captions', lyrics.length > 0 && reaches,
+      lyrics.length === 0
+        ? 'no lyrics yet — every export is supposed to carry captions (INV-07)'
+        : reaches
+          ? `${lyrics.length} line(s), to ${formatMasterPosition(lastWord)}`
+          : `${lyrics.length} line(s), but the last one is at `
+            + `${formatMasterPosition(lastWord)} of ${formatMasterPosition(song)}`),
+    advisory: true,
+  });
+
+  /*
    * 7. Sound. The three modes fail differently: one needs a nominated vocal
    *    that has audio, one needs the take on screen to have any.
    */
@@ -1414,82 +1486,16 @@ export function masterCheck(
     profile ? `${(profile.width / profile.height).toFixed(4)} — every arrangement `
       + 'reframes for it' : 'unknown'));
 
-  return { items, ready: items.every((entry) => entry.ok) };
-}
-
-/**
- * How a hole could be closed, offering only what would close it.
- * [MASTER-EDIT §13]
- *
- * THE BRIEF LISTS FIVE REMEDIES. Two of them cannot apply to a hole at the
- * start of a song — there is no previous take to extend and no previous
- * frame to freeze — and one of them ("add transition") is not a repair at
- * all: a transition between two shots does not put a shot where there is
- * none. Offering all five and failing on three is how a repair menu teaches
- * somebody to stop reading it.
- *
- * AND "CHOOSE A TAKE" IS ONLY WORTH OFFERING FOR TAKES THAT REACH. The
- * product already knows which ones do — `coversSpan` is the same question
- * the timeline asks — so the list is the takes that would actually cover
- * the stretch, and it says so when none of them would. A picker that lets
- * you choose a take that does not reach has moved the error, not fixed it.
- */
-export interface Repair {
-  id: 'use-next' | 'choose' | 'use-previous' | 'freeze';
-  label: string;
-  /** Why it is offered, or why it is not. */
-  says: string;
-  available: boolean;
-  /** For `choose`: the takes that would actually cover the stretch. */
-  takeIds?: TakeId[];
-}
-
-export function repairsFor(
-  performance: Performance, problem: RenderProblem,
-): Repair[] {
-  const song = performance.master.durationSamples;
-  const from = problem.fromSample ?? 0;
-  const to = problem.toSample ?? song;
-  const scenes = orderedScenes(performance);
-  const before = [...scenes].reverse().find((scene) => scene.fromSample < from);
-  const covering = performance.takes
-    .filter((take) => take.durationSamples > 0 && coversSpan(take, from, to, song))
-    .map((take) => take.id);
-
-  return [
-    {
-      id: 'use-next',
-      label: 'Use the next take',
-      available: Boolean(problem.extend),
-      says: problem.extend
-        ? 'start the scene that follows this stretch earlier'
-        : 'nothing follows this stretch',
-    },
-    {
-      id: 'choose',
-      label: 'Choose a take',
-      available: covering.length > 0,
-      says: covering.length > 0
-        ? `${covering.length} take(s) have picture across all of it`
-        : 'no take reaches across this stretch',
-      takeIds: covering,
-    },
-    {
-      id: 'use-previous',
-      label: 'Extend the previous take',
-      available: false,
-      says: before
-        ? 'a scene already runs up to this stretch — its TAKE is what falls '
-          + 'short, so extend or replace the take'
-        : 'nothing comes before this stretch',
-    },
-    {
-      id: 'freeze',
-      label: 'Freeze the previous frame',
-      available: false,
-      says: 'a still held from a take is not something the renderer can make yet',
-    },
-  ];
+  /*
+   * ADVISORY LINES ARE NOT COUNTED. `ready` gates the Create button, so a
+   * line that blocks it is a refusal however it is drawn — and the one
+   * advisory line here exists precisely because refusing would break work
+   * that predates the field it asks about.
+   */
+  return {
+    items,
+    ready: items.every((entry) => entry.advisory || entry.ok),
+  };
 }
 
 /**

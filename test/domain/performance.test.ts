@@ -15,7 +15,7 @@ import { describe, expect, it } from 'vitest';
 import {
   type MasterTrack, type Performance, type PerformanceTake,
   coverage, covered, covers, effectiveOffset, masterToTake, mayPublish,
-  masterCheck, orderedScenes, projectPerformance, renderProblems, repairsFor,
+  masterCheck, orderedScenes, projectPerformance, renderProblems,
   sceneAt, stageNow, stagesOf, takeToMaster, coversSpan,
 } from '../../src/domain/performance.js';
 import {
@@ -34,6 +34,7 @@ import {
 } from '../../src/domain/time.js';
 import type { AssetId, TakeId } from '../../src/domain/document.js';
 import { EXPORT_PROFILES, LAYOUTS, takeSlots } from '../../src/domain/presentation.js';
+import { repairsFor } from '../../src/domain/takeRanking.js';
 
 const AT = '2026-09-24T12:00:00.000Z';
 /** Four minutes, which is a song. */
@@ -918,10 +919,37 @@ describe('master check', () => {
     expect(ok).toBe(true);
     expect(items.map((item) => item.id)).toEqual([
       'song', 'covers', 'gaps', 'overlaps', 'sources', 'transitions',
-      'audio', 'frames', 'resolution', 'aspect',
+      'captions', 'audio', 'frames', 'resolution', 'aspect',
     ]);
     /* Every line says what it measured, or the tick means nothing. */
     for (const item of items) expect(item.says.length, item.id).toBeGreaterThan(0);
+  });
+
+  /*
+   * THE ONE ADVISORY LINE, AND IT HAS TO STAY THE ONLY ONE.
+   * [INV-07, MASTER-EDIT §12 P3]
+   *
+   * `captions` is shown and counts for nothing, because INV-07 asks every
+   * export to carry them and a performance made before there was a field
+   * for lyrics cannot — failing the list would make the invariant a thing
+   * enforced against the author rather than for the viewer.
+   *
+   * The moment `advisory` becomes a way to demote an inconvenient check,
+   * the list stops being a promise. So this asserts the census, not the
+   * flag: exactly one line carries it, and it is that one.
+   */
+  it('has exactly one line that is a warning rather than a gate', () => {
+    const { items } = run(ready());
+    expect(items.filter((entry) => entry.advisory).map((entry) => entry.id))
+      .toEqual(['captions']);
+  });
+
+  it('does not let a missing caption track stop a render', () => {
+    const performance = ready();
+    expect(performance.master.lyrics).toBeUndefined();
+    const { items, ready: ok } = run(performance);
+    expect(items.find((entry) => entry.id === 'captions')?.ok).toBe(false);
+    expect(ok).toBe(true);
   });
 
   it('and each check fails on its own fact', () => {
