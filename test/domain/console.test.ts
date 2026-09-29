@@ -584,3 +584,70 @@ describe('the tab strip', () => {
     expect(STRIP).toMatch(/letterSpacing: options\.length > 3/);
   });
 });
+
+/**
+ * A COMPONENT MAY NOT TAKE THE KEYBOARD'S CUE AWAY.  [D-04]
+ *
+ * `focus.css` draws the ring as an `outline` plus a dark separator in
+ * `box-shadow`, under a `:where()` selector — zero specificity, on
+ * purpose, so a component can retint the ring. Zero specificity also
+ * means ANY component rule that sets `box-shadow` on a focusable
+ * thing silently deletes the separator, and commit 43's bank did
+ * exactly that: the outline survived, the dark ring behind it did
+ * not, and because a bank's positions sit flush the 2px ring then ran
+ * into its neighbour with nothing between them.
+ *
+ * Scoping the removal was not enough either — with `box-shadow: none`
+ * gone, a focused position fell back to `.ctl`'s own bevel, which is
+ * also higher specificity than the ring. Every state has to name the
+ * separator.
+ */
+describe('the focus ring', () => {
+  const FOCUS = readFileSync(join(ROOT, 'app', 'styles', 'focus.css'), 'utf8');
+
+  it('is drawn with an outline and a separator', () => {
+    expect(FOCUS).toMatch(/outline: var\(--focus-ring-width\) solid/);
+    expect(FOCUS).toMatch(/box-shadow: 0 0 0 calc\(/);
+  });
+
+  /*
+   * EVERY `.ctl` STATE ENDS ITS SHADOW LIST WITH THE SLOT.
+   *
+   * The first version of this test asked each rule to scope itself
+   * with `:not(:focus-visible)` and name the focused case. It found
+   * three offenders — `.ctl`, `.ctl.is-on` and `.ctl.is-critical`,
+   * which is every control on all three desks — and that was the
+   * finding, but the remedy was wrong: three rules today and a fourth
+   * next month, each having to remember.
+   *
+   * `--ring` is nothing until `:focus-visible` fills it in, so a state
+   * gets the separator by ending with `var(--ring)`, and a state added
+   * tomorrow gets it by copying the line above.
+   */
+  it('has a slot in every control state', () => {
+    expect(CONSOLE, '--ring is not declared as empty by default')
+      .toMatch(/--ring: 0 0 #0000/);
+    expect(CONSOLE, ':focus-visible does not fill the slot')
+      .toMatch(/\.ctl:focus-visible \{\s*--ring:/);
+
+    const offenders: string[] = [];
+    for (const block of CONSOLE.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      const [, selector, body] = block;
+      const shadow = /box-shadow:([^;]*);/.exec(body ?? '');
+      if (!shadow) continue;
+      if (!/\.ctl\b/.test(selector!)) continue;
+      /* A control that cannot be focused cannot lose its ring. */
+      if (/:disabled/.test(selector!)) continue;
+      if (/var\(--ring\)/.test(shadow[1]!)) continue;
+      offenders.push(selector!.split('*/').pop()!.trim().replace(/\s+/g, ' '));
+    }
+    expect(offenders, 'end the shadow list with var(--ring)').toEqual([]);
+  });
+
+  it('keeps both the lit edge and the separator on a chosen position', () => {
+    const at = CONSOLE.indexOf(".ctl-bank > .ctl.is-on,");
+    const body = CONSOLE.slice(CONSOLE.indexOf('{', at), CONSOLE.indexOf('}', at));
+    expect(body).toContain('inset 3px 0 0 0 var(--accent)');
+    expect(body).toContain('var(--ring)');
+  });
+});

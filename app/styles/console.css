@@ -233,9 +233,33 @@
   border-radius: var(--radius-control);
   padding: 6px 11px;
   cursor: pointer;
-  box-shadow: var(--console-bevel);
+  /*
+   * A SLOT FOR THE FOCUS RING, IN EVERY STATE.  [D-04]
+   *
+   * `focus.css` draws the ring as an `outline` plus a dark separator
+   * in `box-shadow`, under a `:where()` selector — zero specificity,
+   * deliberately, so a component can retint it. Zero specificity also
+   * means every rule here that sets `box-shadow` was silently
+   * deleting the separator: `.ctl`, `.ctl.is-on` and `.ctl.is-critical
+   * all do, which is every control on all three desks. The outline
+   * survived, so it looked fine on a plain panel and vanished the
+   * moment a control sat on a picture or against a neighbour.
+   *
+   * Repeating the separator in each state would work and would be
+   * wrong the first time somebody adds a fourth. Instead every state
+   * ends its shadow list with `var(--ring)`, which is nothing until
+   * `:focus-visible` fills it in. A state added tomorrow gets the ring
+   * by copying the line above it.
+   */
+  --ring: 0 0 #0000;
+  box-shadow: var(--console-bevel), var(--ring);
   transition: background-color var(--motion-fast) var(--ease-out),
               border-color var(--motion-fast) var(--ease-out);
+}
+
+.ctl:focus-visible {
+  --ring: 0 0 0 calc(var(--focus-ring-offset) + var(--focus-ring-width))
+          var(--focus-ring-contrast);
 }
 
 .ctl:hover:not(:disabled) {
@@ -246,7 +270,7 @@
 /* Acknowledged in the frame, before anything is asked of a server. */
 .ctl:active:not(:disabled) {
   background: var(--console-inset);
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5), var(--ring);
 }
 
 /*
@@ -277,7 +301,8 @@
   background: var(--console-control-hover);
   border-color: var(--accent);
   box-shadow: var(--console-bevel-strong),
-              inset 0 0 0 1px rgba(63, 142, 232, 0.22);
+              inset 0 0 0 1px rgba(63, 142, 232, 0.22),
+              var(--ring);
 }
 
 /*
@@ -293,7 +318,7 @@
   font-weight: var(--weight-bold);
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  box-shadow: var(--console-bevel-strong);
+  box-shadow: var(--console-bevel-strong), var(--ring);
 }
 .ctl.is-critical:hover:not(:disabled) {
   background: linear-gradient(180deg, #d84234, #a8231a);
@@ -406,16 +431,26 @@
 .ctl-bank > .ctl {
   border: 0;
   border-radius: 0;
-  box-shadow: none;
   border-bottom: var(--border) solid var(--console-seam);
 }
 
 .ctl-bank > .ctl:last-child { border-bottom: 0; }
 
+/*
+ * The bank drops the bevel and lights its chosen position on the
+ * leading edge. Both shadow lists end with `var(--ring)` like every
+ * other `.ctl` state, so the keyboard cue rides along for free —
+ * which is the whole point of the slot up at `.ctl`. The first
+ * version of this bank set `box-shadow: none`, which is where the
+ * missing separator was noticed; it turned out not to be the bank's
+ * bug but every control's. [D-04]
+ */
+.ctl-bank > .ctl { box-shadow: var(--ring); }
+
 .ctl-bank > .ctl.is-on,
 .ctl-bank > .ctl[aria-pressed='true'] {
   border-color: var(--console-seam);
-  box-shadow: inset 3px 0 0 0 var(--accent);
+  box-shadow: inset 3px 0 0 0 var(--accent), var(--ring);
 }
 
 /*
