@@ -1,9 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { Performance } from '../../../src/domain/performance.js';
-import { mayPublish, renderProblems } from '../../../src/domain/performance.js';
+import {
+  MASTER_PROFILE, mayPublish, renderProblems,
+} from '../../../src/domain/performance.js';
 import { EXPORT_PROFILES } from '../../../src/domain/presentation.js';
+import { formatMasterPosition } from '../../../src/domain/time.js';
+import SoundModes from './SoundModes.js';
+import type { RenderJob } from './Deliver.js';
 
 /**
  * The master render.  [Doctrine STUDIO-TWO §2, §14, S-4, INV-15]
@@ -18,29 +23,51 @@ import { EXPORT_PROFILES } from '../../../src/domain/presentation.js';
  * same bytes come back, because the plan is derived and the shots are cached
  * by content hash (U-16, INV-00).
  *
+ * THE LOWER HALF OF THIS STUDIO READ AS A WEB PAGE UNDER AN EDITOR.
+ *
+ * Above it: a take rail, a multiview, a composition rail and a timeline —
+ * built from `.module`, laid out as a desk, unmistakably software. Below it,
+ * in order: a heading and three cards about sound, a heading and four
+ * buttons about shapes, a heading and a box about a clip, a preview picture,
+ * a publish button, and a red sentence. Seven headings, no structure, and
+ * nothing saying which of them belonged to the same act.
+ *
+ * They belong to three acts, and always did: MASTER makes the one file,
+ * DELIVER makes versions and clips of it, PUBLISH gives it a page. This is
+ * the first, and it is a `.module` like everything upstairs rather than a
+ * `<section>` with an `<h2>` — which is the difference the whole
+ * reorganisation is about.
+ *
+ * NOTHING NEW IS BUILT HERE. The sound modes, the four profiles, the render
+ * jobs, the audio extraction and the publication were all already written
+ * and are all still the same code. What changed is which of them stand
+ * together, and what each one is called. [D-19]
+ *
  * WHY IT SHOWS WHAT IS MISSING rather than a disabled button with no reason.
- * A render is refused for three knowable causes — the song is not covered, a
- * scene names the wrong number of takes for its arrangement, or the music is
- * not the author's to publish — and each of them is something they can act on.
- * A greyed-out control with a tooltip is how a tool teaches somebody to guess.
+ * A render is refused for knowable causes — the song is not covered, a scene
+ * names a take that does not reach it, the music is not the author's to
+ * publish — and each is something they can act on. A greyed-out control with
+ * a tooltip is how a tool teaches somebody to guess.
  */
 
-/** §14's four shapes, in the order an author is likely to want them. */
-const SHAPES = ['youtube_16x9', 'vertical_9x16', 'square_1x1', 'portrait_4x5'] as const;
+/** The newest job for a profile, whatever state it reached. */
+export { MASTER_PROFILE };
 
-interface RenderJob {
-  id: string;
-  state: 'pending' | 'running' | 'done' | 'failed';
-  progress?: number;
-  error?: string | null;
-  payload?: Record<string, unknown>;
-  result?: Record<string, unknown> | null;
+export function latestFor(jobs: RenderJob[], profileId: string): RenderJob | undefined {
+  return [...jobs].reverse().find((job) =>
+    String(job.payload?.['exportProfileId'] ?? MASTER_PROFILE) === profileId);
 }
 
-export default function MasterRender({ performance }: { performance: Performance }) {
-  const [shape, setShape] = useState<string>('youtube_16x9');
-  const [jobs, setJobs] = useState<RenderJob[]>([]);
-  const [audioJobs, setAudio] = useState<RenderJob[]>([]);
+export default function MasterRender({
+  performance, onChanged, jobs, audioJobs, onRendered,
+}: {
+  performance: Performance;
+  onChanged: (next: Performance) => void;
+  /** Lifted: DELIVER lists the same jobs, and one poll is enough. */
+  jobs: RenderJob[];
+  audioJobs: RenderJob[];
+  onRendered: () => void;
+}) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -57,17 +84,38 @@ export default function MasterRender({ performance }: { performance: Performance
    * found out by pressing it and reading the server's refusal.
    */
   const problems = renderProblems(performance);
+  const master = latestFor(jobs, MASTER_PROFILE);
+  const profile = EXPORT_PROFILES[MASTER_PROFILE]!;
+  const takes = performance.takes.filter((take) => take.durationSamples > 0);
+  const planHash = master?.result?.['planHash'] as string | undefined;
+  const audioDone = audioJobs.some((job) => job.state === 'done'
+    && String(job.result?.['planHash'] ?? job.payload?.['planHash'] ?? '') === planHash);
+  const audioWorking = audioJobs.some((job) =>
+    (job.state === 'pending' || job.state === 'running')
+    && String(job.payload?.['planHash'] ?? '') === planHash);
 
-  const refresh = useCallback(async () => {
-    const [renders, audioJobs] = await Promise.all([
-      fetch(`/api/performances/${id}/renders`, { cache: 'no-store' }),
-      fetch(`/api/performances/${id}/audio`, { cache: 'no-store' }),
-    ]);
-    if (renders.ok) setJobs((await renders.json()).jobs ?? []);
-    if (audioJobs.ok) setAudio(((await audioJobs.json()).jobs ?? []) as RenderJob[]);
-  }, [id]);
+  const start = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/performances/${id}/renders`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          exportProfileId: MASTER_PROFILE, allowUnpublishable: !publishable,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error ?? 'that render could not be planned');
+      onRendered();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
 
-  const audio = async (planHash: string) => {
+  const takeAudio = async () => {
+    if (!planHash) return;
     setBusy(true);
     setError(null);
     try {
@@ -77,8 +125,7 @@ export default function MasterRender({ performance }: { performance: Performance
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error ?? 'that did not work');
-      // The job is now pending, which is what starts the poll below.
-      await refresh();
+      onRendered();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -86,219 +133,192 @@ export default function MasterRender({ performance }: { performance: Performance
     }
   };
 
-  useEffect(() => { void refresh(); }, [refresh]);
-
-  /* While something is rendering, ask again. Rendering is minutes, not ms. */
-  const working = [...jobs, ...audioJobs]
-    .some((j) => j.state === 'pending' || j.state === 'running');
-  /** Which renders have had their audio taken, and which are having it taken. */
-  const audioState = (planHash: string): 'none' | 'working' | 'done' => {
-    const mine = audioJobs.filter((j) => String(j.result?.['planHash'] ?? '') === planHash
-      || String(j.payload?.['planHash'] ?? '') === planHash);
-    if (mine.some((j) => j.state === 'done')) return 'done';
-    return mine.some((j) => j.state === 'pending' || j.state === 'running')
-      ? 'working' : 'none';
-  };
-  useEffect(() => {
-    if (!working) return;
-    const timer = setInterval(() => { void refresh(); }, 2000);
-    return () => clearInterval(timer);
-  }, [working, refresh]);
-
-  const start = async (allowUnpublishable: boolean) => {
-    setBusy(true);
-    setError(null);
-    try {
-      const response = await fetch(`/api/performances/${id}/renders`, {
-        method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ exportProfileId: shape, allowUnpublishable }),
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error ?? 'that render could not be planned');
-      await refresh();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  /** Close a hole by starting the scene after it earlier. [INV-03] */
-  const cover = async (sceneId: string, fromSample: number) => {
-    setBusy(true);
-    setError(null);
-    try {
-      const response = await fetch(`/api/performances/${id}`, {
-        method: 'PATCH', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ action: 'cover-gap', sceneId, fromSample }),
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error ?? 'that hole could not be covered');
-      /* The document changed under the page, so the page has to be told. */
-      window.location.reload();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-      setBusy(false);
-    }
-  };
+  /*
+   * A STATE, NOT AN ERROR.  [D-14, U-19]
+   *
+   * "make the master video first — there is nothing to publish yet" was
+   * drawn in `--bad` at the foot of the page, which is the colour this
+   * product uses for something having gone wrong. Nothing has gone wrong: a
+   * performance that has not been mastered yet is the ordinary condition of
+   * every performance for most of its life. It is a lamp that is not lit.
+   */
+  const state = master?.state === 'done' ? { cls: 'is-on', say: 'ready' }
+    : master?.state === 'failed' ? { cls: 'is-critical', say: 'failed' }
+      : master ? { cls: 'is-armed', say: `${master.progress ?? 0}%` }
+        : { cls: 'is-off', say: 'not made' };
 
   return (
-    <section style={{ marginTop: 18 }} data-testid="master-render">
-      {/* What this does is said on the button that does it. A paragraph over
-          a control is a lecture before a question. */}
-      <h2 className="module-label" style={{ margin: '0 0 7px' }}
-          title={'Your takes stay separate files until you press this. You can '
-            + 'press it again after changing your mind without losing anything.'}>
-        Make the video
-      </h2>
+    <section className="module" data-testid="master-render"
+             data-state={master?.state ?? 'none'} style={{ marginTop: 12 }}>
+      <header className="module-head">
+        <span className="module-label">Master</span>
+        <span className="module-sub grow" style={{
+          minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis',
+        }}>the one file everything else comes from</span>
+        <span className={`state ${state.cls}`} data-testid="master-state">{state.say}</span>
+      </header>
 
-      <div className="row" style={{ gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
-        {SHAPES.map((profileId) => (
-          <button
-            key={profileId}
-            className="small"
-            data-testid="export-shape"
-            data-profile={profileId}
-            data-chosen={shape === profileId ? 'true' : 'false'}
-            aria-pressed={shape === profileId}
-            onClick={() => setShape(profileId)}
-            style={{
-              padding: '5px 10px', fontSize: 'var(--text-sm)',
-              background: shape === profileId ? 'var(--accent-wash)' : undefined,
-              borderColor: shape === profileId ? 'var(--accent)' : undefined,
-            }}
-          >
-            {EXPORT_PROFILES[profileId]!.label}
-          </button>
-        ))}
-      </div>
-
-      {problems.length > 0 ? (
-        /*
-         * ALL OF THEM, AND WHERE. One sentence naming a total told an author
-         * how much was missing and nothing about where to look for it; in a
-         * four-minute song a second and a quarter is unfindable. Each problem
-         * now names its own stretch of the clock, and the ones that can be
-         * closed mechanically carry the control that closes them — a
-         * diagnosis an author has to translate into an action is half a
-         * product. [D-14, U-04]
-         */
-        <ul data-testid="render-blocked" style={{
-          marginTop: 10, maxWidth: 640, padding: 0, listStyle: 'none',
-          display: 'flex', flexDirection: 'column', gap: 'var(--space-3)',
-        }}>
-          {problems.map((problem, index) => (
-            <li key={`${problem.kind}-${problem.fromSample ?? index}`}
-                data-testid="render-problem" data-kind={problem.kind}
-                className="row" style={{
-                  gap: 'var(--space-4)', alignItems: 'baseline', flexWrap: 'nowrap',
-                  padding: 'var(--space-3) var(--space-4)',
-                  background: 'var(--state-armed-wash)',
-                  border: 'var(--border) solid rgba(232,179,60,0.36)',
-                  boxShadow: 'inset 3px 0 0 var(--state-armed)',
-                  borderRadius: 'var(--radius-module)',
-                }}>
-              <span className="small grow" style={{ minWidth: 0, color: '#f0c66a' }}>
-                {problem.kind === 'no-scenes'
-                  ? 'Nothing is on screen yet. Play the song and press a number '
-                    + 'to put a take on it.'
-                  : problem.kind === 'gap'
-                    ? `Nothing is on screen ${problem.say.slice('no performance on them '.length)}.`
-                    : `${problem.say.charAt(0).toUpperCase()}${problem.say.slice(1)}.`}
-              </span>
-              {problem.extend && (
-                <button className="ctl sm" data-testid="cover-gap" disabled={busy}
-                        style={{ flex: '0 0 auto' }}
-                        onClick={() => void cover(
-                          problem.extend!.sceneId, problem.extend!.fromSample)}>
-                  {busy ? 'Covering\u2026' : 'Cover it'}
-                </button>
+      <div className="module-body is-padded" style={{
+        display: 'flex', flexDirection: 'column', gap: 'var(--space-5)',
+      }}>
+        {/* ---- what the file is, whether or not it exists yet --------- */}
+        <div className="row" style={{ gap: 'var(--space-5)', flexWrap: 'wrap' }}>
+          <div className="grow" style={{ minWidth: 0 }}>
+            <div style={{
+              fontSize: 'var(--text-md)', fontWeight: 'var(--weight-semi)',
+              letterSpacing: 'var(--tracking-tight)',
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}>{performance.title}</div>
+            <div className="muted readout" style={{
+              fontSize: 'var(--text-2xs)', marginTop: 2,
+            }}>
+              {formatMasterPosition(performance.master.durationSamples)}
+              {' · '}{profile.width}×{profile.height}
+              {' · '}{takes.length} {takes.length === 1 ? 'take' : 'takes'}
+            </div>
+          </div>
+          {master?.state === 'done' && planHash && (
+            <div className="row" style={{ gap: 'var(--space-3)', flex: '0 0 auto' }}>
+              <a className="ctl sm" data-testid="render-download"
+                 href={`/api/performances/${id}/renders/${planHash}/file`} download>
+                Download
+              </a>
+              {/* The same render, listened to rather than watched. [§14] */}
+              <button className="ctl sm" data-testid="make-audio"
+                      disabled={busy || audioWorking} onClick={() => void takeAudio()}>
+                {audioWorking ? 'Taking the audio…'
+                  : audioDone ? 'Take the audio again' : 'Make an audio file'}
+              </button>
+              {audioDone && (
+                <a className="ctl sm" data-testid="audio-download"
+                   href={`/api/performances/${id}/renders/${planHash}/file?kind=mp3`}
+                   download>Audio</a>
               )}
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <div style={{ marginTop: 10 }}>
-          <button
-            className="primary" data-testid="render-master" disabled={busy}
-            onClick={() => void start(!publishable)}
-          >
+            </div>
+          )}
+        </div>
+
+        {/* ---- where the finished sound comes from (§9, S-7) ---------- */}
+        {takes.length > 0 && (
+          <SoundModes performance={performance} onChanged={onChanged} />
+        )}
+
+        {/* ---- and why it cannot be made, when it cannot -------------- */}
+        {problems.length > 0 && (
+          /*
+           * ALL OF THEM, AND WHERE. One sentence naming a total told an
+           * author how much was missing and nothing about where to look;
+           * in a four-minute song a second and a quarter is unfindable.
+           * The holes are also drawn on the timeline, which is where an
+           * author meets them first. [D-14, U-04]
+           */
+          <ul data-testid="render-blocked" style={{
+            margin: 0, padding: 0, listStyle: 'none',
+            display: 'flex', flexDirection: 'column', gap: 'var(--space-3)',
+          }}>
+            {problems.map((problem, index) => (
+              <li key={`${problem.kind}-${problem.fromSample ?? index}`}
+                  data-testid="render-problem" data-kind={problem.kind}
+                  className="row" style={{
+                    gap: 'var(--space-4)', alignItems: 'baseline', flexWrap: 'nowrap',
+                    padding: 'var(--space-3) var(--space-4)',
+                    background: 'var(--state-armed-wash)',
+                    border: 'var(--border) solid rgba(232,179,60,0.36)',
+                    boxShadow: 'inset 3px 0 0 var(--state-armed)',
+                    borderRadius: 'var(--radius-module)',
+                  }}>
+                <span className="small grow" style={{ minWidth: 0, color: '#f0c66a' }}>
+                  {sentence(problem.kind, problem.say)}
+                </span>
+                {problem.extend && (
+                  <button className="ctl sm" data-testid="cover-gap" disabled={busy}
+                          style={{ flex: '0 0 auto' }}
+                          onClick={() => void cover(
+                            id, problem.extend!.sceneId, problem.extend!.fromSample,
+                            setBusy, setError)}>
+                    Cover it
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {/* ---- the one button that makes a file ----------------------- */}
+        <div className="row" style={{ gap: 'var(--space-4)', flexWrap: 'wrap' }}>
+          {/*
+            * THE KEY CONTROL IS THE ACT, and once the file exists making it
+            * again is not the act — it is a correction. A loud button that
+            * stays loud after its job is done teaches an operator to stop
+            * reading it. [brief §4]
+            */}
+          <button className={`ctl${master ? '' : ' is-key'}`}
+                  data-testid="render-master"
+                  disabled={busy || problems.length > 0}
+                  {...(problems.length > 0
+                    ? { title: 'the song is not covered yet' } : {})}
+                  onClick={() => void start()}>
             {busy ? 'Planning…'
-              : publishable ? 'Make the master video' : 'Export a private copy'}
+              : master ? 'Make it again'
+                : publishable ? 'Make the master video' : 'Export a private copy'}
           </button>
           {!publishable && (
             <p className="small muted" data-testid="private-only"
-               style={{ marginTop: 6, maxWidth: 640 }}>
+               style={{ margin: 0, maxWidth: 560 }}>
               {/* INV-15, said where the file is made rather than only where
                   the music was classified. */}
-              This music is somebody else’s, so the video is yours to keep and
-              not ours to publish. Mark it as yours, licensed or openly
-              licensed above and this becomes a publishable master.
+              This music is somebody else&rsquo;s, so the video is yours to keep
+              and not ours to publish. Mark it as yours, licensed or openly
+              licensed in Set up and this becomes a publishable master.
             </p>
           )}
         </div>
-      )}
 
-      {error && (
-        <p className="small" data-testid="render-error"
-           style={{ color: 'var(--bad)', marginTop: 8 }}>{error}</p>
-      )}
-
-      {jobs.length > 0 && (
-        <div style={{ marginTop: 12 }}>
-          {jobs.map((job) => {
-            const profileId = String(job.payload?.['exportProfileId'] ?? 'youtube_16x9');
-            const planHash = job.result?.['planHash'] as string | undefined;
-            return (
-              <div key={job.id} className="panel" data-testid="render-row"
-                   data-state={job.state} style={{ padding: 9, marginBottom: 7 }}>
-                <div className="row" style={{ gap: 8, flexWrap: 'nowrap' }}>
-                  <span className="grow" style={{ minWidth: 0 }}>
-                    {EXPORT_PROFILES[profileId]?.label ?? profileId}
-                    {job.payload?.['allowUnpublishable']
-                      ? <span className="small muted"> · private copy</span> : null}
-                  </span>
-                  <span className="small muted" style={{ flex: '0 0 auto' }}>
-                    {job.state === 'done' ? 'ready'
-                      : job.state === 'failed' ? 'failed'
-                        : `${job.progress ?? 0}%`}
-                  </span>
-                </div>
-                {job.state === 'done' && planHash && (
-                  <div className="row" style={{ gap: 12, marginTop: 4 }}>
-                    <a className="small" data-testid="render-download"
-                       href={`/api/performances/${id}/renders/${planHash}/file`}
-                       download>
-                      Download the video
-                    </a>
-                    {/* The same render, listened to rather than watched. [§14] */}
-                    <button className="small" data-testid="make-audio"
-                            disabled={busy || audioState(planHash) === 'working'}
-                            onClick={() => void audio(planHash)}
-                            style={{ padding: '2px 8px', fontSize: 'var(--text-xs)' }}>
-                      {audioState(planHash) === 'working' ? 'Taking the audio…'
-                        : audioState(planHash) === 'done' ? 'Take it again'
-                        : 'Make an audio file'}
-                    </button>
-                    {audioState(planHash) === 'done' && (
-                      <a className="small" data-testid="audio-download"
-                         href={`/api/performances/${id}/renders/${planHash}/file?kind=mp3`}
-                         download>
-                        Download the audio
-                      </a>
-                    )}
-                  </div>
-                )}
-                {job.state === 'failed' && (
-                  <div className="small" style={{ color: 'var(--bad)', marginTop: 4 }}>
-                    {job.error ?? 'the render failed'}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
+        {master?.state === 'failed' && (
+          <p className="small" data-testid="render-failed"
+             style={{ margin: 0, color: 'var(--bad)' }}>
+            {master.error ?? 'the render failed'}
+          </p>
+        )}
+        {error && (
+          <p className="small" data-testid="render-error"
+             style={{ margin: 0, color: 'var(--bad)' }}>{error}</p>
+        )}
+      </div>
     </section>
   );
+}
+
+/** A problem, as a sentence rather than a fragment. */
+function sentence(kind: string, say: string): string {
+  if (kind === 'no-scenes') {
+    return 'Nothing is on screen yet. Play the song and press a number to put '
+      + 'a take on it.';
+  }
+  if (kind === 'gap') {
+    return `Nothing is on screen ${say.slice('no performance on them '.length)}.`;
+  }
+  return `${say.charAt(0).toUpperCase()}${say.slice(1)}.`;
+}
+
+/** Close a hole by starting the scene after it earlier. [INV-03] */
+async function cover(
+  id: string, sceneId: string, fromSample: number,
+  setBusy: (busy: boolean) => void, setError: (message: string | null) => void,
+): Promise<void> {
+  setBusy(true);
+  setError(null);
+  try {
+    const response = await fetch(`/api/performances/${id}`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'cover-gap', sceneId, fromSample }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error ?? 'that hole could not be covered');
+    /* The document changed under the page, so the page has to be told. */
+    window.location.reload();
+  } catch (e) {
+    setError(e instanceof Error ? e.message : String(e));
+    setBusy(false);
+  }
 }

@@ -15,14 +15,14 @@ import { describe, expect, it } from 'vitest';
 import {
   type MasterTrack, type Performance, type PerformanceTake,
   coverage, covered, covers, effectiveOffset, masterToTake, mayPublish,
-  orderedScenes, projectPerformance, renderProblems, sceneAt, takeToMaster,
-  coversSpan,
+  orderedScenes, projectPerformance, renderProblems, sceneAt, stageNow, stagesOf,
+  takeToMaster, coversSpan,
 } from '../../src/domain/performance.js';
 import {
   addPlate,
   addTake, classifyMaster, clearScenes, coverGap, moveScene, newPerformance, nudgeTake,
   realign, removeScene, removeTake, setAudioMode, setEnvironment, setScene, trimTake,
-  PerformanceEditError,
+  publishPerformance, PerformanceEditError,
 } from '../../src/domain/performanceEdit.js';
 import {
   assertAlignmentInvariants, assertPerformanceRenderable, assertPublishable,
@@ -793,5 +793,101 @@ describe('the document round-trips', () => {
     const [first] = orderedScenes(p);
     removeScene(p, first!.id);
     expect(orderedScenes(p).map((s) => s.fromSample)).toEqual([secondsToSamples(60)]);
+  });
+});
+
+
+/**
+ * WHERE THE WORK HAS GOT TO.  [§2, §14, U-04, D-14]
+ *
+ * The four acts Studio Two already performed and never named: takes are
+ * recorded, scenes are directed over them, one file is made, versions of it
+ * go out. What is proved here is that the readout is DERIVED — it cannot
+ * say something the document does not — and that it goes BACKWARDS when the
+ * work does, which is the property a progress bar usually gets wrong.
+ */
+describe('where the work has got to', () => {
+  const AT = '2026-09-24T12:00:00.000Z';
+  const doneRender = (profileId = 'youtube_16x9') =>
+    ({ state: 'done', payload: { exportProfileId: profileId } });
+
+  const composed = () => {
+    const p = fiveTakes();
+    setScene(p, 0, { layoutId: 'performance_full', takeIds: ['take_living_room'] });
+    return p;
+  };
+
+  it('an empty performance has done nothing', () => {
+    expect(stagesOf(performance(), []).map((stage) => stage.done))
+      .toEqual([false, false, false, false]);
+  });
+
+  it('takes are performing; scenes over them are composing', () => {
+    expect(stagesOf(fiveTakes(), []).map((stage) => stage.done))
+      .toEqual([true, false, false, false]);
+    expect(stagesOf(composed(), []).map((stage) => stage.done))
+      .toEqual([true, true, false, false]);
+  });
+
+  /*
+   * THE ONE THAT MATTERS. Composing is not "there are scenes" — it is
+   * "there are scenes a renderer would accept", which is the same question
+   * `renderProblems` answers for the console and the invariant. A song with
+   * a hole in it is still being composed. [D-19, INV-03]
+   */
+  it('and a song with a hole in it is still being composed', () => {
+    const p = fiveTakes();
+    setScene(p, secondsToSamples(60),
+      { layoutId: 'performance_full', takeIds: ['take_beach'] });
+    expect(p.scenes.length).toBe(1);
+    expect(stagesOf(p, []).map((stage) => stage.done))
+      .toEqual([true, false, false, false]);
+  });
+
+  it('the wide render is the master; any other is a delivery', () => {
+    expect(stagesOf(composed(), [doneRender()]).map((stage) => stage.done))
+      .toEqual([true, true, true, false]);
+    expect(stagesOf(composed(), [doneRender(), doneRender('vertical_9x16')])
+      .map((stage) => stage.done)).toEqual([true, true, true, true]);
+    /*
+     * AND A VERSION IS NOT A MASTER. The case that distinguishes the rule
+     * from "any render at all": a vertical cut exists, the wide one does
+     * not, and MASTER is the one that is not done. Counting renders rather
+     * than asking which profile passed every other assertion here.
+     */
+    expect(stagesOf(composed(), [doneRender('vertical_9x16')])
+      .map((stage) => stage.done)).toEqual([true, true, false, true]);
+  });
+
+  it('and a published performance has delivered, with or without versions', () => {
+    const p = composed();
+    publishPerformance(p, { planHash: 'abc123', publishedAt: AT });
+    expect(stagesOf(p, [doneRender()]).map((stage) => stage.done))
+      .toEqual([true, true, true, true]);
+  });
+
+  /*
+   * A render that is still running has not produced a file, and a readout
+   * that counted it would be telling an author the master exists while they
+   * watch the percentage climb.
+   */
+  it('and a render in flight has not made anything', () => {
+    expect(stagesOf(composed(), [{ state: 'running', payload: {} }])
+      .map((stage) => stage.done)).toEqual([true, true, false, false]);
+  });
+
+  /*
+   * IT GOES BACKWARDS. "The furthest stage reached" is the tempting
+   * reading and the wrong one: a mastered performance that has a hole cut
+   * back into it is at COMPOSE again, and a readout still saying DELIVER
+   * would be describing the past.
+   */
+  it('and says where the work IS, not how far it once got', () => {
+    const p = composed();
+    const renders = [doneRender(), doneRender('vertical_9x16')];
+    expect(stageNow(stagesOf(p, renders))).toBe(3);
+    /* Cut the first minute back out from under it. */
+    moveScene(p, p.scenes[0]!.id, secondsToSamples(60));
+    expect(stageNow(stagesOf(p, renders))).toBe(1);
   });
 });

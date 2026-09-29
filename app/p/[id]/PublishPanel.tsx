@@ -3,64 +3,75 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Performance } from '../../../src/domain/performance.js';
 import { mayPublish } from '../../../src/domain/performance.js';
-import { clipCandidates } from '../../../src/domain/performanceClips.js';
-import { formatMasterPosition } from '../../../src/domain/time.js';
 
 /**
- * The short one, and the picture the link arrives with.
- * [Doctrine STUDIO-TWO §14, §15, U-22, U-30, INV-15]
+ * A page to send people.  [Doctrine STUDIO-TWO §14, U-30, U-31, INV-15]
  *
- * "The product proposes the strongest candidates but never auto-publishes."
- * So every candidate here carries its reasons and the one whose boundaries
- * the PRODUCT chose says so — an author is entitled to disagree with a
- * ranking, and cannot if they are not told what it was.
+ * The last act, and now the only thing in its own module. It used to share a
+ * heading called "Share it" with the clip candidates and the render jobs —
+ * three unrelated things in one container because they were built in the
+ * same week — and it ended in a red sentence:
+ *
+ *     make the master video first — there is nothing to publish yet
+ *
+ * WHICH IS A STATE AND NOT AN ERROR. `--bad` is the colour this product uses
+ * for something having gone wrong, and nothing has: a performance that has
+ * not been mastered is the ordinary condition of every performance for most
+ * of its life. It is a lamp that is not lit, so it is drawn as one.
+ *
+ * THE CARD IS THE PICTURE A LINK ARRIVES WITH (U-30), which is why it sits
+ * here rather than with the versions: it is not something to watch, it is
+ * what a stranger sees before they decide whether to.
  */
 
-interface ClipJob {
+interface CardJob {
   id: string;
   state: 'pending' | 'running' | 'done' | 'failed';
-  progress?: number;
-  error?: string | null;
   payload?: Record<string, unknown>;
   result?: Record<string, unknown> | null;
 }
 
 export default function PublishPanel({
-  performance, onChanged,
+  performance, onChanged, cardJobs, masterReady, onRendered,
 }: {
   performance: Performance;
   onChanged: (next: Performance) => void;
+  cardJobs: CardJob[];
+  masterReady: boolean;
+  onRendered: () => void;
 }) {
-  const [jobs, setJobs] = useState<ClipJob[]>([]);
-  const [cardJobs, setCardJobs] = useState<ClipJob[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const id = performance.id;
-  const candidates = clipCandidates(performance);
   const publishable = mayPublish(performance.master);
-
-  const refresh = useCallback(async () => {
-    const [clips, card] = await Promise.all([
-      fetch(`/api/performances/${id}/clips`, { cache: 'no-store' }),
-      fetch(`/api/performances/${id}/card`, { cache: 'no-store' }),
-    ]);
-    if (clips.ok) setJobs((await clips.json()).jobs ?? []);
-    if (card.ok) setCardJobs((await card.json()).jobs ?? []);
-  }, [id]);
-
-  useEffect(() => { void refresh(); }, [refresh]);
-
-  const working = [...jobs, ...cardJobs]
-    .some((job) => job.state === 'pending' || job.state === 'running');
-  useEffect(() => {
-    if (!working) return;
-    const timer = setInterval(() => { void refresh(); }, 2000);
-    return () => clearInterval(timer);
-  }, [working, refresh]);
-
   const published = Boolean(performance.publication
     && !performance.publication.unpublishedAt);
+  const hasCard = cardJobs.some((job) => job.state === 'done');
+
+  const reload = useCallback(async () => {
+    const response = await fetch(`/api/performances/${id}`, { cache: 'no-store' });
+    if (response.ok) onChanged((await response.json()).performance);
+  }, [id, onChanged]);
+
+  const post = async (path: string) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/performances/${id}${path}`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error ?? 'that did not work');
+      onRendered();
+      await reload();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const withdraw = async () => {
     setBusy(true);
@@ -68,7 +79,8 @@ export default function PublishPanel({
     try {
       const response = await fetch(`/api/performances/${id}/publish`, { method: 'DELETE' });
       if (!response.ok) {
-        throw new Error((await response.json().catch(() => ({}))).error ?? 'that did not work');
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error ?? 'that did not work');
       }
       await reload();
     } catch (e) {
@@ -78,167 +90,119 @@ export default function PublishPanel({
     }
   };
 
-  /** The document, after something changed on it elsewhere. */
-  const reload = useCallback(async () => {
-    const response = await fetch(`/api/performances/${id}`, { cache: 'no-store' });
-    if (response.ok) onChanged((await response.json()).performance);
-  }, [id, onChanged]);
+  /*
+   * WHY IT CANNOT BE PUBLISHED, IN THE ORDER THE AUTHOR CAN ACT ON. The
+   * rights question is first because it is the one that cannot be fixed by
+   * pressing another button, and a person told "make the master first" who
+   * then makes it and is told "this music is somebody else's" has been sent
+   * the long way round. [INV-15]
+   */
+  const why = !publishable
+    ? 'This music is somebody else’s, so there is no page to give it. '
+      + 'A private export is still yours.'
+    : !masterReady
+      ? 'There is no master video yet. Make one above and this becomes a page '
+        + 'anyone with the link can watch.'
+      : null;
 
-  const post = async (path: string, body?: Record<string, unknown>) => {
-    setBusy(true);
-    setError(null);
-    try {
-      const response = await fetch(`/api/performances/${id}${path}`, {
-        method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(body ?? {}),
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error ?? 'that did not work');
-      await Promise.all([refresh(), reload()]);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
-  };
+  const state = published ? { cls: 'is-live', say: 'published' }
+    : why ? { cls: 'is-off', say: 'not yet' }
+      : { cls: 'is-armed', say: 'ready' };
 
   return (
-    <section style={{ marginTop: 18 }} data-testid="publish">
-      <h2 className="module-label" style={{ margin: '0 0 7px' }}
-          title={'A clip is the same video with a window on it \u2014 the same '
-            + 'arrangement, the same backgrounds, the same sound \u2014 cut '
-            + 'vertical for the places people watch one.'}>
-        Share it
-      </h2>
+    <section className="module" data-testid="publish-module"
+             data-published={published ? 'true' : 'false'} style={{ marginTop: 12 }}>
+      <header className="module-head">
+        <span className="module-label">Publish</span>
+        <span className="module-sub grow" style={{ minWidth: 0 }}>
+          a page anyone with the link can watch
+        </span>
+        <span className={`state ${state.cls}`} data-testid="publish-state">
+          {state.say}
+        </span>
+      </header>
 
-      {candidates.length === 0 ? (
-        <p className="small muted" data-testid="no-clips">
-          Name a section on the timeline and it becomes something you can clip.
-        </p>
-      ) : (
-        candidates.map((candidate) => (
-          <div key={candidate.id} className="panel" data-testid="clip-candidate"
-               data-candidate={candidate.id}
-               data-suggested={candidate.suggested ? 'true' : 'false'}
-               style={{ padding: 9, marginBottom: 7 }}>
-            <div className="row" style={{ gap: 8, flexWrap: 'nowrap' }}>
-              <span className="grow" style={{ fontWeight: 600, minWidth: 0 }}>
-                {candidate.label}
-              </span>
-              <span className="small muted" style={{ flex: '0 0 auto' }}>
-                {formatMasterPosition(candidate.toSample - candidate.fromSample)}
-              </span>
-              <button
-                className="small" data-testid="render-clip" disabled={busy}
-                onClick={() => void post('/clips', {
-                  fromSample: candidate.fromSample,
-                  toSample: candidate.toSample,
-                  exportProfileId: 'vertical_9x16',
-                  allowUnpublishable: !publishable,
-                })}
-              >
-                Make a vertical clip
-              </button>
-            </div>
-            <div className="small muted" style={{ marginTop: 3, fontSize: 'var(--text-xs)' }}>
-              {/* The ranking, said out loud so it can be disagreed with. */}
-              {candidate.reasons.join(' · ')}
-            </div>
-          </div>
-        ))
-      )}
-
-      {jobs.length > 0 && (
-        <div style={{ marginTop: 8 }}>
-          {jobs.map((job) => (
-            <div key={job.id} className="row" data-testid="clip-row" data-state={job.state}
-                 style={{ gap: 8, marginTop: 4 }}>
-              <span className="small muted grow">
-                {formatMasterPosition(Number(job.payload?.['fromSample'] ?? 0))}
-                {' · '}
-                {job.state === 'done' ? 'ready'
-                  : job.state === 'failed' ? (job.error ?? 'failed')
-                    : `${job.progress ?? 0}%`}
-              </span>
-              {job.state === 'done' && job.result?.['planHash'] ? (
-                <a className="small" data-testid="clip-download"
-                   href={`/api/performances/${id}/clips/${job.result['planHash']}/file`}
-                   download>Download</a>
-              ) : null}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* ---- the picture a link arrives with (U-30) ------------------- */}
-      <div style={{ marginTop: 14 }}>
-        <button className="small" data-testid="render-card"
-                disabled={busy || !publishable}
-                onClick={() => void post('/card')}>
-          Make the link preview
-        </button>
-        {!publishable && (
-          <span className="small muted" data-testid="card-refused"
-                style={{ marginLeft: 8 }}>
-            {/* INV-15: a card is made to be posted. */}
-            Not for music that is somebody else’s.
-          </span>
-        )}
-        {cardJobs.some((job) => job.state === 'done') && (
-          <div style={{ marginTop: 8 }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
+      <div className="module-body is-padded" style={{
+        display: 'flex', gap: 'var(--space-6)', flexWrap: 'wrap',
+      }}>
+        {/* ---- the picture a link arrives with (U-30) ----------------- */}
+        <div style={{ flex: '0 0 auto', width: 300 }}>
+          {hasCard ? (
+            /* eslint-disable-next-line @next/next/no-img-element */
             <img
               data-testid="card-image"
               src={`/api/performances/${id}/card?image=1`}
               alt="The link preview for this performance"
-              style={{ width: 360, borderRadius: 'var(--radius-screen)',
-                border: '1px solid var(--line)' }}
+              style={{
+                width: '100%', display: 'block',
+                borderRadius: 'var(--radius-screen)',
+                border: 'var(--border) solid var(--line)',
+                background: 'var(--screen-bed)',
+              }}
             />
-          </div>
-        )}
-      </div>
-
-      {/* ---- an audience (§14, U-31, INV-15) -------------------------- */}
-      <div className="panel" data-testid="publication" style={{ padding: 12, marginTop: 16 }}>
-        <div className="row" style={{ gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          {published ? (
-            <>
-              <a className="small" data-testid="watch-link"
-                 href={`/p/${id}/watch`} target="_blank" rel="noreferrer">
-                Open the page people see
-              </a>
-              <button className="small" data-testid="unpublish" disabled={busy}
-                      onClick={() => void withdraw()}>
-                Withdraw it
-              </button>
-            </>
           ) : (
-            <button className="primary" data-testid="publish"
-                    disabled={busy || !publishable}
-                    onClick={() => void post('/publish')}>
-              Publish it
-            </button>
+            <div aria-hidden="true" style={{
+              width: '100%', aspectRatio: '1200 / 630',
+              borderRadius: 'var(--radius-screen)',
+              border: 'var(--border) dashed var(--line)',
+              background: 'var(--screen-bed)',
+              display: 'grid', placeItems: 'center',
+              fontSize: 'var(--text-2xs)', color: 'var(--text-faint)',
+              letterSpacing: '0.08em', textTransform: 'uppercase',
+            }}>no preview yet</div>
+          )}
+          <button className="ctl sm" data-testid="render-card"
+                  disabled={busy || !publishable}
+                  title={publishable ? undefined
+                    : 'a card is made to be posted, and this music is not yours'}
+                  onClick={() => void post('/card')}
+                  style={{ marginTop: 'var(--space-3)', width: '100%' }}>
+            {hasCard ? 'Draw it again' : 'Make the link preview'}
+          </button>
+        </div>
+
+        {/* ---- and the page itself ------------------------------------ */}
+        <div className="grow" style={{
+          minWidth: 220, display: 'flex', flexDirection: 'column',
+          gap: 'var(--space-4)',
+        }}>
+          <p className="small muted" data-testid="publication-state"
+             style={{ margin: 0, maxWidth: 520 }}>
+            {published
+              ? 'Anyone with the link can watch this. Withdrawing stops the link '
+                + 'working; the video stays here.'
+              : why
+                ?? 'Publishing puts the master video on a page anyone with the '
+                  + 'link can watch. Nobody can answer it — this is a '
+                  + 'performance, not an argument.'}
+          </p>
+          <div className="row" style={{ gap: 'var(--space-3)', flexWrap: 'wrap' }}>
+            {published ? (
+              <>
+                <a className="ctl sm" data-testid="watch-link"
+                   href={`/p/${id}/watch`} target="_blank" rel="noreferrer">
+                  Open the page people see
+                </a>
+                <button className="ctl sm" data-testid="unpublish" disabled={busy}
+                        onClick={() => void withdraw()}>
+                  Withdraw it
+                </button>
+              </>
+            ) : (
+              <button className="ctl is-key" data-testid="publish"
+                      disabled={busy || Boolean(why)}
+                      title={why ?? undefined}
+                      onClick={() => void post('/publish')}>
+                Publish it
+              </button>
+            )}
+          </div>
+          {error && (
+            <p className="small" data-testid="publish-error"
+               style={{ margin: 0, color: 'var(--bad)' }}>{error}</p>
           )}
         </div>
-        <p className="small muted" data-testid="publication-state"
-           style={{ marginTop: 6, marginBottom: 0, maxWidth: 640 }}>
-          {published
-            ? 'Anyone with the link can watch this. Withdrawing stops the link '
-              + 'working; the video stays here.'
-            : publishable
-              ? 'Publishing puts the master video on a page anyone with the link '
-                + 'can watch. Nobody can answer it — this is a performance, not '
-                + 'an argument.'
-              /* INV-15, at the act it exists for. */
-              : 'This music is somebody else’s, so there is no page to give it. '
-                + 'A private export is still yours.'}
-        </p>
       </div>
-
-      {error && (
-        <p className="small" data-testid="publish-error"
-           style={{ color: 'var(--bad)', marginTop: 8 }}>{error}</p>
-      )}
     </section>
   );
 }

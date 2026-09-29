@@ -14,11 +14,9 @@ import { MenuButton, RightClickHint, useMenu, type MenuEntry } from '../../Menu.
 import { useMasterRecording } from './useMasterRecording.js';
 import UploadTake from './UploadTake.js';
 import SwitchingStage from './SwitchingStage.js';
-import MasterRender from './MasterRender.js';
+import Delivery from './Delivery.js';
 import RoomPlate from './RoomPlate.js';
 import { useCalibration } from './useCalibration.js';
-import SoundModes from './SoundModes.js';
-import PublishPanel from './PublishPanel.js';
 import StudioBar from '../../StudioBar.js';
 
 /**
@@ -732,17 +730,15 @@ export default function PerformanceStudio(
         />
 
 
-        {/* ---- where the sound comes from (§9, S-7) ------------------ */}
+        {/* ---- master, deliver, publish (§9, §14, S-7) --------------- */}
+        {/*
+          * THREE ACTS UNDER ONE ROOF. These were three sections with three
+          * headings and a fourth heading between them, each fetching its own
+          * jobs; they are one region of the studio and they answer to one
+          * poll. The controls inside are the same controls. [D-19]
+          */}
         {performance.takes.some((t) => t.durationSamples > 0)
-          && <SoundModes performance={performance} onChanged={setPerformance} />}
-
-        {/* ---- one video, when they are ready (§14) ------------------ */}
-        {performance.takes.some((t) => t.durationSamples > 0)
-          && <MasterRender performance={performance} />}
-
-        {/* ---- the short one, and the link preview (§14) -------------- */}
-        {performance.scenes.length > 0
-          && <PublishPanel performance={performance} onChanged={setPerformance} />}
+          && <Delivery performance={performance} onChanged={setPerformance} />}
         {/*
           * Setting up: done once, then never again. Open by default until
           * there is a take, because an empty studio's only useful action is

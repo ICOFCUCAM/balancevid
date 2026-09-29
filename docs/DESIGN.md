@@ -347,6 +347,73 @@ Three consequences worth writing down:
 
 ---
 
+## The tenth decision: the whole studio is one piece of equipment
+
+Studio Two's editor is built from `.module` — a take rail, a multiview, a
+composition rail, a timeline — and reads as software. Everything below it was
+built from `<section>` and `<h2>`, and read as a web page bolted to the
+bottom of one:
+
+```
+SOUND        [ card ] [ card ] [ card ]
+▸ One section at a time
+MAKE THE VIDEO   [16:9] [9:16] [1:1] [4:5]
+00:01.248 of the song has nothing on screen…
+SHARE IT     The middle of it · Make a vertical clip
+             01:47.875 · ready · Download
+             [ Make the link preview ]  [ card image ]
+             [ Publish it ]
+make the master video first — there is nothing to publish yet
+▸ Set up
+```
+
+Seven headings, no structure, and nothing saying which of them belonged to
+the same act. They belong to three, and always did:
+
+| act | what it is |
+| --- | --- |
+| **Master** | make the one file everything else comes from |
+| **Deliver** | versions of it, and clips cut out of it |
+| **Publish** | a page to send people |
+
+The controls inside are the same controls. `SoundModes`, the four export
+profiles, the render jobs, the clip candidates, the link-preview card and the
+publication were all already written and are all still the same code. What
+changed is which of them stand together, what each is called, and what the
+thing they stand in is made of. **No capability was added to fix a layout
+problem.** [D-19]
+
+Four things fell out of it that are worth keeping:
+
+- **Sound is a property of the master, not a stage of the work.** It sat
+  between the timeline and the render button as though choosing where the
+  sound comes from were its own act. It is a setting on the file being made,
+  so it lives in the module that makes one — one line with a bank of three
+  positions, not a heading over three cards.
+- **A delivery list is a table of states.** Four identical buttons, one of
+  them selected somewhere else on the page, could not answer the question an
+  author actually has: which of these exist? Each shape is now a row saying
+  what it is, whether it exists, and what can be done about that. The master
+  is not in the list, because the master is not a version of itself.
+- **A thing not yet done is a state, not a failure.** `make the master video
+  first — there is nothing to publish yet` was drawn in `--bad`, the colour
+  this product uses for something having gone wrong. Nothing has: a
+  performance that has not been mastered is the ordinary condition of every
+  performance for most of its life. It is a lamp that is not lit.
+- **Perform → Compose → Master → Deliver is a readout, not a wizard.**
+  Nothing gates anything; every stage stays reachable at every moment (U-04).
+  `stagesOf` lives in the domain because "is this performance composed" is a
+  fact about a performance, and it is derived on every render so it cannot
+  say something the document does not. It also goes **backwards**: cut a hole
+  into a mastered performance and the readout says Compose again. "The
+  furthest stage reached" is the tempting reading and describes the past.
+
+And composing is not "there are scenes" but "there are scenes a renderer
+would accept" — the same `renderProblems` the console and the invariant ask,
+rather than a third opinion about the same thing.
+
+---
+
 ## What the tests kept getting wrong
 
 Worth its own section, because it keeps happening the same way. A rule gets
@@ -361,6 +428,7 @@ is describing, and then walks straight past the next instance:
 | no hand-written sizes | the three studio routes | the whole application |
 | a screen has square corners | radii ≥ 8, written as digits, in three route folders | any radius above `--radius-screen`, token or digit, anywhere in `app/` |
 | why a render is refused | decided twice — properly in the invariant, worse in the console | `renderProblems`, asked by both |
+| red is for on air and for recording | `is-critical` anywhere near a testid | `.ctl` and `is-critical` in one class expression |
 
 Each widening found more: nine corners, five near-blacks, five titles,
 fourteen sizes — and, the fifth time, twenty-two rounded pictures on six

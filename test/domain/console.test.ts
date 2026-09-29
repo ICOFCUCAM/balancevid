@@ -900,17 +900,32 @@ describe('the loud controls', () => {
   ];
 
   it('spends red only on going out or going down', () => {
+    /*
+     * A RED CONTROL, NOT A RED LAMP.  [U-19]
+     *
+     * The first version of this matched `is-critical` anywhere near a
+     * `data-testid`, which was right while `.ctl` was the only thing that
+     * used the class. `.state.is-critical` exists too — the lamp that says
+     * a render FAILED — and that is red for exactly the reason this rule
+     * allows red: something went down. Saying so on a lamp is the rule
+     * working, not breaking it, and the rule flagged it because it was
+     * written against the instances in front of it rather than against the
+     * property. Again.
+     *
+     * The property is a SATURATED FILL ON A CONTROL. `.ctl` in the same
+     * class expression is what says so.
+     */
     const offenders: string[] = [];
-    for (const file of ['t', 'c', 'p']
-      .flatMap((route) => components(join(ROOT, 'app', route, '[id]')))) {
+    for (const file of components(join(ROOT, 'app'))) {
       const body = code(file);
       for (const hit of body.matchAll(
-        /is-critical[^>]*?data-testid="([a-z-]+)"/g)) {
-        offenders.push(`${named(file)}: ${hit[1]}`);
-      }
-      for (const hit of body.matchAll(
-        /data-testid="([a-z-]+)"[^>]*?is-critical/g)) {
-        offenders.push(`${named(file)}: ${hit[1]}`);
+        /className=(?:"([^"]*)"|\{`([^`]*)`\})/g)) {
+        const classes = hit[1] ?? hit[2] ?? '';
+        if (!/\bctl\b/.test(classes) || !/is-critical/.test(classes)) continue;
+        /* The element's own name, from the attributes beside the class. */
+        const after = body.slice(hit.index, hit.index + 400);
+        const named_ = /data-testid="([a-z-]+)"/.exec(after)?.[1] ?? '(unnamed)';
+        offenders.push(`${named(file)}: ${named_}`);
       }
     }
     const allowed = new Set(CRITICAL.map(([f, t]) => `${f}: ${t}`));
@@ -1205,6 +1220,110 @@ describe('the viewer pages', () => {
  * The rule is not testable in general, but its one instance is, and the
  * instance is the one that dead-ended.
  */
+/**
+ * THE WHOLE STUDIO IS THE SAME PIECE OF EQUIPMENT.  [brief §4, D-14, D-19]
+ *
+ * Studio Two's editor is built from `.module`: a take rail, a multiview, a
+ * composition rail and a timeline, laid out as a desk. Everything BELOW it
+ * was built from `<section>` and `<h2>` — a heading and three cards about
+ * sound, a heading and four buttons about shapes, a heading and a box about
+ * a clip, a preview picture, a publish button, and a red sentence. Seven
+ * headings, no structure, and nothing saying which of them belonged to the
+ * same act.
+ *
+ * They belong to three acts, and always did: MASTER makes the one file,
+ * DELIVER makes versions and clips of it, PUBLISH gives it a page. The
+ * controls inside are the same controls; what changed is which of them
+ * stand together, and what the thing they stand in is made of.
+ */
+describe('the delivery half is made of the same material as the editor', () => {
+  const LOWER = ['MasterRender.tsx', 'Deliver.tsx', 'PublishPanel.tsx', 'Stages.tsx']
+    .map((name) => join(ROOT, 'app', 'p', '[id]', name));
+
+  it('is built from modules, not from page sections', () => {
+    for (const file of LOWER.slice(0, 3)) {
+      expect(code(file), `${named(file)} is still a page section`)
+        .toMatch(/className="module"/);
+    }
+  });
+
+  /*
+   * AND NOT FROM DOCUMENT HEADINGS. `<h2>` over a control is the shape of
+   * an article; a desk labels its panels with a legend and gets on with
+   * it. The ban is on the TAG, because the class was already right —
+   * `<h2 className="module-label">` was how all three of these were
+   * written, which reads correctly and is still an outline entry for a
+   * screen reader walking a page that has no article in it.
+   */
+  it('and labels its panels rather than writing headings over them', () => {
+    const offenders: string[] = [];
+    for (const file of LOWER) {
+      for (const hit of code(file).matchAll(/<h[1-6][\s>]/g)) {
+        offenders.push(`${named(file)}: ${hit[0].trim()}`);
+      }
+    }
+    expect(offenders, 'a legend, not a heading').toEqual([]);
+  });
+
+  /*
+   * THREE ACTS, NAMED. The point of the reorganisation is that an author
+   * can see which controls belong to the same act; a module whose legend
+   * went back to "Share it" would be the old grouping with a new border.
+   */
+  it('and names the three acts', () => {
+    const all = LOWER.map(code).join('\n');
+    for (const act of ['>Master<', '>Deliver<', '>Publish<']) {
+      expect(all, `${act} is missing`).toContain(act);
+    }
+  });
+
+  /*
+   * ONE POLL. The render jobs decide what every one of these says —
+   * whether the master is ready, how many versions exist, whether there is
+   * anything to publish — and three components each fetching `/renders`
+   * every two seconds would be three answers that disagree for a second at
+   * a time, on one screen, about one file. They were already two.
+   */
+  it('and asks the server once, in one place', () => {
+    const offenders: string[] = [];
+    for (const file of components(join(ROOT, 'app', 'p', '[id]'))) {
+      if (/Delivery\.tsx$/.test(file)) continue;
+      /*
+       * A POLL IS A READ. `cache: 'no-store'` is how this codebase spells
+       * one, and the first version of this banned the URL outright — which
+       * flagged the two POSTs that START a render, in the module whose job
+       * is to start it. Asking the server to do something is not asking it
+       * what it has done.
+       */
+      for (const hit of code(file).matchAll(
+        /fetch\(`\/api\/performances\/\$\{id\}\/(renders|clips|card|audio)`,\s*\{\s*cache: 'no-store' \}/g)) {
+        offenders.push(`${named(file)}: polls /${hit[1]}`);
+      }
+    }
+    expect(offenders, 'Delivery.tsx owns the poll — take the jobs as a prop')
+      .toEqual([]);
+  });
+
+  /*
+   * A STATE IS NOT AN ERROR.  [U-19, D-14]
+   *
+   * "make the master video first — there is nothing to publish yet" was
+   * drawn in `--bad`, which is the colour this product uses for something
+   * having gone wrong. Nothing has: a performance that has not been
+   * mastered is the ordinary condition of every performance for most of
+   * its life. It is a lamp that is not lit, and `.state.is-off` is the lamp.
+   */
+  it('and draws a thing not yet done as a state rather than a failure', () => {
+    const publish = code(join(ROOT, 'app', 'p', '[id]', 'PublishPanel.tsx'));
+    /* The sentence saying why, wherever it is, is not red. */
+    const red = publish.slice(publish.indexOf("data-testid=\"publication-state\""));
+    expect(red.slice(0, red.indexOf('</p>')), 'not-yet is drawn as a failure')
+      .not.toMatch(/--bad/);
+    /* And the lamp exists to say it instead. */
+    expect(publish, 'there is no unlit lamp to say it with').toContain("'is-off'");
+  });
+});
+
 describe('a studio sold on its own works on its own', () => {
   const GUESTS = code(join(ROOT, 'app', 't', '[id]', 'GuestsTab.tsx'));
 
