@@ -3163,7 +3163,12 @@ function MultiView({
             position: 'absolute', left: 0, top: tile.live ? 3 : 0,
             padding: '2px 5px 2px 4px',
             borderBottomRightRadius: 'var(--radius-xs)',
-            background: 'rgba(0,0,0,0.78)',
+            /* The same plate alpha as every other OSD in the product.
+               This was 0.78 — a fourth private near-black, arrived at
+               by eye on this one tile. No hairline, because a plate
+               seated into a corner has only two edges to draw and a
+               border on those two reads as a torn label. */
+            background: 'rgba(0,0,0,0.72)',
             fontSize: 'var(--text-2xs)', lineHeight: 1.25,
             fontWeight: 'var(--weight-bold)',
             letterSpacing: '0.04em',

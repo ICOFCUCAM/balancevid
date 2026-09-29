@@ -362,3 +362,77 @@ describe('the pictures', () => {
     expect(offenders, 'a picture rounded like a card').toEqual([]);
   });
 });
+
+/**
+ * AN OSD IS PRINTED ON THE GLASS.  [brief §5, §19, U-20]
+ *
+ * Three studios draw plates on top of a picture — a clock, a name, a
+ * state. They had settled into three different objects: flat black
+ * with a hairline in the control room, a saturated fill of the take's
+ * own colour in Studio Two, a near-black box with 4px corners for the
+ * clock beside it.
+ *
+ * The rule the control room arrived at is the right one everywhere: a
+ * readout over a picture is opaque, square and quiet, because the
+ * thing underneath it is the thing being judged. Identity rides a
+ * lamp or a leading edge, never a flood — a saturated plate makes the
+ * label the loudest thing on the frame it is labelling.
+ */
+describe('what sits on a picture', () => {
+  const STAGE = code(join(ROOT, 'app', 'p', '[id]', 'SwitchingStage.tsx'));
+
+  /*
+   * The first version of this banned `background: take.accent`
+   * outright and failed on two things that are right: an 8px round
+   * lamp beside a take's name, and the numbered take keys in the
+   * transport — which are the physical source buttons of a switcher,
+   * and source buttons are lit in their source's colour on every desk
+   * ever built. The rule is about a LABEL LYING ON A PICTURE, so that
+   * is what it checks.
+   */
+  it('labels a monitor with a plate, not with the take\'s colour', () => {
+    const label = STAGE.slice(STAGE.indexOf("position: 'absolute', left: 6, bottom: 6"));
+    const block = label.slice(0, label.indexOf('}}'));
+    expect(block, 'the monitor label floods with take.accent')
+      .not.toMatch(/background: take\.accent/);
+    expect(block, 'the monitor label is not the agreed plate')
+      .toContain("background: 'rgba(0,0,0,0.72)'");
+  });
+
+  it('carries take identity on an edge', () => {
+    expect(STAGE).toMatch(/borderLeft: `3px solid \$\{take\.accent/);
+  });
+
+  /*
+   * AND THE PLATES AGREE ACROSS THE STUDIOS. One alpha, one hairline.
+   * Two studios drawing the same object two ways is the thing a
+   * viewer reads as "assembled from parts", and it is invisible in
+   * any single screenshot.
+   */
+  it.each([
+    ['app/t/[id]/ChannelStudio.tsx', 3],
+    ['app/p/[id]/SwitchingStage.tsx', 3],
+  ])('%s draws its plates one way', (file, atLeast) => {
+    const body = code(join(ROOT, file));
+    const plates = (body.match(/background: 'rgba\(0,0,0,0\.72\)'/g) ?? []).length;
+    expect(plates, `${file} has ${plates} plates at the agreed alpha`)
+      .toBeGreaterThanOrEqual(atLeast);
+  });
+
+  /*
+   * AND NOBODY HAS A PRIVATE NEAR-BLACK. Three turned up: rgba(5,7,10,
+   * 0.78) for Studio Two's clock, rgba(0,0,0,0.78) for the control
+   * room's input numbers, and rgba(0,0,0,0.74) on the view toggle,
+   * against the agreed 0.72. Two of the three were found by this test
+   * rather than by me. None is distinguishable from the others by
+   * eye, which is the point: each was arrived at by eye.
+   */
+  it('has no private near-black anywhere in the studios', () => {
+    const offenders = ['t', 'c', 'p']
+      .flatMap((route) => components(join(ROOT, 'app', route, '[id]')))
+      .flatMap((file) => (code(file)
+        .match(/rgba\((?:0,\s*0,\s*0|5,\s*7,\s*10),\s*0?\.7[3-9]\)/g) ?? [])
+        .map((hit) => `${named(file)}: ${hit}`));
+    expect(offenders, 'use rgba(0,0,0,0.72) — the plate alpha').toEqual([]);
+  });
+});

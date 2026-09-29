@@ -705,10 +705,35 @@ export default function SwitchingStage({
                     puts it: bottom left of its own panel — with the key in
                     front of it on the multiview, because that is the whole
                     point of looking at them all at once. */}
+                {/*
+                  * THE TAKE'S COLOUR IS A LAMP, NOT A FLOOD.  [U-20, §19]
+                  *
+                  * This was a saturated plate of `take.accent` with near
+                  * black text, lying on the picture — the same object
+                  * Online TV's ARMED pill was, and it is worse here
+                  * because there is one per monitor and their colours
+                  * differ, so two takes side by side put two different
+                  * loud rectangles on two pictures you are comparing.
+                  * The colour is the loudest thing on a frame it is
+                  * supposed to be labelling.
+                  *
+                  * The take rail already says which take is which by
+                  * lighting its leading edge in the take's own colour.
+                  * That is the product's one language for take
+                  * identity, so this is the same object at monitor
+                  * scale: a dark OSD plate with the colour as a bar
+                  * down its leading edge. Identity survives, the
+                  * picture wins, and the two monitors stop competing.
+                  */}
                 <span style={{
-                  position: 'absolute', left: 6, bottom: 6, padding: '3px 7px',
-                  borderRadius: 4, fontSize: 'var(--text-xs)', fontWeight: 600,
-                  background: take.accent ?? '#3e7ca6', color: '#0a0c10',
+                  position: 'absolute', left: 6, bottom: 6,
+                  padding: '3px 7px 3px 6px',
+                  borderRadius: 'var(--radius-screen)',
+                  fontSize: 'var(--text-xs)', fontWeight: 600,
+                  background: 'rgba(0,0,0,0.72)',
+                  border: '1px solid rgba(255,255,255,0.14)',
+                  borderLeft: `3px solid ${take.accent ?? '#3e7ca6'}`,
+                  color: 'rgba(255,255,255,0.94)',
                   maxWidth: 'calc(100% - 12px)', overflow: 'hidden',
                   textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                 }}>
@@ -733,9 +758,21 @@ export default function SwitchingStage({
               </div>
             );
           })}
-          <div style={{
+          {/*
+            * AND THE CLOCK IS THE SAME PLATE AS EVERY OTHER OSD. It was
+            * a 4px-cornered box in its own near-black; the programme
+            * monitor's three plates settled on flat black at 72% with a
+            * hairline of light and a 2px corner in commit 14, and there
+            * is no reason for this studio's clock to be a different
+            * object from that studio's clock.
+            */}
+          <div className="readout" style={{
             position: 'absolute', left: 10, top: 10, padding: '3px 8px',
-            borderRadius: 4, background: 'rgba(5,7,10,0.78)', fontSize: 'var(--text-xs)',
+            borderRadius: 'var(--radius-screen)',
+            background: 'rgba(0,0,0,0.72)',
+            border: '1px solid rgba(255,255,255,0.14)',
+            color: 'rgba(255,255,255,0.94)',
+            fontSize: 'var(--text-xs)',
             fontFamily: 'ui-monospace, monospace',
           }}>
             {formatMasterPosition(Math.round(player.position))} / {clock(duration)}
@@ -761,7 +798,7 @@ export default function SwitchingStage({
                    position: 'absolute', right: 10, top: 10, gap: 0,
                    borderRadius: 2, overflow: 'hidden',
                    border: '1px solid rgba(255,255,255,0.16)',
-                   background: 'rgba(0,0,0,0.74)',
+                   background: 'rgba(0,0,0,0.72)',
                  }}>
               {([['program', 'Program'], ['all', 'All takes']] as const).map(([id, text]) => {
                 const on = (id === 'all') === allTakes;
