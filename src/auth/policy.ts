@@ -455,8 +455,19 @@ export const OWNER_ONLY = [
  * points at the failure that costs less.
  */
 const STUDIO_PATHS: [RegExp, StudioId][] = [
-  /* Studio One: a conversation, and everything hung off one. */
-  [/^\/c\//, 'studio-one'],
+  /*
+   * Studio One: the studio itself, a conversation, and everything hung
+   * off one.
+   *
+   * `/^\/c\//` WAS THE WHOLE RULE AND IT DID NOT COVER `/c`, because
+   * `/c` had never existed. The page's own `listConversations` would
+   * have refused an account without the studio — `requireStudio` is in
+   * the store, where it belongs — but "a check in an interface is one
+   * refactor away from not being in the path", and so is a check that
+   * lives only in one function the route happens to call.
+   * [STUDIO-ONE §5, MASTER-EDIT §11]
+   */
+  [/^\/c(\/|$)/, 'studio-one'],
   [/^\/api\/conversations(\/|$)/, 'studio-one'],
   /* Studio Two: a performance. */
   [/^\/p\//, 'studio-two'],

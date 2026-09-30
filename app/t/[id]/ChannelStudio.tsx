@@ -27,7 +27,7 @@ import { useFeedLevels } from './useFeedLevels.js';
 import AnswersTab from './AnswersTab.js';
 import GuestsTab from './GuestsTab.js';
 import SlidesPanel from './SlidesPanel.js';
-import { type ScreenShare, useScreenShare } from './useScreenShare.js';
+import { type ScreenShare, useScreenShare } from '../../useScreenShare.js';
 import {
   type Devices, cameraConstraints, microphoneConstraints, useDevices,
 } from '../../useDevices.js';

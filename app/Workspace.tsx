@@ -151,6 +151,22 @@ const STUDIOS: {
    * SERVED FROM `public/rooms/`, built by `scripts/room-art.mjs` from
    * the masters in `art/`.
    */
+  /**
+   * THE STUDIO'S OWN FRONT DOOR, where it has one.
+   *   [STUDIO-ONE §5, §9]
+   *
+   * Studio One has `/c`. Studio Two and Online TV do not have the
+   * equivalent yet, and this is `undefined` for them rather than a
+   * guessed route — a card that links somewhere that 404s is worse than
+   * a card that opens the newest thing, which is what they still do.
+   *
+   * WHERE IT IS SET, IT CHANGES WHAT BOTH BUTTONS MEAN. "Open Studio
+   * One" stops meaning "the last conversation you made" and starts
+   * meaning the studio; the `+` stops unfolding an intake form in the
+   * hallway and walks into the room where that form lives. That is the
+   * whole of §5 and §9 in this file.
+   */
+  home?: string;
   art: string;
   /**
    * Where the crop holds when the band is wider than it is tall.
@@ -168,11 +184,19 @@ const STUDIOS: {
   {
     studio: 'one', id: 'studio-one', kind: 'conversation',
     label: 'STUDIO ONE', name: 'Conversation Studio',
-    blurb: 'Watch, interrupt and respond to any video. Invite guests and '
-      + 'produce the room.',
+    /*
+     * *"The dashboard should simply say: Conversation Studio / Watch,
+     * interrupt and respond to video, audio and live sources."* — with
+     * "live sources" left out, because it is not built and the author
+     * marked it Later himself. A card that lists a door which is not
+     * there is the one kind of brevity this product cannot afford.
+     */
+    blurb: 'Watch, interrupt and respond to video, audio, a screen or '
+      + 'your own camera.',
     accent: 'var(--studio-one)', veil: 'var(--studio-one-veil)',
     wash: 'var(--studio-one-wash)', icon: 'conversation',
     art: '/rooms/conversation.webp', focus: 'center 58%',
+    home: '/c',
     open: 'Open Studio One',
   },
   {
@@ -333,8 +357,14 @@ export default function Workspace({
             * billing. When there is something to sell, this is where the
             * offer goes. [MASTER-EDIT §11]
             */}
+          {/*
+            * THE RAIL LED TO THE NEWEST CONVERSATION, OR TO AN ANCHOR.
+            * Which meant "Studio One" in the building's own directory
+            * pointed at a document, or at a scroll position. It points at
+            * the studio now, because there is one. [STUDIO-ONE §5]
+            */}
           {has('studio-one') && (
-            <Rail href={newest('conversation')?.href ?? '#conversations'}
+            <Rail href="/c"
                   icon="conversation" label="Studio One" under="Conversations"
                   empty={!newest('conversation')} />
           )}
@@ -1429,8 +1459,9 @@ function StudioCard({
         <div className="row" style={{
           gap: 8, marginTop: 10, flexWrap: 'nowrap',
         }}>
-          {newest ? (
-            <Link href={newest.href} data-testid="open-studio" style={{
+          {studio.home || newest ? (
+            <Link href={studio.home ?? newest!.href} data-testid="open-studio"
+                  style={{
               flex: '1 1 0', textAlign: 'center', padding: '8px 10px',
               borderRadius: 'var(--radius-md)', textDecoration: 'none',
               background: studio.accent, color: 'var(--text-on-accent)',
@@ -1460,15 +1491,41 @@ function StudioCard({
               }}>{studio.open}<Icon name="arrow" size={13} /></span>
             </button>
           )}
-          <button type="button" data-testid="new-in-studio"
+          {/*
+            * THE `+` NO LONGER UNFOLDS A FORM IN THE HALLWAY.
+            *   [STUDIO-ONE §5, §9]
+            *
+            * *"Your current home page has the Conversation Studio
+            * expanded directly inside the dashboard. I don't think that
+            * is ideal… almost half of the screen consumed by the
+            * Conversation Studio card."*
+            *
+            * Where a studio has a front door, the `+` walks through it,
+            * and the intake lives in the room it belongs to. Where one
+            * does not yet, the expander stays — removing it would take
+            * away the only way to start something in those two rooms.
+            */}
+          {studio.home ? (
+            <Link href={studio.home} data-testid="new-in-studio"
                   aria-label={`New in ${studio.name}`}
-                  aria-expanded={opened}
-                  onClick={onToggle}
                   style={{
                     flex: '0 0 auto', width: 34, padding: '8px 0',
                     borderRadius: 'var(--radius-md)',
                     display: 'grid', placeItems: 'center',
-                  }}><Icon name="plus" size={14} /></button>
+                    border: 'var(--border) solid var(--line)',
+                    color: 'inherit', textDecoration: 'none',
+                  }}><Icon name="plus" size={14} /></Link>
+          ) : (
+            <button type="button" data-testid="new-in-studio"
+                    aria-label={`New in ${studio.name}`}
+                    aria-expanded={opened}
+                    onClick={onToggle}
+                    style={{
+                      flex: '0 0 auto', width: 34, padding: '8px 0',
+                      borderRadius: 'var(--radius-md)',
+                      display: 'grid', placeItems: 'center',
+                    }}><Icon name="plus" size={14} /></button>
+          )}
         </div>
 
         {/*
@@ -1486,7 +1543,7 @@ function StudioCard({
           {mine.length > 0 ? `${mine.length} here` : 'Nothing here yet'}
         </span>
 
-        {opened && (
+        {opened && !studio.home && (
           <div style={{
             marginTop: 10, paddingTop: 12,
             borderTop: 'var(--border) solid var(--line)',

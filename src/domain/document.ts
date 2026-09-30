@@ -16,6 +16,7 @@ import type {
 } from './participants.js';
 import type { AiOrigin, SuggestionDecision } from './suggestions.js';
 import type { ProviderId } from './providers.js';
+import type { SourceKind } from './sources.js';
 
 /** Forward-only. Migrations are tested against archived real documents. [U-25] */
 export const SCHEMA_VERSION = 1;
@@ -57,6 +58,20 @@ export interface Source {
   /** Shown in the generated, non-removable attribution block. [U-21] */
   creator?: string;
   url?: string;
+  /**
+   * WHICH DOOR THIS CAME IN BY.  [STUDIO-ONE §2, §5]
+   *
+   * Not how it is played — `class` says that, and it is the only thing
+   * the renderer reads. This is how the person GOT it here: a file they
+   * chose, a camera they pointed, a screen they captured, a link that
+   * was fetched. Class A cannot tell those apart after the fact,
+   * because all four end as the same normalised mezzanine, and the
+   * recent-conversations list has a column for exactly this.
+   *
+   * Absent on everything made before the four doors existed, and the
+   * list says "Upload" for those, which is what they were.
+   */
+  capturedAs?: SourceKind;
   /** Class A only: the normalised mezzanine we are permitted to render. [U-02] */
   mezzanineAssetId?: AssetId;
   originalAssetId?: AssetId;
