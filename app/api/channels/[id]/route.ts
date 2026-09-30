@@ -23,7 +23,7 @@ import { channelOwns } from '../../../../src/domain/deletion.js';
 import { missingSources, resolves } from '../../../../src/store/playoutSources.js';
 import { newestSegmentAt, readBeat } from '../../../../src/store/playoutHealth.js';
 import {
-  engineState, healthSentence, streamState,
+  controlRoomNote, engineState, healthSentence, streamState, whyDark,
 } from '../../../../src/domain/health.js';
 import { discardBuffer, keepBuffer } from '../../../../src/store/liveBuffer.js';
 import { fail, json } from '../../../../src/web/http.js';
@@ -72,12 +72,33 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
   const engine = engineState(
     heartbeat ? Date.parse(heartbeat.at) : null, now);
   const stream = streamState(newestSegment, now);
+  /* Once, and given to both the page and the sentence below it: two calls
+     a microsecond apart could straddle a programme boundary and disagree
+     about whether the channel is off air. [§4] */
+  const on = whatIsOn(channel, now);
   /*
    * INV-17, both halves, checked on every read rather than on a schedule.
    * Reported rather than thrown: a channel with a broken reference must still
    * be openable, because the page that shows the fault is the page it is
    * fixed on. [D-13]
    */
+  /*
+   * WHY A HEALTHY CHANNEL IS STILL DARK. [§6, §9]
+   *
+   * `healthSentence` covers the transmitter and every one of its answers
+   * is about a PROCESS. It has no word for the two states where every
+   * process is fine and nothing is going out: the operator pressed GO
+   * LIVE and not TAKE LIVE, and the channel has nothing to play. Both are
+   * correct behaviour, which is exactly why they need saying.
+   */
+  const dark = whyDark({
+    offAir: on.kind === 'off',
+    armed: channel.live?.phase === 'armed',
+    hasSchedule: orderedProgrammes(channel).length > 0
+      || orderedBlocks(channel).length > 0
+      || rotationLengthMs(channel) > 0,
+  });
+
   const violations: string[] = [];
   try {
     assertChannelOwnsNoScheduledMedia(channel, await channelAssetIds(id));
@@ -90,7 +111,7 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
     channel,
     listing: orderedProgrammes(channel),
     /* What is ACTUALLY on: live, then a fixed slot, then the loop. [§4, §5] */
-    whatIsOn: whatIsOn(channel, now),
+    whatIsOn: on,
     onAir: onAirAt(channel, now) ?? null,
     next: nextAfter(channel, now) ?? null,
     rotationOffsets: rotationOffsets(channel),
@@ -109,6 +130,31 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
       /* One sentence, written in the domain so the control room and the
          viewer cannot describe the same condition two different ways. */
       says: healthSentence(engine, stream, 'operator'),
+      /*
+       * AND THE TWO REASONS A HEALTHY CHANNEL IS STILL DARK. [§6, §9]
+       *
+       * *"Why is this channel not showing when I am live?"*
+       *
+       * `healthSentence` covers the transmitter and every one of its
+       * answers is about a PROCESS. It has no word for the two states
+       * where every process is fine and nothing is going out: the
+       * operator pressed GO LIVE and not TAKE LIVE, and the channel has
+       * nothing to play. Both are correct behaviour, which is exactly
+       * why they need saying — a fault announces itself and a correct
+       * state that looks like one does not.
+       *
+       * Computed here from what this read already knows rather than
+       * stored: `on` is the same `whatIsOn` the page is given, and
+       * liveness is never a field in a document. [§18, D-13]
+       */
+      dark,
+      /*
+       * AND WHICH OF THE TWO THE CONTROL ROOM SHOWS. Both are often
+       * true at once and a desk that says both is a desk talking over
+       * itself, so the order is decided in the domain where it can be
+       * tested rather than in the component. [§6, D-04]
+       */
+      note: controlRoomNote(engine, stream, dark),
       ...(heartbeat ? { beatAt: heartbeat.at, pid: heartbeat.pid } : {}),
       ...(newestSegment
         ? { segmentAt: new Date(newestSegment).toISOString() } : {}),

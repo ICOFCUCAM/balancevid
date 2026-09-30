@@ -2608,6 +2608,76 @@ The channel was restored from a copy taken first.
   programme or the graphics layer, and feeding a monitor its own output
   is a decision rather than a default.
 
+## C-19 — Stage 19: why a healthy channel is still dark
+
+*"Why is this channel not showing when I am live?"*
+
+`whyDark` was written for that question, cited this section, and this
+section did not exist. It had no test. Nothing called it. The operator's
+sentence — the one that answers the question actually asked — was sitting
+in `health.ts` where only a reader of the source would ever find it.
+
+### The six answers and the two that were missing
+
+`healthSentence` covers the transmitter: the engine stopped, the engine is
+stale, the stream went silent, the stream stalled. Every one of them is
+about a PROCESS. It has no word for the two states where every process is
+healthy and the channel is still black:
+
+* the operator pressed **GO LIVE** and not **TAKE LIVE**, so the camera is
+  in preview and `whatIsOn` is off — one press wide; and
+* the channel has nothing to play, because nothing is booked and the loop
+  is empty.
+
+Both are correct behaviour, and neither is a fault. That is exactly why
+they need saying: a fault announces itself, and a correct state that looks
+like a fault does not.
+
+### What wiring it up found
+
+**The note would never have appeared.** `healthSentence` returns a
+sentence for every state except *running and transmitting*, so on any
+channel that is off air it is non-null — and the control room showed it
+first. Computed, returned to the browser, and never once displayed.
+
+Worse, the sentence that would have won is the unhelpful one. *"The engine
+is running but has not written a segment for this channel yet"* is true of
+a channel with an empty loop, sounds like a fault, and tells the operator
+nothing they can act on. It has not written one because nothing was ever
+asked for.
+
+So the ORDER is now a decision in the domain rather than an accident in a
+component. `controlRoomNote` takes both and returns one:
+
+* a stopped or stale engine outranks everything, because while nothing is
+  being written it cannot matter which button was pressed;
+* once the engine is up, the operator's reason wins;
+* otherwise the transmitter's sentence stands.
+
+**And the tone travels with the sentence.** Red for a thing that is broken
+teaches an operator to read red; red for a thing that is merely true
+teaches them to ignore it. `fault` is `--bad`, `note` is `--text-faint`,
+and the component paints what it is given rather than guessing from which
+field the text came out of. [D-04]
+
+### Measured
+
+Seven mutations across `whyDark` and `controlRoomNote`, all seven caught.
+Then in a browser, on a throwaway channel created and deleted for it —
+the author's own channel was read and not touched:
+
+| state | line | colour |
+|---|---|---|
+| engine beating, armed, empty loop | *"Your camera is up in PREVIEW and nothing is on the wire yet. TAKE LIVE is what puts it out."* | `rgb(134,141,150)` — faint |
+| heartbeat allowed to go stale | *"The playout engine stopped responding…"* | `rgb(215,89,74)` — bad |
+
+The same strip, the same channel, twenty seconds apart.
+
+The author's real channel is the case that proves the precedence: it is
+`phase: armed` with a rotation of eight, so `whatIsOn` is `rotation`, not
+`off`. `dark` is null and the engine fault speaks — which is right, and is
+what it showed.
+
 ## C-20 — Stage 20: the region the set had drawn all along
 
 *"The logo region and the lower-third region are described and not yet
@@ -2667,12 +2737,8 @@ black.
 
 ### Still owed
 
-* **`whyDark` is written and called by nothing.** `src/domain/health.ts`
-  carries the operator's sentence for the two states where every process
-  is healthy and the channel is still dark — armed but not taken to air,
-  and nothing scheduled — and cites a **C-19** that was never written. No
-  page asks it the question. The number is left free for whoever wires it
-  up, rather than reused here.
+* ~~**`whyDark` is written and called by nothing.**~~ Done in C-19 above,
+  which is the section it had been citing all along.
 * **The audio treatment (C-16) and the server-side compositor (C-17)**
   are still owed in the same render path, as C-18 said.
 * **A screen in a set shows nothing.**

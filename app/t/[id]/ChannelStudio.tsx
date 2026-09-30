@@ -191,6 +191,23 @@ export default function ChannelStudio({
     engine: 'running' | 'stale' | 'stopped';
     stream: 'transmitting' | 'stalled' | 'silent';
     says: string | null;
+    /*
+     * WHY A HEALTHY CHANNEL IS STILL DARK. Not a fault, and that is the
+     * point: `says` answers *is the machinery working* and every one of
+     * its answers is about a process. This answers *have you asked it
+     * for anything* — armed but never taken to air, or nothing to play.
+     * Both are correct behaviour, and a correct state that looks like a
+     * fault is the one nobody can diagnose. [§6, §9]
+     */
+    dark: string | null;
+    /*
+     * AND WHICH OF THEM TO SHOW. Both can be true at once, so the order
+     * is decided in the domain where it can be tested, and the tone
+     * comes with the sentence: red for a thing that is broken teaches
+     * an operator to read red, and red for a thing that is merely true
+     * teaches them to ignore it. [D-04]
+     */
+    note: { says: string; tone: 'fault' | 'note' } | null;
   } | null>(null);
 
   /* ---- which face of each container is showing ------------------------ */
@@ -2709,18 +2726,30 @@ export default function ChannelStudio({
           </details>
         </div>
 
-        {(violations.length > 0 || error || health?.says) && (
+        {(violations.length > 0 || error || health?.note) && (
           <p className="small" data-testid="violations" style={{
             gridColumn: '1 / -1', margin: '4px 0 0', fontSize: 'var(--text-xs)',
-            color: error || health?.engine !== 'running'
-              ? 'var(--bad)' : 'var(--warn)',
+            /*
+              * THE COLOUR FOLLOWS WHAT IS BEING SAID, not which field it
+              * came out of. A line telling the operator they have not
+              * pressed TAKE LIVE yet is not a fault and must not be
+              * painted as one.
+              */
+            color: error || health?.note?.tone === 'fault'
+              ? 'var(--bad)'
+              : violations.length > 0 ? 'var(--warn)' : 'var(--text-faint)',
           }}>
             {/*
               * THE ENGINE FIRST. A broken reference matters; nothing being
-              * written at all matters more, and it is the fault that used to
-              * be invisible from this page. [§18]
+              * written at all matters more, and it is the fault that used
+              * to be invisible from this page. [§18]
+              *
+              * `note` has already chosen between the transmitter's
+              * sentence and the operator's — both are often true and a
+              * desk that says both is a desk talking over itself. [§6]
               */}
-            {error ?? health?.says ?? violations.join(' ')}
+            {error ?? health?.note?.says
+              ?? (violations.length > 0 ? violations.join(' ') : null)}
           </p>
         )}
       </footer>

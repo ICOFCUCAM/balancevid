@@ -186,3 +186,48 @@ export function whyDark(
    */
   return null;
 }
+
+/** What kind of thing the control room is about to say. */
+export type Tone =
+  /** Something is broken and somebody has to go and fix it. */
+  | 'fault'
+  /** Something is true, correct, and worth knowing. */
+  | 'note';
+
+/**
+ * The ONE line the control room shows, chosen from the two that can apply.
+ * [§6, §9, §18]
+ *
+ * WRITTEN HERE BECAUSE THE ORDER IS THE HARD PART, and an order decided in
+ * a component is an order nobody can test. Both sentences are often true at
+ * once — an engine that stopped AND an operator who never pressed TAKE LIVE
+ * — and showing both would be a control room talking over itself.
+ *
+ * A PROCESS FAULT OUTRANKS EVERYTHING. While nothing is being written, what
+ * the operator did or did not press cannot matter: fix the transmitter
+ * first. So a stopped or stale engine gets `healthSentence` and nothing
+ * else.
+ *
+ * ONCE THE ENGINE IS UP, THE OPERATOR'S REASON WINS. This is the part that
+ * was wrong before it was measured: `healthSentence` answers a running
+ * engine with a silent channel by saying *"the engine is running but has
+ * not written a segment for this channel yet"*, which is true, sounds like
+ * a fault, and is useless — it has not written one because nothing was
+ * ever asked for. `whyDark` knows which of the two reasons that is and
+ * says it in a sentence the operator can act on.
+ *
+ * AND THE TONE TRAVELS WITH THE SENTENCE. Red for a thing that is broken
+ * teaches an operator to read red; red for a thing that is merely true
+ * teaches them to ignore it. [D-04]
+ */
+export function controlRoomNote(
+  engine: EngineState, stream: StreamState, dark: string | null,
+): { says: string; tone: Tone } | null {
+  if (engine !== 'running') {
+    const says = healthSentence(engine, stream, 'operator');
+    return says ? { says, tone: 'fault' } : null;
+  }
+  if (dark) return { says: dark, tone: 'note' };
+  const says = healthSentence(engine, stream, 'operator');
+  return says ? { says, tone: 'fault' } : null;
+}
