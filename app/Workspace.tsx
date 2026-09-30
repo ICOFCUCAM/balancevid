@@ -384,6 +384,14 @@ export default function Workspace({
             <div style={{ minWidth: 0 }}>
               <Greeting name={account.name} />
 
+              {/*
+                * THE RAIL LINKS HERE. `Channels` in the building rail is
+                * `/#channels`, and there was no `#channels` — so it
+                * landed at the top of the home page and looked broken.
+                * The channel a person is looking for is the hero, or the
+                * invitation to make one. [U-19]
+                */}
+              <div id="channels" style={{ scrollMarginTop: 20 }} />
               {hero
                 ? <Hero channel={hero} onRow={onRow} open={fromButton}
                         items={itemsFor} records={live} />

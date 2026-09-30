@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { LAYOUTS, takeSlots } from '../../../src/domain/presentation.js';
+import type { Composition } from '../../../src/domain/composition.js';
+import { LiveCompositor } from './compositor.js';
 
 /**
  * Several people, one picture.  [Doctrine CHANNEL §6, ROOM §4, U-18, D-19]
@@ -37,6 +39,26 @@ export interface MixerSource {
   /** Drawn under the picture, as the stage badge does in Studio Two. */
   label?: string;
   accent?: string;
+  /**
+   * WHAT GOES BEHIND THIS PERSON, AND HOW THEY SIT IN IT.  [§26, §28]
+   *
+   * Absent, their own room is drawn as it arrives — which is what every
+   * broadcast this product has made has done, because `identity.spaceId`
+   * was written by ten buttons and read by nothing. Present, the picture
+   * goes through the compositor before it reaches the canvas, and the
+   * canvas is what `captureStream` hands the encoder. That is the whole
+   * of *"part of the master composition, not just a CSS background
+   * behind a preview."* [C-14]
+   */
+  composition?: Composition;
+  /**
+   * Three seconds of this person's room with nobody in it, as an image.
+   *
+   * The measurement the plate key differences against. Held by the
+   * caller because a plate belongs to the person, not to the mixer, and
+   * because Studio Two already has one per performance. [STUDIO-TWO §4]
+   */
+  plate?: TexImageSource | null;
 }
 
 export interface BroadcastMixer {
@@ -45,6 +67,18 @@ export interface BroadcastMixer {
   /** Which arrangement is being drawn, after the automatic choice. */
   layoutId: string;
   ready: boolean;
+  /**
+   * The decoded picture for one person, for anything that needs FRAMES
+   * rather than a stream.  [§26 C]
+   *
+   * The mixer already holds a `<video>` per person — detached, existing
+   * only so the canvas has something to draw from — and taking a plate
+   * needs exactly that: sixteen frames of a decoded picture. Handing the
+   * element back is cheaper and more honest than attaching a second
+   * `<video>` to the same stream, which is a second decode of the same
+   * bytes for the same reason.
+   */
+  videoFor: (id: string) => HTMLVideoElement | null;
 }
 
 /**
@@ -97,6 +131,14 @@ export function useBroadcastMixer({
   fps?: number;
 }): BroadcastMixer {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  /*
+   * ONE COMPOSITOR FOR THE WHOLE MIX, built the first time somebody
+   * actually asks for a background. A GL context per guest would be four
+   * contexts and four sets of compiled shaders, against a browser limit
+   * of about sixteen; and a broadcast where nobody has chosen a set
+   * should not pay for a context at all.
+   */
+  const compositorRef = useRef<LiveCompositor | null>(null);
   const videosRef = useRef(new Map<string, HTMLVideoElement>());
   const audioRef = useRef<{
     context: AudioContext;
@@ -144,6 +186,7 @@ export function useBroadcastMixer({
     let stopped = false;
     const draw = () => {
       if (stopped) return;
+      const now = performance.now();
       const all = sourcesRef.current;
       const alone = soloRef.current === null ? null
         : all.find((person) => person.id === soloRef.current) ?? null;
@@ -163,7 +206,35 @@ export function useBroadcastMixer({
           w: rect.w * width, h: rect.h * height,
         };
         const video = videosRef.current.get(person.id);
-        if (video && video.videoWidth > 0) {
+        /*
+         * THROUGH THE COMPOSITOR, WHEN THERE IS ONE TO GO THROUGH. It
+         * answers false for a person with no background chosen, or one
+         * whose backdrop needs a matte nothing has provided — and then
+         * the raw picture is drawn, which is the honest outcome S-6
+         * asks for rather than a black rectangle where somebody was.
+         */
+        let composited = false;
+        if (video && video.videoWidth > 0 && person.composition) {
+          try {
+            if (!compositorRef.current) {
+              compositorRef.current = new LiveCompositor();
+            }
+            composited = compositorRef.current.draw(
+              video, person.plate ?? null, person.composition,
+              { w: box.w, h: box.h }, now);
+            if (composited) {
+              paper.drawImage(compositorRef.current.canvas,
+                box.x, box.y, box.w, box.h);
+            }
+          } catch {
+            /* No WebGL, a lost context, a driver that refused. The
+               broadcast continues with the room they are in. */
+            composited = false;
+          }
+        }
+        if (composited) {
+          /* Drawn already, through the compositor. */
+        } else if (video && video.videoWidth > 0) {
           /*
            * COVER, not contain: a letterboxed person inside a panel that is
            * itself letterboxed inside a frame is a face four hundred pixels
@@ -219,6 +290,8 @@ export function useBroadcastMixer({
       stopped = true;
       for (const track of captured.getTracks()) track.stop();
       void context.close();
+      compositorRef.current?.dispose();
+      compositorRef.current = null;
       audioRef.current = null;
       setStream(null);
     };
@@ -275,5 +348,10 @@ export function useBroadcastMixer({
     }
   }, [sources]);
 
-  return { stream, layoutId: chosen, ready: Boolean(stream) };
+  return {
+    stream,
+    layoutId: chosen,
+    ready: Boolean(stream),
+    videoFor: (id) => videosRef.current.get(id) ?? null,
+  };
 }

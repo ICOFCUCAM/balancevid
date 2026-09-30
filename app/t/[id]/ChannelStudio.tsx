@@ -23,6 +23,11 @@ import {
 import { useLiveEncoder } from './useLiveEncoder.js';
 import GuestGrid from './GuestGrid.js';
 import MediaPlayerPanel, { MediaPreview } from './MediaPlayer.js';
+import BackgroundPanel, { type Composited } from './BackgroundPanel.js';
+import { type LivePlate, takePlate } from './plate.js';
+import {
+  type Composition, NO_COMPOSITION, keyFor,
+} from '../../../src/domain/composition.js';
 import { useBroadcastGuests } from './useBroadcastGuests.js';
 import { NO_TRACKS, useTrackStates } from './useTrackStates.js';
 import {
@@ -118,7 +123,7 @@ const STEP_MS = 30 * MINUTE;
 const BEHIND_MS = 15 * MINUTE;
 
 type RailTab = 'playlist' | 'library' | 'schedules';
-type DeskTab = 'camera' | 'guests' | 'screens' | 'media' | 'graphics'
+type DeskTab = 'camera' | 'guests' | 'screens' | 'media' | 'set' | 'graphics'
   | 'audio' | 'answers';
 type ScheduleView = 'timeline' | 'list' | 'calendar';
 
@@ -256,6 +261,24 @@ export default function ChannelStudio({
    */
   const [player, setPlayer] = useState<PlayerState>(IDLE);
   const [find, setFind] = useState('');
+
+  /* ---- WHAT EACH PERSON IS COMPOSITED INTO.  [§26, §27, C-14] -------- *
+   *
+   * Per person, because the brief is: *"So each participant can have an
+   * independent background."* Held here rather than on the channel for
+   * the same reason the solo is — which set Guest 3 is in at 19:42 is a
+   * gallery decision — while the CHANNEL'S OWN set stays on the identity,
+   * because *"a station does not repaint its studio between programmes"*
+   * and that is what `identity.spaceId` has always meant.
+   *
+   * IT IS ALSO THE FIRST THING THAT READS IT. C-14: the field was
+   * written by ten buttons and read by nothing. The house set is now the
+   * default every person starts in. */
+  const [sets, setSets] = useState<Record<string, Composition>>({});
+  const [plates, setPlates] = useState<Record<string, LivePlate>>({});
+  const [greens, setGreens] = useState<Record<string, boolean>>({});
+  const [plating, setPlating] = useState<string | null>(null);
+  const [dressing, setDressing] = useState<string | null>(null);
   /*
    * WHICH camera and WHICH microphone. [§23]
    *
@@ -329,6 +352,44 @@ export default function ChannelStudio({
    */
   const [answer, setAnswer] = useState<
     { id: string; label: string; stream: MediaStream } | null>(null);
+  /**
+   * The house set, from the channel's own identity.
+   *
+   * Everybody starts in it and anybody can be moved out of it. A person
+   * with no entry in `sets` is not a person with no set — they are a
+   * person in the station's. [§26 B, §13]
+   */
+  const houseSet = useMemo<Composition>(() => ({
+    ...NO_COMPOSITION,
+    ...(channel.identity?.spaceId
+      ? { backdrop: { kind: 'space' as const, spaceId: channel.identity.spaceId } }
+      : {}),
+  }), [channel.identity?.spaceId]);
+  const compositionFor = useCallback((id: string): Composition => {
+    const chosen = sets[id] ?? houseSet;
+    /*
+     * THE KEY IS NOT CHOSEN, IT IS WHAT THEY HAVE. A plate measured for
+     * this person, or a green screen they said is there — and `keyFor`
+     * ranks them in the brief's own order. Recomputed rather than stored
+     * so that taking a plate changes what is possible at once, without
+     * anybody having to press the set again. [§26 C]
+     */
+    const plate = plates[id];
+    return {
+      ...chosen,
+      key: keyFor({
+        ...(greens[id] ? { greenScreen: true } : {}),
+        ...(plate ? {
+          plate: {
+            assetId: 'live' as never, noise: plate.noise,
+            quality: plate.quality, width: plate.width,
+            height: plate.height, capturedAt: plate.capturedAt,
+          },
+        } : {}),
+      }),
+    };
+  }, [sets, houseSet, plates, greens]);
+
   const mixed = useMemo(() => [
     ...guests.sources,
     ...(share.stream
@@ -336,7 +397,18 @@ export default function ChannelStudio({
       : []),
     ...(answer
       ? [{ id: answer.id, stream: answer.stream, label: answer.label }] : []),
-  ], [answer, guests.sources, share.stream, share.label]);
+  ].map((person) => ({
+    /*
+     * AND THROUGH THE COMPOSITOR ON THE WAY TO THE CANVAS. This is the
+     * line that makes a chosen set *"part of the master composition"*:
+     * `useBroadcastMixer` draws into the canvas `captureStream` hands
+     * the encoder, so a background attached here is on the wire. [§26]
+     */
+    ...person,
+    composition: compositionFor(person.id),
+    plate: plates[person.id]?.still ?? null,
+  })),
+  [answer, guests.sources, share.stream, share.label, compositionFor, plates]);
   const mixer = useBroadcastMixer({
     sources: mixed,
     layoutId: arrangement,
@@ -373,6 +445,70 @@ export default function ChannelStudio({
   }, [id]);
 
   useEffect(() => { void refresh(); }, [refresh]);
+
+  /**
+   * WHAT A LINK WITH A FRAGMENT ON IT IS SUPPOSED TO DO.  [U-19]
+   *
+   * The front doors added five of these — GO LIVE and SCHEDULE on the
+   * control-room landing page, *"Manage distribution →"*, *"View schedule
+   * →"*, and the rail's own Channels and Distribution — and **only
+   * `#library` had a target**. The other four scrolled to nothing: the
+   * page loaded, the fragment was ignored, and a person who pressed GO
+   * LIVE arrived at the top of a control room where nothing had
+   * happened. A link that does nothing is worse than no link, because it
+   * teaches somebody the product is broken.
+   *
+   * AND A SCROLL IS NOT ENOUGH HERE. This is a console: every panel is
+   * already on screen, so scrolling to one is a no-op and the link would
+   * still appear dead. What each fragment NAMES is a thing to do —
+   * bring the camera desk up, open the stream-output drawer, put the
+   * schedule in view — so that is what it does.
+   *
+   * ON ARRIVAL, AND WHENEVER THE FRAGMENT CHANGES. Not on every render
+   * — that would fight the operator for the desk they had chosen — but
+   * `hashchange` is a navigation and has to be honoured: going from
+   * `#identity` to `#live` on a page that is already open changes no
+   * document, so React never remounts and a mount-only effect leaves
+   * the graphics desk up while the address bar says `#live`. The
+   * browser demonstrated exactly that.
+   */
+  useEffect(() => {
+    let timer = 0;
+    const act = () => {
+      const asked = window.location.hash.slice(1);
+      if (!asked) return;
+      if (asked === 'identity') setDeskTab('graphics');
+      if (asked === 'live') setDeskTab('camera');
+      /*
+       * AND IT WAITS FOR THE ELEMENT. One `setTimeout` after paint was
+       * not enough and the browser said so: `#distribution` is a
+       * disclosure in the transport bar that is not in the tree until
+       * the channel has loaded, so the effect ran, found nothing, and
+       * the drawer stayed shut — the same silent nothing the missing
+       * ids produced.
+       *
+       * Two seconds of looking, then it gives up, because a fragment
+       * for something that never arrives is not worth a standing timer.
+       */
+      window.clearInterval(timer);
+      let tries = 0;
+      timer = window.setInterval(() => {
+        tries += 1;
+        const target = document.getElementById(asked);
+        if (target) {
+          if (target instanceof HTMLDetailsElement) target.open = true;
+          target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
+        if (target || tries > 16) window.clearInterval(timer);
+      }, 120);
+    };
+    act();
+    window.addEventListener('hashchange', act);
+    return () => {
+      window.removeEventListener('hashchange', act);
+      window.clearInterval(timer);
+    };
+  }, []);
 
   /*
    * The engine can die at any moment and nothing on this page would change
@@ -557,6 +693,50 @@ export default function ChannelStudio({
     } satisfies PlayableItem
     : null;
   const cuedUrl = cued ? urlFor(cued.source) : null;
+
+  /**
+   * Everybody in the picture, with what they are composited into.
+   *
+   * The mixer's own list, so the panel cannot show a person the
+   * compositor is not drawing — which is the shape of every disagreement
+   * this control room has had. [D-19]
+   */
+  const composited = useMemo<Composited[]>(() => mixed.map((person) => ({
+    id: person.id,
+    label: person.label ?? 'Camera',
+    composition: compositionFor(person.id),
+    plate: plates[person.id] ?? null,
+    greenScreen: Boolean(greens[person.id]),
+  })), [mixed, compositionFor, plates, greens]);
+
+  /**
+   * Measure somebody's room.  [§26 C]
+   *
+   * OF WHOEVER IS SELECTED, INCLUDING A GUEST. Their camera is already
+   * decoded in this browser, so *"ask them to step out of shot and press
+   * Take plate"* is the whole procedure — nothing is uploaded and nothing
+   * of their room is stored anywhere but this page. [D-03]
+   */
+  const measureRoom = useCallback(async (id: string) => {
+    /*
+     * FROM THE MIXER'S OWN DECODED PICTURE. A second `<video>` on the
+     * same stream would be a second decode of the same bytes, and a
+     * `querySelector` for one in the document would find nothing: the
+     * mixer's elements are detached on purpose.
+     */
+    const video = mixer.videoFor(id);
+    if (!video) return;
+    setPlating(id);
+    try {
+      const measured = await takePlate(video);
+      setPlates((was) => ({ ...was, [id]: measured }));
+    } catch {
+      /* No picture yet, or a canvas that refused. The panel keeps
+         saying there is no plate, which is true. */
+    } finally {
+      setPlating(null);
+    }
+  }, [mixer]);
 
   const takeMedia = useCallback(() => {
     if (!cued) return;
@@ -1393,6 +1573,7 @@ export default function ChannelStudio({
           </div>
 
           {/* ---- 24/7 SCHEDULE ---------------------------------------- */}
+          <div id="schedules" style={{ display: 'contents' }} />
           <Frame testid="schedule-deck">
             {/*
               * THE SCHEDULE'S HEAD IS THE SAME LEGEND AS EVERY OTHER
@@ -1504,6 +1685,7 @@ export default function ChannelStudio({
         </div>
 
         {/* ============ RIGHT COLUMN — LIVE STUDIO ====================== */}
+        <div id="live" style={{ display: 'contents' }} />
         <Frame testid="live-studio">
           <Head
             text="Live Studio"
@@ -1602,6 +1784,8 @@ export default function ChannelStudio({
               { id: 'screens', label: 'Screens' },
               /* The library, as a switcher source. Tile 05 opens it. [§25] */
               { id: 'media', label: 'Media' },
+              /* What each person is composited into. [§26, §27] */
+              { id: 'set', label: 'Set' },
               { id: 'graphics', label: 'Graphics' },
               { id: 'audio', label: 'Audio' },
               /* The queue: questions sent to phones, and what came
@@ -1651,10 +1835,6 @@ export default function ChannelStudio({
               <CameraTab
                 camera={camera} mixer={mixer.stream} levels={levels}
                 onAir={onAir} armed={armed} encoder={encoder}
-                spaceId={channel.identity?.spaceId}
-                onSpace={(spaceId) => void patch({
-                  action: 'identity', identity: { spaceId },
-                })}
                 devices={devices}
                 cameraId={cameraId} micId={micId}
                 onCamera={setCameraId} onMic={setMicId}
@@ -1722,13 +1902,36 @@ export default function ChannelStudio({
               />
             )}
 
+            {deskTab === 'set' && (
+              <BackgroundPanel
+                people={composited}
+                chosen={dressing ?? composited[0]?.id ?? null}
+                busy={plating}
+                onChoose={setDressing}
+                onChange={(id, composition) =>
+                  setSets((was) => ({ ...was, [id]: composition }))}
+                onGreenScreen={(id, on) =>
+                  setGreens((was) => ({ ...was, [id]: on }))}
+                onPlate={(id) => { void measureRoom(id); }}
+              />
+            )}
+
             {deskTab === 'graphics' && (
+              /*
+               * NAMED, because the home page's hero links straight here:
+               * `${channel.href}#identity` is how somebody edits a
+               * channel's marks without going through the desk. The tab
+               * is chosen on arrival; the id is what the browser scrolls
+               * to, and what the link test can see. [U-19]
+               */
+              <div id="identity" style={{ scrollMarginTop: 20 }}>
               <GraphicsTab
                 channel={channel}
                 onIdentity={(body) => void patch({
                   action: 'identity', identity: body,
                 })}
               />
+              </div>
             )}
 
             {deskTab === 'audio' && (
@@ -2126,7 +2329,10 @@ export default function ChannelStudio({
           <Meter value={levels['master']?.energy ?? 0} label="Out" />
 
           {/* ---- where the programme goes (§15, D-21) ------------------ */}
-          <details data-testid="stream-output" style={{ position: 'relative' }}>
+          <details
+            id="distribution" data-testid="stream-output"
+            style={{ position: 'relative' }}
+          >
             <summary className="small" style={{
               listStyle: 'none', cursor: 'pointer', padding: '6px 10px',
               borderRadius: 3, border: '1px solid var(--console-seam)',
@@ -2618,7 +2824,7 @@ function Head({
  * component: a strip copied is a strip that gets a different underline in
  * one corner of the room and looks like a different product.
  */
-function Strip({
+export function Strip({
   testid, value, options, onChange, compact,
 }: {
   testid: string;
@@ -2676,7 +2882,19 @@ function Strip({
        * shrinking are two properties; the shorthand sets both, and
        * only one of them was ever wanted.
        */
-      gap: 0, flexWrap: 'nowrap',
+      /*
+       * AND THE FIFTH TIME, IT WRAPS.
+       *
+       * The paragraph above is the history of one clip fixed four ways,
+       * and every one of them was a way of making the labels smaller.
+       * Eight desks — Camera, Guests, Screens, Media, Set, Graphics,
+       * Audio, Answers — do not fit in 328 pixels at any legible size,
+       * so shrinking them again would produce eight stubs instead of
+       * one. A segmented control with two rows is still a segmented
+       * control; a row of "CAM… GUE… SCR…" is not a control at all.
+       * [U-19, §29]
+       */
+      gap: 0, flexWrap: compact ? 'wrap' : 'nowrap', rowGap: 2,
       flexGrow: 0, flexShrink: 1, flexBasis: 'auto', minWidth: 0,
       borderBottom: compact ? 0 : 'var(--border) solid var(--line)',
       ...(compact
@@ -2704,7 +2922,13 @@ function Strip({
                 * control should look like — and lets them ellipsise
                 * rather than clip when there is not.
                 */
-              flex: compact ? '0 1 auto' : '1 1 0',
+              /*
+               * A QUARTER EACH, so eight desks make two rows of four
+               * rather than one row of stubs and a second row of one.
+               * `1 1 22%` lets four sit on a line with the gaps and
+               * grow into whatever is left over. [§29]
+               */
+              flex: compact ? '1 1 22%' : '1 1 0',
               /*
                * THEY HAVE TO FIT. Uppercasing and tracking these out in
                * 05 widened the five Live Studio desks past their panel
@@ -2786,7 +3010,7 @@ function Strip({
   );
 }
 
-function Section({ text, aside }: { text: string; aside?: React.ReactNode }) {
+export function Section({ text, aside }: { text: string; aside?: React.ReactNode }) {
   return (
     /*
       * A SUB-HEAD INSIDE A PANEL. Small, tracked out and dimmed rather
@@ -4233,7 +4457,7 @@ const SPACE_SWATCHES: Record<string, string> = Object.fromEntries(
 );
 
 function CameraTab({
-  camera, mixer, levels, onAir, armed, encoder, spaceId, onSpace,
+  camera, mixer, levels, onAir, armed, encoder,
   devices, cameraId, micId, onCamera, onMic,
   quality, onQuality, qualityLocked, transmission,
 }: {
@@ -4253,8 +4477,6 @@ function CameraTab({
   onAir: boolean;
   armed: boolean;
   encoder: { running: boolean; sent: number; dropped: number; rate: number; error: string | null };
-  spaceId?: string;
-  onSpace: (spaceId: string) => void;
 }) {
   const feed = mixer ?? camera;
   return (
@@ -4447,111 +4669,6 @@ function CameraTab({
         )}
       </div>
 
-      {/*
-        * BACKGROUND / VIRTUAL SET — Studio Two's own spaces, not a second
-        * table of them. A space is a measured room the renderer knows how to
-        * draw; a channel picking one is picking the same thing a performance
-        * picks. [D-19, INV-16, S-6]
-        */}
-      <Section
-        text="Background / Virtual Set"
-        aside={(
-          <span className="muted" style={{
-            fontSize: 'var(--text-2xs)',
-            display: 'inline-flex', alignItems: 'center', gap: 4,
-          }}>
-            {spaceId ? SPACE_LOOKS[spaceId]?.label ?? spaceId : 'None'}
-            <Icon name="chevron" size={9} turn={90} />
-          </span>
-        )}
-      />
-      <div style={{
-        display: 'grid', gap: 5, gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
-      }}>
-        {SPACES.slice(0, 10).map((space) => {
-          const chosen = spaceId === space.id;
-          return (
-            <button
-              key={space.id} type="button" data-testid="virtual-set"
-              data-space={space.id} data-chosen={chosen ? 'true' : 'false'}
-              aria-pressed={chosen}
-              onClick={() => onSpace(chosen ? '' : space.id)}
-              title={space.label}
-              /*
-                * AN ASSET IN A LIBRARY, not a swatch in a palette. Ten
-                * rounded squares in a five-across grid with a caption
-                * under each is the shape of a colour picker, and these
-                * are SETS — the room a presenter is composited into.
-                * Square corners, a seam between neighbours instead of
-                * a gap, and the chosen one lit along its top edge in
-                * the same accent the rest of the room now uses for
-                * "this is the one". [brief §10]
-                */
-              style={{
-                padding: 0, aspectRatio: '1 / 1', borderRadius: 'var(--radius-screen)',
-                overflow: 'hidden', cursor: 'pointer', position: 'relative',
-                background: SPACE_SWATCHES[space.id] ?? '#1b2028',
-                border: `1px solid ${chosen
-                  ? 'var(--accent)' : 'var(--console-seam)'}`,
-                borderTopWidth: chosen ? 2 : 1,
-                borderTopColor: chosen ? 'var(--accent)' : 'var(--console-seam)',
-                opacity: chosen ? 1 : 0.82,
-              }}
-            >
-              {/*
-                * 7px WAS NOT A SIZE, IT WAS AN APOLOGY. The type scale
-                * bottoms at 10px for a reason — below that a label is a
-                * grey smear that tells you a word is present without
-                * telling you which. The plate is a scrim on the picture
-                * now rather than a caption bar under it, which buys the
-                * three pixels back without the tile growing.
-                */}
-              {/*
-                * AND IT WRAPS RATHER THAN ELLIPSISING. Five tiles
-                * across a 330px column is 56 pixels; "Recording
-                * Studio" wants about 85, so on one line it became
-                * "Recordi…" — which does not distinguish it from a
-                * Recording Booth, and four of the ten sets were in
-                * that state. An ellipsis is the right answer for a
-                * programme title, where the first words identify it
-                * and the row can be widened. It is the wrong answer
-                * for a fixed grid of ten proper nouns, all of which
-                * have to be told apart at a glance.
-                *
-                * Two lines, clamped, which is what Studio Two's larger
-                * tiles have always done with the same ten labels — so
-                * this also stops the same set being named two
-                * different ways in two rooms. [brief §13, D-19]
-                */}
-              <span style={{
-                position: 'absolute', left: 0, right: 0, bottom: 0,
-                fontSize: 'var(--text-2xs)', lineHeight: '12px',
-                padding: '2px 3px', textAlign: 'center',
-                letterSpacing: '-0.01em',
-                color: chosen ? 'var(--ink-000)' : 'var(--ink-100)',
-                /*
-                  * A PLATE, NOT A FADE. The scrim reached full
-                  * opacity 35% down the label — fine under one line,
-                  * and under two it left the FIRST line sitting on
-                  * the raw swatch. Four of the ten sets are light
-                  * (Modern Room is near-white, Beach and Mountain are
-                  * pale sky), so "Modern" was grey on grey while
-                  * "Room" underneath it was white on black.
-                  *
-                  * It is the same plate every other label on a
-                  * picture in this product uses, which also means the
-                  * tone is measured rather than dependent on which
-                  * set happens to be behind it. [brief §19]
-                  */
-                background: 'rgba(0,0,0,0.72)',
-                display: '-webkit-box', WebkitLineClamp: 2,
-                WebkitBoxOrient: 'vertical', overflow: 'hidden',
-                overflowWrap: 'break-word',
-              }}>{space.label}</span>
-            </button>
-          );
-        })}
-      </div>
     </>
   );
 }

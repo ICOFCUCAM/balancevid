@@ -98,6 +98,68 @@ export const MATTE_USABLE_QUALITY = 0.55;
  */
 export const MATTE_NOISE_MULTIPLE = 3;
 
+/* ------------------------------------------------------------------------ *
+ *  Measuring a plate.  [§4, CHANNEL §26]
+ * ------------------------------------------------------------------------ */
+
+/**
+ * The size the picture is reduced to before its movement is counted.
+ *
+ * Small on purpose: what is being measured is how much the ROOM moves, and
+ * at 160×90 a passing car still moves and a single hot pixel does not. It
+ * also makes the count cheap enough to run in a browser between frames,
+ * which is what let the control room measure a plate at all. [CHANNEL §26]
+ */
+export const PLATE_PROBE = { width: 160, height: 90 } as const;
+
+/**
+ * How many frames are averaged into the still, and counted for movement.
+ *
+ * Averaging is what makes the plate a picture of the ROOM rather than a
+ * picture of one moment of the room's noise — differencing against a single
+ * noisy frame puts that frame's noise into every matte for ever.
+ */
+export const PLATE_FRAMES = 16;
+
+/**
+ * The per-pixel movement, in levels of 255, at which a room cannot be matted.
+ *
+ * Chosen from what the numbers mean rather than from taste: a still camera on
+ * a lit wall sits around 1–3, a phone in a dim room around 8–15, and by 20 the
+ * picture moves as much with nobody in it as a person moving slowly does.
+ */
+export const UNUSABLE_NOISE_LEVELS = 20;
+
+/**
+ * How much the room moves on its own, from the sums of its grey frames.
+ *
+ * PER-PIXEL STANDARD DEVIATION OVER TIME, averaged over the picture. Taken
+ * as a sum and a sum of squares so neither caller has to hold every frame in
+ * memory, and pure so the ffmpeg path and the browser path cannot disagree
+ * about whether a room can be matted — which they would, and the disagreement
+ * would be a studio that promises a clean key and a render that does not
+ * deliver one. [D-19]
+ */
+export function noiseFrom(
+  sum: Float64Array | number[], sumSquares: Float64Array | number[],
+  frames: number, pixels: number,
+): { noise: number; quality: number } {
+  if (frames < 2 || pixels < 1) return { noise: 1, quality: 0 };
+  let totalDeviation = 0;
+  for (let i = 0; i < pixels; i += 1) {
+    const mean = sum[i]! / frames;
+    /* Clamped at zero: floating-point subtraction of two close numbers can
+       land a hair below it, and Math.sqrt of that is NaN in the average. */
+    const variance = Math.max(0, sumSquares[i]! / frames - mean * mean);
+    totalDeviation += Math.sqrt(variance);
+  }
+  const levels = totalDeviation / pixels;
+  return {
+    noise: levels / 255,
+    quality: Math.max(0, Math.min(1, 1 - levels / UNUSABLE_NOISE_LEVELS)),
+  };
+}
+
 /** 0..255, for the luma threshold the render applies to the difference. */
 export function matteThreshold(plate: RoomPlate): number {
   return Math.max(6, Math.min(96, Math.round(plate.noise * 255 * MATTE_NOISE_MULTIPLE)));
