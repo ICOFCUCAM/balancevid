@@ -6,7 +6,7 @@ import Icon from '../../Icon.js';
 import type { MasterClass, Performance, SoundLayer } from '../../../src/domain/performance.js';
 import {
   MASTER_CLASSES, SPACES, effectiveOffset, isFootage, orderedScenes,
-  renderProblems, sceneAt, soundOnSong,
+  renderProblems, sceneAt, songSections, soundOnSong,
 } from '../../../src/domain/performance.js';
 import { EFFECT_LOOKS, SPACE_LOOKS } from '../../../src/domain/environment.js';
 import {
@@ -997,6 +997,32 @@ export default function SwitchingStage({
    * with nothing on it is not drawn: an empty lane is furniture, and
    * this column is already tall.
    */
+  /*
+   * THE STRETCHES OF THE SONG THAT ARE NOT IN THE EXPORT, and the
+   * places it has been divided.  [TIMELINE B6a, B6b, B6k]
+   *
+   * Derived from the same `songSections` the planner and the mixer
+   * read, so the lane cannot draw a cut the render does not make.
+   */
+  const songParts = songSections(performance.master);
+  const cutStretches: { fromSample: number; toSample: number }[] = [];
+  {
+    let at = 0;
+    for (const part of songParts) {
+      if (part.fromSample > at) {
+        cutStretches.push({ fromSample: at, toSample: part.fromSample });
+      }
+      at = part.toSample;
+    }
+    if (at < duration) cutStretches.push({ fromSample: at, toSample: duration });
+  }
+  /* A join is where two kept stretches touch — a division the author
+     made and has not cut at. The ends of the song are not joins. */
+  const songJoins = songParts
+    .slice(1)
+    .map((part) => part.fromSample)
+    .filter((at, index) => songParts[index]!.toSample === at);
+
   const soundLanes = SOUND_TRACKS
     .map((track) => ({
       ...track,
@@ -2405,6 +2431,49 @@ export default function SwitchingStage({
             <div data-testid="master-waveform"
                  {...onRow(performance.master.title, songMenu)}
                  style={{ height: 52, position: 'relative' }}>
+              {/*
+                * WHAT IS NOT IN THE EXPORT, DRAWN WHERE IT IS.
+                *   [TIMELINE B6a, B6b, B6k]
+                *
+                * The song's lane is four minutes long whatever the
+                * author has cut out of it, because everything else on
+                * this timeline is still on the song's own clock. So
+                * the stretches that will not be exported are shaded
+                * out and struck through, rather than the lane getting
+                * shorter and every take under it moving.
+                *
+                * Under the waveform and not over it, and with no
+                * pointer events, or this pane would swallow the
+                * right-click that raises the song's own menu — a
+                * mistake the dimming panes over the crop tool already
+                * made once. [U-04]
+                */}
+              {cutStretches.map((cut) => (
+                <div key={cut.fromSample} data-testid="song-cut"
+                     data-from={cut.fromSample} data-to={cut.toSample}
+                     title={'Not exported \u2014 '
+                       + `${clock(cut.fromSample)} to ${clock(cut.toSample)}`}
+                     style={{
+                       position: 'absolute', top: 0, bottom: 0,
+                       left: pct(cut.fromSample),
+                       width: pct(cut.toSample - cut.fromSample),
+                       background: 'rgba(0,0,0,0.72)',
+                       borderLeft: '1px solid rgba(255,255,255,0.22)',
+                       borderRight: '1px solid rgba(255,255,255,0.22)',
+                       pointerEvents: 'none',
+                     }} />
+              ))}
+              {/* And the joins, which are where a division is: a hair
+                  line, because a division changes nothing. [B6b] */}
+              {songJoins.map((at) => (
+                <div key={at} data-testid="song-join" data-at={at}
+                     style={{
+                       position: 'absolute', top: 12, bottom: 12,
+                       left: pct(at), width: 1,
+                       background: 'rgba(255,255,255,0.35)',
+                       pointerEvents: 'none',
+                     }} />
+              ))}
               {ordered.filter((s) => s.label).map((scene) => (
                 <span key={scene.id} style={{
                   position: 'absolute', left: pct(scene.fromSample), top: 0,

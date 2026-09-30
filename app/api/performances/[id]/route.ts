@@ -3,7 +3,7 @@ import { bookingsFor, refusalFor } from '../../../../src/domain/deletion.js';
 import { deletePerformance } from '../../../../src/store/performances.js';
 import { listChannels } from '../../../../src/store/channels.js';
 import { acceptBeats, setTempo,
-  classifyMaster, usePlate, setAudioMode, setSceneAudio, setTransition, setTransitionTiming, setScene, moveScene, moveBoundary, coverGap, coverWith, removeScene, labelScene, clearScenes, nudgeTake, trimTake, renameTake, renamePerformance, setEffect, setCleanup, setLyrics, setEnvironment, setReframe, trimSong, setSongSound, addSound, moveSound, trimSound, setSoundLayer, removeSound, removeTake, setLoop, setFootageRights, PerformanceEditError } from '../../../../src/domain/performanceEdit.js';
+  classifyMaster, usePlate, setAudioMode, setSceneAudio, setTransition, setTransitionTiming, setScene, moveScene, moveBoundary, coverGap, coverWith, removeScene, labelScene, clearScenes, nudgeTake, trimTake, renameTake, renamePerformance, setEffect, setCleanup, setLyrics, setEnvironment, setReframe, trimSong, removeSection, splitSong, setSongSound, addSound, moveSound, trimSound, setSoundLayer, removeSound, removeTake, setLoop, setFootageRights, PerformanceEditError } from '../../../../src/domain/performanceEdit.js';
 import { projectPerformance, covered } from '../../../../src/domain/performance.js';
 import { assertAlignmentInvariants } from '../../../../src/domain/invariants.js';
 import { listJobs } from '../../../../src/store/queue.js';
@@ -144,6 +144,16 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
         case 'trim-song':
           trimSong(draft, body['useFromSample'] ?? null, body['useToSample'] ?? null);
           break;
+        /*
+         * Taking a stretch out of the song, and dividing it so a
+         * stretch can be taken out. Both are lists of which parts of
+         * the song the export uses; nothing in the document moves.
+         * [TIMELINE B6b, B6k]
+         */
+        case 'remove-section':
+          removeSection(draft, body['fromSample'], body['toSample']);
+          break;
+        case 'split-song': splitSong(draft, body['atSample']); break;
         case 'song-sound':
           setSongSound(draft, {
             ...(body['gainDb'] !== undefined ? { gainDb: body['gainDb'] } : {}),

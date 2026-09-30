@@ -24,8 +24,8 @@ import type {
 import { songSpan, songTrimmed } from '../../src/domain/performance.js';
 import { buildPerformancePlan } from '../../src/domain/performancePlan.js';
 import {
-  MIN_SONG_SAMPLES, PerformanceEditError, addTake, newPerformance, setScene,
-  setSongSound, trimSong,
+  MIN_SONG_SAMPLES, PerformanceEditError, addTake, newPerformance,
+  removeSection, setScene, setSongSound, splitSong, trimSong,
 } from '../../src/domain/performanceEdit.js';
 import { MUTED_DB } from '../../src/domain/performanceAudio.js';
 import { HOUSE_FPS, secondsToSamples } from '../../src/domain/time.js';
@@ -116,7 +116,7 @@ describe('trimming the song', () => {
     const p = performance();
     expect(songTrimmed(p.master)).toBe(false);
     trimSong(p, 0, SONG);
-    expect(p.master.use).toBeUndefined();
+    expect(p.master.sections).toBeUndefined();
     trimSong(p, secondsToSamples(2), SONG);
     expect(songSpan(p.master)).toEqual({
       fromSample: secondsToSamples(2), toSample: SONG,
@@ -128,7 +128,7 @@ describe('trimming the song', () => {
     const p = performance();
     trimSong(p, secondsToSamples(2), secondsToSamples(6));
     trimSong(p, null, null);
-    expect(p.master.use).toBeUndefined();
+    expect(p.master.sections).toBeUndefined();
   });
 
   /*
@@ -153,7 +153,7 @@ describe('trimming the song', () => {
       .toThrow(PerformanceEditError);
     expect(() => trimSong(p, 0, MIN_SONG_SAMPLES - 1))
       .toThrow(/shortest a video can be/);
-    expect(p.master.use).toBeUndefined();
+    expect(p.master.sections).toBeUndefined();
   });
 
   it('refuses a trim outside the song', () => {
@@ -163,7 +163,7 @@ describe('trimming the song', () => {
        count at all". Past the end is this function's own. */
     expect(() => trimSong(p, -1, SONG)).toThrow();
     expect(() => trimSong(p, 0, SONG + 1)).toThrow(/outside the song/);
-    expect(p.master.use).toBeUndefined();
+    expect(p.master.sections).toBeUndefined();
   });
 
   /*
@@ -316,5 +316,84 @@ describe('a render with the song turned down', () => {
     const measured = await measureSound(out);
     expect(measured.rmsDb).toBeLessThan(-60);
     expect(await seconds(out)).toBeGreaterThan(SECONDS - 0.3);
+  }, 300_000);
+});
+
+/**
+ * TAKING A STRETCH OUT OF THE MIDDLE.  [TIMELINE B6b, B6k]
+ *
+ * "Split ... Remove section." The export is the song's stretches laid
+ * end to end, and the only proof that they are is a file that is
+ * shorter by what was removed and that does not contain it.
+ *
+ * The fixture is the same two halves: a tone, then silence. Remove
+ * the tone and the file is silent throughout; remove the silence and
+ * it sounds throughout. Either way it is half as long. No level
+ * measurement can be fooled by mastering, because silence is the one
+ * thing mastering cannot put back. [INV-11]
+ */
+describe('removing a stretch of the song', () => {
+  it('is as long as what is left', async () => {
+    const p = performance();
+    removeSection(p, secondsToSamples(2), secondsToSamples(6));
+    const out = await render(p, 'removed-middle');
+    expect(Math.abs(await seconds(out) - 4)).toBeLessThan(0.1);
+  }, 300_000);
+
+  /*
+   * AND IT IS THE HALVES THAT WERE KEPT, NOT SOME OTHER FOUR SECONDS.
+   * Removing the loud half leaves silence; removing the silent half
+   * leaves sound. A render that simply shortened the file would pass
+   * the length assertion above and fail both of these.
+   */
+  it('is what was kept, and not what was taken', async () => {
+    const quiet = performance();
+    removeSection(quiet, 0, secondsToSamples(4));
+    const withoutTone = await measureSound(await render(quiet, 'removed-tone'));
+
+    const loud = performance();
+    removeSection(loud, secondsToSamples(4), SONG);
+    const withoutSilence = await measureSound(
+      await render(loud, 'removed-silence'));
+
+    /*
+     * NOT "SILENT", BUT UNMISTAKABLY THE OTHER HALF — the same
+     * correction the trim above needed. Mastering lifts whatever it
+     * is given, so four seconds of encoded silence comes back at the
+     * encoder's own floor (around -31 dB here) rather than at
+     * nothing. What it cannot do is invent the tone. [INV-11]
+     */
+    expect(withoutSilence.rmsDb - withoutTone.rmsDb,
+      `kept the tone ${withoutSilence.rmsDb}, kept the silence `
+      + `${withoutTone.rmsDb}`).toBeGreaterThan(10);
+    expect(withoutSilence.rmsDb).toBeGreaterThan(-25);
+  }, 600_000);
+
+  /*
+   * THE JOIN IS SEAMLESS, which is the one thing two stretches laid
+   * end to end can get wrong that one stretch cannot. Measured as
+   * length: a mix whose second piece landed at its place in the SONG
+   * rather than after the first would be as long as the song again,
+   * and one that overlapped would be short.
+   */
+  it('joins the two stretches with no gap and no overlap', async () => {
+    const p = performance();
+    removeSection(p, secondsToSamples(3), secondsToSamples(5));
+    const out = await render(p, 'joined');
+    expect(Math.abs(await seconds(out) - 6)).toBeLessThan(0.1);
+    /* Both halves are present: the tone from 0–3 and the silence
+       after it, which averages between the two extremes above. */
+    const heard = (await measureSound(out)).rmsDb;
+    expect(heard, `${heard}`).toBeGreaterThan(-31);
+    expect(heard, `${heard}`).toBeLessThan(-3);
+  }, 300_000);
+
+  /* A division alone changes nothing about the file, which is what
+     makes it a place to edit from rather than an edit. [B6b] */
+  it('is unchanged by dividing the song and leaving it alone', async () => {
+    const p = performance();
+    splitSong(p, secondsToSamples(4));
+    const out = await render(p, 'divided');
+    expect(Math.abs(await seconds(out) - SECONDS)).toBeLessThan(0.1);
   }, 300_000);
 });

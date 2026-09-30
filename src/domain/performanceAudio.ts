@@ -132,6 +132,16 @@ export class PerformanceAudioError extends Error {
  */
 export function planPerformanceAudio(
   performance: Performance, window?: PerformanceWindow,
+  /**
+   * Where this window begins in the finished video.  [TIMELINE B6k]
+   *
+   * Zero for a whole export and for a clip, both of which start at
+   * their own beginning. Not zero for the second and later SECTIONS
+   * of a song that has had a stretch removed: they land after what
+   * came before them, and a piece that did not know that would play
+   * the chorus on top of the verse.
+   */
+  origin = 0,
 ): AudioPiece[] {
   const timeline = projectPerformance(performance, window);
   if (timeline.spans.length === 0) return [];
@@ -142,9 +152,9 @@ export function planPerformanceAudio(
    * where to read it from. Confusing them is a chorus clip playing the first
    * verse. [§14]
    */
-  const zero = window ? Math.max(0, window.fromSample) : 0;
+  const zero = (window ? Math.max(0, window.fromSample) : 0) - origin;
   /* The stretch being planned, on the song's own clock. */
-  const start = zero;
+  const start = window ? Math.max(0, window.fromSample) : 0;
   const end = window
     ? Math.min(window.toSample, performance.master.durationSamples)
     : performance.master.durationSamples;

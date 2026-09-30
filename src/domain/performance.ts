@@ -81,7 +81,7 @@ import {
 export type PerformanceId = Id<'perf'>;
 export type SceneId = Id<'scene'>;
 
-export const PERFORMANCE_SCHEMA_VERSION = 2;
+export const PERFORMANCE_SCHEMA_VERSION = 3;
 
 /* ------------------------------------------------------------------------ *
  *  The master track, and what may be done with it.  [S-9, INV-15]
@@ -228,6 +228,34 @@ export interface MasterTrack {
    * be undone.
    */
   use?: { fromSample: Samples; toSample: Samples };
+  /**
+   * Which stretches of the song the export uses, in order.
+   *   [TIMELINE B6a, B6b, B6k]
+   *
+   * A GENERALISATION OF `use`, NOT A SECOND WAY TO SAY IT. A trim is
+   * one stretch. Removing a section from the middle is two. Splitting
+   * is dividing one into two that touch, so that either can then be
+   * trimmed or removed on its own. One list answers all three, and a
+   * document holding both this and `use` is a document with two
+   * answers, so `use` is migrated into this on read and deleted.
+   *
+   * ON THE SONG'S OWN CLOCK, and NOTHING IN THE DOCUMENT IS
+   * RENUMBERED BY AN EDIT TO IT. That is the whole design and it is
+   * worth being explicit about, because the obvious implementation of
+   * "remove a section" is to move every scene, take, lyric and sound
+   * after it back by the length removed — which is destructive, which
+   * cannot be undone by putting the section back, and which would
+   * make an edit to the song an edit to everything in the
+   * performance.
+   *
+   * Instead the song is the SPINE: the export is these stretches laid
+   * end to end, and everything placed on the song comes with it.
+   * A scene that covered the removed bars is shorter in the export; a
+   * take's voice over those bars goes with them; a lyric inside them
+   * does not appear. Put the section back and all of it returns,
+   * exactly where it was.
+   */
+  sections?: { fromSample: Samples; toSample: Samples }[];
   /**
    * What is done to the song's own sound.  [TIMELINE B6c, B6d, B6e, B6f]
    *
@@ -453,18 +481,125 @@ export function isPlaced(alignment: Alignment): boolean {
 export function songSpan(
   master: MasterTrack,
 ): { fromSample: Samples; toSample: Samples } {
-  const end = master.durationSamples;
-  const use = master.use;
-  if (!use) return { fromSample: 0, toSample: end };
-  const from = Math.max(0, Math.min(use.fromSample, end));
-  const to = Math.max(from, Math.min(use.toSample, end));
-  return { fromSample: from, toSample: to };
+  const sections = songSections(master);
+  return {
+    fromSample: sections[0]!.fromSample,
+    toSample: sections[sections.length - 1]!.toSample,
+  };
 }
 
-/** Is any of the song trimmed away. */
+/**
+ * Every stretch of the song the export uses, in order.
+ *   [TIMELINE B6a, B6b, B6k]
+ *
+ * ONE DEFINITION, asked by the planner, the audio planner, the studio
+ * and MASTER CHECK. A removal that only the renderer knew about would
+ * be a timeline drawing four minutes of a song that exports three.
+ *
+ * Reads `use` for a document written before there were sections, and
+ * answers the whole song for one that has neither — which is every
+ * performance until somebody edits its song. Clamped and ordered and
+ * never inverted: the refusals live where the edit is written, and
+ * this is the reader, which answers something sane whatever is in the
+ * document.
+ */
+export function songSections(
+  master: MasterTrack,
+): { fromSample: Samples; toSample: Samples }[] {
+  const end = master.durationSamples;
+  const written = master.sections?.length
+    ? master.sections
+    : master.use ? [master.use] : null;
+  if (!written) return [{ fromSample: 0, toSample: end }];
+
+  const clamped = written
+    .map((one) => {
+      const from = Math.max(0, Math.min(one.fromSample, end));
+      return { fromSample: from, toSample: Math.max(from, Math.min(one.toSample, end)) };
+    })
+    .filter((one) => one.toSample > one.fromSample)
+    .sort((a, b) => a.fromSample - b.fromSample);
+  /* A song with every section removed is a song with none of it used,
+     which INV-03 refuses at the edit. Answering an empty list here
+     would make every reader handle a case the document cannot be in. */
+  return clamped.length > 0 ? clamped : [{ fromSample: 0, toSample: end }];
+}
+
+/**
+ * The shortest stretch of song worth exporting.  [TIMELINE B6a]
+ *
+ * Two seconds. Below that the aac encoder produces no frames at all
+ * and the mux fails — which is a fixture problem wearing the clothes
+ * of a bug, and cost a confusing half-hour the first time it happened
+ * in a test. It is also not a video.
+ *
+ * HERE RATHER THAN BESIDE THE EDIT THAT ENFORCES IT, because the
+ * song's menu needs it to grey a row and `performanceEdit.ts` reaches
+ * `node:crypto` through `ids.ts` — which a browser bundle refuses to
+ * build. The same reason `TAKE_ACCENT_FALLBACK` and `MIN_REFRAME_SPAN`
+ * live away from the code that uses them. [D-19]
+ */
+export const MIN_SONG_SAMPLES = 2 * HOUSE_SAMPLE_RATE;
+
+/** How long the export is: the sections, laid end to end. [INV-03] */
+export function songLength(master: MasterTrack): Samples {
+  let total = 0;
+  for (const one of songSections(master)) total += one.toSample - one.fromSample;
+  return total;
+}
+
+/** Is any of the song trimmed or cut away. */
 export function songTrimmed(master: MasterTrack): boolean {
-  const span = songSpan(master);
-  return span.fromSample > 0 || span.toSample < master.durationSamples;
+  return songLength(master) < master.durationSamples;
+}
+
+/** Are there holes in the middle, as opposed to a trim at the ends. */
+export function songCut(master: MasterTrack): boolean {
+  return songSections(master).length > 1;
+}
+
+/**
+ * Where a moment of the EXPORT is in the song's own media.
+ *   [TIMELINE B6k]
+ *
+ * The export is the sections laid end to end, so the first sample
+ * after a removed stretch is the first sample of the next section —
+ * not the sample after the one before it. Every reader that turns an
+ * output position into a place to read from goes through here.
+ */
+export function songSourceAt(master: MasterTrack, exported: Samples): Samples {
+  let left = Math.max(0, exported);
+  for (const one of songSections(master)) {
+    const length = one.toSample - one.fromSample;
+    if (left < length) return one.fromSample + left;
+    left -= length;
+  }
+  /* Past the end of the export is the end of the song, which is what
+     every clamp in this file answers rather than a refusal. */
+  return songSpan(master).toSample;
+}
+
+/**
+ * Where a moment of the SONG is in the export, or nothing.
+ *
+ * Nothing when it is inside a removed stretch, which is not a failure:
+ * it is the honest answer to "where does this lyric appear" for a
+ * lyric the author cut out. A zero there would put it at the top of
+ * the song, which is the kind of quiet lie this codebase spends its
+ * comments on.
+ */
+export function songExportedAt(
+  master: MasterTrack, source: Samples,
+): Samples | null {
+  let before = 0;
+  for (const one of songSections(master)) {
+    if (source < one.fromSample) return null;
+    if (source < one.toSample) return before + (source - one.fromSample);
+    before += one.toSample - one.fromSample;
+  }
+  /* The very last sample of the last section is the end of the export
+     — a half-open range's upper bound, which callers ask for. */
+  return source === songSpan(master).toSample ? before : null;
 }
 
 /** Offset plus the author's nudge: where the take really starts. */
@@ -1230,6 +1365,55 @@ export function projectPerformance(
   };
 }
 
+/**
+ * The whole export, with the song's removed stretches left out.
+ *   [TIMELINE B6a, B6b, B6k]
+ *
+ * `projectPerformance` answers one window of the song. The export is
+ * the song's SECTIONS laid end to end, which is one window when
+ * nothing has been cut and several when something has — so this is
+ * that function called once per section, with each projection's
+ * output clock pushed along by the frames already emitted.
+ *
+ * FRAMES ACCUMULATED, NOT RECOMPUTED FROM SAMPLES. Each section's own
+ * frame count is what its shots tile; adding them is exact, while
+ * converting the summed samples once would round differently and
+ * leave the plan's own tiling check one frame short — the check that
+ * exists because a video one frame longer than its song was found
+ * forty minutes into a render. [INV-02, INV-03]
+ *
+ * A window on top of that is a CLIP, and it is a window on the song's
+ * own clock: a clip of the chorus is the chorus, whatever the author
+ * has cut out of the verse before it.
+ */
+export function projectExport(
+  performance: Performance, window?: PerformanceWindow,
+): PerformanceTimeline {
+  const sections = songSections(performance.master);
+  const spans: PerformanceSpan[] = [];
+  const gaps: { fromSample: Samples; toSample: Samples }[] = [];
+  let frames = 0;
+  let samples = 0;
+
+  for (const section of sections) {
+    const from = window
+      ? Math.max(section.fromSample, window.fromSample) : section.fromSample;
+    const to = window
+      ? Math.min(section.toSample, window.toSample) : section.toSample;
+    if (to <= from) continue;
+
+    const part = projectPerformance(performance, { fromSample: from, toSample: to });
+    for (const span of part.spans) {
+      spans.push({ ...span, outputStartFrame: span.outputStartFrame + frames });
+    }
+    gaps.push(...part.gaps);
+    frames += part.totalOutputFrames;
+    samples += part.totalSamples;
+  }
+
+  return { spans, totalSamples: samples, totalOutputFrames: frames, gaps };
+}
+
 /* ------------------------------------------------------------------------ *
  * WHY A RENDER IS REFUSED                                                    *
  * ------------------------------------------------------------------------ */
@@ -1288,7 +1472,9 @@ export interface RenderProblem {
 export function renderProblems(
   performance: Performance, window?: PerformanceWindow,
 ): RenderProblem[] {
-  const timeline = projectPerformance(performance, window);
+  /* The EXPORT, so a hole in a stretch the author has removed is not
+     reported as a hole: it is not going anywhere. [TIMELINE B6k] */
+  const timeline = projectExport(performance, window);
   const problems: RenderProblem[] = [];
 
   if (timeline.spans.length === 0) {

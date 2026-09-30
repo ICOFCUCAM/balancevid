@@ -22,7 +22,9 @@ import {
 import type { AssetId } from '../../src/domain/document.js';
 import type { Performance } from '../../src/domain/performance.js';
 import { newPerformance } from '../../src/domain/performanceEdit.js';
-import { setSongSound, trimSong } from '../../src/domain/performanceEdit.js';
+import {
+  removeSection, setSongSound, splitSong, trimSong,
+} from '../../src/domain/performanceEdit.js';
 import { HOUSE_SAMPLE_RATE, secondsToSamples } from '../../src/domain/time.js';
 
 const SONG = secondsToSamples(240);
@@ -120,6 +122,85 @@ describe('trimming the song from its own lane', () => {
     const said = items(trimmed).find((item) => item.label.startsWith('Exporting'));
     expect(said?.label).toBe('Exporting 00:30.000–01:30.000');
     expect(said?.disabled).toBe('of 04:00.000 recorded');
+  });
+});
+
+/**
+ * DIVIDE, THEN REMOVE.  [TIMELINE B6b, B6k]
+ *
+ * Two rows in the brief and two verbs here, and they compose: divide
+ * twice and take out the middle. That is not a workaround for a
+ * missing control, it is what the model is.
+ */
+describe('dividing and removing, from the song’s own lane', () => {
+  it('divides where the line is, and changes nothing about the export', () => {
+    expect(press('Divide the song here', performance(), secondsToSamples(60)).sent)
+      .toEqual([{ action: 'split-song', atSample: secondsToSamples(60) }]);
+    expect(entry('Divide the song here', performance(), secondsToSamples(60)).hint)
+      .toMatch(/the export does not change/);
+  });
+
+  it('will not divide where the song is already divided', () => {
+    expect(entry('Divide the song here', performance(), 0).disabled)
+      .toBe('the song is already divided there');
+    const split = performance();
+    splitSong(split, secondsToSamples(60));
+    expect(entry('Divide the song here', split, secondsToSamples(60)).disabled)
+      .toBe('the song is already divided there');
+  });
+
+  it('will not divide where there is no song left', () => {
+    const cut = performance();
+    removeSection(cut, secondsToSamples(60), secondsToSamples(90));
+    expect(entry('Divide the song here', cut, secondsToSamples(75)).disabled)
+      .toBe('there is nothing of the song there');
+  });
+
+  /*
+   * THE ROW NAMES THE STRETCH IT WILL TAKE, and takes THAT stretch.
+   * A remove that always started at the top of the song would read
+   * correctly in the menu and destroy the first verse.
+   */
+  it('removes the stretch the line is in, and says which', () => {
+    const split = performance();
+    splitSong(split, secondsToSamples(60));
+    splitSong(split, secondsToSamples(90));
+    const row = entry('Remove 01:00.000–01:30.000', split, secondsToSamples(75));
+    expect(row.disabled).toBeUndefined();
+    const built = press('Remove 01:00.000–01:30.000', split, secondsToSamples(75));
+    expect(built.asked[0]?.danger).toBe(true);
+    built.asked[0]!.go?.('');
+    expect(built.sent).toEqual([{
+      action: 'remove-section',
+      fromSample: secondsToSamples(60), toSample: secondsToSamples(90),
+    }]);
+  });
+
+  it('names the whole song when the song is all one stretch', () => {
+    expect(entry('Remove 00:00.000–04:00.000', performance(), secondsToSamples(60))
+      .disabled).toBe('that would leave nothing of the song');
+  });
+
+  /* Everything back with one press, holes included. [D-23, U-25] */
+  it('offers to put the removed stretches back, and says so', () => {
+    const cut = performance();
+    removeSection(cut, secondsToSamples(60), secondsToSamples(90));
+    const row = entry('Use all of the song again', cut);
+    expect(row.disabled).toBeUndefined();
+    expect(row.hint).toBe('every stretch back, the removed ones included');
+    expect(press('Use all of the song again', cut).sent).toEqual([
+      { action: 'trim-song', useFromSample: null, useToSample: null },
+    ]);
+  });
+
+  /* Both are behind "More": they are the deliberate end of the
+     control, and the menu opens simple. [B9] */
+  it('keeps both behind one press', () => {
+    const split = performance();
+    splitSong(split, secondsToSamples(60));
+    for (const label of ['Divide the song here', 'Remove 00:00.000–01:00.000']) {
+      expect(entry(label, split, 0).advanced, label).toBe(true);
+    }
   });
 });
 

@@ -3,7 +3,10 @@
 import type { Ask } from '../../Confirm.js';
 import type { MenuEntry } from '../../Menu.js';
 import type { Performance } from '../../../src/domain/performance.js';
-import { songSpan, songTrimmed } from '../../../src/domain/performance.js';
+import {
+  MIN_SONG_SAMPLES,
+  songCut, songLength, songSections, songSpan, songTrimmed,
+} from '../../../src/domain/performance.js';
 import {
   AUDIO_EFFECTS, AUDIO_EFFECT_IDS,
 } from '../../../src/domain/audioEffect.js';
@@ -67,7 +70,13 @@ export function songMenuItems(host: SongMenuHost): MenuEntry[] {
   const span = songSpan(master);
   const sound = master.sound ?? {};
   const gain = sound.gainDb ?? 0;
-  const length = span.toSample - span.fromSample;
+  const sections = songSections(master);
+  /** The stretch of the song the playhead is inside, if any. */
+  const here = sections.find(
+    (one) => at >= one.fromSample && at <= one.toSample);
+  /* How much song there is, which after a removal is less than the
+     distance between the first mark and the last. [B6k] */
+  const length = songLength(master);
 
   const seconds = (samples: number) => (samples / HOUSE_SAMPLE_RATE).toFixed(1);
 
@@ -101,11 +110,74 @@ export function songMenuItems(host: SongMenuHost): MenuEntry[] {
         void host.patch({ action: 'trim-song', useToSample: at });
       },
     },
+    /*
+     * DIVIDE, THEN REMOVE.  [TIMELINE B6b, B6k]
+     *
+     * "Split" and "Remove section" are two rows in the brief and two
+     * verbs here, and they compose: divide twice and take out the
+     * middle. That is not a workaround for a missing control, it is
+     * what the model is — the song is a list of the stretches the
+     * export uses, a division makes two where there was one, and a
+     * removal drops one of them.
+     *
+     * A DIVISION CHANGES NOTHING ABOUT THE EXPORT, and the hint says
+     * so, because a control that appears to do nothing is one nobody
+     * presses twice.
+     */
+    {
+      section: 'Trim — which part of the song exists',
+      advanced: true,
+      label: 'Divide the song here',
+      hint: `a place to cut from at ${formatMasterPosition(at)} — `
+        + 'the export does not change',
+      ...(here
+        ? (at === here.fromSample || at === here.toSample
+          ? { disabled: 'the song is already divided there' } as const : {})
+        : { disabled: 'there is nothing of the song there' } as const),
+      onSelect: () => {
+        void host.patch({ action: 'split-song', atSample: at });
+      },
+    },
+    {
+      section: 'Trim — which part of the song exists',
+      advanced: true,
+      label: here
+        ? `Remove ${formatMasterPosition(here.fromSample)}`
+          + `\u2013${formatMasterPosition(here.toSample)}`
+        : 'Remove this section',
+      hint: 'the bars go and the video gets shorter \u2014 '
+        + 'everything over them goes with them',
+      danger: true,
+      ...(here
+        ? (length - (here.toSample - here.fromSample) < MIN_SONG_SAMPLES
+          ? { disabled: 'that would leave nothing of the song' } as const : {})
+        : { disabled: 'there is nothing of the song there' } as const),
+      onSelect: () => host.confirm({
+        question: here
+          ? `Remove ${formatMasterPosition(here.fromSample)} to `
+            + `${formatMasterPosition(here.toSample)} from the song? The video `
+            + `gets ${seconds(here.toSample - here.fromSample)}s shorter and `
+            + 'everything over that stretch goes with it. Nothing is deleted '
+            + '\u2014 "Use all of the song again" brings it back.'
+          : '',
+        verb: 'Remove it',
+        danger: true,
+        go: () => {
+          if (!here) return;
+          void host.patch({
+            action: 'remove-section',
+            fromSample: here.fromSample, toSample: here.toSample,
+          });
+        },
+      }),
+    },
     {
       section: 'Trim — which part of the song exists',
       label: 'Use all of the song again',
-      hint: 'the audio was never cut — a trim is two marks',
-      ...(songTrimmed(master)
+      hint: songCut(master)
+        ? 'every stretch back, the removed ones included'
+        : 'the audio was never cut — a trim is two marks',
+      ...(songTrimmed(master) || songCut(master)
         ? {} : { disabled: 'none of it is trimmed' } as const),
       onSelect: () => {
         void host.patch({

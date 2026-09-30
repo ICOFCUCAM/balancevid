@@ -29,6 +29,8 @@ import {
   type Performance, type PerformanceSpan, type PerformanceTake, type PerformanceWindow,
   coversSpan, joinSpan, mayPublish, mayShowMasterPicture, plateFor,
   projectPerformance, unpublishableFootage,
+  projectExport,
+  songSections,
   songSpan,
 } from './performance.js';
 import { effectFor, matteFeather, matteThreshold, needsMatte } from './environment.js';
@@ -168,11 +170,34 @@ export function buildPerformancePlan(
       toSample: Math.min(asked.toSample, trim.toSample),
     }
     : trim;
-  const timeline = projectPerformance(performance, span);
+  /*
+   * THE SECTIONS, LAID END TO END.  [TIMELINE B6a, B6b, B6k]
+   *
+   * One window when nothing has been cut out of the song, which is
+   * every performance until somebody edits one. Several when a
+   * section has been removed, and then the export is those stretches
+   * in order with everything on them coming along.
+   */
+  const timeline = projectExport(performance, span);
 
   let audio;
   try {
-    audio = planPerformanceAudio(performance, span);
+    /*
+     * The same concatenation for the sound, and the second and later
+     * sections are told where they land: a piece that thought it
+     * started at its place in the SONG would play the last chorus
+     * over the first verse. [B6k]
+     */
+    audio = [];
+    let origin = 0;
+    for (const section of songSections(performance.master)) {
+      const from = Math.max(section.fromSample, span.fromSample);
+      const to = Math.min(section.toSample, span.toSample);
+      if (to <= from) continue;
+      audio.push(...planPerformanceAudio(
+        performance, { fromSample: from, toSample: to }, origin));
+      origin += to - from;
+    }
   } catch (error) {
     // The audio's own refusals are the author's problem, not a crash: a mode
     // naming a vocal that is not there is a thing they can fix in one click.

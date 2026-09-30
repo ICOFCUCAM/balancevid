@@ -25,7 +25,9 @@ import { LAYOUTS, takeSlots } from './presentation.js';
 import type { Rect } from './presentation.js';
 import { audioEffect } from './audioEffect.js';
 import { MIN_REFRAME_SPAN } from './focus.js';
-import { type SoundLayer, songSpan, soundSpan } from './performance.js';
+import {
+  MIN_SONG_SAMPLES, type SoundLayer, songSections, songSpan, soundSpan,
+} from './performance.js';
 import { EFFECT_LOOKS, type RoomPlate, SPACE_LOOKS, needsMatte } from './environment.js';
 import {
   DEFAULT_TRANSITION, MAX_TRANSITION_FRAMES, MIN_TRANSITION_FRAMES,
@@ -980,15 +982,10 @@ export function matchColour(
   take.matchTo = to.id as TakeId;
 }
 
-/**
- * The shortest stretch of song worth exporting.  [TIMELINE B6a]
- *
- * Two seconds. Below that the aac encoder produces no frames at all and
- * the mux fails — which is a fixture problem wearing the clothes of a
- * bug, and cost a confusing half-hour the first time it happened in a
- * test. It is also not a video.
- */
-export const MIN_SONG_SAMPLES = 2 * HOUSE_SAMPLE_RATE;
+/* Re-exported where it was first written, so nothing that imports it
+   from here has to move. It LIVES in `performance.ts` because the
+   browser needs it and this module reaches `node:crypto`. [B6a] */
+export { MIN_SONG_SAMPLES } from './performance.js';
 
 /**
  * Use only part of the song.  [TIMELINE B6a]
@@ -1009,12 +1006,16 @@ export function trimSong(
   performance: Performance,
   useFromSample: Samples | null, useToSample: Samples | null,
 ): void {
-  const end = performance.master.durationSamples;
+  const master = performance.master;
+  const end = master.durationSamples;
   if (useFromSample === null && useToSample === null) {
-    delete performance.master.use;
+    /* Everything back, cuts in the middle included: "use all of the
+       song again" means all of it. [B6k] */
+    delete master.sections;
+    delete master.use;
     return;
   }
-  const current = songSpan(performance.master);
+  const current = songSpan(master);
   const from = useFromSample === null ? 0
     : useFromSample === undefined ? current.fromSample : useFromSample;
   const to = useToSample === null ? end
@@ -1024,17 +1025,146 @@ export function trimSong(
   if (from < 0 || to > end) {
     fail('that trim is outside the song');
   }
-  if (to - from < MIN_SONG_SAMPLES) {
-    fail(`that leaves ${((to - from) / HOUSE_SAMPLE_RATE).toFixed(1)}s of song, `
+  /*
+   * WHAT IS LEFT AFTER THE TRIM, NOT THE DISTANCE BETWEEN THE MARKS.
+   * A song already cut in the middle has less between two marks than
+   * the marks suggest, and measuring the distance would let a trim
+   * leave a two-second export while reporting ten. [B6k]
+   */
+  const kept = clipSections(songSections(master), from, to);
+  const left = kept.reduce((total, one) => total + (one.toSample - one.fromSample), 0);
+  if (left < MIN_SONG_SAMPLES) {
+    fail(`that leaves ${(left / HOUSE_SAMPLE_RATE).toFixed(1)}s of song, `
       + `and ${MIN_SONG_SAMPLES / HOUSE_SAMPLE_RATE}s is the shortest a video can be`);
   }
-  /* The whole song is not a trim, and storing it would be a window the
-     planner has to carry for nothing. */
-  if (from === 0 && to === end) {
-    delete performance.master.use;
-    return;
+  setSections(master, kept);
+}
+
+/** The sections, kept only where they fall inside a window. */
+function clipSections(
+  sections: { fromSample: Samples; toSample: Samples }[],
+  from: Samples, to: Samples,
+): { fromSample: Samples; toSample: Samples }[] {
+  const kept: { fromSample: Samples; toSample: Samples }[] = [];
+  for (const one of sections) {
+    const start = Math.max(one.fromSample, from);
+    const stop = Math.min(one.toSample, to);
+    if (stop > start) kept.push({ fromSample: start, toSample: stop });
   }
-  performance.master.use = { fromSample: from, toSample: to };
+  return kept;
+}
+
+/**
+ * Write the list, or drop it when it says nothing.
+ *
+ * A single section covering the whole song is not an edit, and
+ * storing it would be a list every reader carries for nothing — and a
+ * document that looks edited when it is not.
+ */
+function setSections(
+  master: Performance['master'],
+  sections: { fromSample: Samples; toSample: Samples }[],
+): void {
+  delete master.use;
+  const whole = sections.length === 1
+    && sections[0]!.fromSample === 0
+    && sections[0]!.toSample === master.durationSamples;
+  if (whole) delete master.sections;
+  else master.sections = sections;
+}
+
+/**
+ * Take a stretch out of the middle of the song.  [TIMELINE B6k]
+ *
+ * "Remove section." The bars go, the export gets shorter, and
+ * everything that was over those bars goes with them — a scene that
+ * covered them is shorter, a take's voice over them is not heard, a
+ * lyric inside them does not appear.
+ *
+ * NOTHING IS RENUMBERED, AND THAT IS THE DESIGN. The obvious
+ * implementation moves every scene, take, lyric and sound after the
+ * cut back by the length removed. That is destructive: putting the
+ * section back cannot put them where they were, because by then the
+ * author has moved some of them on purpose and there is no way to
+ * tell which. Here the song is the spine, the document stays on the
+ * song's own clock, and putting the section back restores the export
+ * exactly. [D-23, U-25]
+ */
+export function removeSection(
+  performance: Performance, fromSample: Samples, toSample: Samples,
+): void {
+  const master = performance.master;
+  assertSamples(fromSample);
+  assertSamples(toSample);
+  if (toSample <= fromSample) fail('that section is empty');
+  if (fromSample < 0 || toSample > master.durationSamples) {
+    fail('that section is outside the song');
+  }
+
+  const kept: { fromSample: Samples; toSample: Samples }[] = [];
+  for (const one of songSections(master)) {
+    /* Before the cut, after it, or both — a cut inside one section
+       leaves two, which is exactly what a section list is for. */
+    if (one.fromSample < fromSample) {
+      kept.push({
+        fromSample: one.fromSample,
+        toSample: Math.min(one.toSample, fromSample),
+      });
+    }
+    if (one.toSample > toSample) {
+      kept.push({
+        fromSample: Math.max(one.fromSample, toSample),
+        toSample: one.toSample,
+      });
+    }
+  }
+
+  const left = kept.reduce((total, one) => total + (one.toSample - one.fromSample), 0);
+  if (left < MIN_SONG_SAMPLES) {
+    fail(`that leaves ${(left / HOUSE_SAMPLE_RATE).toFixed(1)}s of song, `
+      + `and ${MIN_SONG_SAMPLES / HOUSE_SAMPLE_RATE}s is the shortest a video can be`);
+  }
+  setSections(master, kept);
+}
+
+/**
+ * Divide the song where the playhead is.  [TIMELINE B6b]
+ *
+ * "Split." One section becomes two that touch, which changes NOTHING
+ * about the export — and that is the point rather than a shortcoming.
+ * A split is not an edit, it is a place to edit FROM: once there are
+ * two sections the author can trim, remove or replace either without
+ * touching the other.
+ *
+ * Splitting where the song is already divided, or at either end of a
+ * section, is refused rather than quietly doing nothing: a control
+ * that appears to work and does not is worse than one that says why.
+ */
+export function splitSong(performance: Performance, atSample: Samples): void {
+  const master = performance.master;
+  assertSamples(atSample);
+  const sections = songSections(master);
+  const inside = sections.find(
+    (one) => atSample > one.fromSample && atSample < one.toSample);
+  if (!inside) {
+    const edge = sections.some(
+      (one) => one.fromSample === atSample || one.toSample === atSample);
+    fail(edge
+      ? 'the song is already divided there'
+      : 'there is nothing of the song there to divide');
+  }
+  const next: { fromSample: Samples; toSample: Samples }[] = [];
+  for (const one of sections) {
+    if (one === inside) {
+      next.push({ fromSample: one.fromSample, toSample: atSample });
+      next.push({ fromSample: atSample, toSample: one.toSample });
+    } else next.push(one);
+  }
+  /* Written even when it covers the whole song, because two sections
+     that together cover everything is not "no edit" — it is the
+     division the author asked for. `setSections` only drops a list of
+     ONE covering the whole song. */
+  setSections(master, next);
 }
 
 /**
