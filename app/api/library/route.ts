@@ -1,9 +1,10 @@
 import { mkdir, readdir, stat, writeFile } from 'node:fs/promises';
-import { extname, join } from 'node:path';
+import { join } from 'node:path';
 
 import { isOwner } from '../../../src/auth/request.js';
 import { newId } from '../../../src/domain/ids.js';
 import { paths, safe } from '../../../src/store/paths.js';
+import { isStill } from '../../../src/store/libraryMedia.js';
 import { fail, json } from '../../../src/web/http.js';
 
 export const dynamic = 'force-dynamic';
@@ -35,6 +36,31 @@ const KINDS: Record<string, { ext: string; form: 'image' | 'video' }> = {
   'video/mp4': { ext: 'mp4', form: 'video' },
   'video/webm': { ext: 'mp4', form: 'video' },
   'video/quicktime': { ext: 'mp4', form: 'video' },
+  /*
+   * AND THE SOUNDS.  [§25]
+   *
+   * *"A song should simply be a Library media item."* It could not be:
+   * the library accepted pictures and video and nothing else, so the one
+   * thing the media player exists to play was the one thing that could
+   * not be put in. Each keeps its own container — an `.mp3` stored as
+   * `.mp4` would be a file whose name lies to every reader of it — and
+   * `libraryMedia`'s table is what the serving route and the playout
+   * engine look it up by.
+   *
+   * `form` stays `video` because that is what a `ProgrammeSource` can
+   * say today; what an audio item LOOKS like on air is the channel's
+   * visual treatment, and that is still to build. The studio already
+   * tells them apart by measuring the streams. [§25, C-14]
+   */
+  'audio/mpeg': { ext: 'mp3', form: 'video' },
+  'audio/mp4': { ext: 'm4a', form: 'video' },
+  'audio/x-m4a': { ext: 'm4a', form: 'video' },
+  'audio/aac': { ext: 'm4a', form: 'video' },
+  'audio/ogg': { ext: 'ogg', form: 'video' },
+  'audio/wav': { ext: 'wav', form: 'video' },
+  'audio/x-wav': { ext: 'wav', form: 'video' },
+  'audio/flac': { ext: 'flac', form: 'video' },
+  'audio/x-flac': { ext: 'flac', form: 'video' },
 };
 
 /** Big enough for an ident or a caption card; not a place to put a film. */
@@ -63,7 +89,7 @@ export async function GET(request: Request): Promise<Response> {
     items.push({
       source: {
         kind: 'media' as const, assetId,
-        form: extname(name) === '.jpg' ? 'image' as const : 'video' as const,
+        form: isStill(name) ? 'image' as const : 'video' as const,
       },
       title: label,
       bytes: info.size,
@@ -77,7 +103,9 @@ export async function POST(request: Request): Promise<Response> {
   if (!(await isOwner(request))) return fail(404, 'not found');
   const type = request.headers.get('content-type') ?? '';
   const kind = KINDS[type.split(';')[0]!.trim()];
-  if (!kind) return fail(415, 'that is not a picture or a video this can hold');
+  if (!kind) {
+    return fail(415, 'that is not a picture, a video or a song this can hold');
+  }
 
   const label = (request.headers.get('x-label') ?? '').trim().slice(0, 120);
   const bytes = new Uint8Array(await request.arrayBuffer());

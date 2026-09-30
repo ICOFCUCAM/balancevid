@@ -2169,3 +2169,164 @@ staged, and turned their cameras on.
 The author's channel and the conversation behind it were restored from
 copies taken before the run: the same armed session, the same five
 participants, the same one staged.
+
+---
+
+## C-16 — Stage 16: the media player, and the three lists of containers
+
+*Priority 2: "Connect it to the existing Library. No duplicate media
+system." The player is small. Getting a song as far as the player found
+four faults, three of them older than this brief.*
+
+### Tile 05 was not a player
+
+```ts
+const scheduled = on.kind === 'programme' || on.kind === 'rotation'
+  ? on.source : undefined;
+{ n: 5, label: 'Media Player', sub: scheduled ? nameOf(scheduled) : 'Idle',
+  ...(onAir && scheduled ? { act: () => onTake(scheduled) } : {}) }
+```
+
+It **mirrored the schedule**. `Idle` never meant *nothing is loaded*; it
+meant *nothing is scheduled*, on a tile whose name promises something else
+— and clicking it rolled in whatever the clock had reached, which is what
+the PROGRAM button two feet away already does. There was no way to load
+anything at all. That is the brief's *"no obvious path from Library →
+Media Player → Programme"*, stated as code.
+
+Now the tile says what the PLAYER is doing, shows what is cued, and opens
+the picker. Taking a thing to air is the transport's own red control,
+clearly labelled, rather than a side effect of clicking a monitor.
+
+### The library had no durations, and its own header said it did
+
+`broadcastLibrary`'s head has always claimed it supplies *"the one thing a
+scheduler needs that a render does not carry: how long it is."*
+`BroadcastItem` had no such field. The studio compensated by printing
+**megabytes** where a duration belongs, and by defaulting every scheduled
+slot to **fifteen minutes** — so a 34-second station ident was booked for
+a quarter of an hour, and nobody chose that.
+
+**Measured from the file, not from the document.** Both documents can
+compute their exact output length, and both would give the length of the
+document *as it is now* rather than of the file on disk, which was
+rendered from a plan that may since have changed. A schedule points at a
+file.
+
+**Measured once.** `probe()` counts frames by decoding — exact, and far
+too slow to run over thirty renders every time a rail is drawn. The
+container's own duration is accurate to a few milliseconds and a slot is
+milliseconds by design. The answer is written in a sidecar beside the file
+with the size and modification time it was measured from, so a replaced
+file is measured again and an unchanged one never is. **Both** are checked:
+a re-render of the same plan keeps the length and changes the time; a file
+restored from a backup keeps the time and can change the length.
+
+### A song could not be put in, served, or found
+
+Three lists of containers, in three files, all saying the same three
+things:
+
+| | knew about |
+|---|---|
+| the upload route's `KINDS` | jpeg, png, webp, mp4, webm, quicktime |
+| the serving route | `png`, then `jpg`, then `mp4` |
+| `playoutSources.pathFor` | `mp4` for anything not a still |
+
+So the one thing the media player exists to play was the one thing that
+could not be put in the library. The browser said it plainly:
+**`MEDIA_ELEMENT_ERROR: Format error`**, because the file being served was
+an `.mp4` that did not exist.
+
+They are one table now (`libraryMedia.ts`), and the three callers read it.
+Adding a container is one line instead of three edits, two of which would
+be found later by somebody discovering that a song plays in the picker and
+is black on the air. Each file keeps its own extension: an `.mp3` stored
+as `.mp4` is a file whose name lies to every reader of it.
+
+**Two faults fell out of writing that table down:**
+
+* **`decks/` was in the library as a schedulable video.** `otherMedia()`
+  listed everything in the directory that did not end `.json`, and
+  `paths.decks()` puts a *directory* there by design. It appeared as a
+  video called `decks` with no duration — invisible while the rail showed
+  megabytes, because a directory has a size. The media player's picker put
+  it at the top of the list, which is how it was found.
+* **Deleting a library item left the PNG behind.** The DELETE removed
+  `jpg` and `mp4` and never `png`, so a deck page deleted from the library
+  stayed on disk and stayed servable. It now removes every container in
+  the table, and the measurement sidecar with them.
+
+### What the brief asked a song to be
+
+| §25 asks for | where it comes from |
+|---|---|
+| title | `BroadcastItem.title`, read now rather than copied |
+| artist / owner | a performance's `master.artist`, a conversation's `source.creator` — the person already in the attribution block, not a new field to fill in twice |
+| duration | measured once, beside the file |
+| audio / video type | **measured from the streams**, never from the name: an `.mp4` with no video stream is a song, and a channel that put it out as a video would transmit four minutes of black |
+| thumbnail / artwork | `Thumb`, which already draws a poster frame from any render — no new field |
+
+### The audio treatment, and the meter that is not decoration
+
+*"ALBUM ART / CHANNEL GRAPHIC, Song Title, Artist, audio waveform."*
+
+An audio item previews through the channel's own graphic, so the monitor
+and the transmission are not two different-looking things.
+
+**The waveform is the file's own spectrum**, read through an
+`AnalyserNode` on the element that is playing. A drawn squiggle under a
+song that is silent because the file is broken is the decorative answer
+this brief rejects two sections later; a silent song shows a flat axis
+here, which is the truth and is what an operator needs in the second
+before they take it. Square-rooted, because hearing is not linear and the
+first browser run showed a wall of bass beside a flat dotted line.
+Mirrored about its centre, because that is what makes a row of bars read
+as a waveform rather than as a bar chart.
+
+### A cued item outranks an armed camera
+
+Preview is *what you are about to cut to*, and the operator has just said
+which. The camera stays armed and stays one press from the air; it is
+simply not what is being looked at. Taken or ejected, the monitor falls
+back to the camera and then to the schedule.
+
+**`taken` is deliberately not previewed.** From the moment it goes to air
+the channel's roll-in owns it and Program Output shows it; a preview still
+playing the same file would be the same thing on two monitors a second
+apart.
+
+### Verified in the browser, against the author's own library
+
+A song was added to the library, cued, previewed, played and taken.
+
+* **47 rows** in the picker, each with its own duration — `0:05`, not
+  `84 MB` — and `decks` gone from the list.
+* **Search by artist** found it: `Ancient Days · Ron Kenoly · 0:05`.
+* **It played**: `paused: false`, `currentTime: 3.592`, no error, the
+  transport clock reading `0:03 / 0:05`.
+* **The meter moved**, and across the bands rather than in the bass alone.
+* **Take live** put `segment: { kind: 'media', assetId: … }` into the
+  channel document, tile 05 read *"On programme — Ancient Days"*, and the
+  preview fell back to the armed camera.
+
+The temporary song was removed and the channel restored from a copy taken
+first.
+
+**One honest note about that run.** The Chromium in this container is the
+open-source build, which has no AAC or H.264, so the first song — an
+`.m4a` — reported `DEMUXER_ERROR_NO_SUPPORTED_STREAMS` after the serving
+was fixed. The same file plays in an ordinary browser. The verification
+above used Opus, which the open build does decode, so what is proved is
+the player, the treatment, the meter and the take — not that every codec
+plays in every browser, which was never this product's claim.
+
+### What is still to build, and it is named here so it is not forgotten
+
+**An audio item goes on air as `form: 'video'`**, because that is what a
+`ProgrammeSource` can say today — so the playout engine will render a song
+as a black picture with sound on it. The studio already tells audio from
+video by measuring the streams; what is missing is the same visual
+treatment, composited server-side, in the render path. That is the
+remainder of §25 and it belongs with §26's compositor work rather than
+bolted to the picker.

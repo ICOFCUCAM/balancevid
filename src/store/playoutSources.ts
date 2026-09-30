@@ -18,6 +18,7 @@ import { stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Channel, ProgrammeSource } from '../domain/channel.js';
 import { ingestById } from '../domain/channel.js';
+import { libraryFile } from './libraryMedia.js';
 import { paths, safe } from './paths.js';
 
 /**
@@ -60,7 +61,14 @@ export function pathFor(
      * here, applied to the one kind of asset that has no studio. [§3, D-18]
      */
     if (!/^[A-Za-z0-9_-]{1,128}$/.test(source.assetId)) return undefined;
-    if (source.form !== 'image') return paths.libraryMedia(source.assetId, 'mp4');
+    /*
+     * WHICHEVER CONTAINER IS THERE, from the one table. This returned
+     * `.mp4` unconditionally, so a song uploaded as an `.m4a` resolved to
+     * a path with no file at it and the slot played as nothing. [§25, D-19]
+     */
+    if (source.form !== 'image') {
+      return libraryFile(source.assetId, { moving: true })?.path;
+    }
     /*
      * PNG BEFORE JPEG, because a slide is type. A deck's pages are
      * rasterised to PNG (§20) and a photograph uploaded as an ident is a
@@ -73,8 +81,10 @@ export function pathFor(
      * keeps the stream ahead of the playhead; making it async to save one
      * `stat` would turn every caller in that loop into an await. [§3, §20]
      */
-    const png = paths.libraryMedia(source.assetId, 'png');
-    return existsSync(png) ? png : paths.libraryMedia(source.assetId, 'jpg');
+    return libraryFile(source.assetId, { moving: false })?.path
+      /* A still whose file has gone: the engine's own missing-asset path
+         handles it, and inventing one here would hide it. */
+      ?? paths.libraryMedia(source.assetId, 'png');
   }
   const ingest = ingestById(channel, source.ingestId);
   if (!ingest) return undefined;
