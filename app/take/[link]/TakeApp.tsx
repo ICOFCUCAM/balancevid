@@ -1,0 +1,321 @@
+'use client';
+
+import { useCallback, useEffect, useMemo, useState } from 'react';
+
+import Icon from '../../Icon.js';
+
+import { useMasterRecording } from '../../p/[id]/useMasterRecording.js';
+import { HOUSE_SAMPLE_RATE, formatMasterPosition } from '../../../src/domain/time.js';
+import type { RequestView } from '../../../src/domain/participation.js';
+import { takeSink } from './takeSink.js';
+
+/**
+ * The performer's whole screen.  [Doctrine D-25; TAKE-APP T3, T4, T5, T13]
+ *
+ * THE BRIEF DREW THIS SCREEN and it is built as drawn: the production's
+ * name, which take this is, the camera, the song's clock, one button.
+ * Then, when the take ends: review it, keep it, or record again. Then
+ * submit what was kept.
+ *
+ * IT IS DELIBERATELY NOT A STUDIO. "The phone does not need to become a
+ * miniature Studio Two." There is no timeline here, no layout picker,
+ * no other take, no sight of anybody else's work — because the
+ * participant is not deciding anything about the finished thing, and a
+ * client handed a studio is a client that can be read for one. [D-25]
+ *
+ * THE HARD PART IS BORROWED WHOLE. `useMasterRecording` is the studio's
+ * own recorder: the song scheduled on the audio clock, the offset taken
+ * at the instant the first chunk closes, the device's latency
+ * subtracted, the elapsed time measured where it is honest. It differs
+ * here by one argument — where the bytes go. [D-19]
+ *
+ * A COUNT-IN, BECAUSE NOBODY SINGS FROM A STANDING START. The studio
+ * uses four seconds and so does this; it is the same performance being
+ * recorded, and a performer who has to guess when the song begins is
+ * one who begins late. [S-10]
+ */
+
+const COUNT_IN_SECONDS = 4;
+
+/** A recording the performer has made and not yet sent. [T4] */
+interface Kept {
+  id: string;
+  /** What the phone believes it is, in seconds, for a line of text. */
+  seconds: number;
+  at: string;
+  sent: boolean;
+}
+
+export default function TakeApp({ link }: { link: string }) {
+  const [view, setView] = useState<RequestView | null>(null);
+  const [closed, setClosed] = useState(false);
+  const [kept, setKept] = useState<Kept[]>([]);
+  const [said, setSaid] = useState<string | null>(null);
+
+  const sink = useMemo(() => takeSink(link), [link]);
+  const recording = useMasterRecording({
+    sink,
+    masterUrl: `/api/take/${encodeURIComponent(link)}/reference`,
+    sampleRate: HOUSE_SAMPLE_RATE,
+    countInSeconds: COUNT_IN_SECONDS,
+    /*
+     * NO CALIBRATION ON A PHONE THE PRODUCT HAS NEVER SEEN. The studio
+     * measures its own device's latency with a loopback test the author
+     * runs on purpose; a performer opening a link has done no such
+     * thing, and guessing a number would be worse than admitting there
+     * is none. The worker checks the offset against the master anyway,
+     * which is what catches it. [S-3]
+     */
+    latencySamples: 0,
+    onFinished: () => { /* Nothing to wait on: see `takeSink`. */ },
+  });
+
+  /* What is being asked, fetched against the same link that opened it. */
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      const response = await fetch(`/api/take/${encodeURIComponent(link)}`, {
+        cache: 'no-store',
+      }).catch(() => null);
+      if (!alive) return;
+      if (!response?.ok) { setClosed(true); return; }
+      const data = await response.json().catch(() => ({}));
+      setView(data.request ?? null);
+    })();
+    return () => { alive = false; };
+  }, [link]);
+
+  const reference = view?.assignment.reference;
+  const songSeconds = reference ? reference.durationSamples / HOUSE_SAMPLE_RATE : 0;
+
+  const begin = useCallback(async () => {
+    setSaid(null);
+    try {
+      await recording.start(
+        `${view?.participant ?? 'Take'} ${kept.length + 1}`,
+        { kind: 'original' },
+      );
+    } catch (error) {
+      setSaid(error instanceof Error ? error.message : 'that did not work');
+    }
+  }, [kept.length, recording, view]);
+
+  /*
+   * A FINISHED RECORDING IS KEPT, NOT SENT. The list below is what the
+   * performer decides about; `Submit` is what crosses to the producer.
+   * The brief's own line is the design: "Take 3 doesn't have to reach
+   * the server at all if they delete it locally."
+   */
+  const end = useCallback(() => {
+    const seconds = recording.position;
+    recording.stop();
+    setKept((was) => [...was, {
+      id: `local_${was.length + 1}`, seconds, at: new Date().toISOString(), sent: true,
+    }]);
+  }, [recording]);
+
+  if (closed) {
+    return (
+      <main className="shell" data-testid="take-closed" style={page}>
+        <div style={card}>
+          <h1 style={brand}>BalanceVid</h1>
+          <p className="small muted" style={{ maxWidth: 320, textAlign: 'center' }}>
+            This link is not open. It may have been used, withdrawn, or run
+            out — the person who sent it can send another.
+          </p>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="shell" data-testid="take-app" style={page}>
+      <div style={card}>
+        <h1 style={brand}>BalanceVid</h1>
+
+        {/* WHAT IS BEING ASKED, in the producer's own words. [T3] */}
+        <p data-testid="take-title" style={{
+          margin: 0, fontSize: 'var(--text-lg)', fontWeight: 'var(--weight-bold)',
+          letterSpacing: '0.04em', textTransform: 'uppercase', textAlign: 'center',
+        }}>{reference?.title ?? '…'}</p>
+        <p data-testid="take-asks" className="small" style={{
+          margin: 0, textAlign: 'center', color: 'var(--ink-100)', maxWidth: 340,
+        }}>{view?.assignment.asks ?? ''}</p>
+
+        <p data-testid="take-number" className="small muted" style={{ margin: 0 }}>
+          Take {kept.length + 1}
+          {view?.allowed.takes ? ` of ${view.allowed.takes}` : ''}
+        </p>
+
+        {/*
+          * THE CAMERA, WHICH IS THE WHOLE PAGE ON A PHONE. Mirrored,
+          * because a performer watching themselves is using it as a
+          * mirror and an unmirrored preview makes people reach the
+          * wrong way. The recording itself is not mirrored.
+          */}
+        <div style={{
+          position: 'relative', width: '100%', aspectRatio: '3 / 4',
+          borderRadius: 'var(--radius-screen)', overflow: 'hidden',
+          background: 'var(--screen-bed)', border: '1px solid var(--line)',
+        }}>
+          <video
+            data-testid="take-camera" ref={recording.videoRef}
+            muted playsInline autoPlay
+            style={{
+              width: '100%', height: '100%', objectFit: 'cover',
+              transform: 'scaleX(-1)', display: 'block',
+            }}
+          />
+          {recording.phase === 'counting' && (
+            <div data-testid="take-countin" style={overlay}>
+              {/* The display step, which exists for exactly this: "a
+                  display figure: the clock, the counter". */}
+              <span style={{
+                fontSize: 'var(--text-2xl)',
+                fontWeight: 'var(--weight-bold)',
+              }}>
+                {Math.max(1, Math.ceil(COUNT_IN_SECONDS - recording.position))}
+              </span>
+            </div>
+          )}
+          {recording.phase === 'idle' && (
+            <div style={overlay}>
+              <span className="small muted">The camera is off</span>
+            </div>
+          )}
+          {recording.phase === 'recording' && (
+            <span data-testid="take-live" style={{
+              position: 'absolute', top: 10, left: 10, padding: '3px 8px',
+              borderRadius: 'var(--radius-screen)', background: 'rgba(0,0,0,0.72)',
+              border: '1px solid rgba(255,255,255,0.16)',
+              color: '#e0674f', fontSize: 'var(--text-2xs)',
+              fontWeight: 'var(--weight-bold)', letterSpacing: '0.08em',
+              display: 'inline-flex', alignItems: 'center', gap: 5,
+            }}>
+              <Icon name="live" size={9} /> RECORDING
+            </span>
+          )}
+        </div>
+
+        {/* THE SONG'S CLOCK, which is the only clock on this screen. */}
+        <p data-testid="take-clock" className="mono readout" style={{
+          margin: 0, fontSize: 'var(--text-sm)',
+        }}>
+          {formatMasterPosition(Math.round(
+            Math.max(0, recording.position) * HOUSE_SAMPLE_RATE))}
+          <span style={{ color: 'var(--ink-400)' }}>
+            {' / '}{formatMasterPosition(Math.round(songSeconds * HOUSE_SAMPLE_RATE))}
+          </span>
+        </p>
+
+        {recording.error && (
+          <p data-testid="take-error" className="small" style={{
+            margin: 0, color: 'var(--ink-on-bad)', textAlign: 'center',
+          }}>{recording.error}</p>
+        )}
+        {said && (
+          <p data-testid="take-said" className="small" style={{
+            margin: 0, color: 'var(--ink-on-bad)', textAlign: 'center',
+          }}>{said}</p>
+        )}
+
+        {/* ONE BUTTON AT A TIME, because there is one thing to do next. */}
+        {recording.phase === 'idle' && (
+          <button className="ctl lg" data-testid="take-arm" style={wide}
+                  onClick={() => void recording.arm()}>
+            Turn the camera on
+          </button>
+        )}
+        {recording.phase === 'arming' && (
+          <button className="ctl lg" disabled style={wide}>Preparing…</button>
+        )}
+        {recording.phase === 'ready' && (
+          <button className="ctl lg primary" data-testid="take-start" style={wide}
+                  onClick={() => void begin()}>
+            Start recording
+          </button>
+        )}
+        {(recording.phase === 'counting' || recording.phase === 'recording') && (
+          <button className="ctl lg" data-testid="take-stop" style={wide}
+                  onClick={end}>
+            Stop
+          </button>
+        )}
+        {recording.phase === 'finishing' && (
+          <button className="ctl lg" disabled style={wide}>Saving…</button>
+        )}
+
+        {/*
+          * WHAT THEY HAVE MADE SO FAR. [T4]
+          *
+          * The brief's list, with one difference stated plainly rather
+          * than hidden: a take's SEGMENTS are already on the server by
+          * the time it ends, because a phone that loses a call
+          * mid-song must not lose the performance with it. What has
+          * not happened is the SUBMISSION — nothing reaches the
+          * producer until it is sent, and a take deleted here is never
+          * assembled and is swept with the request.
+          */}
+        {kept.length > 0 && (
+          <ul data-testid="take-list" style={{
+            listStyle: 'none', margin: 0, padding: 0, width: '100%',
+            display: 'flex', flexDirection: 'column', gap: 6,
+          }}>
+            {kept.map((one, index) => (
+              <li key={one.id} className="row" style={{
+                gap: 8, alignItems: 'center', padding: '7px 9px',
+                border: '1px solid var(--line)', borderRadius: 'var(--radius-sm)',
+                background: 'var(--console-control)',
+              }}>
+                <span className="grow" style={{ fontSize: 'var(--text-sm)' }}>
+                  Take {index + 1}
+                </span>
+                <span className="mono small muted">
+                  {formatMasterPosition(Math.round(one.seconds * HOUSE_SAMPLE_RATE))}
+                </span>
+                <span data-testid="take-sent" className="small" style={{
+                  color: 'var(--ink-300)',
+                }}>{one.sent ? 'Sent' : 'Kept'}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <p className="small muted" style={{
+          margin: 0, textAlign: 'center', maxWidth: 340,
+        }}>
+          Wear headphones if you can. If the song comes out of a speaker,
+          your recording carries it twice.
+        </p>
+      </div>
+    </main>
+  );
+}
+
+/*
+ * A PHONE PAGE, NOT A DESK. One column, generous targets, and nothing
+ * that assumes a pointer — this is opened standing up, in a room,
+ * holding the thing it is recording with.
+ */
+const page: React.CSSProperties = {
+  minHeight: '100dvh', display: 'grid', placeItems: 'center',
+  padding: 'var(--space-5)',
+};
+
+const card: React.CSSProperties = {
+  width: '100%', maxWidth: 420, display: 'flex', flexDirection: 'column',
+  alignItems: 'center', gap: 'var(--space-4)',
+};
+
+const brand: React.CSSProperties = {
+  margin: 0, fontSize: 'var(--text-sm)', letterSpacing: '0.18em',
+  textTransform: 'uppercase', color: 'var(--ink-300)',
+  fontWeight: 'var(--weight-semi)',
+};
+
+const wide: React.CSSProperties = { width: '100%', minHeight: 48 };
+
+const overlay: React.CSSProperties = {
+  position: 'absolute', inset: 0, display: 'grid', placeItems: 'center',
+  background: 'rgba(0,0,0,0.72)',
+};

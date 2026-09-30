@@ -72,6 +72,9 @@ const PUBLIC_PATTERNS: RegExp[] = [
    */
   /^\/take\/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\/?$/,
   /^\/api\/take\/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/,
+  /* The song they were asked to perform against, and nothing else about
+     the performance it belongs to. [T6] */
+  /^\/api\/take\/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\/reference$/,
   // The picture a link preview fetches, with none of the sender's cookies.
   // The route serves it only for a published conversation. [U-31, D-03]
   /^\/api\/conversations\/[A-Za-z0-9_-]+\/card$/,

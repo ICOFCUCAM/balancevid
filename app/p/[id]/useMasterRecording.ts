@@ -35,6 +35,44 @@ const SEGMENT_MS = 4000;
 
 export type RecordingPhase = 'idle' | 'arming' | 'ready' | 'counting' | 'recording' | 'finishing';
 
+/**
+ * WHERE A RECORDING GOES.  [D-19, D-25; TAKE-APP T3, T4]
+ *
+ * Everything above this line is about getting the SYNC right — the song
+ * on the audio clock, the offset taken at the instant the first chunk
+ * closes, the device latency subtracted, the elapsed time measured
+ * where it is honest. None of it has anything to do with which URL the
+ * bytes are posted to, and all of it is the part that must not exist
+ * twice.
+ *
+ * So the destination is an argument. The studio's own recorder sends to
+ * the performance; the Take App sends to the participation request it
+ * was opened from. One recorder, two sinks — because the alternative is
+ * a second recorder that gets the latency arithmetic subtly wrong six
+ * months from now and nobody notices until a take is three frames out.
+ */
+export interface RecordingSink {
+  /**
+   * Declare the recording BEFORE the media exists, and answer with its
+   * id. A browser that crashes mid-song has still left evidence that
+   * somebody was recording, and chunks arriving for a recording nobody
+   * declared would have nowhere to go. [U-06]
+   */
+  begin: (spec: {
+    label: string;
+    environment: { kind: string; spaceId?: string };
+    offsetSamples: number;
+    method: 'measured' | 'calibrated';
+    latencySamples?: number;
+  }) => Promise<string>;
+  /** One segment, under its number. */
+  chunk: (id: string, index: number, body: Blob) => Promise<void>;
+  /** The last segment has landed: join it and place it. */
+  finish: (id: string, spec: {
+    hintSamples: number; elapsedSamples: number; latencySamples: number;
+  }) => Promise<{ jobId?: string }>;
+}
+
 export interface MasterRecording {
   phase: RecordingPhase;
   error: string | null;
@@ -50,9 +88,9 @@ export interface MasterRecording {
 }
 
 export function useMasterRecording({
-  performanceId, masterUrl, sampleRate, countInSeconds, latencySamples, onFinished,
+  sink, masterUrl, sampleRate, countInSeconds, latencySamples, onFinished,
 }: {
-  performanceId: string;
+  sink: RecordingSink;
   masterUrl: string;
   sampleRate: number;
   /** A musical lead-in, so nobody starts singing from a standing start. [S-10] */
@@ -159,20 +197,16 @@ export function useMasterRecording({
         ? Math.max(0, Math.round(
           (stoppedAtRef.current - startedAtRef.current) * sampleRate))
         : 0;
-      const response = await fetch(`/api/performances/${performanceId}/takes/${takeId}`, {
-        method: 'PUT', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          hintSamples: offsetRef.current, elapsedSamples, latencySamples,
-        }),
+      const { jobId } = await sink.finish(takeId, {
+        hintSamples: offsetRef.current, elapsedSamples, latencySamples,
       });
-      const data = await response.json().catch(() => ({}));
-      if (data.job?.id) onFinished(data.job.id);
+      if (jobId) onFinished(jobId);
     } catch {
       /* The chunks are on disk under their numbers; it can be retried. */
     } finally {
       setPhase('ready');
     }
-  }, [latencySamples, onFinished, performanceId, sampleRate]);
+  }, [latencySamples, onFinished, sampleRate, sink]);
 
   const segment = useCallback((takeId: string) => {
     const media = streamRef.current;
@@ -191,11 +225,8 @@ export function useMasterRecording({
        * to four seconds of somebody's performance, silently, with a duration
        * that looked plausible. [U-06]
        */
-      const upload = fetch(
-        `/api/performances/${performanceId}/takes/${takeId}?index=${index}`,
-        { method: 'POST', body: new Blob(parts),
-          headers: { 'content-type': 'application/octet-stream' } },
-      ).catch(() => { /* the next segment carries on; U-06's whole point. */ });
+      const upload = sink.chunk(takeId, index, new Blob(parts))
+        .catch(() => { /* the next segment carries on; U-06's whole point. */ });
 
       if (takeRef.current && recorderRef.current === recorder) segment(takeId);
       else void upload.then(() => finishTake(takeId));
@@ -205,7 +236,7 @@ export function useMasterRecording({
     window.setTimeout(() => {
       if (recorderRef.current === recorder && recorder.state === 'recording') recorder.stop();
     }, SEGMENT_MS);
-  }, [finishTake, performanceId]);
+  }, [finishTake, sink]);
 
   const start = useCallback(async (
     label: string, environment: { kind: string; spaceId?: string },
@@ -233,18 +264,13 @@ export function useMasterRecording({
       source.start(beginsAt);
       sourceRef.current = source;
 
-      const response = await fetch(`/api/performances/${performanceId}/takes`, {
-        method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          label, environment, offsetSamples: 0,
-          method: latencySamples ? 'calibrated' : 'measured',
-          ...(latencySamples ? { latencySamples } : {}),
-        }),
+      const takeId = await sink.begin({
+        label, environment, offsetSamples: 0,
+        method: latencySamples ? 'calibrated' : 'measured',
+        ...(latencySamples ? { latencySamples } : {}),
       });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error ?? 'could not begin the take');
 
-      takeRef.current = { takeId: data.takeId };
+      takeRef.current = { takeId };
       indexRef.current = 0;
 
       // Wait out the count-in, then record. The music has already been placed
@@ -277,7 +303,7 @@ export function useMasterRecording({
       setError(e instanceof Error ? e.message : String(e));
       setPhase('ready');
     }
-  }, [countInSeconds, latencySamples, performanceId, sampleRate, segment]);
+  }, [countInSeconds, latencySamples, sampleRate, segment, sink]);
 
   const stop = useCallback(() => {
     const take = takeRef.current;

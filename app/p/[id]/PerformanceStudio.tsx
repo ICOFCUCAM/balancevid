@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { TAKE_ACCENT_FALLBACK } from '../../../src/domain/performance.js';
 import Icon from '../../Icon.js';
 import type { Performance } from '../../../src/domain/performance.js';
@@ -12,6 +12,7 @@ import { HOUSE_SAMPLE_RATE, formatMasterPosition } from '../../../src/domain/tim
 import { useConfirm } from '../../Confirm.js';
 import { MenuButton, RightClickHint, useMenu, type MenuEntry } from '../../Menu.js';
 import { useMasterRecording } from './useMasterRecording.js';
+import { performanceSink } from './performanceSink.js';
 import UploadTake from './UploadTake.js';
 import SwitchingStage from './SwitchingStage.js';
 import Delivery, { type ChannelDestination } from './Delivery.js';
@@ -172,7 +173,9 @@ export default function PerformanceStudio(
     ? device.calibration.latencySamples : 0;
 
   const recording = useMasterRecording({
-    performanceId: id,
+    /* One recorder, two destinations. `performanceSink` is the three
+       calls that used to be written inside the hook, unchanged. [D-19] */
+    sink: useMemo(() => performanceSink(id), [id]),
     masterUrl: `/api/performances/${id}/master`,
     sampleRate: HOUSE_SAMPLE_RATE,
     countInSeconds: COUNT_IN_SECONDS,

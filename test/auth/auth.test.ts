@@ -131,9 +131,11 @@ describe('what the holder of a Take link may reach', () => {
    * SESSION, because the link is sent over WhatsApp to somebody with no
    * account. The route then checks the link itself. [D-25]
    */
-  it('lets the page and its own API through', () => {
+  it('lets the page, its own API and the song through', () => {
     expect(mayBePublic(`/take/${LINK}`, 'GET')).toBe(true);
     expect(mayBePublic(`/api/take/${LINK}`, 'GET')).toBe(true);
+    /* The one file the request lets them hear. [T6] */
+    expect(mayBePublic(`/api/take/${LINK}/reference`, 'GET')).toBe(true);
   });
 
   /*
