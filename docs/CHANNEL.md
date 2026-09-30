@@ -2608,6 +2608,80 @@ The channel was restored from a copy taken first.
   programme or the graphics layer, and feeding a monitor its own output
   is a decision rather than a default.
 
+## C-21 — Stage 21: the third kind
+
+*"Why is the media player not working any more, when it was highly
+designed?"*
+
+Because `MediaKind` has had three values since C-16 built it — `video`,
+`audio`, `image` — and everything downstream handled two.
+
+### Three symptoms, one cause
+
+A still loaded from the library was handed to the same `<video>` element
+as a film. The comment above that element was right about the two kinds
+it named and had simply never been asked about the third:
+
+> ONE ELEMENT EITHER WAY. A `<video>` plays a song perfectly well and
+> shows nothing, which is exactly right.
+
+A `<video>` shows a PNG nothing at all, which is not. So the operator
+loaded a slide, and got:
+
+* a **black preview monitor**, because nothing decoded;
+* a clock reading **`0:00 / –`**, because a picture has no duration; and
+* a **Play button that did nothing** when pressed, because `may()` is
+  about the phase and knew nothing about the kind.
+
+Three things wrong on one panel, and one reason for all three.
+
+### What it is now
+
+An `<img>`, returned before the media element rather than beside it —
+there is no `HTMLMediaElement` for a photograph, nothing to play, nothing
+to time and no spectrum to draw, so a still that shared the path would
+have to be special-cased in four places instead of skipped in one.
+
+The clock says **STILL**. `0:00 / –` is a true fact written as a
+stopwatch nobody can start; how long a picture holds when it goes out is
+`stillMs` on the programme, which is a different question. [§3]
+
+And **play and pause are refused on a picture**, which is the part that
+belongs in the domain. Load, Take live and Eject all still mean exactly
+what they say: a still is precisely as takeable as a film, and it is the
+taking that puts it on the air. A control that does nothing when pressed
+is the fault this desk keeps removing.
+
+`may(state, act, kind?)` takes the kind optionally, so a caller that does
+not know it gets the behaviour it always had rather than a refusal it
+cannot explain.
+
+### And the folder that was offering itself as a video
+
+`var/library/decks/` is a folder of slide images. The library listing
+returned it as a 4 KB item called **"decks"** with `form: 'video'` —
+schedulable onto a channel, loadable into the player, black on every
+monitor it reached.
+
+That fault was found and fixed once, in `broadcastLibrary.ts`. It was
+still there in `app/api/library/route.ts`, which is the OTHER listing,
+which is why the operator's library still showed it. One question — *is
+this a file I can play* — answered in two places, which is the exact
+shape `libraryMedia.ts` was extracted to stop. A test now holds both
+listings to the same two answers. [D-19]
+
+### Measured
+
+Five mutations on the transport guard, all five caught. Then in a
+browser, on the author's own library, reading and not writing:
+
+| | before | after |
+|---|---|---|
+| preview element | `<video>`, black | `<img>`, painted at 1920×1080 |
+| clock | `0:00 / –` | `STILL` |
+| Play | enabled, did nothing | disabled, says why |
+| library rows | 6, one of them a folder | 5, all of them files |
+
 ## C-19 — Stage 19: why a healthy channel is still dark
 
 *"Why is this channel not showing when I am live?"*
