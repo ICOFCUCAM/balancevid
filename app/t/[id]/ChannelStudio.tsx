@@ -1,5 +1,7 @@
 'use client';
 
+import AvailabilityFields from '../../AvailabilityFields.js';
+import type { TakeAvailability } from '../../../src/domain/availability.js';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type {
   Channel, ChannelBlock, OnAir, Programme, ProgrammeSource, RotationEntry,
@@ -229,6 +231,20 @@ export default function ChannelStudio({
    * this is a preset and not three menus.
    */
   const quality = useQuality();
+  /*
+   * WHETHER THE AUDIENCE MAY SEND SOMETHING IN.  [TAKE-PLATFORM P10]
+   *
+   * The third producer surface, and the last one without this.
+   * `ChannelPublication` has carried the three fields since the model
+   * landed and both readers honour them; only the control room could
+   * not SET them. The same component Studio One and Studio Two use,
+   * because a channel means exactly what they mean by it and a second
+   * copy is how two surfaces come to disagree about who is allowed
+   * in. [D-19]
+   */
+  const [availability, setAvailability] = useState<TakeAvailability>({
+    respondable: false, listed: true,
+  });
   /*
    * ASKING BEFORE THE IRREVERSIBLE ONES. [Confirm.tsx]
    *
@@ -2208,7 +2224,8 @@ export default function ChannelStudio({
                       },
                       verb: 'Publish the link',
                       go: (author) => void patch({
-                        action: 'publish', ...(author ? { author } : {}),
+                        action: 'publish', ...author ? { author } : {},
+                        ...availability,
                       }),
                     });
                   }}
@@ -2222,6 +2239,20 @@ export default function ChannelStudio({
                   {published ? 'Take off air' : 'Publish'}
                 </button>
               </div>
+              {/*
+                * DECIDED IN THE SAME PRESS, so it is here rather than in
+                * a panel somebody has to find afterwards — and gone once
+                * the channel is on air, because changing it then is a
+                * different act with a different consequence for people
+                * who already hold the link. [P10]
+                */}
+              {!published && (
+                <AvailabilityFields
+                  noun="programme"
+                  value={availability}
+                  onChange={setAvailability}
+                />
+              )}
               <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-xs)' }}>
                 {/*
                   * SAID PLAINLY, because it is the one thing about publishing

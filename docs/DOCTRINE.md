@@ -4534,6 +4534,52 @@ as Appendix S does for Studio Two.
 
 ---
 
+## INV-18 — Read across, act on the owner
+
+One Take App speaks to many independent BalanceVid installations, and this
+is the rule that makes that safe. It was arrived at one decision at a time
+and is written down here because it explains several choices that otherwise
+look unrelated.
+
+```
+INV-18  A discovery READ may cross installations; a WRITE may not.
+        What an installation lists is public and readable from
+        anywhere. What it accepts is written only from its own
+        origin, by a client it served.        [TAKE-PLATFORM P43, D-25]
+```
+
+**What follows from it, and could not be derived without it:**
+
+* `GET /api/participate` carries `Access-Control-Allow-Origin: *` and **no
+  credentials**. The answer does not vary by who is asking — the owner and a
+  stranger get the same listing — so a cookie could only add risk.
+* `POST /api/participate/<kind>/<id>` carries **no CORS at all**. A merged
+  list can therefore never be turned into a way to make a request somewhere
+  else.
+* A row belonging to another installation offers *Open on &lt;name&gt;*, which
+  navigates. One more press buys a claim that is always same-origin, on the
+  installation that will hold the recording.
+* **The origin is derived from the installation actually reached, never
+  trusted from response data.** An installation may name itself; it may not
+  place itself. One that could name its own origin could name somebody
+  else's, and a connection list is a list of places a device will later send
+  a person to.
+* The participant's list of installations lives **on the device**. It is
+  D-25's separation seen from the other side: production data stays with the
+  producer, and who somebody works with stays with them.
+
+**Why it is an invariant rather than a preference.** Every one of those is
+cheap to reverse individually and expensive to reverse together. A single
+permissive header on the write endpoint would make the discovery surface a
+weapon; a single trusted origin in a response would make the connection list
+one. The rule is what keeps the five decisions from being re-litigated one
+at a time by somebody who can see only one of them.
+
+`docs/TAKE-PLATFORM.md` holds the brief this came from, with a ledger row
+for everything in it.
+
+---
+
 ## D-19 · Check before you build
 
 Added to the doctrine as the product's author gave it, because it is a rule

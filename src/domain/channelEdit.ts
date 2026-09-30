@@ -11,6 +11,7 @@
  * and `requestRecording`. Everything else moves references around.
  */
 
+import type { TakeAvailability } from './availability.js';
 import {
   CHANNEL_SCHEMA_VERSION,
   type Channel, type LiveIngest, type LiveSession, type Programme,
@@ -1072,7 +1073,24 @@ export function attachRoom(channel: Channel, roomId?: string): void {
  * the viewer gets afterwards is the thing being checked here.
  */
 export function publishChannel(
-  channel: Channel, options: { at: string; author?: string },
+  channel: Channel,
+  options: {
+    at: string; author?: string;
+    /**
+     * Whether the audience may send something in, whether the
+     * programme appears where people are browsing, and who may send.
+     *   [TAKE-PLATFORM P10, PART FIVE]
+     *
+     * THE THIRD PRODUCER SURFACE, AND THE LAST ONE WITHOUT THIS.
+     * `ChannelPublication` has carried the three fields since the
+     * model landed, and both readers — the listing and the claim —
+     * have honoured them; only the control room could not SET them.
+     * A capability the model and the consumer both understand and no
+     * producer can reach is the same fault `respondable: false` was
+     * on a performance, in a different studio.
+     */
+    availability?: TakeAvailability;
+  },
 ): void {
   const hasSomething = channel.rotation.length > 0
     || channel.programmes.length > 0
@@ -1088,8 +1106,24 @@ export function publishChannel(
    * an error: a station goes dark and comes back, and the record should read
    * as the same channel rather than as a new one.
    */
+  /*
+   * WRITTEN THE SAME WAY A RENDER'S PUBLICATION IS, field for field,
+   * because a second way of storing one decision is how two surfaces
+   * come to disagree about who is allowed in. Access only where
+   * something may be sent, a ceiling only where strangers may come
+   * through, and `listed` only when it is false. [D-19, PART FIVE]
+   */
+  const wanted = options.availability;
+  const respondable = wanted?.respondable ?? channel.publication?.respondable ?? false;
+  const access = respondable ? wanted?.access ?? channel.publication?.access : undefined;
+  const listed = wanted ? wanted.listed !== false : channel.publication?.listed !== false;
   channel.publication = {
     publishedAt: channel.publication?.publishedAt ?? options.at,
+    ...(respondable ? { respondable: true } : {}),
+    ...(listed ? {} : { listed: false }),
+    ...(access ? { access } : {}),
+    ...(respondable && access === 'anyone' && wanted?.claims !== undefined
+      ? { claims: wanted.claims } : {}),
     ...(options.author?.trim() ? { author: options.author.trim().slice(0, 120) } : {}),
   };
 }
