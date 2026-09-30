@@ -353,6 +353,21 @@ function Issue({
                               nudgeSamples: repair.nudgeSamples ?? 0,
                             });
                           }
+                          /*
+                            * OR THERE WAS NEVER ANYTHING THERE. Every
+                            * other repair answers the hole by putting
+                            * something ON it; this one takes the
+                            * stretch out of the song. The honest
+                            * remedy for an intro nobody performed
+                            * over. [TIMELINE B11b, B6k]
+                            */
+                          if (repair.id === 'remove-section') {
+                            onRepair({
+                              action: 'remove-section',
+                              fromSample: repair.fromSample,
+                              toSample: repair.toSample,
+                            });
+                          }
                         }}>
                   {repair.label}
                 </button>

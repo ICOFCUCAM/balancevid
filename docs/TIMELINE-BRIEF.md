@@ -596,7 +596,7 @@ process, against the running product and not against this document.
 | B10b | every object has a volume | HAVE | the song has `sound.gainDb` [B6], a layer has `gainDb`, both bounded at ±24 dB and both reaching `volume=NdB` in the mix |
 | B11 | the gap is detected and explained | HAVE | `renderProblems`, the hatched band, the sentence |
 | B11a | *Align first take to 00:00* as a repair | HAVE | offered only for a hole at the very start, on the take that begins earliest, and it writes the nudge |
-| B11b | *Trim empty section* | PARTIAL | `coverGap` extends the next scene; trimming the song is B6a |
+| B11b | *Trim empty section* | HAVE | a repair beside the others: *Take that stretch out of the song*, which is the only one that answers a hole by deciding there was nothing to put there. Offered last, because an author should reach for "show something here" before "there was never anything here", and greyed when it would leave nothing of the song |
 | B11c | *Keep gap* | HAVE | nothing forces a repair; the warning is advisory |
 | B12 | the studio's shape | HAVE | the AUDIO group is drawn: one lane per track that has something on it (an empty lane is furniture), each block placed by `soundOnSong` — the same function the mixer reads — right-clickable for the same five groups a take has, and draggable. Writing it found the take lane's own drag ignoring the zoom |
 | B13 | one system, extended | the rule | — |

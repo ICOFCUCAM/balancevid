@@ -42,8 +42,9 @@
  */
 
 import {
+  MIN_SONG_SAMPLES,
   type Performance, type PerformanceTake, type RenderProblem,
-  coversSpan, effectiveOffset, orderedScenes,
+  coversSpan, effectiveOffset, orderedScenes, songLength,
 } from './performance.js';
 import type { TakeId } from './document.js';
 import { type Samples, HOUSE_SAMPLE_RATE } from './time.js';
@@ -398,7 +399,8 @@ export function worthProposing(performance: Performance): boolean {
  * you choose a take that does not reach has moved the error, not fixed it.
  */
 export interface Repair {
-  id: 'use-next' | 'choose' | 'align-first' | 'use-previous' | 'freeze';
+  id: 'use-next' | 'choose' | 'align-first' | 'remove-section'
+  | 'use-previous' | 'freeze';
   label: string;
   /** Why it is offered, or why it is not. */
   says: string;
@@ -408,6 +410,9 @@ export interface Repair {
   /** For `align-first`: the take to move, and the push that moves it. */
   takeId?: TakeId;
   nudgeSamples?: number;
+  /** For `remove-section`: the stretch of song to take out. [B11b] */
+  fromSample?: number;
+  toSample?: number;
 }
 
 export function repairsFor(
@@ -494,6 +499,40 @@ export function repairsFor(
           takeId: first.id as TakeId,
           nudgeSamples: -first.alignment.offsetSamples,
         } : {}),
+      }];
+    })(),
+    /*
+     * TAKE THE EMPTY STRETCH OUT OF THE SONG.  [TIMELINE B11b, B6k]
+     *
+     * "Trim empty section." Every other repair here answers the hole
+     * by putting something ON it. This one answers it by deciding
+     * there was nothing to put there — which is the honest remedy
+     * when the hole is an intro nobody performed over, or a gap left
+     * by a take that was deleted.
+     *
+     * OFFERED ONLY WHEN SOMETHING WOULD BE LEFT. A performance with
+     * one short take over a four-minute song is mostly hole, and
+     * removing all of it would leave a video of nothing — which the
+     * edit refuses anyway, but a row that is offered and then refused
+     * is a row that lied. [U-04]
+     *
+     * It is the LAST of the repairs that can be done, because it
+     * changes the song and the others change the edit: an author
+     * should reach for "show something here" before "there was never
+     * anything here". [B11c: nothing forces a repair.]
+     */
+    ...(() => {
+      const left = songLength(performance.master) - (to - from);
+      return [{
+        id: 'remove-section' as const,
+        label: 'Take that stretch out of the song',
+        available: to > from && left >= MIN_SONG_SAMPLES,
+        says: left >= MIN_SONG_SAMPLES
+          ? `the video gets ${((to - from) / HOUSE_SAMPLE_RATE).toFixed(1)}s `
+            + 'shorter, and nothing has to be put on screen here'
+          : 'that would leave nothing of the song',
+        fromSample: from,
+        toSample: to,
       }];
     })(),
     {
