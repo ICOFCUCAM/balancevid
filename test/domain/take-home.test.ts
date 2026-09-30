@@ -24,6 +24,7 @@ import { mayBePublic } from '../../src/auth/policy.js';
 import {
   CLAIMS_BY_DEFAULT, availabilityFrom, claimsAllowed, mayClaim,
 } from '../../src/domain/availability.js';
+import { asOrigin } from '../../app/take/connections.js';
 
 const ROOT = join(import.meta.dirname, '..', '..');
 const code = (file: string) => readFileSync(join(ROOT, file), 'utf8')
@@ -33,6 +34,8 @@ const HOME = code('app/take/TakeHome.tsx');
 const PAGE = code('app/take/page.tsx');
 const CLAIM = code('app/api/participate/[kind]/[id]/route.ts');
 const FIELDS = code('app/AvailabilityFields.tsx');
+const CONN = code('app/take/connections.ts');
+const LIST = code('app/api/participate/route.ts');
 
 describe('the home is reachable without an account', () => {
   /*
@@ -184,7 +187,7 @@ describe('what the home offers, and what it does not', () => {
    * like a fault. [U-19, PART FIVE]
    */
   it('offers the action only where a stranger may act', () => {
-    expect(HOME).toMatch(/\{row\.openToAnyone \? \(/);
+    expect(HOME).toMatch(/\{row\.openToAnyone && !isElsewhere\(row\) \? \(/);
     expect(HOME).toMatch(/data-testid="row-invite-only"/);
     expect(HOME).toMatch(/By invitation/);
   });
@@ -256,9 +259,17 @@ describe('the page itself says nothing', () => {
    * part in three should never be unsure which they are looking at.
    * [P13, P22]
    */
-  it('says what you take part in here stays here', () => {
-    expect(HOME).toMatch(/one BalanceVid installation/);
-    expect(HOME).toMatch(/stays here/);
+  it('says where what you record ends up', () => {
+    /*
+     * IT USED TO SAY "one BalanceVid installation", which was true
+     * when the home could only show one. With several in the list
+     * that sentence is wrong in the direction that matters: it would
+     * tell a musician with three production companies that the three
+     * are one place.
+     */
+    expect(HOME).toMatch(/Every BalanceVid keeps its own productions/);
+    expect(HOME).toMatch(/this list is on your device/);
+    expect(HOME).not.toMatch(/one BalanceVid installation/);
   });
 });
 
@@ -377,5 +388,188 @@ describe('the ceiling on claims', () => {
     expect(availabilityFrom({ respondable: false, claims: 5 }).claims).toBeUndefined();
     expect(availabilityFrom({ respondable: true, access: 'anyone', claims: 5 }).claims)
       .toBe(5);
+  });
+});
+
+describe('many installations, one app', () => {
+  /*
+   * *"Imagine you are a musician. Your Take app might have… each a
+   * separate production environment. Yet you have one Take App."*
+   *
+   * THE LIST LIVES ON THE DEVICE, which is §12's argument about the
+   * footage turned on the participant: which production companies
+   * somebody works with must not accumulate centrally, and there is no
+   * index above them to ask.
+   */
+  it('remembers installations on the device and nowhere else', () => {
+    expect(CONN).toMatch(/'balancevid\.take\.instances'/);
+    expect(CONN).toMatch(/window\.localStorage\.setItem\(KEY/);
+    /* No registry is consulted, and none exists to consult. */
+    expect(CONN).not.toMatch(/registry|directory|balancevid\.com/i);
+  });
+
+  /*
+   * READ ACROSS, ACT ON THE OWNER — the division the whole thing turns
+   * on. Merging three listings is a cross-origin GET of public data.
+   * Claiming is a WRITE and gets no CORS at all, so it happens on the
+   * installation that will hold the recording.
+   */
+  it('reads other installations but never claims on them', () => {
+    expect(LIST).toMatch(/'access-control-allow-origin': '\*'/);
+    /* The claim route is the POST beside it, and has no CORS header. */
+    expect(CLAIM).not.toMatch(/access-control-allow-origin/i);
+  });
+
+  it('sends a person to the owner rather than claiming for them', () => {
+    expect(HOME).toMatch(/data-testid="row-take-there"/);
+    expect(HOME).toMatch(/href=\{`\$\{row\.from!\.origin\}\/take`\}/);
+    /* The button that claims is only for rows belonging to this page. */
+    expect(HOME).toMatch(/\{row\.openToAnyone && !isElsewhere\(row\) \? \(/);
+  });
+
+  /*
+   * A CROSS-ORIGIN READ CARRIES NO COOKIE, and not merely by default:
+   * the listing must not vary by who is asking, so a credential could
+   * only add risk. Stated where a reader would otherwise have to check.
+   */
+  it('asks other installations without credentials', () => {
+    expect(CONN).toMatch(/credentials: 'omit'/);
+    expect(LIST).not.toMatch(/allow-credentials/i);
+  });
+
+  /*
+   * AN INSTALLATION MAY NAME ITSELF AND MAY NOT PLACE ITSELF. A row
+   * that carried its own origin would be a row that could claim
+   * somebody else's — so the origin stored is the one this device
+   * actually reached.
+   */
+  it('trusts an installation for its name and not for its address', () => {
+    expect(CONN).toMatch(/instance: \{ name: String\(data\.instance\.name\)[^}]*, origin \}/);
+    expect(HOME).toMatch(/from\?: \{ name: string; origin: string \}/);
+  });
+
+  /*
+   * AN ORIGIN IS REFUSED RATHER THAN REPAIRED. What is stored is
+   * somewhere this device will later fetch from and send a person to,
+   * so nearly-a-URL is worse than nothing.
+   */
+  it('refuses anything that is not an origin', () => {
+    expect(asOrigin('')).toBeNull();
+    expect(asOrigin('   ')).toBeNull();
+    expect(asOrigin('javascript:alert(1)')).toBeNull();
+    /*
+     * A REFUSED SCHEME MUST NOT BECOME A DIFFERENT ORIGIN. The first
+     * version prepended `https://` to anything not starting `http`,
+     * so `ftp://studio.example` became `https://ftp` — a reachable
+     * host nobody typed. Caught here.
+     */
+    expect(asOrigin('ftp://studio.example')).toBeNull();
+    expect(asOrigin('file:///etc/passwd')).toBeNull();
+    expect(asOrigin('data:text/html,x')).toBeNull();
+    /* Credentials in a URL make one origin look like another. */
+    expect(asOrigin('https://evil@studio.example')).toBeNull();
+    expect(asOrigin('https://a:b@studio.example')).toBeNull();
+  });
+
+  /*
+   * A SCHEME IS NOT A PORT. A browser run refused `localhost:3101`
+   * as though `localhost:` were a scheme, so a self-hosted
+   * installation on a port could not be added at all — while
+   * `ftp://` still had to be refused. The digit is what separates
+   * them: a port is digits, and no scheme begins with one.
+   */
+  it('tells a port from a scheme', () => {
+    expect(asOrigin('localhost:3101')).toBe('https://localhost:3101');
+    expect(asOrigin('studio.example:8443')).toBe('https://studio.example:8443');
+    expect(asOrigin('http://localhost:3101')).toBe('http://localhost:3101');
+  });
+
+  it('keeps only the origin of something that is one', () => {
+    expect(asOrigin('https://studio.example/take?x=1#y')).toBe('https://studio.example');
+    expect(asOrigin('  https://studio.example/  ')).toBe('https://studio.example');
+    expect(asOrigin('http://localhost:3100/anything')).toBe('http://localhost:3100');
+    /* A bare host is what somebody types; the safe scheme is assumed. */
+    expect(asOrigin('studio.example')).toBe('https://studio.example');
+  });
+
+  /*
+   * ONE THAT CANNOT BE REACHED IS SHOWN, NOT DROPPED. A self-hosted
+   * installation on a laptop is often simply asleep, and a connection
+   * that silently disappears is a person wondering whether they
+   * imagined adding it. [U-19, P20]
+   */
+  it('says when an installation is not answering', () => {
+    expect(HOME).toMatch(/not answering just now/);
+    expect(HOME).toMatch(/setAsleep\(quiet\)/);
+  });
+
+  /*
+   * AND THE LABEL APPEARS ONLY WHEN IT SAYS SOMETHING. With one
+   * installation, naming it on every row says the only thing that
+   * could be true. [U-19]
+   */
+  it('labels a row with its installation only where there are several', () => {
+    expect(HOME).toMatch(/connections\.length > 0 && row\.from\?\.name !== row\.author/);
+  });
+
+  /*
+   * AND NEVER TWICE. A browser run showed "Redemption Records ·
+   * Redemption Records": a production company publishing under its
+   * own name is the ordinary case, and then the author and the
+   * installation are the same words.
+   */
+  it('does not print the same name twice', () => {
+    expect(HOME).toMatch(/row\.from\?\.name !== row\.author/);
+  });
+
+  /* A remote row's watch link has to leave this origin too. */
+  it('points a remote watch link at the installation that holds it', () => {
+    expect(HOME).toMatch(/\$\{isElsewhere\(row\) \? row\.from!\.origin : ''\}\$\{row\.watch\}/);
+  });
+});
+
+describe('a name somebody else chose', () => {
+  /*
+   * AN INSTALLATION NAMES ITSELF, so every label made from that name
+   * is as long as a stranger decided. "The Redemption Records
+   * Recording Company of Greater Manchester Limited" in a button on a
+   * 412px phone pushes the title out of its own card — and `askInstance`
+   * allows eighty characters, so this is a case the product will meet
+   * rather than a contrived one. Bounded where it is drawn rather than
+   * trusted at its source. [U-19]
+   */
+  it('bounds every label made from an installation name', () => {
+    const button = HOME.slice(HOME.indexOf('row-take-there'),
+      HOME.indexOf('</a>', HOME.indexOf('row-take-there')));
+    expect(button).toMatch(/textOverflow: 'ellipsis'/);
+    expect(button).toMatch(/whiteSpace: 'nowrap'/);
+    /* And the whole name is still reachable, on hover. */
+    expect(button).toMatch(/title=\{`Open on \$\{row\.from!\.name\}`\}/);
+  });
+
+  /*
+   * TWO THINGS A MEASUREMENT CAUGHT AND READING THE CSS WOULD NOT.
+   *
+   * `text-overflow` does nothing on a FLEX CONTAINER, and `.btn` is
+   * one — so the ellipsis on the anchor truncated nothing at all. And
+   * a grid item's automatic minimum size is its MIN-CONTENT, so the
+   * column grew to fit an unbreakable label and took every card with
+   * it: 492px inside a 412px phone, clipped rather than scrolled,
+   * with the action simply not on screen.
+   */
+  it('puts the ellipsis on a block, not on the flex container', () => {
+    const button = HOME.slice(HOME.indexOf('row-take-there'),
+      HOME.indexOf('</a>', HOME.indexOf('row-take-there')));
+    expect(button).toMatch(/display: 'block', overflow: 'hidden',\s*\n\s*textOverflow: 'ellipsis'/);
+  });
+
+  it('lets the column and its cards shrink below min-content', () => {
+    expect(HOME).toMatch(/width: '100%', maxWidth: 480, minWidth: 0,/);
+    expect(HOME).toMatch(/minWidth: 0, overflow: 'hidden',\n\};/);
+  });
+
+  /* The name is also capped where it arrives, so nothing stores a novel. */
+  it('caps the name at the door as well', () => {
+    expect(CONN).toMatch(/\.slice\(0, 80\)/);
   });
 });

@@ -5,6 +5,8 @@ import { isRespondable } from '../../../src/domain/document.js';
 import { listConversations } from '../../../src/store/repository.js';
 import { listPerformances } from '../../../src/store/performances.js';
 import { listChannels } from '../../../src/store/channels.js';
+import { theAccount } from '../../../src/store/accounts.js';
+import { originOf } from '../../../src/web/share.js';
 import { json } from '../../../src/web/http.js';
 
 export const dynamic = 'force-dynamic';
@@ -38,7 +40,7 @@ export const dynamic = 'force-dynamic';
  * authorization are separate questions and this route answers only the
  * first. [PART FIVE]
  */
-export async function GET(): Promise<Response> {
+export async function GET(request: Request): Promise<Response> {
   const rows: {
     kind: 'music' | 'video' | 'programme';
     id: string;
@@ -132,5 +134,59 @@ export async function GET(): Promise<Response> {
   /* Newest first, which is the order a browse surface wants. */
   rows.sort((a, b) => (b.publishedAt ?? '').localeCompare(a.publishedAt ?? ''));
 
-  return json({ participate: rows });
+  /*
+   * WHO IS ANSWERING.  [TAKE-PLATFORM P13, P22, P23, P25]
+   *
+   * One Take App speaks to many independent installations, and a person
+   * with three of them in their home must be able to tell whose song
+   * they are looking at. So the answer says what this installation is
+   * called and where it is — the two things a connection is made of.
+   *
+   * THE NAME IS THE ACCOUNT'S, which is already what the studio bar
+   * shows, and it is no more exposed than the titles beside it: every
+   * row here is something its author published and chose to list, and
+   * a listing that would not say whose it is would be worse.
+   *
+   * THE ORIGIN IS THE ONE THE BROWSER REACHED, never the one Node is
+   * listening on. A client storing a connection stores this, and
+   * behind a proxy `request.url` is the internal address — the fault
+   * the QR codes had, which is the same fault in a different place.
+   */
+  let name = 'BalanceVid';
+  try {
+    name = (await theAccount()).name || name;
+  } catch {
+    /* An installation that cannot read its own account still lists. */
+  }
+
+  return json({
+    instance: { name, origin: originOf(request) },
+    participate: rows,
+  }, {
+    headers: {
+      /*
+       * READABLE FROM ANOTHER INSTALLATION'S TAKE APP.
+       *   [TAKE-PLATFORM P22, P23, P25; §10, §11]
+       *
+       * A musician with three production companies has one Take App,
+       * and it is served by one of them. Merging what the other two
+       * offer means reading their listings from a page on a different
+       * origin, which the browser refuses without this.
+       *
+       * `*` AND NEVER CREDENTIALS. This answer does not vary by
+       * session — it is the same for the owner and for a stranger,
+       * which was checked — so there is nothing a cookie could add
+       * but risk. Without `Allow-Credentials` the browser sends none,
+       * and a cross-origin read can learn only what an author
+       * published and chose to list. [D-03]
+       *
+       * READ ONLY. The POST beside this is a WRITE and gets no CORS
+       * at all: taking part happens on the installation that owns the
+       * song, in its own page, so a claim is always same-origin and
+       * a listing can never be turned into a way to make one.
+       */
+      'access-control-allow-origin': '*',
+      'cache-control': 'no-store',
+    },
+  });
 }
