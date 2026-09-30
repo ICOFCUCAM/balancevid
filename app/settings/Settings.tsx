@@ -21,11 +21,16 @@ import {
  * having them in a footer, a badge and a tooltip.
  */
 export default function Settings({
-  account, runtime, version, space,
+  account, runtime, version, space, deployment,
 }: {
   account: { id: string; name: string; createdAt: string; studios: StudioId[] };
   runtime: { label: string; hosted: boolean };
   version: string;
+  /** What this running installation says it is. [D-13] */
+  deployment: {
+    commit: string; short: string; startedAt: string;
+    deployment?: string; environment?: string; url?: string;
+  };
   space: { used: string; free: string; total: string };
 }) {
   const [name, setName] = useState(account.name);
@@ -203,6 +208,29 @@ export default function Settings({
                    ? 'The same product runs on your own machine.'
                    : 'The same product runs hosted, with nothing withheld.'} />
             <Row term="Build" value={version} />
+            {/*
+              * THE COMMIT, next to the version that never changes.
+              * *"Could it be telling us that features written might not
+              * even be deployed?"* — this is the row that answers it,
+              * and it answers `Unknown` on an installation started by
+              * hand rather than inventing one. [D-13]
+              */}
+            <Row
+              term="Commit"
+              value={deployment.commit === 'unknown'
+                ? 'Unknown' : deployment.short}
+              note={deployment.commit === 'unknown'
+                ? 'Started by hand, so nothing set it. A deployed '
+                  + 'installation names the commit it is running.'
+                : [
+                  deployment.environment,
+                  `live here since ${new Date(deployment.startedAt)
+                    .toLocaleString(undefined, {
+                      day: 'numeric', month: 'short',
+                      hour: '2-digit', minute: '2-digit',
+                    })}`,
+                ].filter(Boolean).join(' · ')}
+            />
             <Row term="Storage"
                  value={`${space.used} of work`}
                  note={`${space.free} free of ${space.total}`} />

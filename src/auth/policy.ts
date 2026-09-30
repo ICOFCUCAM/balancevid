@@ -32,6 +32,13 @@ import type { StudioId } from '../domain/account.js';
  */
 const PUBLIC_EXACT = new Set([
   '/api/health',      // the deployment's health check, which has no session
+  /*
+   * WHICH BUILD IS LIVE, which a person asks from a phone that is not
+   * signed in, and a deploy probe asks with no session at all. A
+   * stranger gets the commit and nothing else; the route itself keeps
+   * the operational detail for the owner. [D-13, §version]
+   */
+  '/api/version',
   '/api/published',   // the list of things whose author asked for an audience
   /*
    * What this installation offers to take part in.
