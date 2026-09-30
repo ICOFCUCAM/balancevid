@@ -1,12 +1,13 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import Icon from './Icon.js';
+import Icon, { type IconName } from './Icon.js';
 import { useRouter } from 'next/navigation';
 
 import {
   ACCEPTS_MEDIA, planForUrl, waysIn, type SourceKind,
 } from '../src/domain/sources.js';
+import { Door, NewWork } from './Room.js';
 import { useCamera } from './useCamera.js';
 import { useQuality } from './useQuality.js';
 import { useSourceRecorder } from './useSourceRecorder.js';
@@ -44,6 +45,22 @@ import { useSourceRecorder } from './useSourceRecorder.js';
  * someone who cares can open them, rather than as the first thing anyone
  * meets. What the first screen asks is what the product is about.
  */
+/**
+ * A GLYPH AND A COLOUR PER DOOR, so four doors read as four things.
+ *
+ * Not in `sources.ts`: that table is the domain's answer to how many
+ * ways in there are, and an icon name is this screen's business.
+ */
+const DOOR_GLYPH: Record<SourceKind, IconName> = {
+  upload: 'upload', link: 'link', record: 'live', screen: 'expand',
+  /* Listed because the record is closed; never drawn — `waysIn` omits it. */
+  live: 'broadcast',
+};
+const DOOR_TONE: Record<SourceKind, string> = {
+  upload: 'var(--studio-one)', link: 'var(--studio-two)',
+  record: 'var(--bad)', screen: 'var(--studio-tv)', live: 'var(--ink-450)',
+};
+
 type Step = 'choose' | 'ready';
 
 interface Preview {
@@ -337,35 +354,32 @@ export default function StartConversation() {
       <div data-testid="start-choose">
         {filePicker}
         {/*
-          * THE HEADING IS A QUESTION NOW.  [§1, §7]
+          * THE FOUR WAYS IN, AS PRODUCTION ACTIONS.  [§1, §6, §7]
           *
-          * It said "Bring a video into the conversation", which answered
-          * the question before asking it and answered it too narrowly:
-          * the product takes video, audio, a screen and a camera, and
-          * the sentence named one of them.
+          * They were four equal outlined boxes, which the author read
+          * correctly as a form: *"Studio One is supposed to be a
+          * production environment, not merely an intake form."* What
+          * changed is the framing and the weight, not the four things —
+          * a titled panel that says what pressing one of them begins,
+          * and a glyph per door so the row reads as four doors.
+          *
+          * STILL FROM THE TABLE AND NOT FROM HERE. A fifth exists in
+          * `SOURCE_WAYS`, marked `later` by the author, and `waysIn` is
+          * what keeps it out of this row without losing it. [§3, §8]
           */}
-        <h2 style={{ fontSize: 'var(--text-xl)', marginBottom: 4 }}>
-          Start a conversation
-        </h2>
-        <p className="muted" style={{ marginTop: 0, maxWidth: 560 }}>
-          What would you like to respond to? Video, audio, a screen or your
-          own camera — then interrupt it wherever you have something to say.
-        </p>
-
-        {/*
-          * FOUR CARDS, FROM THE TABLE AND NOT FROM HERE. A fifth exists
-          * in `SOURCE_WAYS`, marked `later` by the author, and `waysIn`
-          * is what keeps it out of this row without losing it. [§3, §8]
-          */}
-        <div data-testid="source-ways" style={{
-          display: 'grid', gap: 10, margin: '20px 0 16px',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(176px, 1fr))',
-        }}>
+        <NewWork
+          title="New conversation"
+          says="Bring in something to respond to."
+          footnote={'A live source — camera, browser, RTMP, SRT or a network '
+            + 'feed — is not here yet.'}
+        >
           {waysIn().map((one) => (
-            <button
-              key={one.kind} data-testid="source-way" data-way={one.kind}
-              aria-pressed={door === one.kind}
-              onClick={() => {
+            <Door
+              key={one.kind} testId="source-way" way={one.kind}
+              icon={DOOR_GLYPH[one.kind]} tone={DOOR_TONE[one.kind]}
+              label={one.label} says={one.says}
+              chosen={door === one.kind}
+              onSelect={() => {
                 setError(null);
                 setDoor(one.kind);
                 /*
@@ -379,24 +393,11 @@ export default function StartConversation() {
                 if (one.kind === 'record' || one.kind === 'screen') {
                   void capture.arm();
                 }
-              }}
-              style={{
-                textAlign: 'left', padding: '14px 16px', minWidth: 0,
-                background: door === one.kind ? 'var(--accent-wash)' : 'transparent',
-                /*
-                 * A CHOSEN CARD IS CHROME. This border was --user-accent,
-                 * which is the responder's orange, drawn around a blue
-                 * wash — the first screen of the product, telling a
-                 * speaker-identity story about a radio button. [U-20]
-                 */
-                border: `1px solid ${door === one.kind ? 'var(--accent)' : 'var(--line)'}`,
-              }}
-            >
-              <div style={{ fontWeight: 'var(--weight-semi)' }}>{one.label}</div>
-              <div className="small muted">{one.says}</div>
-            </button>
+              }} />
           ))}
-        </div>
+        </NewWork>
+
+        <div style={{ marginTop: 14 }}>
 
         {/*
           * AND THEN ONE SIMPLE THING.  [§6]
@@ -570,22 +571,8 @@ export default function StartConversation() {
           </div>
         )}
 
-        {/*
-          * THE DOOR THAT IS NOT OPEN, SAID RATHER THAN OMITTED.  [§3, §8]
-          *
-          * *"I would also consider Live source… Eventually."* A product
-          * that silently lacks a thing and a product that says when it is
-          * coming are different products to somebody deciding whether to
-          * use it, and the author put it in the table rather than leaving
-          * it out.
-          */}
-        <p className="small muted" data-testid="later-source"
-           style={{ marginTop: 14, fontSize: 'var(--text-2xs)' }}>
-          A live source — camera, browser, RTMP, SRT or a network feed — is
-          not here yet.
-        </p>
-
         {error && <p className="small" style={{ color: 'var(--bad)' }} data-testid="start-error">{error}</p>}
+        </div>
       </div>
     );
   }

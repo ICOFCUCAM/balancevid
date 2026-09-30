@@ -174,7 +174,7 @@ describe('a missing picture is never a broken one', () => {
    * AND A LIST WHOSE ROWS CANNOT HAVE A PICTURE DOES NOT KEEP A COLUMN
    * FOR ONE. A channel is a schedule, not a thing with a first frame.
    */
-  it('drops the picture column when nothing in a list has one', () => {
+  it('keeps no picture well when nothing in a list has one', () => {
     expect(code('app', 'Room.tsx'))
       .toContain('rows.some((one) => one.poster !== null)');
   });

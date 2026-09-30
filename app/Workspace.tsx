@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import Icon, { type IconName } from './Icon.js';
 import Still from './Still.js';
+import { BuildingRail, type SpaceReading } from './Rail.js';
 import { roomFor } from '../src/domain/rooms.js';
 import type { StudioId } from '../src/domain/account.js';
 import { MenuButton, RightClickHint, useMenu, type MenuEntry } from './Menu.js';
@@ -91,13 +92,7 @@ export interface WorkRecord {
   live?: boolean;
 }
 
-export interface SpaceReading {
-  used: string;
-  free: string;
-  total: string;
-  fraction: number;
-  partial: boolean;
-}
+
 
 export interface HeroChannel {
   id: string;
@@ -148,9 +143,16 @@ const STUDIOS: {
    * card needs. That is genuinely this file's business.
    */
   blurb: string;
-  /** The room's identity, and the two strengths it is washed in. */
-  accent: string;
-  veil: string;
+  /**
+   * THE PHOTOGRAPH, THE VEIL AND THE ACCENT MOVED TO `rooms.ts`.
+   *
+   * The argument for keeping them here was that they are "how a room
+   * looks on this page". That held while the card was the only place a
+   * room appeared; the room's own front door now shows the same
+   * photograph under the same veil, so they belong to the room. What
+   * stays is the wash, the glyph and the one line of pitch that only a
+   * card needs. [D-19]
+   */
   wash: string;
   /**
    * A PHOTOGRAPH OF THE ROOM THIS DOOR OPENS ON.
@@ -165,17 +167,6 @@ const STUDIOS: {
    * SERVED FROM `public/rooms/`, built by `scripts/room-art.mjs` from
    * the masters in `art/`.
    */
-  art: string;
-  /**
-   * Where the crop holds when the band is wider than it is tall.
-   *
-   * `cover` has to throw away most of a 16:9 photograph to fill a
-   * 2.2:1 band, and which half it throws away is not the same answer
-   * three times: the conversation's subjects sit low in frame behind
-   * a desk, the gallery's interest is the monitor wall above the
-   * desk. Centre would cut the first at the chin.
-   */
-  focus: string;
   icon: IconName;
 }[] = [
   {
@@ -189,25 +180,19 @@ const STUDIOS: {
      */
     blurb: 'Watch, interrupt and respond to video, audio, a screen or '
       + 'your own camera.',
-    accent: 'var(--studio-one)', veil: 'var(--studio-one-veil)',
     wash: 'var(--studio-one-wash)', icon: 'conversation',
-    art: '/rooms/conversation.webp', focus: 'center 58%',
   },
   {
     studio: 'two', id: 'studio-two', kind: 'performance',
     blurb: 'One song, many takes. Cut between them afterwards, in a room '
       + 'you choose.',
-    accent: 'var(--studio-two)', veil: 'var(--studio-two-veil)',
     wash: 'var(--studio-two-wash)', icon: 'music',
-    art: '/rooms/performance.webp', focus: 'center 45%',
   },
   {
     studio: 'tv', id: 'online-tv', kind: 'channel',
     blurb: 'Run a 24/7 channel from what you have already made, and go '
       + 'live to your audience.',
-    accent: 'var(--studio-tv)', veil: 'var(--studio-tv-veil)',
     wash: 'var(--studio-tv-wash)', icon: 'broadcast',
-    art: '/rooms/online-tv.webp', focus: 'center 38%',
   },
 ];
 
@@ -311,124 +296,18 @@ export default function Workspace({
       * The class reads the token, so that rule finally does something.
       */
     <div className="building" style={{ background: 'var(--ink-900)' }}>
-      {/* ============ THE RAIL — still dark ========================== */}
       {/*
-        * ITS DIRECTION IS IN CSS, and that is not a preference.
+        * THE RAIL IS THE BUILDING'S, NOT THIS PAGE'S.
         *
-        * `flexDirection: 'column'` was inline here, so the phone rule
-        * that turns the rail into a strip never applied — and the
-        * failure was not "it still looks like a column". The nav's box
-        * was 121px tall with eight items laid out down to 421px, which
-        * means every link below the first sat OUTSIDE its own nav and
-        * BEHIND the page: present, measurable, and not clickable. A
-        * hit test found `building-body` at the centre of "Studio Two".
-        *
-        * Third time in this change that an inline layout style beat a
-        * media query. Layout belongs in the stylesheet; colour and the
-        * rest can stay.
+        * It was drawn here, which meant the three rooms had no way to
+        * each other and no way back except one "Home" link — a room you
+        * can only leave by the door you came in is not a room in a
+        * building. `app/Rail.tsx` holds it once and every surface that
+        * is inside the building renders it. [D-19]
         */}
-      <nav data-testid="workspace-rail" className="building-rail" style={{
-        background: 'var(--ink-900)',
-      }}>
-        <div className="row" style={{
-          gap: 'var(--space-3)', padding: '18px 18px 20px',
-          flexWrap: 'nowrap', flex: '0 0 auto',
-        }}>
-          <span aria-hidden="true" style={{
-            width: 30, height: 30, borderRadius: 9, display: 'grid',
-            placeItems: 'center', flex: '0 0 auto',
-            background: 'linear-gradient(140deg, var(--accent-soft),'
-              + ' var(--accent-deep))',
-            color: 'var(--text-on-accent)',
-            boxShadow: '0 4px 12px rgba(47, 111, 208, 0.3)',
-          }}><Icon name="play" size={13} /></span>
-          <strong style={{
-            fontSize: 'var(--text-lg)', whiteSpace: 'nowrap',
-            letterSpacing: 'var(--tracking-tight)',
-          }}>BalanceVid</strong>
-        </div>
-
-        {/*
-          * NO INLINE LAYOUT ON THIS ONE EITHER — see the nav above. Every
-          * property that decides where these links go is in
-          * `.building-rail-links`, because the phone rule has to change
-          * all of them at once: direction, which axis scrolls, and
-          * whether the list takes the leftover height or only its own.
-          */}
-        <div className="building-rail-links">
-          {/*
-            * THE SAME PLACES AS THE STUDIO BAR, IN THE SAME ORDER, so a
-            * person who learns them here recognises them there. A studio
-            * row opens the studio — the newest thing in it — because a tab
-            * that scrolled to a list would be a second Conversations row
-            * wearing a different name. With nothing in it yet, it says so
-            * and scrolls to the door instead of leading nowhere. [§13]
-            */}
-          <Rail href="#top" icon="home" label="Home" current />
-          {/*
-            * A STUDIO THIS ACCOUNT DOES NOT HAVE IS NOT DIMMED HERE, IT IS
-            * ABSENT. The `empty` state above means "you have this and there
-            * is nothing in it yet", which is an invitation. Not owning it is
-            * not an invitation, and dressing it as one would make the rail
-            * an advertisement — with no way to buy, because there is no
-            * billing. When there is something to sell, this is where the
-            * offer goes. [MASTER-EDIT §11]
-            */}
-          {/*
-            * THE RAIL LED TO THE NEWEST THING IN EACH ROOM, OR TO AN
-            * ANCHOR. Which meant the building's own directory pointed at
-            * documents and at scroll positions rather than at rooms —
-            * and it was the same fault as the cards, in the one place a
-            * person looks when they already know where they want to go.
-            *
-            * All three point at rooms now, because there are three.
-            */}
-          {has('studio-one') && (
-            <Rail href={roomFor('studio-one').href}
-                  label={roomFor('studio-one').tab}
-                  icon="conversation" under="Conversations"
-                  empty={!newest('conversation')} />
-          )}
-          {has('studio-two') && (
-            <Rail href={roomFor('studio-two').href}
-                  label={roomFor('studio-two').tab}
-                  icon="music" under="Performance"
-                  empty={!newest('performance')} />
-          )}
-          {has('online-tv') && (
-            <Rail href={roomFor('online-tv').href}
-                  label={roomFor('online-tv').tab}
-                  icon="broadcast" under="Channels & Broadcasts"
-                  empty={!newest('channel')} />
-          )}
-          <Rail href="#library" icon="library" label="Library"
-                under="Media & Recordings" count={live.length} />
-
-          <hr style={{
-            border: 0, borderTop: '1px solid var(--ink-750)',
-            margin: '14px 10px',
-          }} />
-
-          {has('online-tv') && (
-            <>
-              <Rail href="#channels" icon="channels" label="Channels" />
-              <Rail href={hero ? `${hero.href}#distribution` : '#channels'}
-                    icon="distribution" label="Distribution"
-                    empty={!hero} />
-            </>
-          )}
-          <Rail href="/settings" icon="settings" label="Settings" />
-          {/*
-            * NO "SHARED WITH ME". This instance has one owner, so it would
-            * be a row that never does anything — and a menu that lies is
-            * worse than a short one.
-            */}
-        </div>
-
-        <div style={{ flex: '0 0 auto', padding: 14 }}>
-          <StorageCard space={space} />
-        </div>
-      </nav>
+      <BuildingRail owned={owned} libraryCount={live.length} space={space}
+                    current="home" atHome
+                    {...(hero ? { heroHref: hero.href } : {})} />
 
       {/* ============ THE WORK — lit ================================= */}
       <div data-ground="light" data-building data-testid="building" style={{
@@ -564,6 +443,7 @@ export default function Workspace({
               {mineStudios.map((studio) => {
                 const mine = of(studio.kind);
                 if (mine.length === 0) return null;
+                const room = roomFor(studio.id);
                 return (
                   <section
                     key={studio.kind}
@@ -577,7 +457,7 @@ export default function Workspace({
                     }}>
                       <span aria-hidden="true" style={{
                         width: 9, height: 9, borderRadius: 3, flex: '0 0 auto',
-                        background: studio.accent,
+                        background: room.accent,
                       }} />
                       <strong className="grow" style={{
                         fontSize: 'var(--text-md)',
@@ -635,120 +515,9 @@ export default function Workspace({
  *  The rail.
  * ------------------------------------------------------------------------ */
 
-function Rail({
-  href, icon, label, under, count, current, empty,
-}: {
-  href: string; icon: IconName; label: string; under?: string;
-  count?: number; current?: boolean; empty?: boolean;
-}) {
-  const Tag = href.startsWith('#') ? 'a' : Link;
-  return (
-    <Tag
-      href={href}
-      data-testid="rail-link"
-      aria-current={current ? 'page' : undefined}
-      title={empty ? `Nothing in ${label} yet` : undefined}
-      /*
-        * THE CHOSEN ROW IS MARKED ON ITS LEADING EDGE, not merely tinted.
-        * A wash alone is a colour-only difference — invisible in
-        * greyscale, and the first thing to go on a bad panel in a bright
-        * room. A bar on the leading edge is found without comparing, and
-        * it is the convention every editor and every mail client uses for
-        * the same reason. [D-04, U-19]
-        */
-      style={{
-        display: 'flex', alignItems: 'center', gap: 'var(--space-4)',
-        padding: '9px 10px', borderRadius: 'var(--radius-md)',
-        textDecoration: 'none',
-        color: current ? 'var(--ink-000)' : 'var(--ink-200)',
-        background: current ? 'var(--accent-wash)' : 'transparent',
-        boxShadow: current ? 'inset 2px 0 0 var(--accent)' : 'none',
-        opacity: empty ? 0.45 : 1,
-        transition: 'background-color var(--motion-fast) var(--ease-out),'
-          + ' color var(--motion-fast) var(--ease-out)',
-      }}
-    >
-      <span aria-hidden="true" style={{
-        color: current ? 'var(--accent-soft)' : 'var(--ink-400)',
-      }}><Icon name={icon} size={17} /></span>
-      <span className="grow" style={{ minWidth: 0, lineHeight: 1.25 }}>
-        <span style={{
-          display: 'block', fontSize: 'var(--text-base)',
-          fontWeight: current ? 'var(--weight-semi)' : 'var(--weight-medium)',
-          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-        }}>{label}</span>
-        {/*
-          * Its `display` is in CSS for the fourth time in this change:
-          * the phone rule hides this line, and `display: block` written
-          * here would beat it.
-          */}
-        {under && (
-          <span data-rail-under="" className="rail-under">{under}</span>
-        )}
-      </span>
-      {count !== undefined && count > 0 && (
-        <span style={{
-          flex: '0 0 auto', fontSize: 'var(--text-2xs)',
-          fontVariantNumeric: 'tabular-nums',
-          padding: '1px 6px', borderRadius: 'var(--radius-full)',
-          background: 'var(--ink-750)', color: 'var(--ink-200)',
-        }}>{count}</span>
-      )}
-    </Tag>
-  );
-}
 
-function StorageCard({ space }: { space: SpaceReading }) {
-  const percent = Math.round(space.fraction * 100);
-  return (
-    <div data-testid="storage" style={{
-      padding: 12, borderRadius: 'var(--radius-lg)',
-      background: 'var(--ink-850)',
-      border: 'var(--border) solid var(--ink-750)',
-    }}>
-      <div className="row" style={{ gap: 8, flexWrap: 'nowrap' }}>
-        <span aria-hidden="true" style={{ color: 'var(--ink-400)' }}>
-          <Icon name="disk" size={15} />
-        </span>
-        <span className="grow" style={{
-          fontSize: 'var(--text-xs)', fontWeight: 'var(--weight-semi)',
-          color: 'var(--ink-100)',
-        }}>Storage</span>
-        <span style={{
-          fontSize: 'var(--text-2xs)', color: 'var(--ink-300)',
-          fontVariantNumeric: 'tabular-nums',
-        }}>{percent}%</span>
-      </div>
-      {/*
-        * TWO MEASUREMENTS, SAID SEPARATELY. What this workspace holds and
-        * what the disk has left are different numbers, and one line
-        * reading "10 GB used" above a bar drawn at ninety per cent is a
-        * widget contradicting itself.
-        */}
-      <div style={{
-        fontSize: 'var(--text-2xs)', color: 'var(--ink-400)',
-        marginTop: 6, lineHeight: 1.5,
-      }}>
-        {space.partial && 'over '}{space.used} of work<br />
-        {space.free} free of {space.total}
-      </div>
-      <div style={{
-        height: 5, borderRadius: 3, background: 'var(--ink-700)',
-        marginTop: 8, overflow: 'hidden',
-      }} title={`The disk is ${percent}% full. `
-        + `This workspace holds ${space.used} of that.`}>
-        <div style={{
-          height: '100%', width: `${Math.min(100, space.fraction * 100)}%`,
-          minWidth: space.fraction > 0 ? 2 : 0,
-          borderRadius: 3,
-          background: space.fraction > 0.9 ? 'var(--state-bad)'
-            : space.fraction > 0.75 ? 'var(--state-warn)'
-              : 'linear-gradient(90deg, var(--accent-deep), var(--accent-soft))',
-        }} />
-      </div>
-    </div>
-  );
-}
+
+
 
 /* ------------------------------------------------------------------------ *
  *  The top bar.
@@ -1465,18 +1234,18 @@ function StudioCard({
          * that proportion, held at every width the grid produces.
          */
         height: 132, position: 'relative', overflow: 'hidden',
-        background: `linear-gradient(140deg, ${studio.veil},`
+        background: `linear-gradient(140deg, ${room.veil},`
           + ' var(--surface-sunk))',
       }}>
-        <img alt="" src={studio.art} loading="lazy" decoding="async"
+        <img alt="" src={room.art} loading="lazy" decoding="async"
              style={{
                position: 'absolute', inset: 0,
                width: '100%', height: '100%',
-               objectFit: 'cover', objectPosition: studio.focus,
+               objectFit: 'cover', objectPosition: room.focus,
                display: 'block',
              }} />
         <span style={{
-          position: 'absolute', inset: 0, background: studio.veil,
+          position: 'absolute', inset: 0, background: room.veil,
         }} />
         {/*
           * A FADE INTO THE CARD, AND NOTHING ELSE ON TOP.
@@ -1540,7 +1309,7 @@ function StudioCard({
           <Link href={room.href} data-testid="open-studio" style={{
             flex: '1 1 0', textAlign: 'center', padding: '8px 10px',
             borderRadius: 'var(--radius-md)', textDecoration: 'none',
-            background: studio.accent, color: 'var(--text-on-accent)',
+            background: room.accent, color: 'var(--text-on-accent)',
             fontSize: 'var(--text-xs)', fontWeight: 'var(--weight-semi)',
             boxShadow: 'var(--elev-2)',
           }}>

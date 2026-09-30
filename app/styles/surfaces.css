@@ -547,3 +547,411 @@ dialog::backdrop {
   --qr-ink: #0e0f11;
   --qr-note: #55585e;
 }
+
+/* ---- a production room's front door ----------------------------------
+ *
+ * *"This does not yet look like a professional production room. It looks
+ * more like an internal prototype or setup page. The biggest problem is
+ * not the typography or colors. It is the composition and product
+ * hierarchy."*
+ *
+ * Three things follow from that, and they are all composition:
+ *
+ *   THE ROOM IS INSIDE THE BUILDING. It has the rail, so the other two
+ *   rooms are one click away instead of back-then-forward.
+ *
+ *   THE IDENTITY IS THE SIZE OF AN IDENTITY. `SOURCE → RESPONSE` was a
+ *   small grey eyebrow; it is the largest thing on the page, over the
+ *   room's own photograph.
+ *
+ *   THE WORK FILLS THE ROOM. The lower two thirds of the screen were
+ *   black. A hero, a titled intake panel and a card grid of what has
+ *   been made give the room something to be even before there is work
+ *   in it.
+ */
+
+/* The bar above the room: where you are, and that the room is ready. */
+.building-shell {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.room-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex: 0 0 auto;
+  padding: 0 24px;
+  height: 46px;
+  font-size: var(--text-sm);
+  background: var(--ink-900);
+  border-bottom: var(--border) solid var(--ink-750);
+}
+
+/* ---- the hero -------------------------------------------------------- */
+
+.room-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-xl);
+  min-height: 208px;
+  display: flex;
+  align-items: flex-end;
+  background: var(--surface-sunk);
+}
+
+.room-hero-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.room-hero-veil { position: absolute; inset: 0; }
+
+/*
+ * DARKENED FROM THE LEFT, WHERE THE TYPE IS.
+ *
+ * A flat scrim over the whole photograph would dim the picture to save
+ * the words; a horizontal ramp keeps the right-hand two fifths of the
+ * image at full strength and still puts 4.5:1 under the heading.
+ */
+.room-hero-shade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg,
+    rgba(6, 9, 14, 0.92) 0%,
+    rgba(6, 9, 14, 0.78) 42%,
+    rgba(6, 9, 14, 0.22) 100%);
+}
+
+.room-hero-said {
+  position: relative;
+  padding: 26px 28px;
+  max-width: 44rem;
+}
+
+.room-hero-label {
+  margin: 0;
+  font-size: var(--text-2xs);
+  letter-spacing: 0.14em;
+  font-weight: var(--weight-bold);
+  color: var(--ink-300);
+}
+
+.room-hero-stages {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 6px 0 0;
+  /* The top of the scale, because this is the name of the work. */
+  font-size: 27px;
+  line-height: 1.12;
+  letter-spacing: 0.04em;
+  font-weight: var(--weight-bold);
+  color: var(--ink-000);
+}
+
+.room-hero-says {
+  margin: 10px 0 0;
+  font-size: var(--text-base);
+  line-height: var(--leading-snug);
+  color: var(--ink-200);
+  max-width: 40rem;
+}
+
+/* ---- the way in ------------------------------------------------------ */
+
+.room-new { margin-top: 18px; padding: 18px; }
+
+.room-new-mark {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border-radius: var(--radius-md);
+  display: grid;
+  place-items: center;
+  background: var(--accent-wash);
+  color: var(--accent);
+}
+
+.room-new-title {
+  margin: 0;
+  font-size: var(--text-md);
+  letter-spacing: var(--tracking-tight);
+}
+
+.room-new-says {
+  margin: 2px 0 0;
+  font-size: var(--text-sm);
+  color: var(--text-faint);
+}
+
+.room-doors {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(188px, 1fr));
+}
+
+.room-new-foot {
+  margin: 14px 0 0;
+  font-size: var(--text-2xs);
+  color: var(--ink-450);
+}
+
+.room-door {
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  gap: 4px;
+  min-width: 0;
+  text-align: left;
+  padding: 14px;
+  border-radius: var(--radius-lg);
+  border: var(--border) solid var(--line);
+  background: var(--surface-sunk);
+  color: inherit;
+  text-decoration: none;
+}
+
+.room-door.is-chosen {
+  border-color: var(--accent);
+  background: var(--accent-wash);
+}
+
+.room-door-mark {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-md);
+  display: grid;
+  place-items: center;
+  color: var(--text-on-accent);
+  margin-bottom: 4px;
+}
+
+.room-door-label { font-weight: var(--weight-semi); }
+
+.room-door-says {
+  font-size: var(--text-2xs);
+  color: var(--text-faint);
+  line-height: var(--leading-snug);
+}
+
+.room-door-go { color: var(--ink-450); margin-top: 8px; }
+
+/* ---- Studio Two's four steps ----------------------------------------- */
+
+.room-steps {
+  display: grid;
+  gap: 10px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+  grid-template-columns: repeat(auto-fit, minmax(188px, 1fr));
+}
+
+.room-step {
+  display: flex;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px 14px;
+  border-radius: var(--radius-lg);
+  border: var(--border) solid var(--line);
+  background: var(--surface-sunk);
+}
+
+.room-step-number {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-bold);
+  background: var(--studio-two);
+  color: var(--text-on-accent);
+}
+
+.room-step-said { display: grid; gap: 2px; min-width: 0; }
+
+.room-intake {
+  margin-top: 14px;
+  padding: 14px;
+  border-radius: var(--radius-lg);
+  border: var(--border) dashed var(--line);
+  background: var(--surface-sunk);
+}
+
+.room-intake-label {
+  display: block;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semi);
+  margin-bottom: 8px;
+}
+
+/* ---- what has been made here ----------------------------------------- */
+
+.room-cards {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(214px, 1fr));
+}
+
+.room-card {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+  min-width: 0;
+  text-decoration: none;
+  color: inherit;
+  border-radius: var(--radius-lg);
+}
+
+.room-card-art {
+  position: relative;
+  display: block;
+  aspect-ratio: 16 / 9;
+  background: var(--surface-sunk);
+  overflow: hidden;
+}
+
+/* What kind of thing it is, on the picture, where a badge belongs. */
+.room-card-kind {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  padding: 3px 7px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semi);
+  background: rgba(6, 9, 14, 0.74);
+  color: var(--ink-000);
+}
+
+.room-card-live {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 7px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.06em;
+  background: rgba(6, 9, 14, 0.74);
+  color: var(--bad);
+}
+
+.room-card-live > span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--bad);
+}
+
+.room-card-said {
+  display: block;
+  padding: 11px 12px 12px;
+  min-width: 0;
+}
+
+.room-card-title {
+  display: block;
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.room-card-under {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--text-2xs);
+  color: var(--text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.room-card-when { font-size: var(--text-2xs); color: var(--ink-450); }
+
+.room-card-state {
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semi);
+  padding: 2px 7px;
+  border-radius: var(--radius-sm);
+  background: var(--state-ok-wash, var(--accent-wash));
+  color: var(--state-ok);
+}
+
+/* ---- an empty professional workspace --------------------------------- */
+
+.room-empty {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 38px 20px;
+  text-align: center;
+}
+
+.room-empty-mark {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-lg);
+  display: grid;
+  place-items: center;
+  background: var(--surface-sunk);
+  color: var(--ink-400);
+  margin-bottom: 6px;
+}
+
+.room-empty-title { font-size: var(--text-md); }
+
+.room-empty-says { font-size: var(--text-sm); color: var(--text-faint); }
+
+@media (max-width: 760px) {
+  .room-bar { padding: 0 16px; }
+  .room-hero { min-height: 172px; }
+  .room-hero-said { padding: 18px 16px; }
+  .room-hero-stages { font-size: 21px; gap: 8px; }
+  /*
+   * ON A PHONE THE RAMP RUNS DOWNWARD, because the type sits under the
+   * picture's middle rather than to the left of it.
+   */
+  .room-hero-shade {
+    background: linear-gradient(180deg,
+      rgba(6, 9, 14, 0.42) 0%, rgba(6, 9, 14, 0.9) 72%);
+  }
+}
+
+/*
+ * A way in that is a sequence rather than a choice.
+ *
+ * `.room-doors` is an equal-columns grid, which is right for four ways
+ * into Studio One and wrong for Studio Two's four steps plus the field
+ * the song goes in: it put the list and the field side by side and
+ * stretched the field to the list's height.
+ */
+.room-plain { margin-top: 14px; }
+
+/* A card in a list where nothing has a picture. */
+.room-card-flat { padding-top: 12px; }
+
+.room-card-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 0 12px;
+}
+
+.room-card-kind.is-inline,
+.room-card-live.is-inline { position: static; }

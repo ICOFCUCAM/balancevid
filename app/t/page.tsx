@@ -1,8 +1,9 @@
 import { listChannels } from '../../src/store/channels.js';
 import { whatIsOn } from '../../src/domain/channel.js';
 import { roomFor } from '../../src/domain/rooms.js';
-import Room, { RoomList, type RoomRow } from '../Room.js';
+import Room, { RoomWork, type RoomCard } from '../Room.js';
 import StartChannel from '../StartChannel.js';
+import { theBuilding } from '../building.js';
 import { when } from '../when.js';
 
 export const dynamic = 'force-dynamic';
@@ -29,10 +30,12 @@ export const dynamic = 'force-dynamic';
  * another dashboard redesign."*
  */
 export default async function OnlineTvPage() {
-  const channels = await listChannels().catch(() => []);
+  const [channels, building] = await Promise.all([
+    listChannels().catch(() => []), theBuilding(),
+  ]);
   const now = Date.now();
 
-  const rows: RoomRow[] = channels.map((one) => {
+  const rows: RoomCard[] = channels.map((one) => {
     const on = whatIsOn(one, now);
     /*
      * WHAT THE AUDIENCE IS SEEING, IN ITS OWN WORDS. `whatIsOn` answers
@@ -51,23 +54,24 @@ export default async function OnlineTvPage() {
       id: one.id,
       href: `/t/${one.id}`,
       title: one.name,
-      under: doing ? `Showing ${doing}` : 'Off air',
+      from: on.kind === 'off' ? 'Off air' : 'On air',
+      under: doing ? `Showing ${doing} · ${scheduled} scheduled`
+        : `${scheduled} scheduled · ${one.timezone}`,
+      when: when(one.updatedAt),
+      state: one.publication && !one.publication.unpublishedAt ? 'Published' : null,
       poster: null,
       ...(on.kind !== 'off' ? { live: true } : {}),
-      facts: [
-        `${scheduled} scheduled`,
-        one.timezone,
-        when(one.updatedAt),
-      ],
     };
   });
 
   return (
-    <Room room={roomFor('online-tv')} start={<StartChannel />}>
-      <RoomList
+    <Room room={roomFor('online-tv')} {...building} start={<StartChannel />}>
+      <RoomWork
         rows={rows}
         heading="Channels"
-        empty="No channel yet. Name one above and it has a schedule, a loop and an output from the moment it exists." />
+        empty="No channel yet"
+        emptySays={'Name one above — it has a schedule, a loop and an output '
+          + 'from the moment it exists.'} />
     </Room>
   );
 }

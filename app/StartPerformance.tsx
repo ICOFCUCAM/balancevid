@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+
+import { NewWork } from './Room.js';
 import { MASTER_CLASSES } from '../src/domain/performance.js';
 
 /**
@@ -61,24 +63,80 @@ export default function StartPerformance() {
 
   return (
     <div data-testid="start-performance">
-      <div className="small muted" style={{ textTransform: 'uppercase',
-        letterSpacing: 0.8, fontSize: 'var(--text-xs)' }}>
-        Performance Studio
-      </div>
-      <h2 style={{ fontSize: 'var(--text-lg)', margin: '4px 0 6px' }}>Perform against a song</h2>
-      <p className="small muted" style={{ marginTop: 0, maxWidth: 460 }}>
-        One song, many performances, all on the same clock. Record yourself as
-        often as you like and cut between them afterwards.
-      </p>
+      {/*
+        * THE ROOM'S EYEBROW AND NAME ARE ON THE HERO ABOVE THIS.
+        * Repeating "Performance Studio" here was a heading inside a
+        * heading; what a person needs at this point is what the four
+        * steps are and where the song goes.
+        */}
+      <NewWork
+        laid="plain"
+        title="New performance"
+        says="Choose a song, instrumental or backing track to start."
+      >
+        {/*
+          * THE FOUR STEPS ARE THE ROOM'S OWN SEQUENCE, NOT FOUR DOORS.
+          *
+          * Studio One's row is a choice — pick one of four ways in.
+          * This one is an order: the song, then takes, then the
+          * timeline, then the master. Drawing them as identical
+          * choosable cards would say the wrong thing about the work,
+          * so they are numbered, and only the first is a control.
+          *
+          * NOTHING HERE IS NEW. Every step is what Studio Two already
+          * does; the screen simply says so before you start rather
+          * than after.
+          */}
+        <ol data-testid="performance-steps" className="room-steps">
+          {[
+            ['Bring in the song', 'Audio or video, from your computer.'],
+            ['Record takes', 'As many as it takes, from any angle.'],
+            ['Build the timeline', 'Arrange and trim against the song clock.'],
+            ['Create the master', 'Cut between takes and publish the result.'],
+          ].map(([label, says], index) => (
+            <li key={label} className="room-step">
+              <span aria-hidden="true" className="room-step-number">{index + 1}</span>
+              <span className="room-step-said">
+                <strong>{label}</strong>
+                <span className="small muted">{says}</span>
+              </span>
+            </li>
+          ))}
+        </ol>
 
-      <div className="field">
-        <label htmlFor="master-file">The song, instrumental or backing track</label>
-        <input
-          id="master-file" type="file" accept="audio/*,video/*"
-          data-testid="master-file"
-          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-        />
-      </div>
+        {/*
+          * AND THE SONG GOES IN HERE — the same input, doing the same
+          * thing, presented as the first step of that sequence rather
+          * than as a browser file control with a label over it.
+          */}
+        <div className="room-intake">
+          <label htmlFor="master-file" className="room-intake-label">
+            The song, instrumental or backing track
+          </label>
+          <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
+            <input
+              className="grow"
+              id="master-file" type="file" accept="audio/*,video/*"
+              data-testid="master-file"
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            />
+            {/*
+              * THE WAY ON IS BESIDE THE WAY IN, not below everything
+              * that follows from it. It had drifted to the bottom of
+              * the panel, under the rights questions that only appear
+              * once a file is chosen.
+              */}
+            <button
+              className="primary" data-testid="start-performance-go"
+              style={{ flex: '0 0 auto' }}
+              disabled={busy || !file || (needsLicence && !licence.trim())}
+              onClick={() => void begin()}
+            >
+              {busy ? 'Preparing…' : 'Open the Performance Studio'}
+            </button>
+          </div>
+        </div>
+      </NewWork>
 
       {file && (
         <>
@@ -124,13 +182,6 @@ export default function StartPerformance() {
 
       {error && <p className="small" style={{ color: 'var(--bad)' }}>{error}</p>}
 
-      <button
-        className="primary" data-testid="start-performance-go"
-        disabled={busy || !file || (needsLicence && !licence.trim())}
-        onClick={() => void begin()}
-      >
-        {busy ? 'Preparing…' : 'Open the Performance Studio'}
-      </button>
       {/*
         * AND IT IS ABOUT A QUESTION THAT IS ON THE SCREEN.
         *
