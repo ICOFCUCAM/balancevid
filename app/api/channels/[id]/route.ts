@@ -1,3 +1,4 @@
+import { availabilityFrom } from '../../../../src/domain/availability.js';
 import { isOwner } from '../../../../src/auth/request.js';
 import {
   ChannelEditError,
@@ -342,7 +343,13 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
          * segments; this decides who may fetch them. [D-18]
          */
         case 'publish':
-          publishChannel(draft, { at, author: body['author'] });
+          publishChannel(draft, {
+            at,
+            author: body['author'],
+            /* "Audience participation open", which the control room
+               could not say until now. [P10] */
+            availability: availabilityFrom(body as Record<string, unknown>),
+          });
           break;
         case 'unpublish':
           unpublishChannel(draft, at);

@@ -3,7 +3,21 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 /**
- * A live web page, on air.  [Doctrine CHANNEL §22, §6, D-19]
+ * Whatever is on the presenter's screen, as a stream.
+ *   [CHANNEL §22, §6; STUDIO-ONE §2D; D-19]
+ *
+ * THIS LIVED IN `app/t/[id]/` AND HAD NO OPINION ABOUT ONLINE TV.
+ * It was written for the channel's mixer, and when Studio One needed
+ * *"the user opens a website, presentation, news article, software
+ * demonstration, social-media post"* and records it, the honest reading
+ * of the file was that it already did that — every line of it is about
+ * `getDisplayMedia` and none about broadcasting. So it moved up a folder
+ * rather than being copied down, which is the author's own rule: *"don't
+ * create separate systems for these features."*
+ *
+ * ONLINE TV MIXES IT LIVE; STUDIO ONE RECORDS IT AS A SOURCE. Two uses,
+ * one answer to "what happens when somebody presses Chrome's own stop
+ * sharing button" — which is exactly the thing that would have drifted.
  *
  *     a browser tab  →  getDisplayMedia  →  the canvas mixer  →  the wire
  *

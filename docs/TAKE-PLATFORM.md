@@ -768,7 +768,7 @@ arrived, which is the point of measuring first.
 | P7 | Studio creates / Take consumes / Studio receives | **HAVE, as the shape of the system** | the three studios create requests; the Take App consumes and submits; acceptance turns a submission into production material. This row is the architecture, and it is the shipped one |
 | P8 | "Available for Takes" published from Studio Two | **HAVE** | `src/domain/availability.ts` holds the three concepts the author's correction specifies (PART FIVE): `respondable`, `listed` and an explicit `access` policy of four, widest first. The brief's six rows are tested row for row as the specification they are, and all ten mutations of the logic are killed. `Publication` and `ChannelPublication` each gained the two new fields beside the `respondable` they already had — no third object, nothing moved, nothing on disk migrated. The control is in the Deliver stage above the publish button, from one `AvailabilityFields` used by Studio One too, and `GET /api/participate` reads it. **`publishPerformance` wrote `respondable: false` as a constant** — so "Available for Takes" was never a setting a producer could reach, and the panel said so in a sentence that was true about a decision nobody had made |
 | P9 | "Accepting video responses" from Studio One | **HAVE** | the flag existed and was one checkbox answering three questions, two of them silently. The same control now sets all three, and `/api/participate` returns the conversation as a `video` row with what it will accept |
-| P10 | "Audience participation open" on an Online TV programme | PARTIAL — the field exists now | `ChannelPublication` carries the same three, named identically and read by the same module, because a second vocabulary for one decision is how two surfaces come to disagree about who is allowed in. A channel's publication is its own type only because it publishes a schedule rather than a render. The control and the listing are still to build |
+| P10 | "Audience participation open" on an Online TV programme | **HAVE** | `ChannelPublication` carries the same three, named identically and read by the same module, because a second vocabulary for one decision is how two surfaces come to disagree about who is allowed in. A channel's publication is its own type only because it publishes a schedule rather than a render. The control is the SAME `AvailabilityFields` Studio One and Studio Two use — one definition across all three, asserted — and it sits above the publish button, gone once the channel is on air. A channel taken off and put back keeps what it was set to unless the press says otherwise, the reasoning `publishedAt` already followed |
 | P11 | the production system determines what a Take user can do | **HAVE (domain)** | `Assignment` and `AllowedActions` already say what may be sent, and the recorder already reads them — an audio request does not open a camera |
 | P12 | Take = audience, participant and remote-capture app | **HAVE** | it opens on what there is to take part in rather than on a library, and gives somebody a reason to open it with no invitation — which was the brief's own test of the idea |
 | P13 | multi-instance: Take assumes no central system | **HAVE, and load-bearing** | T14: the request is answered against the server that served it and the origin is never written into the record |
@@ -777,7 +777,7 @@ arrived, which is the point of measuring first.
 | P16 | a recording is not uploaded to a universal Take library | **HAVE** | submissions are written to `…/requests/<id>/` inside the issuing instance's own store. There is nothing central to write to |
 | P17 | cloud BalanceVid is straightforward for the participant | **HAVE, by the same mechanism** | a cloud instance is an origin like any other; nothing in the client knows which it is |
 | P18 | self-hosted BalanceVid works the same way | **HAVE** | likewise, and deliberately: this is the closing design rule, satisfied by construction rather than retrofitted |
-| P19 | Universal Links / App Links open the app from a customer's domain | GAP, and now genuinely blocked on a packaged app | needs a signed binary AND an association file served by each customer's domain. #25 built what a native client *adds*; this is the first requirement that needs the listing itself. See **U6** |
+| P19 | Universal Links / App Links open the app from a customer's domain | **OPEN — and it is a DISTRIBUTION gap, not an implementation one** | see "The boundary" below. Needs a signed binary and an association file served by each customer's domain; #25 built everything a native client *adds*. It is deliberately not carried in this repository's development cycle |
 | P20 | local-only vs public/remote mode, stated rather than hidden | GAP | see **U4**: the honest form is the studio saying "this link works on this network only" at the moment it makes one, because the failure is a link sent across the country that will not load |
 | P21 | Take speaks a defined API, never the customer's UI | **HAVE** | the Take App calls four JSON routes under `/api/take/<link>` and reads no studio markup |
 | P22 | one Take App works with many independent installations | **HAVE** | the home shows this installation and every one the device remembers, merged and labelled. Verified with two installations running side by side, each with its own data root, name and songs |
@@ -833,3 +833,112 @@ arrived, which is the point of measuring first.
 is the measure of how well the participation model was chosen: a brief that
 reshapes the entire client asks for no change to the object the client and
 the studio share.
+
+---
+
+# The boundary
+
+*Recorded 2026-09-30, at the close of the Take-platform work.*
+
+Two rows of this ledger remained open when the rest reached `HAVE`, and
+they are **not the same kind of thing**. Writing that down is the point of
+this section, because a single "still to do" list would have hidden it.
+
+```
+P10   an IMPLEMENTATION gap        →  closed, in this repository
+P19   a DISTRIBUTION gap           →  open, and not this repository's
+```
+
+**P10 was a code inconsistency.** The model understood a capability, the
+consumer understood it, and one of three producer surfaces could not reach
+it. Nothing about it was a product question — the answer was to use the
+component the other two already used.
+
+**P19 is not an unfinished engineering row.** What it needs is:
+
+```
+Repository            External
+──────────            ────────
+Android build         store accounts
+iOS build             certificates and signing
+web fallback          metadata, screenshots
+                      privacy declarations
+                      review
+```
+
+Only the left column is code, and #25 built the capability that column
+would deliver — background upload and retry, installable, offline shell.
+Forcing the right column into a development cycle would mean a row that
+stays open for reasons no commit can close, which is how a ledger stops
+being read.
+
+**So the question changes.** It is no longer *what else does Take need*,
+which is now answerable: nothing in this repository. It is *what does the
+Take App's build and store-distribution process need*, which is a
+different piece of work with different tools and a different owner.
+
+---
+
+# A correction to this file's own record
+
+An earlier sweep of the running product reported six controls in Online
+TV as COVERED by other elements — `publish-channel`, `set-backup`,
+`add-destination` and three more. They are **not** covered. Every one of
+them lives inside the channel settings popover, which is a `<details>`,
+and a closed `<details>` in Chromium still answers `getBoundingClientRect`
+with a real box while its contents are not hit-testable. The detector
+asked `elementFromPoint` and was told what is genuinely visible at that
+spot.
+
+Recorded because the method above cuts both ways: a measurement can be
+wrong, and "six controls are unclickable" is exactly the kind of finding
+that would have been acted on. It was chased to its cause — `details
+open: false` — rather than believed.
+
+# The method this was built by
+
+*Worth recording because it was the strongest finding of the work, and it
+is not a feature.*
+
+```
+measure  →  inspect the running system  →  establish the actual state
+                                        →  change only the demonstrated gap
+```
+
+Applied to this brief it repeatedly changed **what the work was**, and
+several times that meant not doing it:
+
+| what it looked like | what measuring found |
+| --- | --- |
+| a format architecture problem | 720p was one hard-coded line in the recorder |
+| multi-instance was missing | it was already the shipped design (T14) |
+| the Take protocol was missing | `ParticipationRequest` already was it |
+| availability was missing from the model | only the *control* was missing |
+| CORS was the missing security mechanism | the missing thing was the read/write split (INV-18) |
+| the QR code was broken | it was an origin-**generation** problem, in two routes |
+| a mobile layout preference | `min-width: 0` and flex/grid min-content sizing |
+| an upload feature | observable runtime data loss, already shipping |
+
+**And the same discipline applied to arguments, not only to code.** Three
+ledger rows said `GAP` with a correct observation attached to a wrong
+conclusion, and each survived until somebody read the argument back:
+
+* *"`InvitePanel` wants three things this surface cannot give"* — true, and
+  a reason to cut the weld rather than ship a bare input.
+* *"A native client adds background upload and retry"* — true, and that
+  half was never about a store account.
+* *"A chooser would offer one door that leads nowhere"* — true, until the
+  other door existed.
+
+**What tests did not catch.** Every fault that mattered this week came
+from looking at the running product: silent segment loss, two unscannable
+QR codes, a page clipped off a phone, a stale upload count beside the word
+"Sent", a label printing one name twice. A test that passes for the wrong
+reason proves nothing, and a source assertion cannot tell *which* `asks`.
+
+**And mutation testing earned its place twice** by deleting code rather
+than adding it: two guards in `asOrigin` survived every mutation because
+nothing could observe them. They were removed, not tested — this
+repository's own point about `requests.ts`, that a guard nothing can
+observe is decoration, and decoration in a security check reads as though
+something were enforced twice.

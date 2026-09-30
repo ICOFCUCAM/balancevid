@@ -97,6 +97,12 @@ describe('which studio a path is in', () => {
     for (const [path, studio] of [
       ['/c/conv_1', 'studio-one'],
       ['/c/conv_1/room', 'studio-one'],
+      /*
+       * THE STUDIO ITSELF AND NOT ONLY WHAT IS IN IT. `/c` was not
+       * covered while the rule was `^/c/` with a trailing slash, and
+       * `/c` did not exist to notice. [STUDIO-ONE §5]
+       */
+      ['/c', 'studio-one'],
       ['/api/conversations', 'studio-one'],
       ['/api/conversations/conv_1/renders', 'studio-one'],
       ['/p/perf_1', 'studio-two'],
@@ -162,6 +168,9 @@ describe('which studio a path is in', () => {
     expect(studioForPath('/api/performances/perf_c_1')).toBe('studio-two');
     /* `/api/conversationsomething` is not the conversations API. */
     expect(studioForPath('/api/conversationsomething')).toBeNull();
+    /* And `/c` is the studio, not a prefix of any word that starts with c. */
+    expect(studioForPath('/channels')).toBeNull();
+    expect(studioForPath('/cabinet')).toBeNull();
   });
 });
 

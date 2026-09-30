@@ -31,6 +31,9 @@ const STUDIO_TWO = code('app/p/[id]/PublishPanel.tsx');
 const STUDIO_ONE = code('app/c/[id]/PublishPanel.tsx');
 const LIST = code('app/api/participate/route.ts');
 const POLICY = code('src/auth/policy.ts');
+const CHANNEL_STUDIO = code('app/t/[id]/ChannelStudio.tsx');
+const CHANNEL_ROUTE = code('app/api/channels/[id]/route.ts');
+const CHANNEL_EDIT = code('src/domain/channelEdit.ts');
 
 /** The least a performance needs to be publishable. */
 function song(): Performance {
@@ -275,5 +278,74 @@ describe('the listing', () => {
    */
   it('is public', () => {
     expect(POLICY).toMatch(/'\/api\/participate'/);
+  });
+});
+
+describe('the third producer surface', () => {
+  /*
+   * P10, AND IT IS THE LAST INCONSISTENCY BETWEEN THE STUDIOS.
+   * `ChannelPublication` has carried the three fields since the model
+   * landed, and both readers — the listing and the claim — have
+   * honoured them. Only the control room could not SET them: a
+   * capability the model and the consumer both understand and no
+   * producer can reach, which is the same fault `respondable: false`
+   * was on a performance, in a different studio.
+   */
+  it('uses the same component as the other two', () => {
+    expect(CHANNEL_STUDIO).toMatch(/import AvailabilityFields from/);
+    expect(CHANNEL_STUDIO).toMatch(/<AvailabilityFields/);
+    expect(CHANNEL_STUDIO).toMatch(/noun="programme"/);
+    /* And defines none of its own. */
+    expect(CHANNEL_STUDIO).not.toMatch(/function AvailabilityFields/);
+  });
+
+  /* All three studios, one definition, asserted rather than assumed. */
+  it('leaves exactly one definition across all three', () => {
+    const defining = [
+      'app/AvailabilityFields.tsx',
+      'app/p/[id]/PublishPanel.tsx',
+      'app/c/[id]/PublishPanel.tsx',
+      'app/t/[id]/ChannelStudio.tsx',
+    ].filter((file) => /export default function AvailabilityFields/.test(code(file)));
+    expect(defining).toEqual(['app/AvailabilityFields.tsx']);
+  });
+
+  it('sends what was chosen with the publish', () => {
+    expect(CHANNEL_STUDIO).toMatch(/action: 'publish', \.\.\.author \? \{ author \} : \{\},\s*\n\s*\.\.\.availability,/);
+    expect(CHANNEL_ROUTE).toMatch(/availability: availabilityFrom\(body as Record<string, unknown>\)/);
+  });
+
+  /*
+   * AND IT IS GONE ONCE THE CHANNEL IS ON AIR, because changing who
+   * may take part then is a different act with a different
+   * consequence for people who already hold the link.
+   */
+  it('is offered before publishing and not after', () => {
+    expect(CHANNEL_STUDIO).toMatch(/\{!published && \(\s*\n\s*<AvailabilityFields/);
+  });
+
+  /*
+   * WRITTEN THE SAME WAY A RENDER'S PUBLICATION IS, field for field.
+   * A second way of storing one decision is how two surfaces come to
+   * disagree about who is allowed in. [D-19]
+   */
+  it('stores it the way the other two do', () => {
+    const publish = CHANNEL_EDIT.slice(CHANNEL_EDIT.indexOf('export function publishChannel'));
+    expect(publish).toMatch(/\.\.\.\(respondable \? \{ respondable: true \} : \{\}\)/);
+    expect(publish).toMatch(/\.\.\.\(listed \? \{\} : \{ listed: false \}\)/);
+    expect(publish).toMatch(/\.\.\.\(access \? \{ access \} : \{\}\)/);
+    expect(publish).toMatch(/respondable && access === 'anyone'/);
+  });
+
+  /*
+   * AND A CHANNEL TAKEN OFF AIR AND PUT BACK KEEPS WHAT IT WAS SET
+   * TO, unless this press says otherwise — the same reasoning
+   * `publishedAt` already followed: a station goes dark and comes
+   * back, and the record should read as the same channel.
+   */
+  it('keeps the previous answer when none is given', () => {
+    const publish = CHANNEL_EDIT.slice(CHANNEL_EDIT.indexOf('export function publishChannel'));
+    expect(publish).toMatch(/wanted\?\.respondable \?\? channel\.publication\?\.respondable/);
+    expect(publish).toMatch(/wanted\?\.access \?\? channel\.publication\?\.access/);
   });
 });

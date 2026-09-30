@@ -581,6 +581,110 @@ without noticing.
 
 ---
 
+## The eighth decision: the three rooms are photographed
+
+The brief, from the author, on the home page's three studio cards:
+
+> **1. Studio One — Conversation Studio.** Yes — but it should be a
+> documentary-style conversation image. It should feel editorial, not like a
+> generic corporate stock photo.
+>
+> **2. Studio Two — Performance Studio.** This one should definitely have an
+> image. A real performance image — singer/musician, rehearsal, multiple
+> camera angles, studio performance. This is probably the easiest card to
+> make visually distinctive.
+>
+> **3. Online TV.** Yes, but an image that communicates broadcasting, rather
+> than another person sitting at a desk. And keep it subtle because Online TV
+> already has the green identity.
+>
+> **4. Distribution.** I would NOT put a photograph here. Distribution is a
+> systems concept, not a human activity. That is better represented by the
+> platform marks and connection states you already have.
+>
+> The important part: don't make the three images compete. The photograph
+> should occupy roughly the upper 40–45% of the card, but with a restrained
+> treatment — possibly a very subtle dark gradient toward the bottom so the
+> transition into the white content area feels intentional.
+>
+> And I would avoid: AI-generated futuristic studios, glowing screens,
+> people posing artificially for SaaS advertising, excessive gradients,
+> giant icons over photographs, three unrelated photographic styles,
+> overly saturated images.
+>
+> One other change I'd make: the tiny icon in the upper-left of each image
+> can probably go.
+
+### What was there, and why it went
+
+The band was not empty before this. It held **a frame from the newest thing
+made in that room**, over the room's colour when there was nothing yet, and
+the comment beside it argued — correctly — that a photograph of a studio the
+person has never been in says nothing.
+
+That argument is right about stock photography and wrong about this card,
+and the reason is the row rather than the card. Three cards stand side by
+side. A poster frame in one beside a poster frame in another is two
+arbitrary crops of two unrelated videos: the author's own "three unrelated
+photographic styles", arrived at by accident instead of by choosing badly.
+What the row is *for* is telling somebody which of three rooms to walk into,
+and it cannot do that with art that changes every time somebody records
+something.
+
+So the band carries **the room**, and the person's own work keeps the place
+it already had in `RecentWork` below — where a poster frame is legible at
+size instead of cropped into a strip.
+
+### The treatment
+
+Each card is built in three layers, and each layer answers one line of the
+brief.
+
+| Layer | What it is | Which line it answers |
+| --- | --- | --- |
+| The photograph | `object-fit: cover`, per-room `object-position` | the three images |
+| The room's veil | `--studio-{one,two,tv}-veil`, already defined | "don't make the three images compete" |
+| The fade | `--art-fade` at the foot, from 52% down | "the transition… feels intentional" |
+
+The veil is the interesting one, because it already existed. `studios.css`
+had defined it a year earlier as *"the veil behind a studio card's
+artwork"* — three room colours at one strength — and it turns out to be
+exactly the instrument the author's "don't compete" asks for: three
+photographs shot in three places under three lights, each pulled a little
+towards the colour of the room it stands for. Nothing new had to be
+invented; the system had already named it. [D-19]
+
+**The proportion is 41%.** Measured in a browser at 1600px and at phone
+width: a 132px band against a 320px card. The brief said 40–45%; the number
+is held by nothing but this measurement, because a proportion enforced by a
+test would be a test of two font metrics.
+
+**The upper-left badge is gone.** It put the room's glyph in a dark disc
+over the corner of every card — a second name for a room whose name is
+printed two lines below it, and on a photograph rather than a flat wash it
+read as a sticker. The glyph is still on the rail and in every row that
+mentions the studio, so the non-colour cue U-19 requires is untouched.
+`room-art.test.ts` holds both halves: not over the art, still in the table.
+
+**Distribution has no photograph,** as asked, and needed no change: it was
+already platform marks and connection states.
+
+### What ships, and what does not
+
+The three masters arrived as 1671×941 PNGs in `public/` — six megabytes that
+every deploy would carry and anybody could fetch to look at a thumbnail.
+They now live in `art/`, which is not served, and `scripts/room-art.mjs`
+cuts them to 1400px WebP in `public/rooms/`: **253 kB for all three**, wide
+enough for the widest card at 3×.
+
+The masters stay in the repository. A derivative whose master is gone cannot
+be re-cut at another size, and the script is the only thing that turns one
+into the other — the same rule `take-icons.mjs` follows for the Take App's
+icons. `room-art.test.ts` holds all of it: each file present, each under
+150 kB, each master kept, no master served.
+
+---
+
 ## What is deliberately not done
 
 - **No phone layout.** There is a floor for laptops and `pointer: coarse`
