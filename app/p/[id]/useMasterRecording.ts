@@ -101,8 +101,37 @@ export interface MasterRecording {
 
 export function useMasterRecording({
   sink, masterUrl, sampleRate, countInSeconds, latencySamples, onFinished,
+  audioOnly, once,
 }: {
   sink: RecordingSink;
+  /**
+   * A sound rather than a performance.  [TIMELINE B6i]
+   *
+   * A voice-over over the song is the same recording problem as a take
+   * — the same count-in, the same audio clock, the same measurement of
+   * where the song was when capture began — and differs in one thing:
+   * there is no picture. Asking for a camera the recording will not
+   * use costs a permission prompt, a light on the machine and the
+   * author's trust, all for a stream that is thrown away.
+   */
+  audioOnly?: boolean;
+  /**
+   * One recording per arming.  [TIMELINE B6i; U-19]
+   *
+   * A take recorder stays armed, because the next thing an author
+   * does is record the same song again — five takes is the point. A
+   * voice-over is one sentence at one moment, and leaving the
+   * microphone open after it has landed is a device left running for
+   * something that is over.
+   *
+   * IT HAS TO BE THE HOOK'S OWN DECISION rather than the caller's.
+   * The first version called `disarm()` from `onFinished`, which is
+   * called from inside `finishTake` — whose `finally` then set the
+   * phase back to 'ready' immediately after, so the bar reappeared
+   * offering "Start" over a sound that had already landed. The
+   * browser showed that; no test would have.
+   */
+  once?: boolean;
   masterUrl: string;
   sampleRate: number;
   /** A musical lead-in, so nobody starts singing from a standing start. [S-10] */
@@ -148,7 +177,9 @@ export function useMasterRecording({
     setPhase('arming');
     try {
       const media = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+        video: audioOnly
+          ? false
+          : { width: { ideal: 1280 }, height: { ideal: 720 } },
         /*
          * Echo cancellation OFF, deliberately, and it is the opposite of the
          * Conversation Room's choice. There the browser's processing helps:
@@ -169,11 +200,12 @@ export function useMasterRecording({
       setPhase('ready');
     } catch (e) {
       setError(e instanceof Error
-        ? 'We could not reach your camera, or could not read the song. Check this site\'s permissions.'
+        ? `We could not reach your ${audioOnly ? 'microphone' : 'camera'}, or `
+          + "could not read the song. Check this site's permissions."
         : String(e));
       setPhase('idle');
     }
-  }, [masterUrl, sampleRate]);
+  }, [audioOnly, masterUrl, sampleRate]);
 
   const disarm = useCallback(() => {
     sourceRef.current?.stop();
@@ -216,9 +248,10 @@ export function useMasterRecording({
     } catch {
       /* The chunks are on disk under their numbers; it can be retried. */
     } finally {
-      setPhase('ready');
+      if (once) disarm();
+      else setPhase('ready');
     }
-  }, [latencySamples, onFinished, sampleRate, sink]);
+  }, [disarm, latencySamples, once, onFinished, sampleRate, sink]);
 
   const segment = useCallback((takeId: string) => {
     const media = streamRef.current;

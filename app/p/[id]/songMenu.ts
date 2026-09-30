@@ -48,6 +48,14 @@ export interface SongMenuHost {
    * convention, and is more honest than a row that vanishes.
    */
   addAudio?: ((at: number) => void) | undefined;
+  /**
+   * Turn the microphone on and record a sound here.  [B6i]
+   *
+   * Optional for the same reason `addAudio` is: greyed says the
+   * feature exists and cannot be used from here, which is worth more
+   * than a row that vanishes.
+   */
+  recordSound?: ((at: number) => void) | undefined;
 }
 
 export function songMenuItems(host: SongMenuHost): MenuEntry[] {
@@ -202,6 +210,21 @@ export function songMenuItems(host: SongMenuHost): MenuEntry[] {
       hint: `a second sound over the song, from ${formatMasterPosition(at)}`,
       ...(host.addAudio ? {} : { disabled: 'not from here' } as const),
       onSelect: () => host.addAudio?.(at),
+    },
+
+    /*
+     * "RECORD." A voice over the song, captured where the playhead is
+     * — the song plays from the line after a count-in and what is
+     * said over it lands where it begins. Recording INTO the timeline
+     * rather than into a rail and then dragging it. [B6i, B7a]
+     */
+    {
+      section: 'Sound — how the song is heard',
+      advanced: true,
+      label: 'Record a sound here\u2026',
+      hint: `speak over the song from ${formatMasterPosition(at)}`,
+      ...(host.recordSound ? {} : { disabled: 'not from here' } as const),
+      onSelect: () => host.recordSound?.(at),
     },
 
     /*

@@ -28,6 +28,7 @@ import {
 } from '../../src/domain/performanceEdit.js';
 import { HOUSE_FPS, HOUSE_SAMPLE_RATE, secondsToSamples } from '../../src/domain/time.js';
 import { decodeToAnalysis, normaliseMaster } from '../../src/render/audio.js';
+import { ingestSoundSegments } from '../../src/render/ingest.js';
 import { compose } from '../../src/render/compose.js';
 import { FFMPEG, run } from '../../src/render/ffmpeg.js';
 import { SILENT_FLOOR_DB, measureSound } from '../../src/render/ingest.js';
@@ -442,4 +443,49 @@ describe('measuring an uploaded sound the way the worker does', () => {
       .find((one) => one.kind === 'sound');
     expect(piece?.toSample).toBe(secondsToSamples(4) + counted);
   }, 120_000);
+});
+
+/**
+ * JOINING A RECORDING THAT HAS NO PICTURE.  [TIMELINE B6i; U-06]
+ *
+ * A voice-over comes from a microphone and nothing else. The joiner
+ * every other recording in this product uses asks for a video stream
+ * in the first line of its filtergraph, and ffmpeg's answer to that is
+ * "Stream specifier ':v' matches no streams" — which is precisely what
+ * the first browser run of this feature produced, after every source
+ * assertion about it had passed. So this one runs ffmpeg.
+ */
+describe('joining a recorded sound', () => {
+  it('joins audio-only segments into one file of the right length', async () => {
+    /* Three segments, as a rolling recorder produces them. */
+    const parts: string[] = [];
+    for (const [index, frequency] of [220, 330, 440].entries()) {
+      const part = join(dir, `part-${index}.webm`);
+      await run(FFMPEG, [
+        '-y', '-f', 'lavfi',
+        '-i', `sine=frequency=${frequency}:r=48000:d=1`,
+        '-c:a', 'libopus', '-vn', '-f', 'webm', part,
+      ]);
+      parts.push(part);
+    }
+
+    const joined = join(dir, 'joined.webm');
+    await ingestSoundSegments(parts, joined);
+    const counted = await decodeToAnalysis(joined, join(dir, 'joined.f32'));
+
+    /*
+     * THREE SECONDS, NOT ONE. The concat DEMUXER keeps only the first
+     * segment of browser-captured media and says nothing about it; a
+     * voice-over that lost everything after its first second would
+     * look like a short recording. This assertion is the whole reason
+     * the filter is used instead.
+     */
+    expect(Math.abs(counted - secondsToSamples(3)))
+      .toBeLessThan(HOUSE_SAMPLE_RATE / 10);
+  }, 120_000);
+
+  it('refuses to assemble nothing rather than writing an empty file', async () => {
+    await expect(ingestSoundSegments([], join(dir, 'nothing.webm')))
+      .rejects.toThrow(/no segments/);
+  });
 });

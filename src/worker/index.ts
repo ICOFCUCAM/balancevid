@@ -33,7 +33,7 @@ import { ensureDirs, paths, safe } from '../store/paths.js';
 import { claim, finish, update, type Job } from '../store/queue.js';
 import { audit, loadConversation, mutateConversation } from '../store/repository.js';
 import {
-  assembleTake, joinPerformanceSegments, takeMezzaninePath,
+  assembleTake, joinPerformanceSegments, joinSoundSegments, takeMezzaninePath,
 } from '../store/takes.js';
 import { enqueue } from '../store/queue.js';
 import { resolveTranscriber } from '../transcribe/index.js';
@@ -251,7 +251,30 @@ function performanceAssets(
 async function ingestSound(job: Job): Promise<Job> {
   const id = job.conversationId;
   const assetId = String(job.payload['assetId']);
-  const originalPath = String(job.payload['originalPath']);
+
+  /*
+   * UPLOADED OR RECORDED, THE SAME FROM HERE ON.  [TIMELINE B6i]
+   *
+   * A recording arrives as segments and an upload as one file, and
+   * that difference ends at this line: the segments are joined by the
+   * same code every other recording in this product is joined by —
+   * the concat FILTER, never the demuxer, because browser-captured
+   * media does not carry the timestamps the demuxer trusts and it
+   * silently keeps only the first segment.
+   */
+  let originalPath: string;
+  let segments: { segments: number; skipped: number } | null = null;
+  if (job.payload['chunkDir']) {
+    originalPath = paths.performanceAsset(id, `${assetId}orig`, 'webm');
+    segments = await joinSoundSegments(
+      String(job.payload['chunkDir']),
+      String(job.payload['recordingId'] ?? assetId),
+      originalPath);
+    job.progress = 25;
+    await update(job);
+  } else {
+    originalPath = String(job.payload['originalPath']);
+  }
 
   const normalised = paths.performanceAsset(id, `${assetId}snd`, 'webm');
   await normaliseMaster(originalPath, normalised);
@@ -280,12 +303,16 @@ async function ingestSound(job: Job): Promise<Job> {
     detail: {
       assetId, soundId: layer.id, durationSamples, track: layer.track,
       fromSample: layer.fromSample,
+      ...(segments ? { segments: segments.segments, skipped: segments.skipped } : {}),
     },
   });
 
   return finish(job, 'done', {
     progress: 100,
-    result: { assetId, soundId: layer.id, durationSamples, label: layer.label },
+    result: {
+      assetId, soundId: layer.id, durationSamples, label: layer.label,
+      ...(segments ? { segments: segments.segments, skipped: segments.skipped } : {}),
+    },
   });
 }
 

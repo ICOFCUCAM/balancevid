@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { TAKE_ACCENT_FALLBACK } from '../../../src/domain/performance.js';
 import Icon from '../../Icon.js';
 import type { MasterClass, Performance, SoundLayer } from '../../../src/domain/performance.js';
@@ -24,6 +24,18 @@ import { takeMenuItems } from './takeMenu.js';
 import { songMenuItems } from './songMenu.js';
 import { SOUND_TRACKS, soundMenuItems } from './soundMenu.js';
 import { pickSound } from './soundUpload.js';
+import { soundSink } from './soundSink.js';
+import { useMasterRecording } from './useMasterRecording.js';
+
+/**
+ * The lead-in before a voice-over starts.  [TIMELINE B6i; S-10]
+ *
+ * Shorter than the one a take gets. A performer needs bars to come in
+ * on; somebody speaking over a song needs long enough to hear where
+ * they are, and four seconds of waiting to say one sentence is four
+ * seconds of the author wondering whether the button worked.
+ */
+const VOICE_COUNT_IN_SECONDS = 2;
 
 /**
  * A colour per audio track, so a lane is identifiable at a glance.
@@ -813,36 +825,94 @@ export default function SwitchingStage({
    * in the meantime, since an upload with no visible effect for ten
    * seconds reads as nothing having happened. [U-02, U-19]
    */
+  const watchSound = useCallback(async (jobId: string) => {
+    for (let tries = 0; tries < 120; tries += 1) {
+      await new Promise((wake) => { setTimeout(wake, 1000); });
+      const response = await fetch(`/api/performances/${performance.id}`,
+        { cache: 'no-store' });
+      if (!response.ok) continue;
+      const data = await response.json();
+      const job = (data.jobs ?? [])
+        .find((one: { id?: string }) => one.id === jobId);
+      if (!job || job.state === 'pending' || job.state === 'running') continue;
+      setAdding(null);
+      if (job.state === 'failed') {
+        setError(job.error ?? 'that sound could not be added');
+        return;
+      }
+      onChanged(data.performance);
+      return;
+    }
+    setAdding(null);
+  }, [onChanged, performance.id]);
+
   const addAudio = useCallback((at: number) => {
     pickSound(performance.id, { track: 'effect', fromSample: at }, {
       onStarted: (label) => { setAdding(label); setError(null); },
       onError: (message) => { setAdding(null); setError(message); },
-      onFinished: async (jobId) => {
-        for (let tries = 0; tries < 120; tries += 1) {
-          await new Promise((wake) => { setTimeout(wake, 1000); });
-          const response = await fetch(`/api/performances/${performance.id}`,
-            { cache: 'no-store' });
-          if (!response.ok) continue;
-          const data = await response.json();
-          const job = (data.jobs ?? [])
-            .find((one: { id?: string }) => one.id === jobId);
-          if (!job || job.state === 'pending' || job.state === 'running') continue;
-          setAdding(null);
-          if (job.state === 'failed') {
-            setError(job.error ?? 'that sound could not be added');
-            return;
-          }
-          onChanged(data.performance);
-          return;
-        }
-        setAdding(null);
+      onFinished: watchSound,
+    });
+  }, [performance.id, watchSound]);
+
+  /*
+   * RECORDING A SOUND INTO THE TIMELINE.  [TIMELINE B6i, B7]
+   *
+   * The same hook the studio records takes with, given a third sink
+   * and told there is no picture. A voice-over over the song is the
+   * same recording problem as a take — the same count-in, the same
+   * audio clock, the same measurement of where the song was when
+   * capture actually began — and a second recorder for it would be a
+   * second place all of that could be got wrong. [D-19, U-06]
+   */
+  const voiceLabel = useRef('Voice-over');
+  const voice = useMasterRecording({
+    sink: useMemo(() => soundSink(performance.id, () => ({
+      label: voiceLabel.current, track: 'voice',
+    })), [performance.id]),
+    masterUrl: `/api/performances/${performance.id}/master`,
+    sampleRate: HOUSE_SAMPLE_RATE,
+    countInSeconds: VOICE_COUNT_IN_SECONDS,
+    /* The take recorder's calibration is about a camera and a room;
+       nothing here is being lined up against anything. [S-3] */
+    latencySamples: 0,
+    audioOnly: true,
+    /* One sentence at one moment: the microphone goes off when the
+       recording is kept, rather than staying open for a second one
+       nobody asked for. [U-19] */
+    once: true,
+    onFinished: (jobId) => {
+      setAdding(voiceLabel.current);
+      void watchSound(jobId);
+    },
+  });
+
+  /*
+   * ARMED FROM THE PLAYHEAD, AND ONLY FROM THERE. The song starts
+   * where the line is and the recording is placed from there, which
+   * is the arithmetic that makes recording into a timeline worth
+   * having rather than a second way to reach the top of the song.
+   * [B7a]
+   */
+  const recordSound = useCallback((at: number) => {
+    confirm({
+      question: 'What is this sound? The song will play from the '
+        + `playhead after a ${VOICE_COUNT_IN_SECONDS}-second count-in, and `
+        + 'what you say over it lands on the Voice lane where it begins.',
+      field: { label: 'Name', initial: 'Voice-over' },
+      verb: 'Turn the microphone on',
+      go: (typed) => {
+        voiceLabel.current = typed.trim() || 'Voice-over';
+        voiceFrom.current = at;
+        void voice.arm();
       },
     });
-  }, [onChanged, performance.id]);
+  }, [confirm, voice]);
+  const voiceFrom = useRef(0);
 
   const songMenu = useCallback((): MenuEntry[] => songMenuItems({
-    performance, patch, confirm, at: () => player.positionNow(), addAudio,
-  }), [addAudio, confirm, patch, performance, player]);
+    performance, patch, confirm, at: () => player.positionNow(),
+    addAudio, recordSound,
+  }), [addAudio, confirm, patch, performance, player, recordSound]);
 
   /*
    * AND THE SAME FOR A SOUND, from one definition.  [TIMELINE B8, B12]
@@ -2077,6 +2147,67 @@ export default function SwitchingStage({
               * no visible effect for a few seconds reads as an upload
               * that did not happen. [U-19, B6h]
               */}
+            {/*
+              * THE MICROPHONE, WHILE IT IS ON.  [TIMELINE B6i, U-19]
+              *
+              * On the head column beside the lanes rather than in a
+              * dialogue over them, because the thing being recorded
+              * INTO is the timeline and the author is watching the
+              * playhead move. A modal here would hide the one thing
+              * they need to see.
+              */}
+            {voice.phase !== 'idle' && (
+              <div data-testid="voice-recorder" data-phase={voice.phase}
+                   style={{
+                     height: 26, padding: '0 10px', display: 'flex',
+                     alignItems: 'center', gap: 6,
+                     fontSize: 'var(--text-2xs)',
+                     color: voice.phase === 'recording'
+                       ? 'var(--bad)' : 'var(--text-dim)',
+                   }}>
+                <Icon name="mic" size={11} />
+                <span className="grow" style={{
+                  overflow: 'hidden', textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}>
+                  {voice.phase === 'arming' ? 'Turning the microphone on\u2026'
+                    : voice.phase === 'ready' ? voiceLabel.current
+                      : voice.phase === 'counting' ? 'Counting in\u2026'
+                        : voice.phase === 'recording' ? 'Recording\u2026'
+                          : 'Keeping it\u2026'}
+                </span>
+                {voice.phase === 'ready' && (
+                  <button className="small" data-testid="voice-go"
+                          title={'The song plays from the playhead after a '
+                            + `${VOICE_COUNT_IN_SECONDS}-second count-in`}
+                          onClick={() => {
+                            void voice.start(voiceLabel.current,
+                              { kind: 'original' }, voiceFrom.current);
+                          }}
+                          style={{ padding: '0 6px', fontSize: 'var(--text-2xs)' }}>
+                    Start
+                  </button>
+                )}
+                {(voice.phase === 'recording' || voice.phase === 'counting') && (
+                  <button className="small" data-testid="voice-stop"
+                          onClick={() => voice.stop()}
+                          style={{ padding: '0 6px', fontSize: 'var(--text-2xs)' }}>
+                    Stop
+                  </button>
+                )}
+                {(voice.phase === 'ready' || voice.phase === 'arming') && (
+                  <button className="small" data-testid="voice-cancel"
+                          onClick={() => voice.disarm()}
+                          style={{
+                            border: 0, background: 'none', padding: 0,
+                            fontSize: 'var(--text-2xs)', color: 'var(--muted)',
+                            cursor: 'pointer',
+                          }}>
+                    Cancel
+                  </button>
+                )}
+              </div>
+            )}
             {adding && (
               <div data-testid="sound-measuring" style={{
                 height: 26, padding: '0 10px', display: 'flex',
@@ -2432,8 +2563,10 @@ export default function SwitchingStage({
               * move it: the same two gestures the take lane teaches,
               * and the reason a second editing system was not built.
               */}
-            {/* Its lane, empty: the two columns are rows of one grid and a
-                head with no lane opposite shifts everything under it. */}
+            {/* Their lanes, empty: the two columns are rows of one grid
+                and a head with no lane opposite shifts everything
+                under it. */}
+            {voice.phase !== 'idle' && <div style={{ height: 26 }} />}
             {adding && <div style={{ height: 26 }} />}
             {soundLanes.map((lane) => (
               <div key={lane.id} data-testid="sound-lane" data-track={lane.id}
