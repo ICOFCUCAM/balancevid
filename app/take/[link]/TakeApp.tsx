@@ -37,6 +37,22 @@ import { dropTake, sendTake, takeSink, type KeptSpec } from './takeSink.js';
 
 const COUNT_IN_SECONDS = 4;
 
+/**
+ * The heading for a request with no song behind it.  [B14d, T12]
+ *
+ * A performance's heading is the song's title, which says what the
+ * page is for before a word of the ask is read. A question has no
+ * title, and "…" over somebody's camera says nothing at all.
+ */
+function asksFor(kind: string): string {
+  switch (kind) {
+    case 'question': return 'A question for you';
+    case 'audio': return 'Record an answer';
+    case 'poll': return 'A question for you';
+    default: return 'Record a reply';
+  }
+}
+
 /** A recording the performer has made and not yet sent. [T4] */
 interface Kept {
   /** The submission id its segments are under, on the server. */
@@ -64,15 +80,36 @@ export default function TakeApp({ link }: { link: string }) {
    * the performance with it — but nothing has crossed to the
    * producer until Send.
    */
+  /*
+   * SOUND ONLY, WHERE THE REQUEST SAYS SO.  [T12, B14d]
+   *
+   * `allowed` names what the participant MAY send, and a request for
+   * audio simply does not carry `video`. Asking a phone for a camera
+   * the recording will not use costs a permission prompt, a light on
+   * the device and the participant's trust.
+   */
+  const soundOnly = Boolean(view) && !view!.allowed.video;
+
   const sink = useMemo(() => takeSink(link, (id, spec) => {
     setKept((was) => [...was, {
       id, spec, seconds: spec.elapsedSamples / HOUSE_SAMPLE_RATE,
       at: new Date().toISOString(), state: 'kept',
     }]);
   }), [link]);
+  /*
+   * A SONG TO PERFORM AGAINST, OR A QUESTION TO ANSWER.  [B14d, T12]
+   *
+   * A performance request carries a reference; a question does not,
+   * and asking for one would 404 and leave the performer looking at
+   * "could not read the song" over a question about the news. The
+   * recorder is told there is no clock, and everything else about
+   * the page is the same.
+   */
   const recording = useMasterRecording({
     sink,
-    masterUrl: `/api/take/${encodeURIComponent(link)}/reference`,
+    masterUrl: view && !view.assignment.reference
+      ? null
+      : `/api/take/${encodeURIComponent(link)}/reference`,
     sampleRate: HOUSE_SAMPLE_RATE,
     countInSeconds: COUNT_IN_SECONDS,
     /*
@@ -84,6 +121,10 @@ export default function TakeApp({ link }: { link: string }) {
      * which is what catches it. [S-3]
      */
     latencySamples: 0,
+    /* An audio request has no picture to take, and asking a phone for
+       a camera it will not use costs a permission prompt and the
+       participant's trust. [T12, B14d] */
+    audioOnly: soundOnly,
     onFinished: () => { /* Nothing to wait on: see `takeSink`. */ },
   });
 
@@ -185,13 +226,13 @@ export default function TakeApp({ link }: { link: string }) {
         <p data-testid="take-title" style={{
           margin: 0, fontSize: 'var(--text-lg)', fontWeight: 'var(--weight-bold)',
           letterSpacing: '0.04em', textTransform: 'uppercase', textAlign: 'center',
-        }}>{reference?.title ?? '…'}</p>
+        }}>{reference?.title ?? (view ? asksFor(view.assignment.kind) : '…')}</p>
         <p data-testid="take-asks" className="small" style={{
           margin: 0, textAlign: 'center', color: 'var(--ink-100)', maxWidth: 340,
         }}>{view?.assignment.asks ?? ''}</p>
 
         <p data-testid="take-number" className="small muted" style={{ margin: 0 }}>
-          Take {kept.length + 1}
+          {reference ? 'Take' : 'Answer'} {kept.length + 1}
           {view?.allowed.takes ? ` of ${view.allowed.takes}` : ''}
         </p>
 
@@ -201,19 +242,42 @@ export default function TakeApp({ link }: { link: string }) {
           * mirror and an unmirrored preview makes people reach the
           * wrong way. The recording itself is not mirrored.
           */}
-        <div style={{
-          position: 'relative', width: '100%', aspectRatio: '3 / 4',
-          borderRadius: 'var(--radius-screen)', overflow: 'hidden',
-          background: 'var(--screen-bed)', border: '1px solid var(--line)',
-        }}>
-          <video
-            data-testid="take-camera" ref={recording.videoRef}
-            muted playsInline autoPlay
-            style={{
-              width: '100%', height: '100%', objectFit: 'cover',
-              transform: 'scaleX(-1)', display: 'block',
-            }}
-          />
+        {/*
+          * AND A SPOKEN ANSWER HAS NO PICTURE, so it does not get a
+          * phone-sized empty rectangle saying "the camera is off".
+          * A box the height of the screen with nothing in it reads as
+          * something broken rather than as something not asked for.
+          * [U-04, B14d]
+          */}
+        <div data-testid="take-stage" data-sound={soundOnly ? 'true' : 'false'}
+             style={{
+               position: 'relative', width: '100%',
+               ...(soundOnly
+                 ? { minHeight: 132, display: 'grid', placeItems: 'center' }
+                 : { aspectRatio: '3 / 4' }),
+               borderRadius: 'var(--radius-screen)', overflow: 'hidden',
+               background: 'var(--screen-bed)', border: '1px solid var(--line)',
+             }}>
+          {soundOnly && (
+            <span className="row" style={{
+              gap: 8, color: 'var(--ink-300)', fontSize: 'var(--text-sm)',
+            }}>
+              <Icon name="mic" size={16} />
+              {recording.phase === 'recording' ? 'Listening\u2026'
+                : recording.phase === 'idle' ? 'Sound only \u2014 nothing is filmed'
+                  : 'Ready'}
+            </span>
+          )}
+          {!soundOnly && (
+            <video
+              data-testid="take-camera" ref={recording.videoRef}
+              muted playsInline autoPlay
+              style={{
+                width: '100%', height: '100%', objectFit: 'cover',
+                transform: 'scaleX(-1)', display: 'block',
+              }}
+            />
+          )}
           {recording.phase === 'counting' && (
             <div data-testid="take-countin" style={overlay}>
               {/* The display step, which exists for exactly this: "a
@@ -226,7 +290,7 @@ export default function TakeApp({ link }: { link: string }) {
               </span>
             </div>
           )}
-          {recording.phase === 'idle' && (
+          {recording.phase === 'idle' && !soundOnly && (
             <div style={overlay}>
               <span className="small muted">The camera is off</span>
             </div>
@@ -245,15 +309,24 @@ export default function TakeApp({ link }: { link: string }) {
           )}
         </div>
 
-        {/* THE SONG'S CLOCK, which is the only clock on this screen. */}
+        {/*
+          * THE SONG'S CLOCK, which is the only clock on this screen —
+          * and there is no clock at all when there is no song, so it
+          * counts up rather than towards a total of 00:00.000. A
+          * denominator of nothing is a progress bar that is always
+          * full. [U-04, B14d]
+          */}
         <p data-testid="take-clock" className="mono readout" style={{
           margin: 0, fontSize: 'var(--text-sm)',
         }}>
           {formatMasterPosition(Math.round(
             Math.max(0, recording.position) * HOUSE_SAMPLE_RATE))}
-          <span style={{ color: 'var(--ink-400)' }}>
-            {' / '}{formatMasterPosition(Math.round(songSeconds * HOUSE_SAMPLE_RATE))}
-          </span>
+          {reference && (
+            <span style={{ color: 'var(--ink-400)' }}>
+              {' / '}
+              {formatMasterPosition(Math.round(songSeconds * HOUSE_SAMPLE_RATE))}
+            </span>
+          )}
         </p>
 
         {recording.error && (
@@ -271,7 +344,7 @@ export default function TakeApp({ link }: { link: string }) {
         {recording.phase === 'idle' && (
           <button className="ctl lg" data-testid="take-arm" style={wide}
                   onClick={() => void recording.arm()}>
-            Turn the camera on
+            {soundOnly ? 'Turn the microphone on' : 'Turn the camera on'}
           </button>
         )}
         {recording.phase === 'arming' && (
@@ -280,7 +353,7 @@ export default function TakeApp({ link }: { link: string }) {
         {recording.phase === 'ready' && (
           <button className="ctl lg primary" data-testid="take-start" style={wide}
                   onClick={() => void begin()}>
-            Start recording
+            {reference ? 'Start recording' : 'Start answering'}
           </button>
         )}
         {(recording.phase === 'counting' || recording.phase === 'recording') && (
@@ -357,12 +430,17 @@ export default function TakeApp({ link }: { link: string }) {
           </ul>
         )}
 
-        <p className="small muted" style={{
-          margin: 0, textAlign: 'center', maxWidth: 340,
-        }}>
-          Wear headphones if you can. If the song comes out of a speaker,
-          your recording carries it twice.
-        </p>
+        {/* The headphone warning is about a SONG, and a question has
+            none — a warning that does not apply is a warning people
+            stop reading. [U-04] */}
+        {reference && (
+          <p className="small muted" style={{
+            margin: 0, textAlign: 'center', maxWidth: 340,
+          }}>
+            Wear headphones if you can. If the song comes out of a speaker,
+            your recording carries it twice.
+          </p>
+        )}
       </div>
     </main>
   );

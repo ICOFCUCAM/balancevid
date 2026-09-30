@@ -702,15 +702,19 @@ describe('recording from where the playhead is', () => {
   });
 
   /* Past the end of the buffer, `start` plays nothing at all, silently
-     — which looks exactly like a broken microphone. */
+     — which looks exactly like a broken microphone.
+
+     The clamp now sits inside "is there a song at all", because the
+     same recorder answers questions sent to a phone, where there is
+     no buffer to clamp against. [TIMELINE B14d] */
   it('cannot be asked to start past the end of the song', () => {
     expect(recorder).toMatch(
-      /const fromSeconds = Math\.max\(0, Math\.min\(\s*buffer\.duration - 0\.05, fromSamples \/ sampleRate\)\);/);
+      /const fromSeconds = buffer\s*\n\s*\? Math\.max\(0, Math\.min\(buffer\.duration - 0\.05, fromSamples \/ sampleRate\)\)\s*\n\s*: 0;/);
   });
 
   it('places the take where the song was, not where the clock was', () => {
     expect(recorder).toMatch(
-      /offsetRef\.current = placeTakeOnSong\(\s*Math\.round\(\(fromSeconds \+ into\) \* sampleRate\), latencySamples\);/);
+      /offsetRef\.current = masterUrl\s*\n\s*\? placeTakeOnSong\(\s*\n?\s*Math\.round\(\(fromSeconds \+ into\) \* sampleRate\), latencySamples\)\s*\n\s*: 0;/);
   });
 
   /*

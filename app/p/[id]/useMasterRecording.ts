@@ -132,7 +132,22 @@ export function useMasterRecording({
    * browser showed that; no test would have.
    */
   once?: boolean;
-  masterUrl: string;
+  /**
+   * The song to record against, or nothing.  [TIMELINE B14d; T12]
+   *
+   * NOTHING IS A REAL CASE, not a missing argument. A producer who
+   * sends a question to a phone is asking for an answer, and there
+   * is no clock to keep: no song plays, the count-in is still
+   * counted so nobody starts talking from a standing start, and the
+   * recording's offset is zero because it is not against anything.
+   *
+   * Everything else the hook exists for — segments uploaded as they
+   * close, the elapsed time taken on the audio clock, the phase the
+   * surface reads — is the same either way, and a second recorder
+   * for answers would be a second place all of it could be got
+   * wrong. [D-19, U-06]
+   */
+  masterUrl: string | null;
   sampleRate: number;
   /** A musical lead-in, so nobody starts singing from a standing start. [S-10] */
   countInSeconds: number;
@@ -194,14 +209,18 @@ export function useMasterRecording({
       if (videoRef.current) videoRef.current.srcObject = media;
 
       const context = new AudioContext({ sampleRate });
-      const response = await fetch(masterUrl);
-      bufferRef.current = await context.decodeAudioData(await response.arrayBuffer());
+      if (masterUrl) {
+        const response = await fetch(masterUrl);
+        bufferRef.current = await context.decodeAudioData(
+          await response.arrayBuffer());
+      }
       audioRef.current = context;
       setPhase('ready');
     } catch (e) {
       setError(e instanceof Error
-        ? `We could not reach your ${audioOnly ? 'microphone' : 'camera'}, or `
-          + "could not read the song. Check this site's permissions."
+        ? `We could not reach your ${audioOnly ? 'microphone' : 'camera'}`
+          + `${masterUrl ? ', or could not read the song' : ''}. `
+          + "Check this site's permissions."
         : String(e));
       setPhase('idle');
     }
@@ -289,7 +308,11 @@ export function useMasterRecording({
   ) => {
     const context = audioRef.current;
     const buffer = bufferRef.current;
-    if (!context || !buffer) { setError('turn the camera on first'); return; }
+    /* A song is required only where there is one to require. [B14d] */
+    if (!context || (masterUrl && !buffer)) {
+      setError(audioOnly ? 'turn the microphone on first' : 'turn the camera on first');
+      return;
+    }
     setError(null);
 
     try {
@@ -315,13 +338,23 @@ export function useMasterRecording({
        * offset past the buffer's end plays nothing at all, silently,
        * which would look exactly like a broken microphone.
        */
-      const fromSeconds = Math.max(0, Math.min(
-        buffer.duration - 0.05, fromSamples / sampleRate));
-      const source = context.createBufferSource();
-      source.buffer = buffer;
-      source.connect(context.destination);
-      source.start(beginsAt, fromSeconds);
-      sourceRef.current = source;
+      const fromSeconds = buffer
+        ? Math.max(0, Math.min(buffer.duration - 0.05, fromSamples / sampleRate))
+        : 0;
+      /*
+       * NO SONG, NO SOURCE. An answer to a question is not recorded
+       * against anything, so there is nothing to schedule — and the
+       * count-in below still runs, because somebody asked a question
+       * and nobody should have to start talking from a standing
+       * start. [S-10, B14d]
+       */
+      if (buffer) {
+        const source = context.createBufferSource();
+        source.buffer = buffer;
+        source.connect(context.destination);
+        source.start(beginsAt, fromSeconds);
+        sourceRef.current = source;
+      }
 
       const takeId = await sink.begin({
         label, environment, offsetSamples: 0,
@@ -362,8 +395,17 @@ export function useMasterRecording({
          * exactly this addition. [§10, S-3]
          */
         const into = context2.currentTime - beginsAt;
-        offsetRef.current = placeTakeOnSong(
-          Math.round((fromSeconds + into) * sampleRate), latencySamples);
+        /*
+         * AN ANSWER IS NOT AGAINST ANYTHING, so its offset is zero
+         * rather than however long the count-in happened to take. A
+         * number there would be a measurement of nothing, and the
+         * producer would see it in the inbox as though it meant
+         * something. [B14d]
+         */
+        offsetRef.current = masterUrl
+          ? placeTakeOnSong(
+            Math.round((fromSeconds + into) * sampleRate), latencySamples)
+          : 0;
         startedAtRef.current = context2.currentTime;
         stoppedAtRef.current = 0;
         segment(takeRef.current.takeId);
@@ -373,7 +415,7 @@ export function useMasterRecording({
       setError(e instanceof Error ? e.message : String(e));
       setPhase('ready');
     }
-  }, [countInSeconds, latencySamples, sampleRate, segment, sink]);
+  }, [audioOnly, countInSeconds, latencySamples, masterUrl, sampleRate, segment, sink]);
 
   const stop = useCallback(() => {
     const take = takeRef.current;
