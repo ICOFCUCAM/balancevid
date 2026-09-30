@@ -26,7 +26,7 @@ import {
 import type { MasterTrack, Performance } from '../../src/domain/performance.js';
 import { masterCheck } from '../../src/domain/performance.js';
 import {
-  PerformanceEditError, newPerformance, setLyrics,
+  PerformanceEditError, newPerformance, setLyrics, setLyricsText,
 } from '../../src/domain/performanceEdit.js';
 import { performanceCues } from '../../src/render/cues.js';
 import { EXPORT_PROFILES } from '../../src/domain/presentation.js';
@@ -248,10 +248,37 @@ describe('what MASTER CHECK says about them', () => {
   const captions = (p: Performance) => masterCheck(p, 'youtube_16x9', profiles)
     .items.find((entry) => entry.id === 'captions')!;
 
-  it('names the invariant when there are none', () => {
+  /*
+   * THIS TEST USED TO ASSERT THE OPPOSITE, and it was right until the
+   * product could tell an instrumental from an unfinished song.
+   *
+   * It held `ok: false` and a mention of INV-07 for a performance with
+   * no lyrics, because until `lyricsText` existed there was no way to
+   * distinguish "nothing to caption" from "words not supplied yet" — so
+   * the check warned about both. The author's own correction:
+   *
+   *   *"No lyrics ≠ missing required data. A song can be perfectly valid
+   *    with Audio ✓ Video ✓ Master ✓ Lyrics — Not supplied, and should
+   *    still be publishable."*
+   *
+   * INV-07 is about carrying the words WHERE THERE ARE WORDS. The line
+   * still appears, is still advisory and still blocks nothing; what
+   * changed is which of the three states it calls a fault.
+   * [MASTER-EDIT §17, C-L2]
+   */
+  it('does not call an instrumental incomplete', () => {
     const p = newPerformance('My Performance', master(), AT);
+    expect(captions(p).ok).toBe(true);
+    expect(captions(p).says).toContain('not supplied');
+    expect(captions(p).says).not.toMatch(/INV-07/);
+  });
+
+  it('does call untimed words worth finishing', () => {
+    /* The one state the author has declared an intention in. */
+    const p = newPerformance('My Performance', master(), AT);
+    setLyricsText(p, 'one\ntwo');
     expect(captions(p).ok).toBe(false);
-    expect(captions(p).says).toMatch(/INV-07/);
+    expect(captions(p).says).toContain('timing required');
   });
 
   /*
