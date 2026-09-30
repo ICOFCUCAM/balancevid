@@ -589,8 +589,8 @@ process, against the running product and not against this document.
 | B7 | recording is an ordinary take | HAVE | the whole pipeline |
 | B7a | record from the playhead | GAP | the song is scheduled from 00:00 |
 | B8 | sound layers as timeline objects | GAP | no object for a sound that is neither song nor take |
-| B9 | simple by default, advanced when needed | PARTIAL | grouped, but nineteen rows deep |
-| B9a | advanced rows behind one press | GAP | |
+| B9 | simple by default, advanced when needed | HAVE | ten rows at first, eighteen after one press; `MenuItem.advanced`, split by OPERATION rather than row by row |
+| B9a | advanced rows behind one press | HAVE | `visible()` in `Menu.tsx` — a function, so the rule is tested by calling it; every raise starts simple again |
 | B10 | the master clock is the anchor | HAVE | every position is a sample on the song |
 | B10a | every object has a track | GAP | waits on B8 |
 | B10b | every object has a volume | PARTIAL | a scene has audio; a take has none of its own |

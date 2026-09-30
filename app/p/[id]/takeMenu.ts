@@ -182,6 +182,7 @@ export function takeMenuItems(
      */
     host.onReframe && {
       section: 'Crop \u2014 what part of the picture shows',
+      advanced: true,
       label: take.reframe ? 'Change the crop\u2026' : 'Crop / reframe\u2026',
       hint: take.reframe
         ? `keeping ${Math.round(take.reframe.w * 100)}% of the frame`
@@ -191,6 +192,7 @@ export function takeMenuItems(
     },
     take.reframe && {
       section: 'Crop \u2014 what part of the picture shows',
+      advanced: true,
       label: 'Use the whole frame again',
       hint: 'the media was never cut \u2014 a crop is four numbers',
       onSelect: () => {
@@ -218,6 +220,7 @@ export function takeMenuItems(
      */
     {
       section: 'Move — when it plays',
+      advanced: true,
       label: 'Align its start to the song’s',
       hint: starts > 0
         ? `it begins ${formatMasterPosition(starts)} into the song`
@@ -233,6 +236,7 @@ export function takeMenuItems(
     },
     {
       section: 'Move — when it plays',
+      advanced: true,
       label: 'Align its start to the playhead',
       hint: `move its beginning to ${formatMasterPosition(at)}`,
       ...(starts === at
