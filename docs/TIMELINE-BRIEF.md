@@ -565,9 +565,9 @@ process, against the running product and not against this document.
 | B1 | a take is a media object with its own menu | HAVE | `takeMenu.ts`, one list, three callers |
 | B1a | *Replace* (swap a take's media) | GAP, argued | §4: a take IS a recording; replacing which take a SCENE uses is built |
 | B2 | right-click the take's picture | HAVE | `monitor-pick`, `take-lane-block`, the rail row |
-| B3 | draggable playhead, scrub, click anywhere | HAVE | the ruler is a scrub strip; the pointer is captured |
-| B3a | zoom the timeline | GAP | — |
-| B3b | jump to an exact moment by typing it | GAP | the clock is a readout, not a field |
+| B3 | draggable playhead, scrub, click anywhere | HAVE | the ruler is a scrub strip; the pointer is captured. **All six of its bullets now done** |
+| B3a | zoom the timeline | HAVE | Fit / 2× / 4× / 8×. One wrapper widens, `pct()` untouched, so every lane zooms without being told; the view follows the playhead only when it leaves the window |
+| B3b | jump to an exact moment by typing it | HAVE | the transport clock is the way in; `parseMasterPosition` reads 2:41, 2:41.500, 161, 161,5 — and refuses a word rather than jumping to zero |
 | B3c | move it to the absolute beginning | HAVE | a transport key that cannot miss |
 | B4 | independent timing per take | HAVE | `nudgeSamples`, reachable at last |
 | B4a | move by an exact ±ms | HAVE | 250 ms is 7½ frames; the steppers cannot say it |

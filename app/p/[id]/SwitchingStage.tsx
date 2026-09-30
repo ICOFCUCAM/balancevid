@@ -28,7 +28,9 @@ import {
   BEATS_USABLE_CONFIDENCE, beatPositions, snapToBeat,
 } from '../../../src/domain/beats.js';
 import { TRANSITIONS } from '../../../src/domain/transitions.js';
-import { HOUSE_SAMPLE_RATE, formatMasterPosition } from '../../../src/domain/time.js';
+import {
+  HOUSE_SAMPLE_RATE, formatMasterPosition, parseMasterPosition,
+} from '../../../src/domain/time.js';
 import { usePerformancePlayer } from './usePerformancePlayer.js';
 
 /**
@@ -330,6 +332,25 @@ export default function SwitchingStage({
   const [aspects, setAspects] = useState<Record<string, number>>({});
   /** The lane column, so an x on the screen can be turned into a sample. */
   const lanes = useRef<HTMLDivElement | null>(null);
+  /**
+   * How much of the song is on screen, and from where.  [TIMELINE B3a]
+   *
+   * "Zoom the timeline." A four-minute song across a thousand pixels is
+   * a quarter of a second per pixel: fine for arranging scenes, useless
+   * for the thing this studio is actually for, which is putting a cut
+   * on a beat. At 8× a pixel is thirty milliseconds — about a frame.
+   *
+   * `at` is the leftmost visible moment as a FRACTION of the song, not
+   * a pixel offset, so it survives the window being resized and means
+   * the same thing on a phone and a desk.
+   *
+   * ZOOM IS A VIEW AND NOTHING ELSE. It is not in the document, it does
+   * not change a cut, and a render made while zoomed in is identical to
+   * one made zoomed out. That is why it is a piece of component state
+   * and not an edit. [U-08]
+   */
+  const [zoom, setZoom] = useState(1);
+  const [at, setAt] = useState(0);
   /**
    * The take being dragged along its lane, and how far, in samples.
    *
@@ -811,12 +832,44 @@ export default function SwitchingStage({
    * drag alike, clamped to the song at both ends: there is nothing before
    * the first sample, and by INV-03 nothing after the last.
    */
+  /**
+   * How far the window may start, so it never shows past the end.
+   *
+   * At 1x there is nowhere to pan and `at` is pinned to zero, which is
+   * what makes zooming out always land somewhere sensible rather than
+   * leaving the view parked in the middle of nothing.
+   */
+  const panLimit = Math.max(0, 1 - 1 / zoom);
+
+  /*
+   * THE PLAYHEAD STAYS ON SCREEN.  [TIMELINE B3a]
+   *
+   * Zoomed to 8x, the song runs off the right of the window in four
+   * seconds — and a timeline that plays past its own edge is a
+   * timeline you have to chase with a scrollbar. When the line leaves
+   * the window the window follows, putting it a fifth of the way in so
+   * there is something visible ahead of it.
+   *
+   * ONLY WHEN IT LEAVES, and not every frame: a view that recentres
+   * continuously is one nothing can be dragged on.
+   */
+  useEffect(() => {
+    if (zoom <= 1) { if (at !== 0) setAt(0); return; }
+    const where = duration > 0 ? player.position / duration : 0;
+    const span = 1 / zoom;
+    if (where >= at && where <= at + span) return;
+    setAt(Math.max(0, Math.min(panLimit, where - span / 5)));
+  }, [at, duration, panLimit, player.position, zoom]);
+
   const sampleAtX = useCallback((clientX: number): number => {
     const box = lanes.current?.getBoundingClientRect();
     if (!box || box.width <= 0) return 0;
-    const along = (clientX - box.left) / box.width;
+    /* Through the window: the column shows `1 / zoom` of the song,
+       beginning at `at`. Both the click and the drag come through
+       here, so zooming cannot make them disagree. */
+    const along = at + ((clientX - box.left) / box.width) / zoom;
     return Math.max(0, Math.min(duration, Math.round(along * duration)));
-  }, [duration]);
+  }, [at, duration, zoom]);
   /*
    * Drawn for the first minute only. A four-minute song at 120 BPM is 480
    * marks, which is 480 elements to lay out on every repaint of a timeline
@@ -1898,6 +1951,52 @@ export default function SwitchingStage({
               letterSpacing: '0.08em', color: 'var(--text-dim)',
             }}>
               <span className="grow">MASTER VIDEO</span>
+              {/*
+                * ZOOM SITS ON THE TIMELINE, not on the transport.
+                * [TIMELINE B3a]
+                *
+                * The transport is for playing and directing; this is a
+                * statement about the ruler you are looking at, so it
+                * belongs on the ruler's own row — the same argument
+                * half-time and double-time make for living on the
+                * song's lane rather than beside the play button.
+                *
+                * FOUR STEPS, NAMED IN WHAT THEY MEAN. At 8x a pixel is
+                * about a frame on a four-minute song, which is the
+                * point at which a cut can be put ON a beat rather than
+                * near one; past that the ruler is longer than anybody's
+                * patience with a pan.
+                */}
+              <span className="row" data-testid="zoom" style={{ gap: 3 }}>
+                {[1, 2, 4, 8].map((step) => (
+                  <button key={step} className="small" data-testid="zoom-step"
+                          data-step={step} aria-pressed={zoom === step}
+                          title={step === 1
+                            ? 'The whole song'
+                            : `${step}\u00d7 \u2014 ${
+                              formatMasterPosition(Math.round(duration / step))
+                            } across the window`}
+                          onClick={() => {
+                            /* Zooming keeps the playhead where it is:
+                               the moment you are looking at is the
+                               moment you meant to look at. */
+                            const where = duration > 0
+                              ? player.positionNow() / duration : 0;
+                            const span = 1 / step;
+                            setZoom(step);
+                            setAt(Math.max(0, Math.min(
+                              Math.max(0, 1 - span), where - span / 2)));
+                          }}
+                          style={{
+                            padding: '0 6px', fontSize: 'var(--text-2xs)',
+                            fontWeight: zoom === step
+                              ? 'var(--weight-bold)' : 'var(--weight-semi)',
+                            color: zoom === step ? 'var(--ink-000)' : undefined,
+                          }}>
+                    {step === 1 ? 'Fit' : `${step}\u00d7`}
+                  </button>
+                ))}
+              </span>
               {/* Starting the edit again belongs on the edit, not on the
                   transport: it is the one control here that destroys
                   something, and it should be where that something is. */}
@@ -1921,8 +2020,30 @@ export default function SwitchingStage({
           </div>
 
           {/* Every lane, the same four minutes, one x per sample. */}
-          <div ref={lanes} style={{ position: 'relative', flex: 1, minWidth: 0 }}
+          {/*
+            * ONE TRACK, WIDER THAN THE COLUMN.  [TIMELINE B3a]
+            *
+            * Zoom is done here and nowhere else: the column clips, the
+            * track inside it is `zoom` times as wide, and `pct()` keeps
+            * meaning exactly what it meant — a percentage of the SONG,
+            * which is now a percentage of the track. So every ruler
+            * tick, scene block, take lane, beat mark, hole and join
+            * zooms and pans without one of them being told about it,
+            * and nothing can be left behind when a new lane is added.
+            *
+            * The alternative was giving `pct` a window and clamping,
+            * which piles everything outside the view against the edges
+            * — a timeline that lies at both ends.
+            */}
+          <div ref={lanes} style={{
+                 position: 'relative', flex: 1, minWidth: 0, overflow: 'hidden',
+               }}
                onClick={(e) => player.seek(sampleAtX(e.clientX))}>
+          <div data-testid="lane-track" style={{
+            position: 'relative',
+            width: `${(zoom * 100).toFixed(4)}%`,
+            marginLeft: `-${(at * zoom * 100).toFixed(4)}%`,
+          }}>
             {/*
               * THE RULER IS THE SCRUB STRIP, and until now the playhead
               * could only be JUMPED to, never taken hold of.
@@ -2257,6 +2378,7 @@ export default function SwitchingStage({
               }} />
             </div>
           </div>
+          </div>
         </div>
       </div>
 
@@ -2364,13 +2486,48 @@ export default function SwitchingStage({
                   }}>
             <Icon name={player.playing ? 'pause' : 'play'} size={12} />
           </button>
-          <span className="mono readout" style={{
-            fontSize: 'var(--text-xs)', flex: '0 0 auto',
-            color: 'var(--ink-050)',
-          }}>
+          {/*
+            * THE CLOCK IS A WAY IN, NOT A LABEL.  [TIMELINE B3b]
+            *
+            * "Jump to an exact moment." A drag is one guess per press
+            * and a click on a four-minute lane is worth about a
+            * second; when an author knows they want 02:41 the fastest
+            * route is to say so. The readout was already showing the
+            * number, so it is the obvious thing to press — and it
+            * stays a readout, in the same type, because a control
+            * that shouts is a control in the way.
+            */}
+          <button className="mono readout" data-testid="player-goto"
+                  title="Go to an exact moment"
+                  onClick={() => confirm({
+                    question: 'Where in the song? Minutes and seconds \u2014 '
+                      + `2:41, 2:41.500 or just 161. The song is ${clock(duration)}.`,
+                    field: {
+                      label: 'Go to',
+                      initial: formatMasterPosition(Math.round(player.position)),
+                    },
+                    verb: 'Go there',
+                    go: (typed) => {
+                      const at = parseMasterPosition(typed ?? '');
+                      /* Nothing rather than zero: seeking to the start
+                         because somebody typed a word is a jump they
+                         did not ask for. */
+                      if (at === null) {
+                        setError('that is not a time in this song');
+                        return;
+                      }
+                      setError(null);
+                      player.seek(Math.max(0, Math.min(duration, at)));
+                    },
+                  })}
+                  style={{
+                    fontSize: 'var(--text-xs)', flex: '0 0 auto',
+                    color: 'var(--ink-050)', background: 'none',
+                    border: 0, padding: 0, cursor: 'pointer',
+                  }}>
             {formatMasterPosition(Math.round(player.position))}
             <span style={{ color: 'var(--ink-400)' }}> / {clock(duration)}</span>
-          </span>
+          </button>
           {/*
             * MONITORING, NOT MIXING. This is how loud the song is in the room
             * while somebody directs. It is not written to the document and it
