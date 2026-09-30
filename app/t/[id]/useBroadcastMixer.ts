@@ -3,7 +3,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { LAYOUTS, takeSlots } from '../../../src/domain/presentation.js';
 import type { Composition } from '../../../src/domain/composition.js';
+import { type VirtualSet, arrangementIn } from '../../../src/domain/virtualSet.js';
 import { LiveCompositor } from './compositor.js';
+import { paintSet } from './spaceArt.js';
 
 /**
  * Several people, one picture.  [Doctrine CHANNEL §6, ROOM §4, U-18, D-19]
@@ -98,7 +100,7 @@ export function arrangementFor(count: number): string {
 }
 
 export function useBroadcastMixer({
-  sources, layoutId, solo = null, enabled,
+  sources, layoutId, solo = null, set = null, enabled,
   width = 1280, height = 720, fps = 30,
 }: {
   sources: MixerSource[];
@@ -125,6 +127,21 @@ export function useBroadcastMixer({
    * a black frame for a guest whose browser closed.
    */
   solo?: string | null;
+  /**
+   * THE STATION'S STUDIO.  [§27]
+   *
+   * *"Virtual Set is a complete production scene."* Present, the scene
+   * is drawn once for the whole frame — the room, the riser, the
+   * screens — each person is CUT OUT of their own room and composited
+   * into their position in it, and the desk goes over them so they sit
+   * behind it rather than on it. Absent, every person keeps their own
+   * background and the layout is the arrangement it always was.
+   *
+   * A set belongs to the CHANNEL and a background to a person, which is
+   * the distinction §27 opens with, and it is why this is one prop and
+   * `MixerSource.composition` is per source. [§13]
+   */
+  set?: VirtualSet | null;
   enabled: boolean;
   width?: number;
   height?: number;
@@ -147,7 +164,15 @@ export function useBroadcastMixer({
   } | null>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
 
-  const chosen = layoutId ?? arrangementFor(sources.length);
+  /*
+   * A SET NAMES THE ARRANGEMENT, unless the operator has overridden it.
+   * A News Desk is drawn for two people behind a desk, and putting four
+   * in it would be four people behind a desk drawn for two. The
+   * operator's own choice still wins — that is what a vision mixer is.
+   */
+  const chosen = layoutId
+    ?? (set ? arrangementIn(set, sources.length)
+      : arrangementFor(sources.length));
   /*
    * Kept in a ref as well, because the draw loop below runs for the length of
    * a broadcast and must not be torn down and rebuilt every time somebody
@@ -160,6 +185,8 @@ export function useBroadcastMixer({
   layoutRef.current = chosen;
   const soloRef = useRef(solo);
   soloRef.current = solo;
+  const setRef = useRef(set);
+  setRef.current = set;
 
   /* ---- the picture ---------------------------------------------------- */
   useEffect(() => {
@@ -196,8 +223,18 @@ export function useBroadcastMixer({
         : LAYOUTS[layoutRef.current] ?? LAYOUTS['performance_full']!;
       const panels = layout.layers.filter((layer) => layer.source === 'take');
 
-      paper.fillStyle = '#05070a';
-      paper.fillRect(0, 0, width, height);
+      /*
+       * THE SCENE FIRST, AND ONCE. A virtual set's room is the STUDIO,
+       * not four rooms in four panels, so it is drawn for the whole
+       * frame before anybody is composited into it. [§27]
+       */
+      const scene = setRef.current;
+      if (scene) {
+        paintSet(paper, scene, width, height, 'behind');
+      } else {
+        paper.fillStyle = '#05070a';
+        paper.fillRect(0, 0, width, height);
+      }
 
       people.slice(0, Math.max(1, takeSlots(layout))).forEach((person, index) => {
         const rect = panels[index]?.rect ?? { x: 0, y: 0, w: 1, h: 1 };
@@ -220,8 +257,17 @@ export function useBroadcastMixer({
               compositorRef.current = new LiveCompositor();
             }
             composited = compositorRef.current.draw(
-              video, person.plate ?? null, person.composition,
-              { w: box.w, h: box.h }, now);
+              video, person.plate ?? null,
+              /* THE SET LIGHTS THEM FOR THE ROOM THEY ARE STANDING IN,
+                 and their own adjustment is added to it: a stage is dark
+                 and a news studio is flat and bright. [§27] */
+              scene
+                ? { ...person.composition,
+                  light: Math.max(-1, Math.min(1,
+                    person.composition.light + scene.light)) }
+                : person.composition,
+              { w: box.w, h: box.h }, now,
+              { cutout: Boolean(scene) });
             if (composited) {
               paper.drawImage(compositorRef.current.canvas,
                 box.x, box.y, box.w, box.h);
@@ -281,6 +327,13 @@ export function useBroadcastMixer({
           paper.strokeRect(box.x, box.y, box.w, box.h);
         }
       });
+
+      /*
+       * AND THE DESK LAST. What `inFront` marks is drawn over everybody,
+       * which is the single ordering that stops a composite reading as
+       * cutouts standing on air. [§27]
+       */
+      if (scene) paintSet(paper, scene, width, height, 'front');
 
       window.requestAnimationFrame(draw);
     };

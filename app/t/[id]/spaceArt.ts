@@ -101,3 +101,81 @@ export function paintSpace(
     paper.restore();
   }
 }
+
+/**
+ * A virtual set, drawn.  [Doctrine CHANNEL §27]
+ *
+ * *"A reusable scene system rather than a collection of images."*
+ *
+ * TWO PASSES, BECAUSE A DESK IS IN FRONT. Everything else — the room, a
+ * riser, a screen on the wall — goes down before the people, and the desk
+ * goes over them. That single ordering is what makes a composite read as
+ * a studio rather than as cutouts standing on air: the bottom of a
+ * presenter disappears behind the desk, exactly as it would in a room.
+ *
+ * AND IT IS ALL DRAWN, like the spaces and for §4's reason: a photograph
+ * of a desk is somebody's photograph of a desk, with a rights line and a
+ * perspective that will not match the camera. Two tones and a lit edge is
+ * a desk at broadcast size, and it is one this product owns.
+ */
+
+import {
+  type Piece, type VirtualSet, inFront, place,
+} from '../../../src/domain/virtualSet.js';
+import { SPACE_LOOKS } from '../../../src/domain/environment.js';
+
+function piece(
+  paper: CanvasRenderingContext2D, one: Piece,
+  frame: { w: number; h: number },
+): void {
+  const box = place(one.rect, frame);
+  if (one.kind === 'band' || one.kind === 'riser') {
+    paper.fillStyle = one.face;
+    paper.fillRect(box.x, box.y, box.w, box.h);
+    return;
+  }
+  if (one.kind === 'screen') {
+    /* A FRAME AND A GLASS, and the glass is not flat: a monitor in a lit
+       room catches the room, and a rectangle of one colour reads as a
+       hole cut in the wall. */
+    paper.fillStyle = one.frame;
+    paper.fillRect(box.x, box.y, box.w, box.h);
+    const inset = Math.max(2, Math.round(box.w * 0.012));
+    const glass = paper.createLinearGradient(
+      box.x, box.y, box.x + box.w * 0.4, box.y + box.h);
+    glass.addColorStop(0, one.glass);
+    glass.addColorStop(1, '#0b0f14');
+    paper.fillStyle = glass;
+    paper.fillRect(box.x + inset, box.y + inset,
+      box.w - inset * 2, box.h - inset * 2);
+    return;
+  }
+  /*
+   * THE DESK. A face, and a lit top edge — one line of light along the
+   * lip is what gives a flat rectangle a surface, and it is the cue a
+   * near-black composite has almost nothing else to offer.
+   */
+  paper.fillStyle = one.face;
+  paper.fillRect(box.x, box.y, box.w, box.h);
+  const lip = Math.max(2, Math.round(box.h * 0.06));
+  paper.fillStyle = one.top;
+  paper.fillRect(box.x, box.y, box.w, lip);
+}
+
+export function paintSet(
+  paper: CanvasRenderingContext2D, set: VirtualSet,
+  width: number, height: number, where: 'behind' | 'front',
+): void {
+  const frame = { w: width, h: height };
+  if (where === 'behind') {
+    const look = SPACE_LOOKS[set.spaceId];
+    /* A set naming a room nobody drew is caught by a test; if one ever
+       reaches here it gets the chassis rather than an exception, because
+       a broadcast must not stop for a missing swatch. */
+    if (look) paintSpace(paper, look, width, height);
+    else { paper.fillStyle = '#05070a'; paper.fillRect(0, 0, width, height); }
+  }
+  for (const one of set.furniture) {
+    if (inFront(one) === (where === 'front')) piece(paper, one, frame);
+  }
+}

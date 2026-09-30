@@ -237,13 +237,23 @@ const MERGE_FS = `
 precision mediump float;
 varying vec2 v;
 uniform sampler2D uFg, uBack, uMask;
-uniform float uLight, uSpill;
+uniform float uLight, uSpill, uCutout;
 uniform vec3 uKey;
 ${FRAME_GLSL}
 void main() {
   vec2 u = fgUv(v);
   vec3 back = texture2D(uBack, v).rgb;
-  if (!inFrame(u)) { gl_FragColor = vec4(back, 1.0); return; }
+  /*
+   * A CUTOUT, when the scene behind this person is the whole frame and
+   * not this panel. A virtual set draws its room once — the room is the
+   * studio, not four rooms in four panels — so each person comes back
+   * as a foreground with an alpha, and the 2D canvas composites them
+   * onto the set that is already there. [§27]
+   */
+  if (!inFrame(u)) {
+    gl_FragColor = uCutout > 0.5 ? vec4(0.0) : vec4(back, 1.0);
+    return;
+  }
   vec3 fg = texture2D(uFg, vec2(u.x, 1.0 - u.y)).rgb;
   float m = texture2D(uMask, v).r;
   /* SPILL: where the person is greener than a person should be against
@@ -255,7 +265,10 @@ void main() {
   /* A stop up or a stop down, about mid grey so it is exposure and not a
      wash: adding a constant lifts the blacks and makes a cutout float. */
   fg = clamp((fg - 0.5) * (1.0 + uLight * 0.35) + 0.5 + uLight * 0.12, 0.0, 1.0);
-  gl_FragColor = vec4(mix(back, fg, clamp(m, 0.0, 1.0)), 1.0);
+  float a = clamp(m, 0.0, 1.0);
+  gl_FragColor = uCutout > 0.5
+    ? vec4(fg, a)
+    : vec4(mix(back, fg, a), 1.0);
 }
 `;
 
@@ -314,8 +327,15 @@ export class LiveCompositor {
 
   constructor() {
     this.canvas = document.createElement('canvas');
+    /*
+     * ALPHA, and NOT premultiplied. The merge can hand back a cutout
+     * with a straight alpha for a virtual set to composite onto, and a
+     * premultiplied buffer would have the mask already multiplied into
+     * the colour — which `drawImage` would then multiply a second time
+     * and leave a dark halo exactly where the feather is.
+     */
     const gl = this.canvas.getContext('webgl', {
-      alpha: false, premultipliedAlpha: false, preserveDrawingBuffer: true,
+      alpha: true, premultipliedAlpha: false, preserveDrawingBuffer: true,
     });
     if (!gl) throw new Error('no webgl');
     this.gl = gl;
@@ -413,9 +433,17 @@ export class LiveCompositor {
   draw(
     video: HTMLVideoElement, plate: TexImageSource | null,
     composition: Composition, panel: { w: number; h: number }, now: number,
+    { cutout = false }: { cutout?: boolean } = {},
   ): boolean {
     if (!drawable(composition)) return false;
-    if (composition.backdrop.kind === 'none') return false;
+    /*
+     * A CUTOUT NEEDS NO BACKDROP OF ITS OWN — the set behind it is the
+     * whole frame — but it does need a key, because a person with
+     * nothing separating them from their room cannot be cut out of it.
+     */
+    if (cutout) {
+      if (composition.key.kind === 'none') return false;
+    } else if (composition.backdrop.kind === 'none') return false;
     if (video.videoWidth === 0) return false;
     this.resize(Math.max(2, Math.round(panel.w)), Math.max(2, Math.round(panel.h)));
     const gl = this.gl;
@@ -439,7 +467,7 @@ export class LiveCompositor {
     };
 
     /* ---- 1. what goes behind ----------------------------------------- */
-    const spaceId = spaceOf(composition.backdrop);
+    const spaceId = cutout ? null : spaceOf(composition.backdrop);
     if (spaceId) {
       const look: SpaceLook = SPACE_LOOKS[spaceId]!;
       this.pass(this.programs['space']!, wash, (g, p) => {
@@ -494,7 +522,7 @@ export class LiveCompositor {
 
     /* ---- 2. the matte ------------------------------------------------ */
     const key = composition.key;
-    if (composition.backdrop.kind === 'blur' && key.kind === 'none') {
+    if (!cutout && composition.backdrop.kind === 'blur' && key.kind === 'none') {
       /* Their whole room, softened, and nobody cut out of it: one picture
          and no decision about any pixel. [STUDIO-TWO §4] */
       gl.activeTexture(gl.TEXTURE0);
@@ -557,6 +585,13 @@ export class LiveCompositor {
     }
 
     /* ---- 3. the merge ------------------------------------------------ */
+    if (cutout) {
+      /* Whatever the last person left on this canvas is not this
+         person's background. A cutout is drawn over a cleared buffer. */
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gl.clearColor(0, 0, 0, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+    }
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, this.texture('fg'));
     gl.activeTexture(gl.TEXTURE1);
@@ -567,6 +602,7 @@ export class LiveCompositor {
       g.uniform1i(g.getUniformLocation(p, 'uFg'), 0);
       g.uniform1i(g.getUniformLocation(p, 'uBack'), 1);
       g.uniform1i(g.getUniformLocation(p, 'uMask'), 2);
+      g.uniform1f(g.getUniformLocation(p, 'uCutout'), cutout ? 1 : 0);
       g.uniform1f(g.getUniformLocation(p, 'uLight'), composition.light);
       g.uniform1f(g.getUniformLocation(p, 'uSpill'),
         key.kind === 'chroma' ? key.spill : 0);

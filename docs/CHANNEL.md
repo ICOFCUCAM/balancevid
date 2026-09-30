@@ -2489,3 +2489,121 @@ The channel was restored from a copy taken first.
   rendered export still goes through `compose.ts`, which has always done
   this properly — but an audio item on air (C-16) and a virtual set in a
   recorded programme both need the same treatment in the render path.
+
+---
+
+## C-18 — Stage 18: the set is a scene
+
+*Priority 4: "Virtual Set — build on top of that compositor. A reusable
+scene system rather than a collection of images."*
+
+### What a set is, and what it is not
+
+*"Background and Virtual Set should not be the same thing. Background
+simply replaces what's behind a person. Virtual Set is a complete
+production scene."*
+
+The product had **one control for both**, and it was the background one:
+a `SpaceLook` is a wash, a pool of light, a band and grain. That is a
+backdrop, precisely as §27 defines it, sitting under a panel labelled
+"Background / Virtual Set".
+
+Of §27's eight parts, two already existed and were not rebuilt:
+**presenter positions** are `LAYOUTS`, shared by the live mixer and the
+ffmpeg renderer so a quad here and a quad in an export are one table; and
+**programme graphics** are `marksFor`. What a set adds is the furniture
+between them — a desk, a screen, a riser, a band, a place the logo
+belongs and a strip the lower third owns — and the fact that all of it is
+**described** rather than drawn: every rectangle is a fraction of the
+frame, so one set works at 1280×720 on the canvas and at whatever an
+export asks for.
+
+*"A reusable scene system rather than a collection of images."* Nothing
+here is an image. A set is a space id, an arrangement per head count, and
+a short list of rectangles with a purpose each.
+
+### It belongs to the channel; a background belongs to a person
+
+A background is per participant — *"each participant can have an
+independent background"* — because it is about their room. A set is the
+station's studio, and §13 already says where that lives: *"a station does
+not repaint its studio between programmes."* So `identity.setId` sits
+beside `identity.spaceId` and outranks it.
+
+**And the panel says so.** With a set on, everybody is cut out of their
+own room and placed in the station's, so a per-person backdrop decides
+nothing — and a shelf of swatches that changes nothing is the exact fault
+this panel was built to replace. The background section is replaced by
+one line and a way out. Separation and positioning stay, because they are
+about the person rather than the room.
+
+### One ordering makes it a studio
+
+The scene is drawn **once for the whole frame** — the room is the studio,
+not four rooms in four panels — then each person is **cut out** of their
+own room into their position in it, and the desk is drawn **over** them.
+
+That last part is the whole difference between a studio and four cutouts
+standing on air: the bottom of a presenter disappears behind the desk,
+exactly as it would in a room. `inFront` is one predicate and the desk is
+the only thing it is true of.
+
+**The compositor had to learn to hand back an alpha.** It merged a person
+onto their own background and returned an opaque picture; a set needs the
+foreground with a mask so the 2D canvas can composite it onto a scene
+already drawn. The GL context is `alpha: true` and **not premultiplied**,
+because a premultiplied buffer has the mask already multiplied into the
+colour and `drawImage` would multiply it a second time — leaving a dark
+halo exactly where the feather is.
+
+### The set lights the people for the room they are standing in
+
+A stage is dark and the light comes from above and behind; a news studio
+is flat and bright. A face carried into one from the other has to move,
+so `light` is a property of the **set**, added to the person's own
+adjustment. Stage is −0.14 and News Desk is +0.18, and a test holds the
+signs apart.
+
+### What the tests hold
+
+`virtualSet.ts` has 18 assertions. Every set must name a room
+`SPACE_LOOKS` can light and arrangements `LAYOUTS` actually has — a set
+carrying its own geometry would be a second answer to "where does the
+second person go", and the two would differ in an export. Every rectangle
+must be inside the frame. A lower third must clear the desk it shares a
+set with, because a name on a desk's front edge is a name nobody can
+read. And a set asked for more people than it was drawn for **falls back
+rather than refusing**: a third guest arriving mid-programme must not
+black the picture out.
+
+**Fourteen mutations tried, twelve caught.** The two that survived removed
+guards nothing could observe — a `Math.max(1, count)` clamp and an
+exact-match fast path above a filter that already answered both cases.
+Both were deleted rather than defended with a new test, which is the
+third time this session that a mutation sweep has found decoration rather
+than a missing assertion.
+
+### Verified in the browser
+
+Four sets, each with a thumbnail that is the scene — **12 to 22 distinct
+tones**, drawn by the same two passes the mixer runs, so News Desk shows
+its desk and its screen before anybody picks it. Choosing it replaced the
+background shelves with *"News Desk is providing the room, so each person
+is composited into it rather than into a background of their own"*, and
+the armed preview — `mixer.stream`, the canvas the encoder reads — showed
+the keyed camera sitting behind the desk in the Modern Room, with the
+screen on the wall beside them.
+
+The channel was restored from a copy taken first.
+
+### Still owed
+
+* **The logo region and the lower-third region are described and not yet
+  drawn.** Marks are composited server-side by the playout engine from
+  `marksFor`, which places by corner; a set naming a region means nothing
+  until `marksFor` reads it. That is a small change in the same place the
+  audio treatment (C-16) and the server-side compositor (C-17) are owed,
+  and all three are one piece of work in the render path.
+* **A screen in a set shows nothing.** What would go in it is the
+  programme or the graphics layer, and feeding a monitor its own output
+  is a decision rather than a default.
