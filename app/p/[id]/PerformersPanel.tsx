@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { useConfirm } from '../../Confirm.js';
+import ShareLink from '../../ShareLink.js';
 import { HOUSE_SAMPLE_RATE, formatMasterPosition } from '../../../src/domain/time.js';
 
 /**
@@ -71,7 +72,20 @@ export default function PerformersPanel({
   const [open, setOpen] = useState(false);
   const [asks, setAsks] = useState('');
   const [who, setWho] = useState('');
-  const [link, setLink] = useState<string | null>(null);
+  /*
+   * THE LINK AND WHAT IT ASKS FOR, TOGETHER.
+   *
+   * This was the link alone, and the share message read the `asks`
+   * field beside it — which `invite` clears the instant the link comes
+   * back, so every message sent from here said "a part" however
+   * carefully the producer had described the part. A browser run
+   * caught it: the field said "Second verse, harmony" and WhatsApp
+   * was handed "You're asked to record: a part." [T2b]
+   *
+   * The ask travels with the link because it belongs to the link, not
+   * to a form that has already been emptied.
+   */
+  const [made, setMade] = useState<{ link: string; asks: string } | null>(null);
   const [origin, setOrigin] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -105,7 +119,7 @@ export default function PerformersPanel({
   const invite = useCallback(async () => {
     setBusy(true);
     setError(null);
-    setLink(null);
+    setMade(null);
     try {
       const response = await fetch(`/api/performances/${performanceId}/requests`, {
         method: 'POST', headers: { 'content-type': 'application/json' },
@@ -116,7 +130,7 @@ export default function PerformersPanel({
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error ?? 'that link could not be made');
-      setLink(String(data.link));
+      setMade({ link: String(data.link), asks: asks.trim() });
       setAsks('');
       setWho('');
       await read();
@@ -142,9 +156,16 @@ export default function PerformersPanel({
       return;
     }
     if (data.job?.id) onTakeAccepted(String(data.job.id));
-    if (data.link) setLink(String(data.link));
+    /* A new link for a request that already exists: the ask is the
+       one it was created with, and it is on the row. */
+    if (data.link) {
+      setMade({
+        link: String(data.link),
+        asks: rows.find((row) => row.id === requestId)?.assignment.asks ?? '',
+      });
+    }
     await read();
-  }, [onTakeAccepted, performanceId, read]);
+  }, [onTakeAccepted, performanceId, read, rows]);
 
   const waiting = rows.flatMap((row) => (row.submissions ?? [])
     .filter((one) => !one.acceptedAt)).length;
@@ -203,22 +224,35 @@ export default function PerformersPanel({
             * response that carries it — a producer can rotate it, but
             * they cannot read it back out of the list. [T14]
             */}
-          {link && origin && (
+          {made && origin && (
             <div data-testid="performers-link" style={{
-              display: 'flex', flexDirection: 'column', gap: 4,
               padding: '7px 8px', borderRadius: 'var(--radius-sm)',
               border: '1px solid var(--line)', background: 'var(--surface-sunk)',
             }}>
-              <span className="small muted">
-                Send this to them. It is shown once.
-              </span>
-              <input readOnly data-testid="performers-link-url"
-                     value={`${origin}/take/${link}`}
-                     onFocus={(event) => event.currentTarget.select()}
-                     style={{
-                       fontSize: 'var(--text-2xs)',
-                       fontFamily: 'ui-monospace, monospace',
-                     }} />
+              {/*
+                * SENDABLE BY ANYTHING, and by the same component the Room
+                * sends its invitations with. This was a read-only input
+                * and nothing else — technically true to "it is a URL, so
+                * every channel carries it", and in front of a producer
+                * with a band to reach it meant copying a string by hand
+                * into four conversations. [T2b, D-19]
+                *
+                * THE QR IS THE ONE THAT MATTERS HERE and it is why the
+                * square was worth a route: four people in a rehearsal
+                * room, each holding the phone they will record on, do
+                * not want a link in a chat thread. Put it on the laptop
+                * and they all scan it. [ROOM §7]
+                */}
+              <ShareLink
+                testId="performers"
+                url={`${origin}/take/${made.link}`}
+                title={made.asks || 'A part to record'}
+                note="Send this to them. It is shown once."
+                message={`You're asked to record: ${made.asks || 'a part'}.`
+                  + `\n\nOpen this on your phone: ${origin}/take/${made.link}`}
+                qrSrc={`/api/requests/${made.link.split('.')[0]}/qr`}
+                qrCaption="Scan to record your part"
+              />
             </div>
           )}
 

@@ -207,10 +207,41 @@ describe('the panel', () => {
     expect(PANEL).toContain('data-testid="performers-waiting"');
   });
 
-  /* The link is a credential and appears once. [T14] */
+  /*
+   * The link is a credential and appears once. [T14]
+   *
+   * THE ASSERTION NAMES THE PROPERTY NOW, NOT THE SETTER. It read
+   * `setLink(String(data.link))` and broke when the state grew to
+   * carry the ask alongside the link — which was a fix, not a
+   * regression, and a test that knows the shape of a `useState` call
+   * fails on every refactor and catches none of them. What matters
+   * is that the link comes from the response that MADE it and is
+   * never read back out of the listing.
+   */
   it('shows the link once, from the response that made it', () => {
-    expect(PANEL).toMatch(/setLink\(String\(data\.link\)\)/);
+    expect(PANEL).toMatch(/link: String\(data\.link\)/);
     expect(PANEL).toMatch(/It is shown once\./);
+    /* The listing carries no link, so there is nowhere else it
+       could have come from. [T14] */
+    const row = PANEL.slice(PANEL.indexOf('interface RequestRow'),
+      PANEL.indexOf('export default function'));
+    expect(row).not.toMatch(/\blink\b/);
+  });
+
+  /*
+   * AND THE ASK TRAVELS WITH IT.  [T2b]
+   *
+   * `invite` empties the form the instant the link comes back, so a
+   * share message reading the `asks` FIELD said "a part" however
+   * carefully the producer had described it. Found in a browser,
+   * because a source assertion that a message mentions `asks` cannot
+   * tell which `asks`.
+   */
+  it('keeps the ask beside the link it belongs to', () => {
+    expect(PANEL).toMatch(/setMade\(\{ link: String\(data\.link\), asks: asks\.trim\(\) \}\)/);
+    const invite = PANEL.slice(PANEL.indexOf('const invite = useCallback'),
+      PANEL.indexOf('const act = useCallback'));
+    expect(invite.indexOf('setMade(')).toBeLessThan(invite.indexOf("setAsks('')"));
   });
 
   /* Both fields are optional: the song says what is wanted, and

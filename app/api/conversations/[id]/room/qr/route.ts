@@ -3,6 +3,7 @@ import { isOwner } from '../../../../../../src/auth/request.js';
 import { loadRoomHost } from '../../../../../../src/store/rooms.js';
 import { fail } from '../../../../../../src/web/http.js';
 import { joinUrl } from '../../../../../../src/web/room.js';
+import { originOf } from '../../../../../../src/web/share.js';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,7 +37,15 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
   const room = conversation.room;
   if (!room?.open) return fail(409, 'this conversation has no open room');
 
-  const origin = new URL(request.url).origin;
+  /*
+   * THE ORIGIN THE BROWSER REACHED, NOT THE ONE NODE IS LISTENING ON.
+   * Behind a proxy the request's own URL is the internal one, and a
+   * square encoding it is a code that scans perfectly and opens
+   * nothing — the failure found on the take-link QR, which this route
+   * is the parent of. `originOf` is the answer the preview cards
+   * already use. [D-19]
+   */
+  const origin = originOf(request);
   const svg = await QRCode.toString(joinUrl(origin, id, room.inviteToken), {
     type: 'svg',
     margin: 1,

@@ -1,6 +1,7 @@
 'use client';
 
 import type { RecordingSink } from '../../p/[id]/useMasterRecording.js';
+import { askToDrain, takeQueue } from './queue.js';
 
 /**
  * Where the Take App sends a recording.  [D-19, D-25; TAKE-APP T3, T5]
@@ -45,11 +46,44 @@ export function takeSink(
       }
       return data.submissionId as string;
     },
+    /*
+     * WRITTEN DOWN BEFORE IT IS SENT.  [T13a; U-06]
+     *
+     * This was `await fetch(...)` with no check on the response,
+     * under a caller that swallows the rejection so the next segment
+     * can carry on. On a laptop in a studio that is nearly always
+     * fine. On a phone on mobile data — this surface's entire
+     * premise — a segment that fails is GONE: the take has a hole in
+     * the middle of it, the duration still looks plausible, and
+     * nobody is told. U-06 exists so that a crash costs one segment;
+     * it does not say a segment may be dropped in silence.
+     *
+     * So the bytes go to IndexedDB first and the queue delivers them
+     * — retrying with a backoff, surviving the tab closing, the
+     * phone locking and the signal going, and finishing in the
+     * background where the browser has Background Sync. That is
+     * exactly what T13a said a packaged client would add, and it is
+     * the half of that row that was never about a store account.
+     *
+     * A PHONE THAT CANNOT HAVE A QUEUE STILL RECORDS. Private
+     * browsing has no IndexedDB; that is a reason for a less durable
+     * upload, not a reason to refuse somebody's performance. The
+     * direct path is the fallback — and unlike the original it reads
+     * the response, so a refusal is at least an error somebody can
+     * be shown. [U-19]
+     */
     chunk: async (id, index, body) => {
-      await fetch(`${at}/submissions/${id}?index=${index}`, {
+      const queue = await takeQueue();
+      if (queue) {
+        await queue.put({ link, submissionId: id, index, blob: body });
+        void askToDrain();
+        return;
+      }
+      const response = await fetch(`${at}/submissions/${id}?index=${index}`, {
         method: 'POST', body,
         headers: { 'content-type': 'application/octet-stream' },
       });
+      if (!response.ok) throw new Error('that part of the recording did not arrive');
     },
     /*
      * STOPPING IS NOT SENDING.  [TAKE-APP T4; D-25]

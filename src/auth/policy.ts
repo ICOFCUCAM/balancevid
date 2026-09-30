@@ -75,6 +75,19 @@ const PUBLIC_PATTERNS: RegExp[] = [
   /* The song they were asked to perform against, and nothing else about
      the performance it belongs to. [T6] */
   /^\/api\/take\/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\/reference$/,
+  /*
+   * What a phone needs to INSTALL the Take App.  [TAKE-APP T2c, T13a]
+   *
+   * The manifest is composed per link, so it is reachable on the same
+   * terms as the page it describes and refused by the same check: a
+   * link that is wrong, expired or rotated gets nothing. It names the
+   * assignment and the icons and no part of the production. [D-03]
+   *
+   * A MANIFEST IS FETCHED BY THE BROWSER, NOT BY THE PAGE, which is
+   * the practical half of why it must be here: the install prompt
+   * never appears if it needs a session the performer does not have.
+   */
+  /^\/api\/take\/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\/manifest$/,
   // The picture a link preview fetches, with none of the sender's cookies.
   // The route serves it only for a published conversation. [U-31, D-03]
   /^\/api\/conversations\/[A-Za-z0-9_-]+\/card$/,
@@ -167,6 +180,27 @@ const ASSET_PATTERNS: RegExp[] = [
   /^\/_next\//,
   /^\/favicon\.ico$/,
   /^\/static\//,
+  /*
+   * The Take App's own static files.  [TAKE-APP T13a]
+   *
+   * A service worker, an upload queue and four icons. They are code
+   * and pictures, identical for every visitor, and they contain no
+   * application data of any kind — which is the test this list
+   * applies, not who is asking.
+   *
+   * THEY MUST BE REACHABLE WITHOUT A SESSION or the surface they
+   * exist for does not work: the whole premise is a link sent to
+   * somebody with no account, and a service worker that 302s to the
+   * sign-in page is a registration that silently fails.
+   *
+   * THE WORKER IS AT THE ROOT AND NOT UNDER `/take-app/`, because a
+   * worker's scope cannot rise above its own path and it has to
+   * cover `/take/<link>`. The rest is under a namespace of its own
+   * so an icon is never mistaken for a link: `/take/icon-192.png`
+   * has exactly the shape of `/take/<id>.<secret>`.
+   */
+  /^\/take-sw\.js$/,
+  /^\/take-app\/[A-Za-z0-9_.-]+$/,
 ];
 
 export function isAssetPath(pathname: string): boolean {

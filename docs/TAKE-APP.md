@@ -769,8 +769,8 @@ against real data. Every row is evaluated one at a time at the end.
 | T1a | Studio = production/control, Take = capture/participation | HAVE as code | separate routes, separate auth (four guest verbs, each on its own path), separate store, and one object between them. A participant reaches a request and nothing else; a producer reaches a studio and, of a request, only what was sent |
 | T2 | "Invite performers" in Studio Two | HAVE | in the takes rail beside Upload and Add footage, because it is the same slot: a take accepted from a phone is an ordinary take in that rail. Name and question both optional — the song says what is wanted |
 | T2a | a secure `/take/…` invitation link | HAVE | `req_id.secret`, 32 random bytes, matched by one regex BEFORE any disk read and compared with `timingSafeEqual`. Shown once, in the response that makes it; rotatable, and rotating it stops the old one working for somebody part-way through recording |
-| T2b | sendable by anything | PARTIAL, and argued | it is a URL, selected on focus, so every one of those channels carries it. The Room's own share sheet and QR exist and were NOT borrowed: `InvitePanel` wants a conversation, a source title and a rotate handler, and lying to it about three things to reuse a copy button is worse than an input somebody can copy |
-| T2c | "Open in Take App" / "Continue in browser" | GAP, and waits on T13a | there is no app to open, so a chooser would offer one real door and one that leads nowhere |
+| T2b | sendable by anything | **HAVE** | the native share sheet, WhatsApp, Messenger, SMS, mail, a copy button and a QR code — the Room's own set, and literally the Room's own code. The earlier row argued that `InvitePanel` could not be borrowed because it wants a conversation, a source title and a rotate handler, which was true and was the wrong conclusion: the weld was cut instead. `app/ShareLink.tsx` is what is generic about sending a link; the Room keeps what only the Room knows (who arrives as what, until when, the button that withdraws it) and wraps it. One definition, asserted. The QR is `GET /api/requests/<id>/qr` — owner-only, server-drawn, keyed on the REQUEST so one route serves all three holders — and it opens full screen, because "put it on the wall and everyone scans it" is not 220 pixels in a rail |
+| T2c | "Open in Take App" / "Continue in browser" | **HAVE** | it waited on T13a and T13a moved. `InstallBar` offers both doors and renders nothing where there is no door — never on a browser that cannot install, never to somebody already running it. Chromium's `beforeinstallprompt` fires only when the page actually qualifies, so catching it is the honest test rather than a claim; Safari fires nothing and has no API, so an iPhone is told to use Share → Add to Home Screen instead of being left out |
 | T3 | the performer's capture screen | HAVE | `/take/<link>` on a phone with no account: what is asked, the camera, the count-in, the clock, one button at a time. Verified on a simulated Pixel 7 |
 | T3a | the reference track plays while they record | HAVE, reached | `useMasterRecording` with `masterUrl` = `/api/take/<link>/reference`, which serves the NORMALISED master — what they hear and what the alignment measures are the same audio at the same rate, which on a phone matters more because nobody is watching a waveform |
 | T3b | review, save, record again, delete | HAVE | the performer's own list: Send and Delete per take, and neither once it is sent |
@@ -787,8 +787,8 @@ against real data. Every row is evaluated one at a time at the end.
 | T10a | an accepted response enters the programme queue | HAVE | in Studio Two it becomes an ordinary TAKE, made by the ordinary assembler — joined, normalised, measured, aligned. In Online TV it joins the live MIXER beside the presenter, because a channel broadcasts renders and ingests and a submission is neither |
 | T11 | Studio One's chain, end to end | HAVE | ask → link → phone → submission → inbox → preview → accept. Verified end to end in the browser with a simulated Pixel 7 and no account |
 | T12 | five kinds of request: question, poll, video, audio, performance | **HAVE (domain)** — `AssignmentKind`, as rows |
-| T13 | the same link works everywhere, browser included | HAVE, as the web | one URL, one page, no install, no account. A packaged client would add background upload and retry; nothing about the link would change |
-| T13a | a packaged Android / iOS app | GAP, and out of this brief's reach | the Take App is the surface one would wrap and it works today. What a native client adds is background upload and retry (T13's own argument), which is a build pipeline and a store account rather than a change to this product. Recorded so the row is not mistaken for something overlooked |
+| T13 | the same link works everywhere, browser included | HAVE, as the web | one URL, one page, no install, no account — and now the same URL is also the thing that installs, so nothing about the link changed when the app arrived |
+| T13a | a packaged Android / iOS app | **HAVE as capability; the store listing is out of reach** | the row justified itself by what a native client ADDS — "background upload and retry" — and that half was never about a store account. It is built: segments go to IndexedDB before the network, are retried with a backoff, survive the tab closing and the phone locking, and finish from a service worker's `sync` event with no page open. The Take App installs to a home screen from a per-link manifest, opens without browser chrome, and loads its shell with no signal. **And it was a fault, not a missing feature**: `chunk` was `await fetch(...)` with no check on the response under a caller that swallows the rejection, so a failed segment was gone — a take with a hole in it, of a plausible length, and nobody told. What is genuinely still out of reach is a SIGNED BINARY IN TWO STORES: accounts, certificates and a release pipeline, none of it a change to this product |
 | T14 | the same Take App reaches self-hosted or cloud | HAVE, by NOT carrying a destination | the request is answered against the server that served it, and the origin is never written into the record. A self-hosted installation that moves keeps its invitations working, and a forged origin is not somewhere to send a stranger's camera. The link is shown once and never read back out of a listing |
 | T15 | three product environments | recorded; no code change required |
 | T16 | the Participation Request object and its eight fields | **HAVE (domain)** — `src/domain/participation.ts`; upload destination deliberately NOT stored, see T14 |
@@ -845,11 +845,136 @@ found at the end of it.
    assignment, and the recorder running with no clock at all.
 6. **T13a — the packaged apps.** Not built, and recorded as what it is.
 
+## The second pass: closing T2b
+
+*Run 2026-09-30, after the pass above. Its own "what is still not there"
+listed T2b as argued-and-declined, and the argument did not survive being
+read back: "the Room's panel wants three things this surface cannot give"
+is a reason to cut the weld, not a reason to ship a bare input. It is the
+standing rule of this project — measure against what exists and cover the
+gap — applied to a row the first pass talked itself out of.*
+
+`app/ShareLink.tsx` now holds what is generic about sending a link. The
+Room wraps it and keeps its terms and its reset; the takes rail uses it and
+gets a QR code; one definition, asserted so the next surface asks for the
+row instead of growing its own.
+
+**Four faults, and every one of them was found in the browser:**
+
+1. **The share message said "a part"** however carefully the producer had
+   described it. `invite` empties the `asks` field the instant the link
+   comes back, and the message read the field. It passed its tests, because
+   a source assertion that a message mentions `asks` cannot tell WHICH
+   `asks`. The ask travels with the link now, and rotating carries the one
+   on the row.
+2. **The QR encoded the wrong origin.** The studio was open on
+   `127.0.0.1:3100` and the square encoded `localhost:3100` — which on the
+   phone that scans it means the phone. A page composes its links from
+   `window.location` and is right whatever the server thinks; a square is
+   drawn on the SERVER, and behind a proxy the server's own URL is the
+   internal one. `originOf` already existed for the preview cards. **The
+   Room's QR had the same fault** and was fixed with it — one of them left
+   on `request.url` is the copy the next one gets written from.
+3. **The square was cut off.** 220px was written for the Room's panel; the
+   takes rail is 290px wide and its scroll viewport showed the top third of
+   a code. Sized to the column now, and revealing it scrolls it into view.
+4. **Full screen was a fifth of the screen.** `position: fixed` does not
+   escape a mask, and `.shell-scroll` carries a `mask-image` for its edge
+   fade — which makes it the containing block for everything fixed inside
+   it. No z-index reaches that. The overlay leaves the subtree through a
+   portal.
+
+Verified: the square decodes byte-for-byte to the link the panel displays;
+the Room's panel still has all eleven of its handles after the extraction.
+
+## The third pass: closing T13a, and the fault under it
+
+*Run 2026-09-30. T13a was the last row in either brief that said GAP, and
+reading it back it was two claims wearing one label: "a packaged app" (a
+store account, certificates, a release pipeline — genuinely out of reach)
+and "what a native client adds is background upload and retry" (not out of
+reach at all, and the only part a user can tell the difference about).
+Shipping the gap rather than the capability was keeping the wrong half.*
+
+### It was a fault, not a missing feature
+
+The chunk upload was:
+
+```ts
+chunk: async (id, index, body) => { await fetch(...); }
+```
+
+— no check on the response — under a caller that swallows the rejection so
+the next segment can carry on. On a laptop in a studio that is nearly
+always fine. On a phone on mobile data, which is this surface's entire
+premise, **a segment that failed was gone**: the take had a hole in the
+middle of it, the duration still looked plausible, and nobody was told.
+U-06 exists so a crash costs one segment; it does not say a segment may be
+dropped in silence.
+
+### What is built
+
+* **`public/take-app/queue.js`** — segments go to IndexedDB before they go
+  to the network, drain serially, retry on a doubling backoff, and
+  distinguish three outcomes rather than two: sent, try again, and a
+  refusal retrying cannot fix. Written as a plain script because the
+  service worker runs the same code, and two copies of a queue is how a
+  queue develops two ideas of what is in it. [D-19]
+* **`public/take-sw.js`** — drains it from a `sync` event with no page
+  open, which is the one thing the web surface genuinely could not do
+  before. Caches its own shell and nothing of anybody's production: not the
+  master track, not the page, not an API answer. [D-03, D-25]
+* **A per-link manifest** — an installed icon opens *that assignment*, not
+  a page asking for a link. Standalone, so there is no address bar over the
+  Record button; refused for a link that is not open, so an installed icon
+  never opens a refusal.
+* **`InstallBar`** — T2c's two doors, shown only where there is something
+  to install and never to somebody already inside it. Safari has no API for
+  this and is the likeliest phone a performer is holding, so it is told to
+  use Share → Add to Home Screen.
+* **Send waits for the queue.** Sending is a *join* of the `.part` files on
+  disk, so sending with a segment still queued produces a submission with a
+  hole in it. The race was not new — the old fire-and-forget upload had it
+  too, and nothing to wait on.
+
+### Four faults, all found in the browser
+
+1. **Send said nothing for sixty seconds.** Pressing it with two segments
+   queued on a phone with no signal left the button reading "Sending…" with
+   no way to tell working from stuck. It was working. It says what it is
+   waiting for now, before it waits.
+2. **"↑ 1  Sent".** A count of segments still on their way, beside a take
+   that had arrived complete — the poll stops when nothing is undecided, so
+   its last snapshot was left on screen next to the word contradicting it.
+   Caught in a screenshot. A stale number is worse than none: that one said
+   the take was short.
+3. **The icons shadowed the link namespace.** `public/take/icon-192.png` is
+   served at a path `/take/<id>.<secret>` also matches — working only
+   because static files are checked first. Moved to `/take-app/`.
+4. **The worker and the manifest needed a session.** A performer has no
+   account; a service worker that redirects to the sign-in page is a
+   registration that silently fails, and a manifest behind a session is an
+   install prompt that never appears.
+
+### Verified
+
+On a simulated Pixel 7 with no account: recorded against the song, **taken
+offline mid-take**, two segments held in the queue (`pending=2`), the row
+showing `↑ 3`, Send pressed while offline and refused politely rather than
+truncating — then back online, `pending=0 broken=0`, and the joined
+submission **835,677 bytes, exactly the sum of all three parts**, 530,432
+samples. Without the queue the two offline segments would have been dropped
+by the caller's `.catch(() => {})` and the take would have been a third of
+its length, with nothing to show it.
+
+The service worker registers at scope `/` with `active=true`; the manifest
+is served to a context with no session at all, names the ask and carries no
+production id.
+
 ### What is still not there
 
-* **T13a**, and **T2c** with it: there is no app to open, so a chooser would
-  offer one real door and one that leads nowhere.
-* **T2b** is a URL rather than a share sheet. The Room's own panel exists and
-  was deliberately not borrowed: it wants a conversation, a source title and
-  a rotate handler, and lying to it about three things to reuse a copy button
-  is worse than an input somebody can select.
+* **A published mobile app.** A signed binary in the App Store and Play
+  Store needs accounts, certificates and a release pipeline. That is a
+  distribution channel, not a product change, and it is the only part of
+  T13a that this repository cannot reach. Everything the row said such a
+  client would *add* is built and verified above.
