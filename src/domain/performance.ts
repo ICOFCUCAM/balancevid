@@ -59,6 +59,7 @@
 export const TAKE_ACCENT_FALLBACK = '#3e7ca6';
 
 
+import type { AudioEffectId } from './audioEffect.js';
 import type { AssetId, Publication, TakeId } from './document.js';
 import type { ColourReading } from './colour.js';
 import type { LyricLine } from './lyrics.js';
@@ -266,6 +267,14 @@ export interface MasterTrack {
     fadeInSamples?: Samples;
     /** Down to silence at its end. */
     fadeOutSamples?: Samples;
+    /**
+     * What it is made to sound like.  [TIMELINE B6j]
+     *
+     * One of a short named list — see `audioEffect.ts` for why it is
+     * short and why the names are what they sound like rather than
+     * what they do. Absent means the song as it was recorded.
+     */
+    effect?: AudioEffectId;
   };
   /**
    * The words, timed to the song.  [MASTER-EDIT §12 P3, INV-07]
@@ -979,6 +988,8 @@ export interface SoundLayer {
    * the same meaning.
    */
   loop?: boolean;
+  /** What it is made to sound like — the same short list the song has. */
+  effect?: AudioEffectId;
   createdAt: string;
 }
 

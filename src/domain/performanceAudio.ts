@@ -104,6 +104,16 @@ export interface AudioPiece {
    * description that repeats itself is a description nobody can read.
    */
   loop?: boolean;
+  /**
+   * What this piece is made to sound like.  [TIMELINE B6j]
+   *
+   * The id of one of a short named list, on the PIECE for the same
+   * reason `gainDb` is: the mixer is handed a plan and never a
+   * document, so a song that has become a radio must produce a
+   * different plan — and it does, because the plan says so here.
+   * [U-16]
+   */
+  effect?: string;
 }
 
 export class PerformanceAudioError extends Error {
@@ -224,6 +234,7 @@ export function planPerformanceAudio(
           mediaFromSample: run.from,
           ...fades(run.from, run.to, performance, window),
           ...(gainDb === undefined ? {} : { gainDb }),
+          ...(sound?.effect ? { effect: sound.effect } : {}),
         });
         continue;
       }
@@ -282,6 +293,7 @@ export function planPerformanceAudio(
       fadeOutSamples: layer.fadeOutSamples ?? 0,
       ...(layer.gainDb === undefined ? {} : { gainDb: layer.gainDb }),
       ...(layer.loop ? { loop: true } : {}),
+      ...(layer.effect ? { effect: layer.effect } : {}),
     });
   }
 

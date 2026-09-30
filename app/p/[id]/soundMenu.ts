@@ -4,6 +4,9 @@ import type { Ask } from '../../Confirm.js';
 import type { MenuEntry } from '../../Menu.js';
 import type { SoundLayer, SoundTrack } from '../../../src/domain/performance.js';
 import { soundOnSong, soundSpan } from '../../../src/domain/performance.js';
+import {
+  AUDIO_EFFECTS, AUDIO_EFFECT_IDS,
+} from '../../../src/domain/audioEffect.js';
 import { HOUSE_SAMPLE_RATE, formatMasterPosition } from '../../../src/domain/time.js';
 
 /**
@@ -245,7 +248,13 @@ export function soundMenuItems(
         label: `Fade ${end}…`,
         hint: now > 0
           ? `${seconds(now)}s now`
-          : `up from silence at the ${end === 'in' ? 'start' : 'end'} of it`,
+          /* A fade OUT goes down, and the one sentence that served
+             both ends said "up from silence at the end", which is a
+             description of a fade in printed under a fade out. Seen
+             in a screenshot of the menu, not in a test. */
+          : end === 'in'
+            ? `up from silence at the start of it`
+            : `down to silence at the end of it`,
         onSelect: () => host.confirm({
           question: `How long should it fade ${end}? In seconds, or 0 for `
             + `none. It is ${seconds(media.length)}s long.`,
@@ -260,6 +269,29 @@ export function soundMenuItems(
             });
           },
         }),
+      };
+    }),
+
+    /*
+     * AND THE SAME SHORT LIST OF EFFECTS THE SONG HAS.  [B6j]
+     *
+     * One list for both, because "make this sound like a radio" is
+     * one idea and a studio with two of them is a studio where the
+     * author has to remember which menu has which. [D-19]
+     */
+    ...AUDIO_EFFECT_IDS.map((id) => {
+      const effect = AUDIO_EFFECTS[id];
+      const on = layer.effect === id;
+      return {
+        section: 'Sound — how it is heard',
+        advanced: true,
+        label: on ? `${effect.label} \u2014 on` : effect.label,
+        hint: on ? 'press again to take it off' : effect.hint,
+        onSelect: () => {
+          void host.patch({
+            action: 'sound-layer', soundId: layer.id, effect: on ? null : id,
+          });
+        },
       };
     }),
 

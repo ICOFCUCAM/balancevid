@@ -152,6 +152,7 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
               ? { fadeInSamples: body['fadeInSamples'] } : {}),
             ...(body['fadeOutSamples'] !== undefined
               ? { fadeOutSamples: body['fadeOutSamples'] } : {}),
+            ...(body['effect'] !== undefined ? { effect: body['effect'] } : {}),
           });
           break;
         /*
@@ -177,6 +178,7 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
               ? { fadeInSamples: body['fadeInSamples'] } : {}),
             ...(body['fadeOutSamples'] !== undefined
               ? { fadeOutSamples: body['fadeOutSamples'] } : {}),
+            ...(body['effect'] !== undefined ? { effect: body['effect'] } : {}),
           });
           break;
         case 'remove-sound': removeSound(draft, body['soundId']); break;

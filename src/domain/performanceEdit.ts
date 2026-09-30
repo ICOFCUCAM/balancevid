@@ -23,6 +23,7 @@
 
 import { LAYOUTS, takeSlots } from './presentation.js';
 import type { Rect } from './presentation.js';
+import { audioEffect } from './audioEffect.js';
 import { MIN_REFRAME_SPAN } from './focus.js';
 import { type SoundLayer, songSpan, soundSpan } from './performance.js';
 import { EFFECT_LOOKS, type RoomPlate, SPACE_LOOKS, needsMatte } from './environment.js';
@@ -1056,6 +1057,7 @@ export function setSongSound(
     muted?: boolean | null;
     fadeInSamples?: Samples | null;
     fadeOutSamples?: Samples | null;
+    effect?: string | null;
   },
 ): void {
   const master = performance.master;
@@ -1094,6 +1096,23 @@ export function setSongSound(
       fail('a fade cannot be longer than the song it is in');
     }
     next[key] = value;
+  }
+
+  /*
+   * ONE OF A NAMED LIST, OR NOTHING.  [TIMELINE B6j]
+   *
+   * An id that is not on the list is refused rather than stored and
+   * ignored: a document carrying `effect: "reverb"` would draw a
+   * control saying nothing is selected while claiming something is,
+   * and the render would silently leave it out.
+   */
+  if (sound.effect !== undefined) {
+    if (sound.effect === null) delete next.effect;
+    else {
+      const found = audioEffect(sound.effect);
+      if (!found) fail(`there is no sound called ${sound.effect}`);
+      else next.effect = found.id;
+    }
   }
 
   if (Object.keys(next).length === 0) delete master.sound;
@@ -1172,6 +1191,7 @@ export function setSoundLayer(
     gainDb?: number | null; muted?: boolean | null; loop?: boolean | null;
     fadeInSamples?: Samples | null; fadeOutSamples?: Samples | null;
     label?: string; track?: SoundLayer['track'];
+    effect?: string | null;
   },
 ): void {
   const layer = soundById(performance, id);
@@ -1208,6 +1228,16 @@ export function setSoundLayer(
     layer.label = sound.label.trim();
   }
   if (sound.track !== undefined) layer.track = sound.track;
+  /* One of the named list, or nothing — the same rule the song's has,
+     for the same reason. [B6j] */
+  if (sound.effect !== undefined) {
+    if (sound.effect === null) delete layer.effect;
+    else {
+      const found = audioEffect(sound.effect);
+      if (!found) fail(`there is no sound called ${sound.effect}`);
+      else layer.effect = found.id;
+    }
+  }
 }
 
 /** Take it off the timeline. The media stays on disk. [U-25, D-23] */

@@ -4,6 +4,9 @@ import type { Ask } from '../../Confirm.js';
 import type { MenuEntry } from '../../Menu.js';
 import type { Performance } from '../../../src/domain/performance.js';
 import { songSpan, songTrimmed } from '../../../src/domain/performance.js';
+import {
+  AUDIO_EFFECTS, AUDIO_EFFECT_IDS,
+} from '../../../src/domain/audioEffect.js';
 import { HOUSE_SAMPLE_RATE, formatMasterPosition } from '../../../src/domain/time.js';
 
 /**
@@ -153,13 +156,17 @@ export function songMenuItems(host: SongMenuHost): MenuEntry[] {
     {
       section: 'Sound — how the song is heard',
       label: 'Back to as recorded',
-      hint: 'no lift, no cut, no fades',
+      hint: 'no lift, no cut, no fades, nothing done to the sound',
       ...(gain === 0 && !sound.fadeInSamples && !sound.fadeOutSamples
+        && !sound.effect
         ? { disabled: 'it already is' } as const : {}),
       onSelect: () => {
         void host.patch({
           action: 'song-sound',
           gainDb: null, fadeInSamples: null, fadeOutSamples: null,
+          /* Including the effect, or "back to as recorded" leaves the
+             song sounding like a radio. [B6j] */
+          effect: null,
         });
       },
     },
@@ -178,7 +185,13 @@ export function songMenuItems(host: SongMenuHost): MenuEntry[] {
         label: `Fade ${end}…`,
         hint: now > 0
           ? `${seconds(now)}s now`
-          : `up from silence at the ${end === 'in' ? 'start' : 'end'} of the export`,
+          /* A fade OUT goes down, and the one sentence that served
+             both ends said "up from silence at the end", which is a
+             description of a fade in printed under a fade out. Seen
+             in a screenshot of the menu, not in a test. */
+          : end === 'in'
+            ? `up from silence at the start of the export`
+            : `down to silence at the end of the export`,
         onSelect: () => host.confirm({
           question: `How long should the song fade ${end}? In seconds, or `
             + `0 for none. The exported stretch is ${seconds(length)}s.`,
@@ -211,6 +224,29 @@ export function songMenuItems(host: SongMenuHost): MenuEntry[] {
       ...(host.addAudio ? {} : { disabled: 'not from here' } as const),
       onSelect: () => host.addAudio?.(at),
     },
+
+    /*
+     * "EFFECTS." A short named list, behind one press, and every
+     * entry named by WHAT IT SOUNDS LIKE rather than by what it
+     * does — "low-pass at 900 hertz" is a true description of the
+     * first one and tells a musician nothing they can act on.
+     * [B6j, B9]
+     */
+    ...AUDIO_EFFECT_IDS.map((id) => {
+      const effect = AUDIO_EFFECTS[id];
+      const on = sound.effect === id;
+      return {
+        section: 'Sound — how the song is heard',
+        advanced: true,
+        label: on ? `${effect.label} \u2014 on` : effect.label,
+        hint: on ? 'press again to take it off' : effect.hint,
+        onSelect: () => {
+          void host.patch({
+            action: 'song-sound', effect: on ? null : id,
+          });
+        },
+      };
+    }),
 
     /*
      * "RECORD." A voice over the song, captured where the playhead is

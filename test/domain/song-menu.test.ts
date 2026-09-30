@@ -176,8 +176,31 @@ describe('the song’s sound, from its own lane', () => {
     setSongSound(done, { gainDb: -6, fadeInSamples: HOUSE_SAMPLE_RATE });
     expect(press('Back to as recorded', done).sent).toEqual([{
       action: 'song-sound',
-      gainDb: null, fadeInSamples: null, fadeOutSamples: null,
+      gainDb: null, fadeInSamples: null, fadeOutSamples: null, effect: null,
     }]);
+  });
+
+  /* INCLUDING THE EFFECT, or "back to as recorded" leaves the song
+     sounding like a radio — which is not how it was recorded. [B6j] */
+  it('counts an effect as something to put back', () => {
+    const radio = performance();
+    setSongSound(radio, { effect: 'radio' });
+    expect(entry('Back to as recorded', radio).disabled).toBeUndefined();
+    expect(press('Back to as recorded', radio).sent[0])
+      .toMatchObject({ effect: null });
+  });
+
+  /*
+   * A FADE OUT GOES DOWN. One sentence served both ends and read
+   * "up from silence at the end of the export" under the fade-out
+   * row — a description of a fade in. Seen in a screenshot of the
+   * menu, not in a test. [U-04]
+   */
+  it('says which way each fade goes', () => {
+    expect(entry('Fade in\u2026').hint)
+      .toBe('up from silence at the start of the export');
+    expect(entry('Fade out\u2026').hint)
+      .toBe('down to silence at the end of the export');
   });
 
   /* A fade takes a number, so it asks for one — the same dialogue the

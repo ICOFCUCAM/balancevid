@@ -21,6 +21,7 @@
 
 import { join } from 'node:path';
 
+import { audioEffect } from '../domain/audioEffect.js';
 import type { AudioPiece } from '../domain/performanceAudio.js';
 import { HOUSE_SAMPLE_RATE } from '../domain/time.js';
 import { ffmpeg, type RunOptions } from './ffmpeg.js';
@@ -108,6 +109,20 @@ export function mixGraph(
      * piece, because the song is the clock and a clock that vanishes
      * takes the video's length with it. [INV-03]
      */
+    /*
+     * WHAT IT IS MADE TO SOUND LIKE, BEFORE THE FADER AND THE FADES.
+     *   [TIMELINE B6j]
+     *
+     * An effect is what the sound IS; the fader is how loud that is,
+     * and a fade is what happens to it at the edges. Putting the
+     * effect after the fader would mean a radio treatment that lifts
+     * 2 dB quietly undoing a cut the author made; putting it after a
+     * fade-out would let an echo ring on after the silence the fade
+     * arrived at, which is the one thing a fade is for.
+     */
+    for (const stage of audioEffect(piece.effect)?.stages() ?? []) {
+      steps.push(stage);
+    }
     if (piece.gainDb !== undefined && piece.gainDb !== 0) {
       steps.push(`volume=${piece.gainDb.toFixed(3)}dB`);
     }

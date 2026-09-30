@@ -248,6 +248,13 @@ describe('how a sound is heard', () => {
       .toBe('louder against everything else, not louder overall');
   });
 
+  /* A fade out goes down: the same sentence served both ends here
+     too, because this menu was written from the song's. [U-04] */
+  it('says which way each fade goes', () => {
+    expect(entry('Fade in\u2026').hint).toBe('up from silence at the start of it');
+    expect(entry('Fade out\u2026').hint).toBe('down to silence at the end of it');
+  });
+
   it('asks for a fade in seconds, and 0 takes it off', () => {
     const made = press('Fade in…');
     made.asked[0]!.go?.('1.5');
