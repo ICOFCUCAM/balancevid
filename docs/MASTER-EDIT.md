@@ -267,7 +267,7 @@ question. [D-19]
 | adjust background | HAVE | `usePlate`, the matte in `render/matte.ts` |
 | colour correction | PARTIAL | `setEffect` with four named looks, plus a measured match to another take; no controls of your own |
 | effects | PARTIAL | same four looks |
-| crop / reframe | PARTIAL | `focus.ts` reframes a conversation; a take has no crop. The third of the three operations above, and the only one of them still missing |
+| crop / reframe | HAVE | `setReframe` holds a `Rect` in fractions of the source; drawn as a box on the take's own monitor, which is shown CONTAINED while it is drawn so the whole frame is visible. Locked to the frame's own shape, so what is inside the box is what the master shows. The renderer crops after the stabiliser and before the fit — and crops the backdrop plate to the same rectangle, or the difference key would compare two different parts of the room (INV-16) |
 | replace take | GAP | a source take is a recording; replacing it is uploading another |
 | stabilize | HAVE | `setStabilize` with two named rows, measured before it is applied; cannot be on at the same time as a matted background (INV-16) |
 | audio cleanup | HAVE | `setCleanup` with four named rows — the same shape as `setEffect`, on the take because a fan belongs to the recording and not to the stretch of song it is used over |
@@ -678,7 +678,7 @@ was missing.** [D-19]
 | jump to the very start | — | one key that cannot miss |
 | align a late take | the arithmetic | the two entries that do the subtraction |
 | trim a take | `trimTake` | it at the playhead |
-| Move / Trim / Crop as three ideas | two of them | naming them apart on screen, and the third |
+| Move / Trim / Crop as three ideas | two of them | naming them apart on screen, and the third — all three now exist and the menu prints them under their own headings |
 | an editable song | — | **all of it** (§15.1) |
 | record into the timeline | recording, alignment, the whole take pipeline | starting it at the playhead instead of at 00:00 |
 | sound layers: SFX, ambience, voice-over | the song, and each take's own sound | the document has no object for a sound that is neither |

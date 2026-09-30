@@ -26,11 +26,13 @@ import type { AssetId, TakeId } from '../../src/domain/document.js';
 import type { ColourReading } from '../../src/domain/colour.js';
 import { NO_CLEANUP, adviseCleanup } from '../../src/domain/cleanup.js';
 import type {
-  MasterTrack, Performance, PerformanceTake,
+  MasterTrack, Performance, PerformanceTake, RenderProblem,
 } from '../../src/domain/performance.js';
-import { orderedScenes, renderProblems } from '../../src/domain/performance.js';
 import {
-  addTake, newPerformance, setScene,
+  effectiveOffset, orderedScenes, renderProblems,
+} from '../../src/domain/performance.js';
+import {
+  addTake, newPerformance, nudgeTake, setScene,
 } from '../../src/domain/performanceEdit.js';
 import {
   bestTake, proposeFirstCut, rankTakes, repairsFor, scoreTake, worthProposing,
@@ -466,5 +468,102 @@ describe('reading the figures for the whole file', () => {
     expect(reading.rmsDb).toBeCloseTo(-17.3, 6);
     expect(reading.noiseFloorDb).toBeCloseTo(-58.2, 6);
     expect(reading.peakDb).toBeCloseTo(-0.4, 6);
+  });
+});
+
+
+describe('the hole at the top of the song', () => {
+  /*
+   * THE FAULT THAT PROMPTED THE WHOLE BRIEF.  [TIMELINE B11]
+   *
+   * "There is a 1.248 second gap at the beginning of the master
+   * video... [Align first take to 00:00]". A performer who started
+   * singing a second late leaves a hole at the top, and the honest
+   * remedy is not to stretch somebody else's scene over it — it is to
+   * move the take back to where it was meant to begin.
+   *
+   * This became possible the day the nudge got a control. Before that
+   * the arithmetic existed and nothing could press it.
+   */
+  const LATE = secondsToSamples(1.248);
+
+  function late(): Performance {
+    const p = performance([
+      take('early', {
+        alignment: { offsetSamples: LATE, rateRatio: 1, method: 'measured' },
+      }),
+    ]);
+    return p;
+  }
+
+  const hole = (from: number, to: number): RenderProblem => ({
+    kind: 'gap', say: 'nothing on screen', fromSample: from, toSample: to,
+  });
+
+  it('offers to move the first take back, by exactly its own offset', () => {
+    const found = repairsFor(late(), hole(0, LATE))
+      .find((repair) => repair.id === 'align-first');
+    expect(found?.available).toBe(true);
+    expect(found?.takeId).toBe('early');
+    expect(found?.nudgeSamples).toBe(-LATE);
+    expect(found?.says).toMatch(/begins 00:01\.248 into the song/);
+  });
+
+  /*
+   * ONLY AT THE VERY START, because that is the only place the
+   * argument holds. A gap in the middle is not somebody starting
+   * late, and moving a take to close it would pull everything they
+   * sang out of time with the song — the one thing this product
+   * exists to keep.
+   */
+  it('is not offered for a hole in the middle', () => {
+    const middle = repairsFor(late(), hole(secondsToSamples(30), secondsToSamples(40)));
+    expect(middle.find((repair) => repair.id === 'align-first')).toBeUndefined();
+  });
+
+  it('is greyed, with the reason, when the take already starts on time', () => {
+    const onTime = performance([take('punctual')]);
+    const found = repairsFor(onTime, hole(0, secondsToSamples(2)))
+      .find((repair) => repair.id === 'align-first');
+    expect(found?.available).toBe(false);
+    expect(found?.says).toMatch(/already begins with the song/);
+  });
+
+  it('says so rather than offering nothing when there is no take at all', () => {
+    const empty = newPerformance('Empty', master(), AT);
+    const found = repairsFor(empty, hole(0, 100))
+      .find((repair) => repair.id === 'align-first');
+    expect(found?.available).toBe(false);
+    expect(found?.says).toBe('there is no take to align');
+  });
+
+  /*
+   * THE FIRST TAKE IS THE ONE THAT BEGINS EARLIEST, not the first in
+   * the list: takes are added in upload order and the one nearest the
+   * start of the song is the one whose lateness makes the hole.
+   */
+  it('picks the take that begins earliest, not the first uploaded', () => {
+    const p = performance([
+      take('later', {
+        alignment: { offsetSamples: secondsToSamples(9), rateRatio: 1, method: 'measured' },
+      }),
+      take('earlier', {
+        alignment: { offsetSamples: LATE, rateRatio: 1, method: 'measured' },
+      }),
+    ]);
+    const found = repairsFor(p, hole(0, LATE))
+      .find((repair) => repair.id === 'align-first');
+    expect(found?.takeId).toBe('earlier');
+  });
+
+  /* And it writes the NUDGE, so the measurement stays readable and a
+     re-measure does not discard the fix. [S-3, INV-14] */
+  it('moves it with the push, never with the measurement', () => {
+    const p = late();
+    const found = repairsFor(p, hole(0, LATE))
+      .find((repair) => repair.id === 'align-first');
+    nudgeTake(p, found!.takeId!, found!.nudgeSamples!);
+    expect(effectiveOffset(p.takes[0]!.alignment)).toBe(0);
+    expect(p.takes[0]!.alignment.offsetSamples).toBe(LATE);
   });
 });

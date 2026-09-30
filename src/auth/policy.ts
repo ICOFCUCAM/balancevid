@@ -52,6 +52,29 @@ const PUBLIC_PATTERNS: RegExp[] = [
    * decides which routes are allowed to decide; the route decides.
    */
   /^\/r\/[A-Za-z0-9_-]+\/?$/,
+  /*
+   * The Take App's page and its own API.  [Doctrine D-25; TAKE-APP T2a]
+   *
+   * The same claim the room's paths make, and no more: reachable WITHOUT
+   * THE OWNER'S SESSION, because the whole point is a link sent over
+   * WhatsApp to somebody with no account. The route then checks the link
+   * itself — `requestForLink` compares the secret in constant time and
+   * answers `null` for a link that is wrong, expired or rotated.
+   *
+   * Two checks in different layers, as everywhere else here: middleware
+   * decides which routes are allowed to decide, and the route decides.
+   *
+   * THE LINK IS IN THE PATH, which is a real cost worth stating: it will
+   * appear in the server's access log and in the browser's history, the
+   * way a room's `/r/<token>` already does. It is bounded the same way —
+   * the request expires, the secret is rotatable, and what it opens is
+   * one assignment rather than an account.
+   */
+  /^\/take\/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\/?$/,
+  /^\/api\/take\/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/,
+  /* The song they were asked to perform against, and nothing else about
+     the performance it belongs to. [T6] */
+  /^\/api\/take\/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\/reference$/,
   // The picture a link preview fetches, with none of the sender's cookies.
   // The route serves it only for a published conversation. [U-31, D-03]
   /^\/api\/conversations\/[A-Za-z0-9_-]+\/card$/,
@@ -166,6 +189,26 @@ export function isAssetPath(pathname: string): boolean {
  * inside, a guest may change their own presence and nothing else.
  */
 const GUEST_WRITABLE: { method: string; path: RegExp }[] = [
+  /*
+   * What the holder of a Take link may write.  [D-25; TAKE-APP T3, T4, T5]
+   *
+   * FOUR VERBS, EACH ON ITS OWN PATH, for the reason the room's are
+   * written this way: a path-only allowance once answered DELETE as well,
+   * and that was a real hole. A participant may say they have started
+   * recording, begin a submission, send its bytes, and throw away a
+   * recording they have not sent. They may not accept, and they may not
+   * touch anything a producer owns.
+   *
+   * THE DELETE IS ONE PATH AND ONE THING. It reaches the segments of a
+   * recording that is not yet a submission, and the route refuses one
+   * that has been sent: what a performer may undo is their own decision
+   * not yet acted on, never a producer's. [D-25; TAKE-APP T4]
+   */
+  { method: 'POST', path: /^\/api\/take\/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/ },
+  { method: 'POST', path: /^\/api\/take\/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\/submissions$/ },
+  { method: 'PUT', path: /^\/api\/take\/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\/submissions\/[A-Za-z0-9_-]+$/ },
+  { method: 'POST', path: /^\/api\/take\/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\/submissions\/[A-Za-z0-9_-]+$/ },
+  { method: 'DELETE', path: /^\/api\/take\/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\/submissions\/[A-Za-z0-9_-]+$/ },
   { method: 'POST', path: /^\/api\/conversations\/[A-Za-z0-9_-]+\/room\/join$/ },
   { method: 'POST', path: /^\/api\/conversations\/[A-Za-z0-9_-]+\/room\/presence$/ },
   // A reading about the sender's own microphone. [ROOM §2]

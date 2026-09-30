@@ -37,6 +37,8 @@ export type JobKind =
    * than a second queue. [STUDIO-TWO S-1] */
   | 'ingest_master'
   | 'ingest_plate'
+  /* A sound layer's audio, normalised and MEASURED. [TIMELINE B6h] */
+  | 'ingest_sound'
   | 'assemble_performance_take'
   | 'render_performance'
   | 'render_performance_clip'

@@ -21,6 +21,7 @@
 
 import { join } from 'node:path';
 
+import { audioEffect } from '../domain/audioEffect.js';
 import type { AudioPiece } from '../domain/performanceAudio.js';
 import { HOUSE_SAMPLE_RATE } from '../domain/time.js';
 import { ffmpeg, type RunOptions } from './ffmpeg.js';
@@ -63,6 +64,16 @@ export function mixGraph(
     const ratio = piece.rateRatio ?? 1;
     const source = Math.round(length * ratio);
     const steps = [
+      /*
+       * A LOOPED LAYER IS READ ROUND AND ROUND.  [TIMELINE B8, S-29]
+       *
+       * Ten seconds of rain under a four-minute song: `aloop` with
+       * `-1` repeats the whole input for as long as anything asks it
+       * for samples, and the `atrim` below then takes the stretch the
+       * piece actually covers. Before the trim, or the trim would cut
+       * the first pass and loop nothing.
+       */
+      ...(piece.loop ? ['aloop=loop=-1:size=2147483647'] : []),
       `atrim=start=${seconds(piece.mediaFromSample)}`
       + `:end=${seconds(piece.mediaFromSample + source)}`,
       'asetpts=PTS-STARTPTS',
@@ -85,6 +96,36 @@ export function mixGraph(
        */
       ...(cleanupFor(piece.cleanup)?.stages ?? []),
     ];
+    /*
+     * THE SONG'S OWN LEVEL.  [TIMELINE B6e, B6f]
+     *
+     * BEFORE THE FADES, deliberately: a fade is a ramp to silence and
+     * a gain applied after one would scale the ramp itself, so a
+     * faded-out song at -6 dB would end at -6 dB instead of at
+     * nothing. Volume is what the piece IS; a fade is what happens to
+     * it at the edges.
+     *
+     * Mute arrives here as a gain of -120 dB rather than as a missing
+     * piece, because the song is the clock and a clock that vanishes
+     * takes the video's length with it. [INV-03]
+     */
+    /*
+     * WHAT IT IS MADE TO SOUND LIKE, BEFORE THE FADER AND THE FADES.
+     *   [TIMELINE B6j]
+     *
+     * An effect is what the sound IS; the fader is how loud that is,
+     * and a fade is what happens to it at the edges. Putting the
+     * effect after the fader would mean a radio treatment that lifts
+     * 2 dB quietly undoing a cut the author made; putting it after a
+     * fade-out would let an echo ring on after the silence the fade
+     * arrived at, which is the one thing a fade is for.
+     */
+    for (const stage of audioEffect(piece.effect)?.stages() ?? []) {
+      steps.push(stage);
+    }
+    if (piece.gainDb !== undefined && piece.gainDb !== 0) {
+      steps.push(`volume=${piece.gainDb.toFixed(3)}dB`);
+    }
     if (piece.fadeInSamples > 0) {
       steps.push(`afade=t=in:st=0:d=${seconds(piece.fadeInSamples)}`);
     }
@@ -142,7 +183,17 @@ export async function mixPerformanceAudio(options: {
   const inputs: string[] = ['-i', masterAudioPath];
   const inputOfAsset = new Map<string, number>();
   for (const piece of pieces) {
-    if (piece.kind !== 'take' || !piece.assetId) continue;
+    /*
+     * A layer is a source like a take is: its own file, its own
+     * input, resolved the same way. [TIMELINE B8]
+     *
+     * AND SO IS A REPLACED STRETCH OF THE SONG, which is a master
+     * piece with an asset on it: the test is whether the piece names
+     * a file, not what kind of piece it is. Asking the kind was how
+     * the first version sent a re-recorded bridge to input 0 and
+     * played the original over it. [B6g]
+     */
+    if (!piece.assetId) continue;
     if (inputOfAsset.has(piece.assetId)) continue;
     inputOfAsset.set(piece.assetId, inputs.length / 2);
     inputs.push('-i', resolveAsset(piece.assetId));
@@ -150,7 +201,7 @@ export async function mixPerformanceAudio(options: {
 
   const graph = mixGraph(
     pieces,
-    (piece) => (piece.kind === 'master' ? 0 : inputOfAsset.get(piece.assetId!)!),
+    (piece) => (piece.assetId ? inputOfAsset.get(piece.assetId)! : 0),
     totalSamples,
   );
 

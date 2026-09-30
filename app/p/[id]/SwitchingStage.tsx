@@ -1,12 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { TAKE_ACCENT_FALLBACK } from '../../../src/domain/performance.js';
 import Icon from '../../Icon.js';
-import type { MasterClass, Performance } from '../../../src/domain/performance.js';
+import type { MasterClass, Performance, SoundLayer } from '../../../src/domain/performance.js';
 import {
   MASTER_CLASSES, SPACES, effectiveOffset, isFootage, orderedScenes,
-  renderProblems, sceneAt,
+  renderProblems, sceneAt, songSections, soundOnSong,
 } from '../../../src/domain/performance.js';
 import { EFFECT_LOOKS, SPACE_LOOKS } from '../../../src/domain/environment.js';
 import {
@@ -21,13 +21,42 @@ import { useMenu, type MenuEntry } from '../../Menu.js';
 import type { TakeId } from '../../../src/domain/document.js';
 import { nudgeSays } from './takeNudge.js';
 import { takeMenuItems } from './takeMenu.js';
+import { songMenuItems } from './songMenu.js';
+import { SOUND_TRACKS, soundMenuItems } from './soundMenu.js';
+import { pickSound } from './soundUpload.js';
+import { soundSink } from './soundSink.js';
+import { useMasterRecording } from './useMasterRecording.js';
+
+/**
+ * The lead-in before a voice-over starts.  [TIMELINE B6i; S-10]
+ *
+ * Shorter than the one a take gets. A performer needs bars to come in
+ * on; somebody speaking over a song needs long enough to hear where
+ * they are, and four seconds of waiting to say one sentence is four
+ * seconds of the author wondering whether the button worked.
+ */
+const VOICE_COUNT_IN_SECONDS = 2;
+
+/**
+ * A colour per audio track, so a lane is identifiable at a glance.
+ *
+ * Deliberately away from the takes' accents, which are assigned from a
+ * palette: a sound is not a take and the timeline should not have to
+ * be read twice to tell which is which.
+ */
+const SOUND_ACCENT: Record<string, string> = {
+  voice: '#4f9d8a', effect: '#c08a3e', ambience: '#5b7fb5', music: '#8a6fd0',
+};
+import ReframeBox from './ReframeBox.js';
 import ClipInspector, { type Selection } from './ClipInspector.js';
 import { LAYOUTS, takeSlots } from '../../../src/domain/presentation.js';
 import {
   BEATS_USABLE_CONFIDENCE, beatPositions, snapToBeat,
 } from '../../../src/domain/beats.js';
 import { TRANSITIONS } from '../../../src/domain/transitions.js';
-import { HOUSE_SAMPLE_RATE, formatMasterPosition } from '../../../src/domain/time.js';
+import {
+  HOUSE_SAMPLE_RATE, formatMasterPosition, parseMasterPosition,
+} from '../../../src/domain/time.js';
 import { usePerformancePlayer } from './usePerformancePlayer.js';
 
 /**
@@ -258,9 +287,18 @@ export default function SwitchingStage({
    * — all live down here. Passing the list down is what lets the row
    * and the picture raise the SAME one. [D-19]
    */
-  takesPanel?: (
-    takeMenu: (take: Performance['takes'][number]) => MenuEntry[],
-  ) => React.ReactNode;
+  takesPanel?: (tools: {
+    takeMenu: (take: Performance['takes'][number]) => MenuEntry[];
+    /**
+     * Where the song is NOW, asked rather than remembered.
+     *
+     * The rail needs it to offer "record from here" [TIMELINE B7], and
+     * a number passed down would be a number ten times a second out of
+     * date — the playhead is redrawn at that rate deliberately, and a
+     * cut placed a tenth of a second late is three frames out.
+     */
+    at: () => number;
+  }) => React.ReactNode;
 }) {
   const { confirm, dialog: confirmDialog } = useConfirm();
   /*
@@ -307,8 +345,47 @@ export default function SwitchingStage({
   const [showTransitions, setShowTransitions] = useState(false);
   /** True between the pointer going down on the ruler and coming up. */
   const [scrubbing, setScrubbing] = useState(false);
+  /**
+   * The take whose crop is being drawn, if any.
+   *
+   * A MODE, AND THE ONLY ONE ON THIS STAGE — which is a cost, so it is
+   * worth saying why. Every other control here is a press with an
+   * immediate result; a crop is a rectangle somebody draws, and while
+   * they are drawing it the picture cannot also be a cut button. It is
+   * per take, it is entered from that take's own menu, and the tool
+   * says how to leave it. [U-04]
+   */
+  const [reframing, setReframing] = useState<string | null>(null);
+  /**
+   * Each take's own frame shape, as its media reports it.
+   *
+   * ASKED OF THE PICTURE, NOT ASSUMED. Footage brought in from a phone
+   * is as likely to be 9:16 as 16:9, and a crop box built on a guessed
+   * shape would sit over the letterbox bars rather than the picture.
+   * `videoHeight / videoWidth` is the only thing that knows.
+   */
+  const [aspects, setAspects] = useState<Record<string, number>>({});
   /** The lane column, so an x on the screen can be turned into a sample. */
   const lanes = useRef<HTMLDivElement | null>(null);
+  /**
+   * How much of the song is on screen, and from where.  [TIMELINE B3a]
+   *
+   * "Zoom the timeline." A four-minute song across a thousand pixels is
+   * a quarter of a second per pixel: fine for arranging scenes, useless
+   * for the thing this studio is actually for, which is putting a cut
+   * on a beat. At 8× a pixel is thirty milliseconds — about a frame.
+   *
+   * `at` is the leftmost visible moment as a FRACTION of the song, not
+   * a pixel offset, so it survives the window being resized and means
+   * the same thing on a phone and a desk.
+   *
+   * ZOOM IS A VIEW AND NOTHING ELSE. It is not in the document, it does
+   * not change a cut, and a render made while zoomed in is identical to
+   * one made zoomed out. That is why it is a piece of component state
+   * and not an edit. [U-08]
+   */
+  const [zoom, setZoom] = useState(1);
+  const [at, setAt] = useState(0);
   /**
    * The take being dragged along its lane, and how far, in samples.
    *
@@ -318,6 +395,11 @@ export default function SwitchingStage({
    */
   const [dragging, setDragging] = useState<
     { takeId: string; at: number; by: number } | null>(null);
+  /* The same, for a sound: held locally, written once on release. */
+  const [soundDrag, setSoundDrag] = useState<
+    { soundId: string; at: number; by: number } | null>(null);
+  /** The sound being measured, so the wait is visible. [B6h, U-19] */
+  const [adding, setAdding] = useState<string | null>(null);
 
   const ordered = orderedScenes(performance);
   /*
@@ -704,6 +786,15 @@ export default function SwitchingStage({
       const index = usableIds.indexOf(takeId as TakeId);
       if (index >= 0) choose(index);
     },
+    onReframe: (takeId) => {
+      setReframing(takeId);
+      /*
+       * Paused, because a crop is drawn over ONE frame and a picture
+       * moving under the box is a box you cannot place. It also makes
+       * the contained view legible: the whole frame, held still.
+       */
+      player.pause();
+    },
     solo: soloed,
     onSolo: (takeId) => {
       setSolo(takeId as TakeId | null);
@@ -715,6 +806,146 @@ export default function SwitchingStage({
     choose, chosenTake, confirm, onChooseTake, patch, performance, player,
     soloed, usableIds,
   ]);
+
+  /**
+   * What can be done to the song.  [TIMELINE B6]
+   *
+   * One list, two handles — the lane's head and its waveform — for
+   * the same reason the take menu has three: a studio where the
+   * gesture works on one half of a lane and not the other is a studio
+   * you have to aim at.
+   */
+  /*
+   * "ADD AUDIO."  [TIMELINE B6h, B8]
+   *
+   * The file is sent, the worker measures it, and the document is read
+   * back when it lands — the layer is NOT drawn before then, because
+   * its width is its measured length and a block drawn from a guess is
+   * a block in the wrong place. The studio says what it is waiting for
+   * in the meantime, since an upload with no visible effect for ten
+   * seconds reads as nothing having happened. [U-02, U-19]
+   */
+  const watchSound = useCallback(async (jobId: string) => {
+    for (let tries = 0; tries < 120; tries += 1) {
+      await new Promise((wake) => { setTimeout(wake, 1000); });
+      const response = await fetch(`/api/performances/${performance.id}`,
+        { cache: 'no-store' });
+      if (!response.ok) continue;
+      const data = await response.json();
+      const job = (data.jobs ?? [])
+        .find((one: { id?: string }) => one.id === jobId);
+      if (!job || job.state === 'pending' || job.state === 'running') continue;
+      setAdding(null);
+      if (job.state === 'failed') {
+        setError(job.error ?? 'that sound could not be added');
+        return;
+      }
+      onChanged(data.performance);
+      return;
+    }
+    setAdding(null);
+  }, [onChanged, performance.id]);
+
+  const addAudio = useCallback((at: number) => {
+    pickSound(performance.id, { track: 'effect', fromSample: at }, {
+      onStarted: (label) => { setAdding(label); setError(null); },
+      onError: (message) => { setAdding(null); setError(message); },
+      onFinished: watchSound,
+    });
+  }, [performance.id, watchSound]);
+
+  /*
+   * RECORDING A SOUND INTO THE TIMELINE.  [TIMELINE B6i, B7]
+   *
+   * The same hook the studio records takes with, given a third sink
+   * and told there is no picture. A voice-over over the song is the
+   * same recording problem as a take — the same count-in, the same
+   * audio clock, the same measurement of where the song was when
+   * capture actually began — and a second recorder for it would be a
+   * second place all of that could be got wrong. [D-19, U-06]
+   */
+  const voiceLabel = useRef('Voice-over');
+  const voice = useMasterRecording({
+    sink: useMemo(() => soundSink(performance.id, () => ({
+      label: voiceLabel.current, track: 'voice',
+    })), [performance.id]),
+    masterUrl: `/api/performances/${performance.id}/master`,
+    sampleRate: HOUSE_SAMPLE_RATE,
+    countInSeconds: VOICE_COUNT_IN_SECONDS,
+    /* The take recorder's calibration is about a camera and a room;
+       nothing here is being lined up against anything. [S-3] */
+    latencySamples: 0,
+    audioOnly: true,
+    /* One sentence at one moment: the microphone goes off when the
+       recording is kept, rather than staying open for a second one
+       nobody asked for. [U-19] */
+    once: true,
+    onFinished: (jobId) => {
+      setAdding(voiceLabel.current);
+      void watchSound(jobId);
+    },
+  });
+
+  /*
+   * ARMED FROM THE PLAYHEAD, AND ONLY FROM THERE. The song starts
+   * where the line is and the recording is placed from there, which
+   * is the arithmetic that makes recording into a timeline worth
+   * having rather than a second way to reach the top of the song.
+   * [B7a]
+   */
+  const recordSound = useCallback((at: number) => {
+    confirm({
+      question: 'What is this sound? The song will play from the '
+        + `playhead after a ${VOICE_COUNT_IN_SECONDS}-second count-in, and `
+        + 'what you say over it lands on the Voice lane where it begins.',
+      field: { label: 'Name', initial: 'Voice-over' },
+      verb: 'Turn the microphone on',
+      go: (typed) => {
+        voiceLabel.current = typed.trim() || 'Voice-over';
+        voiceFrom.current = at;
+        void voice.arm();
+      },
+    });
+  }, [confirm, voice]);
+  const voiceFrom = useRef(0);
+
+  /*
+   * "REPLACE SECTION." The same picker and the same ingest as adding
+   * a sound, told where it goes. [TIMELINE B6g, D-19]
+   */
+  const replaceSection = useCallback((
+    fromSample: number, toSample: number,
+  ) => {
+    pickSound(performance.id, {
+      track: 'music',
+      fromSample,
+      replace: { fromSample, toSample },
+    }, {
+      onStarted: (label) => { setAdding(label); setError(null); },
+      onError: (message) => { setAdding(null); setError(message); },
+      onFinished: watchSound,
+    });
+  }, [performance.id, watchSound]);
+
+  const songMenu = useCallback((): MenuEntry[] => songMenuItems({
+    performance, patch, confirm, at: () => player.positionNow(),
+    addAudio, recordSound, replaceSection,
+  }), [addAudio, confirm, patch, performance, player, recordSound,
+    replaceSection]);
+
+  /*
+   * AND THE SAME FOR A SOUND, from one definition.  [TIMELINE B8, B12]
+   *
+   * A layer is a timeline object or it is a setting, and the
+   * difference is whether you can right-click it.
+   */
+  const soundMenu = useCallback((layer: SoundLayer): MenuEntry[] =>
+    soundMenuItems(layer, {
+      patch,
+      confirm,
+      at: () => player.positionNow(),
+      songSamples: performance.master.durationSamples,
+    }), [confirm, patch, performance, player]);
 
   /*
    * THE KEYS ARE ALWAYS LIVE.  [benchmark, §7]
@@ -777,16 +1008,89 @@ export default function SwitchingStage({
 
   const duration = performance.master.durationSamples;
   /*
+   * THE SOUND LAYERS, GROUPED INTO LANES.  [TIMELINE B10a, B12]
+   *
+   * One lane per TRACK rather than one per sound, because a timeline
+   * with a dozen impacts on it is a dozen rows nobody can read — and
+   * because the track is the thing the author chose it for. A track
+   * with nothing on it is not drawn: an empty lane is furniture, and
+   * this column is already tall.
+   */
+  /*
+   * THE STRETCHES OF THE SONG THAT ARE NOT IN THE EXPORT, and the
+   * places it has been divided.  [TIMELINE B6a, B6b, B6k]
+   *
+   * Derived from the same `songSections` the planner and the mixer
+   * read, so the lane cannot draw a cut the render does not make.
+   */
+  const songParts = songSections(performance.master);
+  const cutStretches: { fromSample: number; toSample: number }[] = [];
+  {
+    let at = 0;
+    for (const part of songParts) {
+      if (part.fromSample > at) {
+        cutStretches.push({ fromSample: at, toSample: part.fromSample });
+      }
+      at = part.toSample;
+    }
+    if (at < duration) cutStretches.push({ fromSample: at, toSample: duration });
+  }
+  /* A join is where two kept stretches touch — a division the author
+     made and has not cut at. The ends of the song are not joins. */
+  const songJoins = songParts
+    .slice(1)
+    .map((part) => part.fromSample)
+    .filter((at, index) => songParts[index]!.toSample === at);
+
+  const soundLanes = SOUND_TRACKS
+    .map((track) => ({
+      ...track,
+      layers: (performance.sounds ?? []).filter((one) => one.track === track.id),
+    }))
+    .filter((lane) => lane.layers.length > 0);
+  /*
    * ONE DEFINITION OF WHERE AN X IS ON THE SONG, for the click and the
    * drag alike, clamped to the song at both ends: there is nothing before
    * the first sample, and by INV-03 nothing after the last.
    */
+  /**
+   * How far the window may start, so it never shows past the end.
+   *
+   * At 1x there is nowhere to pan and `at` is pinned to zero, which is
+   * what makes zooming out always land somewhere sensible rather than
+   * leaving the view parked in the middle of nothing.
+   */
+  const panLimit = Math.max(0, 1 - 1 / zoom);
+
+  /*
+   * THE PLAYHEAD STAYS ON SCREEN.  [TIMELINE B3a]
+   *
+   * Zoomed to 8x, the song runs off the right of the window in four
+   * seconds — and a timeline that plays past its own edge is a
+   * timeline you have to chase with a scrollbar. When the line leaves
+   * the window the window follows, putting it a fifth of the way in so
+   * there is something visible ahead of it.
+   *
+   * ONLY WHEN IT LEAVES, and not every frame: a view that recentres
+   * continuously is one nothing can be dragged on.
+   */
+  useEffect(() => {
+    if (zoom <= 1) { if (at !== 0) setAt(0); return; }
+    const where = duration > 0 ? player.position / duration : 0;
+    const span = 1 / zoom;
+    if (where >= at && where <= at + span) return;
+    setAt(Math.max(0, Math.min(panLimit, where - span / 5)));
+  }, [at, duration, panLimit, player.position, zoom]);
+
   const sampleAtX = useCallback((clientX: number): number => {
     const box = lanes.current?.getBoundingClientRect();
     if (!box || box.width <= 0) return 0;
-    const along = (clientX - box.left) / box.width;
+    /* Through the window: the column shows `1 / zoom` of the song,
+       beginning at `at`. Both the click and the drag come through
+       here, so zooming cannot make them disagree. */
+    const along = at + ((clientX - box.left) / box.width) / zoom;
     return Math.max(0, Math.min(duration, Math.round(along * duration)));
-  }, [duration]);
+  }, [at, duration, zoom]);
   /*
    * Drawn for the first minute only. A four-minute song at 120 BPM is 480
    * marks, which is 480 elements to lay out on every repaint of a timeline
@@ -994,7 +1298,7 @@ export default function SwitchingStage({
         alignSelf: 'stretch', minHeight: 0,
       }}>
         <div className="shell-scroll" style={{ position: 'absolute', inset: 0 }}>
-          {takesPanel?.(takeMenu)}
+          {takesPanel?.({ takeMenu, at: () => player.positionNow() })}
         </div>
       </div>
       <>
@@ -1102,6 +1406,13 @@ export default function SwitchingStage({
                   data-testid="stage-video" data-take-id={take.id}
                   ref={(element) => { player.attach(take.id, element); }}
                   muted playsInline preload="auto"
+                  onLoadedMetadata={(event) => {
+                    const media = event.currentTarget;
+                    if (!media.videoWidth || !media.videoHeight) return;
+                    const ratio = media.videoHeight / media.videoWidth;
+                    setAspects((was) => (was[take.id] === ratio
+                      ? was : { ...was, [take.id]: ratio }));
+                  }}
                   /*
                     * The proxy, not the mezzanine. [U-39]
                     *
@@ -1116,10 +1427,37 @@ export default function SwitchingStage({
                   src={`/api/performances/${performance.id}/takes/${take.id}`
                     + '/media?kind=proxy'}
                   style={{
-                    width: '100%', height: '100%', objectFit: 'cover',
+                    width: '100%', height: '100%',
+                    /*
+                      * CONTAINED WHILE A CROP IS BEING DRAWN, and only
+                      * then. A tile fits its video with `cover`, so on
+                      * any panel that is not the source's own shape
+                      * part of the frame is off the edge — and a box
+                      * drawn over a picture whose edges are missing is
+                      * a box over something the author cannot see. For
+                      * the length of the crop the whole frame is shown,
+                      * letterboxed, and `ReframeBox` measures against
+                      * that content box rather than the tile.
+                      */
+                    objectFit: reframing === take.id ? 'contain' : 'cover',
                     display: 'block',
                   }}
                 />
+                {reframing === take.id && (
+                  <ReframeBox
+                    sourceAspect={aspects[take.id] ?? 9 / 16}
+                    reframe={take.reframe}
+                    onDrawn={(rect) => {
+                      void patch({
+                        action: 'reframe-take', takeId: take.id,
+                        /* The whole frame is not a crop; the document
+                           stores it as none, through one function. */
+                        reframe: rect.w > 0.995 && rect.h > 0.995 ? null : rect,
+                      });
+                    }}
+                    onDone={() => setReframing(null)}
+                  />
+                )}
                 {/* The take's name, in the take's colour, where the benchmark
                     puts it: bottom left of its own panel — with the key in
                     front of it on the multiview, because that is the whole
@@ -1770,7 +2108,19 @@ export default function SwitchingStage({
             background: 'var(--surface-raised)',
           }}>
             <div style={{ height: 18 }} />
-            <div style={{ height: 52, padding: '6px 10px' }}>
+            {/*
+              * THE SONG IS A LANE LIKE ANY OTHER NOW.  [TIMELINE B6]
+              *
+              * Right-click it for what can be done to it, which is
+              * what this studio already teaches on a take's row, a
+              * take's picture and a take's block. The head is the
+              * handle because the head is the thing that says which
+              * lane this is — and the waveform beside it carries the
+              * same menu, so the gesture works wherever the eye is.
+              */}
+            <div data-testid="song-head"
+                 {...onRow(performance.master.title, songMenu)}
+                 style={{ height: 52, padding: '6px 10px', cursor: 'context-menu' }}>
               <div style={{
                 fontSize: 'var(--text-2xs)', fontWeight: 'var(--weight-bold)',
                 letterSpacing: '0.08em', color: 'var(--text-dim)',
@@ -1826,14 +2176,181 @@ export default function SwitchingStage({
                 <span style={{ fontWeight: 600 }}>{take.label}</span>
               </button>
             ))}
+            {/*
+              * THE AUDIO GROUP.  [TIMELINE B12, B10a]
+              *
+              * "AUDIO — song, voice-over, effects, ambience." One head
+              * per track that has something on it, under the takes and
+              * over the master video, which is the order the brief
+              * drew and the order the ear works in.
+              */}
+            {/*
+              * WHAT IS BEING WAITED FOR, WHILE IT IS BEING WAITED FOR.
+              *
+              * A sound is not on the timeline until its length has been
+              * counted, which takes a few seconds — and an upload with
+              * no visible effect for a few seconds reads as an upload
+              * that did not happen. [U-19, B6h]
+              */}
+            {/*
+              * THE MICROPHONE, WHILE IT IS ON.  [TIMELINE B6i, U-19]
+              *
+              * On the head column beside the lanes rather than in a
+              * dialogue over them, because the thing being recorded
+              * INTO is the timeline and the author is watching the
+              * playhead move. A modal here would hide the one thing
+              * they need to see.
+              */}
+            {voice.phase !== 'idle' && (
+              <div data-testid="voice-recorder" data-phase={voice.phase}
+                   style={{
+                     height: 26, padding: '0 10px', display: 'flex',
+                     alignItems: 'center', gap: 6,
+                     fontSize: 'var(--text-2xs)',
+                     color: voice.phase === 'recording'
+                       ? 'var(--bad)' : 'var(--text-dim)',
+                   }}>
+                <Icon name="mic" size={11} />
+                <span className="grow" style={{
+                  overflow: 'hidden', textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}>
+                  {voice.phase === 'arming' ? 'Turning the microphone on\u2026'
+                    : voice.phase === 'ready' ? voiceLabel.current
+                      : voice.phase === 'counting' ? 'Counting in\u2026'
+                        : voice.phase === 'recording' ? 'Recording\u2026'
+                          : 'Keeping it\u2026'}
+                </span>
+                {voice.phase === 'ready' && (
+                  <button className="small" data-testid="voice-go"
+                          title={'The song plays from the playhead after a '
+                            + `${VOICE_COUNT_IN_SECONDS}-second count-in`}
+                          onClick={() => {
+                            void voice.start(voiceLabel.current,
+                              { kind: 'original' }, voiceFrom.current);
+                          }}
+                          style={{ padding: '0 6px', fontSize: 'var(--text-2xs)' }}>
+                    Start
+                  </button>
+                )}
+                {(voice.phase === 'recording' || voice.phase === 'counting') && (
+                  <button className="small" data-testid="voice-stop"
+                          onClick={() => voice.stop()}
+                          style={{ padding: '0 6px', fontSize: 'var(--text-2xs)' }}>
+                    Stop
+                  </button>
+                )}
+                {(voice.phase === 'ready' || voice.phase === 'arming') && (
+                  <button className="small" data-testid="voice-cancel"
+                          onClick={() => voice.disarm()}
+                          style={{
+                            border: 0, background: 'none', padding: 0,
+                            fontSize: 'var(--text-2xs)', color: 'var(--muted)',
+                            cursor: 'pointer',
+                          }}>
+                    Cancel
+                  </button>
+                )}
+              </div>
+            )}
+            {adding && (
+              <div data-testid="sound-measuring" style={{
+                height: 26, padding: '0 10px', display: 'flex',
+                alignItems: 'center', gap: 6,
+                fontSize: 'var(--text-2xs)', color: 'var(--text-dim)',
+              }}>
+                <Icon name="sound" size={11} />
+                <span className="grow" style={{
+                  overflow: 'hidden', textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}>{adding}</span>
+                <span className="muted">measuring…</span>
+              </div>
+            )}
+            {soundLanes.map((lane) => (
+              <div key={lane.id} data-testid="sound-head" data-track={lane.id}
+                   style={{
+                     display: 'flex', alignItems: 'center', gap: 7,
+                     height: 26, padding: '0 10px',
+                     fontSize: 'var(--text-2xs)',
+                     letterSpacing: '0.06em', color: 'var(--text-dim)',
+                     fontWeight: 'var(--weight-bold)',
+                   }}>
+                <Icon name="sound" size={11} />
+                <span className="grow">{lane.label.toUpperCase()}</span>
+                <span className="muted" style={{ fontWeight: 400 }}>
+                  {lane.layers.length}
+                </span>
+              </div>
+            ))}
+            {/*
+              * THE LABEL OVER ITS CONTROLS, NOT BESIDE THEM.
+              *
+              * This row is a fixed 190px head and it was asked to hold
+              * a spaced-out caption, four zoom steps and a Clear on one
+              * line. It could not: the caption broke across two lines,
+              * the steps wrapped, and the second row of them was drawn
+              * over the take lane above — visible in every screenshot
+              * of this studio for weeks and invisible in every test,
+              * because nothing here measures a box. Two deliberate
+              * lines fit in the same 44px the lane opposite is.
+              */}
             <div style={{
-              height: 44, display: 'flex', alignItems: 'center', gap: 8,
+              height: 44, display: 'flex', flexDirection: 'column',
+              justifyContent: 'center', gap: 3,
               padding: '0 var(--space-5)',
               borderTop: 'var(--border) solid var(--line)',
               fontSize: 'var(--text-2xs)', fontWeight: 'var(--weight-bold)',
               letterSpacing: '0.08em', color: 'var(--text-dim)',
             }}>
-              <span className="grow">MASTER VIDEO</span>
+              <span style={{ whiteSpace: 'nowrap' }}>MASTER VIDEO</span>
+              <span className="row" style={{ gap: 8 }}>
+              {/*
+                * ZOOM SITS ON THE TIMELINE, not on the transport.
+                * [TIMELINE B3a]
+                *
+                * The transport is for playing and directing; this is a
+                * statement about the ruler you are looking at, so it
+                * belongs on the ruler's own row — the same argument
+                * half-time and double-time make for living on the
+                * song's lane rather than beside the play button.
+                *
+                * FOUR STEPS, NAMED IN WHAT THEY MEAN. At 8x a pixel is
+                * about a frame on a four-minute song, which is the
+                * point at which a cut can be put ON a beat rather than
+                * near one; past that the ruler is longer than anybody's
+                * patience with a pan.
+                */}
+              <span className="row" data-testid="zoom" style={{ gap: 3 }}>
+                {[1, 2, 4, 8].map((step) => (
+                  <button key={step} className="small" data-testid="zoom-step"
+                          data-step={step} aria-pressed={zoom === step}
+                          title={step === 1
+                            ? 'The whole song'
+                            : `${step}\u00d7 \u2014 ${
+                              formatMasterPosition(Math.round(duration / step))
+                            } across the window`}
+                          onClick={() => {
+                            /* Zooming keeps the playhead where it is:
+                               the moment you are looking at is the
+                               moment you meant to look at. */
+                            const where = duration > 0
+                              ? player.positionNow() / duration : 0;
+                            const span = 1 / step;
+                            setZoom(step);
+                            setAt(Math.max(0, Math.min(
+                              Math.max(0, 1 - span), where - span / 2)));
+                          }}
+                          style={{
+                            padding: '0 6px', fontSize: 'var(--text-2xs)',
+                            fontWeight: zoom === step
+                              ? 'var(--weight-bold)' : 'var(--weight-semi)',
+                            color: zoom === step ? 'var(--ink-000)' : undefined,
+                          }}>
+                    {step === 1 ? 'Fit' : `${step}\u00d7`}
+                  </button>
+                ))}
+              </span>
               {/* Starting the edit again belongs on the edit, not on the
                   transport: it is the one control here that destroys
                   something, and it should be where that something is. */}
@@ -1853,12 +2370,35 @@ export default function SwitchingStage({
                           fontWeight: 500, color: 'var(--muted)', cursor: 'pointer',
                         }}>Clear</button>
               )}
+              </span>
             </div>
           </div>
 
           {/* Every lane, the same four minutes, one x per sample. */}
-          <div ref={lanes} style={{ position: 'relative', flex: 1, minWidth: 0 }}
+          {/*
+            * ONE TRACK, WIDER THAN THE COLUMN.  [TIMELINE B3a]
+            *
+            * Zoom is done here and nowhere else: the column clips, the
+            * track inside it is `zoom` times as wide, and `pct()` keeps
+            * meaning exactly what it meant — a percentage of the SONG,
+            * which is now a percentage of the track. So every ruler
+            * tick, scene block, take lane, beat mark, hole and join
+            * zooms and pans without one of them being told about it,
+            * and nothing can be left behind when a new lane is added.
+            *
+            * The alternative was giving `pct` a window and clamping,
+            * which piles everything outside the view against the edges
+            * — a timeline that lies at both ends.
+            */}
+          <div ref={lanes} style={{
+                 position: 'relative', flex: 1, minWidth: 0, overflow: 'hidden',
+               }}
                onClick={(e) => player.seek(sampleAtX(e.clientX))}>
+          <div data-testid="lane-track" style={{
+            position: 'relative',
+            width: `${(zoom * 100).toFixed(4)}%`,
+            marginLeft: `-${(at * zoom * 100).toFixed(4)}%`,
+          }}>
             {/*
               * THE RULER IS THE SCRUB STRIP, and until now the playhead
               * could only be JUMPED to, never taken hold of.
@@ -1907,7 +2447,73 @@ export default function SwitchingStage({
               ))}
             </div>
 
-            <div data-testid="master-waveform" style={{ height: 52, position: 'relative' }}>
+            <div data-testid="master-waveform"
+                 {...onRow(performance.master.title, songMenu)}
+                 style={{ height: 52, position: 'relative' }}>
+              {/*
+                * WHAT IS NOT IN THE EXPORT, DRAWN WHERE IT IS.
+                *   [TIMELINE B6a, B6b, B6k]
+                *
+                * The song's lane is four minutes long whatever the
+                * author has cut out of it, because everything else on
+                * this timeline is still on the song's own clock. So
+                * the stretches that will not be exported are shaded
+                * out and struck through, rather than the lane getting
+                * shorter and every take under it moving.
+                *
+                * Under the waveform and not over it, and with no
+                * pointer events, or this pane would swallow the
+                * right-click that raises the song's own menu — a
+                * mistake the dimming panes over the crop tool already
+                * made once. [U-04]
+                */}
+              {cutStretches.map((cut) => (
+                <div key={cut.fromSample} data-testid="song-cut"
+                     data-from={cut.fromSample} data-to={cut.toSample}
+                     title={'Not exported \u2014 '
+                       + `${clock(cut.fromSample)} to ${clock(cut.toSample)}`}
+                     style={{
+                       position: 'absolute', top: 0, bottom: 0,
+                       left: pct(cut.fromSample),
+                       width: pct(cut.toSample - cut.fromSample),
+                       background: 'rgba(0,0,0,0.72)',
+                       borderLeft: '1px solid rgba(255,255,255,0.22)',
+                       borderRight: '1px solid rgba(255,255,255,0.22)',
+                       pointerEvents: 'none',
+                     }} />
+              ))}
+              {/*
+                * AND A STRETCH WHOSE SOUND COMES FROM SOMEWHERE ELSE,
+                * which looks exactly like the song unless it is said.
+                * Marked rather than shaded out: it IS in the export,
+                * it is just not the song. [TIMELINE B6g]
+                */}
+              {songParts.filter((part) => part.assetId).map((part) => (
+                <div key={`r${part.fromSample}`} data-testid="song-replaced"
+                     data-from={part.fromSample} data-to={part.toSample}
+                     title={'Something else plays here \u2014 '
+                       + `${clock(part.fromSample)} to ${clock(part.toSample)}`}
+                     style={{
+                       position: 'absolute', top: 14, height: 36,
+                       left: pct(part.fromSample),
+                       width: pct(part.toSample - part.fromSample),
+                       border: '1px solid rgba(220,170,80,0.55)',
+                       background: 'rgba(220,170,80,0.14)',
+                       borderRadius: 2,
+                       pointerEvents: 'none',
+                     }} />
+              ))}
+              {/* And the joins, which are where a division is: a hair
+                  line, because a division changes nothing. [B6b] */}
+              {songJoins.map((at) => (
+                <div key={at} data-testid="song-join" data-at={at}
+                     style={{
+                       position: 'absolute', top: 12, bottom: 12,
+                       left: pct(at), width: 1,
+                       background: 'rgba(255,255,255,0.35)',
+                       pointerEvents: 'none',
+                     }} />
+              ))}
               {ordered.filter((s) => s.label).map((scene) => (
                 <span key={scene.id} style={{
                   position: 'absolute', left: pct(scene.fromSample), top: 0,
@@ -1986,8 +2592,20 @@ export default function SwitchingStage({
                          if (dragging?.takeId !== take.id) return;
                          const box = lanes.current?.getBoundingClientRect();
                          if (!box || box.width <= 0) return;
+                         /*
+                          * DIVIDED BY THE ZOOM, because the box is the
+                          * WINDOW and the track inside it is `zoom`
+                          * times as wide. Without it a drag at 8x moved
+                          * the take eight times as far as the pointer
+                          * went — the lane drew the new position
+                          * correctly the whole time, which is what made
+                          * it look like the studio rather than the
+                          * arithmetic. Found by writing the sound lane
+                          * beside it. [B3a, D-19]
+                          */
                          const by = Math.round(
-                           ((event.clientX - dragging.at) / box.width) * duration);
+                           ((event.clientX - dragging.at) / box.width)
+                           * duration / zoom);
                          setDragging({ ...dragging, by });
                        }}
                        onPointerUp={(event) => {
@@ -2039,6 +2657,98 @@ export default function SwitchingStage({
                 </div>
               );
             })}
+
+            {/*
+              * THE SOUNDS, ON THE SAME FOUR MINUTES AS EVERYTHING ELSE.
+              *   [TIMELINE B8, B12]
+              *
+              * Each block is where its sound is heard, drawn from
+              * `soundOnSong` — the same function the planner and the
+              * mixer read, so a block cannot draw in one place and
+              * play in another. That divergence was real on the take
+              * lane for months and nothing could show it. [D-19]
+              *
+              * Right-click it for what can be done to it, drag it to
+              * move it: the same two gestures the take lane teaches,
+              * and the reason a second editing system was not built.
+              */}
+            {/* Their lanes, empty: the two columns are rows of one grid
+                and a head with no lane opposite shifts everything
+                under it. */}
+            {voice.phase !== 'idle' && <div style={{ height: 26 }} />}
+            {adding && <div style={{ height: 26 }} />}
+            {soundLanes.map((lane) => (
+              <div key={lane.id} data-testid="sound-lane" data-track={lane.id}
+                   style={{ position: 'relative', height: 26 }}>
+                {lane.layers.map((layer) => {
+                  const on = soundOnSong(layer, duration);
+                  const held = soundDrag?.soundId === layer.id ? soundDrag : null;
+                  const shown = held
+                    ? Math.max(0, Math.min(duration, on.fromSample + held.by))
+                    : on.fromSample;
+                  return (
+                    <div key={layer.id} role="button" tabIndex={-1}
+                         data-testid="sound-block" data-sound-id={layer.id}
+                         data-from={shown}
+                         title={`Drag to move ${layer.label} along the song`
+                           + ' \u2014 right-click for what else can be done to it'}
+                         {...onRow(layer.label, () => soundMenu(layer))}
+                         onPointerDown={(event) => {
+                           event.currentTarget.setPointerCapture(event.pointerId);
+                           setSoundDrag({
+                             soundId: layer.id, at: event.clientX, by: 0,
+                           });
+                         }}
+                         onPointerMove={(event) => {
+                           if (soundDrag?.soundId !== layer.id) return;
+                           const box = lanes.current?.getBoundingClientRect();
+                           if (!box || box.width <= 0) return;
+                           setSoundDrag({
+                             ...soundDrag,
+                             by: Math.round(
+                               ((event.clientX - soundDrag.at) / box.width)
+                               * duration / zoom),
+                           });
+                         }}
+                         onPointerUp={(event) => {
+                           event.currentTarget.releasePointerCapture(event.pointerId);
+                           const by = soundDrag?.soundId === layer.id
+                             ? soundDrag.by : 0;
+                           setSoundDrag(null);
+                           /* A press that did not move is a press. */
+                           if (by === 0) return;
+                           void patch({
+                             action: 'move-sound', soundId: layer.id,
+                             fromSample: Math.max(0, Math.min(
+                               duration, layer.fromSample + by)),
+                           });
+                         }}
+                         onPointerCancel={() => setSoundDrag(null)}
+                         style={{
+                           position: 'absolute', left: pct(shown),
+                           width: pct(Math.max(
+                             HOUSE_SAMPLE_RATE / 20, on.toSample - on.fromSample)),
+                           top: 3, bottom: 3, borderRadius: 3,
+                           padding: '0 5px', overflow: 'hidden',
+                           whiteSpace: 'nowrap', textOverflow: 'ellipsis',
+                           font: 'inherit', fontSize: 'var(--text-2xs)',
+                           lineHeight: '20px', textAlign: 'left',
+                           color: 'var(--ink-000)',
+                           border: `1px solid ${SOUND_ACCENT[layer.track]}`,
+                           background: `${SOUND_ACCENT[layer.track]}2e`,
+                           /* Muted is drawn faint, never removed: it is
+                              still on the timeline where it was left. */
+                           opacity: layer.muted ? 0.35 : 1,
+                           cursor: held ? 'grabbing' : 'grab',
+                           touchAction: 'none',
+                         }}>
+                      {layer.muted ? '\u2014 ' : ''}{layer.label}
+                      {layer.loop ? ' \u21bb' : ''}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
 
             <div data-testid="master-timeline" style={{
               position: 'relative', height: 44, borderTop: '1px solid var(--line)',
@@ -2193,6 +2903,7 @@ export default function SwitchingStage({
               }} />
             </div>
           </div>
+          </div>
         </div>
       </div>
 
@@ -2300,13 +3011,48 @@ export default function SwitchingStage({
                   }}>
             <Icon name={player.playing ? 'pause' : 'play'} size={12} />
           </button>
-          <span className="mono readout" style={{
-            fontSize: 'var(--text-xs)', flex: '0 0 auto',
-            color: 'var(--ink-050)',
-          }}>
+          {/*
+            * THE CLOCK IS A WAY IN, NOT A LABEL.  [TIMELINE B3b]
+            *
+            * "Jump to an exact moment." A drag is one guess per press
+            * and a click on a four-minute lane is worth about a
+            * second; when an author knows they want 02:41 the fastest
+            * route is to say so. The readout was already showing the
+            * number, so it is the obvious thing to press — and it
+            * stays a readout, in the same type, because a control
+            * that shouts is a control in the way.
+            */}
+          <button className="mono readout" data-testid="player-goto"
+                  title="Go to an exact moment"
+                  onClick={() => confirm({
+                    question: 'Where in the song? Minutes and seconds \u2014 '
+                      + `2:41, 2:41.500 or just 161. The song is ${clock(duration)}.`,
+                    field: {
+                      label: 'Go to',
+                      initial: formatMasterPosition(Math.round(player.position)),
+                    },
+                    verb: 'Go there',
+                    go: (typed) => {
+                      const at = parseMasterPosition(typed ?? '');
+                      /* Nothing rather than zero: seeking to the start
+                         because somebody typed a word is a jump they
+                         did not ask for. */
+                      if (at === null) {
+                        setError('that is not a time in this song');
+                        return;
+                      }
+                      setError(null);
+                      player.seek(Math.max(0, Math.min(duration, at)));
+                    },
+                  })}
+                  style={{
+                    fontSize: 'var(--text-xs)', flex: '0 0 auto',
+                    color: 'var(--ink-050)', background: 'none',
+                    border: 0, padding: 0, cursor: 'pointer',
+                  }}>
             {formatMasterPosition(Math.round(player.position))}
             <span style={{ color: 'var(--ink-400)' }}> / {clock(duration)}</span>
-          </span>
+          </button>
           {/*
             * MONITORING, NOT MIXING. This is how loud the song is in the room
             * while somebody directs. It is not written to the document and it

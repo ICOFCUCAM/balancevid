@@ -218,6 +218,17 @@ export interface PerformanceShot extends ShotBase {
      */
     stabilize?: { transformsAssetId: AssetId; smoothing: number };
     /**
+     * Which part of this take's picture to use.  [MASTER-EDIT §2, §15]
+     *
+     * Fractions of the source frame, as the document holds them. The
+     * renderer crops to this before fitting the panel — after the
+     * stabiliser, which has to see the whole sensor to know how far the
+     * picture moved — and applies the SAME crop to the backdrop plate
+     * where there is one, or the difference key would be comparing two
+     * different parts of the room. [INV-16]
+     */
+    reframe?: Rect;
+    /**
      * What to put behind this performer, and how to cut them out. [§4, S-6]
      *
      * Complete: the plate to difference against, the threshold measured from

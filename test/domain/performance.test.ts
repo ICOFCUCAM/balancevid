@@ -10,6 +10,9 @@
  *   scenes are the primitive, and switching and dragging write the same one;
  *   a track the author has not said they may publish does not get published.
  */
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -21,7 +24,8 @@ import {
 import {
   addPlate,
   addTake, classifyMaster, clearScenes, coverGap, moveScene, newPerformance, nudgeTake,
-  realign, removeScene, removeTake, setAudioMode, setEnvironment, setScene, trimTake,
+  realign, removeScene, removeSection, removeTake, setAudioMode, setEnvironment,
+  setScene, trimTake,
   coverWith, publishPerformance, setTransition, PerformanceEditError,
 } from '../../src/domain/performanceEdit.js';
 import {
@@ -1051,9 +1055,88 @@ describe('repairing a hole', () => {
     const [gap] = renderProblems(p);
     const repairs = repairsFor(p, gap!);
     expect(repairs.map((repair) => `${repair.id}:${repair.available}`)).toEqual([
-      'use-next:true', 'choose:true', 'use-previous:false', 'freeze:false',
+      'use-next:true', 'choose:true',
+      /*
+       * `align-first` joined this list when the nudge finally got a
+       * control [TIMELINE B11]. It is FALSE here because this hole is
+       * in the middle of the song, and moving a take to close a hole
+       * in the middle would pull everything the performer sang out of
+       * time with the music.
+       */
+      'align-first:false',
+      /*
+       * `remove-section` joined it when the song became a list of
+       * the stretches the export uses [TIMELINE B11b, B6k]. It is
+       * TRUE here and it is the only repair in the list that
+       * answers the hole by deciding there was nothing to put
+       * there — which is the honest remedy for an intro nobody
+       * performed over.
+       */
+      'remove-section:true',
+      'use-previous:false', 'freeze:false',
     ]);
     for (const repair of repairs) expect(repair.says.length).toBeGreaterThan(0);
+  });
+
+  /*
+   * TAKING THE EMPTY STRETCH OUT OF THE SONG.  [TIMELINE B11b, B6k]
+   *
+   * It names the stretch it will take, and it takes THAT stretch —
+   * a repair that removed some other part of the song would read
+   * correctly in the list and destroy a verse.
+   */
+  it('offers to take the empty stretch out, and names it exactly', () => {
+    /*
+     * A HOLE IN THE MIDDLE, deliberately, and not the one at the top
+     * of the song `holed()` makes. A repair that always removed from
+     * 00:00 would read correctly in the list and destroy the first
+     * verse — and against a hole that starts at zero it is
+     * indistinguishable from the right answer.
+     */
+    const p = fiveTakes();
+    setScene(p, 0, { layoutId: 'performance_full', takeIds: ['take_beach'] });
+    setScene(p, secondsToSamples(120),
+      { layoutId: 'performance_full', takeIds: ['take_studio'] });
+    /* The take under the SECOND scene runs out at 150s, so the last
+       ninety seconds have nothing that reaches across them. */
+    trimTake(p, 'take_studio', 0, secondsToSamples(150));
+
+    const [gap] = renderProblems(p);
+    expect(gap!.fromSample).toBe(secondsToSamples(120));
+    const cut = repairsFor(p, gap!).find((one) => one.id === 'remove-section')!;
+    expect(cut.available).toBe(true);
+    expect(cut.fromSample).toBe(secondsToSamples(120));
+    expect(cut.toSample).toBe(secondsToSamples(240));
+    expect(cut.says).toMatch(/120.0s shorter/);
+
+    /* And it closes the hole: the same problem is gone afterwards. */
+    removeSection(p, cut.fromSample!, cut.toSample!);
+    expect(renderProblems(p)).toHaveLength(0);
+  });
+
+  /*
+   * OFFERED ONLY WHEN SOMETHING WOULD BE LEFT. A performance with
+   * one short take over a long song is mostly hole, and a row that
+   * is offered and then refused is a row that lied. [U-04]
+   */
+  it('will not offer to remove the whole song', () => {
+    const p = fiveTakes();
+    /* One scene, at the very end: everything before it is a hole. */
+    setScene(p, secondsToSamples(239),
+      { layoutId: 'performance_full', takeIds: ['take_beach'] });
+    const [gap] = renderProblems(p);
+    const cut = repairsFor(p, gap!).find((one) => one.id === 'remove-section')!;
+    expect(cut.available).toBe(false);
+    expect(cut.says).toBe('that would leave nothing of the song');
+  });
+
+  /* And the button sends what the domain worked out, rather than
+     working it out again. [D-19] */
+  it('is pressed by the check, with the stretch the domain named', () => {
+    const check = readFileSync(
+      join(import.meta.dirname, '..', '..', 'app', 'p', '[id]', 'MasterCheck.tsx'),
+      'utf8');
+    expect(check).toMatch(/action: 'remove-section',\s*\n\s*fromSample: repair\.fromSample,\s*\n\s*toSample: repair\.toSample,/);
   });
 
   /*

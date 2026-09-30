@@ -10,7 +10,8 @@ import { quoteHash } from './ids.js';
 import type { SourceItem, Timeline } from './timeline.js';
 import {
   type Performance, type PerformanceTake, type PerformanceWindow,
-  mayPublish, needsLicenceNote, plateFor, projectPerformance, renderProblems,
+  mayPublish, needsLicenceNote, plateFor, projectExport,
+  renderProblems,
 } from './performance.js';
 import { needsMatte } from './environment.js';
 import type { Channel, ProgrammeSource } from './channel.js';
@@ -219,7 +220,9 @@ export function assertPerformanceRenderable(
       : first.kind === 'gap' ? `a stretch of the song has ${first.say}` : first.say);
   }
 
-  const timeline = projectPerformance(performance, window);
+  /* The EXPORT, which is the song's sections laid end to end — one
+     window when nothing has been cut out. [TIMELINE B6k] */
+  const timeline = projectExport(performance, window);
 
   // INV-02, on the output clock: the spans must tile it with no gap or overlap.
   let expected = 0;

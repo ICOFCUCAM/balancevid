@@ -3,7 +3,9 @@
 import type { Ask } from '../../Confirm.js';
 import type { MenuEntry } from '../../Menu.js';
 import type { Performance, PerformanceTake } from '../../../src/domain/performance.js';
-import { coverage, effectiveOffset } from '../../../src/domain/performance.js';
+import {
+  coverage, coversSpan, effectiveOffset, isFootage, orderedScenes,
+} from '../../../src/domain/performance.js';
 import { formatMasterPosition } from '../../../src/domain/time.js';
 import { nudgeItems } from './takeNudge.js';
 
@@ -48,6 +50,8 @@ export interface TakeMenuHost {
   /** Which take the stage is showing on its own, if any. */
   solo: string | null;
   onSolo: (takeId: string | null) => void;
+  /** Put the stage into drawing a crop over this take's picture. */
+  onReframe?: ((takeId: string) => void) | undefined;
   /** Which take the Background and Effects panels are editing. */
   chosen?: string | null | undefined;
   onChoose?: ((takeId: string) => void) | undefined;
@@ -67,6 +71,22 @@ export function takeMenuItems(
    * describe an edge the action does not touch.
    */
   const starts = Math.max(0, effectiveOffset(take.alignment));
+  /*
+   * WHERE THIS TAKE IS ON SCREEN, and whether another would reach
+   * across all of it. Worked out once for every candidate row below:
+   * a swap that leaves a scene with a take that runs out halfway has
+   * moved the fault rather than fixed it. [B1a]
+   */
+  const song = host.performance.master.durationSamples;
+  const ordered = orderedScenes(host.performance);
+  const onScreen = ordered
+    .map((scene, index) => ({
+      scene,
+      toSample: ordered[index + 1]?.fromSample ?? song,
+    }))
+    .filter((one) => (one.scene.takeIds as readonly string[]).includes(take.id));
+  const reaches = (other: PerformanceTake) => onScreen.every(
+    (one) => coversSpan(other, one.scene.fromSample, one.toSample, song));
   /*
    * WHY NOT SIMPLY "IS THE PLAYHEAD INSIDE IT". Because the first
    * version was, and at the start of the song it told the truth in a
@@ -172,6 +192,35 @@ export function takeMenuItems(
     },
 
     /*
+     * THE THIRD OPERATION, and it opens a tool rather than doing
+     * something: a crop is a rectangle somebody draws over a picture,
+     * and there is no sensible default rectangle for a menu to apply.
+     * The host puts the stage into reframing for this take; the box is
+     * drawn on the take's own monitor. [MASTER-EDIT §15]
+     */
+    host.onReframe && {
+      section: 'Crop \u2014 what part of the picture shows',
+      advanced: true,
+      label: take.reframe ? 'Change the crop\u2026' : 'Crop / reframe\u2026',
+      hint: take.reframe
+        ? `keeping ${Math.round(take.reframe.w * 100)}% of the frame`
+        : 'draw a box on its picture; the rest is not in the master',
+      ...(key === null ? { disabled: 'it is still assembling' } as const : {}),
+      onSelect: () => host.onReframe?.(take.id),
+    },
+    take.reframe && {
+      section: 'Crop \u2014 what part of the picture shows',
+      advanced: true,
+      label: 'Use the whole frame again',
+      hint: 'the media was never cut \u2014 a crop is four numbers',
+      onSelect: () => {
+        void host.patch({
+          action: 'reframe-take', takeId: take.id, reframe: null,
+        });
+      },
+    },
+
+    /*
      * THE TWO ALIGNMENTS AN AUTHOR ACTUALLY ASKS FOR, and both of them
      * are the push with the arithmetic already done.
      *
@@ -189,6 +238,7 @@ export function takeMenuItems(
      */
     {
       section: 'Move — when it plays',
+      advanced: true,
       label: 'Align its start to the song’s',
       hint: starts > 0
         ? `it begins ${formatMasterPosition(starts)} into the song`
@@ -204,6 +254,7 @@ export function takeMenuItems(
     },
     {
       section: 'Move — when it plays',
+      advanced: true,
       label: 'Align its start to the playhead',
       hint: `move its beginning to ${formatMasterPosition(at)}`,
       ...(starts === at
@@ -231,6 +282,57 @@ export function takeMenuItems(
         });
       },
     },
+    /*
+     * "REPLACE."  [TIMELINE B1a]
+     *
+     * The brief puts this row between *Adjust timing* and *Rename*,
+     * and the record has argued since §4 that it cannot mean what it
+     * looks like: a take IS a recording, and swapping the file under
+     * one would silently invalidate its measured offset, its rate
+     * ratio, its colour reading, its sound reading and the plate its
+     * matte is cut against.
+     *
+     * WHAT IT CAN HONESTLY MEAN is what an author actually wants when
+     * they reach for it: the beach take is better, put it wherever
+     * this one is on screen. By hand that is one press per scene, and
+     * the scene they forget is the one that ships.
+     *
+     * ONE ROW PER CANDIDATE rather than a picker, because the list is
+     * short and a menu that opens a dialogue to choose from four
+     * things is a menu with an extra step in it. Behind "More",
+     * because it changes several scenes at once. [B9]
+     */
+    ...host.performance.takes
+      .filter((other) => other.id !== take.id
+        && other.durationSamples > 0
+        && !isFootage(other))
+      .map((other) => ({
+        section: 'The take itself',
+        advanced: true,
+        label: `Replace with ${other.label}`,
+        hint: onScreen.length === 0
+          ? `${take.label} is not on screen anywhere`
+          : `${onScreen.length} scene(s) cut from ${take.label} `
+            + `would show ${other.label} instead`,
+        ...(onScreen.length === 0
+          ? { disabled: 'it is not on screen anywhere' } as const
+          : reaches(other) ? {} : {
+            disabled: `${other.label} does not reach across all of them`,
+          } as const),
+        onSelect: () => host.confirm({
+          question: `Show “${other.label}” wherever “${take.label}” is on `
+            + `screen? That is ${onScreen.length} scene(s). Nothing is `
+            + `deleted — “${take.label}” stays in the rail, and doing this `
+            + 'the other way round puts it back.',
+          verb: `Use ${other.label}`,
+          go: () => {
+            void host.patch({
+              action: 'replace-take', takeId: take.id, withTakeId: other.id,
+            });
+          },
+        }),
+      })),
+
     {
       section: 'The take itself',
       label: 'Rename…',

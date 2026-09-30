@@ -59,12 +59,14 @@
 export const TAKE_ACCENT_FALLBACK = '#3e7ca6';
 
 
+import type { AudioEffectId } from './audioEffect.js';
 import type { AssetId, Publication, TakeId } from './document.js';
 import type { ColourReading } from './colour.js';
 import type { LyricLine } from './lyrics.js';
 import type { SoundReading } from './cleanup.js';
 import type { BeatGrid } from './beats.js';
 import type { RoomPlate } from './environment.js';
+import type { Rect } from './presentation.js';
 import type { Id } from './ids.js';
 import {
   type Frames, type Samples, HOUSE_FPS, HOUSE_SAMPLE_RATE, assertSamples,
@@ -79,7 +81,32 @@ import {
 export type PerformanceId = Id<'perf'>;
 export type SceneId = Id<'scene'>;
 
-export const PERFORMANCE_SCHEMA_VERSION = 2;
+export const PERFORMANCE_SCHEMA_VERSION = 3;
+
+/**
+ * A stretch of the song the export uses.  [TIMELINE B6a, B6b, B6g, B6k]
+ *
+ * `fromSample` and `toSample` are on the SONG's own clock, and they
+ * say both where the stretch sits and how long it is. `assetId`, when
+ * it is there, says the sound over that stretch comes from somewhere
+ * else — a re-recorded bridge, a cleaner take of a verse — read from
+ * `sourceFromSample` into it.
+ *
+ * REPLACING DOES NOT MOVE ANYTHING, for the same reason removing does
+ * not: the stretch keeps its place and its length on the master
+ * clock, so every scene, take and lyric over it stays where it is. A
+ * replacement shorter than the stretch leaves silence at the end of
+ * it; one longer is cut. Both are said out loud rather than resolved
+ * by moving the rest of the song.
+ */
+export interface SongSection {
+  fromSample: Samples;
+  toSample: Samples;
+  /** Sound from somewhere else over this stretch. [B6g] */
+  assetId?: AssetId;
+  /** How far into that file to read from. Absent means its start. */
+  sourceFromSample?: Samples;
+}
 
 /* ------------------------------------------------------------------------ *
  *  The master track, and what may be done with it.  [S-9, INV-15]
@@ -199,6 +226,109 @@ export interface MasterTrack {
    * that have to agree. [S-10]
    */
   countInSamples?: Samples;
+  /**
+   * The part of the song the finished video uses.  [TIMELINE B6a]
+   *
+   * "The master song shouldn't be treated as an immutable background
+   * track." It was one: an asset and a measured length, and every
+   * export was the whole of it.
+   *
+   * A WINDOW, WHICH IS A THING THIS PRODUCT ALREADY HAS. A clip
+   * renders a stretch of the song — `PerformanceWindow`, through
+   * `projectPerformance` and `planPerformanceAudio`, both of which
+   * already take one and get the two clocks right. Trimming the song
+   * is that window applied to the WHOLE export rather than to one
+   * clip, so it costs no new arithmetic and cannot disagree with the
+   * clip path. [D-19]
+   *
+   * MARKERS, NOT A CUT. The media is untouched and the trim can be
+   * widened again tomorrow — the same promise a take's trim makes, and
+   * the same reason: the author's own recording of their own song is
+   * the one file they may not have another copy of. [U-25]
+   *
+   * POSITIONS DO NOT MOVE. Every scene, every take and every lyric
+   * stays on the sample it was on; trimming changes which stretch is
+   * exported, not what anything is. Renumbering the master clock would
+   * mean re-timing everything in the document against an edit that can
+   * be undone.
+   */
+  use?: { fromSample: Samples; toSample: Samples };
+  /**
+   * Which stretches of the song the export uses, in order.
+   *   [TIMELINE B6a, B6b, B6k]
+   *
+   * A GENERALISATION OF `use`, NOT A SECOND WAY TO SAY IT. A trim is
+   * one stretch. Removing a section from the middle is two. Splitting
+   * is dividing one into two that touch, so that either can then be
+   * trimmed or removed on its own. One list answers all three, and a
+   * document holding both this and `use` is a document with two
+   * answers, so `use` is migrated into this on read and deleted.
+   *
+   * ON THE SONG'S OWN CLOCK, and NOTHING IN THE DOCUMENT IS
+   * RENUMBERED BY AN EDIT TO IT. That is the whole design and it is
+   * worth being explicit about, because the obvious implementation of
+   * "remove a section" is to move every scene, take, lyric and sound
+   * after it back by the length removed — which is destructive, which
+   * cannot be undone by putting the section back, and which would
+   * make an edit to the song an edit to everything in the
+   * performance.
+   *
+   * Instead the song is the SPINE: the export is these stretches laid
+   * end to end, and everything placed on the song comes with it.
+   * A scene that covered the removed bars is shorter in the export; a
+   * take's voice over those bars goes with them; a lyric inside them
+   * does not appear. Put the section back and all of it returns,
+   * exactly where it was.
+   */
+  sections?: SongSection[];
+  /**
+   * What is done to the song's own sound.  [TIMELINE B6c, B6d, B6e, B6f]
+   *
+   * Fade in, fade out, volume, mute — four of the eleven things the
+   * brief asks for, and the four that are a property of the song
+   * rather than a change to its shape.
+   *
+   * ON THE MASTER AND NOT ON A SCENE, because a fade at the top of the
+   * song is a fact about the song. Scene-by-scene ducking is what the
+   * audio MODES are for (§9), and a second way to make the music
+   * quieter would be a second answer to how loud it is.
+   */
+  sound?: {
+    /**
+     * Decibels, relative. Absent means the song as it was recorded.
+     *
+     * NOT A MULTIPLIER, because a multiplier of 0.5 is not half as
+     * loud to a listener and nobody can predict it. Decibels are what
+     * every fader in the world is marked in.
+     *
+     * AND IT IS A BALANCE, NOT AN OUTPUT LEVEL — which a render test
+     * found the hard way. Every export is mastered to a loudness
+     * target (INV-11), so turning the song down when it is the ONLY
+     * sound produces a file that measures exactly as loud as before:
+     * the mastering puts back what the fader took off. What the fader
+     * actually decides is how loud the song is AGAINST THE VOICES,
+     * and that survives mastering because mastering scales the mix.
+     *
+     * The control says so, because an author who turns the music down
+     * on an instrumental and hears no difference has been lied to by
+     * a working feature.
+     */
+    gainDb?: number;
+    /** Silent, but still the clock. [INV-03] */
+    muted?: boolean;
+    /** Up from silence at the start of the exported stretch. */
+    fadeInSamples?: Samples;
+    /** Down to silence at its end. */
+    fadeOutSamples?: Samples;
+    /**
+     * What it is made to sound like.  [TIMELINE B6j]
+     *
+     * One of a short named list — see `audioEffect.ts` for why it is
+     * short and why the names are what they sound like rather than
+     * what they do. Absent means the song as it was recorded.
+     */
+    effect?: AudioEffectId;
+  };
   /**
    * The words, timed to the song.  [MASTER-EDIT §12 P3, INV-07]
    *
@@ -360,6 +490,156 @@ export type AlignmentMethod =
  */
 export function isPlaced(alignment: Alignment): boolean {
   return alignment.method !== 'unplaced';
+}
+
+/**
+ * The stretch of the song the finished video covers.  [TIMELINE B6a]
+ *
+ * ONE DEFINITION, asked by the planner, the audio planner, the render
+ * console and MASTER CHECK. A trim that only the renderer knew about
+ * would be a timeline drawing four minutes of a song that exports two.
+ *
+ * Clamped to the song, and never inverted: a trim that leaves nothing
+ * is refused where it is written (`trimSong`), and this is the reader,
+ * which answers something sane whatever is in the document.
+ */
+export function songSpan(
+  master: MasterTrack,
+): { fromSample: Samples; toSample: Samples } {
+  const sections = songSections(master);
+  return {
+    fromSample: sections[0]!.fromSample,
+    toSample: sections[sections.length - 1]!.toSample,
+  };
+}
+
+/**
+ * Every stretch of the song the export uses, in order.
+ *   [TIMELINE B6a, B6b, B6k]
+ *
+ * ONE DEFINITION, asked by the planner, the audio planner, the studio
+ * and MASTER CHECK. A removal that only the renderer knew about would
+ * be a timeline drawing four minutes of a song that exports three.
+ *
+ * Reads `use` for a document written before there were sections, and
+ * answers the whole song for one that has neither — which is every
+ * performance until somebody edits its song. Clamped and ordered and
+ * never inverted: the refusals live where the edit is written, and
+ * this is the reader, which answers something sane whatever is in the
+ * document.
+ */
+export function songSections(master: MasterTrack): SongSection[] {
+  const end = master.durationSamples;
+  const written = master.sections?.length
+    ? master.sections
+    : master.use ? [master.use] : null;
+  if (!written) return [{ fromSample: 0, toSample: end }];
+
+  const clamped = written
+    .map((one) => {
+      const from = Math.max(0, Math.min(one.fromSample, end));
+      return {
+        ...one,
+        fromSample: from,
+        toSample: Math.max(from, Math.min(one.toSample, end)),
+      };
+    })
+    .filter((one) => one.toSample > one.fromSample)
+    .sort((a, b) => a.fromSample - b.fromSample);
+  /* A song with every section removed is a song with none of it used,
+     which INV-03 refuses at the edit. Answering an empty list here
+     would make every reader handle a case the document cannot be in. */
+  return clamped.length > 0 ? clamped : [{ fromSample: 0, toSample: end }];
+}
+
+/**
+ * The shortest stretch of song worth exporting.  [TIMELINE B6a]
+ *
+ * Two seconds. Below that the aac encoder produces no frames at all
+ * and the mux fails — which is a fixture problem wearing the clothes
+ * of a bug, and cost a confusing half-hour the first time it happened
+ * in a test. It is also not a video.
+ *
+ * HERE RATHER THAN BESIDE THE EDIT THAT ENFORCES IT, because the
+ * song's menu needs it to grey a row and `performanceEdit.ts` reaches
+ * `node:crypto` through `ids.ts` — which a browser bundle refuses to
+ * build. The same reason `TAKE_ACCENT_FALLBACK` and `MIN_REFRAME_SPAN`
+ * live away from the code that uses them. [D-19]
+ */
+export const MIN_SONG_SAMPLES = 2 * HOUSE_SAMPLE_RATE;
+
+/** The stretch a moment of the song is in, if any. [B6g] */
+export function songSectionAt(
+  master: MasterTrack, source: Samples,
+): SongSection | undefined {
+  return songSections(master).find(
+    (one) => source >= one.fromSample && source < one.toSample);
+}
+
+/** Is any stretch of the song replaced by sound from elsewhere. [B6g] */
+export function songReplaced(master: MasterTrack): boolean {
+  return songSections(master).some((one) => Boolean(one.assetId));
+}
+
+/** How long the export is: the sections, laid end to end. [INV-03] */
+export function songLength(master: MasterTrack): Samples {
+  let total = 0;
+  for (const one of songSections(master)) total += one.toSample - one.fromSample;
+  return total;
+}
+
+/** Is any of the song trimmed or cut away. */
+export function songTrimmed(master: MasterTrack): boolean {
+  return songLength(master) < master.durationSamples;
+}
+
+/** Are there holes in the middle, as opposed to a trim at the ends. */
+export function songCut(master: MasterTrack): boolean {
+  return songSections(master).length > 1;
+}
+
+/**
+ * Where a moment of the EXPORT is in the song's own media.
+ *   [TIMELINE B6k]
+ *
+ * The export is the sections laid end to end, so the first sample
+ * after a removed stretch is the first sample of the next section —
+ * not the sample after the one before it. Every reader that turns an
+ * output position into a place to read from goes through here.
+ */
+export function songSourceAt(master: MasterTrack, exported: Samples): Samples {
+  let left = Math.max(0, exported);
+  for (const one of songSections(master)) {
+    const length = one.toSample - one.fromSample;
+    if (left < length) return one.fromSample + left;
+    left -= length;
+  }
+  /* Past the end of the export is the end of the song, which is what
+     every clamp in this file answers rather than a refusal. */
+  return songSpan(master).toSample;
+}
+
+/**
+ * Where a moment of the SONG is in the export, or nothing.
+ *
+ * Nothing when it is inside a removed stretch, which is not a failure:
+ * it is the honest answer to "where does this lyric appear" for a
+ * lyric the author cut out. A zero there would put it at the top of
+ * the song, which is the kind of quiet lie this codebase spends its
+ * comments on.
+ */
+export function songExportedAt(
+  master: MasterTrack, source: Samples,
+): Samples | null {
+  let before = 0;
+  for (const one of songSections(master)) {
+    if (source < one.fromSample) return null;
+    if (source < one.toSample) return before + (source - one.fromSample);
+    before += one.toSample - one.fromSample;
+  }
+  /* The very last sample of the last section is the end of the export
+     — a half-open range's upper bound, which callers ask for. */
+  return source === songSpan(master).toSample ? before : null;
 }
 
 /** Offset plus the author's nudge: where the take really starts. */
@@ -579,6 +859,37 @@ export interface PerformanceTake {
    */
   stabilize?: string;
   /**
+   * Which part of this take's picture is used.  [MASTER-EDIT §2, §5, §15]
+   *
+   * THE THIRD OF THE THREE OPERATIONS, and the whole reason it is a
+   * separate field from the other two: moving a take changes WHEN it
+   * plays, trimming it changes WHICH PART OF IT exists, and this
+   * changes WHAT PART OF THE PICTURE shows. They act on three different
+   * axes and folding any two together would make an editor nobody can
+   * predict.
+   *
+   * Fractions of the source frame, not pixels, so a reframe survives a
+   * take being re-ingested at another size and means the same thing on
+   * a proxy as on the mezzanine. The same `Rect` a conversation's focus
+   * uses, in the same units, because "which part of a frame" is one
+   * idea. [D-19]
+   *
+   * A FREE RECTANGLE, WHERE ALMOST EVERYTHING ELSE HERE IS A NAMED ROW.
+   * The looks, the cleanups and the stabilizers are rows because an
+   * author knows their take was handheld and does not know what
+   * `smoothing=30` is; nobody knows in advance which part of their own
+   * frame the performer is in, and there is no list of four answers
+   * that could contain it. So this one is drawn. [U-18's limit]
+   *
+   * It does NOT refuse a matte, and that is a deliberate difference
+   * from `stabilize`: the stabiliser moves the picture relative to the
+   * plate frame by frame and tears every edge, while a crop is fixed
+   * and the renderer applies the identical crop to the plate. The
+   * difference key still compares the same region of the same room.
+   * [INV-16]
+   */
+  reframe?: Rect;
+  /**
    * Another take this one is graded towards.  [MASTER-EDIT §8, §12 P2]
    *
    * A REFERENCE AND NOT A GRADE. Storing the computed correction would
@@ -618,6 +929,22 @@ export interface PerformanceTake {
   useToSample?: Samples;
   /** Whether this take's own audio is usable, or it was recorded silent. */
   hasAudio?: boolean;
+  /**
+   * Who performed it, where it came from somebody else.
+   *   [TAKE-APP T5a; D-25]
+   *
+   * "James — 3 submitted takes." A take recorded in the studio was
+   * made by whoever is holding the studio and needs no name; one
+   * accepted from a phone was made by somebody who is not here, and
+   * a rail that showed five takes with no way to tell whose is which
+   * is a rail a producer cannot work from.
+   *
+   * AS THE PRODUCER NAMED THEM WHEN THEY SENT THE LINK, not as the
+   * participant typed it: the request is where the name lives, and a
+   * stranger's own spelling of it is not a fact this document should
+   * take on trust. Absent for every take the author recorded.
+   */
+  performer?: string;
   createdAt: string;
 }
 
@@ -784,6 +1111,106 @@ export type AudioMode =
 export const AUDIO_MODES: readonly AudioMode[] =
   ['music_and_mic', 'take_audio', 'master_vocal'];
 
+/**
+ * A sound that is neither the song nor a take.
+ *   [TIMELINE B8, B10a, B10b]
+ *
+ * "Effects and sounds should also be timeline objects... applause,
+ * transition sound, intro, outro, voice-over, background ambience,
+ * musical layer, effects."
+ *
+ * The document had two kinds of sound: the song, which is the clock,
+ * and a take's own microphone, which is a recording of somebody
+ * performing. Neither is an impact at 02:41 or a room tone under the
+ * whole thing, and there was no object that could be.
+ *
+ * IT IS A TIMELINE OBJECT, WITH THE PROPERTIES THE BRIEF NAMES —
+ * "start time, end time, source, track, offset, trim, volume". Start
+ * is `fromSample`, end follows from the trim, source is `assetId`,
+ * track is `track`, trim is the two marks, volume is `gainDb`. What it
+ * deliberately does NOT have is a video: a sound layer is sound, and a
+ * picture on the timeline is a take. [B10]
+ *
+ * TRACKS ARE ROWS, NOT CLASSES. Voice, effect, ambience and music
+ * differ in which lane they are drawn on and in nothing else — the
+ * mixer treats them identically — which is the same shape every other
+ * list in this product has. A fifth kind is a row. [U-18]
+ */
+/**
+ * Which lane a sound sits on.  [B10a]
+ *
+ * Four names that the mixer treats identically. They differ in where
+ * the eye finds them, which on a timeline with a dozen sounds on it is
+ * the whole of the value.
+ */
+export type SoundTrack = 'voice' | 'effect' | 'ambience' | 'music';
+
+export interface SoundLayer {
+  id: Id<'snd'>;
+  assetId: AssetId;
+  /** What it is called on its lane. The author's word. */
+  label: string;
+  /**
+   * Which lane it sits on.  [B10a]
+   *
+   * `voice` is somebody speaking over the music — a voice-over, an
+   * introduction. `effect` is a moment: applause, an impact, a
+   * transition. `ambience` is a bed: a room, a street, a crowd.
+   * `music` is another piece of music under or beside the song.
+   */
+  track: SoundTrack;
+  /** Where it begins on the master clock. */
+  fromSample: Samples;
+  /** Measured by decoding, never read from a header. [U-02] */
+  durationSamples: Samples;
+  /** Use only part of it. Markers on its OWN clock, not the song's. */
+  useFromSample?: Samples;
+  useToSample?: Samples;
+  /** Decibels against everything else. Absent means as recorded. */
+  gainDb?: number;
+  muted?: boolean;
+  fadeInSamples?: Samples;
+  fadeOutSamples?: Samples;
+  /**
+   * Play it again until its stretch is over.  [S-29]
+   *
+   * For ambience, which is the case it exists for: ten seconds of rain
+   * under a four-minute song. The same field a footage take has, and
+   * the same meaning.
+   */
+  loop?: boolean;
+  /** What it is made to sound like — the same short list the song has. */
+  effect?: AudioEffectId;
+  createdAt: string;
+}
+
+/** What part of a sound layer's own media is used, and how long that is. */
+export function soundSpan(
+  layer: SoundLayer,
+): { fromSample: Samples; toSample: Samples; length: Samples } {
+  const from = Math.max(0, Math.min(layer.useFromSample ?? 0, layer.durationSamples));
+  const to = Math.max(from, Math.min(layer.useToSample ?? layer.durationSamples,
+    layer.durationSamples));
+  return { fromSample: from, toSample: to, length: to - from };
+}
+
+/** Where a layer sits on the master clock, given how much of it is used. */
+export function soundOnSong(
+  layer: SoundLayer, songSamples: Samples,
+): { fromSample: Samples; toSample: Samples } {
+  const span = soundSpan(layer);
+  const from = Math.max(0, Math.min(layer.fromSample, songSamples));
+  /*
+   * A LOOPED LAYER RUNS TO THE END OF THE SONG, which is what "ten
+   * seconds of rain under a four-minute song" means. Its own length
+   * says nothing about how long it is heard for — the same argument
+   * footage already makes about a ten-second clip filling a chorus.
+   */
+  const to = layer.loop ? songSamples : Math.min(songSamples, from + span.length);
+  return { fromSample: from, toSample: Math.max(from, to) };
+}
+
+
 /* ------------------------------------------------------------------------ *
  *  The document.
  * ------------------------------------------------------------------------ */
@@ -807,6 +1234,13 @@ export interface Performance {
    * light. Newest last; a take names the one it was shot against.
    */
   plates: RoomPlate[];
+  /**
+   * Sounds that are neither the song nor a take.  [TIMELINE B8]
+   *
+   * Absent on every performance made before they existed, which is
+   * what makes this a field and not a migration.
+   */
+  sounds?: SoundLayer[];
   audio: {
     mode: AudioMode;
     /** For `master_vocal`: which take is the voice. It is a take like any other. */
@@ -987,6 +1421,55 @@ export function projectPerformance(
   };
 }
 
+/**
+ * The whole export, with the song's removed stretches left out.
+ *   [TIMELINE B6a, B6b, B6k]
+ *
+ * `projectPerformance` answers one window of the song. The export is
+ * the song's SECTIONS laid end to end, which is one window when
+ * nothing has been cut and several when something has — so this is
+ * that function called once per section, with each projection's
+ * output clock pushed along by the frames already emitted.
+ *
+ * FRAMES ACCUMULATED, NOT RECOMPUTED FROM SAMPLES. Each section's own
+ * frame count is what its shots tile; adding them is exact, while
+ * converting the summed samples once would round differently and
+ * leave the plan's own tiling check one frame short — the check that
+ * exists because a video one frame longer than its song was found
+ * forty minutes into a render. [INV-02, INV-03]
+ *
+ * A window on top of that is a CLIP, and it is a window on the song's
+ * own clock: a clip of the chorus is the chorus, whatever the author
+ * has cut out of the verse before it.
+ */
+export function projectExport(
+  performance: Performance, window?: PerformanceWindow,
+): PerformanceTimeline {
+  const sections = songSections(performance.master);
+  const spans: PerformanceSpan[] = [];
+  const gaps: { fromSample: Samples; toSample: Samples }[] = [];
+  let frames = 0;
+  let samples = 0;
+
+  for (const section of sections) {
+    const from = window
+      ? Math.max(section.fromSample, window.fromSample) : section.fromSample;
+    const to = window
+      ? Math.min(section.toSample, window.toSample) : section.toSample;
+    if (to <= from) continue;
+
+    const part = projectPerformance(performance, { fromSample: from, toSample: to });
+    for (const span of part.spans) {
+      spans.push({ ...span, outputStartFrame: span.outputStartFrame + frames });
+    }
+    gaps.push(...part.gaps);
+    frames += part.totalOutputFrames;
+    samples += part.totalSamples;
+  }
+
+  return { spans, totalSamples: samples, totalOutputFrames: frames, gaps };
+}
+
 /* ------------------------------------------------------------------------ *
  * WHY A RENDER IS REFUSED                                                    *
  * ------------------------------------------------------------------------ */
@@ -1045,7 +1528,9 @@ export interface RenderProblem {
 export function renderProblems(
   performance: Performance, window?: PerformanceWindow,
 ): RenderProblem[] {
-  const timeline = projectPerformance(performance, window);
+  /* The EXPORT, so a hole in a stretch the author has removed is not
+     reported as a hole: it is not going anywhere. [TIMELINE B6k] */
+  const timeline = projectExport(performance, window);
   const problems: RenderProblem[] = [];
 
   if (timeline.spans.length === 0) {

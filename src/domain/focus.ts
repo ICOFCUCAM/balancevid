@@ -30,6 +30,26 @@ export const FOCUS_PADDING = 0.12;
 /** Below this a crop is a zoom so deep the subject loses all context. */
 export const MIN_FOCUS_SPAN = 0.22;
 
+/**
+ * The smallest part of a frame a TAKE may be cropped to.
+ *   [MASTER-EDIT §2, §15]
+ *
+ * A fifth of the width. Below that a 1080p source is under 220 pixels
+ * across in the panel it then fills, which is softer than any viewer
+ * will accept — and the author cannot see that while they are drawing
+ * the box, because the box is drawn over a monitor that is already
+ * small.
+ *
+ * HERE, AND NOT IN `performanceEdit.ts` WHERE IT IS ENFORCED, and the
+ * build is what said so: the crop tool is a client component, importing
+ * this from the edit module pulled `node:crypto` into the browser
+ * bundle through the id generator, and webpack refused the whole build.
+ * This module exists for exactly that reason — its own docstring says
+ * the editor needs this arithmetic too — so a bound the browser and the
+ * document must agree on belongs in it. [D-06]
+ */
+export const MIN_REFRAME_SPAN = 0.2;
+
 export function focusRegion(intervention: Intervention): Rect | undefined {
   const marks = (intervention.annotations ?? [])
     .filter((a: Annotation) => a.kind !== 'blur');

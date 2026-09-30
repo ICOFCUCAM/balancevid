@@ -29,6 +29,9 @@ import {
   type Performance, type PerformanceSpan, type PerformanceTake, type PerformanceWindow,
   coversSpan, joinSpan, mayPublish, mayShowMasterPicture, plateFor,
   projectPerformance, unpublishableFootage,
+  projectExport,
+  songSections,
+  songSpan,
 } from './performance.js';
 import { effectFor, matteFeather, matteThreshold, needsMatte } from './environment.js';
 import { matchLook } from './colour.js';
@@ -147,11 +150,54 @@ export function buildPerformancePlan(
    * own private copy of the same rules is two rules that drift.
    */
   assertPerformanceRenderable(performance, options.span);
-  const timeline = projectPerformance(performance, options.span);
+  /*
+   * THE SONG'S OWN TRIM IS THE DEFAULT WINDOW.  [TIMELINE B6a]
+   *
+   * A clip asks for a stretch; the song may itself be trimmed to one;
+   * and when both are true the answer is the INTERSECTION — a clip of
+   * the chorus from a song trimmed to its second half is the chorus,
+   * not the chorus plus a minute nobody asked to export.
+   *
+   * Worked out here, once, rather than in `projectPerformance`: that
+   * function is asked for a window by five callers and is not the
+   * place that knows what the SONG wants. [D-19]
+   */
+  const trim = songSpan(performance.master);
+  const asked = options.span;
+  const span = asked
+    ? {
+      fromSample: Math.max(asked.fromSample, trim.fromSample),
+      toSample: Math.min(asked.toSample, trim.toSample),
+    }
+    : trim;
+  /*
+   * THE SECTIONS, LAID END TO END.  [TIMELINE B6a, B6b, B6k]
+   *
+   * One window when nothing has been cut out of the song, which is
+   * every performance until somebody edits one. Several when a
+   * section has been removed, and then the export is those stretches
+   * in order with everything on them coming along.
+   */
+  const timeline = projectExport(performance, span);
 
   let audio;
   try {
-    audio = planPerformanceAudio(performance, options.span);
+    /*
+     * The same concatenation for the sound, and the second and later
+     * sections are told where they land: a piece that thought it
+     * started at its place in the SONG would play the last chorus
+     * over the first verse. [B6k]
+     */
+    audio = [];
+    let origin = 0;
+    for (const section of songSections(performance.master)) {
+      const from = Math.max(section.fromSample, span.fromSample);
+      const to = Math.min(section.toSample, span.toSample);
+      if (to <= from) continue;
+      audio.push(...planPerformanceAudio(
+        performance, { fromSample: from, toSample: to }, origin));
+      origin += to - from;
+    }
   } catch (error) {
     // The audio's own refusals are the author's problem, not a crash: a mode
     // naming a vocal that is not there is a thing they can fix in one click.
@@ -453,6 +499,14 @@ function performanceShot(
           } }
           : {};
       })(),
+      /*
+       * The crop, carried as the author drew it. Fractions, so the plan
+       * says the same thing about a proxy and a mezzanine — and present
+       * only when there is one, so a take that was reframed and then put
+       * back renders without a crop filter at all rather than with one
+       * that happens to be the whole frame. [U-16]
+       */
+      ...(take.reframe ? { reframe: take.reframe } : {}),
       ...(backdropFor(performance, take) ?? {}),
     })),
     /*

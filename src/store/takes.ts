@@ -20,7 +20,7 @@ import { dirname, join } from 'node:path';
 import type { AssetId, Take, TakeId } from '../domain/document.js';
 import { newId } from '../domain/ids.js';
 import { secondsToFrames, type Frames } from '../domain/time.js';
-import { ingestSegments, makeProxy } from '../render/ingest.js';
+import { ingestSegments, ingestSoundSegments, makeProxy } from '../render/ingest.js';
 import { measureDurationSeconds } from '../render/probe.js';
 import { probe } from '../render/probe.js';
 import { paths, safe } from './paths.js';
@@ -150,12 +150,26 @@ export async function usableSegments(
 }
 
 /**
+ * Join a recorded SOUND's segments into one file.  [TIMELINE B6i]
+ *
+ * No pre-roll arithmetic, as with a take: a sound is placed on the song
+ * by where the recorder says the song was, and every sample of it is
+ * wanted — the count-in belongs to the master, not to the recording.
+ */
+export async function joinSoundSegments(
+  chunkDir: string, recordingId: string, outPath: string,
+): Promise<{ segments: number; skipped: number }> {
+  const { segmentPaths, skipped } = await usableSegments(chunkDir, recordingId);
+  await mkdir(dirname(outPath), { recursive: true });
+  await ingestSoundSegments(segmentPaths, outPath);
+  return { segments: segmentPaths.length, skipped: skipped.length };
+}
+
+/**
  * Join a Performance take's segments into one file.  [STUDIO-TWO §10]
  *
- * No pre-roll arithmetic, and that is the difference from a Conversation take
- * rather than an omission. A response is trimmed to where the author started
- * speaking; a performance take is placed on the song by its offset, and every
- * frame of it is wanted — the count-in belongs to the master, not to the take.
+ * See `joinSoundSegments` for the audio-only case: a voice-over has no
+ * picture, and the filtergraph below asks for one in its first line.
  */
 export async function joinPerformanceSegments(
   chunkDir: string, takeId: string, outPath: string,

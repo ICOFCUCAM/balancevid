@@ -338,6 +338,36 @@ function Issue({
                               fromSample: problem.extend.fromSample,
                             });
                           }
+                          /*
+                            * THE HOLE AT THE TOP OF THE SONG, closed by
+                            * moving the take that starts late rather
+                            * than by stretching somebody else's scene
+                            * over it. The domain worked out which take
+                            * and how far; this only presses it.
+                            * [TIMELINE B11]
+                            */
+                          if (repair.id === 'align-first' && repair.takeId) {
+                            onRepair({
+                              action: 'nudge-take',
+                              takeId: repair.takeId,
+                              nudgeSamples: repair.nudgeSamples ?? 0,
+                            });
+                          }
+                          /*
+                            * OR THERE WAS NEVER ANYTHING THERE. Every
+                            * other repair answers the hole by putting
+                            * something ON it; this one takes the
+                            * stretch out of the song. The honest
+                            * remedy for an intro nobody performed
+                            * over. [TIMELINE B11b, B6k]
+                            */
+                          if (repair.id === 'remove-section') {
+                            onRepair({
+                              action: 'remove-section',
+                              fromSample: repair.fromSample,
+                              toSample: repair.toSample,
+                            });
+                          }
                         }}>
                   {repair.label}
                 </button>

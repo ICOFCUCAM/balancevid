@@ -149,6 +149,50 @@ export function beatsToSamples(
 }
 
 /**
+ * A position somebody typed, as samples — or nothing.  [TIMELINE B3b]
+ *
+ * "Jump to an exact moment." A scrub is one guess per press and the
+ * clock is right there on the transport, so the fastest way to reach
+ * 02:41 is to say so.
+ *
+ * IT READS WHAT PEOPLE ACTUALLY TYPE, which is the whole of the
+ * problem. `formatMasterPosition` writes `02:41.500` and somebody
+ * copying that back in should be understood, but so should `2:41`,
+ * `161`, `161.5` and `02:41,500` — a comma is the decimal separator
+ * in most of the world and refusing it would be refusing most of the
+ * world. What it will not do is guess at something it cannot read:
+ * `null` rather than zero, because seeking to the start of the song
+ * when somebody typed a word is a jump they did not ask for and
+ * cannot undo.
+ *
+ * THE INVERSE OF `formatMasterPosition` AND TESTED AS ONE. Whatever
+ * that function writes, this reads back to the same sample.
+ */
+export function parseMasterPosition(
+  typed: string, rate: number = HOUSE_SAMPLE_RATE,
+): Samples | null {
+  const text = typed.trim().replace(',', '.');
+  if (text === '') return null;
+  /* [mm:]ss[.mmm], or a plain number of seconds. */
+  const shape = /^(?:(\d{1,4}):)?(\d{1,4})(?:\.(\d{1,3}))?$/.exec(text);
+  if (!shape) return null;
+  const minutes = shape[1] ? Number(shape[1]) : 0;
+  const seconds = Number(shape[2]);
+  /* `.5` is five hundred milliseconds, not five. The same trap LRC
+     timing has, and the same answer: pad on the right. [INV-02] */
+  const millis = shape[3] ? Number(shape[3].padEnd(3, '0')) : 0;
+  /*
+   * SIXTY SECONDS IS A MINUTE, and `1:75` is somebody who does not
+   * mean 2:15. Refused rather than normalised: a control that
+   * silently rewrites what was typed is one nobody can trust with a
+   * number they care about.
+   */
+  if (shape[1] !== undefined && seconds >= 60) return null;
+  const total = ((minutes * 60) + seconds) * 1000 + millis;
+  return Math.round((total / 1000) * rate);
+}
+
+/**
  * Position on the music clock, for people.
  *
  * MM:SS.mmm rather than the video timecode's HH:MM:SS.mmm — a song is minutes

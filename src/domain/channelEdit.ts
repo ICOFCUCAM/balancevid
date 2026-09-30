@@ -320,6 +320,46 @@ export function goLive(
  * anybody re-cueing anything, because nothing was ever cued — the feed never
  * stopped, the channel just stopped looking at it.
  */
+/**
+ * Put somebody's name on air, or take it down.  [TIMELINE B14e; §8]
+ *
+ * "The host can cite their participation and play their view that is
+ * already on the queue." While a viewer's answer is playing, the
+ * caption is theirs rather than the programme's: a lower third that
+ * still said the show's name over a stranger's face would be the
+ * station taking credit for what somebody sent in.
+ *
+ * IT COMES DOWN EXPLICITLY. Nothing times it out, because nothing
+ * here knows how long the answer runs — the host takes it down when
+ * they move on, exactly as they take down anything else they rolled
+ * in. A caption that vanished on a timer while the person was still
+ * talking would be worse than one left up.
+ *
+ * REFUSED OFF AIR, like every other live control: citing somebody on
+ * a channel that is not broadcasting is a caption over nothing.
+ */
+export function cite(
+  channel: Channel,
+  who: { name?: string; asks: string } | null,
+  now: string,
+): void {
+  const live = channel.live;
+  if (!live || live.endedAt) return fail('this channel is not live');
+  if (who === null) {
+    delete live.citing;
+    return;
+  }
+  const asks = who.asks.trim();
+  /* A citation with nothing in it is a plate with nothing on it. */
+  if (!asks) fail('say what they were answering');
+  const name = who.name?.trim();
+  live.citing = {
+    ...(name ? { name: name.slice(0, 80) } : {}),
+    asks: asks.slice(0, 160),
+    at: now,
+  };
+}
+
 export function rollIn(
   channel: Channel, source: ProgrammeSource | null, fromMs?: number,
 ): void {

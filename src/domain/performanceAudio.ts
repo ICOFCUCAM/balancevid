@@ -26,7 +26,8 @@
 import type { AssetId, TakeId } from './document.js';
 import {
   type AudioMode, type Performance, type PerformanceTake, type PerformanceWindow,
-  coverage, projectPerformance, takeById,
+  coverage, projectPerformance, songSectionAt, songSpan, soundOnSong, soundSpan,
+  takeById,
 } from './performance.js';
 import { type Samples, HOUSE_SAMPLE_RATE } from './time.js';
 import { cleanupFor } from './cleanup.js';
@@ -41,8 +42,11 @@ import { cleanupFor } from './cleanup.js';
 export const AUDIO_FADE_SAMPLES = Math.round(HOUSE_SAMPLE_RATE * 0.024);
 
 export interface AudioPiece {
-  /** `master` is the song; `take` is a performance's own microphone. */
-  kind: 'master' | 'take';
+  /**
+   * `master` is the song, `take` is a performance's own microphone,
+   * and `sound` is a layer that is neither. [TIMELINE B8]
+   */
+  kind: 'master' | 'take' | 'sound';
   /** On the master clock. */
   fromSample: Samples;
   toSample: Samples;
@@ -81,6 +85,36 @@ export interface AudioPiece {
    * denoising it is damage done on their behalf.
    */
   cleanup?: string;
+  /**
+   * How much louder or quieter this piece is.  [TIMELINE B6e]
+   *
+   * Decibels, and absent means as recorded. On the PIECE rather than
+   * looked up by the mixer, for the reason `cleanup` is: the mixer is
+   * handed a plan and never a document, which is what makes the plan
+   * hashable and the cache correct. A song whose volume changed must
+   * produce a different plan, and it does, because the plan says so
+   * here. [U-16]
+   */
+  gainDb?: number;
+  /**
+   * Play it again until the piece is over.  [TIMELINE B8, S-29]
+   *
+   * For ambience: ten seconds of rain under a four-minute song. The
+   * mixer loops the source rather than the plan listing the same ten
+   * seconds twenty-four times — a plan is a description, and a
+   * description that repeats itself is a description nobody can read.
+   */
+  loop?: boolean;
+  /**
+   * What this piece is made to sound like.  [TIMELINE B6j]
+   *
+   * The id of one of a short named list, on the PIECE for the same
+   * reason `gainDb` is: the mixer is handed a plan and never a
+   * document, so a song that has become a radio must produce a
+   * different plan — and it does, because the plan says so here.
+   * [U-16]
+   */
+  effect?: string;
 }
 
 export class PerformanceAudioError extends Error {
@@ -99,6 +133,16 @@ export class PerformanceAudioError extends Error {
  */
 export function planPerformanceAudio(
   performance: Performance, window?: PerformanceWindow,
+  /**
+   * Where this window begins in the finished video.  [TIMELINE B6k]
+   *
+   * Zero for a whole export and for a clip, both of which start at
+   * their own beginning. Not zero for the second and later SECTIONS
+   * of a song that has had a stretch removed: they land after what
+   * came before them, and a piece that did not know that would play
+   * the chorus on top of the verse.
+   */
+  origin = 0,
 ): AudioPiece[] {
   const timeline = projectPerformance(performance, window);
   if (timeline.spans.length === 0) return [];
@@ -109,7 +153,12 @@ export function planPerformanceAudio(
    * where to read it from. Confusing them is a chorus clip playing the first
    * verse. [§14]
    */
-  const zero = window ? Math.max(0, window.fromSample) : 0;
+  const zero = (window ? Math.max(0, window.fromSample) : 0) - origin;
+  /* The stretch being planned, on the song's own clock. */
+  const start = window ? Math.max(0, window.fromSample) : 0;
+  const end = window
+    ? Math.min(window.toSample, performance.master.durationSamples)
+    : performance.master.durationSamples;
 
   /** source key → the runs it is audible for, in order. */
   const runs = new Map<string, { takeId?: TakeId; from: Samples; to: Samples }[]>();
@@ -179,11 +228,39 @@ export function planPerformanceAudio(
   for (const [key, list] of runs) {
     for (const run of list) {
       if (key === 'master') {
+        /*
+         * THE SONG'S OWN SOUND, APPLIED TO THE SONG'S OWN PIECES.
+         * [TIMELINE B6c–B6f]
+         *
+         * Muting is a gain of silence rather than a missing piece:
+         * the song IS the clock (INV-03), and a master piece that
+         * vanished when somebody pressed mute would take the length
+         * of the video with it.
+         */
+        const sound = performance.master.sound;
+        const gainDb = sound?.muted ? MUTED_DB : sound?.gainDb;
+        /*
+         * A REPLACED STRETCH IS READ FROM SOMEWHERE ELSE. [B6g]
+         *
+         * Still a master piece — it is the song's own place on the
+         * clock and it carries the song's fader, fades and effect —
+         * but its sound comes from the file the author put there,
+         * from however far into it the stretch has been trimmed.
+         */
+        const section = songSectionAt(performance.master, run.from);
         pieces.push({
           kind: 'master',
           fromSample: run.from - zero, toSample: run.to - zero,
-          mediaFromSample: run.from,
+          ...(section?.assetId
+            ? {
+              assetId: section.assetId,
+              mediaFromSample: (section.sourceFromSample ?? 0)
+                + (run.from - section.fromSample),
+            }
+            : { mediaFromSample: run.from }),
           ...fades(run.from, run.to, performance, window),
+          ...(gainDb === undefined ? {} : { gainDb }),
+          ...(sound?.effect ? { effect: sound.effect } : {}),
         });
         continue;
       }
@@ -205,6 +282,47 @@ export function planPerformanceAudio(
 
   // Deterministic order: the plan is hashed, and a Map's iteration order is a
   // property of how the document happened to be read.
+  /*
+   * AND THE LAYERS, WHICH ARE NOT PART OF THE MODE AT ALL.
+   *   [TIMELINE B8]
+   *
+   * The modes above decide which of the SONG and the TAKES is audible
+   * over each stretch — that is a question about a performance, and an
+   * applause cue is not an answer to it. A layer is heard where the
+   * author put it, under whatever the mode chose, which is what makes
+   * it a layer rather than a fourth mode.
+   *
+   * CLIPPED TO THE WINDOW, so a clip of the chorus carries the impact
+   * that lands in the chorus and not the one in the last verse. And
+   * placed on the clip's own zero, like everything else here.
+   */
+  for (const layer of performance.sounds ?? []) {
+    if (layer.muted) continue;
+    const on = soundOnSong(layer, performance.master.durationSamples);
+    const from = Math.max(on.fromSample, start);
+    const to = Math.min(on.toSample, end);
+    if (to <= from) continue;
+    const media = soundSpan(layer);
+    pieces.push({
+      kind: 'sound',
+      assetId: layer.assetId,
+      fromSample: from - zero,
+      toSample: to - zero,
+      /*
+       * WHERE TO READ IT FROM. A layer trimmed to start ten seconds
+       * in, whose first five seconds fell outside the window, is read
+       * from fifteen — its own trim plus however much of it the
+       * window cut off the front.
+       */
+      mediaFromSample: media.fromSample + (from - on.fromSample),
+      fadeInSamples: layer.fadeInSamples ?? 0,
+      fadeOutSamples: layer.fadeOutSamples ?? 0,
+      ...(layer.gainDb === undefined ? {} : { gainDb: layer.gainDb }),
+      ...(layer.loop ? { loop: true } : {}),
+      ...(layer.effect ? { effect: layer.effect } : {}),
+    });
+  }
+
   return pieces.sort((a, b) => a.fromSample - b.fromSample
     || (a.kind === b.kind ? 0 : a.kind === 'master' ? -1 : 1)
     || String(a.takeId).localeCompare(String(b.takeId)));
@@ -265,11 +383,51 @@ function effective(take: PerformanceTake): Samples {
  * pass's own mastering handles the edges — a fade-in on the first sample of a
  * song that begins on a downbeat is an audible mistake.
  */
+/**
+ * Silence, as a number.
+ *
+ * Minus a hundred and twenty decibels rather than a missing piece,
+ * because the song is the clock: a master piece that disappeared when
+ * somebody pressed mute would take the length of the video with it.
+ * Below this nothing in a 16-bit render is audible. [INV-03]
+ */
+export const MUTED_DB = -120;
+
 function fades(
   from: Samples, to: Samples, performance: Performance, window?: PerformanceWindow,
 ): { fadeInSamples: Samples; fadeOutSamples: Samples } {
   const length = to - from;
   const fade = Math.min(AUDIO_FADE_SAMPLES, Math.floor(length / 2));
+  /*
+   * THE AUTHOR'S OWN FADES WIN AT THE EDGES OF THE EXPORT.
+   * [TIMELINE B6c, B6d]
+   *
+   * "Fade in, fade out" asked of the SONG, which is a different thing
+   * from the hairline this function otherwise applies to stop a cut
+   * clicking. Where the author has asked for one and this piece
+   * touches that end of the exported stretch, theirs is used — it is
+   * longer by construction, since anything shorter than the hairline
+   * is not a fade anybody asked to hear.
+   */
+  const span = songSpan(performance.master);
+  const wanted = performance.master.sound;
+  const atStart = from <= span.fromSample;
+  const atEnd = to >= span.toSample;
+  const asked = {
+    ...(atStart && wanted?.fadeInSamples
+      ? { fadeInSamples: wanted.fadeInSamples } : {}),
+    ...(atEnd && wanted?.fadeOutSamples
+      ? { fadeOutSamples: wanted.fadeOutSamples } : {}),
+  };
+  if (Object.keys(asked).length > 0) {
+    return {
+      fadeInSamples: asked.fadeInSamples ?? (from <= 0 ? 0 : fade),
+      fadeOutSamples: asked.fadeOutSamples
+        ?? (to >= performance.master.durationSamples ? 0 : fade),
+      ...(window && !asked.fadeInSamples ? { fadeInSamples: fade } : {}),
+      ...(window && !asked.fadeOutSamples ? { fadeOutSamples: fade } : {}),
+    };
+  }
   /*
    * A clip's edges are the opposite case from the song's. The song begins on
    * a downbeat somebody wrote and must not be faded into; a clip is cut out of

@@ -78,6 +78,24 @@ export interface MenuItem {
    * which is the whole argument for a menu over a panel of tabs.
    */
   section?: string;
+  /**
+   * Shown only once somebody asks for more.  [TAKE-APP/TIMELINE B9]
+   *
+   * "I would not try to recreate a giant professional editing
+   * application... the interface should have a simple mode with
+   * advanced controls appearing when needed."
+   *
+   * The take menu is the case this was added for: it grew from four
+   * verbs to nineteen in two days, and nineteen verbs on a right-click
+   * is the shape the author warned against. The common ones are
+   * always there; the rest are one press away, IN THE SAME MENU —
+   * not a submenu, not a settings panel, not a mode.
+   *
+   * REVEALED, NOT NAVIGATED. Pressing "More" does not close the menu
+   * or move anywhere: the list grows in place and keyboard order
+   * follows it, so nobody loses where they were.
+   */
+  advanced?: boolean;
 }
 
 /** A separator, for callers that build lists conditionally. */
@@ -95,6 +113,45 @@ interface Raised {
 
 const clean = (entries: MenuEntry[]): MenuItem[] =>
   entries.filter((entry): entry is MenuItem => Boolean(entry));
+
+/**
+ * Which rows are on screen.  [TIMELINE B9]
+ *
+ * A function rather than two lines inside the component, so the rule
+ * can be asserted by calling it. The version this replaced could only
+ * be checked by matching the source, and a test that matches source
+ * passes whatever the source means — deleting the filter and leaving
+ * the first line alone went unnoticed.
+ */
+export function visible(items: MenuItem[], more: boolean): MenuItem[] {
+  return more ? items : items.filter((item) => !item.advanced);
+}
+
+/**
+ * WHAT IS BEHIND "MORE", SAID FROM THE ROWS THEMSELVES.  [TIMELINE B9]
+ *
+ * This line used to be one fixed sentence naming timing, alignment and
+ * the frame, which was true of the take menu it was written for and a
+ * lie on the two menus written after it — a sound has no frame, and a
+ * song has no alignment. A hint that describes one caller is furniture
+ * the moment there is a second, so it now
+ * names the groups the hidden rows are actually in, taking the part of
+ * each section before its em-dash because "Trim" is the name and the
+ * rest of that heading is its explanation.
+ */
+export function moreSays(advanced: MenuItem[]): string {
+  const groups: string[] = [];
+  for (const item of advanced) {
+    const name = String(item.section ?? '').split('\u2014')[0]!.trim();
+    if (name && !groups.includes(name)) groups.push(name);
+  }
+  const count = `${advanced.length} more`;
+  if (groups.length === 0) return count;
+  const said = groups.length === 1
+    ? groups[0]!
+    : `${groups.slice(0, -1).join(', ')} and ${groups[groups.length - 1]!}`;
+  return `${count}, in ${said}`;
+}
 
 /**
  * WHETHER THIS RIGHT-CLICK IS OURS.
@@ -116,12 +173,15 @@ function theirs(event: React.MouseEvent): boolean {
 
 export function useMenu() {
   const [raised, setRaised] = useState<Raised | null>(null);
+  /** Whether this menu has been asked to show its advanced rows. */
+  const [more, setMore] = useState(false);
   const panel = useRef<HTMLDivElement | null>(null);
   const returnTo = useRef<HTMLElement | null>(null);
   const id = useId();
 
   const close = useCallback(() => {
     setRaised(null);
+    setMore(false);
     /* Focus goes back where it came from, or the page loses its place. */
     returnTo.current?.focus();
     returnTo.current = null;
@@ -141,6 +201,7 @@ export function useMenu() {
       event.preventDefault();
       event.stopPropagation();
       returnTo.current = document.activeElement as HTMLElement | null;
+      setMore(false);
       setRaised({ items, about, x: event.clientX, y: event.clientY, from: null });
     },
   }), []);
@@ -153,6 +214,7 @@ export function useMenu() {
     if (items.length === 0) return;
     const box = button.getBoundingClientRect();
     returnTo.current = button;
+    setMore(false);
     setRaised({ items, about, x: box.right, y: box.bottom + 2, from: button });
   }, []);
 
@@ -232,6 +294,18 @@ export function useMenu() {
     item.onSelect?.();
   };
 
+  /*
+   * SIMPLE UNTIL SOMEBODY ASKS. [B9]
+   *
+   * The everyday verbs, then — if this list has any advanced ones and
+   * they have not been asked for — one row that reveals the rest. The
+   * split is computed here rather than by each caller so that every
+   * menu in the product behaves the same way the first time somebody
+   * meets one.
+   */
+  const advanced = raised ? raised.items.filter((item) => item.advanced) : [];
+  const shown = visible(raised?.items ?? [], more);
+
   const menu = raised ? (
     <div
       ref={panel}
@@ -283,13 +357,13 @@ export function useMenu() {
         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
       }}>{raised.about}</div>
 
-      {raised.items.map((item, index) => {
+      {shown.map((item, index) => {
         const why = typeof item.disabled === 'string' ? item.disabled : undefined;
         const off = Boolean(item.disabled);
-        const first = item.danger && !raised.items[index - 1]?.danger;
+        const first = item.danger && !shown[index - 1]?.danger;
         /* The first of its group, so the heading is printed once. */
         const opens = Boolean(item.section)
-          && item.section !== raised.items[index - 1]?.section;
+          && item.section !== shown[index - 1]?.section;
         const look: React.CSSProperties = {
           display: 'block', width: '100%', textAlign: 'left',
           font: 'inherit', fontSize: 'var(--text-sm)',
@@ -354,6 +428,31 @@ export function useMenu() {
           </Fragment>
         );
       })}
+      {advanced.length > 0 && !more && (
+        <button
+          type="button" role="menuitem" data-testid="menu-more"
+          onClick={() => setMore(true)}
+          style={{
+            display: 'block', width: '100%', textAlign: 'left',
+            font: 'inherit', fontSize: 'var(--text-sm)',
+            padding: 'var(--space-2) var(--space-3)',
+            marginTop: 'var(--space-2)', paddingTop: 'var(--space-3)',
+            borderTop: 'var(--border) solid var(--line)',
+            border: 0, borderRadius: 0, background: 'none',
+            color: 'var(--ink-300)', cursor: 'pointer',
+          }}
+        >
+          {/* An escape in JSX TEXT is not an escape: the browser showed
+              a row reading "More\\u2026". In an expression it is. */}
+          {'More\u2026'}
+          <span style={{
+            display: 'block', fontSize: 'var(--text-2xs)',
+            color: 'var(--ink-400)', marginTop: 1,
+          }}>
+            {moreSays(advanced)}
+          </span>
+        </button>
+      )}
     </div>
   ) : null;
 

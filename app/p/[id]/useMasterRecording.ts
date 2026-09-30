@@ -35,6 +35,44 @@ const SEGMENT_MS = 4000;
 
 export type RecordingPhase = 'idle' | 'arming' | 'ready' | 'counting' | 'recording' | 'finishing';
 
+/**
+ * WHERE A RECORDING GOES.  [D-19, D-25; TAKE-APP T3, T4]
+ *
+ * Everything above this line is about getting the SYNC right — the song
+ * on the audio clock, the offset taken at the instant the first chunk
+ * closes, the device latency subtracted, the elapsed time measured
+ * where it is honest. None of it has anything to do with which URL the
+ * bytes are posted to, and all of it is the part that must not exist
+ * twice.
+ *
+ * So the destination is an argument. The studio's own recorder sends to
+ * the performance; the Take App sends to the participation request it
+ * was opened from. One recorder, two sinks — because the alternative is
+ * a second recorder that gets the latency arithmetic subtly wrong six
+ * months from now and nobody notices until a take is three frames out.
+ */
+export interface RecordingSink {
+  /**
+   * Declare the recording BEFORE the media exists, and answer with its
+   * id. A browser that crashes mid-song has still left evidence that
+   * somebody was recording, and chunks arriving for a recording nobody
+   * declared would have nowhere to go. [U-06]
+   */
+  begin: (spec: {
+    label: string;
+    environment: { kind: string; spaceId?: string };
+    offsetSamples: number;
+    method: 'measured' | 'calibrated';
+    latencySamples?: number;
+  }) => Promise<string>;
+  /** One segment, under its number. */
+  chunk: (id: string, index: number, body: Blob) => Promise<void>;
+  /** The last segment has landed: join it and place it. */
+  finish: (id: string, spec: {
+    hintSamples: number; elapsedSamples: number; latencySamples: number;
+  }) => Promise<{ jobId?: string }>;
+}
+
 export interface MasterRecording {
   phase: RecordingPhase;
   error: string | null;
@@ -44,16 +82,72 @@ export interface MasterRecording {
   /** The camera, for a preview elsewhere on the page. */
   stream: MediaStream | null;
   arm: () => Promise<void>;
-  start: (label: string, environment: { kind: string; spaceId?: string }) => Promise<void>;
+  /**
+   * Begin, optionally from somewhere other than the top of the song.
+   *
+   * `fromSamples` is where the SONG starts playing, not where the take
+   * is placed: a performer asked for the third verse hears the third
+   * verse, and the take still lands on the song's own clock wherever
+   * the recorder actually opened. [TIMELINE B7]
+   */
+  start: (
+    label: string,
+    environment: { kind: string; spaceId?: string },
+    fromSamples?: number,
+  ) => Promise<void>;
   stop: () => void;
   disarm: () => void;
 }
 
 export function useMasterRecording({
-  performanceId, masterUrl, sampleRate, countInSeconds, latencySamples, onFinished,
+  sink, masterUrl, sampleRate, countInSeconds, latencySamples, onFinished,
+  audioOnly, once,
 }: {
-  performanceId: string;
-  masterUrl: string;
+  sink: RecordingSink;
+  /**
+   * A sound rather than a performance.  [TIMELINE B6i]
+   *
+   * A voice-over over the song is the same recording problem as a take
+   * — the same count-in, the same audio clock, the same measurement of
+   * where the song was when capture began — and differs in one thing:
+   * there is no picture. Asking for a camera the recording will not
+   * use costs a permission prompt, a light on the machine and the
+   * author's trust, all for a stream that is thrown away.
+   */
+  audioOnly?: boolean;
+  /**
+   * One recording per arming.  [TIMELINE B6i; U-19]
+   *
+   * A take recorder stays armed, because the next thing an author
+   * does is record the same song again — five takes is the point. A
+   * voice-over is one sentence at one moment, and leaving the
+   * microphone open after it has landed is a device left running for
+   * something that is over.
+   *
+   * IT HAS TO BE THE HOOK'S OWN DECISION rather than the caller's.
+   * The first version called `disarm()` from `onFinished`, which is
+   * called from inside `finishTake` — whose `finally` then set the
+   * phase back to 'ready' immediately after, so the bar reappeared
+   * offering "Start" over a sound that had already landed. The
+   * browser showed that; no test would have.
+   */
+  once?: boolean;
+  /**
+   * The song to record against, or nothing.  [TIMELINE B14d; T12]
+   *
+   * NOTHING IS A REAL CASE, not a missing argument. A producer who
+   * sends a question to a phone is asking for an answer, and there
+   * is no clock to keep: no song plays, the count-in is still
+   * counted so nobody starts talking from a standing start, and the
+   * recording's offset is zero because it is not against anything.
+   *
+   * Everything else the hook exists for — segments uploaded as they
+   * close, the elapsed time taken on the audio clock, the phase the
+   * surface reads — is the same either way, and a second recorder
+   * for answers would be a second place all of it could be got
+   * wrong. [D-19, U-06]
+   */
+  masterUrl: string | null;
   sampleRate: number;
   /** A musical lead-in, so nobody starts singing from a standing start. [S-10] */
   countInSeconds: number;
@@ -98,7 +192,9 @@ export function useMasterRecording({
     setPhase('arming');
     try {
       const media = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+        video: audioOnly
+          ? false
+          : { width: { ideal: 1280 }, height: { ideal: 720 } },
         /*
          * Echo cancellation OFF, deliberately, and it is the opposite of the
          * Conversation Room's choice. There the browser's processing helps:
@@ -113,17 +209,22 @@ export function useMasterRecording({
       if (videoRef.current) videoRef.current.srcObject = media;
 
       const context = new AudioContext({ sampleRate });
-      const response = await fetch(masterUrl);
-      bufferRef.current = await context.decodeAudioData(await response.arrayBuffer());
+      if (masterUrl) {
+        const response = await fetch(masterUrl);
+        bufferRef.current = await context.decodeAudioData(
+          await response.arrayBuffer());
+      }
       audioRef.current = context;
       setPhase('ready');
     } catch (e) {
       setError(e instanceof Error
-        ? 'We could not reach your camera, or could not read the song. Check this site\'s permissions.'
+        ? `We could not reach your ${audioOnly ? 'microphone' : 'camera'}`
+          + `${masterUrl ? ', or could not read the song' : ''}. `
+          + "Check this site's permissions."
         : String(e));
       setPhase('idle');
     }
-  }, [masterUrl, sampleRate]);
+  }, [audioOnly, masterUrl, sampleRate]);
 
   const disarm = useCallback(() => {
     sourceRef.current?.stop();
@@ -159,20 +260,17 @@ export function useMasterRecording({
         ? Math.max(0, Math.round(
           (stoppedAtRef.current - startedAtRef.current) * sampleRate))
         : 0;
-      const response = await fetch(`/api/performances/${performanceId}/takes/${takeId}`, {
-        method: 'PUT', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          hintSamples: offsetRef.current, elapsedSamples, latencySamples,
-        }),
+      const { jobId } = await sink.finish(takeId, {
+        hintSamples: offsetRef.current, elapsedSamples, latencySamples,
       });
-      const data = await response.json().catch(() => ({}));
-      if (data.job?.id) onFinished(data.job.id);
+      if (jobId) onFinished(jobId);
     } catch {
       /* The chunks are on disk under their numbers; it can be retried. */
     } finally {
-      setPhase('ready');
+      if (once) disarm();
+      else setPhase('ready');
     }
-  }, [latencySamples, onFinished, performanceId, sampleRate]);
+  }, [disarm, latencySamples, once, onFinished, sampleRate, sink]);
 
   const segment = useCallback((takeId: string) => {
     const media = streamRef.current;
@@ -191,11 +289,8 @@ export function useMasterRecording({
        * to four seconds of somebody's performance, silently, with a duration
        * that looked plausible. [U-06]
        */
-      const upload = fetch(
-        `/api/performances/${performanceId}/takes/${takeId}?index=${index}`,
-        { method: 'POST', body: new Blob(parts),
-          headers: { 'content-type': 'application/octet-stream' } },
-      ).catch(() => { /* the next segment carries on; U-06's whole point. */ });
+      const upload = sink.chunk(takeId, index, new Blob(parts))
+        .catch(() => { /* the next segment carries on; U-06's whole point. */ });
 
       if (takeRef.current && recorderRef.current === recorder) segment(takeId);
       else void upload.then(() => finishTake(takeId));
@@ -205,14 +300,19 @@ export function useMasterRecording({
     window.setTimeout(() => {
       if (recorderRef.current === recorder && recorder.state === 'recording') recorder.stop();
     }, SEGMENT_MS);
-  }, [finishTake, performanceId]);
+  }, [finishTake, sink]);
 
   const start = useCallback(async (
     label: string, environment: { kind: string; spaceId?: string },
+    fromSamples = 0,
   ) => {
     const context = audioRef.current;
     const buffer = bufferRef.current;
-    if (!context || !buffer) { setError('turn the camera on first'); return; }
+    /* A song is required only where there is one to require. [B14d] */
+    if (!context || (masterUrl && !buffer)) {
+      setError(audioOnly ? 'turn the microphone on first' : 'turn the camera on first');
+      return;
+    }
     setError(null);
 
     try {
@@ -227,24 +327,42 @@ export function useMasterRecording({
        * clock.
        */
       const beginsAt = context.currentTime + countInSeconds;
-      const source = context.createBufferSource();
-      source.buffer = buffer;
-      source.connect(context.destination);
-      source.start(beginsAt);
-      sourceRef.current = source;
+      /*
+       * WHERE IN THE SONG IT STARTS.  [TIMELINE B7]
+       *
+       * "I need an extra vocal section here" — so the song begins
+       * where the playhead is rather than at the top, and nobody has
+       * to sit through three minutes to record the last verse again.
+       *
+       * Clamped INSIDE the song: `AudioBufferSourceNode.start` with an
+       * offset past the buffer's end plays nothing at all, silently,
+       * which would look exactly like a broken microphone.
+       */
+      const fromSeconds = buffer
+        ? Math.max(0, Math.min(buffer.duration - 0.05, fromSamples / sampleRate))
+        : 0;
+      /*
+       * NO SONG, NO SOURCE. An answer to a question is not recorded
+       * against anything, so there is nothing to schedule — and the
+       * count-in below still runs, because somebody asked a question
+       * and nobody should have to start talking from a standing
+       * start. [S-10, B14d]
+       */
+      if (buffer) {
+        const source = context.createBufferSource();
+        source.buffer = buffer;
+        source.connect(context.destination);
+        source.start(beginsAt, fromSeconds);
+        sourceRef.current = source;
+      }
 
-      const response = await fetch(`/api/performances/${performanceId}/takes`, {
-        method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          label, environment, offsetSamples: 0,
-          method: latencySamples ? 'calibrated' : 'measured',
-          ...(latencySamples ? { latencySamples } : {}),
-        }),
+      const takeId = await sink.begin({
+        label, environment, offsetSamples: 0,
+        method: latencySamples ? 'calibrated' : 'measured',
+        ...(latencySamples ? { latencySamples } : {}),
       });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error ?? 'could not begin the take');
 
-      takeRef.current = { takeId: data.takeId };
+      takeRef.current = { takeId };
       indexRef.current = 0;
 
       // Wait out the count-in, then record. The music has already been placed
@@ -266,8 +384,28 @@ export function useMasterRecording({
          * line added the number, which would have doubled the error instead
          * of removing it. [S-3]
          */
+        /*
+         * AND THE OFFSET COUNTS FROM WHERE THE SONG WAS, not from
+         * where the audio clock was. `into` is how long after the song
+         * began that the recorder opened; the song began at
+         * `fromSeconds`, so the moment being recorded is the sum. The
+         * first version of this line added nothing, which placed every
+         * take recorded from the playhead at the top of the song —
+         * the arithmetic that makes this feature worth having is
+         * exactly this addition. [§10, S-3]
+         */
         const into = context2.currentTime - beginsAt;
-        offsetRef.current = placeTakeOnSong(Math.round(into * sampleRate), latencySamples);
+        /*
+         * AN ANSWER IS NOT AGAINST ANYTHING, so its offset is zero
+         * rather than however long the count-in happened to take. A
+         * number there would be a measurement of nothing, and the
+         * producer would see it in the inbox as though it meant
+         * something. [B14d]
+         */
+        offsetRef.current = masterUrl
+          ? placeTakeOnSong(
+            Math.round((fromSeconds + into) * sampleRate), latencySamples)
+          : 0;
         startedAtRef.current = context2.currentTime;
         stoppedAtRef.current = 0;
         segment(takeRef.current.takeId);
@@ -277,7 +415,7 @@ export function useMasterRecording({
       setError(e instanceof Error ? e.message : String(e));
       setPhase('ready');
     }
-  }, [countInSeconds, latencySamples, performanceId, sampleRate, segment]);
+  }, [audioOnly, countInSeconds, latencySamples, masterUrl, sampleRate, segment, sink]);
 
   const stop = useCallback(() => {
     const take = takeRef.current;

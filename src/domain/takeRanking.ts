@@ -42,8 +42,9 @@
  */
 
 import {
+  MIN_SONG_SAMPLES,
   type Performance, type PerformanceTake, type RenderProblem,
-  coversSpan, orderedScenes,
+  coversSpan, effectiveOffset, orderedScenes, songLength,
 } from './performance.js';
 import type { TakeId } from './document.js';
 import { type Samples, HOUSE_SAMPLE_RATE } from './time.js';
@@ -398,13 +399,20 @@ export function worthProposing(performance: Performance): boolean {
  * you choose a take that does not reach has moved the error, not fixed it.
  */
 export interface Repair {
-  id: 'use-next' | 'choose' | 'use-previous' | 'freeze';
+  id: 'use-next' | 'choose' | 'align-first' | 'remove-section'
+  | 'use-previous' | 'freeze';
   label: string;
   /** Why it is offered, or why it is not. */
   says: string;
   available: boolean;
   /** For `choose`: the takes that would actually cover the stretch. */
   takeIds?: TakeId[];
+  /** For `align-first`: the take to move, and the push that moves it. */
+  takeId?: TakeId;
+  nudgeSamples?: number;
+  /** For `remove-section`: the stretch of song to take out. [B11b] */
+  fromSample?: number;
+  toSample?: number;
 }
 
 export function repairsFor(
@@ -450,6 +458,83 @@ export function repairsFor(
         : 'no take reaches across this stretch',
       takeIds: covering.map((entry) => entry.takeId as TakeId),
     },
+    /*
+     * ALIGN THE FIRST TAKE TO THE START OF THE SONG.  [TIMELINE B11]
+     *
+     * The author's own example, and the fault that prompted this whole
+     * brief: "There is a 1.248 second gap at the beginning of the
+     * master video... [Align first take to 00:00]". A performer who
+     * started singing a second and a quarter late leaves a hole at the
+     * top of the song, and the honest remedy is not to stretch
+     * somebody else's scene over it — it is to move the take back to
+     * where it was meant to begin.
+     *
+     * OFFERED ONLY FOR A HOLE AT THE VERY START, because that is the
+     * only place the argument holds. A gap in the middle is not
+     * somebody starting late; moving a take to close it would pull
+     * everything they sang out of time with the song, which is the
+     * one thing this product exists to keep.
+     *
+     * IT WRITES THE NUDGE, never the measurement — so how far out the
+     * automatic answer was stays readable, and a re-measure does not
+     * discard the fix. [S-3, INV-14]
+     */
+    ...(() => {
+      if (from !== 0) return [];
+      const first = [...performance.takes]
+        .filter((take) => take.durationSamples > 0)
+        .sort((a, b) => effectiveOffset(a.alignment) - effectiveOffset(b.alignment))[0];
+      const starts = first ? Math.max(0, effectiveOffset(first.alignment)) : 0;
+      return [{
+        id: 'align-first' as const,
+        label: 'Align the first take to 00:00',
+        available: Boolean(first) && starts > 0,
+        says: !first
+          ? 'there is no take to align'
+          : starts > 0
+            ? `"${first.label}" begins ${formatMasterPosition(starts)} into the `
+              + 'song; this moves it back to the start'
+            : `"${first.label}" already begins with the song`,
+        ...(first ? {
+          takeId: first.id as TakeId,
+          nudgeSamples: -first.alignment.offsetSamples,
+        } : {}),
+      }];
+    })(),
+    /*
+     * TAKE THE EMPTY STRETCH OUT OF THE SONG.  [TIMELINE B11b, B6k]
+     *
+     * "Trim empty section." Every other repair here answers the hole
+     * by putting something ON it. This one answers it by deciding
+     * there was nothing to put there — which is the honest remedy
+     * when the hole is an intro nobody performed over, or a gap left
+     * by a take that was deleted.
+     *
+     * OFFERED ONLY WHEN SOMETHING WOULD BE LEFT. A performance with
+     * one short take over a four-minute song is mostly hole, and
+     * removing all of it would leave a video of nothing — which the
+     * edit refuses anyway, but a row that is offered and then refused
+     * is a row that lied. [U-04]
+     *
+     * It is the LAST of the repairs that can be done, because it
+     * changes the song and the others change the edit: an author
+     * should reach for "show something here" before "there was never
+     * anything here". [B11c: nothing forces a repair.]
+     */
+    ...(() => {
+      const left = songLength(performance.master) - (to - from);
+      return [{
+        id: 'remove-section' as const,
+        label: 'Take that stretch out of the song',
+        available: to > from && left >= MIN_SONG_SAMPLES,
+        says: left >= MIN_SONG_SAMPLES
+          ? `the video gets ${((to - from) / HOUSE_SAMPLE_RATE).toFixed(1)}s `
+            + 'shorter, and nothing has to be put on screen here'
+          : 'that would leave nothing of the song',
+        fromSample: from,
+        toSample: to,
+      }];
+    })(),
     {
       id: 'use-previous',
       label: 'Extend the previous take',

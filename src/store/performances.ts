@@ -61,6 +61,25 @@ function migrate(performance: Performance): Performance {
   // before there were plates has none, which is exactly right: its takes can
   // only be shown in the room they were recorded in.
   performance.plates ??= [];
+  /*
+   * v2 → v3: the song's one used window becomes a LIST of them.
+   *   [TIMELINE B6a, B6b, B6k]
+   *
+   * `use` said "export this stretch of the song"; `sections` says
+   * "export these stretches, in order", which is the same statement
+   * for one of them and is what removing a section from the middle
+   * needs. Both present would be two answers to one question, so the
+   * old field is dropped as it is read.
+   *
+   * NOTHING IS RENUMBERED, and nothing needs to be: a section list
+   * means exactly what the single window meant, on the same clock.
+   * That is the property that made the list the right generalisation
+   * rather than a rewrite.
+   */
+  if (performance.master.use && !performance.master.sections?.length) {
+    performance.master.sections = [performance.master.use];
+  }
+  delete performance.master.use;
   performance.schemaVersion = PERFORMANCE_SCHEMA_VERSION;
   return performance;
 }

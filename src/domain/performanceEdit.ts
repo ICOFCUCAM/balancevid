@@ -22,6 +22,14 @@
  */
 
 import { LAYOUTS, takeSlots } from './presentation.js';
+import type { Rect } from './presentation.js';
+import { audioEffect } from './audioEffect.js';
+import { formatMasterPosition } from './time.js';
+import { MIN_REFRAME_SPAN } from './focus.js';
+import {
+  MIN_SONG_SAMPLES, type SongSection, type SoundLayer,
+  songSections, songSpan, soundSpan,
+} from './performance.js';
 import { EFFECT_LOOKS, type RoomPlate, SPACE_LOOKS, needsMatte } from './environment.js';
 import {
   DEFAULT_TRANSITION, MAX_TRANSITION_FRAMES, MIN_TRANSITION_FRAMES,
@@ -40,7 +48,9 @@ import {
   allProblems, coverage, coversSpan, mayPublish, orderedScenes, plateFor,
   renderProblems, takeById,
 } from './performance.js';
-import { type Frames, type Samples, assertSamples } from './time.js';
+import {
+  type Frames, type Samples, HOUSE_SAMPLE_RATE, assertSamples,
+} from './time.js';
 
 /**
  * A new Performance.
@@ -512,6 +522,58 @@ export function coverWith(
   return scene;
 }
 
+/**
+ * Use a different take everywhere this one is used.  [TIMELINE B1a]
+ *
+ * "Replace." The brief puts it in the take's own menu, between
+ * *Adjust timing* and *Rename*, and the record has argued since §4
+ * that it cannot mean what it looks like: a take IS a recording.
+ * Swapping the file under one would silently invalidate its measured
+ * offset, its rate ratio, its colour reading, its sound reading and
+ * the plate its matte is cut against — five facts about a recording
+ * that no longer describe the recording.
+ *
+ * WHAT IT CAN HONESTLY MEAN is this: the author has decided the beach
+ * take is better than the living-room one, and wants it wherever the
+ * living-room one is on screen. Doing that by hand is one press per
+ * scene, and the scene they forget is the one that ships.
+ *
+ * THE OLD TAKE STAYS IN THE RAIL. Nothing is deleted, so the decision
+ * is reversible by making it again the other way — which is what
+ * makes this safe to offer as a single press. [D-23, U-25]
+ *
+ * REFUSED WHEN THE REPLACEMENT DOES NOT REACH. A swap that leaves a
+ * scene with a take that runs out halfway has moved the fault rather
+ * than fixed it, and the author would find out at the export.
+ */
+export function replaceTake(
+  performance: Performance, takeId: string, withTakeId: string,
+): void {
+  const old = take(performance, takeId);
+  const next = take(performance, withTakeId);
+  if (old.id === next.id) fail('that is the same take');
+
+  const used = performance.scenes.filter(
+    (scene) => (scene.takeIds as readonly string[]).includes(takeId));
+  if (used.length === 0) fail(`${old.label} is not on screen anywhere`);
+
+  const ordered = orderedScenes(performance);
+  for (const scene of used) {
+    const index = ordered.findIndex((one) => one.id === scene.id);
+    const to = ordered[index + 1]?.fromSample
+      ?? performance.master.durationSamples;
+    if (!coversSpan(next, scene.fromSample, to,
+      performance.master.durationSamples)) {
+      fail(`${next.label} has no picture across the scene at `
+        + `${formatMasterPosition(scene.fromSample)}`);
+    }
+  }
+  for (const scene of used) {
+    scene.takeIds = scene.takeIds.map(
+      (one) => (one === takeId ? withTakeId : one)) as Scene['takeIds'];
+  }
+}
+
 export function removeScene(performance: Performance, sceneId: string): void {
   if (!performance.scenes.some((s) => s.id === sceneId)) fail(`no such scene: ${sceneId}`);
   performance.scenes = performance.scenes.filter((s) => s.id !== sceneId);
@@ -974,6 +1036,487 @@ export function matchColour(
   take.matchTo = to.id as TakeId;
 }
 
+/* Re-exported where it was first written, so nothing that imports it
+   from here has to move. It LIVES in `performance.ts` because the
+   browser needs it and this module reaches `node:crypto`. [B6a] */
+export { MIN_SONG_SAMPLES } from './performance.js';
+
+/**
+ * Use only part of the song.  [TIMELINE B6a]
+ *
+ * "The master song shouldn't be treated as an immutable background
+ * track." Both ends are on the master clock, which is the clock the
+ * author is looking at, and both are MARKERS: the media is untouched
+ * and the trim can be widened again tomorrow.
+ *
+ * NOTHING ELSE IN THE DOCUMENT MOVES. A scene at 02:41 is still at
+ * 02:41 after the first minute is trimmed away; what changes is which
+ * stretch is exported. Renumbering the master clock would mean
+ * re-timing every scene, every take and every lyric against an edit
+ * that can be undone with one press — and getting one of them wrong
+ * would be silent.
+ */
+export function trimSong(
+  performance: Performance,
+  useFromSample: Samples | null, useToSample: Samples | null,
+): void {
+  const master = performance.master;
+  const end = master.durationSamples;
+  if (useFromSample === null && useToSample === null) {
+    /* Everything back, cuts in the middle included: "use all of the
+       song again" means all of it. [B6k] */
+    delete master.sections;
+    delete master.use;
+    return;
+  }
+  const current = songSpan(master);
+  const from = useFromSample === null ? 0
+    : useFromSample === undefined ? current.fromSample : useFromSample;
+  const to = useToSample === null ? end
+    : useToSample === undefined ? current.toSample : useToSample;
+  assertSamples(from);
+  assertSamples(to);
+  if (from < 0 || to > end) {
+    fail('that trim is outside the song');
+  }
+  /*
+   * WHAT IS LEFT AFTER THE TRIM, NOT THE DISTANCE BETWEEN THE MARKS.
+   * A song already cut in the middle has less between two marks than
+   * the marks suggest, and measuring the distance would let a trim
+   * leave a two-second export while reporting ten. [B6k]
+   */
+  const kept = clipSections(songSections(master), from, to);
+  const left = kept.reduce((total, one) => total + (one.toSample - one.fromSample), 0);
+  if (left < MIN_SONG_SAMPLES) {
+    fail(`that leaves ${(left / HOUSE_SAMPLE_RATE).toFixed(1)}s of song, `
+      + `and ${MIN_SONG_SAMPLES / HOUSE_SAMPLE_RATE}s is the shortest a video can be`);
+  }
+  setSections(master, kept);
+}
+
+/**
+ * The sections, kept only where they fall inside a window.
+ *
+ * A clipped section keeps whatever it was replaced with, and reads
+ * from further into it by however much was cut off its front: a
+ * re-recorded bridge that is trimmed at the start should start
+ * later in the recording, not at the same place for less time. [B6g]
+ */
+function clipSections(
+  sections: SongSection[], from: Samples, to: Samples,
+): SongSection[] {
+  const kept: SongSection[] = [];
+  for (const one of sections) {
+    const start = Math.max(one.fromSample, from);
+    const stop = Math.min(one.toSample, to);
+    if (stop <= start) continue;
+    kept.push({
+      ...one,
+      fromSample: start,
+      toSample: stop,
+      ...(one.assetId
+        ? {
+          sourceFromSample:
+            (one.sourceFromSample ?? 0) + (start - one.fromSample),
+        }
+        : {}),
+    });
+  }
+  return kept;
+}
+
+/**
+ * Write the list, or drop it when it says nothing.
+ *
+ * A single section covering the whole song is not an edit, and
+ * storing it would be a list every reader carries for nothing — and a
+ * document that looks edited when it is not.
+ */
+function setSections(
+  master: Performance['master'], sections: SongSection[],
+): void {
+  delete master.use;
+  const whole = sections.length === 1
+    && sections[0]!.fromSample === 0
+    && sections[0]!.toSample === master.durationSamples
+    /* A whole song whose sound comes from somewhere else IS an edit,
+       and dropping the list would drop the replacement. [B6g] */
+    && !sections[0]!.assetId;
+  if (whole) delete master.sections;
+  else master.sections = sections;
+}
+
+/**
+ * Take a stretch out of the middle of the song.  [TIMELINE B6k]
+ *
+ * "Remove section." The bars go, the export gets shorter, and
+ * everything that was over those bars goes with them — a scene that
+ * covered them is shorter, a take's voice over them is not heard, a
+ * lyric inside them does not appear.
+ *
+ * NOTHING IS RENUMBERED, AND THAT IS THE DESIGN. The obvious
+ * implementation moves every scene, take, lyric and sound after the
+ * cut back by the length removed. That is destructive: putting the
+ * section back cannot put them where they were, because by then the
+ * author has moved some of them on purpose and there is no way to
+ * tell which. Here the song is the spine, the document stays on the
+ * song's own clock, and putting the section back restores the export
+ * exactly. [D-23, U-25]
+ */
+export function removeSection(
+  performance: Performance, fromSample: Samples, toSample: Samples,
+): void {
+  const master = performance.master;
+  assertSamples(fromSample);
+  assertSamples(toSample);
+  if (toSample <= fromSample) fail('that section is empty');
+  if (fromSample < 0 || toSample > master.durationSamples) {
+    fail('that section is outside the song');
+  }
+
+  const kept: { fromSample: Samples; toSample: Samples }[] = [];
+  for (const one of songSections(master)) {
+    /* Before the cut, after it, or both — a cut inside one section
+       leaves two, which is exactly what a section list is for. */
+    if (one.fromSample < fromSample) {
+      kept.push({
+        ...one,
+        fromSample: one.fromSample,
+        toSample: Math.min(one.toSample, fromSample),
+      });
+    }
+    if (one.toSample > toSample) {
+      const start = Math.max(one.fromSample, toSample);
+      kept.push({
+        ...one,
+        fromSample: start,
+        toSample: one.toSample,
+        ...(one.assetId
+          ? {
+            sourceFromSample:
+              (one.sourceFromSample ?? 0) + (start - one.fromSample),
+          }
+          : {}),
+      });
+    }
+  }
+
+  const left = kept.reduce((total, one) => total + (one.toSample - one.fromSample), 0);
+  if (left < MIN_SONG_SAMPLES) {
+    fail(`that leaves ${(left / HOUSE_SAMPLE_RATE).toFixed(1)}s of song, `
+      + `and ${MIN_SONG_SAMPLES / HOUSE_SAMPLE_RATE}s is the shortest a video can be`);
+  }
+  setSections(master, kept);
+}
+
+/**
+ * Divide the song where the playhead is.  [TIMELINE B6b]
+ *
+ * "Split." One section becomes two that touch, which changes NOTHING
+ * about the export — and that is the point rather than a shortcoming.
+ * A split is not an edit, it is a place to edit FROM: once there are
+ * two sections the author can trim, remove or replace either without
+ * touching the other.
+ *
+ * Splitting where the song is already divided, or at either end of a
+ * section, is refused rather than quietly doing nothing: a control
+ * that appears to work and does not is worse than one that says why.
+ */
+/**
+ * Play something else over a stretch of the song.  [TIMELINE B6g]
+ *
+ * "Replace section." A re-recorded bridge, a cleaner take of a verse,
+ * a different mix of the chorus — the stretch keeps its place and its
+ * length on the master clock, and only what is heard over it changes.
+ *
+ * NOTHING MOVES, for the same reason nothing moves when a stretch is
+ * removed: every scene, take, lyric and sound over it is on the
+ * song's own clock and stays there. A replacement shorter than the
+ * stretch leaves silence at the end of it and one longer is cut —
+ * both said out loud in the control rather than resolved by shifting
+ * the rest of the song under the author.
+ *
+ * THE STRETCH HAS TO EXIST FIRST, which is what `splitSong` is for.
+ * Replacing "from here to there" would be a second way of dividing
+ * the song, and then two answers to where the divisions are.
+ */
+export function replaceSection(
+  performance: Performance,
+  fromSample: Samples, toSample: Samples,
+  assetId: string | null, sourceFromSample: Samples = 0,
+): void {
+  const master = performance.master;
+  const sections = songSections(master);
+  const found = sections.find(
+    (one) => one.fromSample === fromSample && one.toSample === toSample);
+  if (!found) {
+    fail('the song is not divided there — divide it first');
+  }
+  if (assetId !== null) {
+    assertSamples(sourceFromSample);
+    if (!/^asset_[A-Za-z0-9]{1,64}$/.test(assetId)) {
+      fail('that is not a sound this performance has');
+    }
+  }
+  setSections(master, sections.map((one) => (one === found
+    ? {
+      fromSample: one.fromSample,
+      toSample: one.toSample,
+      ...(assetId === null ? {} : {
+        assetId: assetId as SongSection['assetId'],
+        ...(sourceFromSample > 0 ? { sourceFromSample } : {}),
+      }),
+    }
+    : one)));
+}
+
+export function splitSong(performance: Performance, atSample: Samples): void {
+  const master = performance.master;
+  assertSamples(atSample);
+  const sections = songSections(master);
+  const inside = sections.find(
+    (one) => atSample > one.fromSample && atSample < one.toSample);
+  if (!inside) {
+    const edge = sections.some(
+      (one) => one.fromSample === atSample || one.toSample === atSample);
+    fail(edge
+      ? 'the song is already divided there'
+      : 'there is nothing of the song there to divide');
+  }
+  const next: { fromSample: Samples; toSample: Samples }[] = [];
+  for (const one of sections) {
+    if (one === inside) {
+      next.push({ ...one, fromSample: one.fromSample, toSample: atSample });
+      next.push({
+        ...one,
+        fromSample: atSample,
+        toSample: one.toSample,
+        ...(one.assetId
+          ? {
+            sourceFromSample:
+              (one.sourceFromSample ?? 0) + (atSample - one.fromSample),
+          }
+          : {}),
+      });
+    } else next.push(one);
+  }
+  /* Written even when it covers the whole song, because two sections
+     that together cover everything is not "no edit" — it is the
+     division the author asked for. `setSections` only drops a list of
+     ONE covering the whole song. */
+  setSections(master, next);
+}
+
+/**
+ * Fade it, lift it, drop it, silence it.  [TIMELINE B6c, B6d, B6e, B6f]
+ *
+ * Four of the eleven things the brief asks of the song, and the four
+ * that are properties of it rather than changes to its shape. Written
+ * together because they are one panel and one decision — "how the song
+ * sounds" — and separating them into four operations would be four
+ * places for the same refusals.
+ *
+ * REFUSED RATHER THAN CLAMPED where the numbers make no sense: a fade
+ * longer than the stretch it is in has no honest meaning, and a fader
+ * that quietly halves what somebody typed is one they cannot trust.
+ */
+export function setSongSound(
+  performance: Performance,
+  sound: {
+    gainDb?: number | null;
+    muted?: boolean | null;
+    fadeInSamples?: Samples | null;
+    fadeOutSamples?: Samples | null;
+    effect?: string | null;
+  },
+): void {
+  const master = performance.master;
+  const next = { ...(master.sound ?? {}) };
+  const span = songSpan(master);
+  const length = span.toSample - span.fromSample;
+
+  if (sound.gainDb !== undefined) {
+    if (sound.gainDb === null) delete next.gainDb;
+    else {
+      if (!Number.isFinite(sound.gainDb)) fail('that gain is not a number');
+      /*
+       * PLUS OR MINUS TWENTY-FOUR DECIBELS, which is the range of a
+       * mixing desk's channel fader. Beyond it in one direction the
+       * song is inaudible and in the other it is clipping, and a
+       * control that lets somebody do either by mistyping is not a
+       * control.
+       */
+      if (Math.abs(sound.gainDb) > 24) {
+        fail('the song can be moved by up to 24 dB either way');
+      }
+      next.gainDb = sound.gainDb;
+    }
+  }
+  if (sound.muted !== undefined) {
+    if (sound.muted) next.muted = true; else delete next.muted;
+  }
+  for (const [key, value] of [
+    ['fadeInSamples', sound.fadeInSamples],
+    ['fadeOutSamples', sound.fadeOutSamples],
+  ] as const) {
+    if (value === undefined) continue;
+    if (value === null) { delete next[key]; continue; }
+    assertSamples(value);
+    if (value > length) {
+      fail('a fade cannot be longer than the song it is in');
+    }
+    next[key] = value;
+  }
+
+  /*
+   * ONE OF A NAMED LIST, OR NOTHING.  [TIMELINE B6j]
+   *
+   * An id that is not on the list is refused rather than stored and
+   * ignored: a document carrying `effect: "reverb"` would draw a
+   * control saying nothing is selected while claiming something is,
+   * and the render would silently leave it out.
+   */
+  if (sound.effect !== undefined) {
+    if (sound.effect === null) delete next.effect;
+    else {
+      const found = audioEffect(sound.effect);
+      if (!found) fail(`there is no sound called ${sound.effect}`);
+      else next.effect = found.id;
+    }
+  }
+
+  if (Object.keys(next).length === 0) delete master.sound;
+  else master.sound = next;
+}
+
+/**
+ * Put a sound on the timeline.  [TIMELINE B8, B10]
+ *
+ * Applause, a transition, an intro, ambience, a voice-over — anything
+ * that is neither the song nor somebody's take. The media is already
+ * on disk and measured; this places it.
+ *
+ * WHERE THE AUTHOR PUT IT, not where anything was measured. A sound
+ * layer has no alignment: nobody performed it against the song, so
+ * there is nothing to detect and nothing to correct. `fromSample` is a
+ * decision and the document records it as one. [INV-14 does not apply]
+ */
+export function addSound(performance: Performance, layer: SoundLayer): void {
+  if (!layer.label.trim()) fail('a sound needs a name to be found by');
+  assertSamples(layer.fromSample);
+  if (layer.fromSample > performance.master.durationSamples) {
+    fail('that is past the end of the song');
+  }
+  if (!(layer.durationSamples > 0)) fail('that sound has no measured length');
+  if ((performance.sounds ?? []).some((one) => one.id === layer.id)) {
+    fail(`there is already a sound ${layer.id} here`);
+  }
+  performance.sounds = [...(performance.sounds ?? []), layer];
+}
+
+/** The layer, or a refusal naming it. */
+function soundById(performance: Performance, id: string): SoundLayer {
+  const found = (performance.sounds ?? []).find((one) => one.id === id);
+  if (!found) fail(`no sound ${id} in this performance`);
+  return found!;
+}
+
+/** Move it along the song. [B10 — "start time"] */
+export function moveSound(
+  performance: Performance, id: string, fromSample: Samples,
+): void {
+  const layer = soundById(performance, id);
+  assertSamples(fromSample);
+  if (fromSample > performance.master.durationSamples) {
+    fail('that is past the end of the song');
+  }
+  layer.fromSample = fromSample;
+}
+
+/**
+ * Use only part of it.  [B10 — "trim"]
+ *
+ * Markers on the LAYER'S OWN clock, not the song's — which is the
+ * opposite of a take's trim, and the difference is worth stating. A
+ * take is aligned to the song, so the clock the author is looking at
+ * IS the song's; a sound effect has no alignment at all, and "from
+ * half a second in" is a fact about the file.
+ */
+export function trimSound(
+  performance: Performance, id: string,
+  useFromSample: Samples | null, useToSample: Samples | null,
+): void {
+  const layer = soundById(performance, id);
+  if (useFromSample === null) delete layer.useFromSample;
+  else { assertSamples(useFromSample); layer.useFromSample = useFromSample; }
+  if (useToSample === null) delete layer.useToSample;
+  else { assertSamples(useToSample); layer.useToSample = useToSample; }
+  if (soundSpan(layer).length <= 0) fail('that trim leaves nothing of it');
+}
+
+/** How it is heard. [B10 — "volume"] */
+export function setSoundLayer(
+  performance: Performance, id: string,
+  sound: {
+    gainDb?: number | null; muted?: boolean | null; loop?: boolean | null;
+    fadeInSamples?: Samples | null; fadeOutSamples?: Samples | null;
+    label?: string; track?: SoundLayer['track'];
+    effect?: string | null;
+  },
+): void {
+  const layer = soundById(performance, id);
+  if (sound.gainDb !== undefined) {
+    if (sound.gainDb === null) delete layer.gainDb;
+    else {
+      if (!Number.isFinite(sound.gainDb)) fail('that gain is not a number');
+      if (Math.abs(sound.gainDb) > 24) {
+        fail('a sound can be moved by up to 24 dB either way');
+      }
+      layer.gainDb = sound.gainDb;
+    }
+  }
+  if (sound.muted !== undefined) {
+    if (sound.muted) layer.muted = true; else delete layer.muted;
+  }
+  if (sound.loop !== undefined) {
+    if (sound.loop) layer.loop = true; else delete layer.loop;
+  }
+  for (const [key, value] of [
+    ['fadeInSamples', sound.fadeInSamples],
+    ['fadeOutSamples', sound.fadeOutSamples],
+  ] as const) {
+    if (value === undefined) continue;
+    if (value === null) { delete layer[key]; continue; }
+    assertSamples(value);
+    if (value > soundSpan(layer).length) {
+      fail('a fade cannot be longer than the sound it is in');
+    }
+    layer[key] = value;
+  }
+  if (sound.label !== undefined) {
+    if (!sound.label.trim()) fail('a sound needs a name');
+    layer.label = sound.label.trim();
+  }
+  if (sound.track !== undefined) layer.track = sound.track;
+  /* One of the named list, or nothing — the same rule the song's has,
+     for the same reason. [B6j] */
+  if (sound.effect !== undefined) {
+    if (sound.effect === null) delete layer.effect;
+    else {
+      const found = audioEffect(sound.effect);
+      if (!found) fail(`there is no sound called ${sound.effect}`);
+      else layer.effect = found.id;
+    }
+  }
+}
+
+/** Take it off the timeline. The media stays on disk. [U-25, D-23] */
+export function removeSound(performance: Performance, id: string): void {
+  soundById(performance, id);
+  performance.sounds = (performance.sounds ?? []).filter((one) => one.id !== id);
+  if (performance.sounds.length === 0) delete performance.sounds;
+}
+
 /**
  * The words of the song, timed.  [MASTER-EDIT §12 P3, INV-07]
  *
@@ -1004,6 +1547,56 @@ export function setLyrics(
     throw new PerformanceEditError(
       error instanceof LyricsError ? error.message : 'those lyrics could not be read');
   }
+}
+
+/**
+ * Which part of this take's picture is used.  [MASTER-EDIT §2, §5, §15]
+ *
+ * The third of the three operations, and deliberately not folded into
+ * either of the others: this changes WHAT PART OF THE PICTURE shows,
+ * while a move changes when the take plays and a trim changes which part
+ * of it exists.
+ *
+ * FRACTIONS, NOT PIXELS, so the same reframe means the same thing on the
+ * proxy the author drew it over and on the mezzanine the master is cut
+ * from. Checked here rather than at the edge of the screen because a
+ * rectangle that is off the frame, inside out or a single pixel wide is
+ * a document that cannot be rendered, and the document layer is where
+ * that is decided. [D-06]
+ *
+ * A BOX ROUND THE WHOLE FRAME IS NOT A REFRAME, and is stored as none:
+ * cropping to everything costs a filter and a generation of quality for
+ * a picture identical to the one that was there.
+ */
+export function setReframe(
+  performance: Performance, takeId: string, reframe: Rect | null,
+): void {
+  const take = takeById(performance, takeId);
+  if (!take) throw new PerformanceEditError(`no take ${takeId} in this performance`);
+  if (reframe === null) {
+    delete take.reframe;
+    return;
+  }
+  const { x, y, w, h } = reframe;
+  for (const [name, value] of Object.entries({ x, y, w, h })) {
+    if (!Number.isFinite(value)) {
+      throw new PerformanceEditError(`the reframe's ${name} is not a number`);
+    }
+  }
+  if (w < MIN_REFRAME_SPAN || h < MIN_REFRAME_SPAN) {
+    throw new PerformanceEditError(
+      `that crop keeps less than a ${Math.round(MIN_REFRAME_SPAN * 100)}th of `
+      + 'the frame, which is a zoom no source survives');
+  }
+  if (x < 0 || y < 0 || x + w > 1 || y + h > 1) {
+    throw new PerformanceEditError('that crop goes outside the picture');
+  }
+  /* Everything is not a crop. Stored as none, so no filter is emitted. */
+  if (w > 0.995 && h > 0.995) {
+    delete take.reframe;
+    return;
+  }
+  take.reframe = { x, y, w, h };
 }
 
 /**

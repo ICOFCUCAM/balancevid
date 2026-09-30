@@ -20,7 +20,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import type { Ask } from '../../app/Confirm.js';
-import type { MenuItem } from '../../app/Menu.js';
+import { visible, type MenuItem } from '../../app/Menu.js';
 import { takeMenuItems, type TakeMenuHost } from '../../app/p/[id]/takeMenu.js';
 import {
   NUDGE_FRAME, NUDGE_SECOND, nudgeItems, nudgeSays,
@@ -349,6 +349,7 @@ function host(over: Partial<TakeMenuHost> = {}): {
       at: () => secondsToSamples(10),
       place: () => { did.push('placed'); },
       keyOf: () => 2,
+      onReframe: (id) => { did.push(`reframe:${id}`); },
       solo: null,
       onSolo: (id) => { did.push(`solo:${id ?? 'off'}`); },
       chosen: null,
@@ -387,7 +388,7 @@ describe('what can be done to a take', () => {
     const studio = code('app/p/[id]/PerformanceStudio.tsx');
     expect(stage).toMatch(/takeMenuItems\(take, \{/);
     /* The rail is HANDED the list rather than building a second one. */
-    expect(studio).toMatch(/takesPanel=\{\(takeMenu\) =>/);
+    expect(studio).toMatch(/takesPanel=\{\(\{ takeMenu, at \}\) =>/);
     expect(studio).toMatch(/onRow\(take\.label, \(\) => takeMenu\(take\)\)/);
     expect(studio).not.toMatch(/const takeItems =/);
     for (const verb of ['Rename\u2026', 'Remove\u2026', 'Loop it']) {
@@ -565,7 +566,7 @@ describe('a menu long enough to matter', () => {
    */
   it('prints each group heading once, above the first of its group', () => {
     const menu = code('app/Menu.tsx');
-    expect(menu).toMatch(/const opens = Boolean\(item\.section\)\s*&& item\.section !== raised\.items\[index - 1\]\?\.section;/);
+    expect(menu).toMatch(/const opens = Boolean\(item\.section\)\s*&& item\.section !== shown\[index - 1\]\?\.section;/);
     expect(menu).toMatch(/data-testid="menu-section"/);
   });
 
@@ -579,8 +580,163 @@ describe('a menu long enough to matter', () => {
     expect(new Set(items.map((item) => item.section))).toEqual(new Set([
       'This take',
       'Trim \u2014 which part of it exists',
+      'Crop \u2014 what part of the picture shows',
       'Move \u2014 when it plays',
       'The take itself',
     ]));
+  });
+});
+
+
+describe('simple by default, advanced when it is asked for', () => {
+  /*
+   * "I would not try to recreate a giant professional editing
+   * application... the interface should have a simple mode with
+   * advanced controls appearing when needed." [B9]
+   *
+   * The take menu went from four verbs to nineteen in two days, which
+   * is exactly the shape that warning is about. The everyday ones are
+   * always there; timing, alignment and the frame are one press away.
+   */
+  const built = (on = take()) => takeMenuItems(on, host().host)
+    .filter((item): item is MenuItem => Boolean(item));
+  const everyday = (on = take()) => built(on).filter((item) => !item.advanced);
+  const behind = (on = take()) => built(on).filter((item) => item.advanced);
+
+  /*
+   * THE PROPERTY IS A PROPORTION, not a number somebody picked. The
+   * list will keep growing — that is what a professional editor does —
+   * and what must stay true is that most of it is not in a beginner's
+   * way.
+   */
+  it('shows a beginner fewer than half of them', () => {
+    const all = built().length;
+    expect(all).toBeGreaterThanOrEqual(17);
+    expect(everyday().length).toBeLessThanOrEqual(all / 2);
+    const labels = everyday().map((item) => item.label);
+    /* The four things the brief says a normal user needs: choose it,
+       put it on screen, trim it, and the take's own housekeeping. */
+    expect(labels).toContain('Work on this take');
+    expect(labels).toContain('Put it on screen from here');
+    expect(labels).toContain('Start it here');
+    expect(labels).toContain('Remove\u2026');
+  });
+
+  it('keeps timing and the frame behind one press', () => {
+    const labels = behind().map((item) => item.label);
+    expect(labels).toContain('Push it a frame later');
+    expect(labels).toContain('Move it by an exact amount\u2026');
+    expect(labels).toContain('Align its start to the playhead');
+    expect(labels).toContain('Crop / reframe\u2026');
+    expect(behind().length).toBeGreaterThan(5);
+  });
+
+  /* Every advanced row is in one of the two advanced groups, and no
+     everyday row is: the split follows the operation, not taste. */
+  it('splits on the operation rather than one row at a time', () => {
+    for (const item of behind()) {
+      expect(item.section, item.label)
+        .toMatch(/^(Move|Crop) \u2014 /);
+    }
+    for (const item of everyday()) {
+      expect(item.section, item.label)
+        .not.toMatch(/^(Move|Crop) \u2014 /);
+    }
+  });
+
+  /* And the menu itself reveals them in place — not a submenu, not a
+     mode, and not by closing and reopening. */
+  it('hides the advanced rows until more is asked for', () => {
+    /* By label: each call builds fresh closures, so the entries are
+       equal in every way a person can see and not by identity. */
+    const labels = (list: MenuItem[]) => list.map((item) => item.label);
+    const items = built();
+    expect(labels(visible(items, false)))
+      .toEqual(labels(items.filter((item) => !item.advanced)));
+    expect(labels(visible(items, true))).toEqual(labels(items));
+    expect(visible(items, false).length).toBeLessThan(items.length);
+    /* A list with nothing advanced in it is unchanged either way, so
+       such a menu never grows a "More" row. */
+    const plain = items.filter((item) => !item.advanced);
+    expect(labels(visible(plain, false))).toEqual(labels(plain));
+  });
+
+  it('reveals them in the same menu', () => {
+    const menu = code('app/Menu.tsx');
+    expect(menu).toMatch(/data-testid="menu-more"/);
+    expect(menu).toMatch(/onClick=\{\(\) => setMore\(true\)\}/);
+    /*
+     * AND THE LABEL IS AN EXPRESSION, NOT JSX TEXT. An escape in JSX
+     * text is not an escape — the browser showed a row reading
+     * "More\\u2026" — so the ellipsis is written inside braces where
+     * the string is a string.
+     */
+    expect(menu).toMatch(/\{'More\\u2026'\}/);
+    expect(menu).not.toMatch(/^\s+More\\u2026$/m);
+    /* Every raise starts simple again, or "more" would be a setting. */
+    expect(menu).toMatch(/setMore\(false\);\s*setRaised\(\{ items, about, x: event\.clientX/);
+  });
+});
+
+
+describe('recording from where the playhead is', () => {
+  /*
+   * "IMAGINE THE USER IS EDITING A PERFORMANCE AND REALIZES: I NEED AN
+   * EXTRA VOCAL SECTION HERE."  [TIMELINE B7]
+   *
+   * Then they should not have to sit through three minutes of song to
+   * reach it. The whole recording pipeline already existed — what it
+   * could not do was start the song anywhere but the top.
+   *
+   * THE ARITHMETIC IS THE FEATURE. A take recorded from 02:41 belongs
+   * at 02:41 on the song's clock, and the offset is measured from
+   * where the SONG was rather than from where the audio clock was.
+   * Adding nothing there would place every such take at the top of
+   * the song — which is the bug this test exists to prevent, because
+   * it looks exactly like a working feature until somebody renders.
+   */
+  const recorder = code('app/p/[id]/useMasterRecording.ts');
+
+  it('starts the song at the moment it was asked for', () => {
+    expect(recorder).toMatch(/source\.start\(beginsAt, fromSeconds\)/);
+  });
+
+  /* Past the end of the buffer, `start` plays nothing at all, silently
+     — which looks exactly like a broken microphone.
+
+     The clamp now sits inside "is there a song at all", because the
+     same recorder answers questions sent to a phone, where there is
+     no buffer to clamp against. [TIMELINE B14d] */
+  it('cannot be asked to start past the end of the song', () => {
+    expect(recorder).toMatch(
+      /const fromSeconds = buffer\s*\n\s*\? Math\.max\(0, Math\.min\(buffer\.duration - 0\.05, fromSamples \/ sampleRate\)\)\s*\n\s*: 0;/);
+  });
+
+  it('places the take where the song was, not where the clock was', () => {
+    expect(recorder).toMatch(
+      /offsetRef\.current = masterUrl\s*\n\s*\? placeTakeOnSong\(\s*\n?\s*Math\.round\(\(fromSeconds \+ into\) \* sampleRate\), latencySamples\)\s*\n\s*: 0;/);
+  });
+
+  /*
+   * A SECOND BUTTON, AND ONLY WHEN THE PLAYHEAD IS SOMEWHERE. Making
+   * "Record a take" start wherever the line happens to be left would
+   * mean a take that silently begins at 02:41 because somebody
+   * scrubbed there an hour ago — a mode, and an invisible one.
+   */
+  it('is a second button that appears only when it means something', () => {
+    const studio = code('app/p/[id]/PerformanceStudio.tsx');
+    expect(studio).toMatch(/\{Math\.round\(at\(\)\) > 0 && \(/);
+    expect(studio).toMatch(/data-testid="start-take-here"/);
+    expect(studio).toMatch(/Math\.round\(at\(\)\)\)\}/);
+    /* And the ordinary one still starts at the top. */
+    expect(studio).toMatch(
+      /data-testid="start-take"[\s\S]{0,400}: \{ kind: 'space', spaceId: environment \}\)\}/);
+  });
+
+  /* Asked, not remembered: the playhead moves ten times a second, and
+     a number passed down would be a number out of date. */
+  it('asks the stage where the song is at the moment of pressing', () => {
+    const stage = code('app/p/[id]/SwitchingStage.tsx');
+    expect(stage).toMatch(/takesPanel\?\.\(\{ takeMenu, at: \(\) => player\.positionNow\(\) \}\)/);
   });
 });

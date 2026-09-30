@@ -4785,3 +4785,49 @@ The element is asked directly on mount — a finished load with no pixels.
 **The product is called BalanceVid.** One name, in the bar, the rail, the
 station identity, the default channel name and the connector labels. A product
 with two names in it is a product somebody has to ask about.
+
+---
+
+## D-25 · Production and participation are separate
+
+Given by the product's author as an architectural principle rather than a
+feature, and recorded here because it decides the shape of things that do
+not exist yet:
+
+> **Production and participation are separate.**
+> The professional producer controls Studio One / Studio Two / Online TV.
+> The participant controls the Take App.
+> And the two communicate through Production Requests.
+>
+> The audience doesn't enter your studio. They enter a controlled
+> participation endpoint.
+
+The three studios are *control surfaces*: every one of them assumes the
+person at it decides what the finished thing will be. A performer recording
+a take on their phone, a viewer answering a question, a guest sending a
+verse — none of them is deciding anything about the export, and handing them
+a studio to do it in would be handing them authority nobody asked them to
+take.
+
+**So a participant never holds a studio object.** They hold a REQUEST: what
+is being asked for, what they may do about it, until when, and where it
+goes. The producer holds the studio and receives submissions into an inbox.
+Nothing a participant sends is part of a programme, a performance or a
+conversation until somebody who holds the studio says so — which is INV-06
+(*a detection is a suggestion until accepted*) applied to people instead of
+to measurements, and for the same reason: a document that records what
+arrived rather than what was chosen is not an edit, it is a log.
+
+**Two consequences worth stating, because both are easy to lose:**
+
+- **A request is revocable and expires.** A link that admits somebody
+  forever is not an invitation, it is an account nobody administers — the
+  same argument the Room's terms already make.
+- **Participation must not require an application.** The author's own line
+  is that participation must not fail because somebody has not installed
+  something. The browser surface IS the client; a packaged app is a better
+  delivery of it — better camera access, background upload, retry — and
+  never a precondition for taking part.
+
+The full architecture, as given, is in `docs/TAKE-APP.md`, verbatim, with
+the ledger it is executed against.

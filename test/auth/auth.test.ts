@@ -122,6 +122,82 @@ describe('sessions', () => {
   });
 });
 
+describe('what the holder of a Take link may reach', () => {
+  const LINK = 'req_3f2a9c.H2jPiPA4GtdaquygrH1zSj0QBflud3PXteS72HPw96k';
+
+  /*
+   * THE SECOND SET OF PATHS A STRANGER MAY REACH, and the claim is the
+   * room's, not the published-work one: reachable WITHOUT THE OWNER'S
+   * SESSION, because the link is sent over WhatsApp to somebody with no
+   * account. The route then checks the link itself. [D-25]
+   */
+  it('lets the page, its own API and the song through', () => {
+    expect(mayBePublic(`/take/${LINK}`, 'GET')).toBe(true);
+    expect(mayBePublic(`/api/take/${LINK}`, 'GET')).toBe(true);
+    /* The one file the request lets them hear. [T6] */
+    expect(mayBePublic(`/api/take/${LINK}/reference`, 'GET')).toBe(true);
+  });
+
+  /*
+   * THE METHOD IS PART OF THE RULE, which this product learned from a
+   * real hole: a path-only allowance on interventions also answered
+   * DELETE. A participant may say they are recording, begin a
+   * submission, send its bytes, and throw away a recording they have
+   * not sent — and nothing else.
+   */
+  it('lets them record, submit and discard, and nothing else', () => {
+    expect(mayBePublic(`/api/take/${LINK}`, 'POST')).toBe(true);
+    expect(mayBePublic(`/api/take/${LINK}/submissions`, 'POST')).toBe(true);
+    expect(mayBePublic(`/api/take/${LINK}/submissions/sub_1`, 'POST')).toBe(true);
+    expect(mayBePublic(`/api/take/${LINK}/submissions/sub_1`, 'PUT')).toBe(true);
+    /*
+     * THE DELETE IS ONE PATH AND ONE THING.  [TAKE-APP T4]
+     *
+     * "Take 3 doesn't have to reach the server at all if they delete
+     * it locally" — it does reach it, in segments, so discarding is
+     * an explicit act. It is added as its OWN rule rather than by
+     * loosening one, and it reaches a recording's segments and
+     * nothing else; the route then refuses one already sent, because
+     * what a performer may undo is their own decision not yet acted
+     * on, never a producer's. [D-25]
+     */
+    expect(mayBePublic(`/api/take/${LINK}/submissions/sub_1`, 'DELETE'))
+      .toBe(true);
+    expect(mayBePublic(`/api/take/${LINK}`, 'DELETE')).toBe(false);
+    expect(mayBePublic(`/api/take/${LINK}/submissions`, 'DELETE')).toBe(false);
+    for (const method of ['PATCH']) {
+      expect(mayBePublic(`/api/take/${LINK}`, method), method).toBe(false);
+      expect(mayBePublic(`/api/take/${LINK}/submissions/sub_1`, method), method)
+        .toBe(false);
+    }
+  });
+
+  /*
+   * AND NOTHING THE PRODUCER OWNS. The request's own routes are the only
+   * ones the link opens; the performance it was issued for, the inbox
+   * and every other request stay behind the session.
+   */
+  it('reaches nothing of the studio it came from', () => {
+    for (const path of [
+      '/api/performances/perf_one',
+      '/api/performances/perf_one/requests',
+      '/p/perf_one',
+      '/api/take',
+      '/api/take/',
+    ]) {
+      expect(mayBePublic(path, 'GET'), path).toBe(false);
+      expect(mayBePublic(path, 'POST'), path).toBe(false);
+    }
+  });
+
+  /* A link with no secret in it is not a link. */
+  it('does not let a bare id through', () => {
+    expect(mayBePublic('/take/req_3f2a9c', 'GET')).toBe(false);
+    expect(mayBePublic('/api/take/req_3f2a9c', 'GET')).toBe(false);
+    expect(mayBePublic('/api/take/req_3f2a9c', 'POST')).toBe(false);
+  });
+});
+
 describe('what a stranger may reach', () => {
   it('lets a published conversation be read', () => {
     expect(mayBePublic('/c/conv_abc/watch', 'GET')).toBe(true);

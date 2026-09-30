@@ -101,6 +101,7 @@ export function nudgeItems(
   const MOVE = 'Move \u2014 when it plays';
   const by = (samples: number, label: string, hint: string): MenuEntry => ({
     section: MOVE,
+    advanced: true,
     label,
     hint,
     onSelect: () => {
@@ -133,6 +134,7 @@ export function nudgeItems(
      */
     {
       section: MOVE,
+      advanced: true,
       label: 'Move it by an exact amount\u2026',
       hint: said
         ? `it is ${said} now \u2014 in milliseconds, + is later`
@@ -158,6 +160,7 @@ export function nudgeItems(
     },
     {
       section: MOVE,
+      advanced: true,
       label: 'Back to the measured sync',
       hint: 'clears the push; the measurement underneath is untouched',
       ...(now === 0 ? { disabled: 'it has not been pushed' } as const : {}),

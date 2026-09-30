@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { TAKE_ACCENT_FALLBACK } from '../../../src/domain/performance.js';
 import Icon from '../../Icon.js';
 import type { Performance } from '../../../src/domain/performance.js';
@@ -12,6 +12,8 @@ import { HOUSE_SAMPLE_RATE, formatMasterPosition } from '../../../src/domain/tim
 import { useConfirm } from '../../Confirm.js';
 import { MenuButton, RightClickHint, useMenu, type MenuEntry } from '../../Menu.js';
 import { useMasterRecording } from './useMasterRecording.js';
+import { performanceSink } from './performanceSink.js';
+import PerformersPanel from './PerformersPanel.js';
 import UploadTake from './UploadTake.js';
 import SwitchingStage from './SwitchingStage.js';
 import Delivery, { type ChannelDestination } from './Delivery.js';
@@ -172,7 +174,9 @@ export default function PerformanceStudio(
     ? device.calibration.latencySamples : 0;
 
   const recording = useMasterRecording({
-    performanceId: id,
+    /* One recorder, two destinations. `performanceSink` is the three
+       calls that used to be written inside the hook, unchanged. [D-19] */
+    sink: useMemo(() => performanceSink(id), [id]),
     masterUrl: `/api/performances/${id}/master`,
     sampleRate: HOUSE_SAMPLE_RATE,
     countInSeconds: COUNT_IN_SECONDS,
@@ -341,7 +345,7 @@ export default function PerformanceStudio(
           onChanged={setPerformance}
           chosenTake={chosenTake}
           onChooseTake={setChosenTake}
-          takesPanel={(takeMenu) => (
+          takesPanel={({ takeMenu, at }) => (
             /*
               * A MODULE IS THE COLUMN, NOT A CARD AT THE TOP OF IT.
               * [brief §3, §4]
@@ -529,6 +533,20 @@ export default function PerformanceStudio(
                             fontSize: 'var(--text-xs)', display: 'block', overflow: 'hidden',
                             textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                           }}>
+                            {/*
+                              * WHO PERFORMED IT, where it came from
+                              * somebody who is not here. [TAKE-APP
+                              * T5a] "James — 3 submitted takes": a
+                              * rail showing five takes with no way to
+                              * tell whose is which is a rail a
+                              * producer cannot work from, and a take
+                              * the author recorded needs no name.
+                              */}
+                            {take.performer && (
+                              <span data-testid="take-performer">
+                                {`${take.performer} \u00b7 `}
+                              </span>
+                            )}
                             {footage || placed ? where : 'not placed yet'}
                             {/*
                               * AND WHETHER IT HAS BEEN PUSHED. A take
@@ -646,6 +664,41 @@ export default function PerformanceStudio(
                         >
                           {recording.phase === 'finishing' ? 'Saving\u2026' : 'Record a take'}
                         </button>
+                        {/*
+                          * RECORDING FROM WHERE THE PLAYHEAD IS.
+                          * [TIMELINE B7]
+                          *
+                          * "Imagine the user is editing a performance
+                          * and realizes: I need an extra vocal section
+                          * here." Then they should not have to sit
+                          * through three minutes of song to reach it.
+                          *
+                          * A SECOND BUTTON RATHER THAN A CHANGE TO THE
+                          * FIRST, and only when the playhead is
+                          * actually somewhere. Making "Record a take"
+                          * start wherever the line happens to be left
+                          * would mean a take that silently begins at
+                          * 02:41 because somebody scrubbed there an
+                          * hour ago — a mode, and an invisible one.
+                          */}
+                        {Math.round(at()) > 0 && (
+                          <button
+                            className="ctl" data-testid="start-take-here"
+                            disabled={recording.phase === 'finishing'}
+                            title={'The song starts where the playhead is, '
+                              + 'not at the top'}
+                            onClick={() => void recording.start(label,
+                              environment === 'original'
+                                ? { kind: 'original' }
+                                : environment === 'blur'
+                                  ? { kind: 'blur' }
+                                  : { kind: 'space', spaceId: environment },
+                              Math.round(at()))}
+                            style={{ flex: '0 0 auto' }}
+                          >
+                            From here
+                          </button>
+                        )}
                         <button className="small" data-testid="disarm"
                                 onClick={recording.disarm}>Turn off</button>
                       </div>
@@ -704,6 +757,25 @@ export default function PerformanceStudio(
                     onFinished={(jobId) => { void watchJob(jobId); }}
                   />
                 </div>
+              )}
+
+              {/*
+                * AND THE THIRD WAY A SLOT GETS FILLED: somebody who is
+                * not here.  [TAKE-APP T2, T9a, T10, T11; D-25]
+                *
+                * A link to a phone, and what comes back. It sits with
+                * the other two because it is the same slot — a take
+                * accepted from a performer's phone is an ordinary take
+                * in this rail, assembled and aligned by the same code
+                * — and it is the only one of the three where the
+                * material exists before the performance knows about
+                * it.
+                */}
+              {recording.phase === 'idle' && (
+                <PerformersPanel
+                  performanceId={performance.id}
+                  onTakeAccepted={(jobId) => { void watchJob(jobId); }}
+                />
               )}
             </div>
           )}

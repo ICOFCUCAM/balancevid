@@ -488,6 +488,54 @@ export async function makeProxy(
 }
 
 /**
+ * Join the segments of a recording that has no picture.
+ *   [TIMELINE B6i; U-06]
+ *
+ * A voice-over is recorded from a microphone and nothing else, so
+ * there is no video stream — and `ingestSegments` asks for one in the
+ * first line of its filtergraph. ffmpeg's answer to that is "Stream
+ * specifier ':v' matches no streams", which is exactly what a browser
+ * run of the first version of this feature produced.
+ *
+ * THE CONCAT FILTER, NEVER THE DEMUXER, for the same reason every
+ * other join in this product uses it: browser-captured media does not
+ * carry the timestamps the demuxer trusts, and the demuxer silently
+ * keeps only the first segment. Silently is the word that matters —
+ * a voice-over that lost everything after its first four seconds
+ * would look like a short recording.
+ *
+ * Opus in WebM, at the house rate, which is what the master is
+ * normalised to and what the mixer expects.
+ */
+export async function ingestSoundSegments(
+  segmentPaths: string[], outPath: string, opts: RunOptions = {},
+): Promise<void> {
+  if (segmentPaths.length === 0) throw new Error('no segments to assemble');
+  await mkdir(dirname(outPath), { recursive: true });
+
+  const args: string[] = [];
+  for (const path of segmentPaths) args.push('-i', path);
+  const chains = segmentPaths.map((_, i) =>
+    `[${i}:a]aresample=${HOUSE.audioSampleRate},`
+    + 'aformat=channel_layouts=stereo,asetpts=N/SR/TB'
+    + `[a${i}]`);
+  chains.push(
+    `${segmentPaths.map((_, i) => `[a${i}]`).join('')}`
+    + `concat=n=${segmentPaths.length}:v=0:a=1[aout]`);
+
+  args.push(
+    '-filter_complex', chains.join(';'),
+    '-map', '[aout]',
+    '-vn',
+    '-c:a', 'libopus', '-b:a', '160k',
+    '-ar', String(HOUSE.audioSampleRate), '-ac', '2',
+    '-f', 'webm',
+    outPath,
+  );
+  await ffmpeg(args, opts);
+}
+
+/**
  * Assemble captured segments into one house-format take.
  *
  * The concat DEMUXER cannot be used here. MediaRecorder writes each segment
