@@ -3,7 +3,7 @@ import { bookingsFor, refusalFor } from '../../../../src/domain/deletion.js';
 import { deletePerformance } from '../../../../src/store/performances.js';
 import { listChannels } from '../../../../src/store/channels.js';
 import { acceptBeats, setTempo,
-  classifyMaster, usePlate, setAudioMode, setSceneAudio, setTransition, setTransitionTiming, setScene, moveScene, moveBoundary, coverGap, coverWith, removeScene, labelScene, clearScenes, nudgeTake, trimTake, renameTake, renamePerformance, setEffect, setCleanup, setLyrics, setEnvironment, setReframe, trimSong, removeSection, splitSong, replaceSection, setSongSound, addSound, moveSound, trimSound, setSoundLayer, removeSound, removeTake, setLoop, setFootageRights, PerformanceEditError } from '../../../../src/domain/performanceEdit.js';
+  classifyMaster, usePlate, setAudioMode, setSceneAudio, setTransition, setTransitionTiming, setScene, moveScene, moveBoundary, coverGap, coverWith, removeScene, labelScene, clearScenes, nudgeTake, trimTake, renameTake, replaceTake, renamePerformance, setEffect, setCleanup, setLyrics, setEnvironment, setReframe, trimSong, removeSection, splitSong, replaceSection, setSongSound, addSound, moveSound, trimSound, setSoundLayer, removeSound, removeTake, setLoop, setFootageRights, PerformanceEditError } from '../../../../src/domain/performanceEdit.js';
 import { projectPerformance, covered } from '../../../../src/domain/performance.js';
 import { assertAlignmentInvariants } from '../../../../src/domain/invariants.js';
 import { listJobs } from '../../../../src/store/queue.js';
@@ -205,6 +205,12 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
         case 'trim-take':
           trimTake(draft, body['takeId'],
             body['useFromSample'] ?? null, body['useToSample'] ?? null);
+          break;
+        /* Show a different take wherever this one is on screen. The
+           old take stays in the rail: nothing here deletes media.
+           [TIMELINE B1a, D-23] */
+        case 'replace-take':
+          replaceTake(draft, body['takeId'], body['withTakeId']);
           break;
         case 'rename-take': renameTake(draft, body['takeId'], body['label']); break;
         case 'rename': renamePerformance(draft, body['title']); break;

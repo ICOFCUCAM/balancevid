@@ -24,6 +24,7 @@
 import { LAYOUTS, takeSlots } from './presentation.js';
 import type { Rect } from './presentation.js';
 import { audioEffect } from './audioEffect.js';
+import { formatMasterPosition } from './time.js';
 import { MIN_REFRAME_SPAN } from './focus.js';
 import {
   MIN_SONG_SAMPLES, type SongSection, type SoundLayer,
@@ -519,6 +520,58 @@ export function coverWith(
     fail('putting a take there does not close the hole');
   }
   return scene;
+}
+
+/**
+ * Use a different take everywhere this one is used.  [TIMELINE B1a]
+ *
+ * "Replace." The brief puts it in the take's own menu, between
+ * *Adjust timing* and *Rename*, and the record has argued since §4
+ * that it cannot mean what it looks like: a take IS a recording.
+ * Swapping the file under one would silently invalidate its measured
+ * offset, its rate ratio, its colour reading, its sound reading and
+ * the plate its matte is cut against — five facts about a recording
+ * that no longer describe the recording.
+ *
+ * WHAT IT CAN HONESTLY MEAN is this: the author has decided the beach
+ * take is better than the living-room one, and wants it wherever the
+ * living-room one is on screen. Doing that by hand is one press per
+ * scene, and the scene they forget is the one that ships.
+ *
+ * THE OLD TAKE STAYS IN THE RAIL. Nothing is deleted, so the decision
+ * is reversible by making it again the other way — which is what
+ * makes this safe to offer as a single press. [D-23, U-25]
+ *
+ * REFUSED WHEN THE REPLACEMENT DOES NOT REACH. A swap that leaves a
+ * scene with a take that runs out halfway has moved the fault rather
+ * than fixed it, and the author would find out at the export.
+ */
+export function replaceTake(
+  performance: Performance, takeId: string, withTakeId: string,
+): void {
+  const old = take(performance, takeId);
+  const next = take(performance, withTakeId);
+  if (old.id === next.id) fail('that is the same take');
+
+  const used = performance.scenes.filter(
+    (scene) => (scene.takeIds as readonly string[]).includes(takeId));
+  if (used.length === 0) fail(`${old.label} is not on screen anywhere`);
+
+  const ordered = orderedScenes(performance);
+  for (const scene of used) {
+    const index = ordered.findIndex((one) => one.id === scene.id);
+    const to = ordered[index + 1]?.fromSample
+      ?? performance.master.durationSamples;
+    if (!coversSpan(next, scene.fromSample, to,
+      performance.master.durationSamples)) {
+      fail(`${next.label} has no picture across the scene at `
+        + `${formatMasterPosition(scene.fromSample)}`);
+    }
+  }
+  for (const scene of used) {
+    scene.takeIds = scene.takeIds.map(
+      (one) => (one === takeId ? withTakeId : one)) as Scene['takeIds'];
+  }
 }
 
 export function removeScene(performance: Performance, sceneId: string): void {

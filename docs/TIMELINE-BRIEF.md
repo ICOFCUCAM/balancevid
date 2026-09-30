@@ -58,14 +58,25 @@ restarts across messages. The ids never change; the numbers are theirs.
 > └──────────────────────────┘
 > ```
 
-**state: HAVE, except *Replace*.** One list — `app/p/[id]/takeMenu.ts` — is
+**state: HAVE.** One list — `app/p/[id]/takeMenu.ts` — is
 the only definition of what can be done to a take in the product.
 
-*Replace* is the one row not built, and the record has argued since §4 that
-replacing a take's media is uploading another take: a take IS a recording,
-and swapping the file under it would silently invalidate its alignment, its
-colour reading, its sound reading and its plate. Replacing **which take a
-scene uses** is built and is in the clip inspector and the stage menu.
+*Replace* is built, as the thing it can honestly mean.
+
+Swapping the FILE under a take is still refused, and the argument is the one
+§4 made: a take IS a recording, and the document holds five measured facts
+ABOUT that recording — its offset, its rate ratio, its colour reading, its
+sound reading and the plate its matte is cut against. Change the file and all
+five describe something else, silently.
+
+What an author reaches for that row to do is something else, and the menu now
+does it: **Replace with <take>** shows a different take wherever this one is
+on screen, in every scene at once. By hand that is one press per scene, and
+the scene they forget is the one that ships. Nothing is deleted — the old take
+stays in the rail — so it is reversible by doing it the other way, which is
+what makes it safe as a single press. It is refused when the replacement does
+not reach across every scene it would land in, because that moves the fault
+to the export rather than fixing it.
 
 ## B2 — "Right-clicking directly on the video"
 
@@ -563,7 +574,7 @@ process, against the running product and not against this document.
 | id | item | state | where |
 | --- | --- | --- | --- |
 | B1 | a take is a media object with its own menu | HAVE | `takeMenu.ts`, one list, three callers |
-| B1a | *Replace* (swap a take's media) | GAP, argued | §4: a take IS a recording; replacing which take a SCENE uses is built |
+| B1a | *Replace* | HAVE, as the thing it can honestly mean | swapping the FILE under a take is still refused and still argued (§4: a take IS a recording, and five measured facts about it would silently stop describing it). The row is there now as *Replace with <take>*: show that take wherever this one is on screen, in every scene at once. Nothing is deleted, so it is reversible by doing it the other way; refused when the replacement does not reach across all of them, because that moves the fault rather than fixing it |
 | B2 | right-click the take's picture | HAVE | `monitor-pick`, `take-lane-block`, the rail row |
 | B3 | draggable playhead, scrub, click anywhere | HAVE | the ruler is a scrub strip; the pointer is captured. **All six of its bullets now done** |
 | B3a | zoom the timeline | HAVE | Fit / 2× / 4× / 8×. One wrapper widens, `pct()` untouched, so every lane zooms without being told; the view follows the playhead only when it leaves the window |
