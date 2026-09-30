@@ -211,6 +211,26 @@ export interface MasterTrack {
   artist?: string;
   /** Who wrote it, which is a different person from who performed it. */
   writer?: string;
+  /**
+   * THE WORDS, BEFORE ANYTHING HAS BEEN TIMED.  [MASTER-EDIT §16, L1]
+   *
+   * *"The underlying system appears to have conflated two different
+   * objects: lyrics text ≠ timed captions. BalanceVid should accept the
+   * first and derive the second."*
+   *
+   * It had only the second. `lyrics` is `LyricLine[]`, `setLyrics` took
+   * a string and either produced timed lines or threw — so an author's
+   * words existed for the length of one function call and were then
+   * either timed or gone. There was nowhere for *supplied, not yet
+   * timed* to live, which is why the Master Check said "no lyrics yet"
+   * while looking at a box that had just been filled.
+   *
+   * THE TEXT IS THE AUTHOR'S AND THE TIMINGS ARE DERIVED FROM IT. Kept
+   * even after alignment, because re-aligning after a re-record must
+   * start from the words rather than from the last answer — and because
+   * a line edited here should not have to be re-timed by hand.
+   */
+  lyricsText?: string;
   class: MasterClass;
   /** For `licensed` and `open`: what permits this use. [INV-15] */
   licence?: string;
@@ -1771,6 +1791,26 @@ export function joinRoom(
  * nothing checked it. A transition whose neighbours run out mid-mix is a
  * render that dips to black in the middle of a dissolve.
  */
+/**
+ * Whether a song has words, and whether they are timed.
+ * [MASTER-EDIT §16, L1, L6]
+ *
+ * *"I would make the state model: lyricsStatus: none | untimed | timed,
+ *  rather than trying to infer everything from `lyrics.length`."*
+ *
+ * THE INFERENCE WAS THE BUG. Every caller counted `lyrics.length` and
+ * therefore had two states where there are three, so "the author has not
+ * supplied any words" and "the author's words are not timed yet" were the
+ * same number — which is how a full lyric in the box produced "no lyrics
+ * yet". One function, three answers, and nothing counts a length again.
+ */
+export type LyricsStatus = 'none' | 'untimed' | 'timed';
+
+export function lyricsStatus(master: MasterTrack): LyricsStatus {
+  if ((master.lyrics?.length ?? 0) > 0) return 'timed';
+  return master.lyricsText?.trim() ? 'untimed' : 'none';
+}
+
 export interface MasterCheckItem {
   id: string;
   /** The line an author reads. */
@@ -1904,14 +1944,59 @@ export function masterCheck(
   /* Two thirds, because an outro with no words in it is normal and a
      caption track that stops halfway through the singing is not. */
   const reaches = lyrics.length > 0 && lastWord >= song * (2 / 3);
+  /*
+   * AND WHETHER THE WORDS ARE THERE, WHICH IS A DIFFERENT QUESTION FROM
+   * WHETHER THEY ARE TIMED.  [MASTER-EDIT §16, L5]
+   *
+   * *"It should not present the situation as though the user failed to
+   * provide lyrics."* It did exactly that: this counted `lyrics`, which
+   * is TIMED lines, and told an author who had just pasted a whole song
+   * that there were "no lyrics yet". The two objects the brief separates
+   * are separate here now, and the check names which of the three states
+   * it is actually in.
+   */
+  /*
+   * AND NO LYRICS IS NOT A FAULT.  [MASTER-EDIT §16, L6]
+   *
+   * *"No lyrics ≠ missing required data. A song can be perfectly valid
+   * with Audio ✓ Video ✓ Master ✓ Lyrics — Not supplied, and should
+   * still be publishable."*
+   *
+   * THIS LINE USED TO FAIL FOR AN INSTRUMENTAL. It read INV-07 —
+   * *"every export carries captions"* — as a claim about every export,
+   * and warned any performance with no lyrics in it that it was
+   * incomplete. But the invariant is about carrying the words WHERE
+   * THERE ARE WORDS: captions are the accessible form of what was said,
+   * and there is nothing accessible about a caption track for a piece
+   * with nothing sung in it. [D-04]
+   *
+   * WHAT MADE THE DISTINCTION POSSIBLE is `lyricsText`: until there was
+   * a field for untimed words, the product could not tell an
+   * instrumental from a song whose author had not got round to it, so
+   * it warned about both. It can now, so it warns about one.
+   *
+   * THE ONE STATE WORTH DOING is `untimed` — the author has said there
+   * are words and they are not usable yet, which is an intention the
+   * product can finish for them in a press.
+   */
+  const status = lyricsStatus(performance.master);
   items.push({
-    ...item('captions', 'Captions', lyrics.length > 0 && reaches,
-      lyrics.length === 0
-        ? 'no lyrics yet — every export is supposed to carry captions (INV-07)'
-        : reaches
-          ? `${lyrics.length} line(s), to ${formatMasterPosition(lastWord)}`
-          : `${lyrics.length} line(s), but the last one is at `
-            + `${formatMasterPosition(lastWord)} of ${formatMasterPosition(song)}`),
+    ...item('captions', 'Lyrics',
+      status === 'none' || (status === 'timed' && reaches),
+      status === 'none'
+        ? 'not supplied — the export will carry no captions, which is '
+          + 'right for an instrumental'
+        : status === 'untimed'
+          /*
+           * SUPPLIED, NOT TIMED. The author has done their half. What is
+           * missing is a measurement the product can make itself, and
+           * saying so is the difference between a task and an accusation.
+           */
+          ? 'timing required — synchronise them and they become captions'
+          : reaches
+            ? `${lyrics.length} line(s), to ${formatMasterPosition(lastWord)}`
+            : `${lyrics.length} line(s), but the last one is at `
+              + `${formatMasterPosition(lastWord)} of ${formatMasterPosition(song)}`),
     advisory: true,
   });
 

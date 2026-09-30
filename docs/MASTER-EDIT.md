@@ -938,3 +938,131 @@ The ledger for these is **L1**–**L5**, below, and nothing is ticked yet.
 | **L3** | a worker job that measures the master's phrases | not built |
 | **L4** | Lyrics / Timing / Display, with a timing preview and per-line nudge | not built |
 | **L5** | the Master Check says "supplied, timing required", with the action | not built |
+
+---
+
+## §17  What if there is no lyrics?
+
+*The author's second brief on this, verbatim, the same evening.*
+
+> *"What if there is no lyrics? **Then lyrics should be completely
+> optional.** The workflow should distinguish three states:*
+>
+> ***1. No lyrics supplied***
+>
+> ```
+> LYRICS
+> No lyrics added.
+>
+> [ Add lyrics ]
+> ```
+>
+> *Master Check: **Lyrics — Not supplied**. No lyrics will be included in
+> the caption export. **This should not be an error, warning, or failed
+> check.***
+>
+> ***2. Lyrics supplied, but not timed***
+>
+> ```
+> LYRICS
+> Lyrics supplied — timing required.
+>
+> [ Synchronize lyrics ]
+> ```
+>
+> *Master Check: **Lyrics — Timing required**. This is the state your
+> current bug was incorrectly showing as "no lyrics yet."*
+>
+> ***3. Lyrics supplied and timed***
+>
+> ```
+> LYRICS
+> ✓ Timed lyrics ready
+> 24 lines · 04:04
+> ```
+>
+> *Master Check: **Lyrics — Ready***
+>
+> ***The important rule.** No lyrics ≠ missing required data. A song can
+> be perfectly valid with:*
+>
+> ```
+> Audio ✓
+> Video ✓
+> Master ✓
+> Lyrics — Not supplied
+> ```
+>
+> *and should still be publishable. Lyrics only become part of the
+> required validation if the user has chosen to include lyrics/captions.*
+>
+> *So I would make the state model:*
+>
+> ```
+> lyricsStatus:
+>   none
+>   untimed
+>   timed
+> ```
+>
+> *rather than trying to infer everything from `lyrics.length`.*
+>
+> *And the UI could make this very clear:*
+>
+> ***Lyrics & Captions** — Optional. Add lyrics if you want synchronized
+> lyrics/captions in the finished video. `[ Add lyrics ]`*
+>
+> *That prevents the product from ever implying that a music video is
+> incomplete simply because it has no lyrics."*
+
+---
+
+## C-L2 — The inference was the bug, and INV-07 was being over-read
+
+### Two numbers for three states
+
+Every caller counted `lyrics.length`, which is the count of TIMED lines.
+So *"the author has supplied nothing"* and *"the author's words are not
+timed yet"* were the same number — and that is precisely how a full
+lyric in the box produced **"no lyrics yet"**.
+
+`lyricsStatus(master)` returns `none | untimed | timed`, and nothing
+counts a length again. The brief asked for exactly this and it is one
+function.
+
+### An instrumental was being told it was incomplete
+
+The captions line read INV-07 — *"every export carries captions and an
+attribution block"* — as a claim about every export, and warned any
+performance with no lyrics that it was unfinished.
+
+**The invariant is about carrying the words where there are words.**
+Captions are the accessible form of what was said (D-04), and there is
+nothing accessible about a caption track for a piece with nothing sung
+in it. A performance with `Audio ✓ Video ✓ Master ✓ Lyrics — Not
+supplied` is complete, and now says so.
+
+**What made the distinction possible is `lyricsText`.** Until there was a
+field for untimed words, the product could not tell an instrumental from
+a song whose author had not got round to captions — so it warned about
+both. It can now, so it warns about one: `untimed`, which is the only
+state where the author has declared an intention the product has not yet
+finished.
+
+This is a stated adjustment to how INV-07 is read, not a quiet
+relaxation of it. The line still appears in every state, it is still
+`advisory`, and it still blocks nothing — what changed is which state it
+calls a fault.
+
+### The ledger
+
+| id | what | state |
+|---|---|---|
+| **L1** | a field for untimed lyrics | **HAVE** — `MasterTrack.lyricsText`, kept even after timing so a re-align starts from the words |
+| **L2** | alignment to measured phrases, with an honest mismatch verdict | **HAVE** — `alignLyrics`; 27 assertions, 14 mutations tried and 13 caught, the survivor deleted as unobservable |
+| **L3** | the phrases measured from the master | **HAVE** — `phrasesIn`, pure and tested against written-down signals, run in the browser on the decoded master rather than as a queued job |
+| **L4** | Lyrics / Timing, with a preview | **HAVE** — plain words, `Synchronise lyrics`, the timed preview, and Import LRC kept as the advanced path |
+| **L5** | the check names the state it is in | **HAVE** — `Lyrics — not supplied / timing required / N lines` |
+| **L6** | no lyrics is not a fault | **HAVE** — `none` passes; `untimed` is the one worth doing |
+| **L7** | per-line nudging in the preview | **HAVE** — `nudgeLyric`, bounded by its neighbours on both sides. Moving a line's start moves the previous line's end with it, so there is no state in which two captions are on screen at once or a gap opens where the voice is still going; and neither side may be reduced below `MIN_LINE_SAMPLES`, so every nudge is reversible by eye. The control surface for it is not drawn yet |
+| **L8** | Display: captions on/off, style, position | not built, and deliberately not drawn. There is nothing behind those three controls in the document, and three controls that change nothing is the fault this panel was rebuilt to remove |

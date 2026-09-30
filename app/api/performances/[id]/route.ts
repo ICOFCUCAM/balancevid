@@ -3,7 +3,8 @@ import { bookingsFor, refusalFor } from '../../../../src/domain/deletion.js';
 import { deletePerformance } from '../../../../src/store/performances.js';
 import { listChannels } from '../../../../src/store/channels.js';
 import { acceptBeats, setTempo,
-  classifyMaster, usePlate, setAudioMode, setSceneAudio, setTransition, setTransitionTiming, setScene, moveScene, moveBoundary, coverGap, coverWith, removeScene, labelScene, clearScenes, nudgeTake, trimTake, renameTake, replaceTake, renamePerformance, setEffect, setCleanup, setLyrics, setEnvironment, setReframe, trimSong, removeSection, splitSong, replaceSection, setSongSound, addSound, moveSound, trimSound, setSoundLayer, removeSound, removeTake, setLoop, setFootageRights, PerformanceEditError } from '../../../../src/domain/performanceEdit.js';
+  classifyMaster, usePlate, setAudioMode, setSceneAudio, setTransition, setTransitionTiming, setScene, moveScene, moveBoundary, coverGap, coverWith, removeScene, labelScene, clearScenes, nudgeTake, trimTake, renameTake, replaceTake, renamePerformance, setEffect, setCleanup, setLyrics, setLyricsText, synchroniseLyrics, setEnvironment, setReframe, trimSong, removeSection, splitSong, replaceSection, setSongSound, addSound, moveSound, trimSound, setSoundLayer, removeSound, removeTake, setLoop, setFootageRights, PerformanceEditError } from '../../../../src/domain/performanceEdit.js';
+import type { Phrase } from '../../../../src/domain/lyrics.js';
 import { projectPerformance, covered } from '../../../../src/domain/performance.js';
 import { assertAlignmentInvariants } from '../../../../src/domain/invariants.js';
 import { listJobs } from '../../../../src/store/queue.js';
@@ -223,6 +224,35 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
         /* The words of the song, so the export can carry captions. [INV-07] */
         case 'set-lyrics':
           setLyrics(draft, body['lrc'] ?? null);
+          break;
+        /*
+         * THE WORDS, WITH NO TIMINGS IN THEM.  [MASTER-EDIT §16, L1]
+         *
+         * *"You should not have to know what LRC is just because
+         * BalanceVid asked you for lyrics."* Plain lines go in and are
+         * kept as plain lines.
+         */
+        case 'set-lyrics-text':
+          setLyricsText(draft, body['text'] ?? null);
+          break;
+        /*
+         * AND PUT THEM ON THE VOICE.  [MASTER-EDIT §16, L2]
+         *
+         * THE PHRASES ARE MEASURED IN THE BROWSER AND SENT HERE, which
+         * looks the wrong way round until you ask where the audio is:
+         * the studio is already playing the master, so it has the
+         * decoded samples, and a queued job to measure a file the page
+         * is holding would be a spinner in front of an answer.
+         *
+         * THE NUMBERS ARE STILL CHECKED HERE. A client can send
+         * anything, and `alignLyrics` clamps every phrase into the song
+         * and refuses a set that falls outside it — the same shape as
+         * every other edit in this route, where the browser proposes
+         * and the domain decides. [U-19]
+         */
+        case 'synchronise-lyrics':
+          synchroniseLyrics(draft, Array.isArray(body['phrases'])
+            ? (body['phrases'] as Phrase[]) : []);
           break;
         /* The room the take was recorded in. [MASTER-EDIT §8] */
         case 'set-cleanup':

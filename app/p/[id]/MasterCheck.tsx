@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Performance, RenderProblem } from '../../../src/domain/performance.js';
-import { masterCheck } from '../../../src/domain/performance.js';
+import { lyricsStatus, masterCheck } from '../../../src/domain/performance.js';
 import { repairsFor } from '../../../src/domain/takeRanking.js';
 import { EXPORT_PROFILES } from '../../../src/domain/presentation.js';
 import { formatMasterPosition } from '../../../src/domain/time.js';
+import { phrasesIn } from '../../../src/domain/phrases.js';
 import Icon from '../../Icon.js';
 
 /**
@@ -135,8 +136,16 @@ export default function MasterCheck({
               * the only remedy here that is a paste rather than a button,
               * because the words are the author's and nothing in this
               * product can invent them.
+              *
+              * AND IT IS OFFERED IN EVERY STATE, not only when the line
+              * is failing. It used to hang off `!item.ok`, which was
+              * fine while "no lyrics" was a failure — and the moment
+              * that became a pass (§17), `[ Add lyrics ]` vanished for
+              * exactly the author who had none. An optional thing has
+              * to be reachable, or it is not optional, it is absent.
+              * [MASTER-EDIT §17, L6]
               */}
-            {item.id === 'captions' && !item.ok && (
+            {item.id === 'captions' && (
               <Lyrics performance={performance} busy={busy}
                       open={open === 'captions'}
                       onToggle={() => setOpen(open === 'captions' ? null : 'captions')}
@@ -164,12 +173,27 @@ export default function MasterCheck({
 }
 
 /**
- * Paste the words.  [INV-07, MASTER-EDIT §12 P3]
+ * Lyrics, and then their timing.  [MASTER-EDIT §16, L4, L5; INV-07]
  *
- * LRC AND NOTHING ELSE, said in the placeholder rather than discovered by
- * being refused. The product will not place a line by guesswork — a
- * four-minute song with twenty lines is not twelve seconds a line — so an
- * author pasting plain lyrics needs to know before they paste, not after.
+ * *"You should not have to know what LRC is just because BalanceVid asked
+ *  you for lyrics… lyrics text ≠ timed captions. BalanceVid should accept
+ *  the first and derive the second."*
+ *
+ * WHAT WAS HERE ASKED FOR THE SECOND AND CALLED IT THE FIRST. One box,
+ * labelled "Paste lyrics", that accepted only LRC — so an author who
+ * pasted their own song got a red refusal explaining a file format they
+ * had never heard of, under a heading saying they had supplied no lyrics.
+ *
+ * TWO SECTIONS NOW, BECAUSE THERE ARE TWO OBJECTS:
+ *
+ *   LYRICS   the words, which are the author's and are kept as typed;
+ *   TIMING   where each line falls, which the product measures from the
+ *            master's own audio and the author corrects.
+ *
+ * AND NO "DISPLAY" SECTION, which the brief also drew. Captions on/off,
+ * style and position are not in the document — there is nothing behind
+ * them — and three controls that change nothing is the exact fault this
+ * panel is being rebuilt to remove. It is named in the ledger instead.
  */
 function Lyrics({
   performance, busy, open, onToggle, onRepair,
@@ -182,14 +206,63 @@ function Lyrics({
      it happened rather than at the top of a panel nobody is looking at. */
   onRepair: (body: Record<string, unknown>) => Promise<string | null>;
 }) {
-  const [text, setText] = useState('');
-  /*
-   * SAID HERE, NOT AT THE TOP OF THE PANEL. The reason untimed lyrics are
-   * refused is the interesting half of this control, and it has to land
-   * beside the box the author just pasted into.
-   */
+  const words = performance.master.lyricsText ?? '';
+  const timed = performance.master.lyrics ?? [];
+  /* Three states, from one function, so nothing counts a length. [L6] */
+  const status = lyricsStatus(performance.master);
+  const [text, setText] = useState(words);
   const [said, setSaid] = useState<string | null>(null);
-  const lines = performance.master.lyrics?.length ?? 0;
+  const [note, setNote] = useState<string | null>(null);
+  const [listening, setListening] = useState(false);
+  const [advanced, setAdvanced] = useState(false);
+
+  /* The box follows the document when somebody else changes it. */
+  useEffect(() => { setText(performance.master.lyricsText ?? ''); },
+    [performance.master.lyricsText]);
+
+  /**
+   * Measure the song, then put the words on it.
+   *
+   * IN THIS BROWSER, because the audio is already here: the studio plays
+   * the master, so `decodeAudioData` is reading a file the page has
+   * rather than asking a worker to fetch one. A queued job would be a
+   * spinner in front of an answer that takes less time than the request
+   * to start it. [§16, L3]
+   */
+  const synchronise = async () => {
+    setSaid(null);
+    setNote(null);
+    setListening(true);
+    try {
+      const response = await fetch(`/api/performances/${performance.id}/master`);
+      if (!response.ok) throw new Error('the song could not be read');
+      const context = new AudioContext();
+      const audio = await context.decodeAudioData(await response.arrayBuffer());
+      /*
+       * THE FIRST CHANNEL, not a downmix. A vocal sits in the middle of
+       * a stereo mix, so both channels carry it and averaging them buys
+       * nothing but a pass over four minutes of samples.
+       */
+      const found = phrasesIn(audio.getChannelData(0), audio.sampleRate);
+      void context.close();
+      const refusal = await onRepair({
+        action: 'synchronise-lyrics',
+        phrases: found.map((one) => ({
+          fromSample: one.fromSample, toSample: one.toSample,
+        })),
+      });
+      setSaid(refusal);
+      if (!refusal) {
+        setNote(`${found.length} phrase(s) of singing found.`);
+      }
+    } catch (error) {
+      setSaid(error instanceof Error
+        ? `the song could not be measured — ${error.message}`
+        : 'the song could not be measured');
+    } finally {
+      setListening(false);
+    }
+  };
 
   return (
     <div data-testid="check-lyrics" style={{
@@ -199,50 +272,162 @@ function Lyrics({
       borderRadius: 'var(--radius-module)',
     }}>
       <div className="row" style={{ gap: 'var(--space-4)', flexWrap: 'nowrap' }}>
+        {/*
+          * THREE STATES, AND NONE OF THEM AN ACCUSATION.  [§16, L6]
+          *
+          * *"That prevents the product from ever implying that a music
+          * video is incomplete simply because it has no lyrics."* The
+          * first line used to be "A song has its words before it has a
+          * video", said to somebody who may be exporting an
+          * instrumental.
+          */}
         <span className="grow small muted" style={{ minWidth: 0 }}>
-          {lines === 0
-            ? 'A song has its words before it has a video.'
-            : `${lines} line(s) so far, and they stop before the singing does.`}
+          {status === 'timed'
+            ? `\u2713 Timed lyrics ready \u2014 ${timed.length} line(s)`
+            : status === 'untimed'
+              ? 'Lyrics supplied \u2014 timing required.'
+              : 'Optional. Add lyrics if you want synchronised captions in '
+                + 'the finished video.'}
         </span>
         <button className="ctl sm" data-testid="lyrics-toggle" onClick={onToggle}>
-          {open ? 'Close' : 'Paste lyrics'}
+          {open ? 'Close' : status === 'none' ? 'Add lyrics' : 'Lyrics & captions'}
         </button>
       </div>
+
       {open && (
         <div style={{ marginTop: 'var(--space-3)' }}>
+          {/* ---- LYRICS ------------------------------------------------ */}
+          <p className="small" style={{
+            margin: '0 0 4px', fontSize: 'var(--text-2xs)',
+            letterSpacing: '0.07em', textTransform: 'uppercase',
+            color: 'var(--text-faint)', fontWeight: 'var(--weight-bold)',
+          }}>Lyrics</p>
           <textarea data-testid="lyrics-text" rows={6} disabled={busy}
                     value={text} onChange={(event) => setText(event.target.value)}
-                    placeholder={'[00:12.00]I walked the long way round\n'
-                      + '[00:16.50]And found you waiting there'}
+                    placeholder={'Ancient of Days,\nWho can search out Your mind?'}
                     style={{
                       width: '100%', fontSize: 'var(--text-sm)',
                       fontFamily: 'var(--font-mono)',
                     }} />
           <p className="small muted" style={{ margin: '4px 0 6px' }}>
-            LRC &mdash; a timestamp before each line, which is what lyrics
-            sites and karaoke tools export. Nothing here will place a line
-            by guesswork: a caption that drifts from the voice is the first
-            thing a viewer notices.
+            Just the words, one line each, as you would sing them.
+            BalanceVid works out when each line falls by listening to the
+            song. Leave this empty for an instrumental — the export is
+            complete either way.
           </p>
+
           {said && (
             <p className="small" data-testid="lyrics-said"
                style={{ color: 'var(--bad)', margin: '0 0 6px' }}>{said}</p>
           )}
+          {note && (
+            <p className="small muted" data-testid="lyrics-note"
+               style={{ margin: '0 0 6px' }}>{note}</p>
+          )}
+
           <div className="row" style={{ gap: 'var(--space-3)' }}>
-            <button className="ctl sm" data-testid="lyrics-save" disabled={busy || !text.trim()}
+            <button className="ctl sm" data-testid="lyrics-save"
+                    disabled={busy || !text.trim() || text === words}
                     onClick={() => {
-                      void onRepair({ action: 'set-lyrics', lrc: text })
+                      void onRepair({ action: 'set-lyrics-text', text })
                         .then((refusal) => setSaid(refusal));
                     }}>
-              Use these
+              Save lyrics
             </button>
-            {lines > 0 && (
+            {(words.trim() || timed.length > 0) && (
               <button className="ctl sm" data-testid="lyrics-clear" disabled={busy}
                       onClick={() => onRepair({ action: 'set-lyrics', lrc: null })}>
                 Remove
               </button>
             )}
           </div>
+
+          {/* ---- TIMING ------------------------------------------------ */}
+          {words.trim() && (
+            <>
+              <p className="small" style={{
+                margin: 'var(--space-5) 0 4px', fontSize: 'var(--text-2xs)',
+                letterSpacing: '0.07em', textTransform: 'uppercase',
+                color: 'var(--text-faint)', fontWeight: 'var(--weight-bold)',
+              }}>Timing</p>
+              <div className="row" style={{ gap: 'var(--space-3)' }}>
+                <button
+                  className="ctl sm is-key" data-testid="lyrics-sync"
+                  disabled={busy || listening}
+                  onClick={() => { void synchronise(); }}
+                >
+                  {listening ? 'Listening to the song…'
+                    : timed.length > 0 ? 'Synchronise again' : 'Synchronise lyrics'}
+                </button>
+                <button className="ctl sm" data-testid="lyrics-advanced"
+                        onClick={() => setAdvanced((was) => !was)}>
+                  {advanced ? 'Hide LRC import' : 'Import LRC'}
+                </button>
+              </div>
+
+              {/*
+                * THE PREVIEW THE BRIEF DREW. *"Show a timing preview.
+                * User adjusts anything that is wrong."* Adjusting is
+                * still to build; seeing is what stops somebody
+                * exporting a caption track they have never looked at.
+                */}
+              {timed.length > 0 && (
+                <div data-testid="lyrics-preview" style={{
+                  marginTop: 'var(--space-3)', maxHeight: 180,
+                  overflowY: 'auto',
+                  border: 'var(--border) solid var(--console-seam)',
+                  borderRadius: 'var(--radius-xs)',
+                }}>
+                  {timed.map((line, index) => (
+                    <div
+                      // eslint-disable-next-line react/no-array-index-key
+                      key={index} className="row" data-testid="lyrics-line"
+                      style={{
+                        gap: 'var(--space-3)', minWidth: 0,
+                        padding: '2px 6px',
+                        borderBottom: 'var(--border) solid var(--console-rule)',
+                      }}
+                    >
+                      <span className="mono muted" style={{
+                        flex: '0 0 auto', fontSize: 'var(--text-2xs)',
+                      }}>{formatMasterPosition(line.fromSample)}</span>
+                      <span className="grow" style={{
+                        minWidth: 0, fontSize: 'var(--text-xs)',
+                        overflow: 'hidden', textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}>{line.text}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {advanced && (
+                <div style={{ marginTop: 'var(--space-3)' }}>
+                  <textarea data-testid="lyrics-lrc" rows={4} disabled={busy}
+                            placeholder={'[00:12.00]I walked the long way round\n'
+                              + '[00:16.50]And found you waiting there'}
+                            onChange={(event) => setText(event.target.value)}
+                            style={{
+                              width: '100%', fontSize: 'var(--text-sm)',
+                              fontFamily: 'var(--font-mono)',
+                            }} />
+                  <p className="small muted" style={{ margin: '4px 0 6px' }}>
+                    LRC — a timestamp before each line, which is what lyrics
+                    sites and karaoke tools export. Use this when you already
+                    have timings you trust.
+                  </p>
+                  <button className="ctl sm" data-testid="lyrics-lrc-save"
+                          disabled={busy || !text.trim()}
+                          onClick={() => {
+                            void onRepair({ action: 'set-lyrics', lrc: text })
+                              .then((refusal) => setSaid(refusal));
+                          }}>
+                    Use these timings
+                  </button>
+                </div>
+              )}
+            </>
+          )}
         </div>
       )}
     </div>

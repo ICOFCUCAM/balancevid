@@ -949,10 +949,19 @@ describe('master check', () => {
   });
 
   it('does not let a missing caption track stop a render', () => {
+    /*
+     * AND NO LONGER CALLS IT MISSING. This asserted `ok: false` for a
+     * performance with no lyrics, which told an instrumental it was
+     * incomplete — *"No lyrics ≠ missing required data."* The render
+     * was never blocked and still is not; what changed is that the
+     * line now passes rather than warning. [MASTER-EDIT §17, C-L2]
+     */
     const performance = ready();
     expect(performance.master.lyrics).toBeUndefined();
     const { items, ready: ok } = run(performance);
-    expect(items.find((entry) => entry.id === 'captions')?.ok).toBe(false);
+    const captions = items.find((entry) => entry.id === 'captions');
+    expect(captions?.ok).toBe(true);
+    expect(captions?.says).toContain('not supplied');
     expect(ok).toBe(true);
   });
 

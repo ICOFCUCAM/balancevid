@@ -39,7 +39,10 @@ import {
 import { type SoundReading, NO_CLEANUP, isCleanup } from './cleanup.js';
 import { type ColourReading, isMeasured } from './colour.js';
 import { NO_STABILIZER, isStabilizer } from './stabilize.js';
-import { LyricsError, parseLrc } from './lyrics.js';
+import {
+  type Alignment, type Phrase, LyricsError, MIN_LINE_SAMPLES,
+  alignLyrics, parseLrc,
+} from './lyrics.js';
 import { newId } from './ids.js';
 import type { TakeId } from './document.js';
 import {
@@ -1561,6 +1564,7 @@ export function setLyrics(
 ): void {
   if (lrc === null || lrc.trim() === '') {
     delete performance.master.lyrics;
+    delete performance.master.lyricsText;
     return;
   }
   /*
@@ -1572,10 +1576,117 @@ export function setLyrics(
    */
   try {
     performance.master.lyrics = parseLrc(lrc, performance.master.durationSamples);
+    /*
+     * AND THE WORDS ARE KEPT, not only their timings. An author who
+     * imported an LRC and then wants to re-align after a re-record
+     * should not have to find the file again. [§16, L1]
+     */
+    performance.master.lyricsText = lrc;
   } catch (error) {
     throw new PerformanceEditError(
       error instanceof LyricsError ? error.message : 'those lyrics could not be read');
   }
+}
+
+/**
+ * The words, with no timings yet.  [MASTER-EDIT §16, L1]
+ *
+ * *"You should not have to know what LRC is just because BalanceVid
+ * asked you for lyrics."*
+ *
+ * THIS IS THE DOOR THE BRIEF ASKS FOR. Plain lines go in and are kept as
+ * plain lines — no timestamps invented, nothing refused, and the Master
+ * Check can now say *supplied, timing required* because the document can
+ * hold that state.
+ *
+ * IT DOES NOT TOUCH `lyrics`. Words the author has re-typed do not
+ * silently invalidate timings they may still want, and they do not
+ * silently keep timings that now belong to different words either —
+ * which is why the studio shows both and the check says when they
+ * disagree. Synchronising is a separate act, because it is one.
+ */
+export function setLyricsText(
+  performance: Performance, text: string | null,
+): void {
+  if (text === null || text.trim() === '') {
+    delete performance.master.lyricsText;
+    return;
+  }
+  performance.master.lyricsText = text;
+}
+
+/**
+ * Put the author's words on the voice the master actually contains.
+ * [MASTER-EDIT §16, L2]
+ *
+ * The phrases are measured by the caller — in the browser, from the
+ * decoded master — because that is where the audio already is, and a
+ * queued job to measure four minutes of a file the studio is playing
+ * would be a spinner in front of an answer.
+ */
+export function synchroniseLyrics(
+  performance: Performance, phrases: readonly Phrase[],
+): Alignment {
+  const text = performance.master.lyricsText;
+  if (!text?.trim()) {
+    throw new PerformanceEditError(
+      'there are no lyrics on this song yet to synchronise');
+  }
+  try {
+    const done = alignLyrics(text, phrases, performance.master.durationSamples);
+    performance.master.lyrics = done.lines;
+    return done;
+  } catch (error) {
+    throw new PerformanceEditError(
+      error instanceof LyricsError ? error.message : 'those lyrics could not be timed');
+  }
+}
+
+/**
+ * Move one timed line, without disturbing the others.
+ * [MASTER-EDIT §16, §17; L7]
+ *
+ * *"Show a timing preview. User adjusts anything that is wrong."*
+ *
+ * ONE LINE AT A TIME, AND BOUNDED BY ITS NEIGHBOURS. A caption track is
+ * a sequence with no gaps and no overlaps — `parseLrc` and `alignLyrics`
+ * both produce one and the renderer assumes it — so moving a line's
+ * start moves the previous line's end with it. There is no state in
+ * which two captions are on screen at once, or in which a gap opens
+ * where the voice is still going.
+ *
+ * AND IT CANNOT SWALLOW A NEIGHBOUR. A line pushed far enough would
+ * leave the one before it with no time on screen, which is a line the
+ * author can no longer see in order to move it back. Both sides keep
+ * `MIN_LINE_SAMPLES`, so every nudge is reversible by eye.
+ *
+ * THE FIRST LINE'S FLOOR IS ZERO and the last line's ceiling is its own
+ * end: a nudge is a correction to WHEN A LINE STARTS, and changing how
+ * long the last one holds is a different decision nobody has asked for.
+ */
+export function nudgeLyric(
+  performance: Performance, index: number, bySamples: number,
+): void {
+  const lines = performance.master.lyrics;
+  if (!lines || index < 0 || index >= lines.length) {
+    throw new PerformanceEditError('there is no such line to move');
+  }
+  if (!Number.isFinite(bySamples) || bySamples === 0) return;
+
+  const line = lines[index]!;
+  const before = index > 0 ? lines[index - 1] : undefined;
+
+  const earliest = before
+    ? before.fromSample + MIN_LINE_SAMPLES
+    : 0;
+  const latest = line.toSample - MIN_LINE_SAMPLES;
+  const wanted = line.fromSample + Math.round(bySamples);
+  const moved = Math.max(earliest, Math.min(latest, wanted));
+  if (moved === line.fromSample) return;
+
+  line.fromSample = moved as Samples;
+  /* The line before ends where this one begins: no gap, no overlap. */
+  if (before) before.toSample = moved as Samples;
 }
 
 /**

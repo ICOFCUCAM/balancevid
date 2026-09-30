@@ -172,3 +172,260 @@ export function lyricsInWindow(
   }
   return out;
 }
+
+/* ------------------------------------------------------------------------ *
+ *  Aligning words to the voice.  [MASTER-EDIT §16, C-L1; L2]
+ * ------------------------------------------------------------------------ */
+
+/**
+ * *"You should not have to know what LRC is just because BalanceVid asked
+ *  you for lyrics."*
+ *
+ * AND THE HEAD OF THIS FILE SAYS THE PRODUCT NEVER GUESSES A TIME. Both
+ * are right, and the distinction they turn on is the whole of this
+ * section: **the objection is to SPREADING, not to MEASURING.**
+ *
+ * Spreading is what the refusal was written against — twenty lines over
+ * four minutes at twelve seconds each, an arithmetic mean pretending to
+ * be a fact, drifting further from the voice with every line. That is
+ * still refused and always will be.
+ *
+ * What this does instead is read where the singing actually starts and
+ * stops. A phrase boundary is a measurement of the master's own audio,
+ * made by the same voice detector Studio One's transcription uses, and
+ * placing a line at one is not a guess about the song — it is the song,
+ * reported.
+ *
+ * IT IS ALSO NOT TRANSCRIPTION, which this file rejected for good reason:
+ * *"speech recognition on SINGING is bad — held vowels, melisma, a backing
+ * track in the same band as the voice."* Nothing here recognises a word.
+ * The words are known, because the author supplied them; the only question
+ * is which phrase each one belongs to, and a held vowel is as detectable
+ * as a short one.
+ *
+ * WHERE IT STILL ESTIMATES, IT SAYS SO AND THE ERROR IS BOUNDED. Two lines
+ * sung in one breath share one measured phrase, and they are divided
+ * inside it by how long each takes to sing. That is an estimate — but it
+ * is an estimate INSIDE a measurement, so it cannot drift: the worst it
+ * can be wrong by is the length of the phrase it is confined to, and the
+ * author is told which lines those are.
+ */
+
+/** A stretch of the master where somebody is singing. Measured. */
+export interface Phrase {
+  fromSample: Samples;
+  toSample: Samples;
+}
+
+export interface Alignment {
+  lines: LyricLine[];
+  /**
+   * Which lines were placed by measurement alone, by their index in
+   * `lines`. Everything not here shares a phrase with its neighbour and
+   * was divided inside it — which is what the studio marks for review.
+   */
+  measured: number[];
+  /** What to tell the author, in their language rather than ours. */
+  says: string;
+  /**
+   * Whether this is good enough to keep without looking.
+   *
+   * False does not mean refused. It means the author has to see it, which
+   * is the whole point of showing a timing preview. [§16]
+   */
+  ok: boolean;
+  /**
+   * The words ran past the singing that was found.
+   *
+   * Every line gets its second, because a caption nobody can read is not
+   * a caption — so more words than voice pushes the tail beyond the last
+   * phrase. Reported rather than hidden: it means the detector heard a
+   * fraction of the song, and the author needs to know that before they
+   * trust any of it.
+   */
+  overflowed: boolean;
+  /** Said alongside `says` when there is a second thing to know. */
+  also?: string;
+}
+
+/**
+ * The words, one per line, as somebody typed them.
+ *
+ * BLANK LINES SEPARATE STANZAS AND ARE NOT LINES. Everybody pastes a
+ * verse, a gap and a chorus, and a caption track with an empty caption in
+ * it shows a blank screen where a word should be.
+ */
+export function lyricLines(text: string): string[] {
+  return text.split(/\r?\n/).map((one) => one.trim()).filter((one) => one !== '');
+}
+
+/**
+ * How long a line takes to sing, relative to the others.
+ *
+ * COUNTED IN LETTERS, not in words: "Hallelujah" is one word and four
+ * syllables, and a word count would give it the same time as "Lord".
+ * Letters are a poor proxy for syllables and a much better one than
+ * words, and this is only ever used to divide a measured phrase between
+ * two lines that shared it — so a poor proxy costs a fraction of one
+ * breath, never a drift.
+ */
+function weight(line: string): number {
+  return Math.max(1, line.replace(/[^\p{L}\p{N}]/gu, '').length);
+}
+
+/**
+ * Put the words on the voice.
+ *
+ * THREE CASES, AND THE PRODUCT SAYS WHICH ONE HAPPENED:
+ *
+ *   as many phrases as lines — every line landed on its own breath, which
+ *     is the case a verse-per-line lyric produces and it needs no review;
+ *   more phrases than lines — the singer breathed inside a line, or there
+ *     is an instrumental. Adjacent phrases are joined at the SHORTEST gaps
+ *     first, because the shortest gap is the one most likely to be a
+ *     breath rather than a line break;
+ *   more lines than phrases — two lines were sung in one breath. The
+ *     phrase is divided between them by `weight`, and both are marked for
+ *     review.
+ */
+export function alignLyrics(
+  text: string, phrases: readonly Phrase[], songSamples: Samples,
+): Alignment {
+  const words = lyricLines(text);
+  if (words.length === 0) {
+    throw new LyricsError('there are no words in that to put on the song');
+  }
+  /*
+   * NO PHRASES IS NOT AN ALIGNMENT OF ZERO LINES. It means the detector
+   * found no singing — an instrumental, a silent master, or a measurement
+   * that has not run — and spreading the words over it is the exact thing
+   * the head of this file forbids.
+   */
+  if (phrases.length === 0) {
+    throw new LyricsError(
+      'no singing was found in this song, so there is nothing to put the '
+      + 'words on. Check the master has the vocal in it, or paste an LRC '
+      + 'file with your own timings');
+  }
+
+  /* In order, inside the song, and never inside out. */
+  const heard = [...phrases]
+    .map((one) => ({
+      fromSample: Math.max(0, Math.min(songSamples, one.fromSample)),
+      toSample: Math.max(0, Math.min(songSamples, one.toSample)),
+    }))
+    .filter((one) => one.toSample > one.fromSample)
+    .sort((a, b) => a.fromSample - b.fromSample);
+
+  if (heard.length === 0) {
+    throw new LyricsError(
+      'the singing found in this song is outside the song, which cannot '
+      + 'be right. Paste an LRC file with your own timings');
+  }
+
+  /* ---- more phrases than lines: join at the shortest gaps ------------ */
+  const slots = [...heard];
+  while (slots.length > words.length) {
+    let shortest = 0;
+    let gap = Number.POSITIVE_INFINITY;
+    for (let i = 0; i < slots.length - 1; i += 1) {
+      const between = slots[i + 1]!.fromSample - slots[i]!.toSample;
+      if (between < gap) { gap = between; shortest = i; }
+    }
+    slots.splice(shortest, 2, {
+      fromSample: slots[shortest]!.fromSample,
+      toSample: slots[shortest + 1]!.toSample,
+    });
+  }
+
+  /* ---- assign, dividing a slot where two lines share one ------------- */
+  const lines: LyricLine[] = [];
+  const measured: number[] = [];
+  const perSlot = Math.ceil(words.length / slots.length);
+
+  let index = 0;
+  for (let s = 0; s < slots.length && index < words.length; s += 1) {
+    const slot = slots[s]!;
+    /*
+     * AND NO SPECIAL CASE FOR THE LAST SLOT. One stood here — "the last
+     * slot takes whatever is left, so nothing is dropped" — and a
+     * mutation sweep removed it without an assertion noticing, because
+     * `Math.ceil` already guarantees the slots can hold every line.
+     * The fourth unobservable guard this session, and deleted for the
+     * same reason as the others: it reads as though something were
+     * being enforced that arithmetic already settles.
+     */
+    const take = Math.min(perSlot, words.length - index);
+    const mine = words.slice(index, index + take);
+    const total = mine.reduce((sum, one) => sum + weight(one), 0);
+    let at = slot.fromSample;
+    for (let i = 0; i < mine.length; i += 1) {
+      const share = (slot.toSample - slot.fromSample) * (weight(mine[i]!) / total);
+      const to = i === mine.length - 1 ? slot.toSample : at + share;
+      if (mine.length === 1) measured.push(lines.length);
+      lines.push({
+        fromSample: Math.round(at),
+        toSample: Math.round(Math.max(to, at + MIN_LINE_SAMPLES)),
+        text: mine[i]!,
+      });
+      at = to;
+    }
+    index += take;
+  }
+
+  /*
+   * A LINE MAY NOT START BEFORE THE ONE BEFORE IT ENDS, which the
+   * minimum length above can otherwise cause on a phrase shorter than a
+   * second. Walked forward once rather than checked: the alternative is
+   * two captions on screen at the same time, which reads as a bug in the
+   * video rather than in the timings.
+   */
+  for (let i = 1; i < lines.length; i += 1) {
+    if (lines[i]!.fromSample < lines[i - 1]!.toSample) {
+      lines[i]!.fromSample = lines[i - 1]!.toSample;
+      lines[i]!.toSample = Math.max(
+        lines[i]!.toSample, lines[i]!.fromSample + MIN_LINE_SAMPLES);
+    }
+  }
+
+  const shared = lines.length - measured.length;
+  const joined = heard.length - slots.length;
+  /*
+   * AND WHETHER THE WORDS FIT THE SINGING AT ALL.
+   *
+   * A caption nobody can read is not a caption, so every line gets its
+   * second — and twenty lines against one ten-second phrase is twenty
+   * seconds of captions on ten seconds of voice. The minimum wins,
+   * because half a second on screen helps nobody, and then the words
+   * run past the singing they were measured onto.
+   *
+   * That input is pathological — it means the detector heard a fraction
+   * of the song — and the honest response is to say so rather than to
+   * either refuse a whole lyric or quietly hand back captions that
+   * outlast the voice. [D-04, §16]
+   */
+  const lastSlot = slots[slots.length - 1]!.toSample;
+  const overflowed = (lines[lines.length - 1]?.toSample ?? 0) > lastSlot;
+  return {
+    lines,
+    measured,
+    ok: shared === 0,
+    says: shared === 0
+      ? joined > 0
+        ? `Every line landed on its own phrase. ${joined} breath`
+          + `${joined === 1 ? '' : 's'} inside a line ${joined === 1 ? 'was' : 'were'}`
+          + ' joined up.'
+        : 'Every line landed on its own phrase.'
+      : `${shared} line${shared === 1 ? '' : 's'} shared a phrase with `
+        + `${shared === 1 ? 'another' : 'others'} and ${shared === 1 ? 'was' : 'were'}`
+        + ' divided inside it. Those are marked — check them against the song.',
+    overflowed,
+    ...(overflowed
+      ? {
+        also: 'There are more words here than singing was found for, so the '
+          + 'last lines run past the voice. The master may be missing the '
+          + 'vocal, or these may be the words to a longer song.',
+      }
+      : {}),
+  };
+}
