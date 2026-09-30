@@ -175,16 +175,21 @@ async function appendAll(pieces: string[], out: string): Promise<void> {
 /**
  * The station's marks, as ffmpeg filters.  [§13]
  *
+ * Exported for the test rather than for a caller: a wrong filter string does
+ * not produce a wrong caption, it fails the segment and puts the channel to
+ * black, and that is not a fault worth discovering from a black screen.
+ *
  * The identity decides WHAT; this knows HOW. Text is escaped for drawtext,
  * which is a filter-graph language with its own opinions about colons and
  * apostrophes — an unescaped programme title called "Verse 1: the beginning"
  * would not produce a wrong caption, it would fail the whole segment and put
  * the channel to black.
  */
-function markFilters(marks: Mark[]): string[] {
+export function markFilters(marks: Mark[]): string[] {
   const pad = 28;
   /* The lower marks stack upward, so NEXT sits under the title. */
   let lowerLeft = 0;
+  let inRegion = 0;
   return marks.map((mark) => {
     const size = Math.round((mark.size / 720) * STREAM.height);
     const box = mark.plate
@@ -192,6 +197,35 @@ function markFilters(marks: Mark[]): string[] {
       : '';
     let x = `${pad}`;
     let y = `${pad}`;
+    /*
+     * A REGION BEATS A CORNER.  [CHANNEL §27, C-20]
+     *
+     * The set drew a rectangle where its furniture is not, and the
+     * whole reason it exists is that `bottom-left` is the front of
+     * the desk. Fractions of the frame, turned into pixels here and
+     * nowhere else — `STREAM` is the only place that knows how big a
+     * frame is.
+     *
+     * NO EXTRA INSET. The rectangles already carry their own margin
+     * (every set's is x: 0.04 or wider), and padding a padded
+     * rectangle would move the caption off the strip it was drawn to
+     * sit on.
+     *
+     * The stack still runs upward from the bottom of the region, so
+     * a title and its NEXT keep the order they have in a corner —
+     * counted separately, because a mark in a region and a mark in a
+     * corner are not in each other's way.
+     */
+    if (mark.at) {
+      const left = Math.round(mark.at.x * STREAM.width);
+      const floor = Math.round((mark.at.y + mark.at.h) * STREAM.height);
+      x = `${left}`;
+      y = `${floor - inRegion}-th`;
+      inRegion += size * 2;
+      return `drawtext=text='${escapeDrawText(mark.text)}'`
+        + `:fontcolor=${mark.ink}@${mark.opacity.toFixed(2)}`
+        + `:fontsize=${size}:x=${x}:y=${y}${box}`;
+    }
     if (mark.corner === 'top-right' || mark.corner === 'bottom-right') {
       x = `w-tw-${pad}`;
     }

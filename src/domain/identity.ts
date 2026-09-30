@@ -21,6 +21,8 @@
  */
 
 import type { OnAir } from './channel.js';
+import type { Rect } from './presentation.js';
+import { setById } from './virtualSet.js';
 
 /** Where a mark sits. The four corners, in the language a gallery uses. */
 export type Corner = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
@@ -121,6 +123,26 @@ export interface Mark {
   /** A filled plate behind the text, for the marks that need to be read. */
   plate?: boolean;
   ink: string;
+  /**
+   * WHERE, WHEN THE SCENE SAYS WHERE.  [CHANNEL §27, C-18, C-20]
+   *
+   * A corner is the right answer for a channel composited into
+   * somebody's own room: there is nothing in the picture the caption
+   * can land on top of. It is the wrong answer for a set with a desk
+   * in it — bottom-left is the desk's front edge, and a name written
+   * across it is a name nobody can read.
+   *
+   * SO A SET MAY NAME THE REGION and the identity honours it.
+   * `VirtualSet.logo` and `VirtualSet.lowerThird` have carried these
+   * rectangles since the sets were drawn, tested to clear the
+   * furniture, and been read by nothing. Fractions of the frame, like
+   * every other rectangle in the product, so the same set places the
+   * same caption at any output size. [D-06]
+   *
+   * Absent for a channel with no set, which is every channel that has
+   * not chosen one — and then the corner decides, exactly as before.
+   */
+  at?: Rect;
 }
 
 export function marksFor(
@@ -134,6 +156,14 @@ export function marksFor(
   if (!identity) return [];
   const ink = identity.ink ?? '#ffffff';
   const marks: Mark[] = [];
+  /*
+   * THE SCENE, IF THERE IS ONE. A set is a room with furniture in it,
+   * and the two regions it draws — where the station's mark belongs,
+   * and the strip the lower third owns — are the set saying where its
+   * own furniture is not. Null for a channel that has not chosen one,
+   * and then every mark falls back to its corner. [§27, C-18, C-20]
+   */
+  const scene = setById(identity.setId);
 
   if (identity.bug?.text) {
     marks.push({
@@ -143,6 +173,7 @@ export function marksFor(
       opacity: identity.bug.opacity,
       size: 22,
       ink,
+      ...(scene ? { at: scene.logo } : {}),
     });
   }
 
@@ -150,6 +181,13 @@ export function marksFor(
    * ONLY WHEN IT IS TRUE. A LIVE lamp on a repeat is the one piece of station
    * branding that is a lie rather than a decoration, and it is the piece
    * every viewer checks.
+   */
+  /*
+   * AND THE LAMP KEEPS ITS CORNER, set or no set. It is not part of
+   * the scene's design — it is the one mark that is a statement of
+   * fact about the transmission, and a viewer checking whether this
+   * is live should find it in the same place on every channel they
+   * watch rather than wherever this room's furniture allowed. [§13]
    */
   if (identity.liveLamp && on.kind === 'live') {
     marks.push({
@@ -185,6 +223,7 @@ export function marksFor(
       size: 26,
       plate: true,
       ink,
+      ...(scene ? { at: scene.lowerThird } : {}),
     });
   }
 
@@ -201,6 +240,7 @@ export function marksFor(
         size: 26,
         plate: true,
         ink,
+        ...(scene ? { at: scene.lowerThird } : {}),
       });
       /*
        * NEXT rides with the title rather than appearing on its own, because
@@ -216,6 +256,7 @@ export function marksFor(
           size: 18,
           plate: true,
           ink,
+          ...(scene ? { at: scene.lowerThird } : {}),
         });
       }
     }
