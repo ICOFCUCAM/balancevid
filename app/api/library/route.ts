@@ -79,7 +79,19 @@ export async function GET(request: Request): Promise<Response> {
     const assetId = name.split('.')[0];
     if (!assetId) continue;
     const info = await stat(join(paths.library(), name)).catch(() => null);
-    if (!info) continue;
+    /*
+     * A DIRECTORY IS NOT A FILE TO PLAY, and this listing was offering
+     * one. `var/library/decks/` came back as a 4 KB item called "decks"
+     * with `form: 'video'` — schedulable, loadable into the Media
+     * Player, and black on every monitor it reached, because there is
+     * no video at the end of a folder.
+     *
+     * The same fault was found and fixed once in `broadcastLibrary.ts`
+     * and this is the second listing, which is the shape of the bug
+     * `libraryMedia.ts` exists to stop: one question about what a file
+     * is, answered in more than one place. [D-19, §3]
+     */
+    if (!info || !info.isFile()) continue;
     let label = assetId;
     try {
       label = JSON.parse(

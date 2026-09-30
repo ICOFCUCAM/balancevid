@@ -200,3 +200,60 @@ describe('what the tile says', () => {
       titleOf, 'Evening Feature')).toBe('Cued — Ancient Days');
   });
 });
+
+/**
+ * A still is the third kind, and the transport was written for two.
+ * [Doctrine CHANNEL §3, §25; D-19, U-19]
+ *
+ * *"Why is the media player not working any more?"*
+ *
+ * THREE SYMPTOMS, ONE CAUSE. `MediaKind` has had three values since this
+ * was built — video, audio and image — and everything downstream handled
+ * two. A still loaded from the library was handed to the same `<video>`
+ * element as a film, so the operator got a black monitor, a clock reading
+ * `0:00 / –`, and a Play button that did nothing at all when pressed.
+ *
+ * The monitor and the clock are fixed where they are drawn. This is the
+ * part that belongs here: play and pause are meaningless on a picture,
+ * and a control that does nothing when pressed is the fault this desk
+ * keeps removing. Load, Take live and Eject all still mean what they say
+ * — a still is exactly as takeable as a film.
+ */
+describe('a still has no transport (§25)', () => {
+  const cued = { phase: 'loaded', key: 'k', atMs: 0 } as const;
+  const running = { phase: 'playing', key: 'k', atMs: 0 } as const;
+
+  it('will not play or pause a picture', () => {
+    expect(may(cued, 'play', 'image')).toBe(false);
+    expect(may(running, 'pause', 'image')).toBe(false);
+  });
+
+  it('still loads, takes and ejects one', () => {
+    /* A still is exactly as takeable as a film: it is the taking that
+       puts it on the air, and there was never anything to play first. */
+    expect(may(cued, 'load', 'image')).toBe(true);
+    expect(may(cued, 'take', 'image')).toBe(true);
+    expect(may(cued, 'eject', 'image')).toBe(true);
+  });
+
+  it('leaves video and audio exactly as they were', () => {
+    for (const kind of ['video', 'audio'] as const) {
+      expect(may(cued, 'play', kind)).toBe(true);
+      expect(may(running, 'pause', kind)).toBe(true);
+    }
+  });
+
+  it('gives a caller that does not know the kind what it always had', () => {
+    /* Optional, so a caller with no kind gets the old behaviour rather
+       than a refusal it cannot explain to anybody. */
+    expect(may(cued, 'play')).toBe(true);
+    expect(may(running, 'pause')).toBe(true);
+  });
+
+  it('refuses a picture even in the phase that would otherwise allow it', () => {
+    /* The guard is about the KIND, not about the phase: without that,
+       `phase === 'loaded'` would let it through as it always did. */
+    expect(may(cued, 'play', 'image')).toBe(false);
+    expect(may(cued, 'play', 'video')).toBe(true);
+  });
+});

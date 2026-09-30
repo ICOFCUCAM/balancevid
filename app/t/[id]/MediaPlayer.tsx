@@ -153,6 +153,36 @@ export function MediaPreview({
     else node.pause();
   }, [playing, url]);
 
+  /*
+   * A PICTURE GOES IN AN <img>, AND THIS IS THE BUG THE OPERATOR SAW.
+   * [CHANNEL §25, D-19]
+   *
+   * *"Why is the media player not working any more?"* — a still loaded
+   * from the library previewed as a black rectangle. `MediaKind` has
+   * three values and the line below handled two, so a PNG was handed to
+   * a `<video>` element, which decodes nothing and shows nothing. The
+   * comment under it was right about video and audio and had simply
+   * never been asked about the third.
+   *
+   * It returns before the media element rather than beside it: there is
+   * no `HTMLMediaElement` here, nothing to play, nothing to time, and no
+   * spectrum to draw. Every hook above has already run, so the early
+   * return costs nothing and keeps the still out of four code paths that
+   * would all have to special-case it.
+   */
+  if (item.kind === 'image') {
+    return (
+      <div style={{
+        position: 'absolute', inset: 0, background: 'var(--screen-bed)',
+      }}>
+        <img
+          src={url} alt={item.title} data-testid="media-preview-still"
+          style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+        />
+      </div>
+    );
+  }
+
   const sound = item.kind === 'audio';
   return (
     <div style={{ position: 'absolute', inset: 0, background: 'var(--screen-bed)' }}>
@@ -361,17 +391,26 @@ export default function MediaPlayerPanel({
           {loaded && (
             <span className="mono muted" data-testid="media-at" style={{
               flex: '0 0 auto', fontSize: 'var(--text-2xs)',
-            }}>{clock(state.atMs)} / {clock(loaded.durationMs)}</span>
+            }}>{loaded.kind === 'image'
+              /* A still has no duration of its own, and `0:00 / –` is
+                 that fact written as a stopwatch nobody can start. The
+                 programme's `stillMs` decides how long it holds when it
+                 goes out, which is a different question. [§3] */
+              ? 'STILL'
+              : `${clock(state.atMs)} / ${clock(loaded.durationMs)}`}</span>
           )}
         </span>
 
         <span className="row" style={{ gap: 5 }}>
           <button
             className="ctl" type="button" data-testid="media-play"
-            disabled={!may(state, state.phase === 'playing' ? 'pause' : 'play')}
+            disabled={!may(state, state.phase === 'playing' ? 'pause' : 'play',
+              loaded?.kind)}
             onClick={state.phase === 'playing' ? onPause : onPlay}
-            title={state.phase === 'playing'
-              ? 'Pause the preview' : 'Play it in preview — nothing goes out'}
+            title={loaded?.kind === 'image'
+              ? 'A still has nothing to play — take it live when you want it'
+              : state.phase === 'playing'
+                ? 'Pause the preview' : 'Play it in preview — nothing goes out'}
             style={{ flex: 1, padding: '6px 8px' }}
           >{state.phase === 'playing' ? 'Pause' : 'Play'}</button>
           {/*

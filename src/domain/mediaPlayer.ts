@@ -156,12 +156,32 @@ export function search<T extends PlayableItem>(
  */
 export type PlayerAct = 'load' | 'play' | 'pause' | 'take' | 'eject';
 
-export function may(state: PlayerState, act: PlayerAct): boolean {
+export function may(
+  state: PlayerState, act: PlayerAct, kind?: MediaKind,
+): boolean {
+  /*
+   * A PHOTOGRAPH HAS NO TRANSPORT.  [CHANNEL §25, D-19, U-19]
+   *
+   * `MediaKind` has had three values since the player was built and the
+   * transport was written for two. A still went into the same `<video>`
+   * element as a film, which shows black and reports no duration — so the
+   * operator saw an empty monitor, a clock reading `0:00 / –`, and a Play
+   * button that did nothing when pressed. Three symptoms, one cause.
+   *
+   * The clock and the monitor are fixed where they are drawn. This is the
+   * third: PLAY AND PAUSE ARE MEANINGLESS ON A PICTURE, and a control that
+   * does nothing when pressed is the fault this desk keeps removing. Load,
+   * Take live and Eject all still mean exactly what they say.
+   *
+   * Optional, because a caller that does not know the kind gets the
+   * behaviour it always had rather than a refusal it cannot explain.
+   */
+  const still = kind === 'image';
   switch (act) {
     /* Loading over a loaded item is how an operator changes their mind. */
     case 'load': return true;
-    case 'play': return state.phase === 'loaded';
-    case 'pause': return state.phase === 'playing';
+    case 'play': return !still && state.phase === 'loaded';
+    case 'pause': return !still && state.phase === 'playing';
     /*
      * TAKEN FROM EITHER. An operator who has cued a thing and not pressed
      * play still means to take it — that is the whole point of a cue — and
