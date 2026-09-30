@@ -2025,3 +2025,147 @@ forwarding fields that are already measured, item 2 is a player plus four
 fields on a library item, and item 3 is the only one that is genuinely new
 engineering — a matte at 30 fps in the browser canvas, feeding the same
 composition path the encoder already reads.
+
+---
+
+## C-15 — Stage 15: the guest grid, and the field nobody sent
+
+*Priority 1 of the §29 order: "Four guest sources inside the existing Camera
+2 tile." Built, and the browser found something underneath it that no
+amount of drawing would have fixed.*
+
+### No guest had ever reached the broadcast
+
+The grid was drawn, the geometry held, three guests were staged in a real
+room — and all four quarters stayed empty. The cause was one word:
+
+```ts
+const data = await response.json() as {
+  participants?: RoomParticipant[];
+  stagedParticipantIds?: string[];
+  hostId?: string;            // ← never sent
+};
+setMeId(data.hostId);
+```
+
+`roomView` returns `meId`, a `me` flag on the caller's own row, and each
+participant's `role`. **It has never returned `hostId`.** So `meId` was
+always `undefined`; `useRoomMesh` returns early on `!meId`; and no peer
+connection was ever opened for a broadcast. Guests joined, were listed,
+were staged, were counted in "N in mix" — and their pictures never left
+their own browsers.
+
+That is the author's *"camera 2, being guest"* showing nothing, and it is
+not a drawing fault. **The old tile hid it perfectly**: it showed
+`guests.find((person) => person.stream !== camera)`, and with the list
+always empty it simply drew the "Guest" placeholder that a room with nobody
+in it would also draw. One tile, two indistinguishable failures — which is
+the argument for `NO GUEST`, `NO VIDEO`, `CONNECTING` and `LOST` being four
+different words.
+
+The fix reads what the room actually sends, in the Room's own order of
+authority: `meId`, then the row flagged `me`, then — for the OWNER, who is
+not a participant and has neither — the participant `openRoom` created with
+`role: 'host'`. The broadcaster **is** the host of the room they opened;
+that is the identity the signalling is keyed on.
+
+### What was already measured, and thrown away
+
+Three of the eight things §24 asks each quarter to show were being computed
+one file away and dropped before the multi-view saw them:
+
+| | measured by | was |
+|---|---|---|
+| connection state | `useRoomMesh.states`, per peer | dropped when `MixerSource` was built |
+| audio meter | `useFeedLevels.energy` | wired to host and master only |
+| speaking | `useFeedLevels.speech`, via `measureVoice` | same |
+
+The speaking indicator uses `DEFAULT_POLICY`'s own thresholds — energy
+above the microphone's measured floor, and speech confidence — so the dot
+on the monitor and the Room's automatic speaker switching cannot disagree
+about who has the floor. Without the dwell and hysteresis `decideStage`
+applies: those stop the PICTURE flicking between people, and a meter that
+waited 600ms to admit somebody had spoken would be a meter that lied for
+600ms.
+
+**What was not measured anywhere is whether a track is delivering
+anything.** `useTrackStates` subscribes to `mute`, `unmute` and `ended` per
+track rather than polling, so a quarter goes dark within a frame of the
+picture doing so. The browser will not say WHY — `muted` covers both "they
+turned their camera off" and "the connection has starved" — so the quarter
+says `NO VIDEO`, which is what the operator can see, rather than guessing.
+
+### A grid of buttons cannot live inside a button
+
+Tile 02 is a `<div role="group">` and the other five are `<button>`s. Not a
+technicality: a nested button is invalid, unreachable by keyboard in the
+order anybody expects, and announced as one control. Everything else about
+the tile — the box, the number plate, the name plate, the tally, the
+`minmax(0, 1fr)` cell — is identical, because the requirement is that the
+rack does not move.
+
+**The labels are at the top, and every other tile's are at the bottom.**
+That is not an inconsistency; it is why the rack survives. The tile's own
+name plate is a scrim across its bottom edge, and the bottom two quarters
+live under it. A quarter labelling itself down there would be a label
+inside a label.
+
+**The browser removed a word.** `NO GUEST` centred in a quarter lands on
+top of the `G2` mark — 48×40 device pixels is what a quarter is on the
+author's screen. An empty well already says so with hatching and a dimmed
+mark, and the title says it in words, so the centred word is kept for the
+four states an operator has to act on, and sits along the bottom edge where
+it clears both the mark and the microphone glyph.
+
+### Clicking a guest is a vision mixer's action
+
+*"clicking a guest should select that guest as the programme source."*
+That is a **solo** on the canvas mixer: one source, full frame, released by
+clicking again. It does not unstage anybody, does not reach the
+conversation, and is never written to the channel — which guest is in shot
+at 19:42 is not a property of the station.
+
+**It does not touch the audio.** Every staged microphone stays in the mix
+while one person has the picture, because a guest answering over a close-up
+of somebody else is still answering. That is ROOM §4's rule and the mixer's
+own, and cutting the sound with the vision would clip the first word of
+every reply.
+
+A solo on somebody who has left is released rather than remembered: holding
+it would black the programme out the moment a guest's browser closed.
+
+### A guard that could not be observed
+
+`readGuests` had `feeds.slice(0, GUEST_SLOTS)` above an
+`Array.from({ length: GUEST_SLOTS })`. A mutation sweep removed the slice
+and every one of the 29 assertions still passed — because index 4 is never
+asked for. It was decoration in the one place decoration is worst: it read
+as though the cap were enforced twice. The cap is the length; `guestCount`
+is what tells the operator about a fifth guest.
+
+Ten other mutations were caught: `disconnected` reading as lost rather than
+unstable, speaking ignoring the microphone, the noise floor, or the speech
+confidence, the tally ignoring transmission or the solo, `live` surviving a
+dead picture, `NO VIDEO` printed over `LOST`, and the meter unclamped or
+metering a muted microphone.
+
+### Verified in the browser, against the author's own channel
+
+Three guests joined a real room from three separate browser contexts, were
+staged, and turned their cameras on.
+
+* **Before their cameras:** three quarters read `health: live`,
+  `mic: open`, `eye: dark`, `NO VIDEO` — the state reported correctly
+  rather than as an empty box.
+* **After:** two quarters carried live pictures, `says` empty, with the
+  microphone glyph and the meter beside them.
+* **On air:** both occupied quarters went to `live: true`; the empty two
+  did not.
+* **Soloed on guest 2:** slot 2 alone read `live` and `soloed`; slot 1
+  dropped off air, with every microphone still in the mix.
+* **And the box:** tile 02 measured **99×83**, tile 03 measured **99×83** —
+  the same, before and after, with four cameras inside one of them.
+
+The author's channel and the conversation behind it were restored from
+copies taken before the run: the same armed session, the same five
+participants, the same one staged.

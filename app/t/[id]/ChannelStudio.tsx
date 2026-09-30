@@ -21,7 +21,12 @@ import {
   MenuButton, MenuHost, RightClickHint, useRowMenu, type MenuEntry,
 } from '../../Menu.js';
 import { useLiveEncoder } from './useLiveEncoder.js';
+import GuestGrid from './GuestGrid.js';
 import { useBroadcastGuests } from './useBroadcastGuests.js';
+import { NO_TRACKS, useTrackStates } from './useTrackStates.js';
+import {
+  type GuestFeed, type GuestReading, guestCount, readGuests,
+} from '../../../src/domain/guestGrid.js';
 import { arrangementFor, useBroadcastMixer } from './useBroadcastMixer.js';
 import { useFeedLevels } from './useFeedLevels.js';
 import AnswersTab from './AnswersTab.js';
@@ -209,6 +214,15 @@ export default function ChannelStudio({
    */
   const [camera, setCamera] = useState<MediaStream | null>(null);
   const [arrangement, setArrangement] = useState<string | undefined>(undefined);
+  /**
+   * ONE GUEST, ALONE ON THE PROGRAMME BUS.  [§24]
+   *
+   * *"clicking a guest should select that guest as the programme source."*
+   * A gallery decision, held here beside the arrangement it overrides, and
+   * never written to the channel: which guest is in shot at 19:42 is not a
+   * property of the station. [D-19]
+   */
+  const [solo, setSolo] = useState<string | null>(null);
   /*
    * WHICH camera and WHICH microphone. [§23]
    *
@@ -293,6 +307,7 @@ export default function ChannelStudio({
   const mixer = useBroadcastMixer({
     sources: mixed,
     layoutId: arrangement,
+    solo,
     enabled: Boolean(liveNow) && mixed.length > 0,
     /*
      * THE CANVAS IS THE REAL CEILING. It always took these three and the
@@ -421,6 +436,53 @@ export default function ChannelStudio({
     ? channel.live : undefined;
   const onAir = Boolean(session);
   const armed = session?.phase === 'armed';
+
+  /* ---- THE FOUR MONITORS.  [§24, C-14] ------------------------------- *
+   *
+   * Nothing below is measured here. The streams are the Room's, the link
+   * states are the mesh's, the energy and the speech confidence are
+   * `measureVoice`'s, and whether a track is delivering anything is the
+   * browser's. C-14 found every one of them already being computed and
+   * thrown away before it reached the multi-view; this is the assembly,
+   * and `readGuests` — which is pure and tested — is the judgement. */
+  const tracks = useTrackStates(mixed, Boolean(liveNow));
+  const guestFeeds = useMemo<GuestFeed[]>(() => guests.sources
+    /* The operator's own camera is tile 01. Tile 02 is everybody else. */
+    .filter((person) => person.stream !== camera)
+    .map((person) => {
+      const track = tracks[person.id] ?? NO_TRACKS;
+      const level = levels[person.id];
+      return {
+        id: person.id,
+        ...(person.label ? { label: person.label } : {}),
+        ...(guests.states[person.id]
+          ? { link: guests.states[person.id]! } : {}),
+        hasVideo: track.hasVideo, videoDark: track.videoDark,
+        hasAudio: track.hasAudio, audioDark: track.audioDark,
+        ...(level ? { energy: level.energy, speech: level.speech } : {}),
+      };
+    }), [guests.sources, guests.states, camera, tracks, levels]);
+  const guestReadings = useMemo(() => readGuests(guestFeeds, {
+    solo,
+    /*
+     * THE GUESTS ARE ON AIR WHEN THE ROOM IS. Not when the channel is
+     * transmitting anything — a rolled-in file is going out over the top
+     * of them, and a quarter wearing a red tally under a music video
+     * would be the tally lying. The same condition tile 01 uses. [§24]
+     */
+    transmitting: on.kind === 'live',
+  }), [guestFeeds, solo, on.kind]);
+  /*
+   * A SOLO ON SOMEBODY WHO HAS LEFT IS RELEASED, not remembered. Holding
+   * it would black the programme out the moment a guest's browser closed,
+   * and the operator would be looking at the one tile that says why.
+   */
+  useEffect(() => {
+    if (solo && !guestFeeds.some((one) => one.id === solo)) setSolo(null);
+  }, [guestFeeds, solo]);
+  const takeGuest = useCallback((id: string) => {
+    setSolo((was) => (was === id ? null : id));
+  }, []);
   const emergency = Boolean(channel.emergency);
   /** Whether a stranger with the link can watch this. [§17] */
   const published = Boolean(
@@ -1198,6 +1260,8 @@ export default function ChannelStudio({
                 />
                 <MultiView
                   channel={channel} on={on} camera={camera} guests={guests.sources}
+                  guestReadings={guestReadings} guestsStaged={guestFeeds}
+                  solo={solo} onSolo={takeGuest}
                   library={library} nameOf={nameOf} studioOneId={studioOneId}
                   studioTwoId={studioTwoId} onAir={onAir}
                   onTake={(source) => void patch({ action: 'roll-in', source })}
@@ -3106,13 +3170,20 @@ function SchedulesRail({
  * a tile that lies about the transmission.
  */
 function MultiView({
-  channel, on, camera, guests, library, nameOf, studioOneId, studioTwoId, onAir,
-  onTake, onBackToRoom, onGraphics,
+  channel, on, camera, guests, guestReadings, guestsStaged, solo,
+  library, nameOf, studioOneId, studioTwoId, onAir,
+  onTake, onBackToRoom, onGraphics, onSolo,
 }: {
   channel: Channel;
   on: OnAir;
   camera: MediaStream | null;
   guests: { id: string; stream: MediaStream; label?: string }[];
+  /** The four quarters of tile 02, already read. [§24] */
+  guestReadings: GuestReading[];
+  /** Everybody the Room has on stage, which may be more than four. */
+  guestsStaged: { id: string }[];
+  solo: string | null;
+  onSolo: (id: string) => void;
   library: LibraryItem[];
   nameOf: (source: ProgrammeSource) => string;
   studioOneId?: string;
@@ -3124,7 +3195,6 @@ function MultiView({
   onBackToRoom: () => void;
   onGraphics: () => void;
 }) {
-  const guest = guests.find((person) => person.stream !== camera) ?? null;
   const fromStudioTwo = library.find((item) => item.document === 'performance');
   const fromStudioOne = library.find((item) => item.document === 'conversation');
   const scheduled = on.kind === 'programme' || on.kind === 'rotation'
@@ -3159,6 +3229,16 @@ function MultiView({
     /* A drawn mark, not a character — see Icon.tsx. The em dash
        fallback is text, which is why this is a node. */
     glyph?: React.ReactNode;
+    /**
+     * A TILE THAT IS ITSELF A MULTI-VIEW.  [§24]
+     *
+     * Present, it replaces the tile's single picture and the tile becomes
+     * a group rather than a button — because what is clickable is now
+     * inside it. Everything else about the tile is untouched, which is
+     * the requirement: *"Fixed dimensions. No expansion. No
+     * deformation."*
+     */
+    grid?: React.ReactNode;
     /** What clicking it does, and what to say when it cannot. */
     act?: () => void; why?: string;
   }[] = [
@@ -3178,13 +3258,42 @@ function MultiView({
         ? (rolledIn ? 'Back to the room' : 'The room is already on air')
         : 'Only while you are live',
     },
+    /*
+     * 02 IS NOT A CAMERA, IT IS THE GUESTS.  [§24]
+     *
+     * *"02 Camera 2 — Guest should become 02 GUESTS — 4."* It was never a
+     * second camera: it was the first staged person who was not the
+     * operator, with the other three in the mix and off the monitor. Four
+     * quarters in the same box is the whole change, and the count is the
+     * Room's, not the grid's — a fifth guest is staged, mixed and
+     * audible, and the sub-line says so rather than losing them.
+     */
     {
-      n: 2, label: 'Camera 2', sub: guest?.label ?? 'Guest',
-      live: onAir && Boolean(guest), stream: guest?.stream ?? null,
-      ...(rolledIn ? { act: onBackToRoom } : {}),
-      why: onAir
-        ? (rolledIn ? 'Back to the room' : 'The room is already on air')
-        : 'Only while you are live',
+      n: 2, label: 'Guests',
+      sub: guestsStaged.length === 0 ? 'Nobody on stage'
+        : `${guestCount(guestsStaged)} on stage`,
+      live: onAir && guestReadings.some((one) => one.onAir),
+      grid: (
+        <GuestGrid
+          readings={guestReadings}
+          streamFor={(id) => guests.find(
+            (person) => person.id === id)?.stream ?? null}
+          onSelect={onSolo}
+          disabled={!onAir}
+        />
+      ),
+      /*
+       * AND IT SAYS WHEN THE ROOM IS UNDERNEATH SOMETHING. A rolled-in
+       * reference replaces the live feed (§5), so soloing a guest while
+       * one is playing changes what is composited and not what is going
+       * out. Saying so is cheaper than an operator discovering it.
+       */
+      why: !onAir ? 'Only while you are live'
+        : rolledIn
+          ? 'A programme is rolled in over the room \u2014 tile 01 takes it down'
+          : solo
+            ? 'One guest is on programme \u2014 click them again to release'
+            : 'Click a guest to put them on programme alone',
     },
     {
       n: 3, label: 'Studio Two', sub: fromStudioTwo?.title ?? 'Music Video',
@@ -3246,15 +3355,7 @@ function MultiView({
       gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
       gridTemplateRows: 'repeat(2, minmax(0, 1fr))', alignContent: 'center',
     }}>
-      {tiles.map((tile) => (
-        <button
-          key={tile.n} type="button" data-testid="multiview-tile"
-          data-source={tile.n} data-live={tile.live ? 'true' : 'false'}
-          data-actionable={tile.act ? 'true' : 'false'}
-          disabled={!tile.act}
-          onClick={tile.act}
-          title={`${tile.label} — ${tile.sub}`
-            + (tile.why ? `\n${tile.why}` : '')}
+      {tiles.map((tile) => {
           /*
             * A TILE IS A MONITOR IN A RACK, and a rack is a row of
             * recessed wells rather than a row of cards. The inset dark
@@ -3274,7 +3375,7 @@ function MultiView({
             * two buses and an operator already knows which is which.
             * [brief §6 — "a restrained blue/white active edge"]
             */
-          style={{
+        const style: React.CSSProperties = {
             position: 'relative', minHeight: 44,
             borderRadius: 'var(--radius-screen)', padding: 0, minWidth: 0,
             overflow: 'hidden', background: 'var(--screen-bed)', textAlign: 'left',
@@ -3299,9 +3400,19 @@ function MultiView({
             transition: 'box-shadow var(--motion-fast) var(--ease-out),'
               + ' border-color var(--motion-fast) var(--ease-out),'
               + ' opacity var(--motion-fast) var(--ease-out)',
-          }}
-        >
-          {tile.stream ? (
+        };
+        const title = `${tile.label} \u2014 ${tile.sub}`
+          + (tile.why ? `\n${tile.why}` : '');
+
+        /*
+         * THE PICTURE. A tile holding its own grid draws that instead
+         * of a single source, and everything around it is unchanged —
+         * the plate, the number, the tally, the box. That is the whole
+         * of *"the boxt must not be enlarge"*: the contents divide and
+         * the rack does not move. [§24]
+         */
+        const picture = tile.grid ?? (
+          tile.stream ? (
             <video
               autoPlay muted playsInline
               ref={(element) => {
@@ -3317,82 +3428,112 @@ function MultiView({
             <span aria-hidden="true" className="muted" style={{
               position: 'absolute', inset: 0, display: 'grid',
               placeItems: 'center', fontSize: 'var(--text-md)', opacity: 0.4,
-            }}>{tile.glyph ?? '—'}</span>
-          )}
-          {/*
-            * THE SOURCE NUMBER, which is how an operator actually refers
-            * to a tile out loud. It sits on its own plate rather than on
-            * the picture: a number over moving video is unreadable for
-            * whichever frames happen to be pale behind it.
-            */}
-          {/*
-            * ZERO-PADDED, because inputs on a switcher are 01..24 and a
-            * bare "1" beside a "12" is a different width and a different
-            * object. It sits below the tally bar rather than over it.
-            */}
-          <span className="mono readout" style={{
-            position: 'absolute', left: 0, top: tile.live ? 3 : 0,
-            padding: '2px 5px 2px 4px',
-            borderBottomRightRadius: 'var(--radius-xs)',
-            /* The same plate alpha as every other OSD in the product.
-               This was 0.78 — a fourth private near-black, arrived at
-               by eye on this one tile. No hairline, because a plate
-               seated into a corner has only two edges to draw and a
-               border on those two reads as a torn label. */
-            background: 'rgba(0,0,0,0.72)',
-            fontSize: 'var(--text-2xs)', lineHeight: 1.25,
-            fontWeight: 'var(--weight-bold)',
-            letterSpacing: '0.04em',
-            color: tile.live ? '#ff9c91' : 'var(--ink-200)',
-          }}>{String(tile.n).padStart(2, '0')}</span>
-          {/*
-            * THE NAME PLATE. A single-stop gradient leaves a visible seam
-            * where it starts; three stops with an eased middle is what
-            * makes a scrim read as light falling off rather than as a
-            * translucent box laid over the picture.
-            */}
-          <span style={{
-            position: 'absolute', left: 0, right: 0, bottom: 0,
-            padding: '14px var(--space-2) var(--space-2)',
-            fontSize: 'var(--text-2xs)', lineHeight: 1.3,
-            background: 'linear-gradient(180deg, transparent 0%,'
-              + ' rgba(0,0,0,0.55) 55%, rgba(0,0,0,0.9) 100%)',
-          }}>
+            }}>{tile.glyph ?? '\u2014'}</span>
+          )
+        );
+        const plates = (
+          <>
+            {/*
+              * THE SOURCE NUMBER, which is how an operator actually refers
+              * to a tile out loud. It sits on its own plate rather than on
+              * the picture: a number over moving video is unreadable for
+              * whichever frames happen to be pale behind it.
+              */}
+            {/*
+              * ZERO-PADDED, because inputs on a switcher are 01..24 and a
+              * bare "1" beside a "12" is a different width and a different
+              * object. It sits below the tally bar rather than over it.
+              */}
+            <span className="mono readout" style={{
+              position: 'absolute', left: 0, top: tile.live ? 3 : 0,
+              padding: '2px 5px 2px 4px',
+              borderBottomRightRadius: 'var(--radius-xs)',
+              /* The same plate alpha as every other OSD in the product.
+                 This was 0.78 — a fourth private near-black, arrived at
+                 by eye on this one tile. No hairline, because a plate
+                 seated into a corner has only two edges to draw and a
+                 border on those two reads as a torn label. */
+              background: 'rgba(0,0,0,0.72)',
+              fontSize: 'var(--text-2xs)', lineHeight: 1.25,
+              fontWeight: 'var(--weight-bold)',
+              letterSpacing: '0.04em',
+              color: tile.live ? 'var(--state-live-ink)' : 'var(--ink-200)',
+            }}>{String(tile.n).padStart(2, '0')}</span>
+            {/*
+              * THE NAME PLATE. A single-stop gradient leaves a visible seam
+              * where it starts; three stops with an eased middle is what
+              * makes a scrim read as light falling off rather than as a
+              * translucent box laid over the picture.
+              */}
             <span style={{
-              display: 'block', fontWeight: 'var(--weight-semi)',
-              overflow: 'hidden', textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap', color: 'var(--ink-000)',
-            }}>{tile.label}</span>
-            <span className="row" style={{
-              gap: 5, flexWrap: 'nowrap', minWidth: 0,
+              position: 'absolute', left: 0, right: 0, bottom: 0,
+              padding: '14px var(--space-2) var(--space-2)',
+              fontSize: 'var(--text-2xs)', lineHeight: 1.3,
+              background: 'linear-gradient(180deg, transparent 0%,'
+                + ' rgba(0,0,0,0.55) 55%, rgba(0,0,0,0.9) 100%)',
             }}>
-              <span className="grow" style={{
-                minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap', color: 'rgba(255,255,255,0.62)',
-              }}>{tile.sub}</span>
-              {/*
-                * STATUS, IN A WORD, on every input. The brief asks each
-                * source to say availability as well as identity, and a
-                * tile that says only its name leaves "can I cut to this"
-                * to be discovered by clicking. LIVE / READY / — is the
-                * whole vocabulary, and it survives greyscale because it
-                * is a word. [brief §8, U-19]
-                */}
               <span style={{
-                flex: '0 0 auto', fontSize: 'var(--text-2xs)',
-                fontWeight: 'var(--weight-bold)', letterSpacing: '0.08em',
-                color: tile.live ? '#ff9c91'
-                  : tile.on ? 'rgba(146, 194, 240, 0.95)'
-                    : tile.act ? 'rgba(146, 214, 166, 0.92)'
-                      : 'rgba(255,255,255,0.35)',
+                display: 'block', fontWeight: 'var(--weight-semi)',
+                overflow: 'hidden', textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap', color: 'var(--ink-000)',
+              }}>{tile.label}</span>
+              <span className="row" style={{
+                gap: 5, flexWrap: 'nowrap', minWidth: 0,
               }}>
-                {tile.live ? 'LIVE' : tile.on ? 'ON'
-                  : tile.act ? 'READY' : '\u2014'}
+                <span className="grow" style={{
+                  minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap', color: 'rgba(255,255,255,0.62)',
+                }}>{tile.sub}</span>
+                {/*
+                  * STATUS, IN A WORD, on every input. The brief asks each
+                  * source to say availability as well as identity, and a
+                  * tile that says only its name leaves "can I cut to this"
+                  * to be discovered by clicking. LIVE / READY / — is the
+                  * whole vocabulary, and it survives greyscale because it
+                  * is a word. [brief §8, U-19]
+                  */}
+                <span style={{
+                  flex: '0 0 auto', fontSize: 'var(--text-2xs)',
+                  fontWeight: 'var(--weight-bold)', letterSpacing: '0.08em',
+                  color: tile.live ? 'var(--state-live-ink)'
+                    : tile.on ? 'rgba(146, 194, 240, 0.95)'
+                      : tile.act ? 'rgba(146, 214, 166, 0.92)'
+                        : 'rgba(255,255,255,0.35)',
+                }}>
+                  {tile.live ? 'LIVE' : tile.on ? 'ON'
+                    : tile.act ? 'READY' : '\u2014'}
+                </span>
               </span>
             </span>
-          </span>
-        </button>
-      ))}
+          </>
+        );
+
+        /*
+         * A GRID OF BUTTONS CANNOT LIVE INSIDE A BUTTON, and that is
+         * not a technicality: a nested button is invalid, unreachable
+         * by keyboard in the order a person expects, and announced as
+         * one control by a screen reader. So the guests tile is a
+         * GROUP with four controls in it, wearing the identical box.
+         * Nothing about the geometry differs — only what claims the
+         * click. [U-19]
+         */
+        return tile.grid ? (
+          <div
+            key={tile.n} data-testid="multiview-tile"
+            data-source={tile.n} data-live={tile.live ? 'true' : 'false'}
+            data-actionable="grid"
+            role="group" aria-label={title} title={title} style={style}
+          >{picture}{plates}</div>
+        ) : (
+          <button
+            key={tile.n} type="button" data-testid="multiview-tile"
+            data-source={tile.n} data-live={tile.live ? 'true' : 'false'}
+            data-actionable={tile.act ? 'true' : 'false'}
+            disabled={!tile.act} onClick={tile.act} title={title}
+            style={style}
+          >{picture}{plates}</button>
+        );
+      })}
     </div>
   );
 }

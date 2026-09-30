@@ -64,11 +64,33 @@ export function arrangementFor(count: number): string {
 }
 
 export function useBroadcastMixer({
-  sources, layoutId, enabled, width = 1280, height = 720, fps = 30,
+  sources, layoutId, solo = null, enabled,
+  width = 1280, height = 720, fps = 30,
 }: {
   sources: MixerSource[];
   /** An operator's choice. Absent means the automatic one. */
   layoutId?: string;
+  /**
+   * ONE SOURCE, FULL FRAME, BY THE OPERATOR'S HAND.  [CHANNEL §24]
+   *
+   * *"clicking a guest should select that guest as the programme source."*
+   * This is that click, and it is a VISION MIXER'S action rather than the
+   * Room's: it does not unstage anybody, does not reach the conversation,
+   * and ends the moment it is pressed again. The Room still decides who is
+   * in the room; the gallery decides who is in the picture, which is the
+   * division this file's own header already draws.
+   *
+   * IT DOES NOT TOUCH THE AUDIO. Every staged microphone stays in the mix
+   * while one person has the picture, because a guest answering over a
+   * close-up of somebody else is still answering — the rule below, and
+   * ROOM §4's. Cutting the sound with the vision would clip the first word
+   * of every reply.
+   *
+   * A SOLO ON SOMEBODY WHO HAS LEFT IS NOT A SOLO. If no source carries
+   * this id the layout falls back to the arrangement, rather than showing
+   * a black frame for a guest whose browser closed.
+   */
+  solo?: string | null;
   enabled: boolean;
   width?: number;
   height?: number;
@@ -94,6 +116,8 @@ export function useBroadcastMixer({
   sourcesRef.current = sources;
   const layoutRef = useRef(chosen);
   layoutRef.current = chosen;
+  const soloRef = useRef(solo);
+  soloRef.current = solo;
 
   /* ---- the picture ---------------------------------------------------- */
   useEffect(() => {
@@ -120,8 +144,13 @@ export function useBroadcastMixer({
     let stopped = false;
     const draw = () => {
       if (stopped) return;
-      const people = sourcesRef.current;
-      const layout = LAYOUTS[layoutRef.current] ?? LAYOUTS['performance_full']!;
+      const all = sourcesRef.current;
+      const alone = soloRef.current === null ? null
+        : all.find((person) => person.id === soloRef.current) ?? null;
+      const people = alone ? [alone] : all;
+      const layout = alone
+        ? LAYOUTS['performance_full']!
+        : LAYOUTS[layoutRef.current] ?? LAYOUTS['performance_full']!;
       const panels = layout.layers.filter((layer) => layer.source === 'take');
 
       paper.fillStyle = '#05070a';
