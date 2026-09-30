@@ -19,6 +19,7 @@ import { describe, expect, it } from 'vitest';
 
 const ROOT = join(import.meta.dirname, '..', '..');
 const WORKSPACE = readFileSync(join(ROOT, 'app', 'Workspace.tsx'), 'utf8');
+const ROOMS_TS = readFileSync(join(ROOT, 'src', 'domain', 'rooms.ts'), 'utf8');
 
 /** Code only: a path in a comment is documentation, not a reference. */
 function code(text: string): string {
@@ -26,15 +27,29 @@ function code(text: string): string {
     .replace(/^[ \t]*\/\/[^\n]*/gm, '');
 }
 
+/*
+ * THE MASTERS CHANGED AND THE RULE DID NOT.
+ *
+ * Two of the three were replaced by banners the author cut later —
+ * Studio One's arrived with its own words set into the pixels and
+ * Studio Two's inside a white letterbox — so `room-art.mjs` now
+ * extracts a region from each before resizing. What this file holds is
+ * unchanged: a derivative on disk, under its ceiling, with a master
+ * kept where the script reads it and not served.
+ */
 const ROOMS = [
-  { studio: 'one', art: 'conversation.webp', master: 'Conversational Studio.png' },
-  { studio: 'two', art: 'performance.webp', master: 'Performance Studio.png' },
+  { studio: 'one', art: 'conversation.webp', master: 'Studio One Source.png' },
+  { studio: 'two', art: 'performance.webp', master: 'Midnight Music Studio Session.png' },
   { studio: 'tv', art: 'online-tv.webp', master: 'OnlineTV.png' },
 ];
 
 describe('every studio card carries a photograph of its own room', () => {
+  /*
+   * THE PHOTOGRAPH BELONGS TO THE ROOM, NOT TO THE CARD, since the
+   * room's own front door shows it too. It is named in `rooms.ts`.
+   */
   it.each(ROOMS)('studio $studio names $art', ({ art }) => {
-    expect(code(WORKSPACE)).toContain(`art: '/rooms/${art}'`);
+    expect(code(ROOMS_TS)).toContain(`art: '/rooms/${art}'`);
   });
 
   it.each(ROOMS)('$art is actually on disk', ({ art }) => {
@@ -81,8 +96,12 @@ describe('the photographs are a set, and nothing sits on top of them', () => {
    * three pictures somebody found. [studios.css]
    */
   it('washes each photograph in its own room colour', () => {
+    /* On the card… */
     expect(code(WORKSPACE))
-      .toContain("position: 'absolute', inset: 0, background: studio.veil,");
+      .toContain("position: 'absolute', inset: 0, background: room.veil,");
+    /* …and on the room's own front door, from the same field. */
+    expect(code(readFileSync(join(ROOT, 'app', 'Room.tsx'), 'utf8')))
+      .toContain('style={{ background: room.veil }}');
   });
 
   /*
@@ -121,7 +140,7 @@ describe('the photographs are a set, and nothing sits on top of them', () => {
      * all — a test that passes because it is looking at nothing is
      * the exact failure this one is here to prevent.
      */
-    expect(band).toContain('src={studio.art}');
+    expect(band).toContain('src={room.art}');
     expect(band).not.toContain('studio.icon');
   });
 
@@ -132,6 +151,8 @@ describe('the photographs are a set, and nothing sits on top of them', () => {
   it.each([
     ['one', 'conversation'], ['two', 'music'], ['tv', 'broadcast'],
   ])('studio %s still keeps its %s glyph', (_studio, glyph) => {
-    expect(code(WORKSPACE)).toContain(`icon: '${glyph}',`);
+    /* The card's table, and the rail's. Both, so neither can lose it. */
+    expect(code(WORKSPACE) + code(readFileSync(join(ROOT, 'app', 'Rail.tsx'), 'utf8')))
+      .toContain(`'${glyph}'`);
   });
 });

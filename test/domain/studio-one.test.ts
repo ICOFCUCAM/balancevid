@@ -44,9 +44,17 @@ describe('the studio is somewhere you can go', () => {
    * is the point of `rooms.ts` and is asserted more fully in
    * `rooms.test.ts`.
    */
-  it('is what the rail points at', () => {
-    expect(code('app', 'Workspace.tsx'))
-      .toMatch(/<Rail href=\{roomFor\('studio-one'\)\.href\}/);
+  /*
+   * THE RAIL IS THE BUILDING'S NOW, so this looks where it lives — and
+   * it asserts the stronger thing, which is that the rail is generated
+   * from `ROOMS` rather than listing three rooms by hand. A rail that
+   * enumerates cannot disagree with the table if it never enumerates.
+   */
+  it('is in the rail, which is generated from the room table', () => {
+    const rail = code('app', 'Rail.tsx');
+    expect(rail).toContain('ROOMS.filter((room) => has(room.id)).map(');
+    expect(rail).toContain('href={room.href}');
+    expect(rail).not.toContain("'/c'");
   });
 
   /*

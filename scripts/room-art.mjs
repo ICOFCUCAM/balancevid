@@ -37,9 +37,51 @@ const OUT = join(ROOT, 'public', 'rooms');
  */
 const WIDTH = 1400;
 
+/*
+ * THE SECOND SET OF MASTERS, AND WHY EACH IS CUT.
+ *
+ * The author uploaded two banners to replace the first pair. They are
+ * not the same kind of file, and neither ships as delivered:
+ *
+ *   `Studio One Source.png` is a FINISHED BANNER with the room's words
+ *   already set into the pixels — "STUDIO ONE / SOURCE → RESPONSE" and
+ *   the sentence under it. Shipping that as the hero would put those
+ *   words on the page twice, once as type and once as a picture, and
+ *   the picture's copy cannot be read by a screen reader, cannot
+ *   reflow, and is about eight pixels tall on a phone. So the crop
+ *   keeps the PHOTOGRAPH — the microphone and the session beyond it —
+ *   and the room's own type is set over it, as it is in the other two.
+ *
+ *   `Midnight Music Studio Session.png` is a bare photograph in a
+ *   letterbox: measured, its content runs from row 174 to row 629 of a
+ *   724-row canvas, with white above and below. Left alone, `cover`
+ *   would crop to the middle of the white.
+ *
+ * Online TV keeps its first master; no replacement was sent.
+ */
 const ROOMS = [
-  { from: 'Conversational Studio.png', to: 'conversation.webp' },
-  { from: 'Performance Studio.png', to: 'performance.webp' },
+  {
+    from: 'Studio One Source.png', to: 'conversation.webp',
+    /*
+     * THE PHOTOGRAPH, CLEAR OF THE BANNER'S OWN LETTERING, AND WIDE.
+     *
+     * A 1150x725 crop is 1.6:1 and the hero it feeds is nearer 8:1, so
+     * `cover` threw away four fifths of its height and left a band
+     * across the middle of the microphone. Cut the band here instead,
+     * where the whole frame can be seen while choosing it.
+     *
+     * AND IT STARTS AT 1105 BECAUSE THE LETTERING REACHES 1050. A
+     * first cut at 980 put a ghost of the banner's own "SE" — the tail
+     * of RESPONSE — in the top-left corner of the hero, underneath the
+     * live type saying the same word.
+     */
+    cut: { left: 1105, top: 96, width: 1065, height: 470 },
+  },
+  {
+    from: 'Midnight Music Studio Session.png', to: 'performance.webp',
+    /* Measured, not guessed: rows 174–629 are the picture. */
+    cut: { left: 0, top: 174, width: 2172, height: 456 },
+  },
   { from: 'OnlineTV.png', to: 'online-tv.webp' },
 ];
 
@@ -47,7 +89,8 @@ mkdirSync(OUT, { recursive: true });
 
 for (const room of ROOMS) {
   const file = join(OUT, room.to);
-  const info = await sharp(join(ROOT, 'art', room.from))
+  const cut = sharp(join(ROOT, 'art', room.from));
+  const info = await (room.cut ? cut.extract(room.cut) : cut)
     .resize({ width: WIDTH, withoutEnlargement: true })
     /*
      * QUALITY 74 ON A PHOTOGRAPH THAT IS NEVER LOOKED AT CLOSELY. It

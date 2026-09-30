@@ -67,6 +67,44 @@ export interface Room {
   /** Where the room is. */
   href: string;
   /**
+   * What the room says about itself before it is asked to do anything.
+   *
+   * A STUDIO IS READY; A CONTROL ROOM'S SYSTEM IS. The distinction is
+   * the author's and it is the same one that makes the third room's
+   * entrance different from the other two: a studio is somewhere you
+   * arrive to work, and a channel is a system that was already running.
+   */
+  ready: string;
+  /**
+   * A PHOTOGRAPH OF THE ROOM, AND THE COLOUR IT IS WASHED IN.
+   *
+   * These were fields of the home page's own studio table, on the
+   * argument that they were "how a room LOOKS on this page". That was
+   * true while the card was the only place a room appeared. The room's
+   * front door shows the same photograph under the same veil, so they
+   * are the room's and not the card's — and a second copy is how the
+   * card and the door come to show two different pictures of one place.
+   *
+   * Built by `scripts/room-art.mjs` from the masters in `art/`.
+   */
+  art: string;
+  /**
+   * Where the crop holds when the band is wider than it is tall.
+   *
+   * Not the same answer three times: the conversation's subjects sit low
+   * in frame behind a desk, the gallery's interest is the monitor wall.
+   *
+   * ONE VALUE SERVES A 132px CARD BAND AND A 208px HERO, and it has to:
+   * a second field for the hero would be two crops of one photograph to
+   * keep in agreement, and the difference between them is smaller than
+   * the difference between the three rooms.
+   */
+  focus: string;
+  /** The room's colour, at the strength type can sit on. */
+  veil: string;
+  /** And at full strength, for a button that belongs to this room. */
+  accent: string;
+  /**
    * What a thing made in this room is called, singular.
    *
    * Used for counts and for empty states, so that a room says "no
@@ -89,26 +127,38 @@ const SAID: Record<StudioId, Omit<Room, 'id' | 'tab' | 'label'>> = {
   'studio-one': {
     name: 'Conversation Studio',
     stages: ['SOURCE', 'RESPONSE'],
-    says: 'Bring something in, watch it, interrupt wherever you have '
-      + 'something to say, respond, carry on — and publish the whole '
-      + 'exchange as one film.',
-    enter: 'Enter Studio', href: '/c', noun: 'conversation',
+    /*
+     * THE AUTHOR'S OWN SENTENCE, taken off the banner they set it into.
+     * Keeping a different one here would mean the picture and the page
+     * said two things about the same room.
+     */
+    says: 'Bring something in, work through it, and publish the exchange '
+      + 'as one finished piece.',
+    enter: 'Enter Studio', href: '/c', ready: 'Ready', noun: 'conversation',
+    art: '/rooms/conversation.webp', focus: '58% 50%',
+    veil: 'var(--studio-one-veil)',
+    accent: 'var(--studio-one)',
   },
   'studio-two': {
     name: 'Performance Studio',
     stages: ['TAKES', 'TIMELINE', 'MASTER'],
-    says: 'Perform a song as many times as it takes, from as many angles '
-      + 'as you have — then cut between the takes against the one clock '
-      + 'the music keeps.',
-    enter: 'Enter Studio', href: '/p', noun: 'performance',
+    says: 'Perform a song as many times as you like, from different angles '
+      + 'or sources, then arrange the takes against one master song clock '
+      + 'and create your finished performance.',
+    enter: 'Enter Studio', href: '/p', ready: 'Ready', noun: 'performance',
+    art: '/rooms/performance.webp', focus: '62% 50%',
+    veil: 'var(--studio-two-veil)',
+    accent: 'var(--studio-two)',
   },
   'online-tv': {
     name: 'Online TV',
     stages: ['PROGRAMME', 'PLAYOUT', 'LIVE'],
-    says: 'Build a schedule out of what you have already made, put it to '
-      + 'air around the clock, and cut to a live feed whenever there is '
-      + 'something to say now.',
-    enter: 'Open Control', href: '/t', noun: 'channel',
+    says: 'Run a continuous channel from your programmes, scheduled '
+      + 'content, live sessions and emergency sources.',
+    enter: 'Open Control', href: '/t', ready: 'System ready', noun: 'channel',
+    art: '/rooms/online-tv.webp', focus: 'center 38%',
+    veil: 'var(--studio-tv-veil)',
+    accent: 'var(--studio-tv)',
   },
 };
 
