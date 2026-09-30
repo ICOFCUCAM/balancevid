@@ -765,31 +765,31 @@ against real data. Every row is evaluated one at a time at the end.
 
 | id | item | state |
 | --- | --- | --- |
-| T1 | four layers: Studio, Take App, Core, Distribution | PARTIAL — three of four; no second client |
-| T1a | Studio = production/control, Take = capture/participation | GAP as code; the principle is T17 |
-| T2 | "Invite performers" in Studio Two | GAP |
-| T2a | a secure `/take/…` invitation link | GAP |
-| T2b | sendable by WhatsApp, SMS, email, Messenger, QR, anything | GAP (a URL is; the QR and the share sheet are not) |
-| T2c | "Open in Take App" / "Continue in browser" | GAP |
-| T3 | the performer's capture screen | GAP |
-| T3a | the reference track plays while they record | HAVE, in Studio Two's recorder — to be reached from the guest surface |
-| T3b | review, save, record again, delete | PARTIAL — takes are kept and deleted in the studio, not by a guest |
-| T4 | several takes, only the saved ones uploaded | GAP — and it is the opposite of the studio's deliberate segment-upload |
-| T5 | submit carries video, audio, timing, device, take info | PARTIAL — video, audio and timing yes; device metadata no |
-| T5a | "James — 3 submitted takes" in Studio Two | GAP — a take does not know who made it |
+| T1 | four layers: Studio, Take App, Core, Distribution | HAVE, as four surfaces on one deployment | Studio (the three control rooms), Take App (`/take/<link>`), Core (the domain, the store, the worker) and Distribution (the channel's destinations). What is still missing is a second CLIENT, which is T13a and not a layer |
+| T1a | Studio = production/control, Take = capture/participation | HAVE as code | separate routes, separate auth (four guest verbs, each on its own path), separate store, and one object between them. A participant reaches a request and nothing else; a producer reaches a studio and, of a request, only what was sent |
+| T2 | "Invite performers" in Studio Two | HAVE | in the takes rail beside Upload and Add footage, because it is the same slot: a take accepted from a phone is an ordinary take in that rail. Name and question both optional — the song says what is wanted |
+| T2a | a secure `/take/…` invitation link | HAVE | `req_id.secret`, 32 random bytes, matched by one regex BEFORE any disk read and compared with `timingSafeEqual`. Shown once, in the response that makes it; rotatable, and rotating it stops the old one working for somebody part-way through recording |
+| T2b | sendable by anything | PARTIAL, and argued | it is a URL, selected on focus, so every one of those channels carries it. The Room's own share sheet and QR exist and were NOT borrowed: `InvitePanel` wants a conversation, a source title and a rotate handler, and lying to it about three things to reuse a copy button is worse than an input somebody can copy |
+| T2c | "Open in Take App" / "Continue in browser" | GAP, and waits on T13a | there is no app to open, so a chooser would offer one real door and one that leads nowhere |
+| T3 | the performer's capture screen | HAVE | `/take/<link>` on a phone with no account: what is asked, the camera, the count-in, the clock, one button at a time. Verified on a simulated Pixel 7 |
+| T3a | the reference track plays while they record | HAVE, reached | `useMasterRecording` with `masterUrl` = `/api/take/<link>/reference`, which serves the NORMALISED master — what they hear and what the alignment measures are the same audio at the same rate, which on a phone matters more because nobody is watching a waveform |
+| T3b | review, save, record again, delete | HAVE | the performer's own list: Send and Delete per take, and neither once it is sent |
+| T4 | several takes, only the saved ones **submitted** | HAVE, with the tension resolved rather than ignored | the SEGMENTS go up as they close, because a dropped call must not cost a good take (U-06); the SUBMISSION is what crosses, and Delete removes the segments. They pay the bandwidth for a take they discard; they do not lose a good one |
+| T5 | submit carries video, audio, timing, device, take info | HAVE | all five: the joined media, the phone's measured offset and elapsed time, the user agent (bounded), and which of the allowed takes it is |
+| T5a | "James — 3 submitted takes" in Studio Two | HAVE | `PerformanceTake.performer`, written from the request at the moment of acceptance and shown on the rail row. As the PRODUCER named them, not as the participant typed it |
 | T6 | the invitation carries the production reference | **HAVE (domain)** — `Assignment.reference`; a performance request without one is refused, because that is an ordinary phone camera |
 | T6a | a common master production clock across devices | HAVE in principle: every position in the product is a sample on the song |
-| T7 | Studio One sends a question, receives a response | GAP |
-| T8 | Online TV sends an assignment to a viewer | GAP |
+| T7 | Studio One sends a question, receives a response | HAVE | `POST /api/conversations/<id>/requests`, the same request object a performance issues, with a question instead of a song. The recorder runs with no clock; the count-in still counts |
+| T8 | Online TV sends an assignment to a viewer | HAVE | `POST /api/channels/<id>/requests`, and the Answers desk in the control room to send it from |
 | T9 | responses are NOT stored under the programme until used | **HAVE (domain)** — a submission lives on the request; `accept` hands it back and writes into no production |
-| T9a | the participation inbox | GAP |
-| T10 | preview / accept / reject / hold / add to programme | GAP |
-| T10a | an accepted response enters the programme queue | PARTIAL — the queue exists; nothing puts a response in it |
-| T11 | Studio One's chain, end to end | GAP (three middle stages) |
+| T9a | the participation inbox | HAVE, as two | the performers panel in Studio Two and the Answers desk in Online TV. Not one screen across all three studios, which the brief allows for and which would be a fourth surface nobody is standing in front of |
+| T10 | preview / accept / reject / hold / add to programme | HAVE | watch it before deciding (a producer who must accept something to find out what it is has not been given a choice), then Use it / Hold / Pass, and a new link. Deciding about something receives it on the way past, because the alternative is a button called "I have it" in front of the buttons that matter |
+| T10a | an accepted response enters the programme queue | HAVE | in Studio Two it becomes an ordinary TAKE, made by the ordinary assembler — joined, normalised, measured, aligned. In Online TV it joins the live MIXER beside the presenter, because a channel broadcasts renders and ingests and a submission is neither |
+| T11 | Studio One's chain, end to end | HAVE | ask → link → phone → submission → inbox → preview → accept. Verified end to end in the browser with a simulated Pixel 7 and no account |
 | T12 | five kinds of request: question, poll, video, audio, performance | **HAVE (domain)** — `AssignmentKind`, as rows |
-| T13 | the same link works everywhere, browser included | GAP |
-| T13a | a packaged Android / iOS app | GAP |
-| T14 | the same Take App reaches self-hosted or cloud | GAP — needs the invitation to carry its destination |
+| T13 | the same link works everywhere, browser included | HAVE, as the web | one URL, one page, no install, no account. A packaged client would add background upload and retry; nothing about the link would change |
+| T13a | a packaged Android / iOS app | GAP, and out of this brief's reach | the Take App is the surface one would wrap and it works today. What a native client adds is background upload and retry (T13's own argument), which is a build pipeline and a store account rather than a change to this product. Recorded so the row is not mistaken for something overlooked |
+| T14 | the same Take App reaches self-hosted or cloud | HAVE, by NOT carrying a destination | the request is answered against the server that served it, and the origin is never written into the record. A self-hosted installation that moves keeps its invitations working, and a forged origin is not somewhere to send a stranger's camera. The link is shown once and never read back out of a listing |
 | T15 | three product environments | recorded; no code change required |
 | T16 | the Participation Request object and its eight fields | **HAVE (domain)** — `src/domain/participation.ts`; upload destination deliberately NOT stored, see T14 |
 | T16a | its nine states, CREATED → ATTACHED TO PROGRAMME | **HAVE (domain)** — `REQUEST_NEXT` as a table, every move refused rather than ignored, every step written down |

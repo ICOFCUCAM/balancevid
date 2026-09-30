@@ -929,6 +929,22 @@ export interface PerformanceTake {
   useToSample?: Samples;
   /** Whether this take's own audio is usable, or it was recorded silent. */
   hasAudio?: boolean;
+  /**
+   * Who performed it, where it came from somebody else.
+   *   [TAKE-APP T5a; D-25]
+   *
+   * "James — 3 submitted takes." A take recorded in the studio was
+   * made by whoever is holding the studio and needs no name; one
+   * accepted from a phone was made by somebody who is not here, and
+   * a rail that showed five takes with no way to tell whose is which
+   * is a rail a producer cannot work from.
+   *
+   * AS THE PRODUCER NAMED THEM WHEN THEY SENT THE LINK, not as the
+   * participant typed it: the request is where the name lives, and a
+   * stranger's own spelling of it is not a fact this document should
+   * take on trust. Absent for every take the author recorded.
+   */
+  performer?: string;
   createdAt: string;
 }
 

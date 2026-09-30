@@ -55,8 +55,8 @@ interface Row {
   assignment: { asks: string; kind: string };
   createdAt?: string;
   submissions?: {
-    id: string; kind: string; durationSamples?: number; at: string;
-    device?: string;
+    id: string; assetId: string; kind: string; durationSamples?: number;
+    at: string; device?: string;
   }[];
 }
 
@@ -160,7 +160,9 @@ export default function AnswersTab({
   const answers: Answer[] = rows.flatMap((row) => (row.submissions ?? []).map(
     (one) => ({
       requestId: row.id,
-      submissionId: one.id,
+      /* The ASSET, which is what the media route is keyed on: a
+         submission's own id is what the state machine moves. */
+      submissionId: one.assetId,
       ...(row.participant ? { who: row.participant } : {}),
       asks: row.assignment.asks,
       kind: one.kind,

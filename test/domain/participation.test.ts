@@ -391,3 +391,71 @@ describe('the states, as a shape', () => {
     expect([...seen].sort()).toEqual([...REQUEST_STATES].sort());
   });
 });
+
+/**
+ * DECIDING ABOUT SOMETHING IS RECEIVING IT.  [T10, T16a]
+ *
+ * `submitted` is the CLIENT's word — the phone says it sent one — and
+ * `received` is the producer's, and the table allows only
+ * `submitted → received`. That is right: a producer who has not got
+ * it cannot have an opinion about it. What it must not become is a
+ * button called "I have it" in front of the buttons that matter.
+ *
+ * Found in a browser: the first accept of a real submission came
+ * back "a submitted request cannot become accepted" — the table
+ * being right and the caller being wrong.
+ */
+describe('a producer deciding about something just submitted', () => {
+  const at = '2026-09-30T00:00:00.000Z';
+  const sent = () => {
+    const request = newRequest({
+      holder: { kind: 'performance', id: 'perf_one' },
+      assignment: {
+        kind: 'performance', asks: 'Sing it',
+        reference: { title: 'A song', durationSamples: 240000 },
+      },
+      allowed: { video: true, takes: 3 },
+      token: 'a'.repeat(40),
+      now: at,
+    });
+    open(request, at);
+    submit(request, {
+      assetId: 'sub_one' as never, kind: 'video', at,
+    }, at);
+    return request;
+  };
+
+  it('is received on the way past, and only once', () => {
+    const request = sent();
+    expect(request.state).toBe('submitted');
+    accept(request, request.submissions![0]!.id, at, 'owner');
+    expect(request.state).toBe('accepted');
+    /* And the step it passed through is in the history, because a
+       state nothing recorded is a state nobody can audit. */
+    expect(request.history.map((one) => one.state))
+      .toContain('received');
+  });
+
+  it('is the same for passing on one', () => {
+    const request = sent();
+    reject(request, at, 'owner');
+    expect(request.state).toBe('rejected');
+  });
+
+  it('is the same for holding one', () => {
+    const request = sent();
+    hold(request, at, 'owner');
+    expect(request.state).toBe('reviewed');
+  });
+
+  /* And it does not fire when there was nothing to pass through: a
+     request already received is not received twice. */
+  it('does not receive one that has been received already', () => {
+    const request = sent();
+    receive(request, at);
+    const before = request.history.filter((one) => one.state === 'received').length;
+    hold(request, at, 'owner');
+    expect(request.history.filter((one) => one.state === 'received'))
+      .toHaveLength(before);
+  });
+});

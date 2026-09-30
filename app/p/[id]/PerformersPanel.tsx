@@ -1,0 +1,345 @@
+'use client';
+
+import { useCallback, useEffect, useState } from 'react';
+
+import { useConfirm } from '../../Confirm.js';
+import { HOUSE_SAMPLE_RATE, formatMasterPosition } from '../../../src/domain/time.js';
+
+/**
+ * Inviting performers, and what comes back.
+ *   [TAKE-APP T2, T2a, T5a, T9a, T10, T10a, T11; D-25]
+ *
+ *     invite  →  a link to send  →  they record on a phone
+ *             →  it lands here   →  preview  →  accept  →  a take
+ *
+ * THE PRODUCER'S END OF THE BOUNDARY, and the whole of it. A
+ * participant holds a request; a producer holds a studio; this panel
+ * is where the two meet and nothing else about either crosses.
+ *
+ * ACCEPTING IS THE ONLY MOMENT A SUBMISSION BECOMES PRODUCTION
+ * MATERIAL. Until then what exists is a file on a request that the
+ * performance knows nothing about — it is not in the rail, not in
+ * the timeline, not in an export, and deleting the request takes it
+ * with it. After it, there is an ordinary take, made by the ordinary
+ * assembler: joined, normalised, MEASURED and aligned against the
+ * song exactly as a take recorded in this room is. [D-25, D-19]
+ *
+ * PREVIEW BEFORE DECIDING, because a producer who has to accept
+ * something to find out what it is has not been given a choice. The
+ * media is served by an owner's route that checks the submission
+ * belongs to this performance.
+ */
+
+interface Submission {
+  /** Its own id, which the state machine moves. */
+  id: string;
+  /**
+   * The asset its media is under, which every route that serves or
+   * accepts it is keyed on.  [TAKE-APP T10]
+   *
+   * TWO IDS FOR ONE THING, and the listing carried only the first
+   * until a browser run asked for a file by the wrong name and got
+   * "no such submission" back — from a panel looking straight at
+   * the thing it was asking about.
+   */
+  assetId: string;
+  kind: string;
+  durationSamples?: number;
+  at: string;
+  acceptedAt?: string;
+  device?: string;
+}
+
+interface RequestRow {
+  id: string;
+  state: string;
+  participant?: string;
+  assignment: { asks: string; kind: string };
+  createdAt?: string;
+  expiresAt?: string;
+  submissions?: Submission[];
+}
+
+export default function PerformersPanel({
+  performanceId, onTakeAccepted,
+}: {
+  performanceId: string;
+  /** A take is being made from a submission; the studio watches the job. */
+  onTakeAccepted: (jobId: string) => void;
+}) {
+  const [rows, setRows] = useState<RequestRow[]>([]);
+  const [open, setOpen] = useState(false);
+  const [asks, setAsks] = useState('');
+  const [who, setWho] = useState('');
+  const [link, setLink] = useState<string | null>(null);
+  const [origin, setOrigin] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [playing, setPlaying] = useState<
+    { requestId: string; submissionId: string } | null>(null);
+  const { confirm, dialog } = useConfirm();
+
+  useEffect(() => { setOrigin(window.location.origin); }, []);
+
+  /*
+   * POLLED WHILE THE PANEL IS OPEN, and not otherwise. A submission
+   * arrives from somebody else's phone and nothing here can know
+   * when; polling a studio nobody is looking at is a request every
+   * six seconds for a number that changes twice a day.
+   */
+  const read = useCallback(async () => {
+    const response = await fetch(`/api/performances/${performanceId}/requests`,
+      { cache: 'no-store' }).catch(() => null);
+    if (!response?.ok) return;
+    const data = await response.json().catch(() => ({}));
+    setRows((data.requests ?? []) as RequestRow[]);
+  }, [performanceId]);
+
+  useEffect(() => {
+    void read();
+    if (!open) return undefined;
+    const timer = window.setInterval(() => { void read(); }, 6000);
+    return () => window.clearInterval(timer);
+  }, [open, read]);
+
+  const invite = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+    setLink(null);
+    try {
+      const response = await fetch(`/api/performances/${performanceId}/requests`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          ...(asks.trim() ? { asks: asks.trim() } : {}),
+          ...(who.trim() ? { participant: who.trim() } : {}),
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error ?? 'that link could not be made');
+      setLink(String(data.link));
+      setAsks('');
+      setWho('');
+      await read();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }, [asks, performanceId, read, who]);
+
+  const act = useCallback(async (
+    requestId: string, body: Record<string, unknown>,
+  ) => {
+    setError(null);
+    const response = await fetch(
+      `/api/performances/${performanceId}/requests/${requestId}`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      }).catch(() => null);
+    const data = await response?.json().catch(() => ({})) ?? {};
+    if (!response?.ok) {
+      setError(data.error ?? 'that did not work');
+      return;
+    }
+    if (data.job?.id) onTakeAccepted(String(data.job.id));
+    if (data.link) setLink(String(data.link));
+    await read();
+  }, [onTakeAccepted, performanceId, read]);
+
+  const waiting = rows.flatMap((row) => (row.submissions ?? [])
+    .filter((one) => !one.acceptedAt)).length;
+
+  return (
+    <div data-testid="performers" style={{ flex: '0 0 auto' }}>
+      <button
+        className="ctl" data-testid="performers-open"
+        aria-expanded={open}
+        onClick={() => setOpen((was) => !was)}
+        style={{ width: '100%', padding: '7px 10px' }}
+      >
+        Invite performers
+        {waiting > 0 && (
+          <span data-testid="performers-waiting" className="readout" style={{
+            marginLeft: 6, padding: '0 5px', borderRadius: 'var(--radius-screen)',
+            background: 'var(--accent)', color: 'var(--ink-000)',
+            fontSize: 'var(--text-2xs)',
+          }}>{waiting}</span>
+        )}
+      </button>
+
+      {open && (
+        <div style={{
+          display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8,
+        }}>
+          {/*
+            * WHAT IS BEING ASKED, AND OF WHOM. Both optional: the
+            * song already says what is wanted, and plenty of links go
+            * out before anybody knows who will answer. [T2]
+            */}
+          <input
+            data-testid="performers-who" value={who}
+            placeholder="Who is this for? (optional)"
+            onChange={(event) => setWho(event.target.value)}
+            style={{ fontSize: 'var(--text-sm)' }}
+          />
+          <input
+            data-testid="performers-asks" value={asks}
+            placeholder="What are you asking for? (optional)"
+            onChange={(event) => setAsks(event.target.value)}
+            style={{ fontSize: 'var(--text-sm)' }}
+          />
+          <button className="ctl" data-testid="performers-invite"
+                  disabled={busy} onClick={() => void invite()}>
+            {busy ? 'Making a link…' : 'Make a link to send'}
+          </button>
+
+          {error && (
+            <p className="small" data-testid="performers-error"
+               style={{ margin: 0, color: 'var(--bad)' }}>{error}</p>
+          )}
+
+          {/*
+            * THE LINK, ONCE. It is a credential and this is the only
+            * response that carries it — a producer can rotate it, but
+            * they cannot read it back out of the list. [T14]
+            */}
+          {link && origin && (
+            <div data-testid="performers-link" style={{
+              display: 'flex', flexDirection: 'column', gap: 4,
+              padding: '7px 8px', borderRadius: 'var(--radius-sm)',
+              border: '1px solid var(--line)', background: 'var(--surface-sunk)',
+            }}>
+              <span className="small muted">
+                Send this to them. It is shown once.
+              </span>
+              <input readOnly data-testid="performers-link-url"
+                     value={`${origin}/take/${link}`}
+                     onFocus={(event) => event.currentTarget.select()}
+                     style={{
+                       fontSize: 'var(--text-2xs)',
+                       fontFamily: 'ui-monospace, monospace',
+                     }} />
+            </div>
+          )}
+
+          {rows.length === 0 && (
+            <p className="small muted" style={{ margin: 0 }}>
+              Nobody has been invited yet.
+            </p>
+          )}
+
+          <ul data-testid="performers-list" style={{
+            listStyle: 'none', margin: 0, padding: 0,
+            display: 'flex', flexDirection: 'column', gap: 6,
+          }}>
+            {rows.map((row) => (
+              <li key={row.id} data-testid="performers-row" data-state={row.state}
+                  style={{
+                    display: 'flex', flexDirection: 'column', gap: 5,
+                    padding: '7px 8px', borderRadius: 'var(--radius-sm)',
+                    border: '1px solid var(--line)',
+                    background: 'var(--surface-sunk)',
+                  }}>
+                <div className="row" style={{ gap: 6, alignItems: 'baseline' }}>
+                  <span className="grow" style={{
+                    fontSize: 'var(--text-sm)',
+                    fontWeight: 'var(--weight-semi)',
+                  }}>{row.participant ?? 'Anybody with the link'}</span>
+                  <span className="small muted">{row.state}</span>
+                </div>
+                <p className="small muted" style={{ margin: 0 }}>
+                  {row.assignment.asks}
+                </p>
+
+                {(row.submissions ?? []).map((one) => {
+                  const live = playing?.submissionId === one.assetId;
+                  return (
+                    <div key={one.id} data-testid="performers-submission"
+                         data-accepted={one.acceptedAt ? 'true' : 'false'}
+                         style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      <div className="row" style={{ gap: 6 }}>
+                        <span className="mono small muted grow">
+                          {one.durationSamples
+                            ? formatMasterPosition(one.durationSamples) : '—'}
+                          {one.device ? ` · ${one.device.slice(0, 28)}` : ''}
+                        </span>
+                        {one.acceptedAt ? (
+                          <span className="small" data-testid="performers-accepted"
+                                style={{ color: 'var(--ink-300)' }}>In the rail</span>
+                        ) : (
+                          <>
+                            {/* PREVIEW BEFORE DECIDING: a producer who
+                                has to accept something to find out what
+                                it is has not been given a choice. */}
+                            <button className="ctl sm" data-testid="performers-play"
+                                    onClick={() => setPlaying(live ? null : {
+                                      requestId: row.id,
+                                      submissionId: one.assetId,
+                                    })}>
+                              {live ? 'Close' : 'Watch'}
+                            </button>
+                            <button className="ctl sm" data-testid="performers-accept"
+                                    onClick={() => void act(row.id, {
+                                      action: 'accept',
+                                      submissionId: one.assetId,
+                                    })}>
+                              Use it
+                            </button>
+                          </>
+                        )}
+                      </div>
+                      {live && (
+                        <video data-testid="performers-player" controls
+                               src={`/api/performances/${performanceId}/requests/`
+                                 + `${row.id}/submissions/${one.assetId}`}
+                               style={{
+                                 width: '100%',
+                                 borderRadius: 'var(--radius-screen)',
+                                 background: 'var(--screen-bed)',
+                               }} />
+                      )}
+                    </div>
+                  );
+                })}
+
+                <div className="row" style={{ gap: 6 }}>
+                  <button className="ctl sm" data-testid="performers-hold"
+                          title="Park it — you have not decided"
+                          onClick={() => void act(row.id, { action: 'hold' })}>
+                    Hold
+                  </button>
+                  <button className="ctl sm" data-testid="performers-reject"
+                          title="Do not use it. Not an end — you can change your mind"
+                          onClick={() => void act(row.id, { action: 'reject' })}>
+                    Pass
+                  </button>
+                  {/*
+                    * WITHDRAWING IS A NEW SECRET, which stops the old
+                    * link working for whoever holds it — including
+                    * somebody who has already opened it. So it asks.
+                    * [ROOM §6, D-25]
+                    */}
+                  <button className="ctl sm" data-testid="performers-rotate"
+                          onClick={() => confirm({
+                            question: 'Make a new link? The one you sent stops '
+                              + 'working immediately, for anybody who has it — '
+                              + 'including somebody part-way through recording.',
+                            verb: 'Make a new link',
+                            danger: true,
+                            go: () => void act(row.id, { action: 'rotate' }),
+                          })}>
+                    New link
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {dialog}
+    </div>
+  );
+}
+
+/** Exported for the tests, which assert what a duration reads as. */
+export const PERFORMER_RATE = HOUSE_SAMPLE_RATE;

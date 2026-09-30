@@ -114,6 +114,18 @@ export async function GET(_request: Request, { params }: Params): Promise<Respon
       expiresAt: request.expiresAt,
       submissions: (request.submissions ?? []).map((submission) => ({
         id: submission.id,
+        /*
+         * AND THE ASSET IT IS, which is what every route that serves
+         * or accepts it is keyed on. [TAKE-APP T10]
+         *
+         * A submission has two ids — its own, which the state machine
+         * moves, and the asset its media is under — and a listing
+         * that carried only the first made the producer's surface
+         * ask for a file by the wrong name. Which it did: "no such
+         * submission", from a panel that was looking at the thing it
+         * was asking about.
+         */
+        assetId: submission.assetId,
         kind: submission.kind,
         durationSamples: submission.durationSamples,
         at: submission.at,

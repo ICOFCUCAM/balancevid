@@ -175,8 +175,31 @@ export function receive(request: ParticipationRequest, now: string): void {
   advance(request, 'received', now);
 }
 
+/**
+ * DECIDING ABOUT SOMETHING IS RECEIVING IT.  [T10, T16a]
+ *
+ * `submitted` is the CLIENT's word — the phone says it sent one —
+ * and `received` is the producer's. The table allows `submitted →
+ * received` and nothing else, which is right: a producer who has not
+ * got it cannot have an opinion about it.
+ *
+ * What it should not do is make the producer press a button called
+ * "I have it" before the buttons that matter. Opening the inbox
+ * cannot do it either — a read that writes turns looking at a studio
+ * into an edit and the audit log into a lie — so the three verbs
+ * below take it on the way past, which is what they mean anyway.
+ *
+ * Found in a browser: the first accept from a real submission came
+ * back "a submitted request cannot become accepted", which is the
+ * table being right and the caller being wrong.
+ */
+function deciding(request: ParticipationRequest, now: string, by: string): void {
+  if (request.state === 'submitted') advance(request, 'received', now, by);
+}
+
 /** Looked at, and not yet decided. The brief's "Hold". [T10] */
 export function hold(request: ParticipationRequest, now: string, by: string): void {
+  deciding(request, now, by);
   advance(request, 'reviewed', now, by);
 }
 
@@ -197,12 +220,14 @@ export function accept(
   const found = (request.submissions ?? []).find((s) => s.id === submissionId);
   if (!found) fail(`no submission ${submissionId} on this request`);
   found!.acceptedAt = now;
+  deciding(request, now, by);
   if (request.state !== 'accepted') advance(request, 'accepted', now, by);
   return found!;
 }
 
 /** Do not use it. Not an end: a producer may change their mind. [T10] */
 export function reject(request: ParticipationRequest, now: string, by: string): void {
+  deciding(request, now, by);
   advance(request, 'rejected', now, by);
 }
 

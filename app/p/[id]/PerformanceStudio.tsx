@@ -13,6 +13,7 @@ import { useConfirm } from '../../Confirm.js';
 import { MenuButton, RightClickHint, useMenu, type MenuEntry } from '../../Menu.js';
 import { useMasterRecording } from './useMasterRecording.js';
 import { performanceSink } from './performanceSink.js';
+import PerformersPanel from './PerformersPanel.js';
 import UploadTake from './UploadTake.js';
 import SwitchingStage from './SwitchingStage.js';
 import Delivery, { type ChannelDestination } from './Delivery.js';
@@ -532,6 +533,20 @@ export default function PerformanceStudio(
                             fontSize: 'var(--text-xs)', display: 'block', overflow: 'hidden',
                             textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                           }}>
+                            {/*
+                              * WHO PERFORMED IT, where it came from
+                              * somebody who is not here. [TAKE-APP
+                              * T5a] "James — 3 submitted takes": a
+                              * rail showing five takes with no way to
+                              * tell whose is which is a rail a
+                              * producer cannot work from, and a take
+                              * the author recorded needs no name.
+                              */}
+                            {take.performer && (
+                              <span data-testid="take-performer">
+                                {`${take.performer} \u00b7 `}
+                              </span>
+                            )}
                             {footage || placed ? where : 'not placed yet'}
                             {/*
                               * AND WHETHER IT HAS BEEN PUSHED. A take
@@ -742,6 +757,25 @@ export default function PerformanceStudio(
                     onFinished={(jobId) => { void watchJob(jobId); }}
                   />
                 </div>
+              )}
+
+              {/*
+                * AND THE THIRD WAY A SLOT GETS FILLED: somebody who is
+                * not here.  [TAKE-APP T2, T9a, T10, T11; D-25]
+                *
+                * A link to a phone, and what comes back. It sits with
+                * the other two because it is the same slot — a take
+                * accepted from a performer's phone is an ordinary take
+                * in this rail, assembled and aligned by the same code
+                * — and it is the only one of the three where the
+                * material exists before the performance knows about
+                * it.
+                */}
+              {recording.phase === 'idle' && (
+                <PerformersPanel
+                  performanceId={performance.id}
+                  onTakeAccepted={(jobId) => { void watchJob(jobId); }}
+                />
               )}
             </div>
           )}
