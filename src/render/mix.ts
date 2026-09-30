@@ -183,9 +183,17 @@ export async function mixPerformanceAudio(options: {
   const inputs: string[] = ['-i', masterAudioPath];
   const inputOfAsset = new Map<string, number>();
   for (const piece of pieces) {
-    /* A layer is a source like a take is: its own file, its own
-       input, resolved the same way. [TIMELINE B8] */
-    if (piece.kind === 'master' || !piece.assetId) continue;
+    /*
+     * A layer is a source like a take is: its own file, its own
+     * input, resolved the same way. [TIMELINE B8]
+     *
+     * AND SO IS A REPLACED STRETCH OF THE SONG, which is a master
+     * piece with an asset on it: the test is whether the piece names
+     * a file, not what kind of piece it is. Asking the kind was how
+     * the first version sent a re-recorded bridge to input 0 and
+     * played the original over it. [B6g]
+     */
+    if (!piece.assetId) continue;
     if (inputOfAsset.has(piece.assetId)) continue;
     inputOfAsset.set(piece.assetId, inputs.length / 2);
     inputs.push('-i', resolveAsset(piece.assetId));
@@ -193,7 +201,7 @@ export async function mixPerformanceAudio(options: {
 
   const graph = mixGraph(
     pieces,
-    (piece) => (piece.kind === 'master' ? 0 : inputOfAsset.get(piece.assetId!)!),
+    (piece) => (piece.assetId ? inputOfAsset.get(piece.assetId)! : 0),
     totalSamples,
   );
 

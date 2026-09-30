@@ -72,6 +72,28 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
     performance.master.durationSamples,
     Number.isFinite(asks) ? Math.round(asks) : 0));
 
+  /*
+   * OR IT REPLACES A STRETCH OF THE SONG.  [TIMELINE B6g]
+   *
+   * The same upload, measured by the same worker, put somewhere
+   * else when it lands: a re-recorded bridge is not a layer over
+   * the song, it IS the song over that stretch. A second route for
+   * it would be a second place the ingest could be got wrong.
+   *
+   * The stretch is named here rather than found later, because by
+   * the time the worker runs the author may have divided the song
+   * again — and replacing "whatever is there now" is not what they
+   * asked for.
+   */
+  const replaceFrom = Number(query.get('replaceFrom') ?? NaN);
+  const replaceTo = Number(query.get('replaceTo') ?? NaN);
+  const replacing = Number.isInteger(replaceFrom) && Number.isInteger(replaceTo)
+    && replaceTo > replaceFrom;
+  if (replacing && !performance.master.sections?.some(
+    (one) => one.fromSample === replaceFrom && one.toSample === replaceTo)) {
+    return fail(409, 'the song is not divided there any more');
+  }
+
   const assetId = newId('asset');
   await mkdir(paths.performanceAssets(id), { recursive: true });
   const originalPath = paths.performanceAsset(id, `${assetId}orig`, 'bin');
@@ -87,11 +109,15 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
       track,
       fromSample,
       ...(query.get('loop') === 'true' ? { loop: true } : {}),
+      ...(replacing ? { replaceFrom, replaceTo } : {}),
     },
   });
   await auditPerformance(id, {
-    action: 'sound.uploaded',
-    detail: { assetId, bytes: body.length, label, track, fromSample },
+    action: replacing ? 'song.section-uploaded' : 'sound.uploaded',
+    detail: {
+      assetId, bytes: body.length, label, track, fromSample,
+      ...(replacing ? { replaceFrom, replaceTo } : {}),
+    },
   });
 
   return json({ job, assetId }, { status: 202 });

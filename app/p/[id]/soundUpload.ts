@@ -30,6 +30,15 @@ export interface SoundUpload {
   track: 'voice' | 'effect' | 'ambience' | 'music';
   fromSample: number;
   loop?: boolean;
+  /**
+   * The stretch of song this REPLACES, rather than plays over.
+   *   [TIMELINE B6g]
+   *
+   * The same upload, measured by the same worker, put somewhere else
+   * when it lands: a re-recorded bridge is not a layer over the song,
+   * it IS the song over that stretch.
+   */
+  replace?: { fromSample: number; toSample: number };
 }
 
 /** Where the bytes go, with everything the file cannot say itself. */
@@ -43,6 +52,10 @@ export function soundUploadUrl(
     fromSample: String(Math.max(0, Math.round(asked.fromSample))),
   });
   if (asked.loop) query.set('loop', 'true');
+  if (asked.replace) {
+    query.set('replaceFrom', String(Math.round(asked.replace.fromSample)));
+    query.set('replaceTo', String(Math.round(asked.replace.toSample)));
+  }
   return `/api/performances/${encodeURIComponent(performanceId)}`
     + `/sounds?${query.toString()}`;
 }

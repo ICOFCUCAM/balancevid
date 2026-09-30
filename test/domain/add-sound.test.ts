@@ -234,7 +234,10 @@ describe('who measures the sound', () => {
      cannot serve both — the render would fail on a missing file. */
   it('gives the renderer the right file for each kind of asset', () => {
     expect(worker).toMatch(
-      /sounds\.has\(assetId as AssetId\)\s*\?\s*paths\.performanceAsset\(id, `\$\{assetId\}snd`, 'webm'\)/);
+      /sounds\.has\(assetId\)\s*\?\s*paths\.performanceAsset\(id, `\$\{assetId\}snd`, 'webm'\)/);
+    /* And a stretch of the song replaced by sound from elsewhere is
+       the same kind of file, looked for the same way. [B6g] */
+    expect(worker).toMatch(/songSections\(performance\.master\)\s*\n\s*\.map\(\(one\) => one\.assetId\)/);
     expect(worker.match(/resolveAsset: performanceAssets\(id, performance\),/g))
       .toHaveLength(2);
     expect(worker).not.toMatch(

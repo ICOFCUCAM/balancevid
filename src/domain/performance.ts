@@ -83,6 +83,31 @@ export type SceneId = Id<'scene'>;
 
 export const PERFORMANCE_SCHEMA_VERSION = 3;
 
+/**
+ * A stretch of the song the export uses.  [TIMELINE B6a, B6b, B6g, B6k]
+ *
+ * `fromSample` and `toSample` are on the SONG's own clock, and they
+ * say both where the stretch sits and how long it is. `assetId`, when
+ * it is there, says the sound over that stretch comes from somewhere
+ * else — a re-recorded bridge, a cleaner take of a verse — read from
+ * `sourceFromSample` into it.
+ *
+ * REPLACING DOES NOT MOVE ANYTHING, for the same reason removing does
+ * not: the stretch keeps its place and its length on the master
+ * clock, so every scene, take and lyric over it stays where it is. A
+ * replacement shorter than the stretch leaves silence at the end of
+ * it; one longer is cut. Both are said out loud rather than resolved
+ * by moving the rest of the song.
+ */
+export interface SongSection {
+  fromSample: Samples;
+  toSample: Samples;
+  /** Sound from somewhere else over this stretch. [B6g] */
+  assetId?: AssetId;
+  /** How far into that file to read from. Absent means its start. */
+  sourceFromSample?: Samples;
+}
+
 /* ------------------------------------------------------------------------ *
  *  The master track, and what may be done with it.  [S-9, INV-15]
  * ------------------------------------------------------------------------ */
@@ -255,7 +280,7 @@ export interface MasterTrack {
    * does not appear. Put the section back and all of it returns,
    * exactly where it was.
    */
-  sections?: { fromSample: Samples; toSample: Samples }[];
+  sections?: SongSection[];
   /**
    * What is done to the song's own sound.  [TIMELINE B6c, B6d, B6e, B6f]
    *
@@ -503,9 +528,7 @@ export function songSpan(
  * this is the reader, which answers something sane whatever is in the
  * document.
  */
-export function songSections(
-  master: MasterTrack,
-): { fromSample: Samples; toSample: Samples }[] {
+export function songSections(master: MasterTrack): SongSection[] {
   const end = master.durationSamples;
   const written = master.sections?.length
     ? master.sections
@@ -515,7 +538,11 @@ export function songSections(
   const clamped = written
     .map((one) => {
       const from = Math.max(0, Math.min(one.fromSample, end));
-      return { fromSample: from, toSample: Math.max(from, Math.min(one.toSample, end)) };
+      return {
+        ...one,
+        fromSample: from,
+        toSample: Math.max(from, Math.min(one.toSample, end)),
+      };
     })
     .filter((one) => one.toSample > one.fromSample)
     .sort((a, b) => a.fromSample - b.fromSample);
@@ -540,6 +567,19 @@ export function songSections(
  * live away from the code that uses them. [D-19]
  */
 export const MIN_SONG_SAMPLES = 2 * HOUSE_SAMPLE_RATE;
+
+/** The stretch a moment of the song is in, if any. [B6g] */
+export function songSectionAt(
+  master: MasterTrack, source: Samples,
+): SongSection | undefined {
+  return songSections(master).find(
+    (one) => source >= one.fromSample && source < one.toSample);
+}
+
+/** Is any stretch of the song replaced by sound from elsewhere. [B6g] */
+export function songReplaced(master: MasterTrack): boolean {
+  return songSections(master).some((one) => Boolean(one.assetId));
+}
 
 /** How long the export is: the sections, laid end to end. [INV-03] */
 export function songLength(master: MasterTrack): Samples {

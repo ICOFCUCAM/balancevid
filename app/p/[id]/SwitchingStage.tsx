@@ -909,10 +909,29 @@ export default function SwitchingStage({
   }, [confirm, voice]);
   const voiceFrom = useRef(0);
 
+  /*
+   * "REPLACE SECTION." The same picker and the same ingest as adding
+   * a sound, told where it goes. [TIMELINE B6g, D-19]
+   */
+  const replaceSection = useCallback((
+    fromSample: number, toSample: number,
+  ) => {
+    pickSound(performance.id, {
+      track: 'music',
+      fromSample,
+      replace: { fromSample, toSample },
+    }, {
+      onStarted: (label) => { setAdding(label); setError(null); },
+      onError: (message) => { setAdding(null); setError(message); },
+      onFinished: watchSound,
+    });
+  }, [performance.id, watchSound]);
+
   const songMenu = useCallback((): MenuEntry[] => songMenuItems({
     performance, patch, confirm, at: () => player.positionNow(),
-    addAudio, recordSound,
-  }), [addAudio, confirm, patch, performance, player, recordSound]);
+    addAudio, recordSound, replaceSection,
+  }), [addAudio, confirm, patch, performance, player, recordSound,
+    replaceSection]);
 
   /*
    * AND THE SAME FOR A SOUND, from one definition.  [TIMELINE B8, B12]
@@ -2460,6 +2479,27 @@ export default function SwitchingStage({
                        background: 'rgba(0,0,0,0.72)',
                        borderLeft: '1px solid rgba(255,255,255,0.22)',
                        borderRight: '1px solid rgba(255,255,255,0.22)',
+                       pointerEvents: 'none',
+                     }} />
+              ))}
+              {/*
+                * AND A STRETCH WHOSE SOUND COMES FROM SOMEWHERE ELSE,
+                * which looks exactly like the song unless it is said.
+                * Marked rather than shaded out: it IS in the export,
+                * it is just not the song. [TIMELINE B6g]
+                */}
+              {songParts.filter((part) => part.assetId).map((part) => (
+                <div key={`r${part.fromSample}`} data-testid="song-replaced"
+                     data-from={part.fromSample} data-to={part.toSample}
+                     title={'Something else plays here \u2014 '
+                       + `${clock(part.fromSample)} to ${clock(part.toSample)}`}
+                     style={{
+                       position: 'absolute', top: 14, height: 36,
+                       left: pct(part.fromSample),
+                       width: pct(part.toSample - part.fromSample),
+                       border: '1px solid rgba(220,170,80,0.55)',
+                       background: 'rgba(220,170,80,0.14)',
+                       borderRadius: 2,
                        pointerEvents: 'none',
                      }} />
               ))}

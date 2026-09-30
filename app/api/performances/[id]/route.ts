@@ -3,7 +3,7 @@ import { bookingsFor, refusalFor } from '../../../../src/domain/deletion.js';
 import { deletePerformance } from '../../../../src/store/performances.js';
 import { listChannels } from '../../../../src/store/channels.js';
 import { acceptBeats, setTempo,
-  classifyMaster, usePlate, setAudioMode, setSceneAudio, setTransition, setTransitionTiming, setScene, moveScene, moveBoundary, coverGap, coverWith, removeScene, labelScene, clearScenes, nudgeTake, trimTake, renameTake, renamePerformance, setEffect, setCleanup, setLyrics, setEnvironment, setReframe, trimSong, removeSection, splitSong, setSongSound, addSound, moveSound, trimSound, setSoundLayer, removeSound, removeTake, setLoop, setFootageRights, PerformanceEditError } from '../../../../src/domain/performanceEdit.js';
+  classifyMaster, usePlate, setAudioMode, setSceneAudio, setTransition, setTransitionTiming, setScene, moveScene, moveBoundary, coverGap, coverWith, removeScene, labelScene, clearScenes, nudgeTake, trimTake, renameTake, renamePerformance, setEffect, setCleanup, setLyrics, setEnvironment, setReframe, trimSong, removeSection, splitSong, replaceSection, setSongSound, addSound, moveSound, trimSound, setSoundLayer, removeSound, removeTake, setLoop, setFootageRights, PerformanceEditError } from '../../../../src/domain/performanceEdit.js';
 import { projectPerformance, covered } from '../../../../src/domain/performance.js';
 import { assertAlignmentInvariants } from '../../../../src/domain/invariants.js';
 import { listJobs } from '../../../../src/store/queue.js';
@@ -154,6 +154,13 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
           removeSection(draft, body['fromSample'], body['toSample']);
           break;
         case 'split-song': splitSong(draft, body['atSample']); break;
+        /* Sound from elsewhere over one stretch, or the song's own
+           back again. The upload path writes the first; this row
+           exists for the second. [TIMELINE B6g] */
+        case 'replace-section':
+          replaceSection(draft, body['fromSample'], body['toSample'],
+            body['assetId'] ?? null, body['sourceFromSample'] ?? 0);
+          break;
         case 'song-sound':
           setSongSound(draft, {
             ...(body['gainDb'] !== undefined ? { gainDb: body['gainDb'] } : {}),

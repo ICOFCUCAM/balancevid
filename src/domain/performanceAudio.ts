@@ -26,7 +26,8 @@
 import type { AssetId, TakeId } from './document.js';
 import {
   type AudioMode, type Performance, type PerformanceTake, type PerformanceWindow,
-  coverage, projectPerformance, songSpan, soundOnSong, soundSpan, takeById,
+  coverage, projectPerformance, songSectionAt, songSpan, soundOnSong, soundSpan,
+  takeById,
 } from './performance.js';
 import { type Samples, HOUSE_SAMPLE_RATE } from './time.js';
 import { cleanupFor } from './cleanup.js';
@@ -238,10 +239,25 @@ export function planPerformanceAudio(
          */
         const sound = performance.master.sound;
         const gainDb = sound?.muted ? MUTED_DB : sound?.gainDb;
+        /*
+         * A REPLACED STRETCH IS READ FROM SOMEWHERE ELSE. [B6g]
+         *
+         * Still a master piece — it is the song's own place on the
+         * clock and it carries the song's fader, fades and effect —
+         * but its sound comes from the file the author put there,
+         * from however far into it the stretch has been trimmed.
+         */
+        const section = songSectionAt(performance.master, run.from);
         pieces.push({
           kind: 'master',
           fromSample: run.from - zero, toSample: run.to - zero,
-          mediaFromSample: run.from,
+          ...(section?.assetId
+            ? {
+              assetId: section.assetId,
+              mediaFromSample: (section.sourceFromSample ?? 0)
+                + (run.from - section.fromSample),
+            }
+            : { mediaFromSample: run.from }),
           ...fades(run.from, run.to, performance, window),
           ...(gainDb === undefined ? {} : { gainDb }),
           ...(sound?.effect ? { effect: sound.effect } : {}),

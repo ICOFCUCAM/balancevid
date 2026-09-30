@@ -574,14 +574,14 @@ process, against the running product and not against this document.
 | B4b | drag the take horizontally | HAVE | one write, on release |
 | B5 | Move / Trim / Crop distinguished | HAVE | `MenuItem.section` |
 | B5a | crop / reframe | HAVE | `setReframe`, drawn on the take's own picture |
-| B6 | the song becomes editable | PARTIAL | ten of eleven rows, and its own right-click menu on its own lane. The one left is *Replace section*, B6g |
+| B6 | the song becomes editable | HAVE | all eleven rows, and its own right-click menu on its own lane. Trim, split, fade in, fade out, volume, mute, replace section, add audio, record, effects, remove section |
 | B6a | song: trim | HAVE (document + render) | now the outer bounds of a LIST of used stretches: it keeps the holes inside the window it leaves, and measures what is LEFT rather than the distance between the marks. Nothing in the document moves |
 | B6b | song: split | HAVE (document + render) | one stretch becomes two that touch. It changes NOTHING about the export, and that is the point: a split is not an edit, it is a place to edit from. Refused where the song is already divided rather than quietly doing nothing |
 | B6c | song: fade in | HAVE | the author's fade wins over the hairline that stops a click |
 | B6d | song: fade out | HAVE | as above, at the end of the exported stretch |
 | B6e | song: volume | HAVE, and it is a BALANCE — every export is mastered to a loudness target, so the fader decides how loud the song is against the voices, not how loud the file is. A render proved this by refusing the first test |
 | B6f | song: mute | HAVE | a gain of silence, never a missing piece: the song is the clock (INV-03) |
-| B6g | song: replace section | GAP | |
+| B6g | song: replace section | HAVE (document + render) | a section may name a different asset: the stretch keeps its place and its LENGTH on the master clock, so nothing over it moves — a replacement shorter than the stretch leaves silence and a longer one is cut, both said rather than resolved by shifting the song. The same upload and the same ingest a sound layer uses, told where it goes; the stretch is named at upload, so a division made in the meantime refuses rather than replacing something else |
 | B6h | song: add audio | HAVE | `POST .../sounds` writes the bytes and stops (U-23); the worker normalises to the house rate and COUNTS the samples (U-02); the document learns about the layer last, because a layer whose length is a guess is drawn at the wrong width. Raised from the song's own menu and lands at the playhead — the one thing a file cannot say about itself |
 | B6i | song: record | HAVE | the recorder takes are made with, given a third sink and told there is no picture: same count-in, same audio clock, same measurement of where the song was when capture actually began, same crash safety (U-06). Armed from the playhead and placed there; one recording per arming, because a voice-over is one sentence at one moment |
 | B6j | song: effects | HAVE | four named treatments — From the next room, Like a radio, With an echo, In a room — named by what they SOUND like rather than what they do, applied before the fader and the fades (an effect is what the sound is; the fader is how loud that is). The same list on the song and on a sound layer, from one table. Four, and the count is asserted: B9 |

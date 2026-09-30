@@ -62,6 +62,15 @@ export interface SongMenuHost {
    * than a row that vanishes.
    */
   recordSound?: ((at: number) => void) | undefined;
+  /**
+   * Ask for a file and play it over this stretch instead.  [B6g]
+   *
+   * Takes the stretch rather than the playhead, because a
+   * replacement is about a division the author already made — and
+   * "from here to wherever" would be a second way of dividing the
+   * song, and then two answers to where the divisions are.
+   */
+  replaceSection?: ((fromSample: number, toSample: number) => void) | undefined;
 }
 
 export function songMenuItems(host: SongMenuHost): MenuEntry[] {
@@ -170,6 +179,41 @@ export function songMenuItems(host: SongMenuHost): MenuEntry[] {
           });
         },
       }),
+    },
+    /*
+     * "REPLACE SECTION."  [TIMELINE B6g]
+     *
+     * A re-recorded bridge, a cleaner take of a verse, a different
+     * mix of the chorus. The stretch keeps its place and its length
+     * on the master clock and only what is heard over it changes —
+     * so nothing that was placed over it moves, which is the same
+     * promise removing a stretch makes.
+     */
+    {
+      section: 'Trim — which part of the song exists',
+      advanced: true,
+      label: here?.assetId
+        ? 'Use the song here again'
+        : 'Play something else here\u2026',
+      hint: here?.assetId
+        ? 'the song\u2019s own sound back over this stretch'
+        : 'a re-recorded bridge, a cleaner verse \u2014 '
+          + 'nothing over it moves',
+      ...(here
+        ? {}
+        : { disabled: 'there is nothing of the song there' } as const),
+      onSelect: () => {
+        if (!here) return;
+        if (here.assetId) {
+          void host.patch({
+            action: 'replace-section',
+            fromSample: here.fromSample, toSample: here.toSample,
+            assetId: null,
+          });
+          return;
+        }
+        host.replaceSection?.(here.fromSample, here.toSample);
+      },
     },
     {
       section: 'Trim — which part of the song exists',

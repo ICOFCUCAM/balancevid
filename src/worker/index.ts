@@ -65,9 +65,13 @@ import { exportAudio } from '../render/audioFile.js';
 import type {
   Performance as PerformanceDocument, SoundLayer,
 } from '../domain/performance.js';
-import { orderedScenes, projectPerformance } from '../domain/performance.js';
+import {
+  orderedScenes, projectPerformance, songSections,
+} from '../domain/performance.js';
 import { samplesToFrames } from '../domain/time.js';
-import { addPlate, addSound, recordBeats } from '../domain/performanceEdit.js';
+import {
+  addPlate, addSound, recordBeats, replaceSection,
+} from '../domain/performanceEdit.js';
 import { BEAT_DETECTOR, detectBeats } from '../domain/beats.js';
 import { matteThreshold, plateVerdict } from '../domain/environment.js';
 import { buildPlateStill, measurePlate } from '../render/plate.js';
@@ -226,8 +230,16 @@ async function ingestMaster(job: Job): Promise<Job> {
 function performanceAssets(
   id: string, performance: PerformanceDocument,
 ): (assetId: string) => string {
-  const sounds = new Set((performance.sounds ?? []).map((one) => one.assetId));
-  return (assetId) => (sounds.has(assetId as AssetId)
+  const sounds = new Set<string>([
+    ...(performance.sounds ?? []).map((one) => one.assetId),
+    /* A stretch of the song replaced by sound from elsewhere is the
+       same kind of file as a layer, and is looked for the same way.
+       [TIMELINE B6g] */
+    ...songSections(performance.master)
+      .map((one) => one.assetId)
+      .filter((one): one is AssetId => Boolean(one)),
+  ]);
+  return (assetId) => (sounds.has(assetId)
     ? paths.performanceAsset(id, `${assetId}snd`, 'webm')
     : paths.performanceAsset(id, `${assetId}mezz`, 'mp4'));
 }
@@ -286,6 +298,35 @@ async function ingestSound(job: Job): Promise<Job> {
   const scratch = join(paths.performanceAssets(id), 'scratch', `${assetId}.f32`);
   const durationSamples = await decodeToAnalysis(normalised, scratch);
   await rm(scratch, { force: true });
+
+  /*
+   * A REPLACEMENT GOES ON THE SONG, NOT BESIDE IT.  [TIMELINE B6g]
+   *
+   * Measured by everything above, exactly as a layer is — the length
+   * matters here too, because a replacement shorter than the stretch
+   * it covers leaves silence and the author is told how much.
+   */
+  if (job.payload['replaceFrom'] !== undefined) {
+    const from = Number(job.payload['replaceFrom']);
+    const to = Number(job.payload['replaceTo']);
+    await mutatePerformance(id, (draft) => {
+      replaceSection(draft, from, to, assetId);
+    });
+    await auditPerformance(id, {
+      action: 'song.section-replaced',
+      detail: { assetId, fromSample: from, toSample: to, durationSamples },
+    });
+    return finish(job, 'done', {
+      progress: 100,
+      result: {
+        assetId, durationSamples, replacedFrom: from, replacedTo: to,
+        /* How much of the stretch the new sound actually fills, so the
+           studio can say "this leaves 1.4s of silence" rather than the
+           author finding out in the export. [U-19] */
+        coversSamples: Math.min(durationSamples, to - from),
+      },
+    });
+  }
 
   const layer: SoundLayer = {
     id: newId('snd'),

@@ -26,7 +26,8 @@ import type { Rect } from './presentation.js';
 import { audioEffect } from './audioEffect.js';
 import { MIN_REFRAME_SPAN } from './focus.js';
 import {
-  MIN_SONG_SAMPLES, type SoundLayer, songSections, songSpan, soundSpan,
+  MIN_SONG_SAMPLES, type SongSection, type SoundLayer,
+  songSections, songSpan, soundSpan,
 } from './performance.js';
 import { EFFECT_LOOKS, type RoomPlate, SPACE_LOOKS, needsMatte } from './environment.js';
 import {
@@ -1040,16 +1041,33 @@ export function trimSong(
   setSections(master, kept);
 }
 
-/** The sections, kept only where they fall inside a window. */
+/**
+ * The sections, kept only where they fall inside a window.
+ *
+ * A clipped section keeps whatever it was replaced with, and reads
+ * from further into it by however much was cut off its front: a
+ * re-recorded bridge that is trimmed at the start should start
+ * later in the recording, not at the same place for less time. [B6g]
+ */
 function clipSections(
-  sections: { fromSample: Samples; toSample: Samples }[],
-  from: Samples, to: Samples,
-): { fromSample: Samples; toSample: Samples }[] {
-  const kept: { fromSample: Samples; toSample: Samples }[] = [];
+  sections: SongSection[], from: Samples, to: Samples,
+): SongSection[] {
+  const kept: SongSection[] = [];
   for (const one of sections) {
     const start = Math.max(one.fromSample, from);
     const stop = Math.min(one.toSample, to);
-    if (stop > start) kept.push({ fromSample: start, toSample: stop });
+    if (stop <= start) continue;
+    kept.push({
+      ...one,
+      fromSample: start,
+      toSample: stop,
+      ...(one.assetId
+        ? {
+          sourceFromSample:
+            (one.sourceFromSample ?? 0) + (start - one.fromSample),
+        }
+        : {}),
+    });
   }
   return kept;
 }
@@ -1062,13 +1080,15 @@ function clipSections(
  * document that looks edited when it is not.
  */
 function setSections(
-  master: Performance['master'],
-  sections: { fromSample: Samples; toSample: Samples }[],
+  master: Performance['master'], sections: SongSection[],
 ): void {
   delete master.use;
   const whole = sections.length === 1
     && sections[0]!.fromSample === 0
-    && sections[0]!.toSample === master.durationSamples;
+    && sections[0]!.toSample === master.durationSamples
+    /* A whole song whose sound comes from somewhere else IS an edit,
+       and dropping the list would drop the replacement. [B6g] */
+    && !sections[0]!.assetId;
   if (whole) delete master.sections;
   else master.sections = sections;
 }
@@ -1107,14 +1127,23 @@ export function removeSection(
        leaves two, which is exactly what a section list is for. */
     if (one.fromSample < fromSample) {
       kept.push({
+        ...one,
         fromSample: one.fromSample,
         toSample: Math.min(one.toSample, fromSample),
       });
     }
     if (one.toSample > toSample) {
+      const start = Math.max(one.fromSample, toSample);
       kept.push({
-        fromSample: Math.max(one.fromSample, toSample),
+        ...one,
+        fromSample: start,
         toSample: one.toSample,
+        ...(one.assetId
+          ? {
+            sourceFromSample:
+              (one.sourceFromSample ?? 0) + (start - one.fromSample),
+          }
+          : {}),
       });
     }
   }
@@ -1140,6 +1169,54 @@ export function removeSection(
  * section, is refused rather than quietly doing nothing: a control
  * that appears to work and does not is worse than one that says why.
  */
+/**
+ * Play something else over a stretch of the song.  [TIMELINE B6g]
+ *
+ * "Replace section." A re-recorded bridge, a cleaner take of a verse,
+ * a different mix of the chorus — the stretch keeps its place and its
+ * length on the master clock, and only what is heard over it changes.
+ *
+ * NOTHING MOVES, for the same reason nothing moves when a stretch is
+ * removed: every scene, take, lyric and sound over it is on the
+ * song's own clock and stays there. A replacement shorter than the
+ * stretch leaves silence at the end of it and one longer is cut —
+ * both said out loud in the control rather than resolved by shifting
+ * the rest of the song under the author.
+ *
+ * THE STRETCH HAS TO EXIST FIRST, which is what `splitSong` is for.
+ * Replacing "from here to there" would be a second way of dividing
+ * the song, and then two answers to where the divisions are.
+ */
+export function replaceSection(
+  performance: Performance,
+  fromSample: Samples, toSample: Samples,
+  assetId: string | null, sourceFromSample: Samples = 0,
+): void {
+  const master = performance.master;
+  const sections = songSections(master);
+  const found = sections.find(
+    (one) => one.fromSample === fromSample && one.toSample === toSample);
+  if (!found) {
+    fail('the song is not divided there — divide it first');
+  }
+  if (assetId !== null) {
+    assertSamples(sourceFromSample);
+    if (!/^asset_[A-Za-z0-9]{1,64}$/.test(assetId)) {
+      fail('that is not a sound this performance has');
+    }
+  }
+  setSections(master, sections.map((one) => (one === found
+    ? {
+      fromSample: one.fromSample,
+      toSample: one.toSample,
+      ...(assetId === null ? {} : {
+        assetId: assetId as SongSection['assetId'],
+        ...(sourceFromSample > 0 ? { sourceFromSample } : {}),
+      }),
+    }
+    : one)));
+}
+
 export function splitSong(performance: Performance, atSample: Samples): void {
   const master = performance.master;
   assertSamples(atSample);
@@ -1156,8 +1233,18 @@ export function splitSong(performance: Performance, atSample: Samples): void {
   const next: { fromSample: Samples; toSample: Samples }[] = [];
   for (const one of sections) {
     if (one === inside) {
-      next.push({ fromSample: one.fromSample, toSample: atSample });
-      next.push({ fromSample: atSample, toSample: one.toSample });
+      next.push({ ...one, fromSample: one.fromSample, toSample: atSample });
+      next.push({
+        ...one,
+        fromSample: atSample,
+        toSample: one.toSample,
+        ...(one.assetId
+          ? {
+            sourceFromSample:
+              (one.sourceFromSample ?? 0) + (atSample - one.fromSample),
+          }
+          : {}),
+      });
     } else next.push(one);
   }
   /* Written even when it covers the whole song, because two sections
