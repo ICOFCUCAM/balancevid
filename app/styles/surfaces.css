@@ -955,3 +955,484 @@ dialog::backdrop {
 
 .room-card-kind.is-inline,
 .room-card-live.is-inline { position: static; }
+
+/* ---- the control room's front door -----------------------------------
+ *
+ * *"The current screen is especially weak because it asks the user to
+ * type a channel name and timezone before showing them anything about
+ * the actual television system."*
+ *
+ * So this is an operating surface: the channel, what it is doing, what
+ * is next, three controls, the channels, the day's programming, and
+ * where it goes. Making a channel is folded away at the bottom.
+ */
+
+.room-section {
+  margin: 0;
+  font-size: var(--text-2xs);
+  letter-spacing: 0.12em;
+  font-weight: var(--weight-bold);
+  text-transform: uppercase;
+  color: var(--ink-400);
+}
+
+.tv-desk { margin-top: 18px; padding: 18px; }
+
+.tv-desk-name {
+  font-size: var(--text-lg);
+  letter-spacing: var(--tracking-tight);
+}
+
+.tv-desk-health {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 10px 0 0;
+  padding: 8px 11px;
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  background: var(--state-warn-wash, var(--accent-wash));
+  color: var(--ink-on-warn, var(--ink-100));
+}
+
+.tv-desk-grid {
+  display: grid;
+  gap: 14px;
+  margin-top: 14px;
+  /*
+   * ALIGNED TO THE TOP, NOT STRETCHED. Left to itself the grid makes
+   * both cells the height of the taller one, which turned the now/next
+   * panel into a column of text with 300px of nothing under it.
+   */
+  align-items: start;
+  grid-template-columns: minmax(0, 1.9fr) minmax(0, 1fr);
+}
+
+/*
+ * THE STANDBY CARD.
+ *
+ * *"When the channel is off air, don't show an empty black rectangle.
+ * Show a proper channel standby state."* Off air and on air are the same
+ * rectangle saying different things, which is what gives a channel one
+ * identity across both.
+ */
+.tv-preview {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 8px;
+  /*
+   * A STANDBY CARD IS NOT A VIDEO FRAME.
+   *
+   * 16:9 at the width this column gets is 560px tall — a screen's worth
+   * of empty dark with five words in the middle of it, which is the
+   * "empty black rectangle" the author objected to, only larger. It is
+   * as tall as it needs to be to hold what it says, with a ceiling.
+   */
+  aspect-ratio: 16 / 6;
+  max-height: 260px;
+  min-height: 190px;
+  padding: 18px;
+  text-align: center;
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(28, 126, 102, 0.16), transparent 70%),
+    var(--surface-sunk);
+  border: var(--border) solid var(--line);
+}
+
+.tv-preview-mark {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-md);
+  display: grid;
+  place-items: center;
+  background: var(--studio-tv-wash);
+  color: var(--studio-tv);
+}
+
+.tv-preview-name {
+  font-size: var(--text-md);
+  font-weight: var(--weight-semi);
+}
+
+.tv-preview-state {
+  font-size: 21px;
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.22em;
+  color: var(--ink-100);
+}
+
+.tv-preview-next {
+  font-size: var(--text-2xs);
+  line-height: 1.7;
+  color: var(--text-faint);
+  border-top: var(--border) solid var(--line);
+  padding-top: 8px;
+  min-width: 13rem;
+}
+
+.tv-preview-watch {
+  font-size: var(--text-2xs);
+  color: var(--studio-tv);
+  text-decoration: none;
+}
+
+.tv-nownext {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  padding: 14px;
+  border-radius: var(--radius-lg);
+  background: var(--surface-sunk);
+  border: var(--border) solid var(--line);
+}
+
+.tv-nownext > div + div {
+  border-top: var(--border) solid var(--line);
+  padding-top: 12px;
+}
+
+.tv-nownext-label {
+  margin: 0;
+  font-size: var(--text-2xs);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: var(--weight-bold);
+  color: var(--ink-400);
+}
+
+.tv-nownext-said {
+  margin: 4px 0 0;
+  font-size: var(--text-base);
+  color: var(--ink-100);
+}
+
+.tv-nownext-why {
+  margin: 2px 0 0;
+  font-size: var(--text-2xs);
+  color: var(--text-faint);
+}
+
+.tv-controls {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.tv-key,
+.tv-ctl {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 16px;
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semi);
+  text-decoration: none;
+}
+
+.tv-key {
+  background: var(--studio-tv);
+  color: var(--text-on-accent);
+  box-shadow: var(--elev-2);
+}
+
+.tv-ctl {
+  border: var(--border) solid var(--line);
+  color: var(--ink-100);
+  background: var(--surface-sunk);
+}
+
+/* ---- the lamp, in three states --------------------------------------- */
+
+.tv-lamp {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.08em;
+  color: var(--ink-300);
+}
+
+.tv-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ink-450);
+  flex: 0 0 auto;
+}
+
+.tv-dot.is-on { background: var(--bad); }
+.tv-dot.is-due { background: var(--state-warn, var(--ink-300)); }
+
+/* ---- the channel list ------------------------------------------------ */
+
+.tv-channel-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 13px 14px;
+  text-decoration: none;
+  color: inherit;
+  flex-wrap: wrap;
+}
+
+.tv-channel-mark {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  border-radius: var(--radius-md);
+  display: grid;
+  place-items: center;
+  background: var(--studio-tv-wash);
+  color: var(--studio-tv);
+}
+
+.tv-channel-name { font-size: var(--text-base); }
+
+.tv-channel-state { display: grid; gap: 2px; }
+
+.tv-channel-under { font-size: var(--text-2xs); color: var(--text-faint); }
+
+.tv-channel-next {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-200);
+}
+
+.tv-channel-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  font-size: var(--text-sm);
+  color: var(--accent-soft);
+}
+
+/* ---- the day ---------------------------------------------------------- */
+
+.tv-schedule { width: 100%; border-collapse: collapse; }
+
+.tv-schedule th {
+  text-align: left;
+  padding: 9px 14px;
+  font-size: var(--text-2xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: var(--weight-semi);
+  color: var(--ink-400);
+  border-bottom: var(--border) solid var(--line);
+}
+
+.tv-schedule th:last-child,
+.tv-schedule td:last-child { text-align: right; }
+
+.tv-schedule td {
+  padding: 11px 14px;
+  font-size: var(--text-sm);
+  border-top: var(--border) solid var(--line);
+}
+
+.tv-schedule tbody tr:first-child td { border-top: none; }
+
+.tv-slot-at { font-variant-numeric: tabular-nums; color: var(--ink-200); }
+.tv-slot-title { color: var(--ink-000); }
+.tv-slot-runs { font-variant-numeric: tabular-nums; color: var(--text-faint); }
+
+/* ---- where it goes ---------------------------------------------------- */
+
+.tv-dests {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(178px, 1fr));
+}
+
+.tv-dest {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 12px 13px;
+  min-width: 0;
+}
+
+.tv-dest-mark {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border-radius: var(--radius-md);
+  display: grid;
+  place-items: center;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+}
+
+.tv-dest-name {
+  display: block;
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tv-dest-state {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  font-size: var(--text-2xs);
+  color: var(--text-faint);
+}
+
+/* ---- and making another one, last --------------------------------------
+ *
+ * *"Channel creation can still exist, but it should be a secondary
+ * action."*
+ */
+.tv-make { margin-top: 26px; padding: 14px 18px; }
+
+.tv-make-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  list-style: none;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semi);
+  color: var(--ink-200);
+}
+
+.tv-make-summary::-webkit-details-marker { display: none; }
+
+@media (max-width: 1000px) {
+  .tv-desk-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 760px) {
+  .tv-channel-next { flex-basis: 100%; }
+  .tv-preview-state { font-size: 17px; }
+  .tv-schedule th:first-child, .tv-schedule td:first-child { padding-left: 12px; }
+}
+
+/* ---- a room that states its identity in type -------------------------
+ *
+ * The control room's front door carries no photograph. A studio opens on
+ * an invitation to start something and a picture of the room says what
+ * kind of work that is; a control room opens on a system that is already
+ * running, and the first thing under the title should be the channel.
+ */
+.room-head {
+  padding: 4px 0 20px;
+  border-bottom: var(--border) solid var(--ink-750);
+}
+
+.room-head .room-hero-stages { color: var(--ink-000); }
+.room-head .room-hero-says { color: var(--text-faint); max-width: 48rem; }
+
+/* The room's own state, as a chip. */
+.room-ready {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: 0 0 auto;
+  padding: 4px 11px;
+  border-radius: var(--radius-full);
+  border: var(--border) solid var(--line);
+  background: var(--surface-sunk);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-200);
+}
+
+.room-ready-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--state-ok);
+}
+
+/* ---- the desk, closer to the benchmark ------------------------------- */
+
+.tv-desk-name {
+  font-size: var(--text-md);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: var(--weight-bold);
+}
+
+.tv-preview-next {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: var(--text-2xs);
+  color: var(--text-faint);
+  border-top: var(--border) solid var(--line);
+  padding-top: 9px;
+  min-width: 15rem;
+}
+
+.tv-preview-next strong { color: var(--ink-100); }
+.tv-preview-sep { color: var(--ink-450); }
+
+/* Each fact with the glyph for the kind of fact it is. */
+.tv-fact { display: flex; gap: 11px; align-items: flex-start; }
+
+.tv-fact-mark {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  border-radius: var(--radius-md);
+  display: grid;
+  place-items: center;
+  background: var(--studio-tv-wash);
+  color: var(--studio-tv);
+}
+
+.tv-nownext .tv-nownext-label,
+.tv-nownext .tv-nownext-said,
+.tv-nownext .tv-nownext-why { display: block; margin: 0; }
+
+.tv-nownext .tv-nownext-said { margin-top: 3px; }
+
+.tv-nownext > .tv-fact + .tv-fact {
+  border-top: var(--border) solid var(--line);
+  padding-top: 12px;
+}
+
+/* The three controls read as controls: wide, lettered, evenly weighted. */
+.tv-key,
+.tv-ctl {
+  padding: 10px 18px;
+  font-size: var(--text-2xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: var(--weight-bold);
+}
+
+/* The channel's own mark, as the building draws its own. */
+.tv-channel-mark,
+.tv-preview-mark {
+  background: linear-gradient(140deg, var(--accent-soft), var(--accent-deep));
+  color: var(--text-on-accent);
+}
+
+.tv-channel-name {
+  font-size: var(--text-base);
+  font-weight: var(--weight-semi);
+}
+
+/* A rule between the name and its state, as a rack panel has. */
+.tv-channel-state {
+  border-left: var(--border) solid var(--line);
+  padding-left: 14px;
+}

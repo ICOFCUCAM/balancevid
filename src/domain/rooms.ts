@@ -67,6 +67,15 @@ export interface Room {
   /** Where the room is. */
   href: string;
   /**
+   * What the room says about itself before it is asked to do anything.
+   *
+   * A STUDIO IS READY; A CONTROL ROOM'S SYSTEM IS. The distinction is
+   * the author's and it is the same one that makes the third room's
+   * entrance different from the other two: a studio is somewhere you
+   * arrive to work, and a channel is a system that was already running.
+   */
+  ready: string;
+  /**
    * A PHOTOGRAPH OF THE ROOM, AND THE COLOUR IT IS WASHED IN.
    *
    * These were fields of the home page's own studio table, on the
@@ -125,7 +134,7 @@ const SAID: Record<StudioId, Omit<Room, 'id' | 'tab' | 'label'>> = {
      */
     says: 'Bring something in, work through it, and publish the exchange '
       + 'as one finished piece.',
-    enter: 'Enter Studio', href: '/c', noun: 'conversation',
+    enter: 'Enter Studio', href: '/c', ready: 'Ready', noun: 'conversation',
     art: '/rooms/conversation.webp', focus: '58% 50%',
     veil: 'var(--studio-one-veil)',
     accent: 'var(--studio-one)',
@@ -136,7 +145,7 @@ const SAID: Record<StudioId, Omit<Room, 'id' | 'tab' | 'label'>> = {
     says: 'Perform a song as many times as you like, from different angles '
       + 'or sources, then arrange the takes against one master song clock '
       + 'and create your finished performance.',
-    enter: 'Enter Studio', href: '/p', noun: 'performance',
+    enter: 'Enter Studio', href: '/p', ready: 'Ready', noun: 'performance',
     art: '/rooms/performance.webp', focus: '62% 50%',
     veil: 'var(--studio-two-veil)',
     accent: 'var(--studio-two)',
@@ -144,10 +153,9 @@ const SAID: Record<StudioId, Omit<Room, 'id' | 'tab' | 'label'>> = {
   'online-tv': {
     name: 'Online TV',
     stages: ['PROGRAMME', 'PLAYOUT', 'LIVE'],
-    says: 'Build a schedule out of what you have already made, put it to '
-      + 'air around the clock, and cut to a live feed whenever there is '
-      + 'something to say now.',
-    enter: 'Open Control', href: '/t', noun: 'channel',
+    says: 'Run a continuous channel from your programmes, scheduled '
+      + 'content, live sessions and emergency sources.',
+    enter: 'Open Control', href: '/t', ready: 'System ready', noun: 'channel',
     art: '/rooms/online-tv.webp', focus: 'center 38%',
     veil: 'var(--studio-tv-veil)',
     accent: 'var(--studio-tv)',

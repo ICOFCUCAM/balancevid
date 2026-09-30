@@ -30,14 +30,33 @@ import type { Room as TheRoom } from '../src/domain/rooms.js';
  * IS. The author's note: *"the most important concept is too small."*
  */
 export default function Room({
-  room, owned, space, libraryCount, heroHref, start, children,
+  room, owned, space, libraryCount, heroHref, start, children, head = 'photo',
 }: {
   room: TheRoom;
+  /**
+   * WHETHER THIS ROOM'S IDENTITY SITS ON A PHOTOGRAPH.
+   *
+   * *"Don't force Online TV to copy the other studios… their entry
+   * experiences should be different."* A studio opens on an invitation
+   * to start something, and a photograph of the room is the right way
+   * to say what kind of work that is. A control room opens on a system
+   * that is already running: the first thing under the title should be
+   * the channel, not a picture of a gallery. So the third room states
+   * its identity as type on the page and gives the space to the desk.
+   */
+  head?: 'photo' | 'plain';
   owned: import('../src/domain/account.js').StudioId[];
   space: SpaceReading;
   libraryCount: number;
   heroHref?: string;
-  /** The way in — this room's own intake. */
+  /**
+   * The way in — this room's own intake, where it has one.
+   *
+   * THE CONTROL ROOM HAS NONE AT THE TOP. Studio One and Studio Two open
+   * on "start something"; a channel is already running whether or not
+   * anybody is standing here, so Online TV opens on what it is doing and
+   * puts making another one at the bottom. [CHANNEL §4]
+   */
   start: React.ReactNode;
   /** What has been made here. */
   children: React.ReactNode;
@@ -67,20 +86,37 @@ export default function Room({
             <span style={{ color: 'var(--ink-100)' }}>{room.tab}</span>
           </span>
           <span className="grow" />
-          <span className="row" data-testid="room-ready" style={{
-            gap: 6, flex: '0 0 auto', fontSize: 'var(--text-2xs)',
-            color: 'var(--ink-300)',
-          }}>
-            <span aria-hidden="true" style={{
-              width: 6, height: 6, borderRadius: '50%',
-              background: 'var(--state-ok)',
-            }} />
-            Ready
+          {/*
+            * A CHIP, NOT A SENTENCE. It is a status indicator and it
+            * reads as one: bordered, lettered wide, with the lamp that
+            * every other state in this product carries beside the word.
+            */}
+          <span data-testid="room-ready" className="room-ready">
+            <span aria-hidden="true" className="room-ready-dot" />
+            {room.ready}
           </span>
         </div>
 
         <div className="building-body" id="top">
           {/* ---- the room, said at the size it deserves ------------ */}
+          {head === 'plain' ? (
+            <section data-testid="room-hero" className="room-head">
+              <p className="room-hero-label">{room.label}</p>
+              <h1 data-testid="room-stages" className="room-hero-stages">
+                {room.stages.map((stage, index) => (
+                  <span key={stage} className="row" style={{ gap: 12 }}>
+                    {index > 0 && (
+                      <span aria-hidden="true" style={{ color: 'var(--ink-400)' }}>
+                        <Icon name="arrow" size={20} />
+                      </span>
+                    )}
+                    {stage}
+                  </span>
+                ))}
+              </h1>
+              <p data-testid="room-says" className="room-hero-says">{room.says}</p>
+            </section>
+          ) : (
           <section data-testid="room-hero" className="room-hero">
             <img alt="" src={room.art} className="room-hero-art"
                  style={{ objectPosition: room.focus }} />
@@ -110,6 +146,7 @@ export default function Room({
               <p data-testid="room-says" className="room-hero-says">{room.says}</p>
             </div>
           </section>
+          )}
 
           {start}
           {children}
