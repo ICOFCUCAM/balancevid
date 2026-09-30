@@ -29,6 +29,7 @@ import {
   type Performance, type PerformanceSpan, type PerformanceTake, type PerformanceWindow,
   coversSpan, joinSpan, mayPublish, mayShowMasterPicture, plateFor,
   projectPerformance, unpublishableFootage,
+  songSpan,
 } from './performance.js';
 import { effectFor, matteFeather, matteThreshold, needsMatte } from './environment.js';
 import { matchLook } from './colour.js';
@@ -147,11 +148,31 @@ export function buildPerformancePlan(
    * own private copy of the same rules is two rules that drift.
    */
   assertPerformanceRenderable(performance, options.span);
-  const timeline = projectPerformance(performance, options.span);
+  /*
+   * THE SONG'S OWN TRIM IS THE DEFAULT WINDOW.  [TIMELINE B6a]
+   *
+   * A clip asks for a stretch; the song may itself be trimmed to one;
+   * and when both are true the answer is the INTERSECTION — a clip of
+   * the chorus from a song trimmed to its second half is the chorus,
+   * not the chorus plus a minute nobody asked to export.
+   *
+   * Worked out here, once, rather than in `projectPerformance`: that
+   * function is asked for a window by five callers and is not the
+   * place that knows what the SONG wants. [D-19]
+   */
+  const trim = songSpan(performance.master);
+  const asked = options.span;
+  const span = asked
+    ? {
+      fromSample: Math.max(asked.fromSample, trim.fromSample),
+      toSample: Math.min(asked.toSample, trim.toSample),
+    }
+    : trim;
+  const timeline = projectPerformance(performance, span);
 
   let audio;
   try {
-    audio = planPerformanceAudio(performance, options.span);
+    audio = planPerformanceAudio(performance, span);
   } catch (error) {
     // The audio's own refusals are the author's problem, not a crash: a mode
     // naming a vocal that is not there is a thing they can fix in one click.

@@ -201,6 +201,73 @@ export interface MasterTrack {
    */
   countInSamples?: Samples;
   /**
+   * The part of the song the finished video uses.  [TIMELINE B6a]
+   *
+   * "The master song shouldn't be treated as an immutable background
+   * track." It was one: an asset and a measured length, and every
+   * export was the whole of it.
+   *
+   * A WINDOW, WHICH IS A THING THIS PRODUCT ALREADY HAS. A clip
+   * renders a stretch of the song — `PerformanceWindow`, through
+   * `projectPerformance` and `planPerformanceAudio`, both of which
+   * already take one and get the two clocks right. Trimming the song
+   * is that window applied to the WHOLE export rather than to one
+   * clip, so it costs no new arithmetic and cannot disagree with the
+   * clip path. [D-19]
+   *
+   * MARKERS, NOT A CUT. The media is untouched and the trim can be
+   * widened again tomorrow — the same promise a take's trim makes, and
+   * the same reason: the author's own recording of their own song is
+   * the one file they may not have another copy of. [U-25]
+   *
+   * POSITIONS DO NOT MOVE. Every scene, every take and every lyric
+   * stays on the sample it was on; trimming changes which stretch is
+   * exported, not what anything is. Renumbering the master clock would
+   * mean re-timing everything in the document against an edit that can
+   * be undone.
+   */
+  use?: { fromSample: Samples; toSample: Samples };
+  /**
+   * What is done to the song's own sound.  [TIMELINE B6c, B6d, B6e, B6f]
+   *
+   * Fade in, fade out, volume, mute — four of the eleven things the
+   * brief asks for, and the four that are a property of the song
+   * rather than a change to its shape.
+   *
+   * ON THE MASTER AND NOT ON A SCENE, because a fade at the top of the
+   * song is a fact about the song. Scene-by-scene ducking is what the
+   * audio MODES are for (§9), and a second way to make the music
+   * quieter would be a second answer to how loud it is.
+   */
+  sound?: {
+    /**
+     * Decibels, relative. Absent means the song as it was recorded.
+     *
+     * NOT A MULTIPLIER, because a multiplier of 0.5 is not half as
+     * loud to a listener and nobody can predict it. Decibels are what
+     * every fader in the world is marked in.
+     *
+     * AND IT IS A BALANCE, NOT AN OUTPUT LEVEL — which a render test
+     * found the hard way. Every export is mastered to a loudness
+     * target (INV-11), so turning the song down when it is the ONLY
+     * sound produces a file that measures exactly as loud as before:
+     * the mastering puts back what the fader took off. What the fader
+     * actually decides is how loud the song is AGAINST THE VOICES,
+     * and that survives mastering because mastering scales the mix.
+     *
+     * The control says so, because an author who turns the music down
+     * on an instrumental and hears no difference has been lied to by
+     * a working feature.
+     */
+    gainDb?: number;
+    /** Silent, but still the clock. [INV-03] */
+    muted?: boolean;
+    /** Up from silence at the start of the exported stretch. */
+    fadeInSamples?: Samples;
+    /** Down to silence at its end. */
+    fadeOutSamples?: Samples;
+  };
+  /**
    * The words, timed to the song.  [MASTER-EDIT §12 P3, INV-07]
    *
    * ON THE MASTER, NOT ON A TAKE, and that is the whole reason this is a
@@ -361,6 +428,34 @@ export type AlignmentMethod =
  */
 export function isPlaced(alignment: Alignment): boolean {
   return alignment.method !== 'unplaced';
+}
+
+/**
+ * The stretch of the song the finished video covers.  [TIMELINE B6a]
+ *
+ * ONE DEFINITION, asked by the planner, the audio planner, the render
+ * console and MASTER CHECK. A trim that only the renderer knew about
+ * would be a timeline drawing four minutes of a song that exports two.
+ *
+ * Clamped to the song, and never inverted: a trim that leaves nothing
+ * is refused where it is written (`trimSong`), and this is the reader,
+ * which answers something sane whatever is in the document.
+ */
+export function songSpan(
+  master: MasterTrack,
+): { fromSample: Samples; toSample: Samples } {
+  const end = master.durationSamples;
+  const use = master.use;
+  if (!use) return { fromSample: 0, toSample: end };
+  const from = Math.max(0, Math.min(use.fromSample, end));
+  const to = Math.max(from, Math.min(use.toSample, end));
+  return { fromSample: from, toSample: to };
+}
+
+/** Is any of the song trimmed away. */
+export function songTrimmed(master: MasterTrack): boolean {
+  const span = songSpan(master);
+  return span.fromSample > 0 || span.toSample < master.durationSamples;
 }
 
 /** Offset plus the author's nudge: where the take really starts. */

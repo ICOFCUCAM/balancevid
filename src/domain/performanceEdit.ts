@@ -24,6 +24,7 @@
 import { LAYOUTS, takeSlots } from './presentation.js';
 import type { Rect } from './presentation.js';
 import { MIN_REFRAME_SPAN } from './focus.js';
+import { songSpan } from './performance.js';
 import { EFFECT_LOOKS, type RoomPlate, SPACE_LOOKS, needsMatte } from './environment.js';
 import {
   DEFAULT_TRANSITION, MAX_TRANSITION_FRAMES, MIN_TRANSITION_FRAMES,
@@ -42,7 +43,9 @@ import {
   allProblems, coverage, coversSpan, mayPublish, orderedScenes, plateFor,
   renderProblems, takeById,
 } from './performance.js';
-import { type Frames, type Samples, assertSamples } from './time.js';
+import {
+  type Frames, type Samples, HOUSE_SAMPLE_RATE, assertSamples,
+} from './time.js';
 
 /**
  * A new Performance.
@@ -974,6 +977,127 @@ export function matchColour(
       `"${follower.label}" is matched to this take — unmatch it first`);
   }
   take.matchTo = to.id as TakeId;
+}
+
+/**
+ * The shortest stretch of song worth exporting.  [TIMELINE B6a]
+ *
+ * Two seconds. Below that the aac encoder produces no frames at all and
+ * the mux fails — which is a fixture problem wearing the clothes of a
+ * bug, and cost a confusing half-hour the first time it happened in a
+ * test. It is also not a video.
+ */
+export const MIN_SONG_SAMPLES = 2 * HOUSE_SAMPLE_RATE;
+
+/**
+ * Use only part of the song.  [TIMELINE B6a]
+ *
+ * "The master song shouldn't be treated as an immutable background
+ * track." Both ends are on the master clock, which is the clock the
+ * author is looking at, and both are MARKERS: the media is untouched
+ * and the trim can be widened again tomorrow.
+ *
+ * NOTHING ELSE IN THE DOCUMENT MOVES. A scene at 02:41 is still at
+ * 02:41 after the first minute is trimmed away; what changes is which
+ * stretch is exported. Renumbering the master clock would mean
+ * re-timing every scene, every take and every lyric against an edit
+ * that can be undone with one press — and getting one of them wrong
+ * would be silent.
+ */
+export function trimSong(
+  performance: Performance,
+  useFromSample: Samples | null, useToSample: Samples | null,
+): void {
+  const end = performance.master.durationSamples;
+  if (useFromSample === null && useToSample === null) {
+    delete performance.master.use;
+    return;
+  }
+  const current = songSpan(performance.master);
+  const from = useFromSample === null ? 0
+    : useFromSample === undefined ? current.fromSample : useFromSample;
+  const to = useToSample === null ? end
+    : useToSample === undefined ? current.toSample : useToSample;
+  assertSamples(from);
+  assertSamples(to);
+  if (from < 0 || to > end) {
+    fail('that trim is outside the song');
+  }
+  if (to - from < MIN_SONG_SAMPLES) {
+    fail(`that leaves ${((to - from) / HOUSE_SAMPLE_RATE).toFixed(1)}s of song, `
+      + `and ${MIN_SONG_SAMPLES / HOUSE_SAMPLE_RATE}s is the shortest a video can be`);
+  }
+  /* The whole song is not a trim, and storing it would be a window the
+     planner has to carry for nothing. */
+  if (from === 0 && to === end) {
+    delete performance.master.use;
+    return;
+  }
+  performance.master.use = { fromSample: from, toSample: to };
+}
+
+/**
+ * Fade it, lift it, drop it, silence it.  [TIMELINE B6c, B6d, B6e, B6f]
+ *
+ * Four of the eleven things the brief asks of the song, and the four
+ * that are properties of it rather than changes to its shape. Written
+ * together because they are one panel and one decision — "how the song
+ * sounds" — and separating them into four operations would be four
+ * places for the same refusals.
+ *
+ * REFUSED RATHER THAN CLAMPED where the numbers make no sense: a fade
+ * longer than the stretch it is in has no honest meaning, and a fader
+ * that quietly halves what somebody typed is one they cannot trust.
+ */
+export function setSongSound(
+  performance: Performance,
+  sound: {
+    gainDb?: number | null;
+    muted?: boolean | null;
+    fadeInSamples?: Samples | null;
+    fadeOutSamples?: Samples | null;
+  },
+): void {
+  const master = performance.master;
+  const next = { ...(master.sound ?? {}) };
+  const span = songSpan(master);
+  const length = span.toSample - span.fromSample;
+
+  if (sound.gainDb !== undefined) {
+    if (sound.gainDb === null) delete next.gainDb;
+    else {
+      if (!Number.isFinite(sound.gainDb)) fail('that gain is not a number');
+      /*
+       * PLUS OR MINUS TWENTY-FOUR DECIBELS, which is the range of a
+       * mixing desk's channel fader. Beyond it in one direction the
+       * song is inaudible and in the other it is clipping, and a
+       * control that lets somebody do either by mistyping is not a
+       * control.
+       */
+      if (Math.abs(sound.gainDb) > 24) {
+        fail('the song can be moved by up to 24 dB either way');
+      }
+      next.gainDb = sound.gainDb;
+    }
+  }
+  if (sound.muted !== undefined) {
+    if (sound.muted) next.muted = true; else delete next.muted;
+  }
+  for (const [key, value] of [
+    ['fadeInSamples', sound.fadeInSamples],
+    ['fadeOutSamples', sound.fadeOutSamples],
+  ] as const) {
+    if (value === undefined) continue;
+    if (value === null) { delete next[key]; continue; }
+    assertSamples(value);
+    if (value > length) {
+      fail('a fade cannot be longer than the song it is in');
+    }
+    next[key] = value;
+  }
+
+  if (Object.keys(next).length === 0) delete master.sound;
+  else master.sound = next;
 }
 
 /**

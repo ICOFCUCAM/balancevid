@@ -85,6 +85,22 @@ export function mixGraph(
        */
       ...(cleanupFor(piece.cleanup)?.stages ?? []),
     ];
+    /*
+     * THE SONG'S OWN LEVEL.  [TIMELINE B6e, B6f]
+     *
+     * BEFORE THE FADES, deliberately: a fade is a ramp to silence and
+     * a gain applied after one would scale the ramp itself, so a
+     * faded-out song at -6 dB would end at -6 dB instead of at
+     * nothing. Volume is what the piece IS; a fade is what happens to
+     * it at the edges.
+     *
+     * Mute arrives here as a gain of -120 dB rather than as a missing
+     * piece, because the song is the clock and a clock that vanishes
+     * takes the video's length with it. [INV-03]
+     */
+    if (piece.gainDb !== undefined && piece.gainDb !== 0) {
+      steps.push(`volume=${piece.gainDb.toFixed(3)}dB`);
+    }
     if (piece.fadeInSamples > 0) {
       steps.push(`afade=t=in:st=0:d=${seconds(piece.fadeInSamples)}`);
     }

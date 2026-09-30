@@ -26,7 +26,7 @@
 import type { AssetId, TakeId } from './document.js';
 import {
   type AudioMode, type Performance, type PerformanceTake, type PerformanceWindow,
-  coverage, projectPerformance, takeById,
+  coverage, projectPerformance, songSpan, takeById,
 } from './performance.js';
 import { type Samples, HOUSE_SAMPLE_RATE } from './time.js';
 import { cleanupFor } from './cleanup.js';
@@ -81,6 +81,17 @@ export interface AudioPiece {
    * denoising it is damage done on their behalf.
    */
   cleanup?: string;
+  /**
+   * How much louder or quieter this piece is.  [TIMELINE B6e]
+   *
+   * Decibels, and absent means as recorded. On the PIECE rather than
+   * looked up by the mixer, for the reason `cleanup` is: the mixer is
+   * handed a plan and never a document, which is what makes the plan
+   * hashable and the cache correct. A song whose volume changed must
+   * produce a different plan, and it does, because the plan says so
+   * here. [U-16]
+   */
+  gainDb?: number;
 }
 
 export class PerformanceAudioError extends Error {
@@ -179,11 +190,23 @@ export function planPerformanceAudio(
   for (const [key, list] of runs) {
     for (const run of list) {
       if (key === 'master') {
+        /*
+         * THE SONG'S OWN SOUND, APPLIED TO THE SONG'S OWN PIECES.
+         * [TIMELINE B6c–B6f]
+         *
+         * Muting is a gain of silence rather than a missing piece:
+         * the song IS the clock (INV-03), and a master piece that
+         * vanished when somebody pressed mute would take the length
+         * of the video with it.
+         */
+        const sound = performance.master.sound;
+        const gainDb = sound?.muted ? MUTED_DB : sound?.gainDb;
         pieces.push({
           kind: 'master',
           fromSample: run.from - zero, toSample: run.to - zero,
           mediaFromSample: run.from,
           ...fades(run.from, run.to, performance, window),
+          ...(gainDb === undefined ? {} : { gainDb }),
         });
         continue;
       }
@@ -265,11 +288,51 @@ function effective(take: PerformanceTake): Samples {
  * pass's own mastering handles the edges — a fade-in on the first sample of a
  * song that begins on a downbeat is an audible mistake.
  */
+/**
+ * Silence, as a number.
+ *
+ * Minus a hundred and twenty decibels rather than a missing piece,
+ * because the song is the clock: a master piece that disappeared when
+ * somebody pressed mute would take the length of the video with it.
+ * Below this nothing in a 16-bit render is audible. [INV-03]
+ */
+export const MUTED_DB = -120;
+
 function fades(
   from: Samples, to: Samples, performance: Performance, window?: PerformanceWindow,
 ): { fadeInSamples: Samples; fadeOutSamples: Samples } {
   const length = to - from;
   const fade = Math.min(AUDIO_FADE_SAMPLES, Math.floor(length / 2));
+  /*
+   * THE AUTHOR'S OWN FADES WIN AT THE EDGES OF THE EXPORT.
+   * [TIMELINE B6c, B6d]
+   *
+   * "Fade in, fade out" asked of the SONG, which is a different thing
+   * from the hairline this function otherwise applies to stop a cut
+   * clicking. Where the author has asked for one and this piece
+   * touches that end of the exported stretch, theirs is used — it is
+   * longer by construction, since anything shorter than the hairline
+   * is not a fade anybody asked to hear.
+   */
+  const span = songSpan(performance.master);
+  const wanted = performance.master.sound;
+  const atStart = from <= span.fromSample;
+  const atEnd = to >= span.toSample;
+  const asked = {
+    ...(atStart && wanted?.fadeInSamples
+      ? { fadeInSamples: wanted.fadeInSamples } : {}),
+    ...(atEnd && wanted?.fadeOutSamples
+      ? { fadeOutSamples: wanted.fadeOutSamples } : {}),
+  };
+  if (Object.keys(asked).length > 0) {
+    return {
+      fadeInSamples: asked.fadeInSamples ?? (from <= 0 ? 0 : fade),
+      fadeOutSamples: asked.fadeOutSamples
+        ?? (to >= performance.master.durationSamples ? 0 : fade),
+      ...(window && !asked.fadeInSamples ? { fadeInSamples: fade } : {}),
+      ...(window && !asked.fadeOutSamples ? { fadeOutSamples: fade } : {}),
+    };
+  }
   /*
    * A clip's edges are the opposite case from the song's. The song begins on
    * a downbeat somebody wrote and must not be faded into; a clip is cut out of

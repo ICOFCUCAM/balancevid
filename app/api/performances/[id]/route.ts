@@ -3,7 +3,7 @@ import { bookingsFor, refusalFor } from '../../../../src/domain/deletion.js';
 import { deletePerformance } from '../../../../src/store/performances.js';
 import { listChannels } from '../../../../src/store/channels.js';
 import { acceptBeats, setTempo,
-  classifyMaster, usePlate, setAudioMode, setSceneAudio, setTransition, setTransitionTiming, setScene, moveScene, moveBoundary, coverGap, coverWith, removeScene, labelScene, clearScenes, nudgeTake, trimTake, renameTake, renamePerformance, setEffect, setCleanup, setLyrics, setEnvironment, setReframe, removeTake, setLoop, setFootageRights, PerformanceEditError } from '../../../../src/domain/performanceEdit.js';
+  classifyMaster, usePlate, setAudioMode, setSceneAudio, setTransition, setTransitionTiming, setScene, moveScene, moveBoundary, coverGap, coverWith, removeScene, labelScene, clearScenes, nudgeTake, trimTake, renameTake, renamePerformance, setEffect, setCleanup, setLyrics, setEnvironment, setReframe, trimSong, setSongSound, removeTake, setLoop, setFootageRights, PerformanceEditError } from '../../../../src/domain/performanceEdit.js';
 import { projectPerformance, covered } from '../../../../src/domain/performance.js';
 import { assertAlignmentInvariants } from '../../../../src/domain/invariants.js';
 import { listJobs } from '../../../../src/store/queue.js';
@@ -133,6 +133,27 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
          * route of its own like `stabilize`, which has to measure the
          * shake before it can undo it.
          */
+        /*
+         * THE SONG IS NOT AN IMMUTABLE BACKGROUND TRACK.
+         * [TIMELINE B6a, B6c-B6f]
+         *
+         * Both of these are markers and numbers on the master — the
+         * media is untouched — so they belong here with the other
+         * edits rather than behind a pass over the audio.
+         */
+        case 'trim-song':
+          trimSong(draft, body['useFromSample'] ?? null, body['useToSample'] ?? null);
+          break;
+        case 'song-sound':
+          setSongSound(draft, {
+            ...(body['gainDb'] !== undefined ? { gainDb: body['gainDb'] } : {}),
+            ...(body['muted'] !== undefined ? { muted: body['muted'] } : {}),
+            ...(body['fadeInSamples'] !== undefined
+              ? { fadeInSamples: body['fadeInSamples'] } : {}),
+            ...(body['fadeOutSamples'] !== undefined
+              ? { fadeOutSamples: body['fadeOutSamples'] } : {}),
+          });
+          break;
         case 'reframe-take':
           setReframe(draft, body['takeId'], body['reframe'] ?? null);
           break;

@@ -575,12 +575,12 @@ process, against the running product and not against this document.
 | B5 | Move / Trim / Crop distinguished | HAVE | `MenuItem.section` |
 | B5a | crop / reframe | HAVE | `setReframe`, drawn on the take's own picture |
 | B6 | the song becomes editable | GAP | §15.1 — a model change first |
-| B6a | song: trim | GAP | |
+| B6a | song: trim | HAVE (document + render) | a WINDOW, which the clip path already had — `songSpan`, intersected with a clip's own. Nothing in the document moves |
 | B6b | song: split | GAP | |
-| B6c | song: fade in | GAP | |
-| B6d | song: fade out | GAP | |
-| B6e | song: volume | GAP | |
-| B6f | song: mute | GAP | |
+| B6c | song: fade in | HAVE | the author's fade wins over the hairline that stops a click |
+| B6d | song: fade out | HAVE | as above, at the end of the exported stretch |
+| B6e | song: volume | HAVE, and it is a BALANCE — every export is mastered to a loudness target, so the fader decides how loud the song is against the voices, not how loud the file is. A render proved this by refusing the first test |
+| B6f | song: mute | HAVE | a gain of silence, never a missing piece: the song is the clock (INV-03) |
 | B6g | song: replace section | GAP | |
 | B6h | song: add audio | GAP | |
 | B6i | song: record | GAP | |
