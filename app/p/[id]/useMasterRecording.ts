@@ -101,9 +101,31 @@ export interface MasterRecording {
 
 export function useMasterRecording({
   sink, masterUrl, sampleRate, countInSeconds, latencySamples, onFinished,
-  audioOnly, once,
+  audioOnly, once, video,
 }: {
   sink: RecordingSink;
+  /**
+   * What to ask the camera for.  [quality.ts, useDevices, CHANNEL §23]
+   *
+   * THIS WAS `{ width: { ideal: 1280 }, height: { ideal: 720 } }`, WRITTEN
+   * INTO THE HOOK, and it is the reason every take this product has ever
+   * made is 720p. Not a format decision — the render is resolution-
+   * agnostic and takes the source's own dimensions, so a 720p take is a
+   * 720p master. The author's own performance was probed at 1280×720 to
+   * confirm it, three takes, every one of them.
+   *
+   * It also passed no `deviceId`, so a producer with a capture card got
+   * whichever camera the operating system nominated — the exact gap
+   * `useDevices` was written to close, still open on the one path that
+   * records the performance itself.
+   *
+   * SO THE CALLER SAYS, and the caller is the surface that knows: Studio
+   * Two has a preset and a camera picker, the Take App has a phone with
+   * a front and a back. `cameraConstraints` composes it. Left out, the
+   * old behaviour stands, so a caller that has not been converted is
+   * unchanged rather than broken.
+   */
+  video?: MediaStreamConstraints['video'];
   /**
    * A sound rather than a performance.  [TIMELINE B6i]
    *
@@ -194,7 +216,7 @@ export function useMasterRecording({
       const media = await navigator.mediaDevices.getUserMedia({
         video: audioOnly
           ? false
-          : { width: { ideal: 1280 }, height: { ideal: 720 } },
+          : video ?? { width: { ideal: 1280 }, height: { ideal: 720 } },
         /*
          * Echo cancellation OFF, deliberately, and it is the opposite of the
          * Conversation Room's choice. There the browser's processing helps:
@@ -224,7 +246,7 @@ export function useMasterRecording({
         : String(e));
       setPhase('idle');
     }
-  }, [audioOnly, masterUrl, sampleRate]);
+  }, [audioOnly, masterUrl, sampleRate, video]);
 
   const disarm = useCallback(() => {
     sourceRef.current?.stop();

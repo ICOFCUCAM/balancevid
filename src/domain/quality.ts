@@ -49,7 +49,7 @@
  * good copy.
  */
 
-export type QualityId = 'low' | 'standard' | 'high' | 'maximum';
+export type QualityId = 'low' | 'standard' | 'high' | 'maximum' | 'ultra';
 
 export interface Quality {
   id: QualityId;
@@ -62,6 +62,18 @@ export interface Quality {
   audioBitsPerSecond: number;
   /** What this asks of the machine and the line, in one line, for the menu. */
   needs: string;
+  /**
+   * The same preset, described for a RECORDER.  [U-19]
+   *
+   * `needs` is written for the live ingest menu and talks about the
+   * UPLINK — "about 770 kB/s up". A browser run put it under the record
+   * button in Studio Two, where there is no uplink: the cost of
+   * recording is disk and CPU, and the number a performer needs before
+   * they sing for four minutes is how big the file will be. A sentence
+   * about bandwidth on a control that spends none is the same fault as
+   * a menu that says "7 more" when there are eighteen.
+   */
+  records: string;
 }
 
 /**
@@ -88,6 +100,7 @@ export const QUALITIES: Record<QualityId, Quality> = {
     videoBitsPerSecond: 600_000,
     audioBitsPerSecond: 64_000,
     needs: 'For a weak connection or mobile data. About 83 kB/s up.',
+    records: 'Small files, soft picture. About 5 MB a minute.',
   },
   standard: {
     id: 'standard',
@@ -98,6 +111,7 @@ export const QUALITIES: Record<QualityId, Quality> = {
     videoBitsPerSecond: 2_500_000,
     audioBitsPerSecond: 128_000,
     needs: 'Broadcast default. About 330 kB/s up on ordinary home broadband.',
+    records: 'The old default. About 20 MB a minute.',
   },
   high: {
     id: 'high',
@@ -108,6 +122,7 @@ export const QUALITIES: Record<QualityId, Quality> = {
     videoBitsPerSecond: 6_000_000,
     audioBitsPerSecond: 160_000,
     needs: 'For a good camera and a solid line. About 770 kB/s up.',
+    records: '1080p, which is what the master delivers. About 47 MB a minute.',
   },
   maximum: {
     id: 'maximum',
@@ -124,13 +139,113 @@ export const QUALITIES: Record<QualityId, Quality> = {
      * silently drops frames, which looks like a bad connection.
      */
     needs: 'Sport and music. Needs a fast machine: about 1.5 MB/s up.',
+    records: '1080p at 60 frames. Smoother motion, about 94 MB a minute.',
+  },
+  /*
+   * FOR RECORDING, AND DELIBERATELY NOT FOR BROADCAST. [liveCapable]
+   *
+   * WHAT IT BUYS is not a sharper master, because the house format
+   * delivers 1080p either way. It buys REFRAMING. Crop-reframe is a
+   * control this studio already has, and cropping a 720p take to a
+   * close-up is visibly soft where cropping a 2160p one is free. And
+   * the recording is the archive (INV-17): keeping the good copy is
+   * how broadcast has always worked.
+   *
+   * WHY IT IS NOT OFFERED LIVE, which is the load-bearing half. The
+   * broadcast path composites every frame onto a canvas IN JAVASCRIPT
+   * and the playout engine re-encodes in real time; 2160p is four
+   * times the compositing of 1080p30 and wants 20 Mbps up. `maximum`
+   * already carries a warning that a machine which cannot keep up
+   * drops frames silently and looks like a bad connection. At 2160p
+   * that is not a risk, it is the expected outcome on most machines —
+   * a setting that appears to work and makes the picture WORSE, which
+   * is exactly what the comment at the top of this file says a
+   * quality control must never be.
+   *
+   * The RECORDING path has none of that: `getUserMedia` straight into
+   * `MediaRecorder` with no canvas in between, a hardware encoder
+   * doing the work, and a worker that renders the master afterwards
+   * rather than in real time.
+   */
+  ultra: {
+    id: 'ultra',
+    label: 'Ultra — 2160p',
+    width: 3840,
+    height: 2160,
+    fps: 30,
+    /*
+     * Four times the pixels of 1080p and roughly three times the bits,
+     * not four: compression efficiency improves with resolution, which
+     * is the same ratio the rest of this ladder follows.
+     */
+    videoBitsPerSecond: 20_000_000,
+    audioBitsPerSecond: 192_000,
+    needs: 'Recording only. Room to reframe, and a better archive — '
+      + 'the master still delivers 1080p.',
+    records: 'Four times the detail of 1080p, to crop into. About 155 MB a minute.',
   },
 };
 
 export const DEFAULT_QUALITY: QualityId = 'standard';
 
+/**
+ * What the RECORDER asks for when nobody has chosen.
+ *
+ * NOT `standard`, AND THE CHANGE IS DELIBERATE AND STATED. The recorder
+ * hard-coded 1280×720 and consulted no preset at all, so every take this
+ * product has ever made is 720p — which was not a format decision. The
+ * render is resolution-agnostic: it takes the source's own dimensions, so
+ * a 720p take is a 720p master, and the author's own performance was
+ * measured at 1280×720 to confirm it.
+ *
+ * `high` is 1080p, which is what the great majority of cameras and every
+ * phone this product is opened on already produce natively, and what the
+ * master is expected to deliver. The constraint is `ideal`, so a camera
+ * that only does 720p still gives 720p rather than refusing — this raises
+ * what is ASKED FOR and never what is required. [useDevices]
+ *
+ * The LIVE default stays exactly where it was, because there the warning
+ * at the top of this file applies: a broadcast that silently re-tunes
+ * itself on upgrade is a regression wearing a feature's clothes. A
+ * recording that is no longer needlessly downscaled is not.
+ */
+export const DEFAULT_RECORDING_QUALITY: QualityId = 'high';
+
 /** The menu, worst to best, which is the order a range adjuster runs in. */
-export const QUALITY_ORDER: QualityId[] = ['low', 'standard', 'high', 'maximum'];
+export const QUALITY_ORDER: QualityId[] = [
+  'low', 'standard', 'high', 'maximum', 'ultra',
+];
+
+/**
+ * Whether this preset may be used for a LIVE broadcast.
+ *
+ * ONE LADDER, TWO MENUS, and a predicate rather than a second table —
+ * because a second table is a second place a bitrate can be edited and
+ * only one of them take effect. [D-19]
+ *
+ * The line is drawn where the JavaScript canvas is: everything up to
+ * `maximum` is compositable in real time on an ordinary machine, and
+ * 2160p is not. It is a recording format here, not a transmission one.
+ */
+export function liveCapable(id: QualityId): boolean {
+  return id !== 'ultra';
+}
+
+/** What the live ingest menu offers. Worst to best. */
+export const LIVE_QUALITY_ORDER: QualityId[] = QUALITY_ORDER.filter(liveCapable);
+
+/**
+ * A preset reduced to one a live broadcast can actually carry.
+ *
+ * A machine whose stored preference is `ultra` — set on the recording
+ * side, where it is right — must not silently go on air at 2160p. It
+ * broadcasts at the best live preset instead, which is `maximum`.
+ * Refusing to broadcast at all would be the wrong answer: the operator
+ * asked for the best picture, not for an error.
+ */
+export function forLive(quality: Quality): Quality {
+  return liveCapable(quality.id) ? quality : QUALITIES.maximum;
+}
 
 /**
  * A stored or typed id, resolved to a real one.

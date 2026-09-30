@@ -10,6 +10,10 @@ import { describeCalibration } from '../../../src/domain/calibration.js';
 import { describeDrift } from '../../../src/domain/drift.js';
 import { HOUSE_SAMPLE_RATE, formatMasterPosition } from '../../../src/domain/time.js';
 import { useConfirm } from '../../Confirm.js';
+import { useCamera } from '../../useCamera.js';
+import { useQuality } from '../../useQuality.js';
+import { cameraConstraints } from '../../useDevices.js';
+import { QUALITIES } from '../../../src/domain/quality.js';
 import { MenuButton, RightClickHint, useMenu, type MenuEntry } from '../../Menu.js';
 import { useMasterRecording } from './useMasterRecording.js';
 import { performanceSink } from './performanceSink.js';
@@ -173,6 +177,24 @@ export default function PerformanceStudio(
   const latencySamples = device.calibration?.confident
     ? device.calibration.latencySamples : 0;
 
+  /*
+   * WHICH CAMERA, AND HOW GOOD A SOURCE TO KEEP.
+   *   [quality.ts, useDevices, CHANNEL §23]
+   *
+   * THE RECORDER ASKED FOR 1280×720 AND NAMED NO CAMERA, and neither
+   * was a decision anybody made: the constraint was written into the
+   * hook. The render is resolution-agnostic — it takes the source's
+   * own dimensions — so every master this studio has produced is
+   * 720p. The author's own performance probes at 1280×720, three
+   * takes, all of them.
+   *
+   * Online TV has had the preset and the picker since §23; this is
+   * the same two controls on the path that records the performance,
+   * from the same two hooks rather than a second copy. [D-19]
+   */
+  const camera = useCamera();
+  const grade = useQuality('recording');
+
   const recording = useMasterRecording({
     /* One recorder, two destinations. `performanceSink` is the three
        calls that used to be written inside the hook, unchanged. [D-19] */
@@ -181,6 +203,9 @@ export default function PerformanceStudio(
     sampleRate: HOUSE_SAMPLE_RATE,
     countInSeconds: COUNT_IN_SECONDS,
     latencySamples,
+    video: cameraConstraints(
+      camera.cameraId, grade.quality.width, grade.quality.height,
+      grade.quality.fps),
     onFinished: (jobId) => { void watchJob(jobId); },
   });
 
@@ -411,6 +436,68 @@ export default function PerformanceStudio(
                   </button>
                 )}
               </div>
+
+              {/*
+                * WHAT IS ABOUT TO BE RECORDED, BEFORE IT IS.
+                *   [quality.ts, useDevices; U-19]
+                *
+                * Two controls the studio did not have, on the path
+                * that makes the master. Idle only: changing either
+                * mid-take would reopen the camera, so they are gone
+                * once the count-in starts rather than present and
+                * refusing.
+                *
+                * THE CAMERA PICKER WAITS FOR REAL LABELS, because
+                * `enumerateDevices` answers with unnamed entries
+                * until permission is granted and a menu reading
+                * "Camera 1, Camera 2" helps nobody choose. It
+                * appears once the camera has been opened for the
+                * first time. [useDevices]
+                */}
+              {recording.phase === 'idle' && (
+                <div data-testid="record-setup" style={{
+                  display: 'flex', flexDirection: 'column', gap: 4,
+                }}>
+                  {camera.devices.named && camera.devices.cameras.length > 1 && (
+                    <label className="field" style={{ margin: 0 }}>
+                      <span className="module-sub">Camera</span>
+                      <select className="small" data-testid="record-camera"
+                              value={camera.cameraId ?? ''}
+                              onChange={(event) => camera.chooseCamera(
+                                event.target.value || undefined)}>
+                        <option value="">This machine’s default</option>
+                        {camera.devices.cameras.map((one) => (
+                          <option key={one.deviceId} value={one.deviceId}>
+                            {one.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                  <label className="field" style={{ margin: 0 }}>
+                    <span className="module-sub">Record at</span>
+                    <select className="small" data-testid="record-quality"
+                            value={grade.id}
+                            onChange={(event) => grade.choose(
+                              event.target.value as typeof grade.id)}>
+                      {grade.offered.map((one) => (
+                        <option key={one} value={one}>{QUALITIES[one].label}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <p className="small muted" style={{
+                    margin: 0, fontSize: 'var(--text-2xs)',
+                  }}>{grade.quality.records}</p>
+                  {camera.lost && (
+                    <p className="small" data-testid="record-camera-lost" style={{
+                      margin: 0, fontSize: 'var(--text-2xs)',
+                      color: 'var(--ink-on-bad)',
+                    }}>
+                      {camera.lost} is no longer connected — using the default.
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/*
                 * THE LIST TAKES THE SLACK AND SCROLLS INSIDE IT, so the
