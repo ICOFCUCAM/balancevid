@@ -769,7 +769,7 @@ against real data. Every row is evaluated one at a time at the end.
 | T1a | Studio = production/control, Take = capture/participation | HAVE as code | separate routes, separate auth (four guest verbs, each on its own path), separate store, and one object between them. A participant reaches a request and nothing else; a producer reaches a studio and, of a request, only what was sent |
 | T2 | "Invite performers" in Studio Two | HAVE | in the takes rail beside Upload and Add footage, because it is the same slot: a take accepted from a phone is an ordinary take in that rail. Name and question both optional — the song says what is wanted |
 | T2a | a secure `/take/…` invitation link | HAVE | `req_id.secret`, 32 random bytes, matched by one regex BEFORE any disk read and compared with `timingSafeEqual`. Shown once, in the response that makes it; rotatable, and rotating it stops the old one working for somebody part-way through recording |
-| T2b | sendable by anything | PARTIAL, and argued | it is a URL, selected on focus, so every one of those channels carries it. The Room's own share sheet and QR exist and were NOT borrowed: `InvitePanel` wants a conversation, a source title and a rotate handler, and lying to it about three things to reuse a copy button is worse than an input somebody can copy |
+| T2b | sendable by anything | **HAVE** | the native share sheet, WhatsApp, Messenger, SMS, mail, a copy button and a QR code — the Room's own set, and literally the Room's own code. The earlier row argued that `InvitePanel` could not be borrowed because it wants a conversation, a source title and a rotate handler, which was true and was the wrong conclusion: the weld was cut instead. `app/ShareLink.tsx` is what is generic about sending a link; the Room keeps what only the Room knows (who arrives as what, until when, the button that withdraws it) and wraps it. One definition, asserted. The QR is `GET /api/requests/<id>/qr` — owner-only, server-drawn, keyed on the REQUEST so one route serves all three holders — and it opens full screen, because "put it on the wall and everyone scans it" is not 220 pixels in a rail |
 | T2c | "Open in Take App" / "Continue in browser" | GAP, and waits on T13a | there is no app to open, so a chooser would offer one real door and one that leads nowhere |
 | T3 | the performer's capture screen | HAVE | `/take/<link>` on a phone with no account: what is asked, the camera, the count-in, the clock, one button at a time. Verified on a simulated Pixel 7 |
 | T3a | the reference track plays while they record | HAVE, reached | `useMasterRecording` with `masterUrl` = `/api/take/<link>/reference`, which serves the NORMALISED master — what they hear and what the alignment measures are the same audio at the same rate, which on a phone matters more because nobody is watching a waveform |
@@ -849,7 +849,45 @@ found at the end of it.
 
 * **T13a**, and **T2c** with it: there is no app to open, so a chooser would
   offer one real door and one that leads nowhere.
-* **T2b** is a URL rather than a share sheet. The Room's own panel exists and
-  was deliberately not borrowed: it wants a conversation, a source title and
-  a rotate handler, and lying to it about three things to reuse a copy button
-  is worse than an input somebody can select.
+
+## The second pass: closing T2b
+
+*Run 2026-09-30, after the pass above. Its own "what is still not there"
+listed T2b as argued-and-declined, and the argument did not survive being
+read back: "the Room's panel wants three things this surface cannot give"
+is a reason to cut the weld, not a reason to ship a bare input. It is the
+standing rule of this project — measure against what exists and cover the
+gap — applied to a row the first pass talked itself out of.*
+
+`app/ShareLink.tsx` now holds what is generic about sending a link. The
+Room wraps it and keeps its terms and its reset; the takes rail uses it and
+gets a QR code; one definition, asserted so the next surface asks for the
+row instead of growing its own.
+
+**Four faults, and every one of them was found in the browser:**
+
+1. **The share message said "a part"** however carefully the producer had
+   described it. `invite` empties the `asks` field the instant the link
+   comes back, and the message read the field. It passed its tests, because
+   a source assertion that a message mentions `asks` cannot tell WHICH
+   `asks`. The ask travels with the link now, and rotating carries the one
+   on the row.
+2. **The QR encoded the wrong origin.** The studio was open on
+   `127.0.0.1:3100` and the square encoded `localhost:3100` — which on the
+   phone that scans it means the phone. A page composes its links from
+   `window.location` and is right whatever the server thinks; a square is
+   drawn on the SERVER, and behind a proxy the server's own URL is the
+   internal one. `originOf` already existed for the preview cards. **The
+   Room's QR had the same fault** and was fixed with it — one of them left
+   on `request.url` is the copy the next one gets written from.
+3. **The square was cut off.** 220px was written for the Room's panel; the
+   takes rail is 290px wide and its scroll viewport showed the top third of
+   a code. Sized to the column now, and revealing it scrolls it into view.
+4. **Full screen was a fifth of the screen.** `position: fixed` does not
+   escape a mask, and `.shell-scroll` carries a `mask-image` for its edge
+   fade — which makes it the containing block for everything fixed inside
+   it. No z-index reaches that. The overlay leaves the subtree through a
+   portal.
+
+Verified: the square decodes byte-for-byte to the link the panel displays;
+the Room's panel still has all eleven of its handles after the extraction.
