@@ -40,7 +40,8 @@ import { type SoundReading, NO_CLEANUP, isCleanup } from './cleanup.js';
 import { type ColourReading, isMeasured } from './colour.js';
 import { NO_STABILIZER, isStabilizer } from './stabilize.js';
 import {
-  type Alignment, type Phrase, LyricsError, alignLyrics, parseLrc,
+  type Alignment, type Phrase, LyricsError, MIN_LINE_SAMPLES,
+  alignLyrics, parseLrc,
 } from './lyrics.js';
 import { newId } from './ids.js';
 import type { TakeId } from './document.js';
@@ -1639,6 +1640,53 @@ export function synchroniseLyrics(
     throw new PerformanceEditError(
       error instanceof LyricsError ? error.message : 'those lyrics could not be timed');
   }
+}
+
+/**
+ * Move one timed line, without disturbing the others.
+ * [MASTER-EDIT §16, §17; L7]
+ *
+ * *"Show a timing preview. User adjusts anything that is wrong."*
+ *
+ * ONE LINE AT A TIME, AND BOUNDED BY ITS NEIGHBOURS. A caption track is
+ * a sequence with no gaps and no overlaps — `parseLrc` and `alignLyrics`
+ * both produce one and the renderer assumes it — so moving a line's
+ * start moves the previous line's end with it. There is no state in
+ * which two captions are on screen at once, or in which a gap opens
+ * where the voice is still going.
+ *
+ * AND IT CANNOT SWALLOW A NEIGHBOUR. A line pushed far enough would
+ * leave the one before it with no time on screen, which is a line the
+ * author can no longer see in order to move it back. Both sides keep
+ * `MIN_LINE_SAMPLES`, so every nudge is reversible by eye.
+ *
+ * THE FIRST LINE'S FLOOR IS ZERO and the last line's ceiling is its own
+ * end: a nudge is a correction to WHEN A LINE STARTS, and changing how
+ * long the last one holds is a different decision nobody has asked for.
+ */
+export function nudgeLyric(
+  performance: Performance, index: number, bySamples: number,
+): void {
+  const lines = performance.master.lyrics;
+  if (!lines || index < 0 || index >= lines.length) {
+    throw new PerformanceEditError('there is no such line to move');
+  }
+  if (!Number.isFinite(bySamples) || bySamples === 0) return;
+
+  const line = lines[index]!;
+  const before = index > 0 ? lines[index - 1] : undefined;
+
+  const earliest = before
+    ? before.fromSample + MIN_LINE_SAMPLES
+    : 0;
+  const latest = line.toSample - MIN_LINE_SAMPLES;
+  const wanted = line.fromSample + Math.round(bySamples);
+  const moved = Math.max(earliest, Math.min(latest, wanted));
+  if (moved === line.fromSample) return;
+
+  line.fromSample = moved as Samples;
+  /* The line before ends where this one begins: no gap, no overlap. */
+  if (before) before.toSample = moved as Samples;
 }
 
 /**

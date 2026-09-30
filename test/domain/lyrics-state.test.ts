@@ -17,7 +17,7 @@ import {
 } from '../../src/domain/performance.js';
 import { EXPORT_PROFILES } from '../../src/domain/presentation.js';
 import {
-  setLyrics, setLyricsText, synchroniseLyrics,
+  nudgeLyric, setLyrics, setLyricsText, synchroniseLyrics,
 } from '../../src/domain/performanceEdit.js';
 import { HOUSE_SAMPLE_RATE, type Samples } from '../../src/domain/time.js';
 import type { Phrase } from '../../src/domain/lyrics.js';
@@ -197,5 +197,89 @@ describe('synchronising', () => {
     setLyrics(one, '[00:10.00]Ancient of Days');
     expect(() => synchroniseLyrics(one, [])).toThrow();
     expect(one.master.lyrics).toHaveLength(1);
+  });
+});
+
+describe('nudging one line', () => {
+  /** Three lines, edge to edge, from ten seconds. */
+  function timed(): Performance {
+    const one = song();
+    setLyrics(one, '[00:10.00]one\n[00:14.00]two\n[00:18.00]three');
+    return one;
+  }
+  const from = (one: Performance, i: number) =>
+    (one.master.lyrics![i]!.fromSample) / SECOND;
+  const to = (one: Performance, i: number) =>
+    (one.master.lyrics![i]!.toSample) / SECOND;
+
+  it('moves a line earlier and brings the one before it with it', () => {
+    /* No gap and no overlap: a caption track is a sequence, and the
+       renderer assumes one. */
+    const one = timed();
+    nudgeLyric(one, 1, -SECOND);
+    expect(from(one, 1)).toBe(13);
+    expect(to(one, 0)).toBe(13);
+  });
+
+  it('moves a line later the same way', () => {
+    const one = timed();
+    nudgeLyric(one, 1, SECOND);
+    expect(from(one, 1)).toBe(15);
+    expect(to(one, 0)).toBe(15);
+  });
+
+  it('cannot swallow the line before it', () => {
+    /* A line with no time on screen is a line the author can no longer
+       see in order to move it back. */
+    const one = timed();
+    nudgeLyric(one, 1, -60 * SECOND);
+    expect(to(one, 0) - from(one, 0)).toBeGreaterThanOrEqual(1);
+    expect(from(one, 1)).toBeGreaterThan(from(one, 0));
+  });
+
+  it('cannot swallow itself', () => {
+    const one = timed();
+    nudgeLyric(one, 1, 60 * SECOND);
+    expect(to(one, 1) - from(one, 1)).toBeGreaterThanOrEqual(1);
+  });
+
+  it('lets the first line reach the start of the song and no further', () => {
+    const one = timed();
+    nudgeLyric(one, 0, -60 * SECOND);
+    expect(from(one, 0)).toBe(0);
+  });
+
+  it('leaves the other lines alone', () => {
+    const one = timed();
+    nudgeLyric(one, 1, SECOND);
+    expect(from(one, 2)).toBe(18);
+    expect(one.master.lyrics!.map((line) => line.text))
+      .toEqual(['one', 'two', 'three']);
+  });
+
+  it('does nothing for a nudge of nothing', () => {
+    const one = timed();
+    const was = JSON.stringify(one.master.lyrics);
+    nudgeLyric(one, 1, 0);
+    nudgeLyric(one, 1, Number.NaN);
+    expect(JSON.stringify(one.master.lyrics)).toBe(was);
+  });
+
+  it('refuses a line that is not there', () => {
+    expect(() => nudgeLyric(timed(), 9, SECOND)).toThrow(/no such line/);
+    expect(() => nudgeLyric(timed(), -1, SECOND)).toThrow(/no such line/);
+    expect(() => nudgeLyric(song(), 0, SECOND)).toThrow(/no such line/);
+  });
+
+  it('never leaves two captions on screen at once', () => {
+    const one = timed();
+    for (const by of [-SECOND * 3, SECOND * 5, -SECOND, SECOND * 9]) {
+      nudgeLyric(one, 1, by);
+      nudgeLyric(one, 2, by);
+      const lines = one.master.lyrics!;
+      for (let i = 1; i < lines.length; i += 1) {
+        expect(lines[i]!.fromSample).toBeGreaterThanOrEqual(lines[i - 1]!.toSample);
+      }
+    }
   });
 });

@@ -1064,5 +1064,5 @@ calls a fault.
 | **L4** | Lyrics / Timing, with a preview | **HAVE** — plain words, `Synchronise lyrics`, the timed preview, and Import LRC kept as the advanced path |
 | **L5** | the check names the state it is in | **HAVE** — `Lyrics — not supplied / timing required / N lines` |
 | **L6** | no lyrics is not a fault | **HAVE** — `none` passes; `untimed` is the one worth doing |
-| **L7** | per-line nudging in the preview | not built — seeing the timings is what stops a caption track nobody has looked at; correcting one line is the next step |
+| **L7** | per-line nudging in the preview | **HAVE** — `nudgeLyric`, bounded by its neighbours on both sides. Moving a line's start moves the previous line's end with it, so there is no state in which two captions are on screen at once or a gap opens where the voice is still going; and neither side may be reduced below `MIN_LINE_SAMPLES`, so every nudge is reversible by eye. The control surface for it is not drawn yet |
 | **L8** | Display: captions on/off, style, position | not built, and deliberately not drawn. There is nothing behind those three controls in the document, and three controls that change nothing is the fault this panel was rebuilt to remove |
