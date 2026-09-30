@@ -1064,5 +1064,27 @@ calls a fault.
 | **L4** | Lyrics / Timing, with a preview | **HAVE** — plain words, `Synchronise lyrics`, the timed preview, and Import LRC kept as the advanced path |
 | **L5** | the check names the state it is in | **HAVE** — `Lyrics — not supplied / timing required / N lines` |
 | **L6** | no lyrics is not a fault | **HAVE** — `none` passes; `untimed` is the one worth doing |
-| **L7** | per-line nudging in the preview | **HAVE** — `nudgeLyric`, bounded by its neighbours on both sides. Moving a line's start moves the previous line's end with it, so there is no state in which two captions are on screen at once or a gap opens where the voice is still going; and neither side may be reduced below `MIN_LINE_SAMPLES`, so every nudge is reversible by eye. The control surface for it is not drawn yet |
+| **L7** | per-line nudging in the preview | **HAVE** — `nudgeLyric`, bounded by its neighbours on both sides. Moving a line's start moves the previous line's end with it, so there is no state in which two captions are on screen at once or a gap opens where the voice is still going; and neither side may be reduced below `MIN_LINE_SAMPLES`, so every nudge is reversible by eye. The control surface is two arrows on the line itself, a quarter-second a press (`NUDGE_STEP`), greyed at each end rather than pressed into a clamp that does nothing; `nudge-lyric` is the door, and the index is refused unless it is a whole line, so a malformed request gets a sentence rather than a stack |
 | **L8** | Display: captions on/off, style, position | not built, and deliberately not drawn. There is nothing behind those three controls in the document, and three controls that change nothing is the fault this panel was rebuilt to remove |
+
+### Two things drawing L7 found
+
+Neither was in the brief, and both were only visible once the arrows
+existed and somebody pressed them.
+
+**Every repair reloaded the page.** `window.location.reload()` was honest
+while a repair was a button pressed once — the document had changed
+underneath and the cheapest way to agree with it was to ask for it again.
+A nudge is pressed four or five times in a row, and a reload each time
+shut the panel and put the author back at the top of the studio. The
+PATCH had been answering with the saved document all along and the
+answer was being discarded; `onChanged`, which `SoundModes` next door has
+always used, is now given it. Nothing new was built. [D-19]
+
+**An imported LRC put timestamps in the words box.** `setLyrics` kept the
+LRC verbatim as `lyricsText`, so the field captioned *"Just the words,
+one line each"* came back reading `[00:10.00]I walked the long way
+round`. That is precisely what L1 exists to prevent — an author who never
+asked what LRC is, reading timestamps out of the field that promised them
+none. The parse had already separated words from timings; the text side
+now keeps its half.

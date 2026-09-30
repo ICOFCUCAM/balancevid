@@ -1580,8 +1580,16 @@ export function setLyrics(
      * AND THE WORDS ARE KEPT, not only their timings. An author who
      * imported an LRC and then wants to re-align after a re-record
      * should not have to find the file again. [§16, L1]
+     *
+     * THE WORDS, THOUGH — NOT THE FILE. Storing the LRC verbatim put
+     * `[00:10.00]` into the box captioned *"Just the words, one line
+     * each"*, which is the exact thing L1 exists to stop: an author
+     * who never asked what LRC is, reading timestamps out of the
+     * field that promised them none. The parse above already
+     * separated the two, so the text side keeps its half.
      */
-    performance.master.lyricsText = lrc;
+    performance.master.lyricsText = performance.master.lyrics
+      .map((line) => line.text).join('\n');
   } catch (error) {
     throw new PerformanceEditError(
       error instanceof LyricsError ? error.message : 'those lyrics could not be read');
@@ -1668,7 +1676,13 @@ export function nudgeLyric(
   performance: Performance, index: number, bySamples: number,
 ): void {
   const lines = performance.master.lyrics;
-  if (!lines || index < 0 || index >= lines.length) {
+  /*
+   * A WHOLE LINE, NOT A FRACTION OF ONE. The index arrives off the wire
+   * and `lines[1.5]` is `undefined` rather than an error, so without
+   * this the next line reads `.fromSample` off nothing and the author
+   * gets a crash where they should have got a refusal. [U-19]
+   */
+  if (!lines || !Number.isInteger(index) || index < 0 || index >= lines.length) {
     throw new PerformanceEditError('there is no such line to move');
   }
   if (!Number.isFinite(bySamples) || bySamples === 0) return;

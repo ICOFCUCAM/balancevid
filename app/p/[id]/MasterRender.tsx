@@ -274,7 +274,8 @@ export default function MasterRender({
           */}
         <MasterCheck performance={performance} profileId={MASTER_PROFILE}
                      busy={busy}
-                     onRepair={(body) => repair(id, body, setBusy, setError)} />
+                     onRepair={(body) =>
+                       repair(id, body, setBusy, setError, onChanged)} />
 
         {/* ---- the one button that makes a file ----------------------- */}
         <div className="row" style={{ gap: 'var(--space-4)', flexWrap: 'wrap' }}>
@@ -340,9 +341,27 @@ export default function MasterRender({
  * message still goes to `setError` for everybody, and now it also comes
  * back so a control can say it where it happened. [U-19]
  */
+/**
+ * AND IT USED TO RELOAD THE PAGE. `window.location.reload()` was honest
+ * while every repair was a button pressed once — the document had
+ * changed underneath, and the cheapest way to agree with it was to ask
+ * for it again.
+ *
+ * A NUDGE IS NOT PRESSED ONCE. L7 put two arrows on every caption line,
+ * and *"user adjusts anything that is wrong"* means four or five presses
+ * in a row; a full reload each time shut the panel, lost the author's
+ * scroll position and put them back at the top of the studio, which
+ * makes the control unusable rather than merely slow.
+ *
+ * SO IT TELLS THE PAGE INSTEAD. The PATCH already answers with the
+ * saved document, and `onChanged` is the path `SoundModes` next door has
+ * always used for exactly this. Nothing new was built: the response was
+ * being thrown away. [D-19, U-19]
+ */
 async function repair(
   id: string, body: Record<string, unknown>,
   setBusy: (busy: boolean) => void, setError: (message: string | null) => void,
+  onChanged: (next: Performance) => void,
 ): Promise<string | null> {
   setBusy(true);
   setError(null);
@@ -354,7 +373,8 @@ async function repair(
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error ?? 'that repair did not work');
     /* The document changed under the page, so the page has to be told. */
-    window.location.reload();
+    onChanged(data.performance as Performance);
+    setBusy(false);
     return null;
   } catch (e) {
     const said = e instanceof Error ? e.message : String(e);
