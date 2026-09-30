@@ -196,7 +196,7 @@ export function accept(
 ): Submission {
   const found = (request.submissions ?? []).find((s) => s.id === submissionId);
   if (!found) fail(`no submission ${submissionId} on this request`);
-  for (const s2 of request.submissions ?? []) s2.acceptedAt = now;
+  found!.acceptedAt = now;
   if (request.state !== 'accepted') advance(request, 'accepted', now, by);
   return found!;
 }
