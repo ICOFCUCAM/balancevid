@@ -1,5 +1,9 @@
 'use client';
 
+import AvailabilityFields from '../../AvailabilityFields.js';
+import {
+  describeAvailability, type TakeAvailability,
+} from '../../../src/domain/availability.js';
 import { useCallback, useState } from 'react';
 import type { Performance } from '../../../src/domain/performance.js';
 import { HOUSE_SAMPLE_RATE, mayPublish } from '../../../src/domain/performance.js';
@@ -74,6 +78,22 @@ export default function PublishPanel({
   const [busy, setBusy] = useState(false);
 
   const id = performance.id;
+  /*
+   * AVAILABLE FOR TAKES, WHICH WAS A CONSTANT.  [TAKE-PLATFORM P8]
+   *
+   * `publishPerformance` wrote `respondable: false` and nothing could
+   * change it, so the panel below said "nobody can answer it" and was
+   * telling the truth about a decision no producer had made. A song
+   * published for other people to sing on is the whole of Studio Two's
+   * relationship with the Take App, and it was unreachable.
+   *
+   * THE DEFAULT IS STILL CLOSED. Publishing a master has always meant
+   * "anyone with the link can watch this" and must go on meaning only
+   * that; opening a song to takes is a second decision, made here.
+   */
+  const [availability, setAvailability] = useState<TakeAvailability>({
+    respondable: false, listed: true,
+  });
   const publishable = mayPublish(performance.master);
   const published = Boolean(performance.publication
     && !performance.publication.unpublishedAt);
@@ -84,13 +104,13 @@ export default function PublishPanel({
     if (response.ok) onChanged((await response.json()).performance);
   }, [id, onChanged]);
 
-  const post = async (path: string) => {
+  const post = async (path: string, body: Record<string, unknown> = {}) => {
     setBusy(true);
     setError(null);
     try {
       const response = await fetch(`/api/performances/${id}${path}`, {
         method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({}),
+        body: JSON.stringify(body),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error ?? 'that did not work');
@@ -213,13 +233,29 @@ export default function PublishPanel({
         <p className="small muted" data-testid="publication-state"
            style={{ margin: 0 }}>
           {published
-            ? 'Anyone with the link can watch this. Withdrawing stops the link '
-              + 'working; the video stays here.'
+            ? `Anyone with the link can watch this. ${
+              describeAvailability(performance.publication)} Withdrawing stops `
+              + 'the link working; the video stays here.'
             : why
               ?? 'Publishing puts the master video on a page anyone with the '
-                + 'link can watch. Nobody can answer it \u2014 this is a '
-                + 'performance, not an argument.'}
+                + 'link can watch.'}
         </p>
+
+        {/*
+          * BEFORE PUBLISHING, NOT AFTER. These are decided in the same
+          * press, so they are above the button rather than in a panel
+          * somebody has to find afterwards — and gone once it is
+          * published, because changing them then is a different act with
+          * a different consequence for people who already hold the link.
+          */}
+        {!published && !why && (
+          <AvailabilityFields
+            noun="song"
+            value={availability}
+            onChange={setAvailability}
+            disabled={busy}
+          />
+        )}
 
         <div className="row" style={{ gap: 'var(--space-3)', flexWrap: 'wrap' }}>
           {published ? (
@@ -237,7 +273,7 @@ export default function PublishPanel({
             <button className="ctl is-key" data-testid="publish"
                     disabled={busy || Boolean(why)}
                     title={why ?? undefined}
-                    onClick={() => void post('/publish')}>
+                    onClick={() => void post('/publish', { ...availability })}>
               Create public page
             </button>
           )}

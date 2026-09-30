@@ -46,9 +46,13 @@ export function newRequest(spec: {
   token: string;
   participant?: string | undefined;
   expiresAt?: string | undefined;
+  /** True where a stranger claimed it rather than a producer issuing it. */
+  claimed?: boolean | undefined;
   now: string;
 }): ParticipationRequest {
-  const { holder, assignment, allowed, token, participant, expiresAt, now } = spec;
+  const {
+    holder, assignment, allowed, token, participant, expiresAt, claimed, now,
+  } = spec;
   if (!assignment.asks.trim()) {
     fail('a request has to say what is being asked for');
   }
@@ -82,6 +86,7 @@ export function newRequest(spec: {
     allowed,
     token,
     ...(participant ? { participant } : {}),
+    ...(claimed ? { claimed: true } : {}),
     state: 'created',
     createdAt: now,
     history: [{ state: 'created', at: now }],

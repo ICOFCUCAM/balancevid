@@ -1,3 +1,4 @@
+import { availabilityFrom } from '../../../../../src/domain/availability.js';
 import { EditError } from '../../../../../src/domain/edit.js';
 import { publish, unpublish } from '../../../../../src/domain/publish.js';
 import { enqueue, listJobs } from '../../../../../src/store/queue.js';
@@ -19,6 +20,7 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
   const { id } = await params;
   const body = await request.json().catch(() => ({})) as {
     respondable?: boolean; author?: string;
+    listed?: unknown; access?: unknown; claims?: unknown;
   };
   if (typeof body.respondable !== 'boolean') {
     return fail(400, 'say whether responses are allowed — it is not assumed either way');
@@ -44,13 +46,29 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
       publish(draft, {
         planHash: String(render.result!['planHash']),
         respondable: body.respondable!,
+        /*
+         * Who may respond, and whether it is discoverable.  [PART FIVE]
+         *
+         * `respondable` was the only bit here, and it was being asked to
+         * carry a discovery decision and an authorization one as well as
+         * its own. These are the other two, read by the same function the
+         * performance route uses. [D-19]
+         */
+        ...(body.listed === false ? { listed: false as const } : {}),
+        ...(body.respondable && availabilityFrom(body).access
+          ? { access: availabilityFrom(body).access! } : {}),
+        ...(availabilityFrom(body).claims !== undefined
+          ? { claims: availabilityFrom(body).claims! } : {}),
         ...(body.author ? { author: body.author } : {}),
         publishedAt: new Date().toISOString(),
       });
     });
     await audit(id, {
       action: 'conversation.published',
-      detail: { respondable: body.respondable, planHash: render.result['planHash'] },
+      detail: {
+        planHash: render.result['planHash'],
+        ...availabilityFrom(body),
+      },
     });
     /*
      * Draw what a link to this will show. [U-31, §52]

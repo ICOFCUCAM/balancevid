@@ -5,6 +5,7 @@ import { enqueue, listJobs } from '../../../../../src/store/queue.js';
 import {
   auditPerformance, loadPerformance, mutatePerformance,
 } from '../../../../../src/store/performances.js';
+import { availabilityFrom } from '../../../../../src/domain/availability.js';
 import { fail, json } from '../../../../../src/web/http.js';
 
 export const dynamic = 'force-dynamic';
@@ -21,7 +22,10 @@ type Params = { params: Promise<{ id: string }> };
  */
 export async function POST(request: Request, { params }: Params): Promise<Response> {
   const { id } = await params;
-  const body = await request.json().catch(() => ({})) as { author?: string };
+  const body = await request.json().catch(() => ({})) as {
+    author?: string; respondable?: unknown; listed?: unknown; access?: unknown;
+    claims?: unknown;
+  };
 
   try {
     await loadPerformance(id);
@@ -52,12 +56,18 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
       publishPerformance(draft, {
         planHash: String(render.result!['planHash']),
         publishedAt: new Date().toISOString(),
+        /* "Available for Takes", which was a constant until now. [P8] */
+        availability: availabilityFrom(body),
         ...(body.author ? { author: body.author } : {}),
       });
     });
     await auditPerformance(id, {
       action: 'performance.published',
-      detail: { planHash: render.result['planHash'] },
+      detail: {
+        planHash: render.result['planHash'],
+        /* Who may take part is part of what was published. [D-23] */
+        ...availabilityFrom(body),
+      },
     });
     /*
      * Draw what a link to this will show, now rather than at export: before

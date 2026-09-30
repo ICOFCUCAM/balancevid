@@ -196,6 +196,23 @@ export interface ParticipationRequest {
    * "Anonymous" row.
    */
   participant?: string;
+  /**
+   * Whether a stranger claimed this rather than a producer issuing it.
+   *   [TAKE-PLATFORM P39, P41; D-25]
+   *
+   * TWO WAYS A REQUEST COMES TO EXIST, and only one of them is a public
+   * write. A producer inviting forty people is deliberate; a stranger
+   * pressing "Take this song" is not somebody the producer chose, and
+   * the ceiling that bounds the second must not be spent by the first.
+   * Without this mark, inviting a choir would close the door on the
+   * public the song was opened to.
+   *
+   * IT IS A FIELD AND NOT A SECOND OBJECT. A claimed request must be
+   * indistinguishable from an invited one everywhere downstream — the
+   * recorder, the queue, the inbox, acceptance — so this says how it
+   * ARRIVED and nothing about what it is. [D-19]
+   */
+  claimed?: boolean;
   state: RequestState;
   createdAt: string;
   /** When the state last changed, and to what it was changed by whom. */
