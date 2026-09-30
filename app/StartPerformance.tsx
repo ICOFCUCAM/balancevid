@@ -131,11 +131,23 @@ export default function StartPerformance() {
       >
         {busy ? 'Preparing…' : 'Open the Performance Studio'}
       </button>
-      <p className="small muted" style={{ marginTop: 10, marginBottom: 0 }}>
-        {/* The one place MASTER_CLASSES is counted, so adding one cannot leave
-            this sentence stale. */}
-        {MASTER_CLASSES.length} answers, and the honest one is the useful one.
-      </p>
+      {/*
+        * AND IT IS ABOUT A QUESTION THAT IS ON THE SCREEN.
+        *
+        * This sentence explains the rights question, and it was printed
+        * whether or not that question was showing — so the first thing a
+        * performer met in this room was "4 answers, and the honest one is
+        * the useful one" with no question anywhere near it. It was easy to
+        * miss while this form lived folded inside a dashboard card; it is
+        * the top of Studio Two now.
+        */}
+      {file && (
+        <p className="small muted" style={{ marginTop: 10, marginBottom: 0 }}>
+          {/* The one place MASTER_CLASSES is counted, so adding one cannot
+              leave this sentence stale. */}
+          {MASTER_CLASSES.length} answers, and the honest one is the useful one.
+        </p>
+      )}
     </div>
   );
 }

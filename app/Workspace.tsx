@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import Icon, { type IconName } from './Icon.js';
+import Still from './Still.js';
+import { roomFor } from '../src/domain/rooms.js';
 import type { StudioId } from '../src/domain/account.js';
 import { MenuButton, RightClickHint, useMenu, type MenuEntry } from './Menu.js';
 import { useRecordActions } from './RecordMenu.js';
@@ -131,8 +133,20 @@ const STUDIOS: {
    */
   id: StudioId;
   kind: WorkRecord['kind'];
-  label: string;
-  name: string;
+  /**
+   * WHAT THE ROOM IS CALLED IS NOT HERE ANY MORE.
+   *
+   * `label`, `name` and the entrance verb were fields of this table and
+   * are now `rooms.ts`, read through `roomFor(id)`. They were duplicated
+   * the moment a room had a page of its own — the card said
+   * "Conversation Studio" and so did the page, from two different
+   * string literals — and two copies of a name is how a rail and a card
+   * come to disagree about what a room is called. [D-19]
+   *
+   * WHAT STAYS IS HOW A ROOM LOOKS ON THIS PAGE: its colour, its veil,
+   * its photograph, its glyph, and the one line of pitch that only a
+   * card needs. That is genuinely this file's business.
+   */
   blurb: string;
   /** The room's identity, and the two strengths it is washed in. */
   accent: string;
@@ -151,22 +165,6 @@ const STUDIOS: {
    * SERVED FROM `public/rooms/`, built by `scripts/room-art.mjs` from
    * the masters in `art/`.
    */
-  /**
-   * THE STUDIO'S OWN FRONT DOOR, where it has one.
-   *   [STUDIO-ONE §5, §9]
-   *
-   * Studio One has `/c`. Studio Two and Online TV do not have the
-   * equivalent yet, and this is `undefined` for them rather than a
-   * guessed route — a card that links somewhere that 404s is worse than
-   * a card that opens the newest thing, which is what they still do.
-   *
-   * WHERE IT IS SET, IT CHANGES WHAT BOTH BUTTONS MEAN. "Open Studio
-   * One" stops meaning "the last conversation you made" and starts
-   * meaning the studio; the `+` stops unfolding an intake form in the
-   * hallway and walks into the room where that form lives. That is the
-   * whole of §5 and §9 in this file.
-   */
-  home?: string;
   art: string;
   /**
    * Where the crop holds when the band is wider than it is tall.
@@ -179,11 +177,9 @@ const STUDIOS: {
    */
   focus: string;
   icon: IconName;
-  open: string;
 }[] = [
   {
     studio: 'one', id: 'studio-one', kind: 'conversation',
-    label: 'STUDIO ONE', name: 'Conversation Studio',
     /*
      * *"The dashboard should simply say: Conversation Studio / Watch,
      * interrupt and respond to video, audio and live sources."* — with
@@ -196,33 +192,27 @@ const STUDIOS: {
     accent: 'var(--studio-one)', veil: 'var(--studio-one-veil)',
     wash: 'var(--studio-one-wash)', icon: 'conversation',
     art: '/rooms/conversation.webp', focus: 'center 58%',
-    home: '/c',
-    open: 'Open Studio One',
   },
   {
     studio: 'two', id: 'studio-two', kind: 'performance',
-    label: 'STUDIO TWO', name: 'Performance Studio',
     blurb: 'One song, many takes. Cut between them afterwards, in a room '
       + 'you choose.',
     accent: 'var(--studio-two)', veil: 'var(--studio-two-veil)',
     wash: 'var(--studio-two-wash)', icon: 'music',
     art: '/rooms/performance.webp', focus: 'center 45%',
-    open: 'Open Studio Two',
   },
   {
     studio: 'tv', id: 'online-tv', kind: 'channel',
-    label: 'ONLINE TV', name: 'Online TV',
     blurb: 'Run a 24/7 channel from what you have already made, and go '
       + 'live to your audience.',
     accent: 'var(--studio-tv)', veil: 'var(--studio-tv-veil)',
     wash: 'var(--studio-tv-wash)', icon: 'broadcast',
     art: '/rooms/online-tv.webp', focus: 'center 38%',
-    open: 'Open Online TV',
   },
 ];
 
 export default function Workspace({
-  records, space, starters, account, runtime, pending, hero, version, owned,
+  records, space, account, runtime, pending, hero, version, owned,
 }: {
   /**
    * The studios this account has.  [MASTER-EDIT §11]
@@ -235,8 +225,7 @@ export default function Workspace({
   owned: StudioId[];
   records: WorkRecord[];
   space: SpaceReading;
-  /** The three creation forms, rendered by the server page. */
-  starters: { one: React.ReactNode; two: React.ReactNode; tv: React.ReactNode };
+
   account: { name: string; role: string };
   runtime: { label: string; hosted: boolean };
   pending: { working: number; waiting: number; failed: number };
@@ -244,7 +233,6 @@ export default function Workspace({
   version: string;
 }) {
   const [query, setQuery] = useState('');
-  const [opened, setOpened] = useState<Studio | null>(null);
   /*
    * A deleted record vanishes at once rather than after a round trip to the
    * server and a re-render of the whole page. The server has already agreed
@@ -358,24 +346,30 @@ export default function Workspace({
             * offer goes. [MASTER-EDIT §11]
             */}
           {/*
-            * THE RAIL LED TO THE NEWEST CONVERSATION, OR TO AN ANCHOR.
-            * Which meant "Studio One" in the building's own directory
-            * pointed at a document, or at a scroll position. It points at
-            * the studio now, because there is one. [STUDIO-ONE §5]
+            * THE RAIL LED TO THE NEWEST THING IN EACH ROOM, OR TO AN
+            * ANCHOR. Which meant the building's own directory pointed at
+            * documents and at scroll positions rather than at rooms —
+            * and it was the same fault as the cards, in the one place a
+            * person looks when they already know where they want to go.
+            *
+            * All three point at rooms now, because there are three.
             */}
           {has('studio-one') && (
-            <Rail href="/c"
-                  icon="conversation" label="Studio One" under="Conversations"
+            <Rail href={roomFor('studio-one').href}
+                  label={roomFor('studio-one').tab}
+                  icon="conversation" under="Conversations"
                   empty={!newest('conversation')} />
           )}
           {has('studio-two') && (
-            <Rail href={newest('performance')?.href ?? '#performances'}
-                  icon="music" label="Studio Two" under="Performance"
+            <Rail href={roomFor('studio-two').href}
+                  label={roomFor('studio-two').tab}
+                  icon="music" under="Performance"
                   empty={!newest('performance')} />
           )}
           {has('online-tv') && (
-            <Rail href={newest('channel')?.href ?? '#channels'}
-                  icon="broadcast" label="Online TV" under="Channels & Broadcasts"
+            <Rail href={roomFor('online-tv').href}
+                  label={roomFor('online-tv').tab}
+                  icon="broadcast" under="Channels & Broadcasts"
                   empty={!newest('channel')} />
           )}
           <Rail href="#library" icon="library" label="Library"
@@ -481,7 +475,7 @@ export default function Workspace({
               {hero
                 ? <Hero channel={hero} onRow={onRow} open={fromButton}
                         items={itemsFor} records={live} />
-                : <NoChannel start={starters.tv} />}
+                : <NoChannel />}
 
               {/* ---- the three doors ------------------------------ */}
               <div className="row" style={{
@@ -510,10 +504,6 @@ export default function Workspace({
                     key={studio.studio}
                     studio={studio}
                     mine={of(studio.kind)}
-                    starter={starters[studio.studio]}
-                    opened={opened === studio.studio}
-                    onToggle={() => setOpened(
-                      opened === studio.studio ? null : studio.studio)}
                   />
                 ))}
               </div>
@@ -599,7 +589,7 @@ export default function Workspace({
               display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0,
             }}>
               {hero && <Distribution channel={hero} />}
-              <QuickActions hero={hero} onStart={setOpened} />
+              <QuickActions hero={hero} />
               <RuntimeCard runtime={runtime} />
             </div>
           </div>
@@ -1049,7 +1039,16 @@ function Fact({
   );
 }
 
-function NoChannel({ start }: { start: React.ReactNode }) {
+function NoChannel() {
+  /*
+   * THE FORM THAT STOOD HERE IS IN THE CONTROL ROOM NOW.
+   *
+   * It was `StartChannel`, unfolded on the home page, which is the same
+   * thing the studio cards were doing: a hallway holding an intake. What
+   * is left is the reason to have a channel and the way to the room that
+   * makes one — which is all a hallway should carry.
+   */
+  const room = roomFor('online-tv');
   return (
     <section className="panel" data-testid="hero-empty" style={{
       padding: 22, borderRadius: 'var(--radius-xl)',
@@ -1065,7 +1064,17 @@ function NoChannel({ start }: { start: React.ReactNode }) {
         holds references rather than copies, so scheduling something twice
         costs nothing.
       </p>
-      {start}
+      <Link href={room.href} data-testid="open-control" style={{
+        display: 'inline-block', padding: '8px 14px',
+        borderRadius: 'var(--radius-md)', textDecoration: 'none',
+        background: 'var(--studio-tv)', color: 'var(--text-on-accent)',
+        fontSize: 'var(--text-sm)', fontWeight: 'var(--weight-semi)',
+        boxShadow: 'var(--elev-2)',
+      }}>
+        <span className="row" style={{ gap: 6 }}>
+          {room.enter}<Icon name="arrow" size={13} />
+        </span>
+      </Link>
     </section>
   );
 }
@@ -1191,9 +1200,7 @@ const MARK: Record<string, { text: string; ink: string; wash: string }> = {
   x: { text: 'X', ink: 'var(--platform-x)', wash: 'var(--platform-x-wash)' },
 };
 
-function QuickActions({
-  hero, onStart,
-}: { hero: HeroChannel | null; onStart: (studio: Studio) => void }) {
+function QuickActions({ hero }: { hero: HeroChannel | null }) {
   /*
    * FIVE THINGS, EACH OF WHICH GOES SOMEWHERE THAT EXISTS. The temptation
    * in a panel like this is to list what the product ought to be able to
@@ -1203,7 +1210,17 @@ function QuickActions({
    */
   const actions: {
     icon: IconName; label: string; hint: string;
-    href?: string; onSelect?: () => void; off?: string;
+    /*
+     * EVERY ROW GOES SOMEWHERE, OR SAYS WHY IT CANNOT.
+     *
+     * Two of these used to open a form on this page instead of
+     * navigating — `onSelect: () => onStart('one')`. Now that the rooms
+     * exist there is nowhere for a quick action to go but into one, so
+     * the callback is gone and a row is a link or it is dimmed. A
+     * control that sometimes navigates and sometimes unfolds something
+     * underneath you is two controls wearing one label.
+     */
+    href?: string; off?: string;
   }[] = [
     {
       icon: 'live', label: 'Go live now', hint: 'Start a live broadcast',
@@ -1213,7 +1230,7 @@ function QuickActions({
     {
       icon: 'upload', label: 'Upload media',
       hint: 'Bring in a video or a song',
-      onSelect: () => onStart('one'),
+      href: roomFor('studio-one').href,
     },
     {
       icon: 'calendar', label: 'Schedule programme',
@@ -1224,7 +1241,7 @@ function QuickActions({
     {
       icon: 'music', label: 'Record a performance',
       hint: 'One song, many takes',
-      onSelect: () => onStart('two'),
+      href: roomFor('studio-two').href,
     },
     {
       icon: 'link', label: 'Embed your channel',
@@ -1291,12 +1308,9 @@ function QuickActions({
               </span>
             );
           }
-          return action.href ? (
-            <Link key={action.label} href={action.href}
+          return (
+            <Link key={action.label} href={action.href!}
                   data-testid="quick-action" style={look}>{body}</Link>
-          ) : (
-            <button key={action.label} type="button" data-testid="quick-action"
-                    onClick={action.onSelect} style={look}>{body}</button>
           );
         })}
       </div>
@@ -1348,15 +1362,16 @@ function RuntimeCard({
  * ------------------------------------------------------------------------ */
 
 function StudioCard({
-  studio, mine, starter, opened, onToggle,
+  studio, mine,
 }: {
   studio: (typeof STUDIOS)[number];
   mine: WorkRecord[];
-  starter: React.ReactNode;
-  opened: boolean;
-  onToggle: () => void;
 }) {
-  const newest = mine[0];
+  /*
+   * WHAT THE ROOM IS CALLED, AND WHAT ITS DOOR SAYS, FROM ONE PLACE.
+   * [rooms.ts, D-19]
+   */
+  const room = roomFor(studio.id);
   return (
     <div data-testid="studio-card" data-studio={studio.studio}
          className="panel" style={{
@@ -1444,11 +1459,11 @@ function StudioCard({
         <span style={{
           fontSize: 'var(--text-2xs)', letterSpacing: '0.1em',
           fontWeight: 'var(--weight-bold)', color: 'var(--ink-400)',
-        }}>{studio.label}</span>
+        }}>{room.label}</span>
         <strong style={{
           fontSize: 'var(--text-md)',
           letterSpacing: 'var(--tracking-tight)',
-        }}>{studio.name}</strong>
+        }}>{room.name}</strong>
         <p style={{
           margin: 0, fontSize: 'var(--text-2xs)',
           color: 'var(--text-faint)',
@@ -1459,73 +1474,48 @@ function StudioCard({
         <div className="row" style={{
           gap: 8, marginTop: 10, flexWrap: 'nowrap',
         }}>
-          {studio.home || newest ? (
-            <Link href={studio.home ?? newest!.href} data-testid="open-studio"
-                  style={{
-              flex: '1 1 0', textAlign: 'center', padding: '8px 10px',
-              borderRadius: 'var(--radius-md)', textDecoration: 'none',
-              background: studio.accent, color: 'var(--text-on-accent)',
-              fontSize: 'var(--text-xs)', fontWeight: 'var(--weight-semi)',
-              boxShadow: 'var(--elev-2)',
-            }}>
-              {/* The arrow is drawn: → is a different length, weight and
-                  baseline in every font, and there are three of these
-                  side by side on the same row. */}
-              <span className="row" style={{
-                gap: 6, justifyContent: 'center',
-              }}>{studio.open}<Icon name="arrow" size={13} /></span>
-            </Link>
-          ) : (
-            <button type="button" data-testid="open-studio" onClick={onToggle}
-                    style={{
-                      flex: '1 1 0', padding: '8px 10px',
-                      borderRadius: 'var(--radius-md)',
-                      background: studio.accent, borderColor: studio.accent,
-                      color: 'var(--text-on-accent)',
-                      fontSize: 'var(--text-xs)',
-                      fontWeight: 'var(--weight-semi)',
-                      boxShadow: 'var(--elev-2)',
-                    }}>
-              <span className="row" style={{
-                gap: 6, justifyContent: 'center',
-              }}>{studio.open}<Icon name="arrow" size={13} /></span>
-            </button>
-          )}
           {/*
-            * THE `+` NO LONGER UNFOLDS A FORM IN THE HALLWAY.
-            *   [STUDIO-ONE §5, §9]
+            * ONE DESTINATION, AND IT IS THE ROOM.
             *
-            * *"Your current home page has the Conversation Studio
-            * expanded directly inside the dashboard. I don't think that
-            * is ideal… almost half of the screen consumed by the
-            * Conversation Studio card."*
+            * This was a link when the studio had a newest thing and a
+            * button that unfolded a form when it did not — so the same
+            * control meant "open the last conversation you made" on a
+            * used card and "fill in a form here in the hallway" on an
+            * empty one. Neither was entering a studio, and a person
+            * pressing it twice on two different days got two different
+            * kinds of thing.
             *
-            * Where a studio has a front door, the `+` walks through it,
-            * and the intake lives in the room it belongs to. Where one
-            * does not yet, the expander stays — removing it would take
-            * away the only way to start something in those two rooms.
+            * *"Each card should lead to an actual dedicated environment
+            * rather than opening a particular task/intake state."*
             */}
-          {studio.home ? (
-            <Link href={studio.home} data-testid="new-in-studio"
-                  aria-label={`New in ${studio.name}`}
-                  style={{
-                    flex: '0 0 auto', width: 34, padding: '8px 0',
-                    borderRadius: 'var(--radius-md)',
-                    display: 'grid', placeItems: 'center',
-                    border: 'var(--border) solid var(--line)',
-                    color: 'inherit', textDecoration: 'none',
-                  }}><Icon name="plus" size={14} /></Link>
-          ) : (
-            <button type="button" data-testid="new-in-studio"
-                    aria-label={`New in ${studio.name}`}
-                    aria-expanded={opened}
-                    onClick={onToggle}
-                    style={{
-                      flex: '0 0 auto', width: 34, padding: '8px 0',
-                      borderRadius: 'var(--radius-md)',
-                      display: 'grid', placeItems: 'center',
-                    }}><Icon name="plus" size={14} /></button>
-          )}
+          <Link href={room.href} data-testid="open-studio" style={{
+            flex: '1 1 0', textAlign: 'center', padding: '8px 10px',
+            borderRadius: 'var(--radius-md)', textDecoration: 'none',
+            background: studio.accent, color: 'var(--text-on-accent)',
+            fontSize: 'var(--text-xs)', fontWeight: 'var(--weight-semi)',
+            boxShadow: 'var(--elev-2)',
+          }}>
+            {/* The arrow is drawn: → is a different length, weight and
+                baseline in every font, and there are three of these
+                side by side on the same row. */}
+            <span className="row" style={{
+              gap: 6, justifyContent: 'center',
+            }}>{room.enter}<Icon name="arrow" size={13} /></span>
+          </Link>
+          {/*
+            * AND THE `+` WALKS THROUGH THE SAME DOOR. The intake lives
+            * in the room it belongs to; the hallway stopped holding
+            * forms when the third room got a door.
+            */}
+          <Link href={room.href} data-testid="new-in-studio"
+                aria-label={`New in ${room.name}`}
+                style={{
+                  flex: '0 0 auto', width: 34, padding: '8px 0',
+                  borderRadius: 'var(--radius-md)',
+                  display: 'grid', placeItems: 'center',
+                  border: 'var(--border) solid var(--line)',
+                  color: 'inherit', textDecoration: 'none',
+                }}><Icon name="plus" size={14} /></Link>
         </div>
 
         {/*
@@ -1543,12 +1533,6 @@ function StudioCard({
           {mine.length > 0 ? `${mine.length} here` : 'Nothing here yet'}
         </span>
 
-        {opened && !studio.home && (
-          <div style={{
-            marginTop: 10, paddingTop: 12,
-            borderTop: 'var(--border) solid var(--line)',
-          }}>{starter}</div>
-        )}
       </div>
     </div>
   );
@@ -1770,15 +1754,4 @@ function Row({ record, items, onRow, open }: Rowed & { record: WorkRecord }) {
  * catches what failed before hydration, the handler catches what fails
  * after.
  */
-function Still({ src }: { src: string | null }) {
-  const [broken, setBroken] = useState(false);
-  const check = useCallback((node: HTMLImageElement | null) => {
-    if (node && node.complete && node.naturalWidth === 0) setBroken(true);
-  }, []);
-  if (!src || broken) return null;
-  return (
-    <img alt="" src={src} ref={check} onError={() => setBroken(true)} style={{
-      width: '100%', height: '100%', objectFit: 'cover', display: 'block',
-    }} />
-  );
-}
+
