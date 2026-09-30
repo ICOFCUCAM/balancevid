@@ -331,6 +331,7 @@ Stated plainly, because a status table that overstates is worse than none.
 ```
 docs/DOCTRINE.md    the constitution
 docs/ROOM.md        the Conversation Room brief, and what building it taught
+docs/STUDIO-ONE.md  the Conversation Studio's source model — SOURCE → RESPONSE
 docs/STUDIO-TWO.md  the Performance Studio brief, and what building it taught
 docs/CHANNEL.md     the Channel brief, and what building it taught
 docs/DESIGN.md      what the product is trying to look like, and why
