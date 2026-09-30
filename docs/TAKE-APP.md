@@ -887,6 +887,21 @@ row instead of growing its own.
 Verified: the square decodes byte-for-byte to the link the panel displays;
 the Room's panel still has all eleven of its handles after the extraction.
 
+## Where this brief continues
+
+`docs/TAKE-PLATFORM.md` holds the next brief for this surface, verbatim
+and with its own ledger: the Take App as a participation and media
+application rather than a recorder, and how it behaves when every
+customer owns their own BalanceVid installation.
+
+Its measurement is worth knowing before reading this file again: **the
+protocol half of that architecture is what this brief already built.**
+T14's rule that the origin is never written into the record, and T16's
+Participation Request as the one object all three studios issue, are
+exactly what a multi-instance client needs — so the closing design rule
+of that brief, *"any valid BalanceVid installation can be a Take
+destination"*, is not a change to make but a property to keep.
+
 ## The third pass: closing T13a, and the fault under it
 
 *Run 2026-09-30. T13a was the last row in either brief that said GAP, and
