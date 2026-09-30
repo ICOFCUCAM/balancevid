@@ -138,6 +138,30 @@ const STUDIOS: {
   accent: string;
   veil: string;
   wash: string;
+  /**
+   * A PHOTOGRAPH OF THE ROOM THIS DOOR OPENS ON.
+   *
+   * Not a stock picture of "a studio": a conversation being recorded
+   * at a desk with two microphones and the video under discussion on
+   * the wall; a band playing to four cameras and a quad monitor; a
+   * gallery cutting a programme to air. Each one shows the thing the
+   * room is FOR, which is the only reason a photograph earns its
+   * place on a card that already says the name in words.
+   *
+   * SERVED FROM `public/rooms/`, built by `scripts/room-art.mjs` from
+   * the masters in `art/`.
+   */
+  art: string;
+  /**
+   * Where the crop holds when the band is wider than it is tall.
+   *
+   * `cover` has to throw away most of a 16:9 photograph to fill a
+   * 2.2:1 band, and which half it throws away is not the same answer
+   * three times: the conversation's subjects sit low in frame behind
+   * a desk, the gallery's interest is the monitor wall above the
+   * desk. Centre would cut the first at the chin.
+   */
+  focus: string;
   icon: IconName;
   open: string;
 }[] = [
@@ -148,6 +172,7 @@ const STUDIOS: {
       + 'produce the room.',
     accent: 'var(--studio-one)', veil: 'var(--studio-one-veil)',
     wash: 'var(--studio-one-wash)', icon: 'conversation',
+    art: '/rooms/conversation.webp', focus: 'center 58%',
     open: 'Open Studio One',
   },
   {
@@ -157,6 +182,7 @@ const STUDIOS: {
       + 'you choose.',
     accent: 'var(--studio-two)', veil: 'var(--studio-two-veil)',
     wash: 'var(--studio-two-wash)', icon: 'music',
+    art: '/rooms/performance.webp', focus: 'center 45%',
     open: 'Open Studio Two',
   },
   {
@@ -166,6 +192,7 @@ const STUDIOS: {
       + 'live to your audience.',
     accent: 'var(--studio-tv)', veil: 'var(--studio-tv-veil)',
     wash: 'var(--studio-tv-wash)', icon: 'broadcast',
+    art: '/rooms/online-tv.webp', focus: 'center 38%',
     open: 'Open Online TV',
   },
 ];
@@ -1308,28 +1335,76 @@ function StudioCard({
            display: 'flex', flexDirection: 'column',
          }}>
       {/*
-        * THE ART IS THE PERSON'S OWN WORK, not a stock photograph of a
-        * studio they have never been in. A frame from the newest thing
-        * they made in this room, and the room's own colour when it is
-        * empty — which is itself information: an empty card is a room
-        * you have not used.
+        * THE ART IS THE ROOM, AND IT USED TO BE THE PERSON'S OWN WORK.
+        *
+        * What stood here was a frame from the newest thing made in this
+        * studio, over the room's colour when there was nothing yet — and
+        * the argument written beside it was that a photograph of a studio
+        * the person has never been in says nothing. That argument was
+        * right about stock photography and wrong about this card, for a
+        * reason a screenshot makes obvious: the three cards sit side by
+        * side, and a poster frame in one beside a poster frame in another
+        * is two arbitrary crops of two unrelated videos. The row read as
+        * noise, and what the row is FOR is telling somebody which of
+        * three rooms to walk into.
+        *
+        * SO THE BAND CARRIES THE ROOM AND NOT THE WORK. A conversation
+        * recorded at a desk, a band playing to four cameras, a gallery
+        * cutting to air: the same three pictures every time the page
+        * loads, which is what makes them recognisable rather than
+        * decorative. The person's own work did not lose its place — it
+        * has a better one, in `RecentWork` below, at a size where a
+        * poster frame is legible instead of cropped into a strip.
+        *
+        * AND THE ROOM'S COLOUR IS STILL ON IT. The veil is the token
+        * `studios.css` already defines for exactly this — "the veil
+        * behind a studio card's artwork" — and it does the work the
+        * author asked for when they said the three images must not
+        * compete: three photographs shot in three places, each pulled
+        * a little towards the colour of the room it stands for.
         */}
       <div aria-hidden="true" style={{
-        height: 104, position: 'relative', overflow: 'hidden',
+        /*
+         * THE UPPER 40-45% OF THE CARD, which is a proportion and not a
+         * height — but the content below is four lines and two buttons
+         * whatever the card is, so 132 against roughly 190 of content is
+         * that proportion, held at every width the grid produces.
+         */
+        height: 132, position: 'relative', overflow: 'hidden',
         background: `linear-gradient(140deg, ${studio.veil},`
           + ' var(--surface-sunk))',
       }}>
+        <img alt="" src={studio.art} loading="lazy" decoding="async"
+             style={{
+               position: 'absolute', inset: 0,
+               width: '100%', height: '100%',
+               objectFit: 'cover', objectPosition: studio.focus,
+               display: 'block',
+             }} />
         <span style={{
-          position: 'absolute', inset: 0, opacity: 0.85,
-        }}><Still src={newest?.poster ?? null} /></span>
+          position: 'absolute', inset: 0, background: studio.veil,
+        }} />
+        {/*
+          * A FADE INTO THE CARD, AND NOTHING ELSE ON TOP.
+          *
+          * The badge that used to sit here put the room's glyph in a dark
+          * disc over the corner of the picture, which was a second name
+          * for a room whose name is printed two lines below it — and on a
+          * photograph rather than a flat wash it reads as a sticker. The
+          * glyph is still on the rail and in every row that mentions this
+          * studio, so nothing is lost but the sticker. [U-19]
+          *
+          * WHAT REPLACES IT IS A TRANSITION. A photograph that simply
+          * stops against the content area looks pasted on; a few pixels
+          * of the card's own darkness at the foot of it looks like the
+          * card was designed that way. It starts past the middle so it
+          * darkens the edge and not the picture.
+          */}
         <span style={{
-          position: 'absolute', left: 12, top: 12,
-          width: 30, height: 30, borderRadius: 'var(--radius-screen)',
-          display: 'grid', placeItems: 'center',
-          background: 'rgba(0,0,0,0.72)',
-          border: '1px solid rgba(255,255,255,0.14)',
-          color: 'var(--text-on-accent)',
-        }}><Icon name={studio.icon} size={15} /></span>
+          position: 'absolute', inset: 0,
+          background: 'linear-gradient(to bottom, transparent 52%,'
+            + ' var(--art-fade))',
+        }} />
       </div>
 
       <div style={{

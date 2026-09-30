@@ -47,4 +47,17 @@
   --studio-one-wash: rgba(47, 111, 208, 0.12);
   --studio-two-wash: rgba(125, 86, 196, 0.12);
   --studio-tv-wash:  rgba(28, 126, 102, 0.12);
+
+  /*
+   * WHERE A PHOTOGRAPH MEETS THE CARD IT IS PRINTED ON.
+   *
+   * One value, because there is one such edge and it must be the same
+   * on all three cards — the three pictures were shot in three rooms
+   * under three lights, and the only thing that makes them a set is
+   * that the product treats them identically. It is not a studio
+   * colour and it is not the surface behind it: it is the shadow the
+   * card casts on its own artwork, which is why it is here with the
+   * other things a card is made of rather than inline in one file.
+   */
+  --art-fade: rgba(10, 14, 22, 0.52);
 }
