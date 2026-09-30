@@ -63,6 +63,22 @@
   --console-edge: #232830;     /* around a module that stands alone */
   --console-rule: #191d23;     /* a separator inside a module */
   --console-live: var(--state-live);
+  /*
+   * TALLY INK. Not the tally itself — a bar is `--state-live` — but the
+   * TEXT that goes red when a source is on air: "LIVE", a source number,
+   * a guest's slot mark. Full `--state-live` on a near-black face is a
+   * word that vibrates and cannot be read at 10px, so the ink is the
+   * same hue lifted until it is legible. It was written out by hand on
+   * every tile that needed it, which is how one surface comes to have
+   * four nearly-identical reds. [CHANNEL §24, §29]
+   */
+  --state-live-ink: #ff9c91;
+  /*
+   * A MUTED MICROPHONE IS AMBER, not red: it is a state somebody chose,
+   * and red on a desk means the air. `--state-warn` is the plate colour
+   * and too dark to be a glyph on black, so this is its ink.
+   */
+  --state-mute-ink: #e0a33a;
 
   /*
    * THE BEVEL. One pixel of light along the top, nothing else. On a
