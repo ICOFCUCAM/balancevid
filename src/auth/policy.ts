@@ -87,6 +87,20 @@ const PUBLIC_PATTERNS: RegExp[] = [
    * one assignment rather than an account.
    */
   /^\/take\/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\/?$/,
+  /*
+   * The Take App opened without an invitation.  [TAKE-PLATFORM P1, P6]
+   *
+   * `/take/<link>` is one assignment for one person; `/take` is the
+   * other door — somebody who was sent nothing, arriving to see what
+   * this installation offers. It renders nothing itself and fetches
+   * `/api/participate`, which is public for the same reason and shows
+   * only what an author published and chose to list.
+   *
+   * ANCHORED WITH NO SEGMENT AFTER IT, so this opens the home and
+   * nothing else: the pattern above is the only way to reach an
+   * assignment, and it still requires a link shaped like a credential.
+   */
+  /^\/take\/?$/,
   /^\/api\/take\/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/,
   /* The song they were asked to perform against, and nothing else about
      the performance it belongs to. [T6] */
@@ -259,6 +273,32 @@ const GUEST_WRITABLE: { method: string; path: RegExp }[] = [
   { method: 'PUT', path: /^\/api\/take\/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\/submissions\/[A-Za-z0-9_-]+$/ },
   { method: 'POST', path: /^\/api\/take\/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\/submissions\/[A-Za-z0-9_-]+$/ },
   { method: 'DELETE', path: /^\/api\/take\/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\/submissions\/[A-Za-z0-9_-]+$/ },
+  /*
+   * TAKING PART IN SOMETHING THE AUTHOR OPENED TO ANYONE.
+   *   [TAKE-PLATFORM P2, P3, P4, PART FIVE; D-25, U-31]
+   *
+   * The only write on this instance a stranger may make that CREATES
+   * something, and the reason it is allowed is U-31's own: "anyone can
+   * open it and respond to it". The narrowing recorded at the head of
+   * this file — that responding needs an account, because there are no
+   * accounts to attribute it to — is exactly what a Participation
+   * Request solves: it attributes the recording to a request the
+   * producer accepts or rejects, and nothing reaches the production
+   * until they do. [D-25]
+   *
+   * THE ROUTE'S OWN CHECK IS THE REAL ONE, as everywhere here: this
+   * says the route may decide, and the route refuses anything whose
+   * author did not set `access: anyone` AND leave it listed. Two of
+   * the author's own decisions, both required.
+   *
+   * WHAT IT COSTS, stated rather than hidden: a press writes a request
+   * directory, so an item opened to anyone can be claimed repeatedly
+   * by a script. The client asks once per device because it keeps what
+   * it is given, which covers the accidental case and not the
+   * deliberate one. A per-item ceiling is the honest fix, it is a
+   * producer-facing setting, and it does not exist yet.
+   */
+  { method: 'POST', path: /^\/api\/participate\/[a-z]{1,16}\/[A-Za-z0-9_-]{1,64}$/ },
   { method: 'POST', path: /^\/api\/conversations\/[A-Za-z0-9_-]+\/room\/join$/ },
   { method: 'POST', path: /^\/api\/conversations\/[A-Za-z0-9_-]+\/room\/presence$/ },
   // A reading about the sender's own microphone. [ROOM §2]
