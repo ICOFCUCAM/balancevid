@@ -595,7 +595,7 @@ process, against the running product and not against this document.
 | B10a | every object has a track | GAP | waits on B8 |
 | B10b | every object has a volume | PARTIAL | a scene has audio; a take has none of its own |
 | B11 | the gap is detected and explained | HAVE | `renderProblems`, the hatched band, the sentence |
-| B11a | *Align first take to 00:00* as a repair | GAP | now possible for the first time |
+| B11a | *Align first take to 00:00* as a repair | HAVE | offered only for a hole at the very start, on the take that begins earliest, and it writes the nudge |
 | B11b | *Trim empty section* | PARTIAL | `coverGap` extends the next scene; trimming the song is B6a |
 | B11c | *Keep gap* | HAVE | nothing forces a repair; the warning is advisory |
 | B12 | the studio's shape | PARTIAL | the AUDIO group waits on B8 |

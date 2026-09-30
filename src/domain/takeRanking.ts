@@ -43,7 +43,7 @@
 
 import {
   type Performance, type PerformanceTake, type RenderProblem,
-  coversSpan, orderedScenes,
+  coversSpan, effectiveOffset, orderedScenes,
 } from './performance.js';
 import type { TakeId } from './document.js';
 import { type Samples, HOUSE_SAMPLE_RATE } from './time.js';
@@ -398,13 +398,16 @@ export function worthProposing(performance: Performance): boolean {
  * you choose a take that does not reach has moved the error, not fixed it.
  */
 export interface Repair {
-  id: 'use-next' | 'choose' | 'use-previous' | 'freeze';
+  id: 'use-next' | 'choose' | 'align-first' | 'use-previous' | 'freeze';
   label: string;
   /** Why it is offered, or why it is not. */
   says: string;
   available: boolean;
   /** For `choose`: the takes that would actually cover the stretch. */
   takeIds?: TakeId[];
+  /** For `align-first`: the take to move, and the push that moves it. */
+  takeId?: TakeId;
+  nudgeSamples?: number;
 }
 
 export function repairsFor(
@@ -450,6 +453,49 @@ export function repairsFor(
         : 'no take reaches across this stretch',
       takeIds: covering.map((entry) => entry.takeId as TakeId),
     },
+    /*
+     * ALIGN THE FIRST TAKE TO THE START OF THE SONG.  [TIMELINE B11]
+     *
+     * The author's own example, and the fault that prompted this whole
+     * brief: "There is a 1.248 second gap at the beginning of the
+     * master video... [Align first take to 00:00]". A performer who
+     * started singing a second and a quarter late leaves a hole at the
+     * top of the song, and the honest remedy is not to stretch
+     * somebody else's scene over it — it is to move the take back to
+     * where it was meant to begin.
+     *
+     * OFFERED ONLY FOR A HOLE AT THE VERY START, because that is the
+     * only place the argument holds. A gap in the middle is not
+     * somebody starting late; moving a take to close it would pull
+     * everything they sang out of time with the song, which is the
+     * one thing this product exists to keep.
+     *
+     * IT WRITES THE NUDGE, never the measurement — so how far out the
+     * automatic answer was stays readable, and a re-measure does not
+     * discard the fix. [S-3, INV-14]
+     */
+    ...(() => {
+      if (from !== 0) return [];
+      const first = [...performance.takes]
+        .filter((take) => take.durationSamples > 0)
+        .sort((a, b) => effectiveOffset(a.alignment) - effectiveOffset(b.alignment))[0];
+      const starts = first ? Math.max(0, effectiveOffset(first.alignment)) : 0;
+      return [{
+        id: 'align-first' as const,
+        label: 'Align the first take to 00:00',
+        available: Boolean(first) && starts > 0,
+        says: !first
+          ? 'there is no take to align'
+          : starts > 0
+            ? `"${first.label}" begins ${formatMasterPosition(starts)} into the `
+              + 'song; this moves it back to the start'
+            : `"${first.label}" already begins with the song`,
+        ...(first ? {
+          takeId: first.id as TakeId,
+          nudgeSamples: -first.alignment.offsetSamples,
+        } : {}),
+      }];
+    })(),
     {
       id: 'use-previous',
       label: 'Extend the previous take',

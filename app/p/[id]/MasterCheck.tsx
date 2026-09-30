@@ -338,6 +338,21 @@ function Issue({
                               fromSample: problem.extend.fromSample,
                             });
                           }
+                          /*
+                            * THE HOLE AT THE TOP OF THE SONG, closed by
+                            * moving the take that starts late rather
+                            * than by stretching somebody else's scene
+                            * over it. The domain worked out which take
+                            * and how far; this only presses it.
+                            * [TIMELINE B11]
+                            */
+                          if (repair.id === 'align-first' && repair.takeId) {
+                            onRepair({
+                              action: 'nudge-take',
+                              takeId: repair.takeId,
+                              nudgeSamples: repair.nudgeSamples ?? 0,
+                            });
+                          }
                         }}>
                   {repair.label}
                 </button>
