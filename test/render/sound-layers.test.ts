@@ -27,6 +27,7 @@ import {
   removeSound, setScene, setSoundLayer, trimSound,
 } from '../../src/domain/performanceEdit.js';
 import { HOUSE_FPS, HOUSE_SAMPLE_RATE, secondsToSamples } from '../../src/domain/time.js';
+import { decodeToAnalysis, normaliseMaster } from '../../src/render/audio.js';
 import { compose } from '../../src/render/compose.js';
 import { FFMPEG, run } from '../../src/render/ffmpeg.js';
 import { SILENT_FLOOR_DB, measureSound } from '../../src/render/ingest.js';
@@ -386,4 +387,59 @@ describe('a render with a sound on it', () => {
       expect(await loudnessAt(out, second), `at ${second}s`).toBeGreaterThan(-45);
     }
   }, 300_000);
+});
+
+/**
+ * WHAT THE WORKER DOES TO AN UPLOADED SOUND.  [TIMELINE B6h; U-02]
+ *
+ * The route writes the bytes down and the worker normalises and
+ * COUNTS, and the count is what the timeline draws, the planner plans
+ * and the trim marks are measured against. A source assertion can say
+ * `decodeToAnalysis` is called; only running it can say the number it
+ * produces is the length of the audio.
+ */
+describe('measuring an uploaded sound the way the worker does', () => {
+  it('counts the samples that are there, whatever the container claimed', async () => {
+    /* An mp3 at 44.1 kHz: a rate that is not the house rate, in a
+       container whose header rounds, which is the ordinary case. */
+    const source = join(dir, 'upload.mp3');
+    await run(FFMPEG, [
+      '-y', '-f', 'lavfi', '-i', 'sine=frequency=330:r=44100:d=2.5',
+      '-c:a', 'libmp3lame', source,
+    ]);
+
+    const normalised = join(dir, 'upload-snd.webm');
+    await normaliseMaster(source, normalised);
+    const counted = await decodeToAnalysis(normalised, join(dir, 'upload.f32'));
+
+    /* Two and a half seconds at the HOUSE rate, whatever it arrived
+       at — a layer at 44.1 kHz mixed against a 48 kHz master drifts
+       all the way through. Encoders pad the ends of an mp3, so this
+       is to a twentieth of a second rather than to the sample. */
+    expect(Math.abs(counted - secondsToSamples(2.5)))
+      .toBeLessThan(HOUSE_SAMPLE_RATE / 20);
+  }, 120_000);
+
+  /* And it is audible where it is put, which is the whole point of
+     having measured it: the length decides the width of the block,
+     the stretch it is planned over and the clock a trim is on. */
+  it('lands on the timeline at its measured length', async () => {
+    const source = join(dir, 'upload2.mp3');
+    await run(FFMPEG, [
+      '-y', '-f', 'lavfi', '-i', 'sine=frequency=330:r=44100:d=1',
+      '-c:a', 'libmp3lame', source,
+    ]);
+    const normalised = join(dir, 'upload2-snd.webm');
+    await normaliseMaster(source, normalised);
+    const counted = await decodeToAnalysis(normalised, join(dir, 'upload2.f32'));
+
+    const p = performance();
+    addSound(p, layer({
+      id: 'snd_upload', assetId: 'upload2-snd' as AssetId,
+      fromSample: secondsToSamples(4), durationSamples: counted,
+    }));
+    const piece = (buildPerformancePlan(p).performanceAudio ?? [])
+      .find((one) => one.kind === 'sound');
+    expect(piece?.toSample).toBe(secondsToSamples(4) + counted);
+  }, 120_000);
 });

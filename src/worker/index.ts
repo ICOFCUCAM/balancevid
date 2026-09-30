@@ -62,9 +62,12 @@ import { clipWindow } from '../domain/performanceClips.js';
 import { buildPerformanceCard } from '../publish/performanceCard.js';
 import { type AudioChapter, audioChapters } from '../domain/audioExport.js';
 import { exportAudio } from '../render/audioFile.js';
+import type {
+  Performance as PerformanceDocument, SoundLayer,
+} from '../domain/performance.js';
 import { orderedScenes, projectPerformance } from '../domain/performance.js';
 import { samplesToFrames } from '../domain/time.js';
-import { addPlate, recordBeats } from '../domain/performanceEdit.js';
+import { addPlate, addSound, recordBeats } from '../domain/performanceEdit.js';
 import { BEAT_DETECTOR, detectBeats } from '../domain/beats.js';
 import { matteThreshold, plateVerdict } from '../domain/environment.js';
 import { buildPlateStill, measurePlate } from '../render/plate.js';
@@ -98,6 +101,7 @@ export async function runJob(job: Job): Promise<Job> {
     case 'render_claim_cards': return renderClaimCards(job);
     case 'ingest_master': return ingestMaster(job);
     case 'ingest_plate': return ingestPlate(job);
+    case 'ingest_sound': return ingestSound(job);
     case 'assemble_performance_take': return assemblePerformanceTake(job);
     case 'render_performance': return renderPerformance(job);
     case 'render_performance_clip': return renderPerformanceClip(job);
@@ -210,6 +214,81 @@ async function ingestMaster(job: Job): Promise<Job> {
  * threshold and is the honest answer to "will this work where I am", which the
  * author is owed BEFORE they record five takes rather than after.
  */
+/**
+ * Where a performance's media lives, for the renderer.  [TIMELINE B6h]
+ *
+ * A take's mezzanine is video and a sound layer's is audio, so they are
+ * not the same file and cannot be the same guess. The two call sites
+ * that need this used to spell the take's path inline, which meant a
+ * sound layer was looked for as `<id>mezz.mp4` and the render failed
+ * with ffmpeg's word for a missing file rather than ours.
+ */
+function performanceAssets(
+  id: string, performance: PerformanceDocument,
+): (assetId: string) => string {
+  const sounds = new Set((performance.sounds ?? []).map((one) => one.assetId));
+  return (assetId) => (sounds.has(assetId as AssetId)
+    ? paths.performanceAsset(id, `${assetId}snd`, 'webm')
+    : paths.performanceAsset(id, `${assetId}mezz`, 'mp4'));
+}
+
+/**
+ * A sound arrives, and is measured.  [TIMELINE B6h, B8; U-02, U-23]
+ *
+ * "Add audio" — applause, a voice-over, rain. The web tier wrote the
+ * file down and stopped, because the web tier never invokes ffmpeg;
+ * everything below is why that rule exists. The upload is normalised
+ * to the house rate for the same reason the song is (a layer at 44.1
+ * kHz mixed against a 48 kHz master drifts all the way through), and
+ * its length is COUNTED by decoding rather than read off a header,
+ * because a header is what the encoder claimed.
+ *
+ * It is added to the document only once it has been measured. A layer
+ * whose length is a guess would be drawn at the wrong width, planned
+ * over the wrong stretch and trimmed against a clock that does not
+ * exist — and the author would have no way to tell.
+ */
+async function ingestSound(job: Job): Promise<Job> {
+  const id = job.conversationId;
+  const assetId = String(job.payload['assetId']);
+  const originalPath = String(job.payload['originalPath']);
+
+  const normalised = paths.performanceAsset(id, `${assetId}snd`, 'webm');
+  await normaliseMaster(originalPath, normalised);
+  job.progress = 50;
+  await update(job);
+
+  /* Counted from the decode, then thrown away: nothing reads a layer's
+     samples the way alignment reads the song's. [U-02] */
+  const scratch = join(paths.performanceAssets(id), 'scratch', `${assetId}.f32`);
+  const durationSamples = await decodeToAnalysis(normalised, scratch);
+  await rm(scratch, { force: true });
+
+  const layer: SoundLayer = {
+    id: newId('snd'),
+    assetId: assetId as AssetId,
+    label: String(job.payload['label'] ?? 'Sound'),
+    track: String(job.payload['track'] ?? 'effect') as SoundLayer['track'],
+    fromSample: Math.max(0, Math.round(Number(job.payload['fromSample'] ?? 0))),
+    durationSamples,
+    ...(job.payload['loop'] ? { loop: true } : {}),
+    createdAt: new Date().toISOString(),
+  };
+  await mutatePerformance(id, (draft) => { addSound(draft, layer); });
+  await auditPerformance(id, {
+    action: 'sound.measured',
+    detail: {
+      assetId, soundId: layer.id, durationSamples, track: layer.track,
+      fromSample: layer.fromSample,
+    },
+  });
+
+  return finish(job, 'done', {
+    progress: 100,
+    result: { assetId, soundId: layer.id, durationSamples, label: layer.label },
+  });
+}
+
 async function ingestPlate(job: Job): Promise<Job> {
   const id = job.conversationId;
   const assetId = String(job.payload['assetId']);
@@ -535,7 +614,7 @@ async function renderPerformance(job: Job): Promise<Job> {
      * before there was a field to put them in.
      */
     cues: performanceCues(performance.master.lyrics ?? []),
-    resolveAsset: (assetId) => paths.performanceAsset(id, `${assetId}mezz`, 'mp4'),
+    resolveAsset: performanceAssets(id, performance),
     /*
      * The normalised master, not the author's upload: what alignment measured
      * and what the finished video plays have to be the same audio, or every
@@ -616,7 +695,7 @@ async function renderPerformanceClip(job: Job): Promise<Job> {
     /* The same words, shifted to the clip's own zero — a chorus clip
        carrying master timings would show the first verse. [U-22] */
     cues: performanceCues(performance.master.lyrics ?? [], span),
-    resolveAsset: (assetId) => paths.performanceAsset(id, `${assetId}mezz`, 'mp4'),
+    resolveAsset: performanceAssets(id, performance),
     masterAudioPath: paths.performanceAsset(
       id, `${performance.master.assetId}mezz`, 'webm'),
     resolveStill: (assetId) => (

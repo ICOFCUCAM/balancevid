@@ -23,6 +23,7 @@ import { nudgeSays } from './takeNudge.js';
 import { takeMenuItems } from './takeMenu.js';
 import { songMenuItems } from './songMenu.js';
 import { SOUND_TRACKS, soundMenuItems } from './soundMenu.js';
+import { pickSound } from './soundUpload.js';
 
 /**
  * A colour per audio track, so a lane is identifiable at a glance.
@@ -385,6 +386,8 @@ export default function SwitchingStage({
   /* The same, for a sound: held locally, written once on release. */
   const [soundDrag, setSoundDrag] = useState<
     { soundId: string; at: number; by: number } | null>(null);
+  /** The sound being measured, so the wait is visible. [B6h, U-19] */
+  const [adding, setAdding] = useState<string | null>(null);
 
   const ordered = orderedScenes(performance);
   /*
@@ -800,9 +803,46 @@ export default function SwitchingStage({
    * gesture works on one half of a lane and not the other is a studio
    * you have to aim at.
    */
+  /*
+   * "ADD AUDIO."  [TIMELINE B6h, B8]
+   *
+   * The file is sent, the worker measures it, and the document is read
+   * back when it lands — the layer is NOT drawn before then, because
+   * its width is its measured length and a block drawn from a guess is
+   * a block in the wrong place. The studio says what it is waiting for
+   * in the meantime, since an upload with no visible effect for ten
+   * seconds reads as nothing having happened. [U-02, U-19]
+   */
+  const addAudio = useCallback((at: number) => {
+    pickSound(performance.id, { track: 'effect', fromSample: at }, {
+      onStarted: (label) => { setAdding(label); setError(null); },
+      onError: (message) => { setAdding(null); setError(message); },
+      onFinished: async (jobId) => {
+        for (let tries = 0; tries < 120; tries += 1) {
+          await new Promise((wake) => { setTimeout(wake, 1000); });
+          const response = await fetch(`/api/performances/${performance.id}`,
+            { cache: 'no-store' });
+          if (!response.ok) continue;
+          const data = await response.json();
+          const job = (data.jobs ?? [])
+            .find((one: { id?: string }) => one.id === jobId);
+          if (!job || job.state === 'pending' || job.state === 'running') continue;
+          setAdding(null);
+          if (job.state === 'failed') {
+            setError(job.error ?? 'that sound could not be added');
+            return;
+          }
+          onChanged(data.performance);
+          return;
+        }
+        setAdding(null);
+      },
+    });
+  }, [onChanged, performance.id]);
+
   const songMenu = useCallback((): MenuEntry[] => songMenuItems({
-    performance, patch, confirm, at: () => player.positionNow(),
-  }), [confirm, patch, performance, player]);
+    performance, patch, confirm, at: () => player.positionNow(), addAudio,
+  }), [addAudio, confirm, patch, performance, player]);
 
   /*
    * AND THE SAME FOR A SOUND, from one definition.  [TIMELINE B8, B12]
@@ -2029,6 +2069,28 @@ export default function SwitchingStage({
               * over the master video, which is the order the brief
               * drew and the order the ear works in.
               */}
+            {/*
+              * WHAT IS BEING WAITED FOR, WHILE IT IS BEING WAITED FOR.
+              *
+              * A sound is not on the timeline until its length has been
+              * counted, which takes a few seconds — and an upload with
+              * no visible effect for a few seconds reads as an upload
+              * that did not happen. [U-19, B6h]
+              */}
+            {adding && (
+              <div data-testid="sound-measuring" style={{
+                height: 26, padding: '0 10px', display: 'flex',
+                alignItems: 'center', gap: 6,
+                fontSize: 'var(--text-2xs)', color: 'var(--text-dim)',
+              }}>
+                <Icon name="sound" size={11} />
+                <span className="grow" style={{
+                  overflow: 'hidden', textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}>{adding}</span>
+                <span className="muted">measuring…</span>
+              </div>
+            )}
             {soundLanes.map((lane) => (
               <div key={lane.id} data-testid="sound-head" data-track={lane.id}
                    style={{
@@ -2370,6 +2432,9 @@ export default function SwitchingStage({
               * move it: the same two gestures the take lane teaches,
               * and the reason a second editing system was not built.
               */}
+            {/* Its lane, empty: the two columns are rows of one grid and a
+                head with no lane opposite shifts everything under it. */}
+            {adding && <div style={{ height: 26 }} />}
             {soundLanes.map((lane) => (
               <div key={lane.id} data-testid="sound-lane" data-track={lane.id}
                    style={{ position: 'relative', height: 26 }}>

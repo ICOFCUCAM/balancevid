@@ -39,6 +39,15 @@ export interface SongMenuHost {
   confirm: (ask: Ask) => void;
   /** Where the song is NOW, asked rather than remembered. */
   at: () => number;
+  /**
+   * Ask for a sound file and put it on the timeline here.  [B6h]
+   *
+   * Optional, because the menu is also raised in tests and in surfaces
+   * that cannot upload — a row that is there and greyed says the
+   * feature exists and is unavailable, which is this menu's own
+   * convention, and is more honest than a row that vanishes.
+   */
+  addAudio?: ((at: number) => void) | undefined;
 }
 
 export function songMenuItems(host: SongMenuHost): MenuEntry[] {
@@ -179,6 +188,21 @@ export function songMenuItems(host: SongMenuHost): MenuEntry[] {
         }),
       };
     }),
+
+    /*
+     * "ADD AUDIO." A second sound over the song — applause, a
+     * voice-over, rain — which lands where the playhead is, because a
+     * file knows nothing about the song and the only thing that can
+     * say where the author meant it is where they were looking.
+     * [B6h, B8]
+     */
+    {
+      section: 'Sound — how the song is heard',
+      label: 'Add a sound here\u2026',
+      hint: `a second sound over the song, from ${formatMasterPosition(at)}`,
+      ...(host.addAudio ? {} : { disabled: 'not from here' } as const),
+      onSelect: () => host.addAudio?.(at),
+    },
 
     /*
      * AND WHERE THE SONG IS TRIMMED TO, said in words rather than left
