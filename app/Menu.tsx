@@ -128,6 +128,32 @@ export function visible(items: MenuItem[], more: boolean): MenuItem[] {
 }
 
 /**
+ * WHAT IS BEHIND "MORE", SAID FROM THE ROWS THEMSELVES.  [TIMELINE B9]
+ *
+ * This line used to be one fixed sentence naming timing, alignment and
+ * the frame, which was true of the take menu it was written for and a
+ * lie on the two menus written after it — a sound has no frame, and a
+ * song has no alignment. A hint that describes one caller is furniture
+ * the moment there is a second, so it now
+ * names the groups the hidden rows are actually in, taking the part of
+ * each section before its em-dash because "Trim" is the name and the
+ * rest of that heading is its explanation.
+ */
+export function moreSays(advanced: MenuItem[]): string {
+  const groups: string[] = [];
+  for (const item of advanced) {
+    const name = String(item.section ?? '').split('\u2014')[0]!.trim();
+    if (name && !groups.includes(name)) groups.push(name);
+  }
+  const count = `${advanced.length} more`;
+  if (groups.length === 0) return count;
+  const said = groups.length === 1
+    ? groups[0]!
+    : `${groups.slice(0, -1).join(', ')} and ${groups[groups.length - 1]!}`;
+  return `${count}, in ${said}`;
+}
+
+/**
  * WHETHER THIS RIGHT-CLICK IS OURS.
  *
  * The browser's menu wins over ours in the two cases where it carries
@@ -423,7 +449,7 @@ export function useMenu() {
             display: 'block', fontSize: 'var(--text-2xs)',
             color: 'var(--ink-400)', marginTop: 1,
           }}>
-            {`${advanced.length} more, for timing, alignment and the frame`}
+            {moreSays(advanced)}
           </span>
         </button>
       )}

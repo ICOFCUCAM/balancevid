@@ -936,6 +936,15 @@ export const AUDIO_MODES: readonly AudioMode[] =
  * mixer treats them identically — which is the same shape every other
  * list in this product has. A fifth kind is a row. [U-18]
  */
+/**
+ * Which lane a sound sits on.  [B10a]
+ *
+ * Four names that the mixer treats identically. They differ in where
+ * the eye finds them, which on a timeline with a dozen sounds on it is
+ * the whole of the value.
+ */
+export type SoundTrack = 'voice' | 'effect' | 'ambience' | 'music';
+
 export interface SoundLayer {
   id: Id<'snd'>;
   assetId: AssetId;
@@ -949,7 +958,7 @@ export interface SoundLayer {
    * transition. `ambience` is a bed: a room, a street, a crowd.
    * `music` is another piece of music under or beside the song.
    */
-  track: 'voice' | 'effect' | 'ambience' | 'music';
+  track: SoundTrack;
   /** Where it begins on the master clock. */
   fromSample: Samples;
   /** Measured by decoding, never read from a header. [U-02] */

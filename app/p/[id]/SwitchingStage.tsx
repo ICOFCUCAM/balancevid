@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { TAKE_ACCENT_FALLBACK } from '../../../src/domain/performance.js';
 import Icon from '../../Icon.js';
-import type { MasterClass, Performance } from '../../../src/domain/performance.js';
+import type { MasterClass, Performance, SoundLayer } from '../../../src/domain/performance.js';
 import {
   MASTER_CLASSES, SPACES, effectiveOffset, isFootage, orderedScenes,
-  renderProblems, sceneAt,
+  renderProblems, sceneAt, soundOnSong,
 } from '../../../src/domain/performance.js';
 import { EFFECT_LOOKS, SPACE_LOOKS } from '../../../src/domain/environment.js';
 import {
@@ -22,6 +22,18 @@ import type { TakeId } from '../../../src/domain/document.js';
 import { nudgeSays } from './takeNudge.js';
 import { takeMenuItems } from './takeMenu.js';
 import { songMenuItems } from './songMenu.js';
+import { SOUND_TRACKS, soundMenuItems } from './soundMenu.js';
+
+/**
+ * A colour per audio track, so a lane is identifiable at a glance.
+ *
+ * Deliberately away from the takes' accents, which are assigned from a
+ * palette: a sound is not a take and the timeline should not have to
+ * be read twice to tell which is which.
+ */
+const SOUND_ACCENT: Record<string, string> = {
+  voice: '#4f9d8a', effect: '#c08a3e', ambience: '#5b7fb5', music: '#8a6fd0',
+};
 import ReframeBox from './ReframeBox.js';
 import ClipInspector, { type Selection } from './ClipInspector.js';
 import { LAYOUTS, takeSlots } from '../../../src/domain/presentation.js';
@@ -370,6 +382,9 @@ export default function SwitchingStage({
    */
   const [dragging, setDragging] = useState<
     { takeId: string; at: number; by: number } | null>(null);
+  /* The same, for a sound: held locally, written once on release. */
+  const [soundDrag, setSoundDrag] = useState<
+    { soundId: string; at: number; by: number } | null>(null);
 
   const ordered = orderedScenes(performance);
   /*
@@ -790,6 +805,20 @@ export default function SwitchingStage({
   }), [confirm, patch, performance, player]);
 
   /*
+   * AND THE SAME FOR A SOUND, from one definition.  [TIMELINE B8, B12]
+   *
+   * A layer is a timeline object or it is a setting, and the
+   * difference is whether you can right-click it.
+   */
+  const soundMenu = useCallback((layer: SoundLayer): MenuEntry[] =>
+    soundMenuItems(layer, {
+      patch,
+      confirm,
+      at: () => player.positionNow(),
+      songSamples: performance.master.durationSamples,
+    }), [confirm, patch, performance, player]);
+
+  /*
    * THE KEYS ARE ALWAYS LIVE.  [benchmark, §7]
    *
    * There used to be a button that armed them, which is a mode — and a mode
@@ -849,6 +878,21 @@ export default function SwitchingStage({
   }, [choose, player, step]);
 
   const duration = performance.master.durationSamples;
+  /*
+   * THE SOUND LAYERS, GROUPED INTO LANES.  [TIMELINE B10a, B12]
+   *
+   * One lane per TRACK rather than one per sound, because a timeline
+   * with a dozen impacts on it is a dozen rows nobody can read — and
+   * because the track is the thing the author chose it for. A track
+   * with nothing on it is not drawn: an empty lane is furniture, and
+   * this column is already tall.
+   */
+  const soundLanes = SOUND_TRACKS
+    .map((track) => ({
+      ...track,
+      layers: (performance.sounds ?? []).filter((one) => one.track === track.id),
+    }))
+    .filter((lane) => lane.layers.length > 0);
   /*
    * ONE DEFINITION OF WHERE AN X IS ON THE SONG, for the click and the
    * drag alike, clamped to the song at both ends: there is nothing before
@@ -1977,14 +2021,52 @@ export default function SwitchingStage({
                 <span style={{ fontWeight: 600 }}>{take.label}</span>
               </button>
             ))}
+            {/*
+              * THE AUDIO GROUP.  [TIMELINE B12, B10a]
+              *
+              * "AUDIO — song, voice-over, effects, ambience." One head
+              * per track that has something on it, under the takes and
+              * over the master video, which is the order the brief
+              * drew and the order the ear works in.
+              */}
+            {soundLanes.map((lane) => (
+              <div key={lane.id} data-testid="sound-head" data-track={lane.id}
+                   style={{
+                     display: 'flex', alignItems: 'center', gap: 7,
+                     height: 26, padding: '0 10px',
+                     fontSize: 'var(--text-2xs)',
+                     letterSpacing: '0.06em', color: 'var(--text-dim)',
+                     fontWeight: 'var(--weight-bold)',
+                   }}>
+                <Icon name="sound" size={11} />
+                <span className="grow">{lane.label.toUpperCase()}</span>
+                <span className="muted" style={{ fontWeight: 400 }}>
+                  {lane.layers.length}
+                </span>
+              </div>
+            ))}
+            {/*
+              * THE LABEL OVER ITS CONTROLS, NOT BESIDE THEM.
+              *
+              * This row is a fixed 190px head and it was asked to hold
+              * a spaced-out caption, four zoom steps and a Clear on one
+              * line. It could not: the caption broke across two lines,
+              * the steps wrapped, and the second row of them was drawn
+              * over the take lane above — visible in every screenshot
+              * of this studio for weeks and invisible in every test,
+              * because nothing here measures a box. Two deliberate
+              * lines fit in the same 44px the lane opposite is.
+              */}
             <div style={{
-              height: 44, display: 'flex', alignItems: 'center', gap: 8,
+              height: 44, display: 'flex', flexDirection: 'column',
+              justifyContent: 'center', gap: 3,
               padding: '0 var(--space-5)',
               borderTop: 'var(--border) solid var(--line)',
               fontSize: 'var(--text-2xs)', fontWeight: 'var(--weight-bold)',
               letterSpacing: '0.08em', color: 'var(--text-dim)',
             }}>
-              <span className="grow">MASTER VIDEO</span>
+              <span style={{ whiteSpace: 'nowrap' }}>MASTER VIDEO</span>
+              <span className="row" style={{ gap: 8 }}>
               {/*
                 * ZOOM SITS ON THE TIMELINE, not on the transport.
                 * [TIMELINE B3a]
@@ -2050,6 +2132,7 @@ export default function SwitchingStage({
                           fontWeight: 500, color: 'var(--muted)', cursor: 'pointer',
                         }}>Clear</button>
               )}
+              </span>
             </div>
           </div>
 
@@ -2207,8 +2290,20 @@ export default function SwitchingStage({
                          if (dragging?.takeId !== take.id) return;
                          const box = lanes.current?.getBoundingClientRect();
                          if (!box || box.width <= 0) return;
+                         /*
+                          * DIVIDED BY THE ZOOM, because the box is the
+                          * WINDOW and the track inside it is `zoom`
+                          * times as wide. Without it a drag at 8x moved
+                          * the take eight times as far as the pointer
+                          * went — the lane drew the new position
+                          * correctly the whole time, which is what made
+                          * it look like the studio rather than the
+                          * arithmetic. Found by writing the sound lane
+                          * beside it. [B3a, D-19]
+                          */
                          const by = Math.round(
-                           ((event.clientX - dragging.at) / box.width) * duration);
+                           ((event.clientX - dragging.at) / box.width)
+                           * duration / zoom);
                          setDragging({ ...dragging, by });
                        }}
                        onPointerUp={(event) => {
@@ -2260,6 +2355,93 @@ export default function SwitchingStage({
                 </div>
               );
             })}
+
+            {/*
+              * THE SOUNDS, ON THE SAME FOUR MINUTES AS EVERYTHING ELSE.
+              *   [TIMELINE B8, B12]
+              *
+              * Each block is where its sound is heard, drawn from
+              * `soundOnSong` — the same function the planner and the
+              * mixer read, so a block cannot draw in one place and
+              * play in another. That divergence was real on the take
+              * lane for months and nothing could show it. [D-19]
+              *
+              * Right-click it for what can be done to it, drag it to
+              * move it: the same two gestures the take lane teaches,
+              * and the reason a second editing system was not built.
+              */}
+            {soundLanes.map((lane) => (
+              <div key={lane.id} data-testid="sound-lane" data-track={lane.id}
+                   style={{ position: 'relative', height: 26 }}>
+                {lane.layers.map((layer) => {
+                  const on = soundOnSong(layer, duration);
+                  const held = soundDrag?.soundId === layer.id ? soundDrag : null;
+                  const shown = held
+                    ? Math.max(0, Math.min(duration, on.fromSample + held.by))
+                    : on.fromSample;
+                  return (
+                    <div key={layer.id} role="button" tabIndex={-1}
+                         data-testid="sound-block" data-sound-id={layer.id}
+                         data-from={shown}
+                         title={`Drag to move ${layer.label} along the song`
+                           + ' \u2014 right-click for what else can be done to it'}
+                         {...onRow(layer.label, () => soundMenu(layer))}
+                         onPointerDown={(event) => {
+                           event.currentTarget.setPointerCapture(event.pointerId);
+                           setSoundDrag({
+                             soundId: layer.id, at: event.clientX, by: 0,
+                           });
+                         }}
+                         onPointerMove={(event) => {
+                           if (soundDrag?.soundId !== layer.id) return;
+                           const box = lanes.current?.getBoundingClientRect();
+                           if (!box || box.width <= 0) return;
+                           setSoundDrag({
+                             ...soundDrag,
+                             by: Math.round(
+                               ((event.clientX - soundDrag.at) / box.width)
+                               * duration / zoom),
+                           });
+                         }}
+                         onPointerUp={(event) => {
+                           event.currentTarget.releasePointerCapture(event.pointerId);
+                           const by = soundDrag?.soundId === layer.id
+                             ? soundDrag.by : 0;
+                           setSoundDrag(null);
+                           /* A press that did not move is a press. */
+                           if (by === 0) return;
+                           void patch({
+                             action: 'move-sound', soundId: layer.id,
+                             fromSample: Math.max(0, Math.min(
+                               duration, layer.fromSample + by)),
+                           });
+                         }}
+                         onPointerCancel={() => setSoundDrag(null)}
+                         style={{
+                           position: 'absolute', left: pct(shown),
+                           width: pct(Math.max(
+                             HOUSE_SAMPLE_RATE / 20, on.toSample - on.fromSample)),
+                           top: 3, bottom: 3, borderRadius: 3,
+                           padding: '0 5px', overflow: 'hidden',
+                           whiteSpace: 'nowrap', textOverflow: 'ellipsis',
+                           font: 'inherit', fontSize: 'var(--text-2xs)',
+                           lineHeight: '20px', textAlign: 'left',
+                           color: 'var(--ink-000)',
+                           border: `1px solid ${SOUND_ACCENT[layer.track]}`,
+                           background: `${SOUND_ACCENT[layer.track]}2e`,
+                           /* Muted is drawn faint, never removed: it is
+                              still on the timeline where it was left. */
+                           opacity: layer.muted ? 0.35 : 1,
+                           cursor: held ? 'grabbing' : 'grab',
+                           touchAction: 'none',
+                         }}>
+                      {layer.muted ? '\u2014 ' : ''}{layer.label}
+                      {layer.loop ? ' \u21bb' : ''}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
 
             <div data-testid="master-timeline" style={{
               position: 'relative', height: 44, borderTop: '1px solid var(--line)',

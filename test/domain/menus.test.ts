@@ -17,6 +17,8 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
+import { moreSays, type MenuItem } from '../../app/Menu.js';
+
 const ROOT = join(import.meta.dirname, '..', '..');
 const MENU = readFileSync(join(ROOT, 'app', 'Menu.tsx'), 'utf8');
 
@@ -217,5 +219,45 @@ describe('the song in Studio Two', () => {
     expect(ask).toMatch(/cannot be undone/);
     expect(ask).toMatch(/verb: 'Delete the song'/);
     expect(ask).toMatch(/danger: true/);
+  });
+});
+
+/**
+ * WHAT IS BEHIND "MORE", SAID HONESTLY.  [TIMELINE B9]
+ *
+ * The line under it used to read "for timing, alignment and the frame",
+ * which was true of the take menu it was written for and a lie on the
+ * two menus written after it — a sound has no frame, and a song has no
+ * alignment. A hint that describes one caller is furniture the moment
+ * there is a second.
+ */
+describe('the row that opens the rest of a menu', () => {
+  const row = (section: string): MenuItem =>
+    ({ label: section, section, advanced: true });
+
+  it('names the groups the hidden rows are actually in', () => {
+    expect(moreSays([
+      row('Trim \u2014 which part of it exists'),
+      row('Trim \u2014 which part of it exists'),
+      row('Move \u2014 when it plays'),
+      row('Sound \u2014 how it is heard'),
+    ])).toBe('4 more, in Trim, Move and Sound');
+  });
+
+  it('reads as English with one group and with two', () => {
+    expect(moreSays([row('Sound \u2014 how it is heard')]))
+      .toBe('1 more, in Sound');
+    expect(moreSays([row('Move \u2014 when it plays'), row('The take itself')]))
+      .toBe('2 more, in Move and The take itself');
+  });
+
+  /* A menu with no groups at all still says how many. */
+  it('falls back to the count when there are no groups', () => {
+    expect(moreSays([{ label: 'Something', advanced: true }])).toBe('1 more');
+  });
+
+  it('is what the component prints, rather than a second version of it', () => {
+    expect(MENU).toContain('{moreSays(advanced)}');
+    expect(MENU).not.toContain('for timing, alignment and the frame');
   });
 });

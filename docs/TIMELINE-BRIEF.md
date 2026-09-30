@@ -598,7 +598,7 @@ process, against the running product and not against this document.
 | B11a | *Align first take to 00:00* as a repair | HAVE | offered only for a hole at the very start, on the take that begins earliest, and it writes the nudge |
 | B11b | *Trim empty section* | PARTIAL | `coverGap` extends the next scene; trimming the song is B6a |
 | B11c | *Keep gap* | HAVE | nothing forces a repair; the warning is advisory |
-| B12 | the studio's shape | PARTIAL | the AUDIO group waits on B8 |
+| B12 | the studio's shape | HAVE | the AUDIO group is drawn: one lane per track that has something on it (an empty lane is furniture), each block placed by `soundOnSong` — the same function the mixer reads — right-clickable for the same five groups a take has, and draggable. Writing it found the take lane's own drag ignoring the zoom |
 | B13 | one system, extended | the rule | — |
 | B14 | runs on every platform | HAVE, as the web | no store app |
 | B14a | a packaged mobile app | GAP | |
