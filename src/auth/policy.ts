@@ -192,16 +192,23 @@ const GUEST_WRITABLE: { method: string; path: RegExp }[] = [
   /*
    * What the holder of a Take link may write.  [D-25; TAKE-APP T3, T4, T5]
    *
-   * THREE VERBS, EACH ON ITS OWN PATH, for the reason the room's four are
+   * FOUR VERBS, EACH ON ITS OWN PATH, for the reason the room's are
    * written this way: a path-only allowance once answered DELETE as well,
    * and that was a real hole. A participant may say they have started
-   * recording, begin a submission, and send its bytes. They may not
-   * delete, accept, or touch anything a producer owns.
+   * recording, begin a submission, send its bytes, and throw away a
+   * recording they have not sent. They may not accept, and they may not
+   * touch anything a producer owns.
+   *
+   * THE DELETE IS ONE PATH AND ONE THING. It reaches the segments of a
+   * recording that is not yet a submission, and the route refuses one
+   * that has been sent: what a performer may undo is their own decision
+   * not yet acted on, never a producer's. [D-25; TAKE-APP T4]
    */
   { method: 'POST', path: /^\/api\/take\/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/ },
   { method: 'POST', path: /^\/api\/take\/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\/submissions$/ },
   { method: 'PUT', path: /^\/api\/take\/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\/submissions\/[A-Za-z0-9_-]+$/ },
   { method: 'POST', path: /^\/api\/take\/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\/submissions\/[A-Za-z0-9_-]+$/ },
+  { method: 'DELETE', path: /^\/api\/take\/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\/submissions\/[A-Za-z0-9_-]+$/ },
   { method: 'POST', path: /^\/api\/conversations\/[A-Za-z0-9_-]+\/room\/join$/ },
   { method: 'POST', path: /^\/api\/conversations\/[A-Za-z0-9_-]+\/room\/presence$/ },
   // A reading about the sender's own microphone. [ROOM §2]

@@ -7,7 +7,7 @@ import Icon from '../../Icon.js';
 import { useMasterRecording } from '../../p/[id]/useMasterRecording.js';
 import { HOUSE_SAMPLE_RATE, formatMasterPosition } from '../../../src/domain/time.js';
 import type { RequestView } from '../../../src/domain/participation.js';
-import { takeSink } from './takeSink.js';
+import { dropTake, sendTake, takeSink, type KeptSpec } from './takeSink.js';
 
 /**
  * The performer's whole screen.  [Doctrine D-25; TAKE-APP T3, T4, T5, T13]
@@ -39,11 +39,14 @@ const COUNT_IN_SECONDS = 4;
 
 /** A recording the performer has made and not yet sent. [T4] */
 interface Kept {
+  /** The submission id its segments are under, on the server. */
   id: string;
   /** What the phone believes it is, in seconds, for a line of text. */
   seconds: number;
   at: string;
-  sent: boolean;
+  /** What the phone measured, held until they decide. */
+  spec: KeptSpec;
+  state: 'kept' | 'sending' | 'sent' | 'gone';
 }
 
 export default function TakeApp({ link }: { link: string }) {
@@ -52,7 +55,21 @@ export default function TakeApp({ link }: { link: string }) {
   const [kept, setKept] = useState<Kept[]>([]);
   const [said, setSaid] = useState<string | null>(null);
 
-  const sink = useMemo(() => takeSink(link), [link]);
+  /*
+   * A FINISHED RECORDING IS KEPT, NOT SENT.  [TAKE-APP T4]
+   *
+   * The sink hands it back rather than sending it, and this list is
+   * what the performer decides about. Its segments are already on
+   * the server — a phone that loses a call mid-song must not lose
+   * the performance with it — but nothing has crossed to the
+   * producer until Send.
+   */
+  const sink = useMemo(() => takeSink(link, (id, spec) => {
+    setKept((was) => [...was, {
+      id, spec, seconds: spec.elapsedSamples / HOUSE_SAMPLE_RATE,
+      at: new Date().toISOString(), state: 'kept',
+    }]);
+  }), [link]);
   const recording = useMasterRecording({
     sink,
     masterUrl: `/api/take/${encodeURIComponent(link)}/reference`,
@@ -100,19 +117,50 @@ export default function TakeApp({ link }: { link: string }) {
     }
   }, [kept.length, recording, view]);
 
+  /* Stopping ends the recording; the sink above adds it to the list. */
+  const end = useCallback(() => { recording.stop(); }, [recording]);
+
+  const mark = useCallback((id: string, state: Kept['state']) => {
+    setKept((was) => was.map(
+      (one) => (one.id === id ? { ...one, state } : one)));
+  }, []);
+
   /*
-   * A FINISHED RECORDING IS KEPT, NOT SENT. The list below is what the
-   * performer decides about; `Submit` is what crosses to the producer.
-   * The brief's own line is the design: "Take 3 doesn't have to reach
-   * the server at all if they delete it locally."
+   * SEND, which is the moment it crosses to the producer. [D-25, T5]
+   *
+   * The state goes to `sending` first and back to `kept` if it
+   * fails, because a phone on a train will fail at this and the
+   * performer needs the button back rather than a row that says
+   * nothing.
    */
-  const end = useCallback(() => {
-    const seconds = recording.position;
-    recording.stop();
-    setKept((was) => [...was, {
-      id: `local_${was.length + 1}`, seconds, at: new Date().toISOString(), sent: true,
-    }]);
-  }, [recording]);
+  const send = useCallback(async (one: Kept) => {
+    setSaid(null);
+    mark(one.id, 'sending');
+    try {
+      await sendTake(link, one.id, one.spec);
+      mark(one.id, 'sent');
+    } catch (error) {
+      mark(one.id, 'kept');
+      setSaid(error instanceof Error ? error.message : 'that did not send');
+    }
+  }, [link, mark]);
+
+  /*
+   * AND DELETE, which is the brief's own line: "Take 3 doesn't have
+   * to reach the server at all if they delete it locally." It did
+   * reach it, in segments, because a dropped call must not cost a
+   * good take — so this removes them rather than leaving them until
+   * the request is swept. [T4]
+   */
+  const drop = useCallback(async (one: Kept) => {
+    setSaid(null);
+    try {
+      await dropTake(link, one.id);
+      mark(one.id, 'gone');
+    } catch (error) {
+      setSaid(error instanceof Error ? error.message : 'that did not work');
+    }
+  }, [link, mark]);
 
   if (closed) {
     return (
@@ -256,26 +304,54 @@ export default function TakeApp({ link }: { link: string }) {
           * producer until it is sent, and a take deleted here is never
           * assembled and is swept with the request.
           */}
-        {kept.length > 0 && (
+        {kept.some((one) => one.state !== 'gone') && (
           <ul data-testid="take-list" style={{
             listStyle: 'none', margin: 0, padding: 0, width: '100%',
             display: 'flex', flexDirection: 'column', gap: 6,
           }}>
-            {kept.map((one, index) => (
-              <li key={one.id} className="row" style={{
-                gap: 8, alignItems: 'center', padding: '7px 9px',
-                border: '1px solid var(--line)', borderRadius: 'var(--radius-sm)',
-                background: 'var(--console-control)',
-              }}>
+            {kept.filter((one) => one.state !== 'gone').map((one, index) => (
+              <li key={one.id} className="row" data-testid="take-kept"
+                  data-state={one.state}
+                  style={{
+                    gap: 8, alignItems: 'center', padding: '7px 9px',
+                    border: '1px solid var(--line)',
+                    borderRadius: 'var(--radius-sm)',
+                    background: 'var(--console-control)',
+                  }}>
                 <span className="grow" style={{ fontSize: 'var(--text-sm)' }}>
                   Take {index + 1}
                 </span>
                 <span className="mono small muted">
                   {formatMasterPosition(Math.round(one.seconds * HOUSE_SAMPLE_RATE))}
                 </span>
-                <span data-testid="take-sent" className="small" style={{
-                  color: 'var(--ink-300)',
-                }}>{one.sent ? 'Sent' : 'Kept'}</span>
+                {/*
+                  * SEND AND DELETE, AND THEN NEITHER.  [T4]
+                  *
+                  * Once it is sent it belongs to the production, and
+                  * a performer who could delete it then would be
+                  * deleting out of somebody else's studio. What they
+                  * may undo is their own decision not yet acted on.
+                  * [D-25]
+                  */}
+                {one.state === 'sent' ? (
+                  <span data-testid="take-sent" className="small" style={{
+                    color: 'var(--ink-300)',
+                  }}>Sent</span>
+                ) : (
+                  <>
+                    <button className="ctl sm" data-testid="take-send"
+                            disabled={one.state === 'sending'}
+                            onClick={() => void send(one)}>
+                      {one.state === 'sending' ? 'Sending…' : 'Send'}
+                    </button>
+                    <button className="ctl sm" data-testid="take-drop"
+                            disabled={one.state === 'sending'}
+                            title="Throw this take away — the producer never sees it"
+                            onClick={() => void drop(one)}>
+                      Delete
+                    </button>
+                  </>
+                )}
               </li>
             ))}
           </ul>

@@ -1,5 +1,5 @@
 import { createReadStream, createWriteStream } from 'node:fs';
-import { mkdir, readdir, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, rm, writeFile } from 'node:fs/promises';
 import { pipeline } from 'node:stream/promises';
 import { join } from 'node:path';
 
@@ -138,4 +138,41 @@ export async function PUT(request: Request, { params }: Params): Promise<Respons
     if (error instanceof ParticipationError) return fail(409, error.message);
     throw error;
   }
+}
+
+/**
+ * Throw a recording away before it has been sent.  [TAKE-APP T4; D-25]
+ *
+ * "Take 3 doesn't have to reach the server at all if they delete it
+ * locally." Its segments DID reach the server, because a dropped call
+ * must not cost a good take — so this is the explicit act that
+ * removes them, rather than leaving them lying around until the
+ * request is swept.
+ *
+ * ONLY BEFORE IT IS A SUBMISSION. Once it has been sent it belongs to
+ * the production, and a link that could delete from somebody else's
+ * studio would be a door, not a request. What a performer may undo is
+ * their own decision not yet acted on; what they may not undo is a
+ * producer's. [D-25]
+ */
+export async function DELETE(
+  _request: Request, { params }: Params,
+): Promise<Response> {
+  const { link, submissionId } = await params;
+  if (!ID.test(submissionId)) return fail(400, 'that is not a recording id');
+  const found = await requestForLink(link, new Date().toISOString());
+  if (!found) return fail(404, 'that link is not open');
+
+  if ((found.submissions ?? []).some((one) => one.assetId === submissionId)) {
+    return fail(409, 'that take has already been sent');
+  }
+
+  /*
+   * The segments, and nothing else. `rm` with `force` so deleting a
+   * recording that never produced one is a success rather than a
+   * 404 the performer has to think about.
+   */
+  await rm(paths.requestChunks(found.id, submissionId),
+    { recursive: true, force: true });
+  return json({ ok: true });
 }

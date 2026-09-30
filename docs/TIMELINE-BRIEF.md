@@ -613,8 +613,8 @@ process, against the running product and not against this document.
 | B13 | one system, extended | the rule | — |
 | B14 | runs on every platform | HAVE, as the web | no store app |
 | B14a | a packaged mobile app | GAP | |
-| B14b | a link that hands a phone a song to record against | GAP | the Room hands out a conversation, not a song |
-| B14c | keep / delete / **submit** takes as a guest | GAP | no guest-take flow |
+| B14b | a link that hands a phone a song to record against | HAVE | `POST .../requests` issues one; `/take/<link>` opens on a phone with no account and plays the NORMALISED master from `/api/take/<link>/reference` — the same audio the alignment measures, which on a phone matters more because nobody is watching a waveform. The reference (title, measured duration, accepted tempo) is written INTO the request, so what somebody performed against cannot drift |
+| B14c | keep / delete / **submit** takes as a guest | HAVE | stopping is not sending. The SEGMENTS go up as they close (U-06: a dropped call must not cost a good take) and the performer then decides: Send is the moment it crosses to the producer, Delete removes the segments. Neither is offered once it is sent — what a performer may undo is their own decision not yet acted on, never a producer's (D-25). The DELETE is its own rule in the guest policy, not a loosened one |
 | B14d | questions sent to phones for Studio One / Online TV | PARTIAL | the Room and `Channel.room` invite; recorded answers are not a thing yet |
 | B14e | a queue of answers the host cites and plays live | GAP | `setStaged` stages PEOPLE, not recorded answers |
 
