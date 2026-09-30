@@ -224,6 +224,56 @@ Only one machine may run `playout` for a given channel: the engine assumes it
 is the sole writer of that channel's stream directory. It holds no state of
 its own, so moving it is a restart rather than a migration.
 
+### The health check follows the role
+
+A split deployment is where the image's health check first has to be right,
+because three of the four roles serve no port. `scripts/healthcheck.mjs`
+asks each role only what it can answer:
+
+| ROLE | what "healthy" means |
+|---|---|
+| `web` | `/api/health` answers on `PORT` |
+| `worker` | nothing is asked — `wait -n` already stops the container when the worker dies, and a second, weaker opinion could restart a working one |
+| `playout` | the engine's pulse in `$BALANCEVID_VAR/playout.json` is under two minutes old |
+| `all` | both of the above |
+
+**A `playout` container asked the web tier's question is unhealthy for
+ever.** It comes up, says `playout: on air`, encodes correctly, and fails a
+check it cannot pass — and a platform that restarts unhealthy containers
+will restart a working broadcast encoder every few minutes on the strength
+of it. The control room's lamp reads a heartbeat rather than a process
+list, so what an operator sees in the gaps is `Engine: not responding`: the
+station looks broken because the check was wrong, not because anything it
+measured was.
+
+The engine is given far longer than `ENGINE_STALE_MS`. Fifteen seconds is
+the right threshold for a lamp that tells somebody to go and look; it is
+the wrong one for a check that gets a live broadcast restarted, because the
+pulse is written at the END of a pass and a busy pass is allowed to take a
+while.
+
+### "exists at both" on start-up
+
+    balancevid: channels exists at both var/channels and
+    var/accounts/acct_owner/channels. Leaving both alone — merge them by
+    hand; nothing has been deleted.
+
+An instance older than accounts kept its work at `var/channels`,
+`var/conversations`, `var/performances` and `var/library`.
+`moveOwnedUnderAccount` renames those under the owner's account at
+start-up, once, atomically.
+
+It refuses when BOTH addresses hold something, because two sets of work
+exist and picking one would destroy the other. **Nothing is lost, and
+nothing at the old address is visible to the product**: every reader goes
+through `paths`, which resolves to the account. Whatever sits at
+`var/channels` is orphaned until somebody merges it by hand, and the
+warning repeats on every start until they do.
+
+Both tiers read the same address, so this cannot make the web tier and the
+playout engine disagree about a channel. What it can do is hide work the
+operator remembers creating.
+
 The interfaces for that already exist: `src/store/paths.ts` centralises where
 things live, `src/store/queue.ts` is the only queue, and `src/store/repository.ts`
 is the only writer of documents. Four API routes still reach for `node:fs`

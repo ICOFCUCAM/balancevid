@@ -190,8 +190,16 @@ VOLUME ["/data"]
 USER node
 EXPOSE 3000
 
+# THE QUESTION FOLLOWS THE ROLE.  [CHANNEL §11, §18, D-20]
+#
+# This asked `/api/health` of every container, and three of the four roles
+# run no web tier — so a `ROLE=playout` container encoded perfectly and was
+# reported unhealthy for ever, because it was asked the one question that
+# role can never answer. A platform that restarts unhealthy containers
+# restarts a working broadcast encoder every few minutes on the strength of
+# it. `scripts/healthcheck.mjs` asks each role what it can actually say.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+  CMD ["node", "scripts/healthcheck.mjs"]
 
 ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["./scripts/serve.sh"]

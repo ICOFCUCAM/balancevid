@@ -23,6 +23,11 @@ import { describe, expect, it } from 'vitest';
 
 const ROOT = join(import.meta.dirname, '..', '..');
 const SERVE = readFileSync(join(ROOT, 'scripts', 'serve.sh'), 'utf8');
+const CHECK = readFileSync(join(ROOT, 'scripts', 'healthcheck.mjs'), 'utf8');
+const DOCKER = readFileSync(join(ROOT, 'Dockerfile'), 'utf8');
+const HEALTH = readFileSync(join(ROOT, 'src', 'domain', 'health.ts'), 'utf8');
+const BEAT = readFileSync(
+  join(ROOT, 'src', 'store', 'playoutHealth.ts'), 'utf8');
 const PACKAGE = JSON.parse(
   readFileSync(join(ROOT, 'package.json'), 'utf8')) as {
     scripts: Record<string, string>;
@@ -142,5 +147,75 @@ describe('stopping', () => {
   it('exits when any one of them dies rather than looking healthy', () => {
     expect(SERVE).toContain('wait -n');
     expect(SERVE).toContain('stop_all');
+  });
+});
+
+/**
+ * And the same bug wearing a different hat.
+ *
+ * The image asked ONE question of every container — does `/api/health`
+ * answer on this port — and three of the four roles run no web tier. A
+ * `ROLE=playout` container came up, said `playout: on air`, encoded
+ * correctly, and was reported unhealthy for ever, because it was asked the
+ * one question that role can never answer. A platform that restarts
+ * unhealthy containers restarts a working broadcast encoder on the
+ * strength of it, and the control room's lamp — which reads a heartbeat,
+ * not a process list — says `Engine: not responding` in the gaps.
+ *
+ * Measured on a real deployment: `deploypro-balancevid-playout-0  Up 6
+ * minutes (unhealthy)`, with `serve: playout engine` and `playout: on air`
+ * in its log and no web tier line at all.
+ */
+describe('the health check asks each role what it can answer', () => {
+  it('knows the same four roles the entrypoint does', () => {
+    for (const role of ['web', 'worker', 'playout', 'all']) {
+      expect(CHECK, role).toMatch(new RegExp(`^\\s*${role}:`, 'm'));
+    }
+  });
+
+  it('asks a role with no web tier something other than the web tier', () => {
+    /* The whole fault: `playout` and `worker` never serve a port, so a
+       question about a port is a question they fail by existing. */
+    const asks = CHECK.slice(CHECK.indexOf('const ASKS'), CHECK.indexOf('};',
+      CHECK.indexOf('const ASKS')));
+    expect(/playout:\s*\[playout\]/.test(asks)).toBe(true);
+    expect(/worker:\s*\[\]/.test(asks)).toBe(true);
+  });
+
+  it('checks the engine as well as the web tier under the default role', () => {
+    /* `serve.sh` says it in its own header: "one with no playout looks
+       healthy and transmits nothing". Until this existed, that is exactly
+       what a ROLE=all container did. */
+    const asks = CHECK.slice(CHECK.indexOf('const ASKS'), CHECK.indexOf('};',
+      CHECK.indexOf('const ASKS')));
+    expect(/all:\s*\[web, playout\]/.test(asks)).toBe(true);
+  });
+
+  it('is the file the image actually runs', () => {
+    /* A health check written and not wired up is the fault above. */
+    expect(DOCKER).toMatch(/HEALTHCHECK[\s\S]{0,400}scripts\/healthcheck\.mjs/);
+    expect(DOCKER).not.toMatch(/HEALTHCHECK[\s\S]{0,200}api\/health/);
+  });
+
+  it('is copied into the image it is run from', () => {
+    expect(DOCKER).toMatch(/COPY[^\n]*\/app\/scripts \.\/scripts/);
+  });
+
+  it('reads the pulse where the engine writes it', () => {
+    /* The engine is a separate process and the filesystem is all they
+       share, so this must agree with `playoutHealth.ts` about the name. */
+    expect(BEAT).toContain("'playout.json'");
+    expect(CHECK).toContain("'playout.json'");
+    expect(CHECK).toContain('BALANCEVID_VAR');
+  });
+
+  it('gives the engine far longer than the operator\u2019s lamp does', () => {
+    /* Fifteen seconds is right for a lamp telling somebody to go and look
+       and wrong for a check that gets a live broadcast restarted. */
+    const mine = Number(/PLAYOUT_STALE_MS = ([\d_]+)/.exec(CHECK)![1]!
+      .replace(/_/g, ''));
+    const lamp = Number(/ENGINE_STALE_MS = ([\d_]+)/.exec(HEALTH)![1]!
+      .replace(/_/g, ''));
+    expect(mine).toBeGreaterThan(lamp * 4);
   });
 });
