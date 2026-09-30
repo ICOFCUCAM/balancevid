@@ -191,3 +191,32 @@ export function describeAvailability(
       return 'Nobody can find this. Only the people you invite can take part.';
   }
 }
+
+/**
+ * What a publish request said about availability, made safe.
+ *
+ * ONE READER FOR TWO ROUTES, because a conversation and a performance are
+ * published by different code and mean exactly the same thing by these
+ * three fields. Two copies of this would be two ideas of what an unknown
+ * access word does. [D-19]
+ *
+ * AN UNKNOWN POLICY IS THE NARROWEST ONE, and that is the opposite of how
+ * `qualityFor` resolves a word it does not know. The reason is what is at
+ * stake: a stale preset falls back to a picture nobody minded, and a stale
+ * ACCESS POLICY falling back to `anyone` would publish somebody's song to
+ * the world because a field was misspelled. When the meaning is
+ * permission, the safe direction is closed.
+ */
+export function availabilityFrom(body: {
+  respondable?: unknown; listed?: unknown; access?: unknown;
+}): TakeAvailability {
+  const respondable = body.respondable === true;
+  const asked = typeof body.access === 'string' ? body.access : undefined;
+  const known = TAKE_ACCESS.find((one) => one === asked);
+  return {
+    respondable,
+    listed: body.listed !== false,
+    /* Only where it means something, and never a word we do not know. */
+    ...(respondable ? { access: known ?? (asked ? 'invited' : DEFAULT_ACCESS) } : {}),
+  };
+}

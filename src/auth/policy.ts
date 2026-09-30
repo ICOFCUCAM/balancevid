@@ -33,6 +33,22 @@ import type { StudioId } from '../domain/account.js';
 const PUBLIC_EXACT = new Set([
   '/api/health',      // the deployment's health check, which has no session
   '/api/published',   // the list of things whose author asked for an audience
+  /*
+   * What this installation offers to take part in.
+   *   [TAKE-PLATFORM U5, P24; D-03, U-31]
+   *
+   * Public for the reason `/api/published` is: it answers only with what
+   * an author PUBLISHED and then chose to have LISTED, which is two of
+   * their own decisions rather than one of ours. A draft is not in it, a
+   * withdrawn thing is not in it, and an unlisted thing is not in it —
+   * so the existence of unfinished work stays private.
+   *
+   * AND IT IS THE DOOR THE TAKE APP COMES THROUGH. A person browsing for
+   * a song to sing on has no account here by construction; an endpoint
+   * behind a session would be a discovery surface only the owner could
+   * discover anything on.
+   */
+  '/api/participate',
   '/signin',
   '/api/auth/signin',
   '/api/auth/signout',

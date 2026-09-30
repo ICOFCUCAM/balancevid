@@ -21,6 +21,7 @@
  *   what they say.
  */
 
+import type { TakeAvailability } from './availability.js';
 import { LAYOUTS, takeSlots } from './presentation.js';
 import type { Rect } from './presentation.js';
 import { audioEffect } from './audioEffect.js';
@@ -826,7 +827,22 @@ export function setTempo(
  */
 export function publishPerformance(
   performance: Performance,
-  options: { planHash: string; publishedAt: string; author?: string },
+  options: {
+    planHash: string; publishedAt: string; author?: string;
+    /**
+     * Whether somebody may record a take against this song, whether it
+     * appears in discovery, and who may send one.
+     *   [TAKE-PLATFORM P8, PART FIVE]
+     *
+     * `respondable` WAS HARD-CODED FALSE HERE, which meant a published
+     * performance could be watched and never taken — "Available for
+     * Takes" was not a setting a producer could reach, it was a
+     * constant. The three travel together because they are one
+     * decision made at one moment, and `availability.ts` holds what
+     * they mean.
+     */
+    availability?: TakeAvailability;
+  },
 ): void {
   if (!mayPublish(performance.master)) {
     /*
@@ -841,10 +857,21 @@ export function publishPerformance(
   if (performance.scenes.length === 0) fail('there is nothing here to publish yet');
   if (!options.planHash.trim()) fail('publish a render, not a draft');
 
+  const wanted = options.availability;
+  /*
+   * ACCESS IS ONLY WRITTEN WHERE IT MEANS SOMETHING, which is the
+   * author's two em-dashes made durable: a policy stored on a
+   * performance nobody may take is a value that will later be read as
+   * though it said who may. `accessOf` refuses to report it, and this
+   * refuses to keep it. [PART FIVE]
+   */
+  const respondable = wanted?.respondable ?? false;
   performance.publication = {
     publishedAt: options.publishedAt,
-    respondable: false,
+    respondable,
     planHash: options.planHash,
+    ...(wanted?.listed === false ? { listed: false } : {}),
+    ...(respondable && wanted?.access ? { access: wanted.access } : {}),
     ...(options.author?.trim() ? { author: options.author.trim() } : {}),
   };
 }

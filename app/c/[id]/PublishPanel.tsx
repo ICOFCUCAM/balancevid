@@ -2,6 +2,10 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { formatTimecode } from '../../../src/domain/time.js';
+import AvailabilityFields from '../../AvailabilityFields.js';
+import {
+  describeAvailability, type TakeAvailability,
+} from '../../../src/domain/availability.js';
 
 interface CardWords { title: string; description: string; image: { alt: string } }
 
@@ -13,7 +17,16 @@ export default function PublishPanel({
   hasRender: boolean;
   onChanged: () => Promise<void>;
 }) {
-  const [respondable, setRespondable] = useState(true);
+  /*
+   * THREE DECISIONS, NOT ONE.  [TAKE-PLATFORM PART FIVE]
+   *
+   * This was a single `respondable` boolean, which answered two further
+   * questions silently: listed, and open to the whole world. They are
+   * separate decisions and the publisher should make them.
+   */
+  const [availability, setAvailability] = useState<TakeAvailability>({
+    respondable: true, listed: true, access: 'anyone',
+  });
   const [author, setAuthor] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,9 +57,7 @@ export default function PublishPanel({
           <p className="small muted" style={{ marginTop: 2 }}>
             Published {publication.publishedAt?.slice(0, 10)}
             {publication.author ? ` as ${publication.author}` : ''} ·{' '}
-            {publication.respondable
-              ? 'anyone may respond to it'
-              : 'responses are not allowed'}
+            {describeAvailability(publication)}
           </p>
           <SharePreview conversationId={conversationId} />
           <div className="row">
@@ -79,11 +90,12 @@ export default function PublishPanel({
             <input id="pub-author" value={author} placeholder="Your name"
                    onChange={(e) => setAuthor(e.target.value)} />
           </div>
-          <label className="row small" style={{ gap: 8, marginBottom: 8 }}>
-            <input type="checkbox" checked={respondable} style={{ width: 'auto' }}
-                   onChange={(e) => setRespondable(e.target.checked)} />
-            <span>Allow anyone to respond to this</span>
-          </label>
+          <AvailabilityFields
+            noun="conversation"
+            value={availability}
+            onChange={setAvailability}
+            disabled={busy}
+          />
           {error && <p className="small" style={{ color: 'var(--bad)' }}>{error}</p>}
           <button
             className="primary"
@@ -91,7 +103,7 @@ export default function PublishPanel({
             onClick={() => void act({
               method: 'POST',
               headers: { 'content-type': 'application/json' },
-              body: JSON.stringify({ respondable, author }),
+              body: JSON.stringify({ ...availability, author }),
             })}
           >
             {publication?.unpublishedAt ? 'Publish again' : 'Publish'}
