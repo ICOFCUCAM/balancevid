@@ -777,28 +777,30 @@ against real data. Every row is evaluated one at a time at the end.
 | T4 | several takes, only the saved ones uploaded | GAP — and it is the opposite of the studio's deliberate segment-upload |
 | T5 | submit carries video, audio, timing, device, take info | PARTIAL — video, audio and timing yes; device metadata no |
 | T5a | "James — 3 submitted takes" in Studio Two | GAP — a take does not know who made it |
-| T6 | the invitation carries the production reference | PARTIAL — all five fields exist; nothing carries them |
+| T6 | the invitation carries the production reference | **HAVE (domain)** — `Assignment.reference`; a performance request without one is refused, because that is an ordinary phone camera |
 | T6a | a common master production clock across devices | HAVE in principle: every position in the product is a sample on the song |
 | T7 | Studio One sends a question, receives a response | GAP |
 | T8 | Online TV sends an assignment to a viewer | GAP |
-| T9 | responses are NOT stored under the programme until used | GAP — the load-bearing decision; INV-06 applied to people |
+| T9 | responses are NOT stored under the programme until used | **HAVE (domain)** — a submission lives on the request; `accept` hands it back and writes into no production |
 | T9a | the participation inbox | GAP |
 | T10 | preview / accept / reject / hold / add to programme | GAP |
 | T10a | an accepted response enters the programme queue | PARTIAL — the queue exists; nothing puts a response in it |
 | T11 | Studio One's chain, end to end | GAP (three middle stages) |
-| T12 | five kinds of request: question, poll, video, audio, performance | GAP |
+| T12 | five kinds of request: question, poll, video, audio, performance | **HAVE (domain)** — `AssignmentKind`, as rows |
 | T13 | the same link works everywhere, browser included | GAP |
 | T13a | a packaged Android / iOS app | GAP |
 | T14 | the same Take App reaches self-hosted or cloud | GAP — needs the invitation to carry its destination |
 | T15 | three product environments | recorded; no code change required |
-| T16 | the Participation Request object and its eight fields | GAP |
-| T16a | its nine states, CREATED → ATTACHED TO PROGRAMME | GAP |
+| T16 | the Participation Request object and its eight fields | **HAVE (domain)** — `src/domain/participation.ts`; upload destination deliberately NOT stored, see T14 |
+| T16a | its nine states, CREATED → ATTACHED TO PROGRAMME | **HAVE (domain)** — `REQUEST_NEXT` as a table, every move refused rather than ignored, every step written down |
 | T17 | production and participation are separate | the principle; to be written into the doctrine |
 
 ## The order this will be built in, and why
 
 1. **T16 — the Participation Request.** Everything else in this brief is a
    view of it. Built first, in the domain, with its states as data.
+   **Done in the domain** — 35 tests, 12 mutations, all of which bite. Not
+   yet reachable from any screen, which is step 2.
 2. **T2a, T13 — the link and the browser surface.** Because the author's own
    argument is that participation must not fail for want of an installed
    app, the browser client is the client; the packaged apps are a later
