@@ -493,3 +493,192 @@ author placed it there.
 | S1-20 | §8 | Do not add twenty sources because we can | HELD — six built, one deferred, nothing else |
 | S1-21 | §9 | The dashboard card becomes much smaller | BUILT |
 | S1-22 | §9 | The name “Conversation Studio” stays | HELD |
+
+---
+
+## PART FOUR — WHAT WAS BUILT
+
+### One table, and it is closed
+
+`src/domain/sources.ts` holds the doors. Four open, one shut, and the
+author's own value column kept as data:
+
+| Door | Value | State |
+| --- | --- | --- |
+| Upload media — video or audio from your computer | Essential | open |
+| Paste a link — YouTube, Vimeo, direct video URL | Essential | open |
+| Record now — camera and microphone | Very useful | open |
+| Screen capture — record something on your screen | Very useful | open |
+| Live source — camera, browser, RTMP, SRT, network | Later | **listed, shut** |
+
+The fifth is in the table rather than absent from it, because *"I would
+also consider Live source… Eventually"* is a decision and a deleted row is
+not. `waysIn()` filters it out of the interface; the studio says in one
+line that it is not here yet. A product that silently lacks something and
+a product that says when it is coming are different products to somebody
+deciding whether to adopt it.
+
+Everything reads that table: the four cards, their sub-labels, what each
+asks for when chosen, and the file picker's `accept`. `studio-one.test.ts`
+asserts that the component contains no label of its own — a literal
+`'Upload media'` in the JSX would be the second copy this project has spent
+two months removing from other surfaces. [D-19]
+
+### Audio was one attribute
+
+The whole of §7, in the diff, is `accept="video/*"` → `accept={ACCEPTS_MEDIA}`.
+
+Everything else was already true. `src/render/ingest.ts` synthesises a
+black 1280×720 picture for material with no video stream, measures the
+mezzanine it produced rather than the container it was given, and hands a
+normal source to a normal timeline. The transcript job, the proxy, the
+frame-exactness invariant and the renderer never knew the difference.
+
+Two sentences changed with it, because the screen was about to lie. The
+placeholder said *"the picture appears once it plays"*, which is true of a
+video whose first frame would not decode and false about an MP3 — it would
+leave somebody watching a box for something that is never coming and
+concluding their upload is broken. And the preparation screen now names
+the thing the author named: *pause it anywhere — at 12:42, at a sentence —
+and answer.*
+
+### A direct URL, and how it stays inside U-35 §6
+
+The rule and the request are both honoured, and the difference between
+them is the publisher. `planForUrl` decides, once, in this order:
+
+1. **Embed first.** A YouTube or Vimeo URL is an embed, and asking this
+   first is not an optimisation — if the fetch branch ran first, a
+   platform URL that happened to end `.mp4` would be downloaded. The rule
+   would have been broken by ordering rather than by intent.
+2. **Platform hosts are refused by name.** Twenty-five of them, matched on
+   the label boundary so a subdomain is caught and a lookalike is not.
+3. **A media extension is required.** Not because ffmpeg needs one — it
+   needs far less — but because the alternative is asking a server what a
+   URL is, which turns "is this a video?" into an outbound request to any
+   address a person can type, before anything has been decided.
+
+Then the route fetches, under three more guards: `assertPublicUrl` — the
+same one evidence archiving uses, because this is the same primitive
+[D-06] — `redirect: 'error'`, because a redirect is a second URL nothing
+has checked, and a running byte count rather than `Content-Length`, which
+is a claim a server makes about itself. [U-02]
+
+A test asserts the lookalike case explicitly, and it asserts the
+**opposite of what it first said**. `vimeo.com.attacker.example` is not
+Vimeo; it is a host under `attacker.example`, and a file on it is a file
+its own publisher served. U-35 §6 is about platforms that forbid
+downloading, not about domain similarity, and a similarity filter here
+would refuse a university's mirror while doing nothing an attacker could
+not undo by renaming a host. What protects the person is that the host is
+**shown**, before anything is fetched — which is why `UrlPlan` carries it.
+
+### Recording a source is not recording a take
+
+`useSourceRecorder` deliberately does not reuse `useMasterRecording`.
+
+Studio Two's recorder is eighty lines of latency arithmetic: when
+`MediaRecorder.start()` actually began, how far behind the audio device
+is, which clock the page is measuring on, where that puts the take against
+the song. Every line of it exists because a take must land on a master to
+the frame.
+
+**A source has nothing to land on.** It *is* the clock. Carrying
+calibration, the count-in, the headphone warning and a performance-shaped
+sink in order to use the one line that calls `MediaRecorder` would not be
+reuse; it would be a dependency on the wrong thing. `studio-one.test.ts`
+holds that: no `offsetSamples`, no `placeTakeOnSong`, no
+`useMasterRecording`.
+
+What it *does* share is the recording quality ladder — `useQuality('recording')`,
+2160p included — because "how good a source to keep" is one question and
+this product answered it one brief ago. The test also asserts the recorder
+contains no literal `1280` or `720`, which is precisely the fault that was
+found hard-coded in the Take App. [CHANNEL §23a]
+
+`useScreenShare` moved from `app/t/[id]/` to `app/`. It was general
+already: every line is about `getDisplayMedia` and none about
+broadcasting. Online TV mixes that stream live and Studio One records it,
+and there is now one answer to "what happens when Chrome's own stop
+sharing button is pressed" instead of two that will drift.
+
+### The studio itself
+
+`/c` is new, and so is the idea that Studio One is a place. The page is
+the brief's own drawing: the label, the loop in one sentence, the four
+doors, a rule, and the ten most recent conversations with the column that
+says where each came from — which is why `capturedAs` was added to
+`Source`. After ingest, an upload, a recording, a screen capture and a
+fetched file are the same mezzanine; this is the last moment the
+difference exists.
+
+The dashboard card stops unfolding the intake form. Where a studio has a
+front door, both its buttons walk through it; where one does not yet —
+Studio Two and Online TV — the expander stays, because removing it would
+take away the only way to start anything in those rooms. That is stated as
+a condition in the code and asserted as one in the test, rather than done
+three times and called consistent.
+
+And the entitlement rule was `^/c/`, with a trailing slash, so `/c` fell
+through it. The page's own `listConversations` would have refused an
+account without the studio — `requireStudio` is in the store, where it
+belongs — but a check that lives only in one function the route happens to
+call is one refactor from not being in the path.
+
+### Three faults the browser found
+
+The method is the author's: *"that is why i need screen shots as you
+build"*. Three things were wrong in a running browser that were not wrong
+in the code review.
+
+**161 rows in a "recent" list.** The real account has 161 conversations
+and the page printed all of them, pushing the four doors off a 1400px
+screen within two scrolls. Ten is what somebody scanning for *the one I
+was working on yesterday* reads; the rest are in the Library, and the
+count and the link say so rather than leaving a person to conclude their
+older work is gone. Removing the search box that came with the long list
+also removed the only state on the page, so the frame stopped being a
+client component.
+
+**`00:00:20` where the brief shows `04:12`.** True, and two leading
+fields of nothing. The hours appear when there are hours.
+
+**A refusal that was right and untrue.** A platform media URL came back
+with *"that is not a link to a video we can embed officially"*, because
+anything that was not `fetch` fell through to `createEmbedded`, whose one
+refusal message is about embedding. The outcome was correct — nothing was
+downloaded — and the sentence was not: it is not that we cannot embed it,
+it is that this product does not take a platform's own media. That same
+message is what a university lecture recording used to get, which is the
+specific fault §2B asks to be fixed, so fixing the path and leaving the
+sentence would have been a job half done.
+
+### And one the test suite found about itself
+
+The guard added to `room-art.test.ts` — *assert the slice is not empty
+before asserting what it does not contain* — failed on its first run. The
+end anchor of a source slice matched an identical line eight hundred lines
+**above** its start, so `slice` ran backwards, returned `''`, and `''`
+contains no `studio.icon`, so the test passed while looking at nothing.
+
+It is the second time in this codebase a test has passed on an empty
+string. It is written into the test rather than into a commit message,
+because the next person to slice a source file needs it at the moment they
+do it.
+
+### What is not done
+
+- **Live source** — the author's own *Later*. Nothing was stubbed.
+- **A front door for Studio Two and Online TV.** The brief's §9 draws
+  three small cards, and only one of the three now has a room to open.
+  The other two keep their inline starters, which is honest rather than
+  consistent, and the inconsistency is visible in one `if`.
+- **The home page at phone width.** The studio cards are fine; the page
+  around them is not, and `DESIGN.md` has said *"No phone layout"* as a
+  deliberate decision since before this work.
+- **An end-to-end fetch of a real public URL.** The refusals were all
+  exercised against the running server — a private address, a platform
+  media URL, a page with no media extension — but this container's network
+  policy means the successful path is held by unit tests and by the guards
+  rather than by a browser run. It is the one claim in this document that
+  a screenshot does not stand behind.
