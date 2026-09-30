@@ -19,12 +19,15 @@
 import { mkdir, readFile, rm, stat } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
+import {
+  PLATE_FRAMES, PLATE_PROBE, noiseFrom,
+} from '../domain/environment.js';
 import { ffmpeg, type RunOptions } from './ffmpeg.js';
 import { probe } from './probe.js';
 
 /** The noise measurement is taken at this size: the shape, not the detail. */
-const PROBE_WIDTH = 160;
-const PROBE_HEIGHT = 90;
+const PROBE_WIDTH = PLATE_PROBE.width;
+const PROBE_HEIGHT = PLATE_PROBE.height;
 
 /**
  * How many frames are averaged into the still.
@@ -33,7 +36,7 @@ const PROBE_HEIGHT = 90;
  * picture of one moment of the room's noise — differencing against a single
  * noisy frame puts that frame's noise into every matte for ever.
  */
-const AVERAGE_FRAMES = 16;
+const AVERAGE_FRAMES = PLATE_FRAMES;
 
 /**
  * The per-pixel movement, in levels of 255, at which a room cannot be matted.
@@ -42,7 +45,10 @@ const AVERAGE_FRAMES = 16;
  * a lit wall sits around 1–3, a phone in a dim room around 8–15, and by 20 the
  * picture moves as much with nobody in it as a person moving slowly does.
  */
-const UNUSABLE_NOISE_LEVELS = 20;
+/* The number, and the paragraph explaining it, now live beside the
+   threshold and the feather that are computed from it — because the
+   control room measures a plate too, and two copies of this constant
+   would be two answers to "can this room be matted". [D-19, CHANNEL §26] */
 
 export interface PlateMeasurement {
   noise: number;
@@ -123,19 +129,8 @@ export async function measurePlate(
     }
   }
 
-  let totalDeviation = 0;
-  for (let i = 0; i < pixels; i += 1) {
-    const mean = sum[i]! / frames;
-    // Clamped at zero: floating-point subtraction of two close numbers can
-    // land a hair below it, and Math.sqrt of that is NaN in the average.
-    const variance = Math.max(0, sumSquares[i]! / frames - mean * mean);
-    totalDeviation += Math.sqrt(variance);
-  }
-  const levels = totalDeviation / pixels;
-
   return {
-    noise: levels / 255,
-    quality: Math.max(0, Math.min(1, 1 - levels / UNUSABLE_NOISE_LEVELS)),
+    ...noiseFrom(sum, sumSquares, frames, pixels),
     frames,
     width: info.width,
     height: info.height,

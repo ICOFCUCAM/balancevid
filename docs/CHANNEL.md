@@ -2330,3 +2330,162 @@ video by measuring the streams; what is missing is the same visual
 treatment, composited server-side, in the render path. That is the
 remainder of §25 and it belongs with §26's compositor work rather than
 bolted to the picker.
+
+---
+
+## C-17 — Stage 17: the compositor, and the field that was read at last
+
+*Priority 3: "Virtual Background — build as a real compositor feature.
+Don't add more decorative background buttons." The buttons are gone. What
+replaced them is the matte the render path has always used, running on the
+canvas the encoder reads.*
+
+### The ten squares wrote a field nothing read
+
+C-14 found it and this stage proved it: pressing a set wrote
+`channel.identity.spaceId`, and **nothing drew it** — not `marksFor`, not
+the playout engine, not the canvas mixer, which fills `#05070a` and draws
+raw video. The panel's own swatch changed and the air did not. That is the
+exact failure §26 names — *"just a CSS background behind a preview"* —
+arrived at from the other side: not even a preview.
+
+It is read now. The channel's set is the **house set**: everybody in the
+picture starts in it, and anybody can be moved out of it.
+
+### The compositor is not new, and that is the point
+
+*"BalanceVid's browser canvas is already the master feed architecture. The
+virtual-set result needs to travel through that same composition path."*
+
+It does, and the algorithm travelled the other way. `src/render/matte.ts`
+has keyed every Studio Two performance since §4: difference against a
+plate, threshold at a multiple of the room's own measured noise, erode to
+kill the fireflies, dilate twice to put the outline back and a little
+beyond it, feather into that margin, merge. Written there as an ffmpeg
+chain; written here as six WebGL passes, **from the same two functions** —
+`matteThreshold` and `matteFeather` — so a broadcast and an export of the
+same person against the same room cannot key differently.
+
+Six passes and not one because the erode and the dilate each need a
+neighbourhood and a separable blur costs two rather than the square of
+one. In a single shader that is 27 texture fetches per pixel and one
+unreadable function; as passes they are the operations `matteChain` lists,
+in the same order, each one nameable.
+
+**WebGL and not CSS**, for the reason the brief gives: a filter on an
+element styles what the operator sees, and the operator's screen is not
+what is being transmitted. The compositor draws into the canvas
+`captureStream` hands the encoder.
+
+### Why not a segmentation model, which §26 names
+
+`environment.ts` argued this before the brief existed, and the argument is
+the product's:
+
+> *"There is no segmentation model here guessing where a person ends;
+> there is a PLATE… It is exact where it is exact… Its precondition is
+> knowable IN ADVANCE… It fails honestly."*
+
+A model is a per-frame guess, and S-6's warning is about exactly what a
+per-frame guess does to a moving picture: a flickering edge and a hand
+that disappears on the beat. A plate is arithmetic against a still of the
+same room, and its failure mode is knowable before anybody goes on air.
+
+So the two keys offered are the two the brief itself ranks — **chroma when
+there is a green screen, which it calls the higher-quality path, and the
+measured plate otherwise.** When there is neither there is no matte, and
+the studio says so in a sentence naming both of the two things to do,
+rather than greying a swatch. A disabled control teaches somebody the
+feature is broken.
+
+### A plate can be taken of a guest
+
+Studio Two takes one before a performance; a broadcast has to take one
+while it is happening. `takePlate` is the same measurement from a
+`<video>`: the same sixteen frames, the same reduction to 160×90, and the
+same per-pixel standard deviation over time — `noiseFrom`, which both
+paths now call, because a studio that promised a clean key and a render
+that did not deliver one would be two answers to one question.
+
+**It works on a guest** because their camera is already decoded in this
+browser. *"Ask them to step out of shot and press Take plate"* is the whole
+procedure: nothing is uploaded, and nothing of their room is stored
+anywhere but the page.
+
+Taken from the mixer's own detached `<video>` rather than a second element
+on the same stream, which would be a second decode of the same bytes.
+
+### The thumbnails are the sets
+
+`SPACE_SWATCHES` took each look's `top` colour and painted a rectangle of
+it, so Recording Studio and Night Studio were two near-identical dark
+greys and Beach and Mountain two pale blues. The information that tells
+them apart — the light, the band, the vignette — was thrown away to make
+the swatch. That is why the brief calls them decorative buttons.
+
+`paintSpace` runs the same five operations the shader runs, at 96×54. A
+person choosing Concert Stage sees the purple pool and the stage lip, and
+that is what they get on the air. It is not an approximation of the set;
+it **is** the set at a smaller size — which is only possible because §4
+draws these rather than licensing photographs of them.
+
+Measured in the browser: **8 to 15 distinct tones** per thumbnail where a
+flat swatch has one.
+
+### Three shelves, one open, one person at a time
+
+Eleven thumbnails at a readable size is four hundred pixels of a
+three-hundred-pixel column. One shelf at a time is the same library in a
+hundred, and the shelf is named — *Studio / Performance / Places*, the
+brief's own three.
+
+Four people × four controls is a spreadsheet; a person picker at the top
+and one set of controls under it is a **channel strip**, which is what a
+desk has always used for this shape of problem. Each row in the picker
+carries its own answer, so the operator does not have to click through
+four people to find the one still sitting in their kitchen — and a row
+whose set cannot be drawn says so in amber.
+
+### The fifth time the desk strip clipped
+
+Adding Media and Set made eight desks in a 328-pixel column. The comment
+above `Strip` is the history of one clip fixed four times, and every fix
+was a way of making the labels smaller. Eight do not fit at any legible
+size, so a fifth shrink would produce eight stubs instead of one.
+
+**It wraps.** A segmented control with two rows is still a segmented
+control; a row of `CAM… GUE… SCR…` is not a control at all.
+
+### Verified in the browser, against the author's own channel
+
+* **The house set was read.** With nothing chosen in the panel, the person
+  row already said **Concert Stage** — from `channel.identity.spaceId`,
+  the field that had never reached a pixel.
+* **Before a plate:** *"You is going out in their own room until there is
+  something to separate them from it."*
+* **The plate measured the room** and returned the real verdict —
+  *"Usable. Edges may soften where you move fast — more light on you than
+  on the wall behind you is the fix."*
+* **After:** the warning was replaced by *"Composited into the programme
+  feed, not just this preview"*, and the armed preview — which is
+  `mixer.stream`, the canvas the encoder reads — showed the camera keyed
+  onto the Concert Stage, with its purple pool and its stage lip.
+* **The desk strip** read as two rows of four, every label whole.
+
+The channel was restored from a copy taken first.
+
+### What §26 and §27 still owe
+
+* **Per-person controls exist; a second person has not been composited in
+  a live run.** The path is the same one — the mixer draws each source
+  through the compositor in turn — but what has been seen on screen is one
+  person. Naming that is cheaper than implying otherwise.
+* **§27's virtual set is still a background.** A `SpaceLook` is a wash, a
+  light, a band and grain. Presenter positions exist (`LAYOUTS`) and
+  programme graphics exist (`marksFor`); the desk, the screens, the logos
+  and a lower-third region the set owns do not. That is the next item and
+  it builds on this compositor, which is the order the brief sets.
+* **And the server-side half.** This composites the LIVE canvas. A
+  rendered export still goes through `compose.ts`, which has always done
+  this properly — but an audio item on air (C-16) and a virtual set in a
+  recorded programme both need the same treatment in the render path.
