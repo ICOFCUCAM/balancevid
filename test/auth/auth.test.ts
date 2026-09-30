@@ -142,14 +142,30 @@ describe('what the holder of a Take link may reach', () => {
    * THE METHOD IS PART OF THE RULE, which this product learned from a
    * real hole: a path-only allowance on interventions also answered
    * DELETE. A participant may say they are recording, begin a
-   * submission and send its bytes — and nothing else.
+   * submission, send its bytes, and throw away a recording they have
+   * not sent — and nothing else.
    */
-  it('lets them record and submit, and nothing else', () => {
+  it('lets them record, submit and discard, and nothing else', () => {
     expect(mayBePublic(`/api/take/${LINK}`, 'POST')).toBe(true);
     expect(mayBePublic(`/api/take/${LINK}/submissions`, 'POST')).toBe(true);
     expect(mayBePublic(`/api/take/${LINK}/submissions/sub_1`, 'POST')).toBe(true);
     expect(mayBePublic(`/api/take/${LINK}/submissions/sub_1`, 'PUT')).toBe(true);
-    for (const method of ['DELETE', 'PATCH']) {
+    /*
+     * THE DELETE IS ONE PATH AND ONE THING.  [TAKE-APP T4]
+     *
+     * "Take 3 doesn't have to reach the server at all if they delete
+     * it locally" — it does reach it, in segments, so discarding is
+     * an explicit act. It is added as its OWN rule rather than by
+     * loosening one, and it reaches a recording's segments and
+     * nothing else; the route then refuses one already sent, because
+     * what a performer may undo is their own decision not yet acted
+     * on, never a producer's. [D-25]
+     */
+    expect(mayBePublic(`/api/take/${LINK}/submissions/sub_1`, 'DELETE'))
+      .toBe(true);
+    expect(mayBePublic(`/api/take/${LINK}`, 'DELETE')).toBe(false);
+    expect(mayBePublic(`/api/take/${LINK}/submissions`, 'DELETE')).toBe(false);
+    for (const method of ['PATCH']) {
       expect(mayBePublic(`/api/take/${LINK}`, method), method).toBe(false);
       expect(mayBePublic(`/api/take/${LINK}/submissions/sub_1`, method), method)
         .toBe(false);
