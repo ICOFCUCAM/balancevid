@@ -850,11 +850,114 @@ tests its own pattern, because a regex that matches nothing passes an
 
 ---
 
+## The tenth decision: the building works on a phone, the studios do not
+
+*"No phone layout"* was in this file for a year, under **What is
+deliberately not done**, with a reason that is still correct: a control
+room narrowed proportionally is six unusable panels, and a broadcast desk
+is operated at a desk.
+
+That reason is about the **studios**. It was applied to the whole product,
+and the part of the product it was never true of is the part everybody
+meets first — the way in, the three doors, and what you have already made.
+None of that is a desk surface. The Take App has been a phone surface since
+it shipped, and the three room pages were written as one column with a max
+width and needed nothing.
+
+So the line moves to where the argument actually falls: **the building is
+responsive, the studios are not.** `layout.test.ts` holds that boundary by
+name, so widening it is a decision somebody has to take rather than a file
+somebody edits.
+
+### What was actually wrong
+
+Not "it looked cramped". A measurement at 412px found that the home page
+**did not scroll horizontally** and the account menu, the runtime pill and
+half the recent-work table were outside the viewport anyway: the building
+is `height: 100dvh; overflow: hidden` around a two-column grid. Content
+that is small is a compromise. Content you cannot reach is missing.
+
+The three rooms measured clean at the same width — no overflow, no
+horizontal scroll — which is what kept this change small.
+
+### The cause, four times over
+
+The breakpoints existed. They could not reach the layout, because the
+layout was **inline**:
+
+| What | Was | Now |
+| --- | --- | --- |
+| The building's two columns | `gridTemplateColumns` inline | `.building` |
+| The hero's two columns | `gridTemplateColumns` inline | `.hero-grid` |
+| The rail's direction | `flexDirection: 'column'` inline | `.building-rail` |
+| A destination's second line | `display: 'block'` inline | `.rail-under` |
+| A room row's columns | a **variable**, inline | `.room-row` |
+
+Each time the rule was written, the build passed, and nothing happened.
+That is the worst shape a bug can take, because it reads as though the rule
+is wrong rather than unreachable — and the third one was not even visibly
+wrong: with `flex-direction: column` still winning, the nav's box was 121px
+tall with eight links laid out down to 421px, so every link below the first
+sat **outside its own nav and behind the page**. A hit test found
+`building-body` at the centre of "Studio Two". Present, measurable, and not
+clickable.
+
+`--rail-width` was the same illness in the other direction: set under a
+breakpoint since the breakpoints were written, **read by nothing**, while
+the width that shipped was a literal two files away. And the rule it was
+set by said 240px against a rail that was 236px — so had anything read it,
+it would have made the rail *wider* below 1280, the opposite of the comment
+above it. Wiring a dead token means choosing what it was always trying to
+do; it is 216px now.
+
+**The rule this leaves:** an inline grid must be one that needs no help.
+`repeat(auto-fit, minmax(…))` reflows by itself and is fine inline. A fixed
+column pair is not, and belongs in `surfaces.css`. `layout.test.ts` enforces
+it across the building — and matches a variable as well as a literal,
+because the first version of that rule sweeping only string literals
+declared the building clean while leaving the one grid that was still
+broken.
+
+### What a phone gets
+
+| At | What changes |
+| --- | --- |
+| ≤1280px | the rail narrows to 216px — the rule that was always there, now wired |
+| ≤1000px | the destinations and quick actions stop being *beside* the work and go under it |
+| ≤760px | one column; the page scrolls instead of a box inside it; the rail's links become a strip that scrolls sideways |
+
+At ≤760 the rail keeps every destination rather than hiding behind a
+drawer — a drawer is a component, a state and a focus trap, and a row of
+the same links scrolled sideways is none of those. The storage meter, the
+second line of each destination, the runtime pill and three of the six
+recent-work columns go, because each is either ambient or one tap away on
+the thing itself. Turning the *nav* into the strip was the first attempt
+and it put the wordmark, the links and the storage meter side by side; the
+links are the strip, and the wordmark sits above them.
+
+Measured at 1500, 1200, 980, 800, 760, 600, 412 and 360: no horizontal
+scroll and nothing outside the viewport at any of them, and the desk is
+byte-for-byte what it was — rail 236px, hero 232+654, body 888+306, six
+table columns, the pill and the meter both showing.
+
+### One thing the stacking broke, and it was not a width
+
+`edit-identity` is `position: absolute; bottom: 12` on the hero — which is
+the same thing as "on the artwork" only while the hero is one row 148px
+tall. Stacked, it landed on top of **Open Online TV**: a link over a
+button, both clickable, neither obviously the one you meant. It is inside
+the artwork now, in both layouts, with the decorative layers keeping their
+`aria-hidden` and the link not inheriting it.
+
+---
+
 ## What is deliberately not done
 
-- **No phone layout.** There is a floor for laptops and `pointer: coarse`
-  gets larger targets, but a broadcast desk is operated at a desk. Pretending
-  otherwise would mean six unusable panels.
+- **No phone layout — for the STUDIOS.** A broadcast desk is operated at a
+  desk, and a control room narrowed proportionally is six unusable panels.
+  That still holds and nothing about the deep studios has changed.
+  **The building is a different question**, and it was answered on the wrong
+  side of this line for a year — see "the tenth decision" above.
 - **No light theme** in the application. The published article and
   interactive player have one, and declare the speaker identities darkened
   for white; the studios do not.

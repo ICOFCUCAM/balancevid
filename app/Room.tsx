@@ -158,9 +158,6 @@ export function RoomList({
    * information.
    */
   const pictures = rows.some((one) => one.poster !== null);
-  const columns = pictures
-    ? '56px minmax(0, 1fr) 96px 64px 96px'
-    : 'minmax(0, 1fr) 96px 64px 96px';
   return (
     <>
       <div className="row" style={{
@@ -179,12 +176,20 @@ export function RoomList({
       ) : (
         <div data-testid="room-list" className="panel" style={{ padding: 0 }}>
           {rows.map((one, index) => (
+            /*
+              * THE ROW'S COLUMNS ARE IN CSS, and this one was the last
+              * inline grid in the building to move — it survived a
+              * sweep because its value was a VARIABLE rather than a
+              * string, which the rule's matcher did not look at. A
+              * browser run at 412px found what that cost: five columns
+              * needing 256px of fixed width left about fifty for the
+              * title, so every performance in the list read "2 takes"
+              * with no name at all.
+              */
             <Link key={one.id} href={one.href} data-testid="room-row"
+                  className={pictures ? 'room-row room-row-art' : 'room-row'}
                   style={{
-                    display: 'grid', alignItems: 'center', gap: 12,
-                    gridTemplateColumns: columns,
-                    padding: '10px 12px', textDecoration: 'none',
-                    color: 'inherit',
+                    textDecoration: 'none', color: 'inherit',
                     borderTop: index === 0 ? 'none'
                       : 'var(--border) solid var(--line)',
                   }}>
@@ -237,8 +242,8 @@ export function RoomList({
                 }}>{one.under}</span>
               </span>
               {one.facts.map((fact, column) => (
-                <span key={column} className="small muted"
-                      data-testid="room-fact"
+                <span key={column} className="small muted room-fact"
+                      data-testid="room-fact" data-fact={column}
                       style={{
                         whiteSpace: 'nowrap',
                         fontVariantNumeric: 'tabular-nums',

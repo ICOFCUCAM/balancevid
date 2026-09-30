@@ -206,10 +206,279 @@ hr, .rule {
  * belongs on a phone. A channel is operated at a desk. [CHANNEL §9]
  */
 
+/* ---- the building ----------------------------------------------------
+ *
+ * THE HOME PAGE'S LAYOUT USED TO BE THREE INLINE `gridTemplateColumns`
+ * IN `Workspace.tsx`, and that is why the breakpoints below could not
+ * help it: an inline style is not a stylesheet, and a media query has
+ * nothing to say about one. `--rail-width` was set under a breakpoint
+ * for a year and READ BY NOTHING — the width that shipped was a literal
+ * 236px two files away.
+ *
+ * What a measurement at 412px actually found was not a cramped page. It
+ * was `height: 100dvh; overflow: hidden` around a two-column grid: the
+ * account menu, the runtime pill and half the recent-work table were
+ * outside the viewport with no way to scroll to them. Content that is
+ * merely small is a compromise; content you cannot reach is missing.
+ *
+ * THE THREE ROOMS NEEDED NOTHING. `/c`, `/p` and `/t` measured clean at
+ * 412px — no overflow, no horizontal scroll — because `Room.tsx` was
+ * written as one column with a max width. Only the building was broken,
+ * which is what kept this small.
+ */
+.building {
+  display: grid;
+  grid-template-columns: minmax(0, var(--rail-width)) minmax(0, 1fr);
+  height: 100dvh;
+  overflow: hidden;
+}
+
+/*
+ * The rail down the side of the building.
+ *
+ * Its direction and its edge are here rather than inline so that the
+ * phone rule below can turn it into a strip — which is the whole reason
+ * any of this moved.
+ */
+.building-rail {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: var(--border) solid var(--ink-750);
+}
+
+/* The destinations, down the rail. */
+.building-rail-links {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* What a destination holds, under its name. */
+.rail-under {
+  display: block;
+  font-size: var(--text-2xs);
+  color: var(--ink-400);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/*
+ * One thing made in a room, as a row.
+ *
+ * The title takes what the three facts leave, and `minmax(0, 1fr)` is
+ * what lets it — a grid item will not shrink below its own content
+ * without it, which this project has paid for twice.
+ */
+.room-row {
+  display: grid;
+  align-items: center;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) 96px 64px 96px;
+  padding: 10px 12px;
+}
+
+/* With a picture, where a room's rows have one. */
+.room-row-art { grid-template-columns: 56px minmax(0, 1fr) 96px 64px 96px; }
+
+/* The region that scrolls under the fixed bar. */
+.building-body {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 26px 24px 40px;
+}
+
+/*
+ * The channel at the top of the page: its picture, and what is on it.
+ *
+ * INLINE HERE TOO, AND FOR THE SAME REASON IT HAD TO MOVE: a 232px art
+ * column against `1fr` leaves 146px for the content on a phone, and the
+ * button that opens the channel is 158px. It did not overflow the page
+ * — it overflowed its own cell, which is why it survived one round of
+ * fixes that were all about the page.
+ */
+.hero-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 232px) minmax(0, 1fr);
+}
+
+/*
+ * SOMETHING THAT IS ONLY THERE WHEN THERE IS ROOM.
+ *
+ * `display: contents` is the whole trick: the wrapper is not a box, so
+ * nothing about the layout changes while it is showing, and `none`
+ * hides the subtree regardless of what the child's own inline style
+ * says about `display`. That matters in this codebase specifically,
+ * where components style themselves inline and a stylesheet rule
+ * otherwise loses to them without `!important`.
+ */
+.wide-only { display: contents; }
+
+/* The work, and the panels beside it. */
+.building-columns {
+  display: grid;
+  gap: 22px;
+  align-items: start;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 306px);
+}
+
+:root { --rail-width: 236px; }
+
 @media (max-width: 1280px) {
-  /* The rails narrow before the programme does. */
-  :root { --rail-width: 240px; }
+  /*
+   * The rails narrow before the programme does.
+   *
+   * THIS RULE SAID 240px AND THE RAIL WAS 236px, so for as long as it
+   * existed it would have made the rail four pixels WIDER below 1280 —
+   * the opposite of what it says — if anything had read it. Nothing did.
+   * Wiring the token means choosing what it was always trying to do.
+   */
+  :root { --rail-width: 216px; }
   .shell-bar { padding-left: var(--space-5); padding-right: var(--space-5); }
+}
+
+/*
+ * ---- one column, and everything reachable ----------------------------
+ *
+ * BELOW THIS THE PANELS BESIDE THE WORK STOP BEING BESIDE IT. 306px of
+ * destinations and quick actions against whatever is left is not two
+ * columns, it is one column and a margin — and the work is the one that
+ * loses. They go under it, in the order they are already written.
+ */
+@media (max-width: 1000px) {
+  .building-columns { grid-template-columns: minmax(0, 1fr); }
+}
+
+/*
+ * AND BELOW THIS THE BUILDING IS NOT A FRAME AROUND A SCROLL REGION.
+ *
+ * A phone has no room for a rail beside anything, and a fixed-height box
+ * with its own inner scroller fights the browser's — two scrollbars, an
+ * address bar that never hides, and a rubber band that moves the wrong
+ * thing. The page scrolls, the way a page does.
+ *
+ * THE RAIL BECOMES A STRIP RATHER THAN DISAPPEARING. Hiding it would
+ * leave a phone with no way to any other room, and a drawer is a
+ * component and a state and a focus trap. A row of the same links,
+ * scrolled sideways, is none of those and keeps every destination one
+ * tap away.
+ *
+ * THIS IS NOT "THE STUDIOS ON A PHONE". `DESIGN.md` says a broadcast
+ * desk is operated at a desk and that still holds: what is made usable
+ * here is the BUILDING — the way in, the three doors and what you have
+ * made. A control room narrowed proportionally is still six unusable
+ * panels.
+ */
+@media (max-width: 760px) {
+  .building {
+    grid-template-columns: minmax(0, 1fr);
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
+  }
+
+  /*
+   * THE RAIL STAYS A COLUMN AND ITS LINKS BECOME THE STRIP.
+   *
+   * Turning the NAV into a row was the first attempt and it put the
+   * brand, the links and the storage meter side by side — 183px of
+   * wordmark against a 229px shelf for eight destinations. What a phone
+   * wants is the brand on one line and the destinations scrolling under
+   * it, which is the shape every mobile app that has more tabs than fit
+   * has arrived at.
+   */
+  .building-rail {
+    border-right: none;
+    border-bottom: var(--border) solid var(--ink-750);
+  }
+
+  .building-rail-links {
+    flex: 0 0 auto;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-2);
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 0 var(--space-4) var(--space-3);
+    /* A strip of links scrolls without a visible track on a phone. */
+    scrollbar-width: none;
+  }
+  .building-rail-links::-webkit-scrollbar { display: none; }
+
+  /* Its separator, its storage meter and the second line of each
+     destination are furniture at this width. */
+  .building-rail hr,
+  .building-rail [data-testid='storage'],
+  .building-rail [data-rail-under] { display: none; }
+
+  .building-rail [data-testid='rail-link'] {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  /* The wordmark is one line, not a block with its own padding. */
+  .building-rail > .row:first-child { padding: 12px var(--space-4); }
+
+  /*
+   * A ROOM'S ROWS KEEP THE NAME AND WHEN, AND DROP THE MIDDLE.
+   *
+   * 96 + 64 + 96 of fixed columns against a title that takes what is
+   * left is 256px of a 412px screen, and a browser run showed the
+   * result: every performance read "2 takes" with the name squeezed to
+   * nothing. The two facts that go — where a source came from, how
+   * long it runs — are on the thing itself one tap away. What is left
+   * is what you are scanning for and how recently you touched it.
+   */
+  .room-row { grid-template-columns: minmax(0, 1fr) 84px; }
+  .room-row-art { grid-template-columns: 56px minmax(0, 1fr) 84px; }
+  .room-fact[data-fact='0'],
+  .room-fact[data-fact='1'] { display: none; }
+
+  .building-body { overflow-y: visible; padding: 18px 16px 40px; }
+
+  /*
+   * THE RUNTIME PILL GOES, AND IT IS NOT LOST. "Running on Self hosted"
+   * is ambient — it answers a question nobody asks twice — and the same
+   * fact has a whole panel of its own further down the page. On a phone
+   * it was the widest thing in a bar that also has to hold a search
+   * field, a bell and an account.
+   */
+  .wide-only { display: none; }
+
+  /*
+   * SIX COLUMNS DO NOT FIT AND THREE OF THEM ARE NOT WHY ANYBODY IS
+   * LOOKING.
+   *
+   * Studio, State and Length need 126px each, which is the whole of the
+   * 548px minimum that pushed this table off a 412px screen. What a
+   * person does with this list on a phone is find something and open
+   * it, so the title stays, when it was last touched stays, and the
+   * menu stays. The three that go are all readable one tap away, on the
+   * thing itself.
+   *
+   * THE COLUMNS ARE HIDDEN RATHER THAN THE TABLE SCROLLED. A table that
+   * scrolls sideways inside a page that scrolls down is two gestures
+   * arguing, and the second one is always discovered by accident.
+   */
+  [data-testid='recent-work'] th:nth-child(2),
+  [data-testid='recent-work'] td:nth-child(2),
+  [data-testid='recent-work'] th:nth-child(3),
+  [data-testid='recent-work'] td:nth-child(3),
+  [data-testid='recent-work'] th:nth-child(5),
+  [data-testid='recent-work'] td:nth-child(5) { display: none; }
+
+  /*
+   * AND THE CHANNEL'S PICTURE GOES ABOVE WHAT IS ON IT rather than
+   * beside it. Two columns of 232px and whatever is left is not a hero
+   * on a phone; it is a picture with a margin.
+   */
+  .hero-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
 @media (max-width: 1040px) {
