@@ -22,11 +22,22 @@ import {
 } from '../../Menu.js';
 import { useLiveEncoder } from './useLiveEncoder.js';
 import GuestGrid from './GuestGrid.js';
+import MediaPlayerPanel, { MediaPreview } from './MediaPlayer.js';
 import { useBroadcastGuests } from './useBroadcastGuests.js';
 import { NO_TRACKS, useTrackStates } from './useTrackStates.js';
 import {
   type GuestFeed, type GuestReading, guestCount, readGuests,
 } from '../../../src/domain/guestGrid.js';
+/*
+ * `clock` under another name: this file already has one, and it answers a
+ * different question — what time it is, against what length a thing is.
+ * Two functions called `clock` in one control room is how a schedule comes
+ * to print a duration where a start time belongs.
+ */
+import {
+  type PlayableItem, type PlayerState, IDLE,
+  act as playerAct, clock as runsFor, may as playerMay, playerSays, search,
+} from '../../../src/domain/mediaPlayer.js';
 import { arrangementFor, useBroadcastMixer } from './useBroadcastMixer.js';
 import { useFeedLevels } from './useFeedLevels.js';
 import AnswersTab from './AnswersTab.js';
@@ -107,8 +118,8 @@ const STEP_MS = 30 * MINUTE;
 const BEHIND_MS = 15 * MINUTE;
 
 type RailTab = 'playlist' | 'library' | 'schedules';
-type DeskTab = 'camera' | 'guests' | 'screens' | 'graphics' | 'audio'
-  | 'answers';
+type DeskTab = 'camera' | 'guests' | 'screens' | 'media' | 'graphics'
+  | 'audio' | 'answers';
 type ScheduleView = 'timeline' | 'list' | 'calendar';
 
 interface LibraryItem {
@@ -120,6 +131,17 @@ interface LibraryItem {
   planHash: string;
   bytes: number;
   madeAt: string;
+  /**
+   * What a song is, and what everything else is too.  [§25]
+   *
+   * *"A song should simply be a Library media item with title,
+   * artist/owner, duration, audio/video type, thumbnail/artwork."* Four
+   * of the five are these three fields and `Thumb`, which already draws
+   * a poster frame from any render. There is no songs table.
+   */
+  durationMs?: number;
+  kind: 'video' | 'audio' | 'image';
+  artist?: string;
 }
 
 /** A stretch of the timeline: one thing, on air, from here to there. */
@@ -223,6 +245,17 @@ export default function ChannelStudio({
    * property of the station. [D-19]
    */
   const [solo, setSolo] = useState<string | null>(null);
+  /**
+   * THE MEDIA PLAYER'S SELECTION, and nothing else.  [§25]
+   *
+   * A key into the library and how far along the road to air it has got.
+   * Not written to the channel and not a copy of anything: what is loaded
+   * at 19:42 is no more a property of the station than which guest is in
+   * shot. Taking it live is what reaches the document, through the
+   * roll-in the channel already had. [D-18]
+   */
+  const [player, setPlayer] = useState<PlayerState>(IDLE);
+  const [find, setFind] = useState('');
   /*
    * WHICH camera and WHICH microphone. [§23]
    *
@@ -483,6 +516,53 @@ export default function ChannelStudio({
   const takeGuest = useCallback((id: string) => {
     setSolo((was) => (was === id ? null : id));
   }, []);
+
+  /* ---- THE MEDIA PLAYER.  [§25] --------------------------------------- *
+   *
+   * The same rows the left rail's Library tab lists — the same fetch, the
+   * same objects — turned into what a picker needs. A second listing would
+   * be a second answer to "what is there to play". [D-19] */
+  const playable = useMemo<PlayableItem[]>(() => library.map((item) => ({
+    key: sourceKey(item.source),
+    title: item.title,
+    ...(item.artist ? { artist: item.artist } : {}),
+    ...(item.durationMs !== undefined ? { durationMs: item.durationMs } : {}),
+    kind: item.kind,
+  })), [library]);
+  const cued = useMemo(
+    () => library.find((item) => sourceKey(item.source) === player.key) ?? null,
+    [library, player.key]);
+  /*
+   * A CUED ITEM THAT HAS LEFT THE LIBRARY IS EJECTED, for the same reason
+   * a solo on a departed guest is released: taking it would put a
+   * reference to a file nobody can read on the air. [§4's missing keys]
+   */
+  useEffect(() => {
+    if (player.key && library.length > 0 && !cued) setPlayer(IDLE);
+  }, [player.key, library.length, cued]);
+  /*
+   * WHAT THE PREVIEW MONITOR IS SHOWING, when the player has something.
+   *
+   * `taken` is deliberately not here: from the moment it goes to air the
+   * channel's roll-in owns it, Program Output shows it, and a preview
+   * still playing the same file would be the same thing on two monitors
+   * a second apart. [§25]
+   */
+  const mediaCued = (player.phase === 'loaded' || player.phase === 'playing')
+    && cued
+    ? {
+      key: player.key!, title: cued.title, kind: cued.kind,
+      ...(cued.artist ? { artist: cued.artist } : {}),
+      ...(cued.durationMs !== undefined ? { durationMs: cued.durationMs } : {}),
+    } satisfies PlayableItem
+    : null;
+  const cuedUrl = cued ? urlFor(cued.source) : null;
+
+  const takeMedia = useCallback(() => {
+    if (!cued) return;
+    void patch({ action: 'roll-in', source: cued.source });
+    setPlayer((was) => playerAct(was, 'take'));
+  }, [cued, patch]);
   const emergency = Boolean(channel.emergency);
   /** Whether a stranger with the link can watch this. [§17] */
   const published = Boolean(
@@ -818,12 +898,26 @@ export default function ChannelStudio({
                 itemsFor={(item) => [
                   {
                     label: 'Add to the loop',
-                    hint: 'Fifteen minutes, adjustable afterwards',
+                    /*
+                     * ITS OWN LENGTH, NOW THAT THE LIBRARY KNOWS IT.
+                     *
+                     * Fifteen minutes was never a choice, it was the
+                     * absence of one: `BroadcastItem` had no duration,
+                     * so every slot was the same guess and an author
+                     * scheduling a 34-second ident got a quarter of an
+                     * hour of it. A file that still cannot be measured
+                     * keeps the old default, and the hint says which of
+                     * the two happened. [§25, C-14]
+                     */
+                    hint: item.durationMs
+                      ? `${runsFor(item.durationMs)}, adjustable afterwards`
+                      : 'Fifteen minutes \u2014 this one could not be measured',
                     onSelect: () => {
                       setPicked(sourceKey(item.source));
                       void patch({
                         action: 'rotate', source: item.source,
-                        durationMs: 15 * MINUTE, title: item.title,
+                        durationMs: item.durationMs ?? 15 * MINUTE,
+                        title: item.title,
                       });
                       setRailTab('playlist');
                     },
@@ -1194,14 +1288,25 @@ export default function ChannelStudio({
                     * while the other said it in a pill lying on the
                     * picture. Same object, same corner, same words.
                     */
-                  right={armed
-                    ? <Status testid="preview-mode" mode="armed"
-                              tone="is-armed" text="Armed" />
-                    : upNext
-                      ? <Status testid="preview-mode" mode="queued"
-                                tone="is-off" text="Next" />
-                      : <Status testid="preview-mode" mode="empty"
-                                tone="is-off" text="Empty" />}
+                  /*
+                   * A CUED ITEM OUTRANKS AN ARMED CAMERA, because preview
+                   * is *what you are about to cut to* and the operator
+                   * has just said which. The camera is still armed and
+                   * still one press from the air; it is simply not what
+                   * is being looked at. Taken or ejected, this falls
+                   * back to the camera and then to the schedule. [§25, §6]
+                   */
+                  right={mediaCued
+                    ? <Status testid="preview-mode" mode="media"
+                              tone="is-armed" text="Media" />
+                    : armed
+                      ? <Status testid="preview-mode" mode="armed"
+                                tone="is-armed" text="Armed" />
+                      : upNext
+                        ? <Status testid="preview-mode" mode="queued"
+                                  tone="is-off" text="Next" />
+                        : <Status testid="preview-mode" mode="empty"
+                                  tone="is-off" text="Empty" />}
                 />
                 <div style={{
                   position: 'relative', flex: '1 1 auto', minHeight: 96,
@@ -1215,7 +1320,17 @@ export default function ChannelStudio({
                     * the whole of the ARM → TAKE discipline, and the reason
                     * the studio has two pictures rather than one. [§6]
                     */}
-                  {armed ? (
+                  {mediaCued && cuedUrl ? (
+                    <MediaPreview
+                      item={mediaCued}
+                      url={cuedUrl}
+                      playing={player.phase === 'playing'}
+                      station={channel.identity?.bug?.text ?? channel.name}
+                      {...(channel.identity?.ink ? { ink: channel.identity.ink } : {})}
+                      onEnded={() => setPlayer((was) => playerAct(was, 'pause'))}
+                      onTime={(atMs) => setPlayer((was) => ({ ...was, atMs }))}
+                    />
+                  ) : armed ? (
                     <video
                       autoPlay muted playsInline data-testid="armed-preview"
                       ref={(element) => {
@@ -1240,8 +1355,10 @@ export default function ChannelStudio({
                     overflow: 'hidden', textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap',
                   }}>
-                    {armed ? 'The live studio — armed'
-                      : upNext?.title ?? '—'}
+                    {mediaCued
+                      ? playerSays(player, () => mediaCued.title)
+                      : armed ? 'The live studio — armed'
+                        : upNext?.title ?? '—'}
                   </span>
                 </div>
               </Frame>
@@ -1262,6 +1379,9 @@ export default function ChannelStudio({
                   channel={channel} on={on} camera={camera} guests={guests.sources}
                   guestReadings={guestReadings} guestsStaged={guestFeeds}
                   solo={solo} onSolo={takeGuest}
+                  player={player}
+                  {...(cued ? { cuedTitle: cued.title, cuedSource: cued.source } : {})}
+                  onMedia={() => setDeskTab('media')}
                   library={library} nameOf={nameOf} studioOneId={studioOneId}
                   studioTwoId={studioTwoId} onAir={onAir}
                   onTake={(source) => void patch({ action: 'roll-in', source })}
@@ -1369,7 +1489,8 @@ export default function ChannelStudio({
                     }
                     void patch({
                       action: 'add-to-block', blockId: block.id,
-                      source: pickedItem.source, durationMs: 15 * MINUTE,
+                      source: pickedItem.source,
+                      durationMs: pickedItem.durationMs ?? 15 * MINUTE,
                       title: pickedItem.title,
                     });
                   }}
@@ -1479,6 +1600,8 @@ export default function ChannelStudio({
               { id: 'camera', label: 'Camera' },
               { id: 'guests', label: 'Guests' },
               { id: 'screens', label: 'Screens' },
+              /* The library, as a switcher source. Tile 05 opens it. [§25] */
+              { id: 'media', label: 'Media' },
               { id: 'graphics', label: 'Graphics' },
               { id: 'audio', label: 'Audio' },
               /* The queue: questions sent to phones, and what came
@@ -1584,6 +1707,18 @@ export default function ChannelStudio({
                 onRollOut={() => void patch({ action: 'roll-in', source: null })}
                 onShow={(source) => void patch({ action: 'roll-in', source })}
                 share={share}
+              />
+            )}
+
+            {deskTab === 'media' && (
+              <MediaPlayerPanel
+                items={playable} state={player} query={find} onQuery={setFind}
+                onAir={onAir}
+                onLoad={(key) => setPlayer((was) => playerAct(was, 'load', key))}
+                onPlay={() => setPlayer((was) => playerAct(was, 'play'))}
+                onPause={() => setPlayer((was) => playerAct(was, 'pause'))}
+                onTake={takeMedia}
+                onEject={() => setPlayer(IDLE)}
               />
             )}
 
@@ -3012,12 +3147,22 @@ function LibraryRail({
             index={index + 1}
             source={item.source}
             title={item.title}
-            subtitle={`${studioOf(item.source)} · `
-              + `${(item.bytes / 1_000_000).toFixed(0)} MB`
+            /*
+             * MEGABYTES WERE WHAT IT HAD, not what a scheduler wants.
+             * *"[ Song — Ancient Days   04:04 ]"* — a person building an
+             * evening needs the length and whose it is; the size on disk
+             * is a fact about the machine. It is kept where it belongs,
+             * in the menu for a row, and out of the line a person reads
+             * down. [§25, C-14]
+             */
+            subtitle={[
+              item.artist ?? studioOf(item.source),
+              item.kind === 'audio' ? 'Audio' : null,
               /* The count that proves the rule, on the thing it is about:
                  scheduled six times, one file. */
-              + (times > 0 ? ` · scheduled ${times}×` : '')}
-            duration=""
+              times > 0 ? `scheduled ${times}×` : null,
+            ].filter(Boolean).join(' · ')}
+            duration={item.kind === 'image' ? '' : runsFor(item.durationMs)}
             chosen={picked === key}
             testid="library-item"
             dataset={{ 'data-source-key': key } as Record<string, string>}
@@ -3172,8 +3317,14 @@ function SchedulesRail({
 function MultiView({
   channel, on, camera, guests, guestReadings, guestsStaged, solo,
   library, nameOf, studioOneId, studioTwoId, onAir,
-  onTake, onBackToRoom, onGraphics, onSolo,
+  player, cuedTitle, cuedSource,
+  onTake, onBackToRoom, onGraphics, onSolo, onMedia,
 }: {
+  /** What the media player is doing, so tile 05 can say it. [§25] */
+  player: PlayerState;
+  cuedTitle?: string;
+  cuedSource?: ProgrammeSource;
+  onMedia: () => void;
   channel: Channel;
   on: OnAir;
   camera: MediaStream | null;
@@ -3319,15 +3470,29 @@ function MultiView({
         ? (onAir ? 'Roll it in over the live feed' : 'Only while you are live')
         : 'Nothing finished in Studio One yet',
     },
+    /*
+     * 05 IS THE PLAYER, NOT THE SCHEDULE.  [§25, C-14]
+     *
+     * It read `scheduled ? nameOf(scheduled) : 'Idle'`, so "Idle" meant
+     * "nothing is scheduled" on a tile called Media Player, and clicking
+     * it rolled in whatever the clock had reached — which is what the
+     * PROGRAM button beside it already does. There was no way to load
+     * anything, which is the architectural gap the brief names.
+     *
+     * Now it says what the PLAYER is doing, shows what is cued, and
+     * clicking it opens the picker. Taking a thing to air is the
+     * transport's own red control, one press away and clearly labelled,
+     * rather than a side effect of clicking a monitor.
+     */
     {
-      n: 5, label: 'Media Player', sub: scheduled ? nameOf(scheduled) : 'Idle',
+      n: 5, label: 'Media Player',
+      sub: playerSays(player, () => cuedTitle,
+        scheduled ? nameOf(scheduled) : undefined),
       live: playerOnProgram && Boolean(scheduled),
-      ...(scheduled ? { source: scheduled } : {}),
-      ...(onAir && scheduled ? { act: () => onTake(scheduled) } : {}),
-      why: scheduled
-        ? (onAir ? 'Roll the scheduled programme in over the live feed'
-          : 'Only while you are live')
-        : 'Nothing is scheduled right now',
+      ...(cuedSource ? { source: cuedSource }
+        : scheduled ? { source: scheduled } : {}),
+      act: onMedia,
+      why: 'Open the player and pick something from the Library',
     },
     {
       n: 6, label: 'Graphics',

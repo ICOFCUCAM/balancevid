@@ -18,6 +18,9 @@ import type { ProgrammeDocument, ProgrammeSource } from '../domain/channel.js';
 import { listConversations } from './repository.js';
 import { listPerformances } from './performances.js';
 import { paths } from './paths.js';
+import { factsFor } from './mediaFacts.js';
+import { type MediaKind, kindOf } from '../domain/mediaPlayer.js';
+import { isStill } from './libraryMedia.js';
 
 export interface BroadcastItem {
   /** A reference — a render, or a piece of other media. Never a copy. */
@@ -32,6 +35,31 @@ export interface BroadcastItem {
   bytes: number;
   /** When the render was made, so the newest is first. */
   madeAt: string;
+  /**
+   * HOW LONG IT IS, measured from the file and remembered beside it.
+   *
+   * The field this file's own header has always promised and never had.
+   * Absent when the file could not be measured, which is a state the
+   * studio shows as an em dash rather than as `0:00`. [§25, C-14]
+   */
+  durationMs?: number;
+  /**
+   * Whether there is a picture in it.
+   *
+   * *"A song should simply be a Library media item with… audio/video
+   * type."* Measured, never named: a `.mp4` with no video stream is a
+   * song, and a channel that put it out as a video would transmit four
+   * minutes of black. [§25]
+   */
+  kind: MediaKind;
+  /**
+   * Whose it is.
+   *
+   * A performance's `master.artist`, a conversation's `source.creator` —
+   * the person already named in the attribution block, not a new field
+   * for somebody to fill in twice. [U-21, D-19]
+   */
+  artist?: string;
 }
 
 /**
@@ -48,14 +76,16 @@ export async function broadcastLibrary(): Promise<BroadcastItem[]> {
   const conversations = await listConversations().catch(() => []);
   for (const summary of conversations) {
     items.push(...await rendersOf(
-      'conversation', summary.id, summary.title, paths.renders(summary.id)));
+      'conversation', summary.id, summary.title, paths.renders(summary.id),
+      summary.source?.creator));
   }
 
   const performances = await listPerformances().catch(() => []);
   for (const performance of performances) {
     items.push(...await rendersOf(
       'performance', performance.id, performance.title,
-      paths.performanceRenders(performance.id)));
+      paths.performanceRenders(performance.id),
+      performance.master?.artist));
   }
 
   /*
@@ -85,15 +115,44 @@ async function otherMedia(): Promise<BroadcastItem[]> {
     const file = join(paths.library(), name);
     const info = await stat(file).catch(() => null);
     if (!info) continue;
+    /*
+     * AND IT MUST BE A FILE.  [§3, §25]
+     *
+     * `decks/` lives inside the library by design (`paths.decks()`), and
+     * this loop listed it as a piece of media: a schedulable "video"
+     * called `decks`, with no duration, that would put a directory on
+     * the air. It was invisible while the rail showed megabytes — a
+     * directory has a size — and the media player's picker put it at the
+     * top of the list, which is how it was found.
+     */
+    if (!info.isFile()) continue;
     let title = assetId;
+    let artist: string | undefined;
     try {
       const sidecar = await readFile(join(paths.library(), `${assetId}.json`), 'utf8');
-      title = (JSON.parse(sidecar) as { label?: string }).label ?? assetId;
+      /*
+       * THE SIDECAR ALREADY EXISTED and already carried the label; this
+       * reads one more field out of it rather than inventing a second
+       * place for an upload's facts to live. An older upload has no
+       * `artist` and simply has none — which is true, and is different
+       * from an empty string somebody has to look at. [D-19, §25]
+       */
+      const read = JSON.parse(sidecar) as { label?: string; artist?: string };
+      title = read.label ?? assetId;
+      artist = read.artist?.trim() || undefined;
     } catch { /* an upload with no sidecar keeps its id. */ }
+    const still = isStill(name);
+    /*
+     * A STILL IS NOT PROBED. There is nothing to measure and ffprobe on
+     * every caption card in the library would be a cost for an answer
+     * that is already known: a picture has no duration of its own, which
+     * is what `stillMs` on the programme exists to say. [§3]
+     */
+    const facts = still ? null : await factsFor(file);
     found.push({
       source: {
         kind: 'media', assetId,
-        form: name.endsWith('.jpg') ? 'image' : 'video',
+        form: still ? 'image' : 'video',
       },
       title,
       document: 'other',
@@ -101,6 +160,9 @@ async function otherMedia(): Promise<BroadcastItem[]> {
       planHash: '',
       bytes: info.size,
       madeAt: info.mtime.toISOString(),
+      ...(facts ? { durationMs: facts.durationMs } : {}),
+      kind: still ? 'image' as const : kindOf(facts ?? {}),
+      ...(artist ? { artist } : {}),
     });
   }
   return found;
@@ -108,6 +170,7 @@ async function otherMedia(): Promise<BroadcastItem[]> {
 
 async function rendersOf(
   document: ProgrammeDocument, documentId: string, title: string, dir: string,
+  artist?: string,
 ): Promise<BroadcastItem[]> {
   let hashes: string[];
   try {
@@ -120,6 +183,7 @@ async function rendersOf(
     const file = join(dir, planHash, 'master.mp4');
     try {
       const info = await stat(file);
+      const facts = await factsFor(file);
       found.push({
         source: { kind: 'render', document, documentId, planHash },
         title,
@@ -128,6 +192,9 @@ async function rendersOf(
         planHash,
         bytes: info.size,
         madeAt: info.mtime.toISOString(),
+        ...(facts ? { durationMs: facts.durationMs } : {}),
+        kind: kindOf(facts ?? {}),
+        ...(artist ? { artist } : {}),
       });
     } catch { /* a render directory with no master is a render still going. */ }
   }

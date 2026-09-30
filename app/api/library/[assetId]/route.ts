@@ -1,5 +1,6 @@
 import { isOwner } from '../../../../src/auth/request.js';
 import { paths } from '../../../../src/store/paths.js';
+import { CONTAINERS, libraryFile } from '../../../../src/store/libraryMedia.js';
 import { fail, json, serveFile } from '../../../../src/web/http.js';
 import { bookingsFor, refusalFor } from '../../../../src/domain/deletion.js';
 import { listChannels } from '../../../../src/store/channels.js';
@@ -19,19 +20,16 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
   if (!(await isOwner(request))) return fail(404, 'not found');
   if (!/^[A-Za-z0-9_-]{1,128}$/.test(assetId)) return fail(404, 'not found');
   /*
-   * THREE CONTAINERS, ONE ASSET. Whichever is there is what is served: PNG
-   * for a deck's pages, which are type and must not be smeared by JPEG
-   * (§20); JPEG for a photograph somebody uploaded as an ident; MP4 for
-   * everything that moves.
+   * WHICHEVER CONTAINER IS THERE. PNG for a deck's pages, which are type
+   * and must not be smeared by JPEG (§20); JPEG for a photograph
+   * somebody uploaded as an ident; MP4 for everything that moves; and
+   * the sounds, because a song is a library item. The order and the
+   * content types are `libraryMedia`'s table rather than this route's
+   * own list — there were three such lists and they disagreed. [D-19]
    */
-  const { access } = await import('node:fs/promises');
-  const there = async (path: string) =>
-    access(path).then(() => true).catch(() => false);
-  const png = paths.libraryMedia(assetId, 'png');
-  if (await there(png)) return serveFile(request, png, 'image/png');
-  const jpg = paths.libraryMedia(assetId, 'jpg');
-  if (await there(jpg)) return serveFile(request, jpg, 'image/jpeg');
-  return serveFile(request, paths.libraryMedia(assetId, 'mp4'), 'video/mp4');
+  const found = libraryFile(assetId);
+  if (!found) return fail(404, 'not found');
+  return serveFile(request, found.path, found.container.type);
 }
 
 /**
@@ -57,10 +55,22 @@ export async function DELETE(request: Request, { params }: Params): Promise<Resp
 
   const { rm } = await import('node:fs/promises');
   const { join } = await import('node:path');
+  /*
+   * EVERY CONTAINER, from the same table the serving route reads. This
+   * removed `jpg` and `mp4` and left a `png` behind — a deck page deleted
+   * from the library stayed on disk and stayed servable — and once songs
+   * could be uploaded it would have left those too. [D-19]
+   */
   await Promise.all([
-    rm(paths.libraryMedia(assetId, 'jpg'), { force: true }),
-    rm(paths.libraryMedia(assetId, 'mp4'), { force: true }),
+    ...CONTAINERS.map((container) =>
+      rm(paths.libraryMedia(assetId, container.ext), { force: true })),
+    /* And the sidecar, because a library entry is a file plus its name
+       and leaving the name behind leaves a row pointing at nothing. */
     rm(join(paths.library(), `${assetId}.json`), { force: true }),
+    /* And the measurement, which is about a file that is going. */
+    ...CONTAINERS.map((container) =>
+      rm(`${paths.libraryMedia(assetId, container.ext)}.facts.json`,
+        { force: true })),
   ]);
   return json({ ok: true, deleted: assetId });
 }
