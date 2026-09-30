@@ -788,11 +788,21 @@ describe('the tab strip', () => {
    * than three" — the right reason attached to the wrong property, so
    * the COMPACT five-up strip kept 0.08em and clipped AUDIO to "AUDI"
    * for the third time in this pass.
+   *
+   * A SIXTH LABEL NEEDED A THIRD STEP. Adding ANSWERS to the Live
+   * Studio's desks left six uppercase words in a 330px column with no
+   * air between them — not clipped, which is what the rule was
+   * written to stop, but running together as one string. So the
+   * count decides both the tracking and the padding, and it does so
+   * in more than one step.
    */
   it('spaces labels by their count, not by the variant', () => {
     expect(STRIP, 'tracking still keys off `compact`')
       .not.toMatch(/letterSpacing: compact \?/);
-    expect(STRIP).toMatch(/letterSpacing: options\.length > 3/);
+    expect(STRIP).toMatch(/letterSpacing: options\.length > 5/);
+    expect(STRIP).toMatch(/options\.length > 3 \? '0\.04em' : '0\.08em'/);
+    /* And the padding follows the same count, with the same steps. */
+    expect(STRIP).toMatch(/options\.length > 5\s*\n?\s*\? 'var\(--space-1\)'/);
   });
 });
 

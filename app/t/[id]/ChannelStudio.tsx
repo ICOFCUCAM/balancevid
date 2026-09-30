@@ -22,6 +22,7 @@ import { useLiveEncoder } from './useLiveEncoder.js';
 import { useBroadcastGuests } from './useBroadcastGuests.js';
 import { arrangementFor, useBroadcastMixer } from './useBroadcastMixer.js';
 import { useFeedLevels } from './useFeedLevels.js';
+import AnswersTab from './AnswersTab.js';
 import GuestsTab from './GuestsTab.js';
 import SlidesPanel from './SlidesPanel.js';
 import { type ScreenShare, useScreenShare } from './useScreenShare.js';
@@ -99,7 +100,8 @@ const STEP_MS = 30 * MINUTE;
 const BEHIND_MS = 15 * MINUTE;
 
 type RailTab = 'playlist' | 'library' | 'schedules';
-type DeskTab = 'camera' | 'guests' | 'screens' | 'graphics' | 'audio';
+type DeskTab = 'camera' | 'guests' | 'screens' | 'graphics' | 'audio'
+  | 'answers';
 type ScheduleView = 'timeline' | 'list' | 'calendar';
 
 interface LibraryItem {
@@ -251,12 +253,27 @@ export default function ChannelStudio({
    * exactly as another guest would be.
    */
   const share = useScreenShare();
-  const mixed = useMemo(() => (
-    share.stream
-      ? [...guests.sources,
-        { id: 'screen', stream: share.stream, label: share.label ?? 'Screen' }]
-      : guests.sources
-  ), [guests.sources, share.stream, share.label]);
+  /*
+   * AND SO IS AN ANSWER SOMEBODY SENT IN.  [TIMELINE B14e; D-25]
+   *
+   * "The host can... play their view that is already on the queue."
+   * Not as a roll-in, which REPLACES the live feed with a file, and
+   * not as a programme, which would make a submission into
+   * production material without anybody accepting it. It joins the
+   * mixer beside the presenter, the layout table arranges it, and it
+   * leaves when it ends — which is what "play it INTO the show"
+   * means.
+   */
+  const [answer, setAnswer] = useState<
+    { id: string; label: string; stream: MediaStream } | null>(null);
+  const mixed = useMemo(() => [
+    ...guests.sources,
+    ...(share.stream
+      ? [{ id: 'screen', stream: share.stream, label: share.label ?? 'Screen' }]
+      : []),
+    ...(answer
+      ? [{ id: answer.id, stream: answer.stream, label: answer.label }] : []),
+  ], [answer, guests.sources, share.stream, share.label]);
   const mixer = useBroadcastMixer({
     sources: mixed,
     layoutId: arrangement,
@@ -1384,6 +1401,9 @@ export default function ChannelStudio({
               { id: 'screens', label: 'Screens' },
               { id: 'graphics', label: 'Graphics' },
               { id: 'audio', label: 'Audio' },
+              /* The queue: questions sent to phones, and what came
+                 back. [TIMELINE B14d, B14e] */
+              { id: 'answers', label: 'Answers' },
             ]}
           />
 
@@ -1448,6 +1468,27 @@ export default function ChannelStudio({
                 onAttach={(roomId) => void patch({
                   action: 'attach-room', ...(roomId ? { roomId } : {}),
                 })}
+              />
+            )}
+
+            {deskTab === 'answers' && (
+              <AnswersTab
+                channel={channel}
+                onAir={Boolean(channel.live && channel.live.phase === 'on_air')}
+                playing={answer?.id ?? null}
+                citing={Boolean(channel.live?.citing)}
+                onCite={(who) => void patch({
+                  action: 'cite', ...(who ? { citing: who } : { citing: null }),
+                })}
+                onPlay={(one, stream) => {
+                  setAnswer(one && stream
+                    ? {
+                      id: one.submissionId,
+                      label: one.who ?? 'A viewer',
+                      stream,
+                    }
+                    : null);
+                }}
               />
             )}
 
@@ -2450,9 +2491,21 @@ function Strip({
                 * five-up compact strip in a 330px column has 64px a
                 * segment; eight of those pixels were air at each end.
                 */
+              /*
+                * AND A SIXTH LABEL NEEDED A THIRD STEP. Adding
+                * ANSWERS to the Live Studio's five desks left six
+                * uppercase words in a 330px column with no air
+                * between them — not clipped, which is what the rule
+                * above was written to stop, but running together as
+                * one string. A segmented control has no gaps by
+                * design, so the separation has to come from the
+                * padding, and at six there was none left to give.
+                */
               padding: compact
-                ? `var(--space-2) ${options.length > 3
-                  ? 'var(--space-3)' : 'var(--space-4)'}`
+                ? `var(--space-2) ${options.length > 5
+                  ? 'var(--space-1)'
+                  : options.length > 3
+                    ? 'var(--space-3)' : 'var(--space-4)'}`
                 : 'var(--space-4) var(--space-1)',
               minHeight: compact ? 24 : 32,
               font: 'inherit',
@@ -2471,7 +2524,8 @@ function Strip({
                 * wrong property. The Live Studio's compact strip has
                 * five labels too, and at 0.08em they did not fit.
                 */
-              letterSpacing: options.length > 3 ? '0.04em' : '0.08em',
+              letterSpacing: options.length > 5
+                ? '0.01em' : options.length > 3 ? '0.04em' : '0.08em',
               textTransform: 'uppercase',
               fontWeight: chosen ? 'var(--weight-bold)' : 'var(--weight-semi)',
               cursor: 'pointer',

@@ -4,7 +4,7 @@ import {
   addBlock, addToBlock, addToRotation, bookLiveEvent, closeIngest, endLive,
   goLive, keepLive, moveInRotation, moveProgramme, openIngest, removeBlock,
   removeFromBlock, removeFromRotation, removeProgramme, requestRecording,
-  retitleProgramme, rollIn, scheduleProgramme, setEmergency, setFiller,
+  cite, retitleProgramme, rollIn, scheduleProgramme, setEmergency, setFiller,
   addDestination, removeDestination, setBackup, setDestination, setIdentity,
   skipToNext, takeLive, publishChannel, unpublishChannel, attachRoom,
 } from '../../../../src/domain/channelEdit.js';
@@ -290,6 +290,11 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
             throw new ChannelEditError('there is no such render');
           }
           setEmergency(draft, body['source'] ?? null, at);
+          break;
+        /* Somebody's name on air while their answer plays, and down
+           again when the host moves on. [TIMELINE B14e] */
+        case 'cite':
+          cite(draft, body['citing'] ?? null, new Date().toISOString());
           break;
         case 'roll-in':
           if (body['source'] && !await resolves(draft, body['source'])) {

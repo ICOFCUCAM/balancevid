@@ -368,6 +368,34 @@ export interface LiveSession {
    */
   segment?: ProgrammeSource;
   segmentFromMs?: number;
+  /**
+   * SOMEBODY BEING CITED, while they are being cited.
+   *   [TIMELINE B14e; CHANNEL §8, D-25]
+   *
+   * "The host can cite their participation and play their view that is
+   * already on the queue." An answer sent in from a phone is played
+   * into the live show, and while it is playing the caption is not
+   * the programme's name — it is the person's.
+   *
+   * ON THE SESSION AND NOT ON THE IDENTITY, because it is a fact
+   * about this minute of this broadcast rather than about how the
+   * channel looks. The identity is a station's furniture; this is
+   * what the host is doing right now, and it comes down when they
+   * stop doing it.
+   *
+   * WHAT THEY WERE ASKED TRAVELS WITH THEM, because "Amina Yusuf"
+   * over somebody's face says nothing a viewer joining now can use,
+   * and "Amina Yusuf · What do you think of tonight's programme?"
+   * says the whole of it.
+   */
+  citing?: {
+    /** As the producer recorded them. Absent where nobody gave a name. */
+    name?: string;
+    /** The question they were answering, in the producer's own words. */
+    asks: string;
+    /** When it went up, so nothing has to guess how long it has been. */
+    at: string;
+  };
   startedAt: string;
   endedAt?: string;
 }

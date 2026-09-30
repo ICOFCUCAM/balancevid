@@ -147,8 +147,33 @@ export function marksFor(
     });
   }
 
+  /*
+   * SOMEBODY BEING CITED WINS OVER THE PROGRAMME'S NAME.
+   *   [TIMELINE B14e; D-25]
+   *
+   * A viewer's answer is playing, and a lower third that still said
+   * the show's title over their face would be the station taking
+   * credit for what somebody sent in. It replaces the title rather
+   * than joining it, because two plates in one corner is one plate
+   * nobody can read — and it ignores `show` and `holdMs` entirely,
+   * which are a statement about how the CHANNEL captions itself and
+   * not about whether a named contributor is named.
+   */
+  const citing = on.kind === 'live' ? on.session.citing : undefined;
+  if (citing) {
+    marks.push({
+      kind: 'lower-third',
+      text: citing.name ? `${citing.name}  \u00b7  ${citing.asks}` : citing.asks,
+      corner: 'bottom-left',
+      opacity: 1,
+      size: 26,
+      plate: true,
+      ink,
+    });
+  }
+
   const lower = identity.lowerThird;
-  if (lower && lower.show !== 'never' && on.kind !== 'off') {
+  if (!citing && lower && lower.show !== 'never' && on.kind !== 'off') {
     const showing = lower.show === 'always' || intoProgrammeMs < lower.holdMs;
     if (showing) {
       const title = titleOf(on);
