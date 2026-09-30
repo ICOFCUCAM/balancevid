@@ -293,16 +293,42 @@ export default function Workspace({
   const recent = matching.slice(0, 6);
 
   return (
-    <div style={{
-      display: 'grid', gridTemplateColumns: 'minmax(0, 236px) minmax(0, 1fr)',
-      height: '100dvh', overflow: 'hidden',
-      background: 'var(--ink-900)',
-    }}>
+    /*
+      * THE BUILDING'S LAYOUT IS IN CSS NOW, AND THAT IS THE WHOLE FIX.
+      *
+      * It was `gridTemplateColumns: 'minmax(0, 236px) minmax(0, 1fr)'`
+      * inline, with `height: 100dvh; overflow: hidden` — which is a fine
+      * frame for a desk and, on a phone, a two-column grid inside a box
+      * that cannot scroll. The measurement said so exactly: at 412px the
+      * page did NOT scroll horizontally and the account menu, the
+      * runtime pill and half the recent-work table sat outside the
+      * viewport. Not cramped — unreachable.
+      *
+      * AND NO MEDIA QUERY COULD REACH IT, because an inline style is not
+      * a stylesheet. `surfaces.css` had set `--rail-width` under a
+      * breakpoint since the breakpoints were written, and nothing had
+      * ever read it: the width that actually shipped was this literal.
+      * The class reads the token, so that rule finally does something.
+      */
+    <div className="building" style={{ background: 'var(--ink-900)' }}>
       {/* ============ THE RAIL — still dark ========================== */}
-      <nav data-testid="workspace-rail" style={{
-        display: 'flex', flexDirection: 'column', minHeight: 0,
+      {/*
+        * ITS DIRECTION IS IN CSS, and that is not a preference.
+        *
+        * `flexDirection: 'column'` was inline here, so the phone rule
+        * that turns the rail into a strip never applied — and the
+        * failure was not "it still looks like a column". The nav's box
+        * was 121px tall with eight items laid out down to 421px, which
+        * means every link below the first sat OUTSIDE its own nav and
+        * BEHIND the page: present, measurable, and not clickable. A
+        * hit test found `building-body` at the centre of "Studio Two".
+        *
+        * Third time in this change that an inline layout style beat a
+        * media query. Layout belongs in the stylesheet; colour and the
+        * rest can stay.
+        */}
+      <nav data-testid="workspace-rail" className="building-rail" style={{
         background: 'var(--ink-900)',
-        borderRight: 'var(--border) solid var(--ink-750)',
       }}>
         <div className="row" style={{
           gap: 'var(--space-3)', padding: '18px 18px 20px',
@@ -322,11 +348,14 @@ export default function Workspace({
           }}>BalanceVid</strong>
         </div>
 
-        <div style={{
-          flex: '1 1 0', minHeight: 0, overflowY: 'auto',
-          padding: '0 12px', display: 'flex', flexDirection: 'column',
-          gap: 2,
-        }}>
+        {/*
+          * NO INLINE LAYOUT ON THIS ONE EITHER — see the nav above. Every
+          * property that decides where these links go is in
+          * `.building-rail-links`, because the phone rule has to change
+          * all of them at once: direction, which axis scrolls, and
+          * whether the list takes the leftover height or only its own.
+          */}
+        <div className="building-rail-links">
           {/*
             * THE SAME PLACES AS THE STUDIO BAR, IN THE SAME ORDER, so a
             * person who learns them here recognises them there. A studio
@@ -456,18 +485,21 @@ export default function Workspace({
 
           <GroundToggle />
           <AccountMenu name={account.name} role={account.role} />
-          <RuntimePill runtime={runtime} />
+          {/*
+        * WRAPPED, BECAUSE A MEDIA QUERY CANNOT BEAT AN INLINE STYLE.
+        *
+        * The pill sets `display: inline-flex` on the element, and a
+        * stylesheet rule loses to that without `!important`. A wrapper
+        * that is `display: contents` normally and `display: none` at
+        * phone width hides the subtree whatever the child declares —
+        * and changes nothing about the pill itself.
+        */}
+      <span className="wide-only"><RuntimePill runtime={runtime} /></span>
         </header>
 
         {/* ---- the page ------------------------------------------- */}
-        <div id="top" style={{
-          flex: '1 1 0', minHeight: 0, overflowY: 'auto',
-          padding: '26px 24px 40px',
-        }}>
-          <div style={{
-            display: 'grid', gap: 22, alignItems: 'start',
-            gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 306px)',
-          }}>
+        <div id="top" className="building-body">
+          <div className="building-columns">
             {/* ======== the left column ========================== */}
             <div style={{ minWidth: 0 }}>
               <Greeting name={account.name} />
@@ -645,12 +677,13 @@ function Rail({
           fontWeight: current ? 'var(--weight-semi)' : 'var(--weight-medium)',
           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
         }}>{label}</span>
+        {/*
+          * Its `display` is in CSS for the fourth time in this change:
+          * the phone rule hides this line, and `display: block` written
+          * here would beat it.
+          */}
         {under && (
-          <span style={{
-            display: 'block', fontSize: 'var(--text-2xs)',
-            color: 'var(--ink-400)', whiteSpace: 'nowrap',
-            overflow: 'hidden', textOverflow: 'ellipsis',
-          }}>{under}</span>
+          <span data-rail-under="" className="rail-under">{under}</span>
         )}
       </span>
       {count !== undefined && count > 0 && (
@@ -870,10 +903,9 @@ function Hero({
   const record = records.find((entry) => entry.id === channel.id);
   return (
     <section
-      data-testid="hero" className="panel"
+      data-testid="hero" className="panel hero-grid"
       {...(record ? onRow(channel.name, () => items(record)) : {})}
       style={{
-        display: 'grid', gridTemplateColumns: 'minmax(0, 232px) minmax(0, 1fr)',
         gap: 0, padding: 0, overflow: 'hidden', position: 'relative',
         borderRadius: 'var(--radius-xl)',
       }}
@@ -884,20 +916,36 @@ function Hero({
         * white: a light placeholder behind a channel's poster makes the
         * empty state the brightest thing on the screen.
         */}
-      <div aria-hidden="true" style={{
-        position: 'relative', background: 'var(--surface-sunk)',
-        minHeight: 148,
-      }}>
-        <div style={{
-          position: 'absolute', inset: 0,
-          background: 'linear-gradient(145deg, var(--studio-tv-veil),'
-            + ' transparent 62%)',
-        }} />
-        <span style={{
-          position: 'absolute', inset: 0, display: 'grid',
-          placeItems: 'center', color: 'var(--studio-tv)', opacity: 0.55,
-        }}><Icon name="broadcast" size={40} strokeWidth={1.2} /></span>
-      </div>
+      {/*
+        * THE ART AND THE ONE CONTROL THAT BELONGS TO IT, IN ONE BOX.
+        *
+        * The Edit link was `position: absolute; bottom: 12` against the
+        * HERO, which is the same thing as "against the art" only while
+        * the hero is one row 148px tall. Stacked on a phone the hero
+        * became art-above-content and bottom-12 landed on top of "Open
+        * Online TV" — a link sitting over a button, both clickable,
+        * neither obviously the one you meant.
+        *
+        * It is pinned to the art now, in both layouts, by being inside
+        * it. The wrapper is what carries `position: relative`; the
+        * decorative layers keep `aria-hidden` and the link does not
+        * inherit it, which it would have if the art div were simply
+        * reused as the container.
+        */}
+      <div style={{ position: 'relative', minHeight: 148 }}>
+        <div aria-hidden="true" style={{
+          position: 'absolute', inset: 0, background: 'var(--surface-sunk)',
+        }}>
+          <div style={{
+            position: 'absolute', inset: 0,
+            background: 'linear-gradient(145deg, var(--studio-tv-veil),'
+              + ' transparent 62%)',
+          }} />
+          <span style={{
+            position: 'absolute', inset: 0, display: 'grid',
+            placeItems: 'center', color: 'var(--studio-tv)', opacity: 0.55,
+          }}><Icon name="broadcast" size={40} strokeWidth={1.2} /></span>
+        </div>
       {/*
         * THE ONE THING YOU DO TO A CHANNEL'S ARTWORK, on the artwork.
         * The station name, the bug and the lower third all live behind
@@ -916,6 +964,7 @@ function Hero({
             }}>
         <Icon name="pencil" size={12} /> Edit
       </Link>
+      </div>
 
       <div style={{ padding: '18px 20px', minWidth: 0 }}>
         <div className="row" style={{ gap: 8, flexWrap: 'nowrap' }}>
