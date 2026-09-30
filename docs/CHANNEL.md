@@ -1266,3 +1266,110 @@ microphones, enumerated in the picker, opened on arming, drawn in the host
 preview, in Multi-view tile 1 and in Preview, with the encoder pushing at
 62 kB/s. The first time in this session the whole live chain has run with a
 camera in it.
+
+---
+
+## §23a — The recorder, and 2160p
+
+*Added 2026-09-30, after a question: which camera should the app default to,
+and should 4K be included?*
+
+Measuring first turned up something neither question expected. §23 gave
+Online TV a camera picker and `quality.ts` gave it a preset ladder, and
+**the path that records the performance had neither.** `useMasterRecording`
+asked for
+
+```ts
+video: { width: { ideal: 1280 }, height: { ideal: 720 } }
+```
+
+with no `deviceId` and no frame rate — written into the hook, reached by
+default rather than by choice. The render is resolution-agnostic: it takes
+the source's own dimensions rather than compositing onto a fixed canvas, so
+that one line was the ceiling on the master too. The author's own
+performance probes at **1280×720, all three takes.** Every master this
+product has made is 720p, and nobody decided that.
+
+### Which camera to default to
+
+**The browser's own default on first use; the person's last choice
+thereafter, remembered per browser** — the mechanism `useQuality` already
+used, in `useCamera`.
+
+Not "the best camera the machine has". A capture card with nothing plugged
+into it enumerates like any other camera, gives a black picture, and often
+sorts first. Guessing is how somebody goes on air on the wrong one.
+
+Two details carry the weight:
+
+* **`deviceId: { exact: … }` throws when the device is gone.** That is
+  deliberate in §23 — a chosen camera must never be silently substituted —
+  and it means remembering without forgetting turns *"I used the capture
+  card yesterday"* into *"the studio will not open today"*. A stored id
+  that is no longer in the device list is dropped, and **the person is
+  told**, because falling back silently is how a whole session gets
+  recorded on the laptop webcam.
+* **The list is empty before permission is granted.** Forgetting on an
+  empty list would be the same bug as never remembering. Empty is *not
+  yet*, not *gone*.
+
+### Whether to include 2160p
+
+**Yes for recording. No for live**, and the two paths are not alike:
+
+| | Online TV (live) | Studio Two takes / Take App |
+|---|---|---|
+| path | canvas mixer **in JavaScript** → encoder → **real-time** re-encode | `getUserMedia` → `MediaRecorder`, **no mixer** |
+| 2160p costs | ~4× the compositing of 1080p30, 20 Mbps up | a hardware encode; the worker renders later |
+| verdict | **not offered** | **offered** |
+
+`maximum` already warns that a machine which cannot keep up *"silently
+drops frames, which looks like a bad connection."* At 2160p through the JS
+canvas that is not a risk but the expected outcome — a setting that appears
+to work and makes the picture **worse**, which the head of `quality.ts`
+says a quality control must never be.
+
+On the recording path the argument runs the other way, and this product
+already makes it: `aboveTransmission` and INV-17 — the ingest file is the
+archive, so you keep the good copy. The strongest reason is a control that
+already ships: **crop-reframe.** Cropping a 720p take to a close-up is
+visibly soft; cropping a 2160p one is free. Vertical compositions and
+multi-camera editing want the same headroom.
+
+`liveCapable()` is a predicate rather than a second table, because a second
+table is a second place a bitrate can be edited with only one of them
+taking effect. [D-19]
+
+### Two presets, because they are two questions
+
+`live` asks *what can this machine composite and send right now* — the CPU
+and the uplink, at this moment. `recording` asks *how good a source to
+keep* — the camera, and what the footage will later be asked to do. A
+studio on a poor line records at 2160p and broadcasts at 720p, and both are
+right at once. Separate keys; **the live key is unchanged**, so no stored
+broadcast setting moves.
+
+The recording default is **1080p, not 720p**, and that is a stated change
+rather than a silent one. The constraint is `ideal`, so a camera that only
+does 720p still gives 720p rather than refusing: this raises what is
+*asked for*, never what is required.
+
+### What the browser found
+
+* **The preset sentence was about the wrong thing.** `needs` is written for
+  the live menu and talks about the uplink — *"about 770 kB/s up"* — and it
+  was showing under the record button, where nothing is uploaded and the
+  cost is disk. `records` says megabytes a minute instead. Same fault as a
+  menu that says "7 more" when there are eighteen.
+
+### Verified
+
+A take recorded through the studio after the change probes at **1920×1080**;
+the three recorded before it are 1280×720. The camera track reports
+`1920x1080` live, the preset persists to `balancevid.recording-quality`, and
+the ladder offers five steps with 2160p present in the recorder and absent
+from Online TV. The test take was removed and the author's performance left
+with its two.
+
+**Still 1080p on purpose:** the master and the live output. 2160p is an
+optional high-quality source, not a delivery format.

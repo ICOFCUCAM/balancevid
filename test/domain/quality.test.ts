@@ -50,7 +50,7 @@ describe('the default changes nothing', () => {
 
 describe('the range', () => {
   it('runs worst to best, which is the order an adjuster moves in', () => {
-    expect(QUALITY_ORDER).toEqual(['low', 'standard', 'high', 'maximum']);
+    expect(QUALITY_ORDER).toEqual(['low', 'standard', 'high', 'maximum', 'ultra']);
     const pixels = QUALITY_ORDER.map((id) => {
       const step = QUALITIES[id];
       return step.width * step.height * step.fps;
@@ -88,8 +88,25 @@ describe('resolving a stored id', () => {
     expect(qualityFor(undefined).id).toBe('standard');
     expect(qualityFor(null).id).toBe('standard');
     expect(qualityFor('').id).toBe('standard');
-    expect(qualityFor('ultra').id).toBe('standard');
+    /*
+     * THIS LINE USED TO READ `qualityFor('ultra')`, chosen as an
+     * obviously-invented word — and then 2160p shipped and the
+     * invented word became a real preset, so the test went on
+     * passing for a while and then failed for the right reason. A
+     * placeholder that can become real is not a good placeholder:
+     * `cinema` is not on the ladder and the two structural cases
+     * below cannot be.
+     */
+    expect(qualityFor('cinema').id).toBe('standard');
+    expect(qualityFor('720p').id).toBe('standard');
     expect(qualityFor('constructor').id).toBe('standard');
+    expect(qualityFor('toString').id).toBe('standard');
+  });
+
+  /* And a preset that IS on the ladder resolves to itself, including
+     the one that is recording-only. */
+  it('returns the recording-only preset when it is asked for', () => {
+    expect(qualityFor('ultra').id).toBe('ultra');
   });
 
   it('returns what was asked for when it exists', () => {

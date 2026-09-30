@@ -10,6 +10,10 @@ import type { RequestView } from '../../../src/domain/participation.js';
 import { dropTake, sendTake, takeSink, type KeptSpec } from './takeSink.js';
 import { askToDrain, installWorker, settle, takeQueue } from './queue.js';
 import InstallBar from './InstallBar.js';
+import { useCamera } from '../../useCamera.js';
+import { useQuality } from '../../useQuality.js';
+import { QUALITIES } from '../../../src/domain/quality.js';
+import { cameraConstraints } from '../../useDevices.js';
 
 /**
  * The performer's whole screen.  [Doctrine D-25; TAKE-APP T3, T4, T5, T13]
@@ -110,8 +114,28 @@ export default function TakeApp({ link }: { link: string }) {
    * recorder is told there is no clock, and everything else about
    * the page is the same.
    */
+  /*
+   * WHICH CAMERA, AND HOW GOOD.  [T3; quality.ts, useDevices]
+   *
+   * A PHONE HAS TWO CAMERAS AND THE ANSWER IS NOT OBVIOUS. Somebody
+   * singing to their own phone wants the front one; somebody filming
+   * the band in the room wants the back one, which is also the better
+   * sensor on every phone made. This surface picked neither — it
+   * asked for 720p with no device at all and took whatever the
+   * browser nominated.
+   *
+   * AND IT ASKED FOR 720p FROM A PHONE THAT SHOOTS 4K. The render is
+   * resolution-agnostic, so that was the ceiling on the master too.
+   * The preset is remembered per device, so a performer sets it once.
+   */
+  const camera = useCamera(!soundOnly);
+  const grade = useQuality('recording');
+
   const recording = useMasterRecording({
     sink,
+    video: soundOnly ? undefined : cameraConstraints(
+      camera.cameraId, grade.quality.width, grade.quality.height,
+      grade.quality.fps),
     masterUrl: view && !view.assignment.reference
       ? null
       : `/api/take/${encodeURIComponent(link)}/reference`,
@@ -440,6 +464,78 @@ export default function TakeApp({ link }: { link: string }) {
           <p data-testid="take-said" className="small" style={{
             margin: 0, color: 'var(--ink-on-bad)', textAlign: 'center',
           }}>{said}</p>
+        )}
+
+        {/*
+          * THE TWO THINGS TO SET BEFORE RECORDING, AND ONLY BEFORE.
+          *   [T3; U-19]
+          *
+          * A phone has a front camera and a back one, and which is
+          * right depends entirely on whether the performer is
+          * singing to the phone or filming the room. Nothing here
+          * used to ask.
+          *
+          * SHOWN ONLY WHILE THEY STILL MATTER. Once the count-in has
+          * started, changing the camera would reopen the stream
+          * mid-take — so these are gone from the moment recording
+          * begins, rather than present and refusing.
+          *
+          * AND THE CAMERA LIST IS ONLY REAL AFTER PERMISSION. Before
+          * that the browser answers with unnamed entries, so the
+          * picker waits for `named` rather than offering a menu of
+          * "Camera 1, Camera 2". [useDevices]
+          */}
+        {!soundOnly
+          && (recording.phase === 'idle' || recording.phase === 'ready') && (
+          <div data-testid="take-setup" className="row"
+               style={{ gap: 6, width: '100%', flexWrap: 'wrap' }}>
+            {camera.devices.named && camera.devices.cameras.length > 1 && (
+              <label className="grow" style={{ margin: 0, minWidth: 130 }}>
+                <span className="module-sub">Camera</span>
+                <select className="small" data-testid="take-camera-pick"
+                        value={camera.cameraId ?? ''}
+                        onChange={(event) => camera.chooseCamera(
+                          event.target.value || undefined)}>
+                  <option value="">This phone’s default</option>
+                  {camera.devices.cameras.map((one) => (
+                    <option key={one.deviceId} value={one.deviceId}>
+                      {one.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <label className="grow" style={{ margin: 0, minWidth: 130 }}>
+              <span className="module-sub">Quality</span>
+              <select className="small" data-testid="take-quality-pick"
+                      value={grade.id}
+                      onChange={(event) => grade.choose(
+                        event.target.value as typeof grade.id)}>
+                {grade.offered.map((one) => (
+                  <option key={one} value={one}>{QUALITIES[one].label}</option>
+                ))}
+              </select>
+            </label>
+            {/*
+              * WHAT IT COSTS, AND IN THE RIGHT UNITS.
+              *
+              * `needs` is the LIVE menu's sentence and talks about the
+              * uplink — "about 770 kB/s up" — which is meaningless
+              * under a record button. `records` is the same preset
+              * described as a recording: megabytes a minute, which is
+              * what a performer choosing 2160p on a phone needs to
+              * know before they sing for four minutes. [U-19]
+              */}
+            <p className="small muted" style={{ margin: 0, width: '100%' }}>
+              {grade.quality.records}
+            </p>
+            {camera.lost && (
+              <p className="small" data-testid="take-camera-lost"
+                 style={{ margin: 0, width: '100%', color: 'var(--ink-on-bad)' }}>
+                {camera.lost} is no longer connected — using the default.
+              </p>
+            )}
+          </div>
         )}
 
         {/* ONE BUTTON AT A TIME, because there is one thing to do next. */}
