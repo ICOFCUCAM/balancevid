@@ -1373,3 +1373,655 @@ with its two.
 
 **Still 1080p on purpose:** the master and the live output. 2160p is an
 optional high-quality source, not a delivery format.
+
+---
+
+# Appendix D — the control room as a production system
+
+*The brief of 30 September 2026, verbatim, and what the running product
+turned out to already have. Recorded here rather than summarised because
+it is the map the build follows, in the order it sets.*
+
+The complaint it answers, in the author's own words:
+
+> *"I think Multi Media View camera 2, being guest should have four cameras
+> in that small box, guest 1, 2, 3, 4. the boxt must not be enlarge to
+> deform the design but must rather devide into 4 halves of four guest
+> cameras. The media player seams not connected. how does it play and how
+> is songs loaded to play? Also the background/virtual set are not working
+> what do we do to make them professional grade"*
+
+And the frame the answer sets before any of the five parts:
+
+> *"Yes. Looking at this actual Online TV control room, I would not enlarge
+> the Multi-View area. Your instinct is correct: the available space is
+> valuable and the layout already has a strong broadcast-console
+> structure.*
+>
+> *There are three separate issues here, and they should be solved as three
+> real production systems rather than by adding more UI."*
+
+---
+
+## §24 — Camera 2 should become a 4-guest multiview
+
+> *"I agree with your proposal.*
+>
+> *Currently:*
+>
+> *`02 Camera 2 — Guest`*
+>
+> *should become:*
+>
+> *`02 GUESTS — 4`*
+>
+> *and the existing small tile should remain exactly the same size.*
+>
+> *Inside that tile:*
+>
+> ```
+> ┌─────────────────────┐
+> │ GUEST 1 │ GUEST 2   │
+> │─────────┼───────────│
+> │ GUEST 3 │ GUEST 4   │
+> └─────────────────────┘
+> ```
+>
+> *Each quarter is an independent source.*
+>
+> *It should behave like a real multiview. Each guest tile should show:*
+>
+> * *Guest 1 / Guest 2 / Guest 3 / Guest 4*
+> * *video*
+> * *microphone state*
+> * *connection state*
+> * *small audio meter*
+> * *speaking indicator*
+> * *`LIVE`/selected tally when applicable*
+> * *`NO VIDEO` when camera is unavailable*
+>
+> *And clicking a guest should select that guest as the programme source,
+> without enlarging the multiview container.*
+>
+> *This is consistent with professional multiview practice: multiple
+> sources are monitored in a fixed layout with labels, tally/status and
+> audio information rather than consuming a huge part of the operator
+> interface.*
+>
+> *So I would make the source matrix:*
+>
+> ```
+> 01  Camera 1
+> 02  GUESTS
+>     ┌────┬────┐
+>     │ G1 │ G2 │
+>     ├────┼────┤
+>     │ G3 │ G4 │
+>     └────┴────┘
+>
+> 03  Studio Two
+> 04  Studio One
+> 05  Media Player
+> 06  Graphics
+> ```
+>
+> *That is much more powerful without changing the overall geometry."*
+
+---
+
+## §25 — The Media Player is currently an architectural gap
+
+> *"You are right to question it.*
+>
+> *The screen says:*
+>
+> *`05 Media Player — Idle`*
+>
+> *but there is no obvious path from Library → Media Player → Programme.
+> That is not professional.*
+>
+> ***I would NOT create a separate music-loading system. BalanceVid already
+> has Library.***
+>
+> *The correct architecture should be:*
+>
+> ```
+>                     LIBRARY
+>                        │
+>               ┌────────┴────────┐
+>               │                 │
+>             VIDEO             AUDIO
+>               │                 │
+>               └────────┬────────┘
+>                        │
+>                   MEDIA PLAYER
+>                        │
+>               ┌────────┴────────┐
+>               │                 │
+>            PREVIEW           PROGRAMME
+> ```
+>
+> *So when the operator clicks Media Player, it should open a compact media
+> browser/picker. For example:*
+>
+> ```
+> MEDIA PLAYER
+>
+> Search Library...
+>
+> [ Worship Session       04:12 ]
+> [ Interview             12:44 ]
+> [ Song — Ancient Days   04:04 ]
+> [ Intro                  00:18 ]
+> [ Announcement           01:32 ]
+>
+>                          [Load]
+> ```
+>
+> *Then:*
+>
+> *Load → Preview → Play → Take Live*
+>
+> *The actual media remains in the existing Library. **Do not duplicate
+> files into Online TV.** That is particularly important for BalanceVid
+> because the same media should be usable by Studio One, Studio Two, Online
+> TV and the Library.*
+>
+> *Professional production systems commonly treat media players as actual
+> switcher sources, with media loaded into a managed media pool and then
+> exposed as sources to the production system.*
+>
+> ***For songs.** A song should simply be a Library media item with:*
+>
+> * *title*
+> * *artist/owner*
+> * *duration*
+> * *audio/video type*
+> * *thumbnail/artwork if available*
+>
+> *The Media Player does not care whether it is a song, interview, video
+> package or announcement.*
+>
+> *If it is audio-only, Online TV can render it through the channel's
+> visual treatment:*
+>
+> ```
+>        ALBUM ART / CHANNEL GRAPHIC
+>
+>        Song Title
+>        Artist
+>
+>        ━━━━━━━━━━━━━━━
+>        audio waveform
+> ```
+>
+> *The audio then becomes part of the programme output. That is much
+> cleaner than inventing a special "Songs" subsystem."*
+
+---
+
+## §26 — Background / Virtual Set needs to become a real production feature
+
+> *"This is the weakest part of the current screen.*
+>
+> *Right now you have:*
+>
+> *BACKGROUND / VIRTUAL SET — Recording Studio / Concert Stage / Modern
+> Room / University Hall / Church / Theatre / Beach / Forest / City /
+> Mountain*
+>
+> *Those look like decorative buttons, not a production-grade virtual-set
+> system. I would not simply add more backgrounds. We need to build the
+> underlying system properly.*
+>
+> ***The correct model.** Each camera/person source gets a composition
+> layer:*
+>
+> ```
+> CAMERA / GUEST
+>        │
+>        ▼
+> PERSON SEGMENTATION
+>        │
+>        ▼
+>        ├── foreground: person
+>        │
+>        └── background: selected environment
+>                          │
+>                          ▼
+>                     COMPOSITOR
+>                          │
+>                   Studio composition
+>                          │
+>                          ▼
+>                      PROGRAMME
+> ```
+>
+> *The key is that **the virtual background must actually become part of
+> the master composition, not just a CSS background behind a preview.**
+> That matters because BalanceVid's browser canvas is already the master
+> feed architecture. The virtual-set result needs to travel through that
+> same composition path.*
+>
+> *Modern production systems likewise treat compositing as part of the
+> production pipeline rather than merely decorating the operator UI.*
+>
+> ***A. Background library.** Instead of 10 tiny buttons:*
+>
+> ```
+> BACKGROUND / SET
+>
+> Studio
+> ┌────────┐ ┌────────┐ ┌────────┐
+> │ Studio │ │ News   │ │ Modern │
+> └────────┘ └────────┘ └────────┘
+>
+> Performance
+> ┌────────┐ ┌────────┐ ┌────────┐
+> │ Stage  │ │ Concert│ │ Theatre│
+> └────────┘ └────────┘ └────────┘
+>
+> Places
+> ┌────────┐ ┌────────┐ ┌────────┐
+> │ City   │ │ Beach  │ │ Forest │
+> └────────┘ └────────┘ └────────┘
+> ```
+>
+> *Use proper visual thumbnails.*
+>
+> ***B. Per-person assignment.** For four guests:*
+>
+> ```
+> GUEST 1   [ Studio A ▼ ]
+> GUEST 2   [ Studio A ▼ ]
+> GUEST 3   [ Concert ▼ ]
+> GUEST 4   [ None ▼ ]
+> ```
+>
+> *So each participant can have an independent background.*
+>
+> ***C. Foreground quality.** We need:*
+>
+> * *person segmentation*
+> * *edge refinement*
+> * *hair/shoulder preservation*
+> * *temporal stability*
+> * *sensible handling of hands*
+> * *no obvious halo*
+> * *no background bleeding through the person*
+>
+> *If a person has a green screen, chroma key can be offered as the
+> higher-quality path. If they don't, segmentation should be used.*
+>
+> ***D. Set positioning.** This is where it becomes genuinely professional.
+> Each person should have:*
+>
+> * *position*
+> * *scale*
+> * *crop*
+> * *horizontal flip*
+> * *background*
+> * *background blur*
+> * *lighting adjustment where supported*
+>
+> *Then a host can sit naturally inside the virtual environment instead of
+> appearing as a floating cutout."*
+
+---
+
+## §27 — Background and Virtual Set are not the same thing
+
+> *"And I would add one important distinction.*
+>
+> ***Background** simply replaces what's behind a person.*
+>
+> ***Virtual Set** is a complete production scene:*
+>
+> ```
+> ┌────────────────────────────────────────────┐
+> │                                            │
+> │       BALANCEVID TV                        │
+> │                                            │
+> │             HOST                           │
+> │                                            │
+> │   Guest 1             Guest 2              │
+> │                                            │
+> │       lower third / programme graphics     │
+> │                                            │
+> └────────────────────────────────────────────┘
+> ```
+>
+> *The virtual set can contain:*
+>
+> * *background*
+> * *presenter positions*
+> * *desk/table*
+> * *screens*
+> * *logos*
+> * *lower-third region*
+> * *lighting*
+> * *programme graphics*
+>
+> *That is much closer to the BBC-style principle of maintaining a coherent
+> virtual architectural environment rather than merely swapping a
+> photograph behind a presenter."*
+
+---
+
+## §28 — The source architecture, and the compositor
+
+> *"So the Online TV source architecture should become:*
+>
+> ```
+> CAMERA 1 ───────────────┐
+>                         │
+> GUEST 1 ─┐              │
+> GUEST 2 ─┤              │
+> GUEST 3 ─┤→ GUEST GRID ─┤
+> GUEST 4 ─┘              │
+>                         │
+> STUDIO ONE ─────────────┤
+> STUDIO TWO ─────────────┤
+>                         ├──→ COMPOSITOR → PROGRAMME
+> MEDIA PLAYER ───────────┤
+>                         │
+> GRAPHICS ───────────────┘
+> ```
+>
+> *And the compositor applies:*
+>
+> ```
+> SOURCE
+>   ↓
+> LAYOUT
+>   ↓
+> VIRTUAL SET / BACKGROUND
+>   ↓
+> GRAPHICS
+>   ↓
+> AUDIO MIX
+>   ↓
+> PROGRAMME
+>   ↓
+> PLAYOUT
+>   ↓
+> DISTRIBUTION
+> ```
+>
+> *This fits the existing BalanceVid architecture very well because the
+> broadcaster remains the server-side production system and the browser
+> remains the control surface."*
+
+---
+
+## §29 — Multiview polish, and the priority order
+
+> *"One more thing I would change in this screen. Your current Multi-View
+> Sources is actually one of the strongest areas of the interface
+> conceptually. I would make it more like a professional multiview rather
+> than making it larger.*
+>
+> *The final six-source arrangement could be:*
+>
+> ```
+> ┌──────────┐ ┌──────────┐ ┌──────────┐
+> │ 01       │ │ 02       │ │ 03       │
+> │ CAMERA 1 │ │ GUESTS   │ │ STUDIO 2 │
+> │          │ │ 1 2      │ │          │
+> │          │ │ 3 4      │ │          │
+> └──────────┘ └──────────┘ └──────────┘
+>
+> ┌──────────┐ ┌──────────┐ ┌──────────┐
+> │ 04       │ │ 05       │ │ 06       │
+> │ STUDIO 1 │ │ MEDIA    │ │ GRAPHICS │
+> │          │ │ PLAYER   │ │          │
+> └──────────┘ └──────────┘ └──────────┘
+> ```
+>
+> ***Fixed dimensions. No expansion. No deformation.***
+>
+> *Then the operator gets more capability inside the existing room, rather
+> than the interface becoming increasingly crowded.*
+>
+> ***My priority order.***
+>
+> *1. **Guest Grid — build now.** Four guest sources inside the existing
+>    Camera 2 tile.*
+> *2. **Media Player integration — build now.** Connect it to the existing
+>    Library. No duplicate media system.*
+> *3. **Virtual Background — build as a real compositor feature.** Don't
+>    add more decorative background buttons.*
+> *4. **Virtual Set — build on top of that compositor.** A reusable scene
+>    system rather than a collection of images.*
+> *5. **Multiview polish.** Tally, labels, mic/video state, audio meters
+>    and source health.*
+>
+> *That would turn what you currently have from a convincing control-room
+> mockup into an actual production system."*
+
+---
+
+## C-14 — Stage 14: what the control room already had
+
+*Measured in the running product before a line was written, which is the
+method D-19 asks for and which has changed what the work was every time it
+has been applied. It changed it again here: two of the five items are
+mostly wiring, one is a **dead field**, and one thing the brief asks for
+turned out to exist twice — once well, and once in a path the broadcast
+never reaches.*
+
+### The guest grid is a drawing problem, not a plumbing one
+
+`useBroadcastGuests` already produces **one `MixerSource` per staged
+participant, in the Room's own staging order** — id, stream, display name
+and accent — and `useRoomMesh` already keeps a live
+`RTCPeerConnectionState` per peer. The four guests the brief wants are
+therefore already connected, already ordered and already mixed; the
+picture is already going out. What tile 02 does with all of that is:
+
+```ts
+const guest = guests.find((person) => person.stream !== camera) ?? null;
+```
+
+**One guest. The first one that is not the operator.** Guests two, three
+and four are in the mix, audible on the air, drawn into the composited
+canvas by `useBroadcastMixer` — and invisible in the multi-view. The tile
+is not missing data. It is discarding it.
+
+Two things it wants are measured elsewhere and not carried this far:
+
+* **`mesh.states`** is a `Record<string, RTCPeerConnectionState>` on the
+  mesh, and `useBroadcastGuests` drops it when it builds `MixerSource`.
+  Connection state per guest is a field to forward, not a mechanism to
+  build.
+* **`useFeedLevels`** already returns `{ energy, speech }` per stream id,
+  twenty times a second, from the Room's own `measureVoice` — the same
+  measurement its speaker switching uses, which is why the meters and the
+  switching cannot disagree. It is wired to the host and the master bus.
+  Nothing asks it about a guest.
+
+What genuinely does not exist: **microphone state** (nobody reads a
+guest's audio track's `enabled`/`muted`), **`NO VIDEO`** (a guest with no
+video track is drawn by the mixer as a flat accent rectangle and by the
+tile as nothing at all), and **per-guest selection** — tile 02's click is
+`onBackToRoom`, which takes a roll-in down for the whole room at once.
+
+### The media player is not a player
+
+Tile 05 does not have a player behind it. It **mirrors the schedule**:
+
+```ts
+const scheduled = on.kind === 'programme' || on.kind === 'rotation'
+  ? on.source : undefined;
+// …
+{ n: 5, label: 'Media Player', sub: scheduled ? nameOf(scheduled) : 'Idle',
+  ...(onAir && scheduled ? { act: () => onTake(scheduled) } : {}) }
+```
+
+So "Idle" does not mean *nothing is loaded*; it means **nothing is
+scheduled**, and there is no way to load anything. The operator's only
+route to a file is the left rail's Library tab. That is the gap the brief
+names, stated exactly: *"there is no obvious path from Library → Media
+Player → Programme."*
+
+**What is already right is the part the brief cares most about.**
+`broadcastLibrary()` lists **references and never copies** — every render
+from both studios plus the third branch in `var/library/` — and D-18
+already forbids duplication. *"Do not duplicate files into Online TV"* is
+not a change; it is the existing invariant, and the media player must be
+built inside it.
+
+**What is missing from the item is the song.** `BroadcastItem` carries
+`title`, `document`, `documentId`, `planHash`, `bytes`, `madeAt`. It has
+no **artist**, no **artwork**, no **audio** form — `ProgrammeSource`'s
+media branch is `form: 'image' | 'video'` — and, though its own header
+says it supplies *"the one thing a scheduler needs that a render does not
+carry: how long it is"*, **it carries no duration.** The header describes
+a field that was never added. The studio compensates by showing megabytes
+where a duration belongs, which is why the rail reads `Studio Two · 84 MB`
+and the brief's mock-up reads `Song — Ancient Days   04:04`.
+
+There is a **Preview bus** and it is real, but it holds two things only:
+the armed camera, and the title of what is next. *Load → Preview → Play →
+Take Live* has one of its four steps.
+
+### The virtual set is a field nothing reads
+
+This is the finding that makes the author's *"the background/virtual set
+are not working"* literally true rather than a matter of taste.
+
+Pressing a set writes `channel.identity.spaceId`. That field is declared,
+validated, persisted, and normalised on save (`channelEdit.ts` deletes it
+when blank). **Nothing draws it.** `marksFor` — the function that decides
+what is laid over each second of broadcast — knows about bugs, lamps,
+lower thirds and the next-programme card, and does not mention a space.
+The playout engine does not mention one. `useBroadcastMixer`, which is the
+master feed, paints `#05070a` and then draws each person's raw video:
+
+```ts
+paper.fillStyle = '#05070a';
+paper.fillRect(0, 0, width, height);
+```
+
+The ten buttons are a **preference with no consumer**. Selecting one
+changes the swatch in the panel and nothing on the air — which is the
+exact failure mode §26 warns against, *"just a CSS background behind a
+preview"*, arrived at from the other direction: not even a preview.
+
+**The compositor the brief asks for exists, and it is good.** It is in the
+render path, not the live one. `src/render/matte.ts` and `compose.ts`
+already do, for a Studio Two performance:
+
+| §26 asks for | Studio Two's render path has |
+|---|---|
+| person segmentation | a **plate difference matte** — `matteChain` against three seconds of the empty room |
+| temporal stability | structurally: no per-frame guessing, which is why a plate was chosen over a model (`environment.ts` head, S-6) |
+| edge refinement, no halo | `matteFeather`, 2–5px, **tied to the plate's measured quality** |
+| no background bleed | `matteThreshold` at three times the room's own **measured** noise |
+| the environment itself | `backdropChain` drawing a `SpaceLook`, `blurBackdropChain` for blur |
+| told in advance whether it will work | `plateVerdict` and `MATTE_USABLE_QUALITY`, stated before the author records |
+
+So the answer to *"what do we do to make them professional grade"* is not
+to invent a compositor. It is to **bring the one that exists into the live
+canvas**, where it faces one problem the offline path does not: a matte
+must be produced at 30 fps in JavaScript rather than by ffmpeg with the
+whole file in hand. That is the real engineering in item 3, and it is
+where the brief's *"if a person has a green screen, chroma key can be
+offered as the higher-quality path"* earns its place — a chroma key is
+cheap per frame, and a plate difference is nearly as cheap, while a
+segmentation model is not.
+
+The offline path also answers §26's *"per-person assignment"* in
+principle: an `Environment` is a field of a **take**, not of a
+performance, so two people composited into two different rooms is already
+the shape the data takes. The channel's single `identity.spaceId` is the
+narrower model, and it is narrower than the product it sits in.
+
+### The virtual set has no scene in it
+
+A `SpaceLook` is a wash, a light pool, a vignette, some grain and
+optionally one band. That is a **backdrop**, precisely as §27 defines it,
+and the studio's own panel calls it "Background / Virtual Set" — one
+control for two things the brief says are not the same thing.
+
+Of §27's eight parts of a scene, the product has **presenter positions**
+(`LAYOUTS`, shared by the live mixer and the ffmpeg renderer, so a quad
+here and a quad in an export are one table) and **programme graphics**
+(`marksFor`). It has a **lower third** but placed by corner rather than in
+a region the set owns. It has no desk, no screens, no logos as scene
+furniture, and no lighting that belongs to the set rather than to the
+drawn backdrop.
+
+### The multi-view is closer than the rest
+
+The grid is already `repeat(3, minmax(0, 1fr))` by `repeat(2, …)` with
+`minHeight: 0` — **fixed, and it does not expand.** It already has
+zero-padded source numbers on plates, tally as a hard inset bar (red for
+program, blue for keyed), a name plate with a three-stop scrim, and a
+one-word availability read — `LIVE / ON / READY / —`. The brief's *"fixed
+dimensions, no expansion, no deformation"* is a constraint the existing
+grid meets and the guest grid must not break.
+
+What it has not got: **mic and video state**, **audio meters on a tile**,
+and **source health** distinct from availability — `READY` says a tile can
+be cut to, not that its picture is arriving.
+
+### The ledger
+
+*Verdicts: **Have** — shipped and working. **Wired wrong** — the mechanism
+exists and the control room does not reach it. **Offline only** — built,
+tested, and on the render path rather than the live one. **Gap** — not
+built.*
+
+| # | What the brief asks | What is there | Verdict |
+|---|---|---|---|
+| **G1** | Tile 02 divided into four quarters | one `<video>`, the first non-host guest | **Gap** |
+| **G2** | Four independent guest sources | `useBroadcastGuests` → one `MixerSource` each, in the Room's staging order | **Have** |
+| **G3** | Tile reads `02 GUESTS — 4` | reads `Camera 2 — Guest` | **Gap** |
+| **G4** | Video per quarter | streams present; only the first drawn | **Wired wrong** |
+| **G5** | Microphone state | nothing reads a guest's audio track state | **Gap** |
+| **G6** | Connection state | `mesh.states` per peer, dropped at `MixerSource` | **Wired wrong** |
+| **G7** | Small audio meter | `useFeedLevels.energy`, host and master only | **Wired wrong** |
+| **G8** | Speaking indicator | `useFeedLevels.speech`, from `measureVoice` | **Wired wrong** |
+| **G9** | LIVE / selected tally per guest | tally exists per tile, not per quarter | **Wired wrong** |
+| **G10** | `NO VIDEO` when unavailable | nothing; the mixer paints a flat accent | **Gap** |
+| **G11** | Click a guest → programme source | tile 02's click is `onBackToRoom`, for the whole room | **Gap** |
+| **G12** | No enlargement of the container | grid is fixed 3×2 with `minmax(0, 1fr)` | **Have** |
+| **M1** | Library → Media Player → Programme | tile 05 mirrors the schedule; no player | **Gap** |
+| **M2** | Compact picker with search | the left rail's Library tab has both, and the tile does not open it | **Wired wrong** |
+| **M3** | Load → Preview → Play → Take Live | Preview holds the armed camera and the next title | **Gap** |
+| **M4** | No duplicate media system | `broadcastLibrary()` lists references; D-18 forbids copies | **Have** |
+| **M5** | Item: title | `BroadcastItem.title`, read now rather than copied | **Have** |
+| **M6** | Item: artist / owner | nothing | **Gap** |
+| **M7** | Item: duration | **absent, though the file's own header claims it** | **Gap** |
+| **M8** | Item: audio / video type | `form: 'image' \| 'video'`; no audio | **Gap** |
+| **M9** | Item: artwork | `Thumb` renders video and image; no artwork field | **Gap** |
+| **M10** | Audio-only through the channel's visual treatment | nothing | **Gap** |
+| **B1** | Person segmentation | plate-difference matte, `matteChain` | **Offline only** |
+| **B2** | Background is part of the master composition | `identity.spaceId` is written and **read by nothing** | **Gap** |
+| **B3** | Real thumbnails, grouped Studio / Performance / Places | ten flat colour swatches, ungrouped | **Gap** |
+| **B4** | Per-person assignment | one `spaceId` for the whole channel | **Gap** |
+| **B5** | Edge refinement, hair, temporal stability, no halo, no bleed | `matteFeather`, `matteThreshold`, both measured | **Offline only** |
+| **B6** | Chroma key as the higher-quality path | nothing | **Gap** |
+| **B7** | Position, scale, crop, flip, background blur, lighting | crop-reframe and `blurBackdropChain` exist; none live, none per-person | **Offline only** |
+| **B8** | Told honestly when separation will not hold | `plateVerdict`, `MATTE_USABLE_QUALITY` | **Offline only** |
+| **V1** | A set is a scene, not an image | a `SpaceLook` is wash + glow + vignette + grain + band | **Gap** |
+| **V2** | Presenter positions | `LAYOUTS`, shared by mixer and renderer | **Have** |
+| **V3** | Desk / table, screens, logos | nothing | **Gap** |
+| **V4** | Lower-third region owned by the set | `marksFor` places by corner | **Wired wrong** |
+| **V5** | Lighting | `SpaceLook.glow`, on the backdrop only | **Offline only** |
+| **V6** | Programme graphics | `marksFor` — bug, lamp, lower third, next | **Have** |
+| **V7** | Background and Virtual Set are distinct | one panel titled "Background / Virtual Set" | **Gap** |
+| **X1** | Fixed 3×2, no expansion, no deformation | already so | **Have** |
+| **X2** | Tally | inset bar, red program / blue keyed | **Have** |
+| **X3** | Labels | name plate, zero-padded number plate | **Have** |
+| **X4** | Mic / video state | nothing | **Gap** |
+| **X5** | Audio meters on tiles | `useFeedLevels` exists; no tile reads it | **Wired wrong** |
+| **X6** | Source health | `LIVE / ON / READY / —` says availability, not health | **Wired wrong** |
+
+**Twenty-two gaps, ten wired wrong, seven offline, ten already there.**
+The shape of the work that follows is set by that count: item 1 is mostly
+forwarding fields that are already measured, item 2 is a player plus four
+fields on a library item, and item 3 is the only one that is genuinely new
+engineering — a matte at 30 fps in the browser canvas, feeding the same
+composition path the encoder already reads.
