@@ -951,6 +951,59 @@ the artwork now, in both layouts, with the decorative layers keeping their
 
 ---
 
+## The eleventh decision: a link that goes nowhere is worse than no link
+
+*Found by the author, who pressed something in the new front doors and
+asked why the page was not found.*
+
+The three room entrances introduced six fragment links, and **five of them
+pointed at an element that did not exist**:
+
+| link | where | landed on |
+|---|---|---|
+| `GO LIVE` | the Online TV front door | `#live` — nothing |
+| `SCHEDULE`, `View schedule →` | the Online TV front door | `#schedules` — nothing |
+| `Manage distribution →` | the Online TV front door | `#distribution` — nothing |
+| `Channels` | the building rail | `#channels` — nothing |
+| `Distribution` | the building rail | `#distribution` — nothing |
+| `Edit identity` | the home page hero | `#identity` — nothing |
+
+Only `#library` had a target.
+
+**Nothing caught it because nothing was broken.** Every route returned
+200, every test passed, the build was clean, and the product was quietly
+teaching people that five of its buttons do not work. A browser does not
+complain about a fragment it cannot find; it loads the page and ignores
+it. A crawl of every route confirmed the pages themselves are all fine —
+the only 404s in the whole product are the missing take posters, which is
+a data gap the acceptance audit had already named.
+
+**A scroll target was not enough.** This is a console: every panel is
+already on screen, so scrolling to one is a no-op and the link would still
+look dead. What each fragment NAMES is a thing to do, so that is what it
+does — `#live` brings the camera desk up, `#identity` the graphics desk,
+`#distribution` opens the stream-output drawer, `#schedules` puts the
+schedule in view.
+
+**Two things the browser then corrected.**
+
+* One `setTimeout` after paint was not enough. `#distribution` is a
+  disclosure that is not in the tree until the channel has loaded, so the
+  effect found nothing and the drawer stayed shut — the same silent
+  nothing the missing ids produced. It looks for two seconds and then
+  gives up.
+* A mount-only effect is wrong. Going from `#identity` to `#live` on a
+  page that is already open changes no document, so React never remounts
+  — and the graphics desk stayed up while the address bar said `#live`.
+  `hashchange` is a navigation and is honoured; every render is not.
+
+**And it is a rule now.** `test/domain/links.test.ts` collects every
+fragment this product navigates to — in all three shapes the codebase
+writes them — and every `id` it offers, and fails when one has no target.
+Removing a single `id` was checked to make it fail.
+
+---
+
 ## What is deliberately not done
 
 - **No phone layout — for the STUDIOS.** A broadcast desk is operated at a

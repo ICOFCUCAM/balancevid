@@ -446,6 +446,70 @@ export default function ChannelStudio({
 
   useEffect(() => { void refresh(); }, [refresh]);
 
+  /**
+   * WHAT A LINK WITH A FRAGMENT ON IT IS SUPPOSED TO DO.  [U-19]
+   *
+   * The front doors added five of these — GO LIVE and SCHEDULE on the
+   * control-room landing page, *"Manage distribution →"*, *"View schedule
+   * →"*, and the rail's own Channels and Distribution — and **only
+   * `#library` had a target**. The other four scrolled to nothing: the
+   * page loaded, the fragment was ignored, and a person who pressed GO
+   * LIVE arrived at the top of a control room where nothing had
+   * happened. A link that does nothing is worse than no link, because it
+   * teaches somebody the product is broken.
+   *
+   * AND A SCROLL IS NOT ENOUGH HERE. This is a console: every panel is
+   * already on screen, so scrolling to one is a no-op and the link would
+   * still appear dead. What each fragment NAMES is a thing to do —
+   * bring the camera desk up, open the stream-output drawer, put the
+   * schedule in view — so that is what it does.
+   *
+   * ON ARRIVAL, AND WHENEVER THE FRAGMENT CHANGES. Not on every render
+   * — that would fight the operator for the desk they had chosen — but
+   * `hashchange` is a navigation and has to be honoured: going from
+   * `#identity` to `#live` on a page that is already open changes no
+   * document, so React never remounts and a mount-only effect leaves
+   * the graphics desk up while the address bar says `#live`. The
+   * browser demonstrated exactly that.
+   */
+  useEffect(() => {
+    let timer = 0;
+    const act = () => {
+      const asked = window.location.hash.slice(1);
+      if (!asked) return;
+      if (asked === 'identity') setDeskTab('graphics');
+      if (asked === 'live') setDeskTab('camera');
+      /*
+       * AND IT WAITS FOR THE ELEMENT. One `setTimeout` after paint was
+       * not enough and the browser said so: `#distribution` is a
+       * disclosure in the transport bar that is not in the tree until
+       * the channel has loaded, so the effect ran, found nothing, and
+       * the drawer stayed shut — the same silent nothing the missing
+       * ids produced.
+       *
+       * Two seconds of looking, then it gives up, because a fragment
+       * for something that never arrives is not worth a standing timer.
+       */
+      window.clearInterval(timer);
+      let tries = 0;
+      timer = window.setInterval(() => {
+        tries += 1;
+        const target = document.getElementById(asked);
+        if (target) {
+          if (target instanceof HTMLDetailsElement) target.open = true;
+          target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
+        if (target || tries > 16) window.clearInterval(timer);
+      }, 120);
+    };
+    act();
+    window.addEventListener('hashchange', act);
+    return () => {
+      window.removeEventListener('hashchange', act);
+      window.clearInterval(timer);
+    };
+  }, []);
+
   /*
    * The engine can die at any moment and nothing on this page would change
    * on its own. Every ten seconds is well inside ENGINE_STALE_MS, so the
@@ -1509,6 +1573,7 @@ export default function ChannelStudio({
           </div>
 
           {/* ---- 24/7 SCHEDULE ---------------------------------------- */}
+          <div id="schedules" style={{ display: 'contents' }} />
           <Frame testid="schedule-deck">
             {/*
               * THE SCHEDULE'S HEAD IS THE SAME LEGEND AS EVERY OTHER
@@ -1620,6 +1685,7 @@ export default function ChannelStudio({
         </div>
 
         {/* ============ RIGHT COLUMN — LIVE STUDIO ====================== */}
+        <div id="live" style={{ display: 'contents' }} />
         <Frame testid="live-studio">
           <Head
             text="Live Studio"
@@ -1851,12 +1917,21 @@ export default function ChannelStudio({
             )}
 
             {deskTab === 'graphics' && (
+              /*
+               * NAMED, because the home page's hero links straight here:
+               * `${channel.href}#identity` is how somebody edits a
+               * channel's marks without going through the desk. The tab
+               * is chosen on arrival; the id is what the browser scrolls
+               * to, and what the link test can see. [U-19]
+               */
+              <div id="identity" style={{ scrollMarginTop: 20 }}>
               <GraphicsTab
                 channel={channel}
                 onIdentity={(body) => void patch({
                   action: 'identity', identity: body,
                 })}
               />
+              </div>
             )}
 
             {deskTab === 'audio' && (
@@ -2254,7 +2329,10 @@ export default function ChannelStudio({
           <Meter value={levels['master']?.energy ?? 0} label="Out" />
 
           {/* ---- where the programme goes (§15, D-21) ------------------ */}
-          <details data-testid="stream-output" style={{ position: 'relative' }}>
+          <details
+            id="distribution" data-testid="stream-output"
+            style={{ position: 'relative' }}
+          >
             <summary className="small" style={{
               listStyle: 'none', cursor: 'pointer', padding: '6px 10px',
               borderRadius: 3, border: '1px solid var(--console-seam)',
