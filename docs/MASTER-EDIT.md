@@ -728,3 +728,213 @@ And the engineering order, which this work follows:
 > come after the underlying editing model is robust, because otherwise you
 > risk putting professional controls on top of a timeline that can still
 > produce a 1.248-second hole.
+
+---
+
+## §16  Lyrics are not captions
+
+*The author's brief, verbatim, 30 September 2026, from a Master Check that
+had just refused a song's words for having no timestamps in them.*
+
+> *"I can see the problem clearly from the screenshot. You gave the lyrics,
+> but BalanceVid is treating the lyrics as if you were supposed to provide
+> an LRC timed-caption file.*
+>
+> ***What is happening.** You entered:*
+>
+> ```
+> Ancient of Days,
+> Who can search out Your mind?
+> They study the stars,
+> ...
+> ```
+>
+> *BalanceVid correctly receives the text, but then the Master Check says:
+> "Captions WORTH DOING — no lyrics yet — every export is supposed to carry
+> captions" and then: "these lyrics have no timings in them. Paste an LRC
+> file…"*
+>
+> ***That is the wrong experience. You should not have to know what LRC is
+> just because BalanceVid asked you for lyrics.***
+>
+> ***The correct BalanceVid workflow.** It should be:*
+>
+> ```
+> LYRICS
+> → user pastes ordinary lyrics
+> → BalanceVid aligns them to the song automatically
+> → TIMED LYRICS / CAPTIONS
+> → user can review/edit timing
+> → export
+> ```
+>
+> *For example:*
+>
+> ```
+> LYRICS
+>
+> Who has measured Your wisdom?
+> 00:12.400 ─────────────────
+> Who can search out Your mind?
+> 00:16.800 ─────────────────
+> They study the stars
+> 00:21.200 ─────────────────
+> ```
+>
+> *The user should only need to supply timestamps manually if automatic
+> alignment fails or they specifically choose Advanced / Import LRC.*
+>
+> ***Even better: BalanceVid already has the information needed.** Your
+> screenshot shows: Song duration 04:04.503 · Audio present · Video covers
+> the entire duration · 1920×1080 · Master check passed · The lyrics are
+> already supplied. So BalanceVid can use the actual song audio to generate
+> timed lyrics.*
+>
+> *The flow should therefore be:*
+>
+> *1. Paste lyrics*
+> *2. BalanceVid analyzes the song*
+> *3. Align lyrics to the vocal*
+> *4. Show a timing preview*
+> *5. User adjusts anything that is wrong*
+> *6. Save timed lyrics*
+>
+> ***No LRC knowledge should be required.***
+>
+> ***One important distinction.** I would also change the terminology.
+> Don't make this:*
+>
+> ```
+> CAPTIONS
+>  Paste LRC
+> ```
+>
+> *when the user has just supplied song lyrics. Instead:*
+>
+> ```
+> LYRICS & CAPTIONS
+>  Your lyrics can be synchronized automatically to the song.
+> ```
+>
+> *Then provide:*
+>
+> ***Lyrics** — Edit lyrics*
+>
+> ***Timing** — Automatically synchronized · Edit timing · Import LRC*
+>
+> ***Display** — Captions on/off · Style · Position*
+>
+> ***And the Master Check should not fail.** This is particularly
+> important. If lyrics have been supplied but aren't timed yet, the Master
+> Check should say something like:*
+>
+> *Lyrics supplied — timing required before caption export*
+>
+> *with: **[Synchronize lyrics]***
+>
+> *It should not present the situation as though the user failed to provide
+> lyrics.*
+>
+> *So from this screenshot, I would classify this as a real product/UX
+> fault, not something you should work around manually. The underlying
+> system appears to have conflated two different objects:*
+>
+> ***lyrics text ≠ timed captions***
+>
+> ***BalanceVid should accept the first and derive the second.***"
+
+---
+
+## C-L1 — What the product actually has, measured before building
+
+*The standing method, applied. What it found changes what the work is,
+and it found a doctrine to face rather than a gap to fill.*
+
+### The conflation is real, and it is one field
+
+`MasterTrack.lyrics` is `LyricLine[]` — `{ fromSample, toSample, text }`.
+There is **no field for the words on their own**. `setLyrics` takes a
+string, runs `parseLrc`, and either stores timed lines or throws. So the
+author's text exists for the length of one function call and is then
+either timed or gone; there is nowhere for *"lyrics supplied, not yet
+timed"* to live. **lyrics text ≠ timed captions** is exactly right, and
+the document has only the second of the two.
+
+That is why the Master Check says *"no lyrics yet"* while looking at a box
+the author has just filled: it counts `master.lyrics?.length`, which is
+the count of TIMED lines, and untimed words are not lines.
+
+### The refusal is doctrine, and it is half right
+
+`lyrics.ts` states it plainly:
+
+> *"THE PRODUCT NEVER GUESSES A TIME. Plain lines with no timestamps are
+> refused with the reason, rather than spread evenly across the song: a
+> four-minute song with twenty lines is not twelve seconds a line, and a
+> caption that drifts away from the voice is the thing a viewer notices
+> before anything else in the video."*
+
+**The objection is to even spreading, and it is correct.** Twenty lines
+across four minutes is not twelve seconds a line, and a caption that
+drifts is worse than none — D-04's argument for captions is that they are
+the accessible form of what was said, not an approximation of it.
+
+**But forced alignment is not spreading.** It is measurement: where the
+voice starts is a fact about the audio, and the product already measures
+it. The doctrine forbids inventing a number; it does not forbid reading
+one. So the brief and the doctrine agree once the distinction is made,
+and the distinction has to be made in the code and not only in a comment.
+
+### The measurement already exists, twice
+
+| what | where | note |
+|---|---|---|
+| speech detection | `silero_vad.onnx`, via `sherpa.ts` | already downloaded on first boot; `speechSegments: Array<{start, end}>` |
+| the same, in the browser | `measureVoice`, `useFeedLevels` | energy and speech confidence, twenty times a second |
+| the normalised master | `paths` + `render/audio.ts` | 48 kHz, the house rate — *"what they hear and what the alignment measures are the same audio"* |
+| a worker that does audio jobs | `src/worker/index.ts` | fifteen job kinds, four of them audio |
+
+So nothing here needs a new capability. What it needs is a job that runs
+the VAD over the master, and a function that assigns lines to the phrases
+it finds.
+
+### Why the vocal's phrases, and not ASR
+
+`lyrics.ts` already rejected ASR and was right to:
+
+> *"Speech recognition on SINGING is bad — held vowels, melisma, a backing
+> track in the same band as the voice. A caption track that is wrong two
+> lines in five is worse than none at all."*
+
+Alignment does not transcribe. **The words are known** — the author
+supplied them — and the only question is *when each one starts*, which is
+a boundary in the audio rather than a guess at a syllable. A phrase
+boundary is exactly what a VAD is for, and it does not care whether the
+vowel was held.
+
+### What this makes the work
+
+1. **A field for untimed words.** `MasterTrack.lyricsText`, beside
+   `lyrics`, so *"supplied, not yet timed"* is a state the document can
+   hold and the Master Check can name.
+2. **An alignment**, pure and tested: lines in, phrases in, timed lines
+   out — and an honest verdict when the counts do not match, because
+   twenty lines against twelve phrases is a song with a repeated chorus
+   or a mis-split lyric, and either way the author has to see it.
+3. **A job** that measures the master's phrases, so the studio is not
+   asked to decode four minutes of audio.
+4. **The panel the brief draws** — Lyrics / Timing / Display — with the
+   timing preview, per-line nudging, and Import LRC kept as the advanced
+   path it always was.
+5. **A Master Check that names the state it is in**, not the state it
+   wishes it were in.
+
+The ledger for these is **L1**–**L5**, below, and nothing is ticked yet.
+
+| id | what | state |
+|---|---|---|
+| **L1** | a field for untimed lyrics | not built |
+| **L2** | alignment to measured phrases, with an honest mismatch verdict | not built |
+| **L3** | a worker job that measures the master's phrases | not built |
+| **L4** | Lyrics / Timing / Display, with a timing preview and per-line nudge | not built |
+| **L5** | the Master Check says "supplied, timing required", with the action | not built |
