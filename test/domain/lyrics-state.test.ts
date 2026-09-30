@@ -200,6 +200,25 @@ describe('synchronising', () => {
   });
 });
 
+describe('importing timings', () => {
+  it('keeps the words in the words box, not the timestamps', () => {
+    /* L1's whole point: the box is captioned "just the words", so an
+       author who imported an LRC must not find `[00:10.00]` in it. */
+    const one = song();
+    setLyrics(one, '[00:10.00]one\n[00:14.00]two');
+    expect(one.master.lyricsText).toBe('one\ntwo');
+    expect(one.master.lyricsText).not.toMatch(/\[/);
+  });
+
+  it('still keeps them, so a re-align has something to start from', () => {
+    const one = song();
+    setLyrics(one, '[00:10.00]one\n[00:14.00]two');
+    expect(lyricsStatus(one.master)).toBe('timed');
+    setLyrics(one, null);
+    expect(one.master.lyricsText).toBeUndefined();
+  });
+});
+
 describe('nudging one line', () => {
   /** Three lines, edge to edge, from ten seconds. */
   function timed(): Performance {
@@ -269,6 +288,16 @@ describe('nudging one line', () => {
     expect(() => nudgeLyric(timed(), 9, SECOND)).toThrow(/no such line/);
     expect(() => nudgeLyric(timed(), -1, SECOND)).toThrow(/no such line/);
     expect(() => nudgeLyric(song(), 0, SECOND)).toThrow(/no such line/);
+  });
+
+  it('refuses an index that is not a whole line', () => {
+    /* The index arrives off the wire, where `Number('two')` is NaN and a
+       missing field is NaN too. Both must be refused rather than read:
+       `lines[1.5]` is undefined, and undefined has no `fromSample`. */
+    for (const index of [1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(() => nudgeLyric(timed(), index, SECOND))
+        .toThrow(/no such line/);
+    }
   });
 
   it('never leaves two captions on screen at once', () => {

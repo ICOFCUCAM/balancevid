@@ -3,7 +3,7 @@ import { bookingsFor, refusalFor } from '../../../../src/domain/deletion.js';
 import { deletePerformance } from '../../../../src/store/performances.js';
 import { listChannels } from '../../../../src/store/channels.js';
 import { acceptBeats, setTempo,
-  classifyMaster, usePlate, setAudioMode, setSceneAudio, setTransition, setTransitionTiming, setScene, moveScene, moveBoundary, coverGap, coverWith, removeScene, labelScene, clearScenes, nudgeTake, trimTake, renameTake, replaceTake, renamePerformance, setEffect, setCleanup, setLyrics, setLyricsText, synchroniseLyrics, setEnvironment, setReframe, trimSong, removeSection, splitSong, replaceSection, setSongSound, addSound, moveSound, trimSound, setSoundLayer, removeSound, removeTake, setLoop, setFootageRights, PerformanceEditError } from '../../../../src/domain/performanceEdit.js';
+  classifyMaster, usePlate, setAudioMode, setSceneAudio, setTransition, setTransitionTiming, setScene, moveScene, moveBoundary, coverGap, coverWith, removeScene, labelScene, clearScenes, nudgeTake, trimTake, renameTake, replaceTake, renamePerformance, setEffect, setCleanup, setLyrics, setLyricsText, synchroniseLyrics, nudgeLyric, setEnvironment, setReframe, trimSong, removeSection, splitSong, replaceSection, setSongSound, addSound, moveSound, trimSound, setSoundLayer, removeSound, removeTake, setLoop, setFootageRights, PerformanceEditError } from '../../../../src/domain/performanceEdit.js';
 import type { Phrase } from '../../../../src/domain/lyrics.js';
 import { projectPerformance, covered } from '../../../../src/domain/performance.js';
 import { assertAlignmentInvariants } from '../../../../src/domain/invariants.js';
@@ -253,6 +253,23 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
         case 'synchronise-lyrics':
           synchroniseLyrics(draft, Array.isArray(body['phrases'])
             ? (body['phrases'] as Phrase[]) : []);
+          break;
+        /*
+         * AND MOVE THE ONE THAT LANDED WRONG.  [MASTER-EDIT §16, L7]
+         *
+         * *"Show a timing preview. User adjusts anything that is
+         * wrong."* The preview was drawn when L7 landed and had nothing
+         * behind it: `nudgeLyric` existed in the domain with no door
+         * into it, which by this building's own rule is a capability
+         * that does not exist.
+         *
+         * COERCED HERE, DECIDED THERE. `Number(undefined)` is NaN and
+         * so is `Number('two')`, and the domain refuses both by the
+         * same guard that refuses line nine of a three-line song — so
+         * a malformed request gets a sentence rather than a stack.
+         */
+        case 'nudge-lyric':
+          nudgeLyric(draft, Number(body['index']), Number(body['bySamples']));
           break;
         /* The room the take was recorded in. [MASTER-EDIT §8] */
         case 'set-cleanup':

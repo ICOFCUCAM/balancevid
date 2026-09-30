@@ -5,9 +5,27 @@ import type { Performance, RenderProblem } from '../../../src/domain/performance
 import { lyricsStatus, masterCheck } from '../../../src/domain/performance.js';
 import { repairsFor } from '../../../src/domain/takeRanking.js';
 import { EXPORT_PROFILES } from '../../../src/domain/presentation.js';
-import { formatMasterPosition } from '../../../src/domain/time.js';
+import { formatMasterPosition, HOUSE_SAMPLE_RATE } from '../../../src/domain/time.js';
+import { MIN_LINE_SAMPLES } from '../../../src/domain/lyrics.js';
 import { phrasesIn } from '../../../src/domain/phrases.js';
 import Icon from '../../Icon.js';
+
+/**
+ * How far one press moves a caption.  [MASTER-EDIT §16, L7]
+ *
+ * A QUARTER OF A SECOND, because of what the error actually is.
+ * `synchronise` puts every line on a measured phrase of singing, so a
+ * line is never adrift by seconds — it is out by a breath the detector
+ * counted or missed at one end. A step sized for that is a step small
+ * enough to hear and large enough that a correction is two presses
+ * rather than ten.
+ *
+ * AND AN OFFSET BIGGER THAN A FEW PRESSES IS NOT A NUDGE. If a line
+ * wants moving by a bar, the synchronise was wrong and running it again
+ * is the honest remedy; clicking forty times to hide that would leave
+ * the rest of the track just as wrong.
+ */
+const NUDGE_STEP = Math.round(HOUSE_SAMPLE_RATE / 4);
 
 /**
  * Everything that must be true before a master is worth rendering.
@@ -264,6 +282,20 @@ function Lyrics({
     }
   };
 
+  /**
+   * Move one line, and say so where it happened.
+   *
+   * THE DOCUMENT IS THE STATE. Nothing is held here and no optimistic
+   * position is drawn: the press goes to the domain, the domain clamps
+   * it, and the row redraws from what came back. A local copy would be
+   * a second opinion about where a caption is. [U-19, D-06]
+   */
+  const nudge = (index: number, bySamples: number) => {
+    setSaid(null);
+    void onRepair({ action: 'nudge-lyric', index, bySamples })
+      .then((refusal) => setSaid(refusal));
+  };
+
   return (
     <div data-testid="check-lyrics" style={{
       margin: '3px 0 7px 22px', padding: 'var(--space-3) var(--space-4)',
@@ -366,10 +398,18 @@ function Lyrics({
               </div>
 
               {/*
-                * THE PREVIEW THE BRIEF DREW. *"Show a timing preview.
-                * User adjusts anything that is wrong."* Adjusting is
-                * still to build; seeing is what stops somebody
-                * exporting a caption track they have never looked at.
+                * THE PREVIEW THE BRIEF DREW, AND THE ADJUSTING.
+                * *"Show a timing preview. User adjusts anything that
+                * is wrong."* Seeing is what stops somebody exporting a
+                * caption track they have never looked at; the two
+                * arrows are the rest of the sentence.
+                *
+                * ON THE LINE ITSELF rather than on a selected line
+                * with a control bar above it. A caption is wrong in
+                * the place you can see it is wrong, and a bar that
+                * acts on "the current line" adds a question — which
+                * one is current — to a panel whose whole job is to
+                * answer questions.
                 */}
               {timed.length > 0 && (
                 <div data-testid="lyrics-preview" style={{
@@ -378,26 +418,61 @@ function Lyrics({
                   border: 'var(--border) solid var(--console-seam)',
                   borderRadius: 'var(--radius-xs)',
                 }}>
-                  {timed.map((line, index) => (
-                    <div
-                      // eslint-disable-next-line react/no-array-index-key
-                      key={index} className="row" data-testid="lyrics-line"
-                      style={{
-                        gap: 'var(--space-3)', minWidth: 0,
-                        padding: '2px 6px',
-                        borderBottom: 'var(--border) solid var(--console-rule)',
-                      }}
-                    >
-                      <span className="mono muted" style={{
-                        flex: '0 0 auto', fontSize: 'var(--text-2xs)',
-                      }}>{formatMasterPosition(line.fromSample)}</span>
-                      <span className="grow" style={{
-                        minWidth: 0, fontSize: 'var(--text-xs)',
-                        overflow: 'hidden', textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}>{line.text}</span>
-                    </div>
-                  ))}
+                  {timed.map((line, index) => {
+                    /*
+                     * THE DOMAIN'S CLAMP, SHOWN RATHER THAN HIT.
+                     * `nudgeLyric` keeps `MIN_LINE_SAMPLES` on both
+                     * sides, so a press past the limit is a request
+                     * that quietly does nothing — and a control that
+                     * does nothing when pressed is the fault this
+                     * panel was rebuilt to remove. The same two
+                     * numbers grey the arrow out instead. [L7, U-19]
+                     */
+                    const before = index > 0 ? timed[index - 1] : undefined;
+                    const earliest = before
+                      ? before.fromSample + MIN_LINE_SAMPLES : 0;
+                    const latest = line.toSample - MIN_LINE_SAMPLES;
+                    return (
+                      <div
+                        // eslint-disable-next-line react/no-array-index-key
+                        key={index} className="row" data-testid="lyrics-line"
+                        style={{
+                          gap: 'var(--space-3)', minWidth: 0,
+                          padding: '2px 6px',
+                          borderBottom: 'var(--border) solid var(--console-rule)',
+                        }}
+                      >
+                        <span className="mono muted" style={{
+                          flex: '0 0 auto', fontSize: 'var(--text-2xs)',
+                        }}>{formatMasterPosition(line.fromSample)}</span>
+                        <span className="grow" style={{
+                          minWidth: 0, fontSize: 'var(--text-xs)',
+                          overflow: 'hidden', textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}>{line.text}</span>
+                        <button
+                          className="ctl" data-testid="lyric-earlier"
+                          disabled={busy || line.fromSample <= earliest}
+                          aria-label={`Bring "${line.text}" a quarter-second earlier`}
+                          title="A quarter-second earlier"
+                          onClick={() => { nudge(index, -NUDGE_STEP); }}
+                          style={{
+                            flex: '0 0 auto', padding: '3px 6px', lineHeight: 0,
+                          }}
+                        ><Icon name="chevron" size={10} turn={180} /></button>
+                        <button
+                          className="ctl" data-testid="lyric-later"
+                          disabled={busy || line.fromSample >= latest}
+                          aria-label={`Hold "${line.text}" a quarter-second later`}
+                          title="A quarter-second later"
+                          onClick={() => { nudge(index, NUDGE_STEP); }}
+                          style={{
+                            flex: '0 0 auto', padding: '3px 6px', lineHeight: 0,
+                          }}
+                        ><Icon name="chevron" size={10} /></button>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
 
