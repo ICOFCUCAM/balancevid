@@ -1,8 +1,8 @@
 'use client';
 
 import {
-  TAKE_ACCESS, TAKE_ACCESS_LABELS, TAKE_ACCESS_MEANS,
-  describeAvailability, type TakeAccess, type TakeAvailability,
+  CLAIMS_BY_DEFAULT, TAKE_ACCESS, TAKE_ACCESS_LABELS, TAKE_ACCESS_MEANS,
+  claimsAllowed, describeAvailability, type TakeAccess, type TakeAvailability,
 } from '../src/domain/availability.js';
 
 /**
@@ -113,6 +113,42 @@ export default function AvailabilityFields({
               </option>
             ))}
           </select>
+        </label>
+      )}
+
+      {/*
+        * AND HOW MANY OF THEM, WHICH ONLY `anyone` RAISES.
+        *
+        * Every other policy means the producer hands out the
+        * invitations, so a ceiling there is a number that does
+        * nothing — and a control that does nothing looks like a
+        * fault. This is the door strangers come through, and the
+        * question is one a producer can actually answer: how many
+        * takes from people you did not invite.
+        *
+        * IT COUNTS CLAIMS AND NOT INVITATIONS, so inviting a choir
+        * does not close the door on the public.
+        */}
+      {respondable && (value.access ?? 'anyone') === 'anyone' && (
+        <label className="field" data-testid={`${testId}-claims-field`}
+               style={{ margin: 0 }}>
+          <span className="module-sub">At most, from strangers</span>
+          <input
+            type="number" className="small" min={0} step={1}
+            data-testid={`${testId}-claims`} disabled={disabled}
+            value={claimsAllowed(value)}
+            onChange={(event) => {
+              const asked = Number(event.target.value);
+              onChange({
+                ...value,
+                claims: Number.isInteger(asked) && asked >= 0
+                  ? asked : CLAIMS_BY_DEFAULT,
+              });
+            }} />
+          <span className="small muted" style={{ fontSize: 'var(--text-2xs)' }}>
+            Takes from people you did not invite. Your own invitations do
+            not count towards it.
+          </span>
         </label>
       )}
 

@@ -86,6 +86,14 @@ export interface TakeAvailability {
   respondable?: boolean;
   listed?: boolean;
   access?: TakeAccess;
+  /**
+   * How many strangers may claim this. See `claimsAllowed`.
+   *
+   * Only meaningful where `access` is `anyone`: every other policy
+   * means the producer hands out the invitations, and a ceiling on a
+   * door nobody can open by themselves is a number that does nothing.
+   */
+  claims?: number;
 }
 
 /**
@@ -208,15 +216,67 @@ export function describeAvailability(
  * permission, the safe direction is closed.
  */
 export function availabilityFrom(body: {
-  respondable?: unknown; listed?: unknown; access?: unknown;
+  respondable?: unknown; listed?: unknown; access?: unknown; claims?: unknown;
 }): TakeAvailability {
   const respondable = body.respondable === true;
   const asked = typeof body.access === 'string' ? body.access : undefined;
   const known = TAKE_ACCESS.find((one) => one === asked);
+  const access = known ?? (asked ? 'invited' : DEFAULT_ACCESS);
+  /*
+   * A CEILING ONLY WHERE STRANGERS CAN COME THROUGH, and never a value
+   * that is not a count: a negative or fractional ceiling read later as
+   * a bound is a bound that does not hold.
+   */
+  const claims = Number.isInteger(body.claims) && (body.claims as number) >= 0
+    ? body.claims as number : undefined;
   return {
     respondable,
     listed: body.listed !== false,
     /* Only where it means something, and never a word we do not know. */
-    ...(respondable ? { access: known ?? (asked ? 'invited' : DEFAULT_ACCESS) } : {}),
+    ...(respondable ? { access } : {}),
+    ...(respondable && access === 'anyone' && claims !== undefined
+      ? { claims } : {}),
   };
+}
+
+/**
+ * How many strangers may claim this before the door closes.
+ *   [TAKE-PLATFORM P41; D-25]
+ *
+ * THE EXPOSURE THIS BOUNDS, stated plainly: `POST /api/participate/…`
+ * is the only creating write a stranger may make, and each press writes
+ * a request. Opening a song to `anyone` without a ceiling is opening it
+ * to a script. The client asks once per device because it keeps what it
+ * is given, which covers the accidental case and not the deliberate one.
+ *
+ * A NUMBER RATHER THAN A RATE, because a rate limit is about traffic and
+ * this is about a production. What a producer knows is how many takes
+ * they are willing to receive from strangers — "a hundred" is an answer
+ * they can give; "ten per minute per address" is not a question they
+ * should be asked, and it is the deployment's job anyway.
+ *
+ * FINITE BY DEFAULT. An absent ceiling means this one, not unlimited: a
+ * producer who ticks "anyone" is saying who may take part, not agreeing
+ * to an unbounded number of them, and the safe reading of silence is a
+ * bound they can raise.
+ *
+ * IT COUNTS CLAIMS ONLY. A producer inviting a choir must not spend the
+ * public ceiling — `claimed` on the request is what tells them apart.
+ */
+export const CLAIMS_BY_DEFAULT = 100;
+
+/** The most this item allows, whether or not anybody set it. */
+export function claimsAllowed(availability: TakeAvailability | undefined): number {
+  const asked = availability?.claims;
+  if (asked === undefined) return CLAIMS_BY_DEFAULT;
+  if (!Number.isInteger(asked) || asked < 0) return CLAIMS_BY_DEFAULT;
+  return asked;
+}
+
+/** Whether one more stranger may take part, given how many already have. */
+export function mayClaim(
+  availability: TakeAvailability | undefined, alreadyClaimed: number,
+): boolean {
+  if (!maySubmit(availability, 'anyone')) return false;
+  return alreadyClaimed < claimsAllowed(availability);
 }

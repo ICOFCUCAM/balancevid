@@ -21,6 +21,9 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { mayBePublic } from '../../src/auth/policy.js';
+import {
+  CLAIMS_BY_DEFAULT, availabilityFrom, claimsAllowed, mayClaim,
+} from '../../src/domain/availability.js';
 
 const ROOT = join(import.meta.dirname, '..', '..');
 const code = (file: string) => readFileSync(join(ROOT, file), 'utf8')
@@ -29,6 +32,7 @@ const code = (file: string) => readFileSync(join(ROOT, file), 'utf8')
 const HOME = code('app/take/TakeHome.tsx');
 const PAGE = code('app/take/page.tsx');
 const CLAIM = code('app/api/participate/[kind]/[id]/route.ts');
+const FIELDS = code('app/AvailabilityFields.tsx');
 
 describe('the home is reachable without an account', () => {
   /*
@@ -255,5 +259,123 @@ describe('the page itself says nothing', () => {
   it('says what you take part in here stays here', () => {
     expect(HOME).toMatch(/one BalanceVid installation/);
     expect(HOME).toMatch(/stays here/);
+  });
+});
+
+describe('the ceiling on claims', () => {
+  /*
+   * THE EXPOSURE THIS CLOSES, and it was one I opened: each press of
+   * "Take this song" writes a request, so an item set to `anyone`
+   * without a bound is an item opened to a script. The client's own
+   * memory covers the accidental repeat and not the deliberate one.
+   */
+  it('is finite when nobody set one', () => {
+    expect(CLAIMS_BY_DEFAULT).toBeGreaterThan(0);
+    expect(claimsAllowed(undefined)).toBe(CLAIMS_BY_DEFAULT);
+    expect(claimsAllowed({ respondable: true, access: 'anyone' }))
+      .toBe(CLAIMS_BY_DEFAULT);
+  });
+
+  /*
+   * SILENCE IS A BOUND THEY CAN RAISE, not an unbounded number. A
+   * producer ticking "anyone" is saying WHO may take part, not
+   * agreeing to how many.
+   */
+  it('takes the number a producer gave, including zero', () => {
+    expect(claimsAllowed({ respondable: true, access: 'anyone', claims: 5 })).toBe(5);
+    expect(claimsAllowed({ respondable: true, access: 'anyone', claims: 0 })).toBe(0);
+  });
+
+  /* And never a value that is not a count. */
+  it('refuses a ceiling that is not a whole number of takes', () => {
+    for (const bad of [-1, 1.5, NaN, Infinity]) {
+      expect(claimsAllowed({ respondable: true, access: 'anyone', claims: bad }))
+        .toBe(CLAIMS_BY_DEFAULT);
+    }
+  });
+
+  it('stops letting people in once it is reached', () => {
+    const open = { respondable: true, listed: true, access: 'anyone' as const, claims: 2 };
+    expect(mayClaim(open, 0)).toBe(true);
+    expect(mayClaim(open, 1)).toBe(true);
+    expect(mayClaim(open, 2)).toBe(false);
+    expect(mayClaim(open, 99)).toBe(false);
+  });
+
+  /* A ceiling never opens a door the policy keeps shut. */
+  it('lets nobody in where the policy would not', () => {
+    expect(mayClaim({ respondable: false, claims: 100 }, 0)).toBe(false);
+    expect(mayClaim({ respondable: true, access: 'invited', claims: 100 }, 0)).toBe(false);
+    expect(mayClaim({ respondable: true, access: 'link', claims: 100 }, 0)).toBe(false);
+  });
+
+  /*
+   * IT COUNTS CLAIMS AND NOT INVITATIONS. A producer inviting a choir
+   * must not spend the ceiling the public is coming through — which is
+   * the whole reason `claimed` exists on the request.
+   */
+  it('counts only what strangers claimed', () => {
+    expect(CLAIM).toMatch(/\.filter\(\(one\) => one\.claimed/);
+    expect(CLAIM).toMatch(/claimed: true,/);
+    const marks = CLAIM.match(/claimed: true,/g);
+    expect(marks).toHaveLength(3);
+  });
+
+  /* One per holder, each counting its own. */
+  it('bounds every kind, against its own holder', () => {
+    expect(CLAIM).toMatch(/mayClaim\(publication, await claimsSoFar\('performance', performance\.id\)\)/);
+    expect(CLAIM).toMatch(/mayClaim\(publication, await claimsSoFar\('conversation', conversation\.id\)\)/);
+    expect(CLAIM).toMatch(/mayClaim\(publication, await claimsSoFar\('channel', channel\.id\)\)/);
+  });
+
+  /*
+   * A FULL ITEM ANSWERS LIKE A CLOSED ONE. A counter a stranger can
+   * read is a counter a stranger can watch. [D-03]
+   */
+  it('says nothing about being full', () => {
+    expect(CLAIM).not.toMatch(/full|limit reached|too many/i);
+  });
+
+  /*
+   * AND THE CEILING IS OFFERED ONLY WHERE IT DOES SOMETHING. Every
+   * policy but `anyone` means the producer hands out the invitations,
+   * and a control that cannot act looks like a fault. [U-19]
+   */
+  it('is asked for only where strangers can come through', () => {
+    expect(FIELDS).toMatch(
+      /\{respondable && \(value\.access \?\? 'anyone'\) === 'anyone' && \(/);
+    expect(FIELDS).toMatch(/data-testid=\{`\$\{testId\}-claims`\}/);
+    expect(FIELDS).toMatch(/do\s*\n?\s*not count towards it/);
+  });
+
+  /*
+   * AND NOTHING THAT IS NOT A COUNT IS EVER WRITTEN DOWN.
+   *
+   * A MUTATION SURVIVED HERE: `availabilityFrom` accepting any number
+   * left every test passing, because `claimsAllowed` refuses a
+   * fractional or negative ceiling when it READS one, so behaviour
+   * stayed safe. What it does not prevent is `claims: 1.5` being
+   * persisted into the document and handed back to the producer as
+   * the number they set. A stored value nobody will honour is a lie
+   * told to whoever reads it next.
+   */
+  it('writes down nothing that is not a whole count', () => {
+    for (const bad of [1.5, -1, NaN, Infinity, '5', null, {}]) {
+      expect(
+        availabilityFrom({ respondable: true, access: 'anyone', claims: bad }).claims,
+        String(bad),
+      ).toBeUndefined();
+    }
+    expect(availabilityFrom({ respondable: true, access: 'anyone', claims: 0 }).claims)
+      .toBe(0);
+  });
+
+  /* And it is not stored where it would mean nothing. */
+  it('is not kept on an item strangers cannot claim', () => {
+    expect(availabilityFrom({ respondable: true, access: 'invited', claims: 5 }).claims)
+      .toBeUndefined();
+    expect(availabilityFrom({ respondable: false, claims: 5 }).claims).toBeUndefined();
+    expect(availabilityFrom({ respondable: true, access: 'anyone', claims: 5 }).claims)
+      .toBe(5);
   });
 });

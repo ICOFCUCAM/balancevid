@@ -20,7 +20,7 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
   const { id } = await params;
   const body = await request.json().catch(() => ({})) as {
     respondable?: boolean; author?: string;
-    listed?: unknown; access?: unknown;
+    listed?: unknown; access?: unknown; claims?: unknown;
   };
   if (typeof body.respondable !== 'boolean') {
     return fail(400, 'say whether responses are allowed — it is not assumed either way');
@@ -57,6 +57,8 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
         ...(body.listed === false ? { listed: false as const } : {}),
         ...(body.respondable && availabilityFrom(body).access
           ? { access: availabilityFrom(body).access! } : {}),
+        ...(availabilityFrom(body).claims !== undefined
+          ? { claims: availabilityFrom(body).claims! } : {}),
         ...(body.author ? { author: body.author } : {}),
         publishedAt: new Date().toISOString(),
       });

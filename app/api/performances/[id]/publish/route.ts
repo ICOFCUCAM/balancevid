@@ -24,6 +24,7 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
   const { id } = await params;
   const body = await request.json().catch(() => ({})) as {
     author?: string; respondable?: unknown; listed?: unknown; access?: unknown;
+    claims?: unknown;
   };
 
   try {

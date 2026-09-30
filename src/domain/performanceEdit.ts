@@ -872,6 +872,8 @@ export function publishPerformance(
     planHash: options.planHash,
     ...(wanted?.listed === false ? { listed: false } : {}),
     ...(respondable && wanted?.access ? { access: wanted.access } : {}),
+    ...(respondable && wanted?.access === 'anyone' && wanted.claims !== undefined
+      ? { claims: wanted.claims } : {}),
     ...(options.author?.trim() ? { author: options.author.trim() } : {}),
   };
 }

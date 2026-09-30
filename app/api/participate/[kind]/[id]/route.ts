@@ -1,11 +1,15 @@
 import { ParticipationError, newRequest } from '../../../../../src/domain/participationEdit.js';
 import { viewFor } from '../../../../../src/domain/participation.js';
 import { isRespondable } from '../../../../../src/domain/document.js';
-import { maySubmit, isListed } from '../../../../../src/domain/availability.js';
+import {
+  claimsAllowed, isListed, mayClaim, maySubmit,
+} from '../../../../../src/domain/availability.js';
 import { loadPerformance } from '../../../../../src/store/performances.js';
 import { loadConversation } from '../../../../../src/store/repository.js';
 import { loadChannel } from '../../../../../src/store/channels.js';
-import { linkFor, newSecret, saveRequest } from '../../../../../src/store/requests.js';
+import {
+  linkFor, listRequests, newSecret, saveRequest,
+} from '../../../../../src/store/requests.js';
 import { fail, json } from '../../../../../src/web/http.js';
 
 export const dynamic = 'force-dynamic';
@@ -44,13 +48,21 @@ const ID = /^[A-Za-z0-9_-]{1,64}$/;
  * reach by guessing an id — discovery and authorization are separate
  * questions, and this endpoint needs both answers to be yes.
  *
- * WHAT IS STILL EXPOSED, said plainly rather than left to be found: a
- * press writes a request directory, so an open item can be claimed
- * repeatedly by a script. The client asks only once per device because
- * it keeps what it was given, which covers the accidental case and not
- * the deliberate one. A per-item ceiling is the honest fix and it is a
- * producer-facing setting that does not exist yet; it is recorded in
- * the ledger rather than implied to be handled.
+ * AND IT IS BOUNDED. Each press writes a request, so an item opened to
+ * `anyone` without a ceiling is an item opened to a script. The
+ * client's own memory covers the accidental repeat and not the
+ * deliberate one, so the bound is here — a NUMBER the producer can
+ * give ("a hundred takes from strangers"), finite by default, because
+ * ticking "anyone" says who may take part rather than agreeing to an
+ * unbounded number of them.
+ *
+ * IT COUNTS CLAIMS AND NOT INVITATIONS. A producer inviting a choir
+ * must not spend the ceiling the public is coming through, which is
+ * what `claimed` on the request exists to tell apart.
+ *
+ * A FULL ITEM ANSWERS LIKE A CLOSED ONE, as everything else here does:
+ * "that is full" and "that does not exist" are the same 404, because a
+ * counter a stranger can read is a counter a stranger can watch.
  */
 export async function POST(_request: Request, { params }: Params): Promise<Response> {
   const { kind, id } = await params;
@@ -60,12 +72,26 @@ export async function POST(_request: Request, { params }: Params): Promise<Respo
   /* One refusal for every reason, so a probe cannot tell them apart. */
   const no = () => fail(404, 'that is not open for anybody to take part in');
 
+  /*
+   * HOW MANY STRANGERS HAVE ALREADY COME THROUGH THIS DOOR.
+   *
+   * A scan of the requests, which is honest about its cost: this is
+   * O(requests) per claim and there is no index. At the scale a single
+   * installation holds it is a directory read; if that stops being
+   * true the count belongs on the holder, and this is the one place
+   * that would have to change.
+   */
+  const claimsSoFar = async (holderKind: string, holderId: string) => (await listRequests())
+    .filter((one) => one.claimed
+      && one.holder.kind === holderKind && one.holder.id === holderId).length;
+
   try {
     if (kind === 'music') {
       const performance = await loadPerformance(id);
       const publication = performance.publication;
       if (!publication || publication.unpublishedAt) return no();
       if (!isListed(publication) || !maySubmit(publication, 'anyone')) return no();
+      if (!mayClaim(publication, await claimsSoFar('performance', performance.id))) return no();
 
       const beats = performance.beats;
       const request = newRequest({
@@ -84,6 +110,7 @@ export async function POST(_request: Request, { params }: Params): Promise<Respo
         },
         allowed: { video: true, takes: 3 },
         token: newSecret(),
+        claimed: true,
         now,
       });
       await saveRequest(request);
@@ -97,6 +124,7 @@ export async function POST(_request: Request, { params }: Params): Promise<Respo
       /* The predicate that already answers this for a conversation. */
       if (!isRespondable(conversation)) return no();
       if (!isListed(publication) || !maySubmit(publication, 'anyone')) return no();
+      if (!mayClaim(publication, await claimsSoFar('conversation', conversation.id))) return no();
 
       const request = newRequest({
         holder: { kind: 'conversation', id: conversation.id },
@@ -108,6 +136,7 @@ export async function POST(_request: Request, { params }: Params): Promise<Respo
         },
         allowed: { video: true, takes: 3 },
         token: newSecret(),
+        claimed: true,
         now,
       });
       await saveRequest(request);
@@ -119,6 +148,7 @@ export async function POST(_request: Request, { params }: Params): Promise<Respo
       const publication = channel.publication;
       if (!publication || publication.unpublishedAt) return no();
       if (!isListed(publication) || !maySubmit(publication, 'anyone')) return no();
+      if (!mayClaim(publication, await claimsSoFar('channel', channel.id))) return no();
 
       const request = newRequest({
         holder: { kind: 'channel', id: channel.id },
@@ -130,6 +160,7 @@ export async function POST(_request: Request, { params }: Params): Promise<Respo
         },
         allowed: { video: true, takes: 3 },
         token: newSecret(),
+        claimed: true,
         now,
       });
       await saveRequest(request);
