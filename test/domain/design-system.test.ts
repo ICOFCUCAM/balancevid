@@ -107,6 +107,57 @@ describe('raw colour in components', () => {
   });
 });
 
+describe('the JSX the compiler will not take', () => {
+  /*
+   * A COMMENT CANNOT BE THE FIRST CHILD OF A `&&`.
+   *
+   *     {ready && (
+   *       {/* why * /}          <- not valid JSX
+   *       <p>…</p>
+   *     )}
+   *
+   * `{cond && (` opens an EXPRESSION, and `{/* … * /}` is only a
+   * comment where JSX children are expected — inside an expression it
+   * is an object literal, and the parser fails on the first property.
+   *
+   * THIS IS HERE BECAUSE IT HAPPENED THREE TIMES IN TWO DAYS, and
+   * every time it cost a full production build to find. `tsc --noEmit`
+   * accepts it; only swc rejects it, which means the fast check passes
+   * and the slow one fails thirty-five seconds later. A test that runs
+   * in a millisecond is the right place for a rule the type-checker
+   * does not enforce.
+   */
+  const OPENS_WITH_COMMENT = /&&\s*\(\s*\n\s*\{\s*\/\*/g;
+
+  it('never opens a conditional with a comment', () => {
+    const offenders: string[] = [];
+    for (const file of components()) {
+      const hits = readFileSync(file, 'utf8').match(OPENS_WITH_COMMENT);
+      if (hits) offenders.push(`${file.slice(file.indexOf('app/'))} (${hits.length})`);
+    }
+    expect(offenders, 'a JSX comment opening a && expression').toEqual([]);
+  });
+
+  /*
+   * AND THE PATTERN ITSELF IS TESTED, because a regex that matches
+   * nothing passes this suite for ever while catching nothing — which
+   * is the failure mode of every "assert there are no offenders" test
+   * ever written.
+   */
+  it('recognises the shape that broke the build', () => {
+    const bad = [
+      '{ready && (\n  {/* why */}\n  <p />\n)}',
+      '{a.b === 1 && (\n        {/*\n          * why\n          */}\n  <p />)}',
+    ];
+    for (const one of bad) {
+      expect(new RegExp(OPENS_WITH_COMMENT.source).test(one), one).toBe(true);
+    }
+    /* And it does not object to a comment ABOVE the conditional. */
+    expect(new RegExp(OPENS_WITH_COMMENT.source)
+      .test('{/* why */}\n{ready && (\n  <p />\n)}')).toBe(false);
+  });
+});
+
 describe('the scales are the only sizes', () => {
   /*
    * FRACTIONAL PIXELS ARE THE TELL. `fontSize: 12.5` was in this

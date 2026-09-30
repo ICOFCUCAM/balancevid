@@ -12,9 +12,6 @@ import { listJobs } from '../src/store/queue.js';
 import { PLATFORMS, type DestinationKind } from '../src/domain/distribution.js';
 import { runtime } from '../src/web/runtime.js';
 import { formatMasterPosition, formatTimecode } from '../src/domain/time.js';
-import StartConversation from './StartConversation.js';
-import StartPerformance from './StartPerformance.js';
-import StartChannel from './StartChannel.js';
 import Workspace, { type WorkRecord } from './Workspace.js';
 
 export const dynamic = 'force-dynamic';
@@ -225,11 +222,6 @@ export default async function Home() {
         fraction: space.totalBytes > 0
           ? (space.totalBytes - space.freeBytes) / space.totalBytes : 0,
         partial: space.partial,
-      }}
-      starters={{
-        one: <StartConversation />,
-        two: <StartPerformance />,
-        tv: <StartChannel />,
       }}
     />
   );

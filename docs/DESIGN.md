@@ -685,6 +685,171 @@ icons. `room-art.test.ts` holds all of it: each file present, each under
 
 ---
 
+## The ninth decision: three rooms, one frame
+
+The brief, from the author, after Studio One got a door and the other two
+did not:
+
+> PR #30 completes the Studio One intake side, but it also exposes the next
+> structural inconsistency: BalanceVid now has three production rooms, while
+> only one has a true room entrance.
+>
+> The important phrase in the report is: *"Studio Two and Online TV still
+> unfold their intake in the hallway."* That means the Home cards are
+> currently promising three rooms, but only one actually behaves like a
+> room. I would fix that before adding more features.
+>
+> ```
+> ┌──────────────────┐   ┌──────────────────┐   ┌──────────────────┐
+> │   STUDIO ONE     │   │   STUDIO TWO     │   │    ONLINE TV     │
+> │   Enter Studio   │   │   Enter Studio   │   │   Open Control   │
+> └──────────────────┘   └──────────────────┘   └──────────────────┘
+> ```
+>
+> Each card should lead to an actual dedicated environment rather than
+> opening a particular task/intake state.
+>
+> **And the three rooms should have different identities.** They shouldn't
+> merely be three copies of the same shell.
+>
+> - **Studio One** — `SOURCE → RESPONSE`. Conversation, commentary,
+>   imported media, camera/screen capture, response production.
+> - **Studio Two** — `TAKES → TIMELINE → MASTER`. Performance, multicamera
+>   takes, song clock, editing and composition.
+> - **Online TV** — `PROGRAMME → PLAYOUT → LIVE`. Schedule, programme
+>   assembly, playout, live output, distribution.
+>
+> The common BalanceVid shell can remain shared, but each room should
+> immediately communicate what kind of production is happening there.
+>
+> The next change should not be another dashboard redesign.
+>
+> And that is where I would inspect the existing Studio Two and Online TV
+> implementations before writing any new code, exactly following the
+> pattern that produced today's discoveries. The goal should be to
+> determine: **what already exists behind each hallway entrance, and what
+> is actually missing to make it a proper room?** That inspection could
+> reveal, just as the Take investigation did, that some of the apparent
+> gaps are already implemented and only need routing/navigation/UI
+> composition rather than new systems.
+
+### The inspection, before any code
+
+It did reveal that, four times.
+
+**Online TV's room front page was already written — on the home page.**
+`Hero` and `Distribution` in `Workspace.tsx` are 248 lines that show a
+channel's on-air state through `whatIsOn` — the same function the playout
+engine reads — with what is playing, the next programme, today's count, the
+size of the loop, and every destination with its connection state. None of
+it is about the home page. All of it is about a control room.
+
+**Both rooms' lists were already written, in `app/page.tsx`.** The poster
+from the first *usable* take, the take count, the master's length, the
+scheduled count, the timezone, whether a channel is live. The gathering was
+never the missing part.
+
+**The two intakes were already small and already existed.** `StartPerformance`
+is 141 lines and `StartChannel` is 80. They needed a room, exactly as
+`StartConversation` did.
+
+**And the entitlement rules had the same hole `/c` had.** `^/p/` and `^/t/`
+both carry a trailing slash, so neither covered the room itself — invisible
+while the rooms did not exist, and live the moment they did.
+
+So the work was routing, navigation and composition, as the author
+predicted. The one genuinely new thing is the shared frame.
+
+### One frame, three identities
+
+`src/domain/rooms.ts` is the whole of the difference: a name, three or two
+stage words, a sentence, and what the way in is called. `app/Room.tsx` reads
+it and is identical for all three.
+
+| | Stages | Way in |
+| --- | --- | --- |
+| Studio One | `SOURCE → RESPONSE` | Enter Studio |
+| Studio Two | `TAKES → TIMELINE → MASTER` | Enter Studio |
+| Online TV | `PROGRAMME → PLAYOUT → LIVE` | Open Control |
+
+**"Open Control" is not a synonym.** A studio is somewhere you go to make
+something; a control room is already running whether or not anybody is
+standing in it. That is why the third room's list is not a list of recent
+work but a list of what each channel is doing *right now*, and why it
+distinguishes all five answers `whatIsOn` can give — a scheduled programme,
+the loop, a live feed, an emergency cut-away, the backup. A control room
+that flattened those to "ON AIR" would be hiding the two that mean
+something has gone wrong.
+
+**The arrows are drawn, not typed,** for the reason `StudioCard` already
+gave about its own: `→` is a different length, weight and baseline in every
+font.
+
+### What stopped being written four times
+
+The room's name was in four places: `account.ts` (as the thing that is
+sold), the `STUDIOS` table in `Workspace.tsx` (as the card), a string
+literal in the rail, and — briefly — `rooms.ts`. `rooms.ts` now *derives*
+the eyebrow from the entitlement's own label, so the name a customer buys
+and the name on the door cannot drift, and the rail reads the room like
+everything else. `rooms.test.ts` asserts it.
+
+`SAID` is a `Record<StudioId, …>` rather than a list, so a fourth studio
+added to the account model **does not compile** until somebody has said what
+kind of production happens in it. That is a better guard than a test: it
+fails when the studio is invented, not the first time somebody opens a page.
+
+### The hallway now holds nothing
+
+`Workspace` took a `starters` prop with three forms in it and unfolded them
+inside the cards. That is what made the cards promise rooms they were not:
+pressing one filled in a form where you stood. The prop is gone, the
+expander state is gone, and every quick action navigates — two of the five
+used to open a form on the page instead, which is the same fault in a
+smaller control.
+
+The hero stays. Being told you are on air is not something to have to
+navigate to, and *"the next change should not be another dashboard
+redesign."*
+
+### Three faults the browser found
+
+1. **Broken-image glyphs down the whole performance list.** `RoomList` had
+   written its own `<img>`, reintroducing the exact fault `Still` was
+   written to prevent — two hundred lines from the fix. `Still` is
+   `app/Still.tsx` now and both use it.
+2. **A column of empty wells in the control room.** A channel has no poster
+   and never will; it is a schedule, not a thing with a first frame. Where
+   nothing in a list has a picture the column goes.
+3. **A sentence about a question that was not on screen.** "4 answers, and
+   the honest one is the useful one" is about the rights question, and it
+   printed whether or not that question was showing — easy to miss folded
+   inside a dashboard card, and the first thing in Studio Two.
+
+And the design system caught a fourth before the browser did: the poster
+well carried `--radius-sm`, a card's corner on a monitor. `console.test.ts`
+has held that distinction since the console was built.
+
+### A rule the type-checker does not enforce
+
+A JSX comment cannot be the first child of a `&&`:
+
+```jsx
+{ready && (
+  {/* why */}      // not valid JSX: this is an object literal
+  <p />
+)}
+```
+
+This broke the build three times in two days, and every time it cost a full
+production build to find — `tsc --noEmit` accepts it and only swc rejects
+it, so the fast check passes and the slow one fails thirty-five seconds
+later. `design-system.test.ts` now refuses the shape in a millisecond, and
+tests its own pattern, because a regex that matches nothing passes an
+"assert no offenders" test for ever.
+
+---
+
 ## What is deliberately not done
 
 - **No phone layout.** There is a floor for laptops and `pointer: coarse`

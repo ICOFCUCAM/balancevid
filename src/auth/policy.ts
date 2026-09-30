@@ -469,11 +469,20 @@ const STUDIO_PATHS: [RegExp, StudioId][] = [
    */
   [/^\/c(\/|$)/, 'studio-one'],
   [/^\/api\/conversations(\/|$)/, 'studio-one'],
-  /* Studio Two: a performance. */
-  [/^\/p\//, 'studio-two'],
+  /*
+   * Studio Two: the studio itself, and a performance.
+   *
+   * THE SAME TRAILING SLASH `/c` HAD. `^/p/` did not cover `/p`, and
+   * `/p` did not exist to notice — so the moment the room was built the
+   * rule would have let an account without the studio reach it, and
+   * only `requireStudio` inside `listPerformances` would have stopped
+   * them. That is a check in one function the route happens to call,
+   * which is not the wall. [MASTER-EDIT §11]
+   */
+  [/^\/p(\/|$)/, 'studio-two'],
   [/^\/api\/performances(\/|$)/, 'studio-two'],
-  /* Online TV: a channel. */
-  [/^\/t\//, 'online-tv'],
+  /* Online TV: the control room, and a channel. As above. */
+  [/^\/t(\/|$)/, 'online-tv'],
   [/^\/api\/channels(\/|$)/, 'online-tv'],
 ];
 

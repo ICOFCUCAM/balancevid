@@ -38,25 +38,15 @@ describe('the studio is somewhere you can go', () => {
     expect(existsSync(join(ROOT, 'app', 'c', 'page.tsx'))).toBe(true);
   });
 
+  /*
+   * ITS ADDRESS IS IN ONE PLACE. The rail and the card both read
+   * `roomFor`, so "where is Studio One" has exactly one answer — which
+   * is the point of `rooms.ts` and is asserted more fully in
+   * `rooms.test.ts`.
+   */
   it('is what the rail points at', () => {
     expect(code('app', 'Workspace.tsx'))
-      .toMatch(/<Rail href="\/c"[\s\S]{0,80}label="Studio One"/);
-  });
-
-  it('is what the card opens', () => {
-    expect(code('app', 'Workspace.tsx')).toContain("home: '/c',");
-  });
-
-  /*
-   * AND THE DASHBOARD STOPPED HOLDING THE INTAKE FORM. *"Your current
-   * home page has the Conversation Studio expanded directly inside the
-   * dashboard. I don't think that is ideal."* The expander survives for
-   * the two studios that have no front door yet — removing it there
-   * would take away the only way to start anything in those rooms — so
-   * what is asserted is the condition, not its absence.
-   */
-  it('does not unfold a source picker in the hallway', () => {
-    expect(code('app', 'Workspace.tsx')).toContain('{opened && !studio.home && (');
+      .toMatch(/<Rail href=\{roomFor\('studio-one'\)\.href\}/);
   });
 
   /*

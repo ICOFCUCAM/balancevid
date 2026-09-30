@@ -103,6 +103,8 @@ describe('which studio a path is in', () => {
        * `/c` did not exist to notice. [STUDIO-ONE §5]
        */
       ['/c', 'studio-one'],
+      ['/p', 'studio-two'],
+      ['/t', 'online-tv'],
       ['/api/conversations', 'studio-one'],
       ['/api/conversations/conv_1/renders', 'studio-one'],
       ['/p/perf_1', 'studio-two'],
@@ -171,6 +173,8 @@ describe('which studio a path is in', () => {
     /* And `/c` is the studio, not a prefix of any word that starts with c. */
     expect(studioForPath('/channels')).toBeNull();
     expect(studioForPath('/cabinet')).toBeNull();
+    expect(studioForPath('/publish')).toBeNull();
+    expect(studioForPath('/take')).toBeNull();
   });
 });
 
