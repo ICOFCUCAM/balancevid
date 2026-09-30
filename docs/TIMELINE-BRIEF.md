@@ -574,7 +574,7 @@ process, against the running product and not against this document.
 | B4b | drag the take horizontally | HAVE | one write, on release |
 | B5 | Move / Trim / Crop distinguished | HAVE | `MenuItem.section` |
 | B5a | crop / reframe | HAVE | `setReframe`, drawn on the take's own picture |
-| B6 | the song becomes editable | GAP | §15.1 — a model change first |
+| B6 | the song becomes editable | PARTIAL | five of eleven rows, and its own right-click menu on its own lane. The six left all either RENUMBER the master clock (split, remove/replace section) or need a second audio object (add audio, record, effects) |
 | B6a | song: trim | HAVE (document + render) | a WINDOW, which the clip path already had — `songSpan`, intersected with a clip's own. Nothing in the document moves |
 | B6b | song: split | GAP | |
 | B6c | song: fade in | HAVE | the author's fade wins over the hairline that stops a click |

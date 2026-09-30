@@ -21,6 +21,7 @@ import { useMenu, type MenuEntry } from '../../Menu.js';
 import type { TakeId } from '../../../src/domain/document.js';
 import { nudgeSays } from './takeNudge.js';
 import { takeMenuItems } from './takeMenu.js';
+import { songMenuItems } from './songMenu.js';
 import ReframeBox from './ReframeBox.js';
 import ClipInspector, { type Selection } from './ClipInspector.js';
 import { LAYOUTS, takeSlots } from '../../../src/domain/presentation.js';
@@ -775,6 +776,18 @@ export default function SwitchingStage({
     choose, chosenTake, confirm, onChooseTake, patch, performance, player,
     soloed, usableIds,
   ]);
+
+  /**
+   * What can be done to the song.  [TIMELINE B6]
+   *
+   * One list, two handles — the lane's head and its waveform — for
+   * the same reason the take menu has three: a studio where the
+   * gesture works on one half of a lane and not the other is a studio
+   * you have to aim at.
+   */
+  const songMenu = useCallback((): MenuEntry[] => songMenuItems({
+    performance, patch, confirm, at: () => player.positionNow(),
+  }), [confirm, patch, performance, player]);
 
   /*
    * THE KEYS ARE ALWAYS LIVE.  [benchmark, §7]
@@ -1896,7 +1909,19 @@ export default function SwitchingStage({
             background: 'var(--surface-raised)',
           }}>
             <div style={{ height: 18 }} />
-            <div style={{ height: 52, padding: '6px 10px' }}>
+            {/*
+              * THE SONG IS A LANE LIKE ANY OTHER NOW.  [TIMELINE B6]
+              *
+              * Right-click it for what can be done to it, which is
+              * what this studio already teaches on a take's row, a
+              * take's picture and a take's block. The head is the
+              * handle because the head is the thing that says which
+              * lane this is — and the waveform beside it carries the
+              * same menu, so the gesture works wherever the eye is.
+              */}
+            <div data-testid="song-head"
+                 {...onRow(performance.master.title, songMenu)}
+                 style={{ height: 52, padding: '6px 10px', cursor: 'context-menu' }}>
               <div style={{
                 fontSize: 'var(--text-2xs)', fontWeight: 'var(--weight-bold)',
                 letterSpacing: '0.08em', color: 'var(--text-dim)',
@@ -2101,7 +2126,9 @@ export default function SwitchingStage({
               ))}
             </div>
 
-            <div data-testid="master-waveform" style={{ height: 52, position: 'relative' }}>
+            <div data-testid="master-waveform"
+                 {...onRow(performance.master.title, songMenu)}
+                 style={{ height: 52, position: 'relative' }}>
               {ordered.filter((s) => s.label).map((scene) => (
                 <span key={scene.id} style={{
                   position: 'absolute', left: pct(scene.fromSample), top: 0,
