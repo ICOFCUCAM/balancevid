@@ -261,9 +261,18 @@ export default function SwitchingStage({
    * — all live down here. Passing the list down is what lets the row
    * and the picture raise the SAME one. [D-19]
    */
-  takesPanel?: (
-    takeMenu: (take: Performance['takes'][number]) => MenuEntry[],
-  ) => React.ReactNode;
+  takesPanel?: (tools: {
+    takeMenu: (take: Performance['takes'][number]) => MenuEntry[];
+    /**
+     * Where the song is NOW, asked rather than remembered.
+     *
+     * The rail needs it to offer "record from here" [TIMELINE B7], and
+     * a number passed down would be a number ten times a second out of
+     * date — the playhead is redrawn at that rate deliberately, and a
+     * cut placed a tenth of a second late is three frames out.
+     */
+    at: () => number;
+  }) => React.ReactNode;
 }) {
   const { confirm, dialog: confirmDialog } = useConfirm();
   /*
@@ -1077,7 +1086,7 @@ export default function SwitchingStage({
         alignSelf: 'stretch', minHeight: 0,
       }}>
         <div className="shell-scroll" style={{ position: 'absolute', inset: 0 }}>
-          {takesPanel?.(takeMenu)}
+          {takesPanel?.({ takeMenu, at: () => player.positionNow() })}
         </div>
       </div>
       <>

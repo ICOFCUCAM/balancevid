@@ -344,7 +344,7 @@ export default function PerformanceStudio(
           onChanged={setPerformance}
           chosenTake={chosenTake}
           onChooseTake={setChosenTake}
-          takesPanel={(takeMenu) => (
+          takesPanel={({ takeMenu, at }) => (
             /*
               * A MODULE IS THE COLUMN, NOT A CARD AT THE TOP OF IT.
               * [brief §3, §4]
@@ -649,6 +649,41 @@ export default function PerformanceStudio(
                         >
                           {recording.phase === 'finishing' ? 'Saving\u2026' : 'Record a take'}
                         </button>
+                        {/*
+                          * RECORDING FROM WHERE THE PLAYHEAD IS.
+                          * [TIMELINE B7]
+                          *
+                          * "Imagine the user is editing a performance
+                          * and realizes: I need an extra vocal section
+                          * here." Then they should not have to sit
+                          * through three minutes of song to reach it.
+                          *
+                          * A SECOND BUTTON RATHER THAN A CHANGE TO THE
+                          * FIRST, and only when the playhead is
+                          * actually somewhere. Making "Record a take"
+                          * start wherever the line happens to be left
+                          * would mean a take that silently begins at
+                          * 02:41 because somebody scrubbed there an
+                          * hour ago — a mode, and an invisible one.
+                          */}
+                        {Math.round(at()) > 0 && (
+                          <button
+                            className="ctl" data-testid="start-take-here"
+                            disabled={recording.phase === 'finishing'}
+                            title={'The song starts where the playhead is, '
+                              + 'not at the top'}
+                            onClick={() => void recording.start(label,
+                              environment === 'original'
+                                ? { kind: 'original' }
+                                : environment === 'blur'
+                                  ? { kind: 'blur' }
+                                  : { kind: 'space', spaceId: environment },
+                              Math.round(at()))}
+                            style={{ flex: '0 0 auto' }}
+                          >
+                            From here
+                          </button>
+                        )}
                         <button className="small" data-testid="disarm"
                                 onClick={recording.disarm}>Turn off</button>
                       </div>

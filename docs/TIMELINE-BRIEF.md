@@ -586,8 +586,8 @@ process, against the running product and not against this document.
 | B6i | song: record | GAP | |
 | B6j | song: effects | GAP | |
 | B6k | song: remove section | GAP | |
-| B7 | recording is an ordinary take | HAVE | the whole pipeline |
-| B7a | record from the playhead | GAP | the song is scheduled from 00:00 |
+| B7 | recording is an ordinary take | HAVE | the whole pipeline, and now from anywhere in the song |
+| B7a | record from the playhead | HAVE | `start(label, environment, fromSamples)` — the song begins there AND the take is placed from there, which is the arithmetic that makes it worth having. A second button, shown only when the playhead is somewhere |
 | B8 | sound layers as timeline objects | GAP | no object for a sound that is neither song nor take |
 | B9 | simple by default, advanced when needed | HAVE | ten rows at first, eighteen after one press; `MenuItem.advanced`, split by OPERATION rather than row by row |
 | B9a | advanced rows behind one press | HAVE | `visible()` in `Menu.tsx` — a function, so the rule is tested by calling it; every raise starts simple again |

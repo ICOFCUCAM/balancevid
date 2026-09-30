@@ -388,7 +388,7 @@ describe('what can be done to a take', () => {
     const studio = code('app/p/[id]/PerformanceStudio.tsx');
     expect(stage).toMatch(/takeMenuItems\(take, \{/);
     /* The rail is HANDED the list rather than building a second one. */
-    expect(studio).toMatch(/takesPanel=\{\(takeMenu\) =>/);
+    expect(studio).toMatch(/takesPanel=\{\(\{ takeMenu, at \}\) =>/);
     expect(studio).toMatch(/onRow\(take\.label, \(\) => takeMenu\(take\)\)/);
     expect(studio).not.toMatch(/const takeItems =/);
     for (const verb of ['Rename\u2026', 'Remove\u2026', 'Loop it']) {
@@ -675,5 +675,64 @@ describe('simple by default, advanced when it is asked for', () => {
     expect(menu).not.toMatch(/^\s+More\\u2026$/m);
     /* Every raise starts simple again, or "more" would be a setting. */
     expect(menu).toMatch(/setMore\(false\);\s*setRaised\(\{ items, about, x: event\.clientX/);
+  });
+});
+
+
+describe('recording from where the playhead is', () => {
+  /*
+   * "IMAGINE THE USER IS EDITING A PERFORMANCE AND REALIZES: I NEED AN
+   * EXTRA VOCAL SECTION HERE."  [TIMELINE B7]
+   *
+   * Then they should not have to sit through three minutes of song to
+   * reach it. The whole recording pipeline already existed — what it
+   * could not do was start the song anywhere but the top.
+   *
+   * THE ARITHMETIC IS THE FEATURE. A take recorded from 02:41 belongs
+   * at 02:41 on the song's clock, and the offset is measured from
+   * where the SONG was rather than from where the audio clock was.
+   * Adding nothing there would place every such take at the top of
+   * the song — which is the bug this test exists to prevent, because
+   * it looks exactly like a working feature until somebody renders.
+   */
+  const recorder = code('app/p/[id]/useMasterRecording.ts');
+
+  it('starts the song at the moment it was asked for', () => {
+    expect(recorder).toMatch(/source\.start\(beginsAt, fromSeconds\)/);
+  });
+
+  /* Past the end of the buffer, `start` plays nothing at all, silently
+     — which looks exactly like a broken microphone. */
+  it('cannot be asked to start past the end of the song', () => {
+    expect(recorder).toMatch(
+      /const fromSeconds = Math\.max\(0, Math\.min\(\s*buffer\.duration - 0\.05, fromSamples \/ sampleRate\)\);/);
+  });
+
+  it('places the take where the song was, not where the clock was', () => {
+    expect(recorder).toMatch(
+      /offsetRef\.current = placeTakeOnSong\(\s*Math\.round\(\(fromSeconds \+ into\) \* sampleRate\), latencySamples\);/);
+  });
+
+  /*
+   * A SECOND BUTTON, AND ONLY WHEN THE PLAYHEAD IS SOMEWHERE. Making
+   * "Record a take" start wherever the line happens to be left would
+   * mean a take that silently begins at 02:41 because somebody
+   * scrubbed there an hour ago — a mode, and an invisible one.
+   */
+  it('is a second button that appears only when it means something', () => {
+    const studio = code('app/p/[id]/PerformanceStudio.tsx');
+    expect(studio).toMatch(/\{Math\.round\(at\(\)\) > 0 && \(/);
+    expect(studio).toMatch(/data-testid="start-take-here"/);
+    expect(studio).toMatch(/Math\.round\(at\(\)\)\)\}/);
+    /* And the ordinary one still starts at the top. */
+    expect(studio).toMatch(
+      /data-testid="start-take"[\s\S]{0,400}: \{ kind: 'space', spaceId: environment \}\)\}/);
+  });
+
+  /* Asked, not remembered: the playhead moves ten times a second, and
+     a number passed down would be a number out of date. */
+  it('asks the stage where the song is at the moment of pressing', () => {
+    const stage = code('app/p/[id]/SwitchingStage.tsx');
+    expect(stage).toMatch(/takesPanel\?\.\(\{ takeMenu, at: \(\) => player\.positionNow\(\) \}\)/);
   });
 });

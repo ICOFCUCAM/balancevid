@@ -82,7 +82,19 @@ export interface MasterRecording {
   /** The camera, for a preview elsewhere on the page. */
   stream: MediaStream | null;
   arm: () => Promise<void>;
-  start: (label: string, environment: { kind: string; spaceId?: string }) => Promise<void>;
+  /**
+   * Begin, optionally from somewhere other than the top of the song.
+   *
+   * `fromSamples` is where the SONG starts playing, not where the take
+   * is placed: a performer asked for the third verse hears the third
+   * verse, and the take still lands on the song's own clock wherever
+   * the recorder actually opened. [TIMELINE B7]
+   */
+  start: (
+    label: string,
+    environment: { kind: string; spaceId?: string },
+    fromSamples?: number,
+  ) => Promise<void>;
   stop: () => void;
   disarm: () => void;
 }
@@ -240,6 +252,7 @@ export function useMasterRecording({
 
   const start = useCallback(async (
     label: string, environment: { kind: string; spaceId?: string },
+    fromSamples = 0,
   ) => {
     const context = audioRef.current;
     const buffer = bufferRef.current;
@@ -258,10 +271,23 @@ export function useMasterRecording({
        * clock.
        */
       const beginsAt = context.currentTime + countInSeconds;
+      /*
+       * WHERE IN THE SONG IT STARTS.  [TIMELINE B7]
+       *
+       * "I need an extra vocal section here" — so the song begins
+       * where the playhead is rather than at the top, and nobody has
+       * to sit through three minutes to record the last verse again.
+       *
+       * Clamped INSIDE the song: `AudioBufferSourceNode.start` with an
+       * offset past the buffer's end plays nothing at all, silently,
+       * which would look exactly like a broken microphone.
+       */
+      const fromSeconds = Math.max(0, Math.min(
+        buffer.duration - 0.05, fromSamples / sampleRate));
       const source = context.createBufferSource();
       source.buffer = buffer;
       source.connect(context.destination);
-      source.start(beginsAt);
+      source.start(beginsAt, fromSeconds);
       sourceRef.current = source;
 
       const takeId = await sink.begin({
@@ -292,8 +318,19 @@ export function useMasterRecording({
          * line added the number, which would have doubled the error instead
          * of removing it. [S-3]
          */
+        /*
+         * AND THE OFFSET COUNTS FROM WHERE THE SONG WAS, not from
+         * where the audio clock was. `into` is how long after the song
+         * began that the recorder opened; the song began at
+         * `fromSeconds`, so the moment being recorded is the sum. The
+         * first version of this line added nothing, which placed every
+         * take recorded from the playhead at the top of the song —
+         * the arithmetic that makes this feature worth having is
+         * exactly this addition. [§10, S-3]
+         */
         const into = context2.currentTime - beginsAt;
-        offsetRef.current = placeTakeOnSong(Math.round(into * sampleRate), latencySamples);
+        offsetRef.current = placeTakeOnSong(
+          Math.round((fromSeconds + into) * sampleRate), latencySamples);
         startedAtRef.current = context2.currentTime;
         stoppedAtRef.current = 0;
         segment(takeRef.current.takeId);
