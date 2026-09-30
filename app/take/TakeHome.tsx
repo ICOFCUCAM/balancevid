@@ -2,6 +2,11 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
+import {
+  addConnection, asOrigin, askInstance, readConnections, removeConnection,
+  type Connection,
+} from './connections.js';
+
 /**
  * The Take App's home.  [TAKE-PLATFORM P1, P2, P3, P4, P5, P6, U5]
  *
@@ -34,6 +39,15 @@ import { useCallback, useEffect, useState } from 'react';
 
 interface Row {
   kind: 'music' | 'video' | 'programme';
+  /**
+   * Which installation offered it, filled in by the client.
+   *
+   * NOT SENT BY THE SERVER. Each installation answers about itself; it
+   * is this device that knows it asked three of them, and a row that
+   * carried its own origin would be a row that could claim somebody
+   * else's. [connections.ts]
+   */
+  from?: { name: string; origin: string };
   id: string;
   title: string;
   author?: string;
@@ -100,16 +114,94 @@ export default function TakeHome() {
 
   useEffect(() => { setMine(readMine()); }, []);
 
+  /*
+   * THIS INSTALLATION, AND EVERY ONE THIS DEVICE REMEMBERS.
+   *   [U3, P22, P23, P25; §10, §11]
+   *
+   * READ ACROSS, ACT ON THE OWNER. Merging what three installations
+   * offer is a cross-origin READ of a public listing, which is what
+   * the `*` on `/api/participate` is for. Taking part is a WRITE, gets
+   * no CORS at all, and happens on the installation that owns the song
+   * — so a claim is always same-origin and a merged list can never be
+   * turned into a way to make one somewhere else. [P16]
+   *
+   * ONE THAT CANNOT BE REACHED IS SHOWN AS SUCH rather than dropped: a
+   * self-hosted installation on somebody's laptop is often simply
+   * asleep, and a connection that silently disappears is a person
+   * wondering whether they imagined adding it. [U-19, P20]
+   */
+  const [connections, setConnections] = useState<Connection[]>([]);
+  const [asleep, setAsleep] = useState<string[]>([]);
+  const [adding, setAdding] = useState('');
+  const [loaded, setLoaded] = useState(0);
+
+  const [whereIAm, setWhereIAm] = useState<{ name: string; origin: string } | null>(null);
+  const [origin, setOrigin] = useState('');
+
+  useEffect(() => {
+    setConnections(readConnections());
+    setOrigin(window.location.origin);
+  }, []);
+
   useEffect(() => {
     let alive = true;
     void (async () => {
-      const response = await fetch('/api/participate', { cache: 'no-store' })
-        .catch(() => null);
+      const local = await fetch('/api/participate', { cache: 'no-store' })
+        .then((r) => r.json()).catch(() => ({}));
       if (!alive) return;
-      const data = await response?.json().catch(() => ({})) ?? {};
-      setRows((data.participate ?? []) as Row[]);
+      const mine = ((local.participate ?? []) as Row[]).map((row) => ({
+        ...row,
+        ...(local.instance ? { from: local.instance } : {}),
+      }));
+      setRows(mine);
+      if (local.instance) setWhereIAm(local.instance);
+
+      /*
+       * THE OTHERS ARE ASKED AFTER, AND IN PARALLEL. A remote
+       * installation that is asleep must not hold up the listing of
+       * the one that served this page.
+       */
+      const others = readConnections()
+        .filter((one) => one.origin !== window.location.origin);
+      if (others.length === 0) return;
+      const answers = await Promise.all(others.map(async (one) => ({
+        one, answer: await askInstance(one.origin),
+      })));
+      if (!alive) return;
+      const more: Row[] = [];
+      const quiet: string[] = [];
+      for (const { one, answer } of answers) {
+        if (!answer) { quiet.push(one.origin); continue; }
+        for (const row of answer.rows as Row[]) {
+          more.push({ ...row, from: answer.instance });
+        }
+      }
+      setAsleep(quiet);
+      setRows([...mine, ...more].sort(
+        (a, b) => (b.publishedAt ?? '').localeCompare(a.publishedAt ?? '')));
     })();
     return () => { alive = false; };
+  }, [loaded]);
+
+  /* Adding one is asking it what it is called; a place that cannot
+     answer is not one to put in a list. */
+  const add = useCallback(async () => {
+    setSaid(null);
+    const origin = asOrigin(adding);
+    if (!origin) { setSaid('that does not look like a BalanceVid address'); return; }
+    const answer = await askInstance(origin);
+    if (!answer) {
+      setSaid('nothing answered there, or it is not open to this app');
+      return;
+    }
+    setConnections(addConnection({ ...answer.instance, addedAt: new Date().toISOString() }));
+    setAdding('');
+    setLoaded((was) => was + 1);
+  }, [adding]);
+
+  const forget = useCallback((origin: string) => {
+    setConnections(removeConnection(origin));
+    setLoaded((was) => was + 1);
   }, []);
 
   /*
@@ -202,11 +294,39 @@ export default function TakeHome() {
                     <li key={row.id} data-testid="participate-row"
                         data-kind={row.kind} data-state={row.state} style={card}>
                       <div className="grow" style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: 'var(--text-sm)' }}>{row.title}</div>
-                        {row.author && (
+                        <div style={{
+                          fontSize: 'var(--text-sm)', overflow: 'hidden',
+                          textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        }}>{row.title}</div>
+                        {/*
+                          * WHOSE IT IS, ONCE THERE IS MORE THAN ONE.
+                          *
+                          * A person with three production companies in
+                          * one app must never be unsure whose song they
+                          * are looking at. With one installation the
+                          * label is noise — it says the only thing that
+                          * could be true. [U-19]
+                          */}
+                        {(row.author || (connections.length > 0 && row.from)) && (
                           <div className="small muted"
-                               style={{ fontSize: 'var(--text-2xs)' }}>
-                            {row.author}
+                               style={{
+                                 fontSize: 'var(--text-2xs)',
+                                 overflow: 'hidden', textOverflow: 'ellipsis',
+                                 whiteSpace: 'nowrap',
+                               }}>
+                            {/*
+                              * AND NOT TWICE. A browser run showed
+                              * "Redemption Records · Redemption
+                              * Records": a production company that
+                              * publishes under its own name is the
+                              * ordinary case, not an edge one, and
+                              * the author and the installation are
+                              * then the same words.
+                              */}
+                            {[row.author,
+                              connections.length > 0 && row.from?.name !== row.author
+                                ? row.from?.name : null]
+                              .filter(Boolean).join(' · ')}
                           </div>
                         )}
                       </div>
@@ -217,7 +337,7 @@ export default function TakeHome() {
                         * not heard.
                         */}
                       <a className="btn quiet sm" data-testid="row-watch"
-                         href={row.watch}>
+                         href={`${isElsewhere(row) ? row.from!.origin : ''}${row.watch}`}>
                         {row.kind === 'music' ? 'Listen' : 'Watch'}
                       </a>
                       {/*
@@ -231,12 +351,57 @@ export default function TakeHome() {
                         * that would be refused, which is a control that
                         * looks like a fault. [U-19, PART FIVE]
                         */}
-                      {row.openToAnyone ? (
+                      {row.openToAnyone && !isElsewhere(row) ? (
                         <button className="ctl sm" data-testid="row-take"
                                 disabled={busy === row.id}
                                 onClick={() => void take(row)}>
                           {busy === row.id ? 'Opening…' : takeVerb(row.kind)}
                         </button>
+                      ) : row.openToAnyone ? (
+                        /*
+                          * TAKING PART HAPPENS WHERE THE SONG LIVES.
+                          *
+                          * Reading another installation's listing is a
+                          * cross-origin GET of public data. CLAIMING is
+                          * a write, and it has no CORS by design — so
+                          * this sends the person to the installation
+                          * that owns it rather than making a request on
+                          * their behalf somewhere else. One more press,
+                          * and a claim that is always same-origin on the
+                          * instance that will hold the recording. [P16]
+                          */
+                        <a className="btn ctl sm" data-testid="row-take-there"
+                           href={`${row.from!.origin}/take`}
+                           title={`Open on ${row.from!.name}`}
+                           style={{
+                             /*
+                               * AN INSTALLATION NAMES ITSELF, so this
+                               * label is as long as somebody else
+                               * decided. "The Redemption Records
+                               * Recording Company of Greater
+                               * Manchester Limited" on a 412px phone
+                               * pushed every card to 492px — clipped,
+                               * not scrolled, with the action simply
+                               * not on screen.
+                               */
+                             minWidth: 0, maxWidth: '58%',
+                             flex: '0 1 auto', overflow: 'hidden',
+                           }}>
+                          {/*
+                            * THE ELLIPSIS LIVES ON A BLOCK, because
+                            * `text-overflow` does nothing on a FLEX
+                            * CONTAINER — and `.btn` is one. Putting
+                            * it on the anchor looked right and
+                            * truncated nothing, which a measurement
+                            * caught and reading the CSS did not.
+                            */}
+                          <span style={{
+                            display: 'block', overflow: 'hidden',
+                            textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                          }}>
+                            Open on {row.from!.name}
+                          </span>
+                        </a>
                       ) : row.respondable ? (
                         <span className="small muted" data-testid="row-invite-only"
                               style={{ fontSize: 'var(--text-2xs)' }}>
@@ -251,6 +416,67 @@ export default function TakeHome() {
           );
         })}
 
+        {/*
+          * THE INSTALLATIONS THIS DEVICE KNOWS.  [U3, P22, P23, P25]
+          *
+          * Last, because a first-time visitor is here to find a song
+          * and not to manage a list — and the list is empty for them
+          * anyway. A musician with three production companies is the
+          * person this section is for, and they will come looking.
+          */}
+        <section data-testid="section-instances">
+          <h2 style={heading}>Where you take part</h2>
+          <ul style={list}>
+            <li style={{ ...card, opacity: 0.75 }} data-testid="instance-here">
+              <span className="grow" style={{ fontSize: 'var(--text-sm)' }}>
+                {whereIAm?.name ?? 'This installation'}
+              </span>
+              <span className="small muted" style={{ fontSize: 'var(--text-2xs)' }}>
+                you are here
+              </span>
+            </li>
+            {connections
+              .filter((one) => one.origin !== origin)
+              .map((one) => (
+                <li key={one.origin} data-testid="instance-row" style={card}>
+                  <div className="grow" style={{ minWidth: 0 }}>
+                    <div style={{
+                      fontSize: 'var(--text-sm)', overflow: 'hidden',
+                      textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>{one.name}</div>
+                    <div className="small muted" style={{
+                      fontSize: 'var(--text-2xs)',
+                      overflow: 'hidden', textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}>
+                      {asleep.includes(one.origin)
+                        ? 'not answering just now'
+                        : one.origin.replace(/^https?:\/\//, '')}
+                    </div>
+                  </div>
+                  <button className="quiet sm" data-testid="instance-forget"
+                          title="Forget this installation on this device"
+                          onClick={() => forget(one.origin)}>
+                    Forget
+                  </button>
+                </li>
+              ))}
+          </ul>
+          <div className="row" style={{ gap: 6, marginTop: 6, flexWrap: 'nowrap' }}>
+            <input
+              className="small grow" data-testid="instance-add"
+              placeholder="Add another BalanceVid"
+              value={adding}
+              onChange={(event) => setAdding(event.target.value)}
+              onKeyDown={(event) => { if (event.key === 'Enter') void add(); }} />
+            <button className="ctl sm" data-testid="instance-add-go"
+                    disabled={!adding.trim()}
+                    onClick={() => void add()}>
+              Add
+            </button>
+          </div>
+        </section>
+
         <p className="small muted" style={{
           textAlign: 'center', margin: 0, fontSize: 'var(--text-2xs)',
         }}>
@@ -260,12 +486,26 @@ export default function TakeHome() {
             * person who has taken part in three of them should never be
             * unsure which one they are looking at. [P13, P22]
             */}
-          You are looking at one BalanceVid installation. What you take
-          part in here stays here.
+          Every BalanceVid keeps its own productions. What you record for
+          one of them stays with them, and this list is on your device
+          alone.
         </p>
       </div>
     </main>
   );
+}
+
+/**
+ * Whether this row belongs to another installation.
+ *
+ * COMPARED AGAINST WHERE THE PAGE IS, not against a flag, because the
+ * row's own `from` is filled in by whichever client asked — and the
+ * question being answered is "can I act on this here", which only the
+ * page's own origin can answer.
+ */
+function isElsewhere(row: { from?: { origin: string } }): boolean {
+  if (typeof window === 'undefined') return false;
+  return Boolean(row.from && row.from.origin !== window.location.origin);
 }
 
 /** The verb that matches what is being offered. [P2, P3, P4] */
@@ -280,8 +520,16 @@ const page: React.CSSProperties = {
   padding: 'var(--space-5)',
 };
 
+/*
+ * `minWidth: 0` ON A GRID ITEM, for the same reason the cards need it:
+ * a grid item's automatic minimum size is its MIN-CONTENT, so a single
+ * unbreakable label anywhere inside pushed this whole column — and
+ * every card in it — to 492px inside a 412px phone. The page did not
+ * even scroll; it clipped, so the action was simply not there.
+ */
 const column: React.CSSProperties = {
-  width: '100%', maxWidth: 480, display: 'flex', flexDirection: 'column',
+  width: '100%', maxWidth: 480, minWidth: 0,
+  display: 'flex', flexDirection: 'column',
   gap: 'var(--space-6)', paddingTop: 'var(--space-6)',
 };
 
@@ -299,8 +547,23 @@ const list: React.CSSProperties = {
   display: 'flex', flexDirection: 'column', gap: 6,
 };
 
+/*
+ * A FLEX ITEM CANNOT SHRINK BELOW ITS MIN-CONTENT WIDTH WITHOUT
+ * `min-width: 0`, and that is the whole of a fault a browser run
+ * found. An installation names ITSELF, so "The Redemption Records
+ * Recording Company of Greater Manchester Limited" is a label this
+ * page is handed rather than one it writes — and with it the cards
+ * measured 492px inside a 412px phone, clipped rather than scrolled,
+ * with the action pushed off the screen entirely.
+ *
+ * `maxWidth` on the button could not fix it: a percentage resolves
+ * against a container that had already grown. `minWidth: 0` is what
+ * lets the row shrink at all, and `overflow: hidden` is what makes
+ * the clip happen at the card's own edge instead of the page's.
+ */
 const card: React.CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 8, padding: '9px 11px',
   border: '1px solid var(--line)', borderRadius: 'var(--radius-sm)',
   background: 'var(--console-control)',
+  minWidth: 0, overflow: 'hidden',
 };
