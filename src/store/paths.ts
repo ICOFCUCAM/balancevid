@@ -202,6 +202,36 @@ export const paths = {
   deckUpload: (deckId: string, ext: string) =>
     join(paths.decks(), `${safe(deckId)}.src.${ext.replace(/[^a-z0-9]/gi, '')}`),
 
+  /**
+   * PARTICIPATION REQUESTS, AND WHY THEY ARE NOT UNDER A STUDIO.
+   *   [Doctrine D-25; TAKE-APP T16]
+   *
+   *   var/accounts/<account>/requests/<id>/
+   *     request.json     the record, including what came back
+   *     assets/          what a participant sent, until it is accepted
+   *
+   * A request belongs to the ACCOUNT, not to the performance or the
+   * channel that prompted it, because production and participation are
+   * separate: a submission that lived inside a performance directory
+   * would already be part of that performance, which is the exact thing
+   * D-25 says it must not be until somebody accepts it. What a
+   * participant sends sits here, beside the request, until a producer
+   * chooses it — and only then is it copied into a studio's assets.
+   *
+   * It also makes the inbox one directory to read rather than a walk of
+   * every performance, conversation and channel asking whether anybody
+   * sent them anything.
+   */
+  requests: () => join(owned(), 'requests'),
+  request: (id: string) => join(paths.requests(), safe(id)),
+  requestDocument: (id: string) => join(paths.request(id), 'request.json'),
+  requestAssets: (id: string) => join(paths.request(id), 'assets'),
+  requestAsset: (id: string, assetId: string, ext: string) =>
+    join(paths.requestAssets(id), `${safe(assetId)}.${ext.replace(/[^a-z0-9]/gi, '')}`),
+  /** Chunks a phone uploads while recording, the same shape takes use. */
+  requestChunks: (id: string, submissionId: string) =>
+    join(paths.request(id), 'chunks', safe(submissionId)),
+
   channels: () => join(owned(), 'channels'),
   channel: (id: string) => join(paths.channels(), safe(id)),
   channelDocument: (id: string) => join(paths.channel(id), 'channel.json'),
