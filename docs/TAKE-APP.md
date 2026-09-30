@@ -793,7 +793,7 @@ against real data. Every row is evaluated one at a time at the end.
 | T15 | three product environments | recorded; no code change required |
 | T16 | the Participation Request object and its eight fields | **HAVE (domain)** — `src/domain/participation.ts`; upload destination deliberately NOT stored, see T14 |
 | T16a | its nine states, CREATED → ATTACHED TO PROGRAMME | **HAVE (domain)** — `REQUEST_NEXT` as a table, every move refused rather than ignored, every step written down |
-| T17 | production and participation are separate | the principle; to be written into the doctrine |
+| T17 | production and participation are separate | HAVE, as **D-25** in the doctrine, and as code: separate routes, separate auth, separate store, one object between them |
 
 ## The order this will be built in, and why
 
@@ -813,3 +813,43 @@ against real data. Every row is evaluated one at a time at the end.
    with a different assignment.
 6. **T13a — the packaged apps**, last, because they are a delivery of a
    surface that must already work.
+
+
+## The evaluation pass
+
+*Run 2026-09-30, against the running product. Every state the author's own
+data was put into was put back.*
+
+The order above was built in the order above, and this is what the pass
+found at the end of it.
+
+1. **T16, T16a — the request and its states.** The nine states are a table
+   and every move is refused rather than ignored. The pass found one caller
+   wrong rather than the table: an accept straight from `submitted` came
+   back "a submitted request cannot become accepted", which is the table
+   being right. Deciding about something receives it on the way past now.
+2. **T2a, T13 — the link and the browser surface.** One URL, no install, no
+   account. Verified on a simulated Pixel 7: a producer issued it from the
+   takes rail and a phone opened it.
+3. **T3, T3a, T3b, T4, T5 — capture, keep-or-delete, submit.** The song
+   plays while they record, from the normalised master. Stopping is not
+   sending: the segments go up as they close and the performer decides. The
+   pass found the opposite shipped — every recording marked `sent: true`,
+   with no Send and no Delete, under two comments saying it did not.
+4. **T9, T9a, T10, T10a, T11 — the inbox and the four verbs.** Invite,
+   watch, use it, hold, pass, new link. An accepted submission becomes an
+   ordinary take through the ordinary assembler. The pass found three faults
+   here that no test had: a submission's two ids, the state-machine caller
+   above, and a take declared before the acceptance that could fail.
+5. **T7, T8, T12 — the other two studios.** The same object with a different
+   assignment, and the recorder running with no clock at all.
+6. **T13a — the packaged apps.** Not built, and recorded as what it is.
+
+### What is still not there
+
+* **T13a**, and **T2c** with it: there is no app to open, so a chooser would
+  offer one real door and one that leads nowhere.
+* **T2b** is a URL rather than a share sheet. The Room's own panel exists and
+  was deliberately not borrowed: it wants a conversation, a source title and
+  a rotate handler, and lying to it about three things to reuse a copy button
+  is worse than an input somebody can select.

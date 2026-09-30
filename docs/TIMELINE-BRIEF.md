@@ -626,3 +626,55 @@ process, against the running product and not against this document.
 3. At the end, every row is evaluated one at a time, in order, against the
    running product — and this document records the result of that pass rather
    than the intention behind it.
+
+## The evaluation pass
+
+*Run 2026-09-30, against the running product and the author's own
+performance `balancevid-e2e-song` — two takes, "Living room" and "Beach",
+over a five-second song. Every state it was put into was put back.*
+
+This is rule 3 above, carried out. It is a record of what was found, not a
+summary of what was intended: where the pass disagreed with a row, the row
+changed.
+
+### What was exercised, and how
+
+| what | how |
+| --- | --- |
+| B1, B2 | the take menu raised from the rail row and from the take's block on the timeline, and the two lists compared **character for character** — nineteen rows, identical. That is the D-19 claim, tested rather than asserted |
+| B3a | zoomed to 4× and measured: the track is 5488px inside a 1372px window. One wrapper widens; nothing else was told |
+| B3c, B4a, B4b | the transport's jump-to-start, "Move it by an exact amount…" in the take menu, and the take's own draggable block |
+| B5 | the take menu's groups read in order: *This take*, *Trim*, *Crop*, *Move*, *The take itself* — the brief's three operations named rather than mixed |
+| B6a–B6k | the song's own menu, opened from its lane head, with every one of the eleven rows present: trim (both ends), *Divide the song here*, both fades, both faders, mute, *Play something else here…*, *Add a sound here…*, *Record a sound here…*, the four effects, and *Remove 00:00.000–00:05.000* naming the stretch it would take |
+| B9 | the same menu: eight rows, then eighteen after one press |
+| B12 | no AUDIO lanes on a performance with no sounds on it — an empty lane is furniture |
+| B14b | *Invite performers* in the takes rail |
+| B6a, B6k, B6j, B8 | proved by RENDERING as well as by menu: a trimmed song is half as long and it is the half that was kept; a removed stretch is absent and the two halves join with no gap; a radio treatment takes both ends off white noise while the middle survives; a sound layer is audible at 04s and silent at 01s |
+| B14b, B14c | a simulated Pixel 7 with no account: link → camera → count-in → recording → *Send* / *Delete* → the producer's inbox |
+| B14d, B14e | a question from Online TV, answered on the phone, appearing in the host's queue five seconds later without a reload, with *Play it in* and *Cite them* greyed and saying why because the channel was armed rather than on air |
+
+No page errors in any of it.
+
+### What the pass changed
+
+Three rows were wrong when the pass reached them, and were corrected rather
+than explained:
+
+* **B2** was recorded as HAVE on the strength of the source. The pass compared
+  the two menus and they were identical — which is the claim, and which had
+  never actually been checked.
+* **B6** said "the three left all RENUMBER the master clock". They do not: the
+  section model renumbers nothing, and the row now says what was built.
+* **B1a** said GAP, argued. The argument still stands for swapping a take's
+  media, and the row that was missing was a different thing the same word
+  means — so it was built and the row says both.
+
+### What is still not there
+
+* **B14a**, a packaged mobile app. The Take App is the surface one would wrap
+  and it works today on a phone with no account; what a native client adds is
+  background upload and retry, which is a build pipeline and a store account
+  rather than a change to this product.
+
+Everything else in this brief is built, verified in the browser against the
+author's own data, and proved by a render wherever a render could prove it.
