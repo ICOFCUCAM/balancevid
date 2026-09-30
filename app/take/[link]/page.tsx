@@ -1,6 +1,40 @@
+import type { Metadata } from 'next';
+
 import TakeApp from './TakeApp.js';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * What a phone needs to install this.  [TAKE-APP T2c, T13a]
+ *
+ * THE MANIFEST IS PER LINK, so the head is too: an installed icon
+ * opens the assignment it was installed from, not a page asking for
+ * a link. The route composes it; this only points at it.
+ *
+ * NOTHING HERE NAMES THE PRODUCTION. `generateMetadata` runs on the
+ * server and could read the request, and deliberately does not: a
+ * title carrying the song would put it in the tab, the history and
+ * any preview a chat app draws of the link. The page's own rule.
+ * [D-03, D-25]
+ */
+export function generateMetadata(
+  { params: _params }: { params: Promise<{ link: string }> },
+): Metadata {
+  return {
+    title: 'Your take · BalanceVid',
+    /*
+     * THE PAGE'S OWN GROUND, so a phone that has installed it paints
+     * the status bar to match instead of flashing white on launch.
+     */
+    themeColor: '#0e0f11',
+    appleWebApp: {
+      capable: true,
+      title: 'Your take',
+      statusBarStyle: 'black-translucent',
+    },
+    icons: { apple: '/take-app/apple-touch-icon.png' },
+  };
+}
 
 /**
  * The Take App, in a browser.  [Doctrine D-25; TAKE-APP T2c, T3, T13]
@@ -22,5 +56,19 @@ export default async function TakePage(
   { params }: { params: Promise<{ link: string }> },
 ) {
   const { link } = await params;
-  return <TakeApp link={link} />;
+  return (
+    <>
+      {/*
+        * NOT `metadata.manifest`, BECAUSE THIS ONE IS PER LINK and
+        * Next resolves that field once for the route rather than per
+        * request. A link element in the page is read by the browser
+        * at the same moment and points where it must.
+        */}
+      <link
+        rel="manifest"
+        href={`/api/take/${encodeURIComponent(link)}/manifest`}
+      />
+      <TakeApp link={link} />
+    </>
+  );
 }

@@ -141,7 +141,19 @@ describe('the share row', () => {
    */
   it('shows the full-screen code on white', () => {
     const full = SHARE.slice(SHARE.indexOf('-qr-full'));
-    expect(full).toMatch(/background: '#fff'/);
+    expect(full).toMatch(/background: 'var\(--qr-ground\)'/);
+    /*
+     * AND THE TOKEN IS FIXED, WHICH IS THE WHOLE CLAIM. Every other
+     * colour here is a token so a surface can be RESTYLED; these are
+     * tokens so they can be NAMED, and a `--qr-ground` that followed
+     * the theme would be a code on a dark ground — which fails on a
+     * lot of phones, fails silently, and gets the phone blamed.
+     */
+    const styles = read('app/styles/surfaces.css');
+    expect(styles).toMatch(/--qr-ground: #ffffff;/);
+    expect(styles).toMatch(/--qr-ink: #0e0f11;/);
+    /* Declared once, on :root, and never redefined per theme. */
+    expect((styles.match(/--qr-ground:/g) ?? [])).toHaveLength(1);
   });
 
   /* Escape leaves it, as it leaves every overlay in this product. */

@@ -256,3 +256,25 @@ dialog::backdrop {
   backdrop-filter: blur(3px) saturate(0.85);
   -webkit-backdrop-filter: blur(3px) saturate(0.85);
 }
+
+/* ---- a code somebody points a phone at -------------------------------
+ *
+ * THESE DO NOT FOLLOW THE THEME, AND THAT IS THE POINT.
+ *
+ * Every other colour in this product is a token so a surface can be
+ * restyled; these three are tokens so they can be NAMED, and they are
+ * fixed on purpose. A QR scanner looks for a dark pattern on a light
+ * ground — a code rendered in the theme's own surface and ink fails on
+ * a lot of phones, and fails silently, and the person holding the
+ * phone blames the phone.
+ *
+ * So the ground is white wherever the code is shown, the caption on it
+ * is the product's near-black rather than a grey that would compete
+ * with the pattern, and the dismissal line is the one grey that is
+ * legible on white at arm's length. [ROOM §7; TAKE-APP T2b]
+ */
+:root {
+  --qr-ground: #ffffff;
+  --qr-ink: #0e0f11;
+  --qr-note: #55585e;
+}

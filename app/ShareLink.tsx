@@ -242,7 +242,7 @@ export default function ShareLink({
             title="Show it full screen"
             style={{
               display: 'inline-block', padding: 'var(--space-5)',
-              borderRadius: 'var(--radius-module)', background: '#fff',
+              borderRadius: 'var(--radius-module)', background: 'var(--qr-ground)',
               boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
               border: 0, cursor: 'zoom-in', maxWidth: '100%', lineHeight: 0,
             }}>
@@ -281,7 +281,7 @@ export default function ShareLink({
           aria-label={qrCaption ?? 'Scan this code'}
           onClick={() => setBigQr(false)}
           style={{
-            position: 'fixed', inset: 0, zIndex: 9000, background: '#fff',
+            position: 'fixed', inset: 0, zIndex: 9000, background: 'var(--qr-ground)',
             display: 'flex', flexDirection: 'column', alignItems: 'center',
             justifyContent: 'center', gap: 20, cursor: 'zoom-out',
             padding: 'var(--space-5)',
@@ -295,11 +295,11 @@ export default function ShareLink({
               display: 'block',
             }}
           />
-          <div style={{ color: '#0e0f11', fontSize: 'var(--text-lg)',
+          <div style={{ color: 'var(--qr-ink)', fontSize: 'var(--text-lg)',
             textAlign: 'center' }}>
             {qrCaption ?? 'Scan this code'}
           </div>
-          <div style={{ color: '#55585e', fontSize: 'var(--text-sm)' }}>
+          <div style={{ color: 'var(--qr-note)', fontSize: 'var(--text-sm)' }}>
             Tap anywhere to close
           </div>
         </div>

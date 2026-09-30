@@ -612,7 +612,7 @@ process, against the running product and not against this document.
 | B12 | the studio's shape | HAVE | the AUDIO group is drawn: one lane per track that has something on it (an empty lane is furniture), each block placed by `soundOnSong` — the same function the mixer reads — right-clickable for the same five groups a take has, and draggable. Writing it found the take lane's own drag ignoring the zoom |
 | B13 | one system, extended | the rule | — |
 | B14 | runs on every platform | HAVE, as the web | no store app |
-| B14a | a packaged mobile app | GAP, and out of this brief's reach | the Take App is the surface a packaged one would wrap, and it works today on a phone with no account. What a native client adds is background upload and retry — T13's own argument — which is worth having and is a build pipeline and a store account rather than a change to this product. Recorded here so the row is not mistaken for something overlooked |
+| B14a | a packaged mobile app | **HAVE as capability; the store listing is out of reach** | the row justified itself by what a packaged client ADDS — background upload and retry — and that half was never about a store account. Built: segments go to IndexedDB before the network, retry with a backoff, survive the tab closing and the phone locking, and finish from a service worker's `sync` event with no page open. The Take App installs to a home screen from a per-link manifest and opens with no browser chrome. **It was a fault, not a missing feature:** the chunk upload was an unchecked `fetch` under a caller that swallows the rejection, so a failed segment was gone and the take had a hole in it. What is still out of reach is a signed binary in two stores — accounts, certificates, a release pipeline — none of which is a change to this product. See TAKE-APP T13a |
 | B14b | a link that hands a phone a song to record against | HAVE | `POST .../requests` issues one; `/take/<link>` opens on a phone with no account and plays the NORMALISED master from `/api/take/<link>/reference` — the same audio the alignment measures, which on a phone matters more because nobody is watching a waveform. The reference (title, measured duration, accepted tempo) is written INTO the request, so what somebody performed against cannot drift |
 | B14c | keep / delete / **submit** takes as a guest | HAVE | stopping is not sending. The SEGMENTS go up as they close (U-06: a dropped call must not cost a good take) and the performer then decides: Send is the moment it crosses to the producer, Delete removes the segments. Neither is offered once it is sent — what a performer may undo is their own decision not yet acted on, never a producer's (D-25). The DELETE is its own rule in the guest policy, not a loosened one |
 | B14d | questions sent to phones for Studio One / Online TV | HAVE | `POST /api/conversations/<id>/requests` and `POST /api/channels/<id>/requests`, issuing the SAME request object a performance does — which is what lets one queue read all three. Three things a phone can be asked for (a recorded answer, a spoken one, a written one); an empty question is refused rather than filled in; a Class B source is not handed out. The recorder runs with no song: the count-in still counts, the offset is zero because an answer is not against anything, and the page shows no camera and no total for a request that has neither |
@@ -671,10 +671,13 @@ than explained:
 
 ### What is still not there
 
-* **B14a**, a packaged mobile app. The Take App is the surface one would wrap
-  and it works today on a phone with no account; what a native client adds is
-  background upload and retry, which is a build pipeline and a store account
-  rather than a change to this product.
+* **B14a**, a *published* mobile app. The capability the row was justified
+  by — background upload and retry — is built and is described in
+  `docs/TAKE-APP.md` under T13a: the Take App installs to a home screen,
+  opens without browser chrome, and finishes its uploads after the phone is
+  locked. What is out of reach here is a signed binary in the App Store and
+  Play Store: accounts, certificates and a release pipeline, none of which
+  is a change to this product.
 
 Everything else in this brief is built, verified in the browser against the
 author's own data, and proved by a render wherever a render could prove it.

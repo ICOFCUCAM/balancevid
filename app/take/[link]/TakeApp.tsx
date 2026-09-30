@@ -8,6 +8,8 @@ import { useMasterRecording } from '../../p/[id]/useMasterRecording.js';
 import { HOUSE_SAMPLE_RATE, formatMasterPosition } from '../../../src/domain/time.js';
 import type { RequestView } from '../../../src/domain/participation.js';
 import { dropTake, sendTake, takeSink, type KeptSpec } from './takeSink.js';
+import { askToDrain, installWorker, settle, takeQueue } from './queue.js';
+import InstallBar from './InstallBar.js';
 
 /**
  * The performer's whole screen.  [Doctrine D-25; TAKE-APP T3, T4, T5, T13]
@@ -70,6 +72,9 @@ export default function TakeApp({ link }: { link: string }) {
   const [closed, setClosed] = useState(false);
   const [kept, setKept] = useState<Kept[]>([]);
   const [said, setSaid] = useState<string | null>(null);
+  /** Per recording: segments still on their way, and ones that cannot be. */
+  const [outstanding, setOutstanding] = useState<
+    Record<string, { left: number; dead: number }>>({});
 
   /*
    * A FINISHED RECORDING IS KEPT, NOT SENT.  [TAKE-APP T4]
@@ -128,6 +133,58 @@ export default function TakeApp({ link }: { link: string }) {
     onFinished: () => { /* Nothing to wait on: see `takeSink`. */ },
   });
 
+  /*
+   * THE WORKER, AND A DRAIN ON ARRIVAL.  [T13a]
+   *
+   * Registering it is what makes this installable and what lets an
+   * upload finish after the phone is locked. Draining on load is the
+   * other half: a performer whose browser was killed mid-song opens
+   * the link again and their segments resume, which is precisely the
+   * failure U-06's rolling segments exist to survive and which the
+   * original fire-and-forget upload did not.
+   *
+   * AND ON `online`, because the commonest interruption is not a
+   * crash — it is a tunnel.
+   */
+  useEffect(() => {
+    void installWorker();
+    void askToDrain();
+    const wake = () => { void askToDrain(); };
+    window.addEventListener('online', wake);
+    return () => { window.removeEventListener('online', wake); };
+  }, []);
+
+  /*
+   * WHAT IS STILL ON ITS WAY, while anything is waiting to be sent.
+   *
+   * Polled rather than pushed, because the queue is also drained by a
+   * service worker this page cannot subscribe to, and a count that is
+   * a second stale is a count nobody notices being stale. The timer
+   * stops when there is nothing undecided: a page left open on a
+   * finished take should not touch the disk every second.
+   */
+  const undecided = kept.some((one) => one.state === 'kept' || one.state === 'sending');
+  useEffect(() => {
+    if (!undecided) return undefined;
+    let alive = true;
+    const look = async () => {
+      const queue = await takeQueue();
+      if (!queue || !alive) return;
+      const next: Record<string, { left: number; dead: number }> = {};
+      for (const one of kept) {
+        if (one.state === 'sent' || one.state === 'gone') continue;
+        next[one.id] = {
+          left: await queue.pending(one.id),
+          dead: await queue.broken(one.id),
+        };
+      }
+      if (alive) setOutstanding(next);
+    };
+    void look();
+    const timer = window.setInterval(() => { void look(); }, 1500);
+    return () => { alive = false; window.clearInterval(timer); };
+  }, [kept, undecided]);
+
   /* What is being asked, fetched against the same link that opened it. */
   useEffect(() => {
     let alive = true;
@@ -178,7 +235,44 @@ export default function TakeApp({ link }: { link: string }) {
     setSaid(null);
     mark(one.id, 'sending');
     try {
+      /*
+       * THE SEGMENTS FIRST, AND THAT IS NOT AN OPTIMISATION.
+       *
+       * Sending is a JOIN of the `.part` files on disk. Sending while
+       * a segment is still queued produces a submission with a hole
+       * in it, of a plausible length, that nobody can tell from a
+       * complete one until they watch it — and the producer would be
+       * the one to find out. [T5, U-06]
+       */
+      /*
+       * AND IT SAYS SO WHILE IT WAITS, not a minute later.
+       *
+       * The first browser run pressed Send with two segments still
+       * queued on a phone with no signal, and the page said nothing
+       * at all for sixty seconds — the button read "Sending…" and
+       * the performer had no way to know whether it was working,
+       * stuck, or broken. It was working. A control that looks
+       * broken while it is working is a fault. [U-19]
+       */
+      const queue = await takeQueue();
+      const waiting = queue ? await queue.pending(one.id) : 0;
+      if (waiting > 0) {
+        setSaid(`Still uploading ${waiting} `
+          + `${waiting === 1 ? 'part' : 'parts'}. This will send on its own `
+          + 'when they arrive — you can leave the page open.');
+      }
+      const ready = await settle(one.id);
+      if (!ready.ok) {
+        mark(one.id, 'kept');
+        setSaid(ready.reason === 'broken'
+          ? `${ready.left === 1 ? 'A part' : `${ready.left} parts`} of that take `
+            + 'could not be uploaded. Record it again.'
+          : `Still uploading ${ready.left} `
+            + `${ready.left === 1 ? 'part' : 'parts'}. It will send once they arrive.`);
+        return;
+      }
       await sendTake(link, one.id, one.spec);
+      setSaid(null);
       mark(one.id, 'sent');
     } catch (error) {
       mark(one.id, 'kept');
@@ -196,6 +290,14 @@ export default function TakeApp({ link }: { link: string }) {
   const drop = useCallback(async (one: Kept) => {
     setSaid(null);
     try {
+      /*
+       * THE QUEUED SEGMENTS FIRST, and with a queue in front of the
+       * network the brief's line becomes literally true: a take
+       * deleted before its last segment went up never reaches the
+       * server at all. [T4]
+       */
+      const queue = await takeQueue();
+      if (queue) await queue.forget(one.id);
       await dropTake(link, one.id);
       mark(one.id, 'gone');
     } catch (error) {
@@ -398,6 +500,42 @@ export default function TakeApp({ link }: { link: string }) {
                   {formatMasterPosition(Math.round(one.seconds * HOUSE_SAMPLE_RATE))}
                 </span>
                 {/*
+                  * WHAT IS STILL GOING UP, WHERE THEY CAN SEE IT.
+                  *
+                  * A performer who presses Send and is told "still
+                  * uploading 3 parts" has been given a fact. One who
+                  * is told nothing, waits, and presses again has been
+                  * given a broken button — and the version of this
+                  * page before the queue simply sent whatever had
+                  * arrived, so a take could be short and nobody knew.
+                  * [T5, U-19]
+                  */}
+                {/*
+                  * AND NOT ONCE IT IS SENT.
+                  *
+                  * A screenshot of the recovered phone read "↑ 1
+                  * Sent" — a count of segments still on their way
+                  * beside a take that had demonstrably arrived
+                  * complete. The poll stops when nothing is
+                  * undecided, so the last snapshot it took was
+                  * left on screen next to the word that
+                  * contradicts it. A stale number is worse than
+                  * no number: this one said the take was short.
+                  */}
+                {(one.state === 'kept' || one.state === 'sending')
+                  && outstanding[one.id]?.dead ? (
+                  <span data-testid="take-broken" className="small"
+                        title="Those parts cannot be uploaded. Record it again."
+                        style={{ color: 'var(--bad)' }}>
+                    {outstanding[one.id]!.dead} lost
+                  </span>
+                ) : (one.state === 'kept' || one.state === 'sending')
+                  && outstanding[one.id]?.left ? (
+                  <span data-testid="take-uploading" className="small muted">
+                    ↑ {outstanding[one.id]!.left}
+                  </span>
+                ) : null}
+                {/*
                   * SEND AND DELETE, AND THEN NEITHER.  [T4]
                   *
                   * Once it is sent it belongs to the production, and
@@ -441,6 +579,17 @@ export default function TakeApp({ link }: { link: string }) {
             your recording carries it twice.
           </p>
         )}
+
+        {/*
+          * LAST, AND NOT FIRST.  [T2c, U-19]
+          *
+          * A performer who opened a link wants to record, not to
+          * install something. The offer sits under the thing they
+          * came for and renders nothing at all where there is nothing
+          * to install or where they have already installed it — which
+          * is most of the time, on most machines.
+          */}
+        <InstallBar />
       </div>
     </main>
   );
