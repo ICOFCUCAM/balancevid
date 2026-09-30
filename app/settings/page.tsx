@@ -2,6 +2,7 @@ import { theAccount } from '../../src/store/accounts.js';
 import { studiosOf } from '../../src/domain/account.js';
 import { bytesLabel, diskSpace } from '../../src/store/space.js';
 import { runtime } from '../../src/web/runtime.js';
+import { deployment } from '../../src/web/deployment.js';
 import pkg from '../../package.json' with { type: 'json' };
 import Settings from './Settings.js';
 
@@ -34,6 +35,16 @@ export default async function SettingsPage() {
       }}
       runtime={runtime()}
       version={`v${(pkg as { version: string }).version}`}
+      /*
+       * AND WHICH COMMIT, because the version has said `0.1.0` through
+       * every release and a person looking at a deployed installation
+       * had no way to tell it from one three weeks old. Read from the
+       * process on each request, never baked in: a constant compiled
+       * into the bundle is the commit the IMAGE was built from, and a
+       * container can be restarted, rolled back or promoted without
+       * that changing. [D-13, DESIGN twelfth]
+       */
+      deployment={deployment()}
       space={{
         used: bytesLabel(space.usedBytes),
         free: bytesLabel(space.freeBytes),

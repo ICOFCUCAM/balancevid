@@ -1004,6 +1004,45 @@ Removing a single `id` was checked to make it fail.
 
 ---
 
+## The twelfth decision: an installation says which build it is
+
+*"Could it be telling us that features written might not even be
+deployed?"*
+
+It could, and the product could not answer. `package.json` has said
+`0.1.0` through every release, no page said what it was built from, and
+the only way to tell one build from another was to request a file that
+exists in the newer one and watch for a 404.
+
+`/api/version` answers it in one request, and Settings shows it in a row
+beside the version that never changes.
+
+**Read from the process, never baked in.** A constant compiled into the
+bundle is the commit the *image* was built from, and a container can be
+restarted, rolled back or promoted without that changing — which is the
+same class of mistake as a stale build, told confidently. The deploy
+platform sets `DEPLOYPRO_GIT_SHA` and three companions in the container;
+they are read on each request, behind `force-dynamic`.
+
+**It degrades to honesty.** An installation started by hand has none of
+them set and says **Unknown**, not a version it made up. A version
+somebody cannot trust is worse than none, because it is precisely the
+thing they would check before concluding a deploy had not happened.
+
+**Public, like the health check, and for the same shape of reason.** A
+stranger gets the commit and nothing else. A hash is opaque — it reveals
+no code — and it is the one fact the route exists to give, so requiring a
+session would defeat it from a phone or a deploy probe. Which deployment,
+which environment and where it thinks it is are operational detail, and
+`health/route.ts` already records why detail is owner-only.
+
+**No deploy automation was added, deliberately.** This repository's CI
+builds and tests and nothing else, and that is correct here: the deploy
+platform watches the repository through its own GitHub App. A workflow
+that also deployed would put a second copy in the air and fight it.
+
+---
+
 ## What is deliberately not done
 
 - **No phone layout — for the STUDIOS.** A broadcast desk is operated at a

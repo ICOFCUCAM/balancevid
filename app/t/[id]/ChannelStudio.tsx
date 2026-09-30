@@ -28,6 +28,7 @@ import { type LivePlate, takePlate } from './plate.js';
 import {
   type Composition, NO_COMPOSITION, keyFor,
 } from '../../../src/domain/composition.js';
+import { setById } from '../../../src/domain/virtualSet.js';
 import { useBroadcastGuests } from './useBroadcastGuests.js';
 import { NO_TRACKS, useTrackStates } from './useTrackStates.js';
 import {
@@ -413,6 +414,14 @@ export default function ChannelStudio({
     sources: mixed,
     layoutId: arrangement,
     solo,
+    /*
+     * THE STATION'S STUDIO, from the identity — the first thing that
+     * reads `setId`, as `spaceId` was the first thing to be read at all.
+     * A set draws the room once for the whole frame and cuts each person
+     * into their position in it; without one, everybody keeps their own
+     * background. [§27, §13]
+     */
+    set: setById(channel.identity?.setId),
     enabled: Boolean(liveNow) && mixed.length > 0,
     /*
      * THE CANVAS IS THE REAL CEILING. It always took these three and the
@@ -1913,6 +1922,11 @@ export default function ChannelStudio({
                 onGreenScreen={(id, on) =>
                   setGreens((was) => ({ ...was, [id]: on }))}
                 onPlate={(id) => { void measureRoom(id); }}
+                {...(channel.identity?.setId
+                  ? { setId: channel.identity.setId } : {})}
+                onSet={(setId) => void patch({
+                  action: 'identity', identity: { setId },
+                })}
               />
             )}
 

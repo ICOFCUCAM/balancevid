@@ -26,6 +26,7 @@ import {
 } from './distribution.js';
 import { LAYOUTS } from './presentation.js';
 import { newId } from './ids.js';
+import { setById } from './virtualSet.js';
 import { roomHostKind } from './document.js';
 
 export class ChannelEditError extends Error {}
@@ -869,6 +870,13 @@ export function setIdentity(
      document holding `spaceId: ''` would be a document naming a space that
      does not exist, and INV-16 keeps unmeasured spaces out. */
   if (!next.spaceId?.trim()) delete next.spaceId;
+  /* And the same for the set, for the same reason: an id that names
+     nothing is worse than no id, because the renderer would be asked
+     for a scene nobody has drawn. [§27] */
+  if (!next.setId?.trim()) delete next.setId;
+  if (next.setId && !setById(next.setId)) {
+    fail(`unknown virtual set: ${next.setId}`);
+  }
   channel.identity = next;
 }
 

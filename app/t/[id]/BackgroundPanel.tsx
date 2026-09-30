@@ -4,13 +4,16 @@ import React, { useEffect, useRef, useState } from 'react';
 
 import Icon from '../../Icon.js';
 import { Section } from './ChannelStudio.js';
-import { paintSpace } from './spaceArt.js';
+import { paintSet, paintSpace } from './spaceArt.js';
 import { type LivePlate, PLATE_SECONDS } from './plate.js';
 import {
   type Composition, CENTRED, NO_COMPOSITION, SPACE_SHELVES,
   drawable, whyNoBackdrop,
 } from '../../../src/domain/composition.js';
 import { SPACES_ARE_DRAWN, SPACE_LOOKS } from '../../../src/domain/environment.js';
+import {
+  type VirtualSet, VIRTUAL_SETS, holds, setById,
+} from '../../../src/domain/virtualSet.js';
 
 /**
  * Background and virtual set, per person.  [Doctrine CHANNEL §26, §27, C-14]
@@ -65,6 +68,33 @@ function SpaceThumb({ spaceId, width = 92, height = 52 }: {
   );
 }
 
+/**
+ * A thumbnail that is the SCENE, furniture and all.
+ *
+ * The same two passes the mixer runs, at 108×61: the room, the riser and
+ * the screens, then the desk over where the people would be. A person
+ * choosing News Desk sees a desk. [§27]
+ */
+function SetThumb({ set, width = 108, height = 61 }: {
+  set: VirtualSet; width?: number; height?: number;
+}) {
+  const ref = useRef<HTMLCanvasElement | null>(null);
+  useEffect(() => {
+    const paper = ref.current?.getContext('2d');
+    if (!paper) return;
+    const ratio = Math.min(3, window.devicePixelRatio || 1);
+    ref.current!.width = Math.round(width * ratio);
+    ref.current!.height = Math.round(height * ratio);
+    paintSet(paper, set, ref.current!.width, ref.current!.height, 'behind');
+    paintSet(paper, set, ref.current!.width, ref.current!.height, 'front');
+  }, [set, width, height]);
+  return (
+    <canvas ref={ref} aria-hidden="true" data-testid="set-thumb"
+            data-set={set.id}
+            style={{ width: '100%', height: '100%', display: 'block' }} />
+  );
+}
+
 /* ------------------------------------------------------------------------ *
  *  A slider that says what it is.
  * ------------------------------------------------------------------------ */
@@ -114,7 +144,11 @@ export interface Composited {
 
 export default function BackgroundPanel({
   people, chosen, onChoose, onChange, onPlate, onGreenScreen, busy,
+  setId, onSet,
 }: {
+  /** The station's own studio, if it has one. [§27, §13] */
+  setId?: string;
+  onSet: (setId: string) => void;
   /** Everybody in the mix: the host first, then the Room's staging order. */
   people: Composited[];
   chosen: string | null;
@@ -143,8 +177,69 @@ export default function BackgroundPanel({
   const cannot = whyNoBackdrop(composition.key);
   const open = SPACE_SHELVES.find((one) => one.id === shelf) ?? SPACE_SHELVES[0]!;
 
+  const scene = setById(setId);
+
   return (
     <div className="col" style={{ gap: 0, minWidth: 0 }}>
+      {/* ---- §27. THE STATION'S SET ------------------------------------ */}
+      {/*
+        * *"Background and Virtual Set should not be the same thing.
+        * Background simply replaces what's behind a person. Virtual Set
+        * is a complete production scene."*
+        *
+        * So they are two sections, and the set is first, because it is
+        * the studio: it decides the room, where people stand, what is in
+        * front of them and how they are lit. A background is what one
+        * person has behind them when there is no studio to put them in.
+        */}
+      <Section text="Virtual set" aside={(
+        <span className="muted" style={{ fontSize: 'var(--text-2xs)' }}>
+          {scene ? `${holds(scene)} on set` : 'None'}
+        </span>
+      )} />
+      <div style={{
+        display: 'grid', gap: 5,
+        gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))',
+      }}>
+        {VIRTUAL_SETS.map((one) => {
+          const on = one.id === setId;
+          return (
+            <button
+              key={one.id} type="button"
+              data-testid="virtual-scene" data-set={one.id}
+              data-chosen={on ? 'true' : 'false'}
+              aria-pressed={on}
+              onClick={() => onSet(on ? '' : one.id)}
+              title={one.says}
+              style={{
+                padding: 0, position: 'relative', aspectRatio: '16 / 9',
+                borderRadius: 'var(--radius-screen)', overflow: 'hidden',
+                cursor: 'pointer', background: 'var(--screen-bed)',
+                border: `1px solid ${on ? 'var(--accent)' : 'var(--console-seam)'}`,
+                borderTopWidth: on ? 2 : 1,
+                opacity: on ? 1 : 0.88,
+              }}
+            >
+              <SetThumb set={one} />
+              <span style={{
+                position: 'absolute', left: 0, right: 0, bottom: 0,
+                padding: '2px 3px', textAlign: 'center',
+                fontSize: 'var(--text-2xs)', lineHeight: '12px',
+                background: 'rgba(0,0,0,0.72)',
+                color: on ? 'var(--ink-000)' : 'var(--ink-100)',
+                overflow: 'hidden', textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}>{one.label}</span>
+            </button>
+          );
+        })}
+      </div>
+      {scene && (
+        <p className="small muted" data-testid="set-says" style={{
+          margin: '6px 0 0', fontSize: 'var(--text-2xs)',
+        }}>{scene.says}</p>
+      )}
+
       {/* ---- B. WHO ---------------------------------------------------- */}
       <Section text="Who" aside={(
         <span className="muted" style={{ fontSize: 'var(--text-2xs)' }}>
@@ -200,6 +295,32 @@ export default function BackgroundPanel({
       </div>
 
       {/* ---- A. THE BACKGROUND LIBRARY --------------------------------- */}
+      {/*
+        * AND IT SAYS WHEN IT DOES NOT APPLY. With a set on, everybody is
+        * cut out of their own room and placed in the station's, so a
+        * per-person backdrop decides nothing — and a shelf of swatches
+        * that changes nothing is the fault this whole panel replaced.
+        * The separation and the positioning below still apply, because
+        * they are about the person rather than the room. [§27, U-19]
+        */}
+      {scene ? (
+        <>
+          <Section text="Background" aside={(
+            <button
+              type="button" className="ctl" data-testid="drop-set"
+              onClick={() => onSet('')}
+              style={{ padding: '1px 6px', fontSize: 'var(--text-2xs)' }}
+            >Leave the set</button>
+          )} />
+          <p className="small muted" data-testid="set-provides" style={{
+            margin: 0, fontSize: 'var(--text-2xs)',
+          }}>
+            {scene.label} is providing the room, so each person is composited
+            into it rather than into a background of their own.
+          </p>
+        </>
+      ) : (
+      <>
       <Section text="Background / Set" aside={(
         <span className="row" style={{ gap: 4 }}>
           {[{ id: 'none', label: 'Their room' }, { id: 'blur', label: 'Blur' }]
@@ -289,6 +410,8 @@ export default function BackgroundPanel({
       <p className="small muted" style={{
         margin: '6px 0 0', fontSize: 'var(--text-2xs)',
       }}>{SPACES_ARE_DRAWN}</p>
+      </>
+      )}
 
       {/* ---- C. THE FOREGROUND ----------------------------------------- */}
       <Section text="Separation" aside={(

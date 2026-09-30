@@ -126,3 +126,63 @@ export function healthSentence(
     : 'The engine is running but this channel’s stream has stopped. '
       + 'A reference with no file behind it will do that.';
 }
+
+/* ------------------------------------------------------------------------ *
+ *  Why a channel is dark.  [§6, §9, CHANNEL C-19]
+ * ------------------------------------------------------------------------ */
+
+/**
+ * The operator armed, and nothing is going out.
+ *
+ * *"Why is this channel not showing when I am live?"*
+ *
+ * THE PRODUCT COULD SAY SIX THINGS AND SAID ONE. `healthSentence` covers
+ * the transmitter — the engine stopped, the engine is stale, the stream
+ * went silent — and every one of those is about a PROCESS. It has no
+ * word for the two states where every process is healthy and the channel
+ * is still dark:
+ *
+ *   the operator pressed GO LIVE and not TAKE LIVE, so the camera is in
+ *     PREVIEW and `whatIsOn` is off. `phase === 'armed'` is the whole
+ *     difference and it is one press wide; and
+ *   the channel has nothing to play. No programme is due, the loop is
+ *     empty, and a channel with nothing in it is off air by design.
+ *
+ * Both are correct behaviour and neither is a fault, which is exactly why
+ * they need saying: a fault announces itself and a correct state that
+ * looks like a fault does not. The viewer's page says *"This channel is
+ * not transmitting right now"* for all six, which is right for a viewer
+ * — they cannot act on any of it — and useless to the one person who
+ * can.
+ *
+ * SO THIS IS THE OPERATOR'S SENTENCE, and it names the press. It is
+ * separate from `healthSentence` rather than folded into it because the
+ * two answer different questions: that one is *is the machinery
+ * working*, and this one is *have you asked it for anything*.
+ */
+export function whyDark(
+  { offAir, armed, hasSchedule }: {
+    /** `whatIsOn(...).kind === 'off'`. */
+    offAir: boolean;
+    /** A live session exists and has not been taken to air. */
+    armed: boolean;
+    /** Anything at all to play: a programme, a block, or the loop. */
+    hasSchedule: boolean;
+  },
+): string | null {
+  if (!offAir) return null;
+  if (armed) {
+    return 'Your camera is up in PREVIEW and nothing is on the wire yet. '
+      + 'TAKE LIVE is what puts it out.';
+  }
+  if (!hasSchedule) {
+    return 'Nothing is scheduled and the loop is empty, so there is nothing '
+      + 'to transmit. Put something in the loop, or go live.';
+  }
+  /*
+   * OFF AIR WITH A SCHEDULE AND NOBODY ARMED is a gap between
+   * programmes, which is a thing a channel is allowed to be. Saying
+   * anything here would be a warning about the clock. [§5]
+   */
+  return null;
+}

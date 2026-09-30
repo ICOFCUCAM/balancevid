@@ -77,6 +77,22 @@ export interface ChannelIdentity {
    * its studio between programmes.
    */
   spaceId?: string;
+  /**
+   * THE STATION'S STUDIO, which is not the same thing as a background.
+   * [§27]
+   *
+   * *"Background simply replaces what's behind a person. Virtual Set is
+   * a complete production scene."* A set id from `VIRTUAL_SETS`: a
+   * room, an arrangement, the furniture in it, where the logo belongs
+   * and which strip the lower third owns.
+   *
+   * IT LIVES BESIDE `spaceId` AND OUTRANKS IT. A channel with a set has
+   * chosen its whole studio, and the house background is what people
+   * are composited into when it has not. Both are on the identity for
+   * the same reason: a station does not repaint its studio between
+   * programmes. [§13]
+   */
+  setId?: string;
 }
 
 export const DEFAULT_IDENTITY: ChannelIdentity = {
