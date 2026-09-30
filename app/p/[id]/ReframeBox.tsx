@@ -195,7 +195,15 @@ export default function ReframeBox({
           height: shown.h * inner.height },
       ].map((pane, index) => (
         <div key={index} aria-hidden="true" style={{
-          position: 'absolute', background: 'rgba(0,0,0,0.6)',
+          position: 'absolute',
+          /*
+            * THE PLATE ALPHA, because there is one near-black in this
+            * product and `console.test.ts` enforces it by shape rather
+            * than by a list of the ones it knows about. A scrim over
+            * the part of the frame being thrown away is a surface like
+            * any other, and 0.6 was a private dark nobody else uses.
+            */
+          background: 'rgba(0,0,0,0.72)',
           /* Decoration does not take pointers: the browser found this
              by refusing to press Done, which a dimming pane over the
              bottom of the frame was swallowing. The pad handles every

@@ -37,7 +37,13 @@ import { measureColour } from '../../src/render/ingest.js';
 import { boxFrom, content } from '../../app/p/[id]/ReframeBox.js';
 
 const ROOT = join(import.meta.dirname, '..', '..');
-const code = (file: string) => readFileSync(join(ROOT, file), 'utf8');
+/*
+ * Comments stripped, as every other source-reading test here does: an
+ * assertion that a line is NEAR another must not be satisfied — or
+ * defeated — by the paragraph explaining why it is there.
+ */
+const code = (file: string) => readFileSync(join(ROOT, file), 'utf8')
+  .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
 
 /* Four, not two: a two-second silent master makes aac produce no frames. */
 const SECONDS = 4;
@@ -220,8 +226,12 @@ describe('the tool\u2019s own controls', () => {
      before the browser caught it. */
   it('lets no decoration take a pointer', () => {
     const source = code('app/p/[id]/ReframeBox.tsx');
-    const panes = source.slice(source.indexOf('background: \'rgba(0,0,0,0.6)\''));
-    expect(panes.slice(0, 400)).toContain("pointerEvents: 'none'");
+    /* Anchored on the panes' own map rather than on their colour: the
+       colour changed the moment the house plate-alpha rule caught it,
+       and a test pinned to a value is a test that breaks when the
+       value was the thing that was wrong. */
+    const panes = source.slice(source.indexOf('.map((pane, index)'));
+    expect(panes.slice(0, 500)).toContain("pointerEvents: 'none'");
     const rect = source.slice(source.indexOf('data-testid="reframe-rect"'));
     expect(rect.slice(0, 500)).toContain("pointerEvents: 'none'");
   });
