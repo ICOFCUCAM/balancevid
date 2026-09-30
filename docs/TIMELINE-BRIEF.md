@@ -588,12 +588,12 @@ process, against the running product and not against this document.
 | B6k | song: remove section | GAP | |
 | B7 | recording is an ordinary take | HAVE | the whole pipeline, and now from anywhere in the song |
 | B7a | record from the playhead | HAVE | `start(label, environment, fromSamples)` — the song begins there AND the take is placed from there, which is the arithmetic that makes it worth having. A second button, shown only when the playhead is somewhere |
-| B8 | sound layers as timeline objects | GAP | no object for a sound that is neither song nor take |
+| B8 | sound layers as timeline objects | HAVE | `SoundLayer` on `Performance.sounds`: placed at a sample, trimmed on its own clock, moved, looped, muted, faded; planned as `AudioPiece.kind: 'sound'` and mixed under whatever the mode chose |
 | B9 | simple by default, advanced when needed | HAVE | ten rows at first, eighteen after one press; `MenuItem.advanced`, split by OPERATION rather than row by row |
 | B9a | advanced rows behind one press | HAVE | `visible()` in `Menu.tsx` — a function, so the rule is tested by calling it; every raise starts simple again |
 | B10 | the master clock is the anchor | HAVE | every position is a sample on the song |
-| B10a | every object has a track | GAP | waits on B8 |
-| B10b | every object has a volume | PARTIAL | a scene has audio; a take has none of its own |
+| B10a | every object has a track | HAVE | `SoundLayer.track` is voice / effect / ambience / music — four lanes that differ in where they are drawn and in nothing the mixer does |
+| B10b | every object has a volume | HAVE | the song has `sound.gainDb` [B6], a layer has `gainDb`, both bounded at ±24 dB and both reaching `volume=NdB` in the mix |
 | B11 | the gap is detected and explained | HAVE | `renderProblems`, the hatched band, the sentence |
 | B11a | *Align first take to 00:00* as a repair | HAVE | offered only for a hole at the very start, on the take that begins earliest, and it writes the nudge |
 | B11b | *Trim empty section* | PARTIAL | `coverGap` extends the next scene; trimming the song is B6a |

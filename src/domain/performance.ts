@@ -911,6 +911,95 @@ export type AudioMode =
 export const AUDIO_MODES: readonly AudioMode[] =
   ['music_and_mic', 'take_audio', 'master_vocal'];
 
+/**
+ * A sound that is neither the song nor a take.
+ *   [TIMELINE B8, B10a, B10b]
+ *
+ * "Effects and sounds should also be timeline objects... applause,
+ * transition sound, intro, outro, voice-over, background ambience,
+ * musical layer, effects."
+ *
+ * The document had two kinds of sound: the song, which is the clock,
+ * and a take's own microphone, which is a recording of somebody
+ * performing. Neither is an impact at 02:41 or a room tone under the
+ * whole thing, and there was no object that could be.
+ *
+ * IT IS A TIMELINE OBJECT, WITH THE PROPERTIES THE BRIEF NAMES —
+ * "start time, end time, source, track, offset, trim, volume". Start
+ * is `fromSample`, end follows from the trim, source is `assetId`,
+ * track is `track`, trim is the two marks, volume is `gainDb`. What it
+ * deliberately does NOT have is a video: a sound layer is sound, and a
+ * picture on the timeline is a take. [B10]
+ *
+ * TRACKS ARE ROWS, NOT CLASSES. Voice, effect, ambience and music
+ * differ in which lane they are drawn on and in nothing else — the
+ * mixer treats them identically — which is the same shape every other
+ * list in this product has. A fifth kind is a row. [U-18]
+ */
+export interface SoundLayer {
+  id: Id<'snd'>;
+  assetId: AssetId;
+  /** What it is called on its lane. The author's word. */
+  label: string;
+  /**
+   * Which lane it sits on.  [B10a]
+   *
+   * `voice` is somebody speaking over the music — a voice-over, an
+   * introduction. `effect` is a moment: applause, an impact, a
+   * transition. `ambience` is a bed: a room, a street, a crowd.
+   * `music` is another piece of music under or beside the song.
+   */
+  track: 'voice' | 'effect' | 'ambience' | 'music';
+  /** Where it begins on the master clock. */
+  fromSample: Samples;
+  /** Measured by decoding, never read from a header. [U-02] */
+  durationSamples: Samples;
+  /** Use only part of it. Markers on its OWN clock, not the song's. */
+  useFromSample?: Samples;
+  useToSample?: Samples;
+  /** Decibels against everything else. Absent means as recorded. */
+  gainDb?: number;
+  muted?: boolean;
+  fadeInSamples?: Samples;
+  fadeOutSamples?: Samples;
+  /**
+   * Play it again until its stretch is over.  [S-29]
+   *
+   * For ambience, which is the case it exists for: ten seconds of rain
+   * under a four-minute song. The same field a footage take has, and
+   * the same meaning.
+   */
+  loop?: boolean;
+  createdAt: string;
+}
+
+/** What part of a sound layer's own media is used, and how long that is. */
+export function soundSpan(
+  layer: SoundLayer,
+): { fromSample: Samples; toSample: Samples; length: Samples } {
+  const from = Math.max(0, Math.min(layer.useFromSample ?? 0, layer.durationSamples));
+  const to = Math.max(from, Math.min(layer.useToSample ?? layer.durationSamples,
+    layer.durationSamples));
+  return { fromSample: from, toSample: to, length: to - from };
+}
+
+/** Where a layer sits on the master clock, given how much of it is used. */
+export function soundOnSong(
+  layer: SoundLayer, songSamples: Samples,
+): { fromSample: Samples; toSample: Samples } {
+  const span = soundSpan(layer);
+  const from = Math.max(0, Math.min(layer.fromSample, songSamples));
+  /*
+   * A LOOPED LAYER RUNS TO THE END OF THE SONG, which is what "ten
+   * seconds of rain under a four-minute song" means. Its own length
+   * says nothing about how long it is heard for — the same argument
+   * footage already makes about a ten-second clip filling a chorus.
+   */
+  const to = layer.loop ? songSamples : Math.min(songSamples, from + span.length);
+  return { fromSample: from, toSample: Math.max(from, to) };
+}
+
+
 /* ------------------------------------------------------------------------ *
  *  The document.
  * ------------------------------------------------------------------------ */
@@ -934,6 +1023,13 @@ export interface Performance {
    * light. Newest last; a take names the one it was shot against.
    */
   plates: RoomPlate[];
+  /**
+   * Sounds that are neither the song nor a take.  [TIMELINE B8]
+   *
+   * Absent on every performance made before they existed, which is
+   * what makes this a field and not a migration.
+   */
+  sounds?: SoundLayer[];
   audio: {
     mode: AudioMode;
     /** For `master_vocal`: which take is the voice. It is a take like any other. */

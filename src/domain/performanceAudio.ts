@@ -26,7 +26,7 @@
 import type { AssetId, TakeId } from './document.js';
 import {
   type AudioMode, type Performance, type PerformanceTake, type PerformanceWindow,
-  coverage, projectPerformance, songSpan, takeById,
+  coverage, projectPerformance, songSpan, soundOnSong, soundSpan, takeById,
 } from './performance.js';
 import { type Samples, HOUSE_SAMPLE_RATE } from './time.js';
 import { cleanupFor } from './cleanup.js';
@@ -41,8 +41,11 @@ import { cleanupFor } from './cleanup.js';
 export const AUDIO_FADE_SAMPLES = Math.round(HOUSE_SAMPLE_RATE * 0.024);
 
 export interface AudioPiece {
-  /** `master` is the song; `take` is a performance's own microphone. */
-  kind: 'master' | 'take';
+  /**
+   * `master` is the song, `take` is a performance's own microphone,
+   * and `sound` is a layer that is neither. [TIMELINE B8]
+   */
+  kind: 'master' | 'take' | 'sound';
   /** On the master clock. */
   fromSample: Samples;
   toSample: Samples;
@@ -92,6 +95,15 @@ export interface AudioPiece {
    * here. [U-16]
    */
   gainDb?: number;
+  /**
+   * Play it again until the piece is over.  [TIMELINE B8, S-29]
+   *
+   * For ambience: ten seconds of rain under a four-minute song. The
+   * mixer loops the source rather than the plan listing the same ten
+   * seconds twenty-four times — a plan is a description, and a
+   * description that repeats itself is a description nobody can read.
+   */
+  loop?: boolean;
 }
 
 export class PerformanceAudioError extends Error {
@@ -121,6 +133,11 @@ export function planPerformanceAudio(
    * verse. [§14]
    */
   const zero = window ? Math.max(0, window.fromSample) : 0;
+  /* The stretch being planned, on the song's own clock. */
+  const start = zero;
+  const end = window
+    ? Math.min(window.toSample, performance.master.durationSamples)
+    : performance.master.durationSamples;
 
   /** source key → the runs it is audible for, in order. */
   const runs = new Map<string, { takeId?: TakeId; from: Samples; to: Samples }[]>();
@@ -228,6 +245,46 @@ export function planPerformanceAudio(
 
   // Deterministic order: the plan is hashed, and a Map's iteration order is a
   // property of how the document happened to be read.
+  /*
+   * AND THE LAYERS, WHICH ARE NOT PART OF THE MODE AT ALL.
+   *   [TIMELINE B8]
+   *
+   * The modes above decide which of the SONG and the TAKES is audible
+   * over each stretch — that is a question about a performance, and an
+   * applause cue is not an answer to it. A layer is heard where the
+   * author put it, under whatever the mode chose, which is what makes
+   * it a layer rather than a fourth mode.
+   *
+   * CLIPPED TO THE WINDOW, so a clip of the chorus carries the impact
+   * that lands in the chorus and not the one in the last verse. And
+   * placed on the clip's own zero, like everything else here.
+   */
+  for (const layer of performance.sounds ?? []) {
+    if (layer.muted) continue;
+    const on = soundOnSong(layer, performance.master.durationSamples);
+    const from = Math.max(on.fromSample, start);
+    const to = Math.min(on.toSample, end);
+    if (to <= from) continue;
+    const media = soundSpan(layer);
+    pieces.push({
+      kind: 'sound',
+      assetId: layer.assetId,
+      fromSample: from - zero,
+      toSample: to - zero,
+      /*
+       * WHERE TO READ IT FROM. A layer trimmed to start ten seconds
+       * in, whose first five seconds fell outside the window, is read
+       * from fifteen — its own trim plus however much of it the
+       * window cut off the front.
+       */
+      mediaFromSample: media.fromSample + (from - on.fromSample),
+      fadeInSamples: layer.fadeInSamples ?? 0,
+      fadeOutSamples: layer.fadeOutSamples ?? 0,
+      ...(layer.gainDb === undefined ? {} : { gainDb: layer.gainDb }),
+      ...(layer.loop ? { loop: true } : {}),
+    });
+  }
+
   return pieces.sort((a, b) => a.fromSample - b.fromSample
     || (a.kind === b.kind ? 0 : a.kind === 'master' ? -1 : 1)
     || String(a.takeId).localeCompare(String(b.takeId)));

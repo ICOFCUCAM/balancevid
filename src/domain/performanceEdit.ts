@@ -24,7 +24,7 @@
 import { LAYOUTS, takeSlots } from './presentation.js';
 import type { Rect } from './presentation.js';
 import { MIN_REFRAME_SPAN } from './focus.js';
-import { songSpan } from './performance.js';
+import { type SoundLayer, songSpan, soundSpan } from './performance.js';
 import { EFFECT_LOOKS, type RoomPlate, SPACE_LOOKS, needsMatte } from './environment.js';
 import {
   DEFAULT_TRANSITION, MAX_TRANSITION_FRAMES, MIN_TRANSITION_FRAMES,
@@ -1098,6 +1098,123 @@ export function setSongSound(
 
   if (Object.keys(next).length === 0) delete master.sound;
   else master.sound = next;
+}
+
+/**
+ * Put a sound on the timeline.  [TIMELINE B8, B10]
+ *
+ * Applause, a transition, an intro, ambience, a voice-over — anything
+ * that is neither the song nor somebody's take. The media is already
+ * on disk and measured; this places it.
+ *
+ * WHERE THE AUTHOR PUT IT, not where anything was measured. A sound
+ * layer has no alignment: nobody performed it against the song, so
+ * there is nothing to detect and nothing to correct. `fromSample` is a
+ * decision and the document records it as one. [INV-14 does not apply]
+ */
+export function addSound(performance: Performance, layer: SoundLayer): void {
+  if (!layer.label.trim()) fail('a sound needs a name to be found by');
+  assertSamples(layer.fromSample);
+  if (layer.fromSample > performance.master.durationSamples) {
+    fail('that is past the end of the song');
+  }
+  if (!(layer.durationSamples > 0)) fail('that sound has no measured length');
+  if ((performance.sounds ?? []).some((one) => one.id === layer.id)) {
+    fail(`there is already a sound ${layer.id} here`);
+  }
+  performance.sounds = [...(performance.sounds ?? []), layer];
+}
+
+/** The layer, or a refusal naming it. */
+function soundById(performance: Performance, id: string): SoundLayer {
+  const found = (performance.sounds ?? []).find((one) => one.id === id);
+  if (!found) fail(`no sound ${id} in this performance`);
+  return found!;
+}
+
+/** Move it along the song. [B10 — "start time"] */
+export function moveSound(
+  performance: Performance, id: string, fromSample: Samples,
+): void {
+  const layer = soundById(performance, id);
+  assertSamples(fromSample);
+  if (fromSample > performance.master.durationSamples) {
+    fail('that is past the end of the song');
+  }
+  layer.fromSample = fromSample;
+}
+
+/**
+ * Use only part of it.  [B10 — "trim"]
+ *
+ * Markers on the LAYER'S OWN clock, not the song's — which is the
+ * opposite of a take's trim, and the difference is worth stating. A
+ * take is aligned to the song, so the clock the author is looking at
+ * IS the song's; a sound effect has no alignment at all, and "from
+ * half a second in" is a fact about the file.
+ */
+export function trimSound(
+  performance: Performance, id: string,
+  useFromSample: Samples | null, useToSample: Samples | null,
+): void {
+  const layer = soundById(performance, id);
+  if (useFromSample === null) delete layer.useFromSample;
+  else { assertSamples(useFromSample); layer.useFromSample = useFromSample; }
+  if (useToSample === null) delete layer.useToSample;
+  else { assertSamples(useToSample); layer.useToSample = useToSample; }
+  if (soundSpan(layer).length <= 0) fail('that trim leaves nothing of it');
+}
+
+/** How it is heard. [B10 — "volume"] */
+export function setSoundLayer(
+  performance: Performance, id: string,
+  sound: {
+    gainDb?: number | null; muted?: boolean | null; loop?: boolean | null;
+    fadeInSamples?: Samples | null; fadeOutSamples?: Samples | null;
+    label?: string; track?: SoundLayer['track'];
+  },
+): void {
+  const layer = soundById(performance, id);
+  if (sound.gainDb !== undefined) {
+    if (sound.gainDb === null) delete layer.gainDb;
+    else {
+      if (!Number.isFinite(sound.gainDb)) fail('that gain is not a number');
+      if (Math.abs(sound.gainDb) > 24) {
+        fail('a sound can be moved by up to 24 dB either way');
+      }
+      layer.gainDb = sound.gainDb;
+    }
+  }
+  if (sound.muted !== undefined) {
+    if (sound.muted) layer.muted = true; else delete layer.muted;
+  }
+  if (sound.loop !== undefined) {
+    if (sound.loop) layer.loop = true; else delete layer.loop;
+  }
+  for (const [key, value] of [
+    ['fadeInSamples', sound.fadeInSamples],
+    ['fadeOutSamples', sound.fadeOutSamples],
+  ] as const) {
+    if (value === undefined) continue;
+    if (value === null) { delete layer[key]; continue; }
+    assertSamples(value);
+    if (value > soundSpan(layer).length) {
+      fail('a fade cannot be longer than the sound it is in');
+    }
+    layer[key] = value;
+  }
+  if (sound.label !== undefined) {
+    if (!sound.label.trim()) fail('a sound needs a name');
+    layer.label = sound.label.trim();
+  }
+  if (sound.track !== undefined) layer.track = sound.track;
+}
+
+/** Take it off the timeline. The media stays on disk. [U-25, D-23] */
+export function removeSound(performance: Performance, id: string): void {
+  soundById(performance, id);
+  performance.sounds = (performance.sounds ?? []).filter((one) => one.id !== id);
+  if (performance.sounds.length === 0) delete performance.sounds;
 }
 
 /**

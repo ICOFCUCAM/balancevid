@@ -1051,7 +1051,16 @@ describe('repairing a hole', () => {
     const [gap] = renderProblems(p);
     const repairs = repairsFor(p, gap!);
     expect(repairs.map((repair) => `${repair.id}:${repair.available}`)).toEqual([
-      'use-next:true', 'choose:true', 'use-previous:false', 'freeze:false',
+      'use-next:true', 'choose:true',
+      /*
+       * `align-first` joined this list when the nudge finally got a
+       * control [TIMELINE B11]. It is FALSE here because this hole is
+       * in the middle of the song, and moving a take to close a hole
+       * in the middle would pull everything the performer sang out of
+       * time with the music.
+       */
+      'align-first:false',
+      'use-previous:false', 'freeze:false',
     ]);
     for (const repair of repairs) expect(repair.says.length).toBeGreaterThan(0);
   });

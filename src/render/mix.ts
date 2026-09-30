@@ -63,6 +63,16 @@ export function mixGraph(
     const ratio = piece.rateRatio ?? 1;
     const source = Math.round(length * ratio);
     const steps = [
+      /*
+       * A LOOPED LAYER IS READ ROUND AND ROUND.  [TIMELINE B8, S-29]
+       *
+       * Ten seconds of rain under a four-minute song: `aloop` with
+       * `-1` repeats the whole input for as long as anything asks it
+       * for samples, and the `atrim` below then takes the stretch the
+       * piece actually covers. Before the trim, or the trim would cut
+       * the first pass and loop nothing.
+       */
+      ...(piece.loop ? ['aloop=loop=-1:size=2147483647'] : []),
       `atrim=start=${seconds(piece.mediaFromSample)}`
       + `:end=${seconds(piece.mediaFromSample + source)}`,
       'asetpts=PTS-STARTPTS',
@@ -158,7 +168,9 @@ export async function mixPerformanceAudio(options: {
   const inputs: string[] = ['-i', masterAudioPath];
   const inputOfAsset = new Map<string, number>();
   for (const piece of pieces) {
-    if (piece.kind !== 'take' || !piece.assetId) continue;
+    /* A layer is a source like a take is: its own file, its own
+       input, resolved the same way. [TIMELINE B8] */
+    if (piece.kind === 'master' || !piece.assetId) continue;
     if (inputOfAsset.has(piece.assetId)) continue;
     inputOfAsset.set(piece.assetId, inputs.length / 2);
     inputs.push('-i', resolveAsset(piece.assetId));
