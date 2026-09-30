@@ -30,6 +30,7 @@
  * product that keeps running when nobody is looking at it. [§2]
  */
 
+import type { TakeAccess } from './availability.js';
 import type { Id } from './ids.js';
 import type { ChannelIdentity } from './identity.js';
 import type { Destination } from './distribution.js';
@@ -589,6 +590,20 @@ export interface ChannelPublication {
    * off the air from one that was never on it.
    */
   unpublishedAt?: string;
+  /**
+   * Whether the programme appears in a browse surface, and who may send
+   * a response to it.  [TAKE-PLATFORM PART FIVE, P10]
+   *
+   * THE SAME THREE CONCEPTS AS A RENDER'S `Publication`, on a type that
+   * is separate for a different reason: a channel publishes a SCHEDULE
+   * rather than a render. What it means to take part is identical, so
+   * the fields are named identically and read by the same module. A
+   * second vocabulary for the same decision is how two surfaces come to
+   * disagree about who is allowed in. [D-19]
+   */
+  respondable?: boolean;
+  listed?: boolean;
+  access?: TakeAccess;
 }
 
 /**

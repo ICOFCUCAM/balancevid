@@ -578,6 +578,178 @@ covers it.
 
 ---
 
+# PART FIVE — The author's correction: availability is three concepts, not two
+
+*Given 2026-09-30, in reply to the two-flag proposal in **U1**. Reproduced
+as given. The correction is accepted and **U1 is superseded by it**; U1 is
+left above so the ledger can be read against what was actually proposed and
+what replaced it.*
+
+I would actually push back slightly further than your two-flag proposal.
+
+I agree that:
+
+respondable ≠ listed
+
+They absolutely should not be one boolean.
+
+But I don't think those two flags alone fully express the access model.
+
+I'd make the concepts:
+
+**TAKE AVAILABILITY**
+
+Respondable
+    Can someone submit a Take for this item?
+
+Listed
+    Should this item appear in discovery/browse surfaces?
+
+Access
+    Who is allowed to submit a Take?
+
+Then you can express the important cases cleanly:
+
+| Respondable | Listed | Access | Meaning |
+| --- | --- | --- | --- |
+| No | Yes | — | People can discover the song, but cannot Take it |
+| Yes | Yes | Anyone | Public Take opportunity |
+| Yes | No | Invitation | Band-only/private Take opportunity |
+| Yes | No | Link holders | Unlisted Take opportunity |
+| Yes | Yes | Members | Discoverable, but restricted |
+| No | No | — | Completely unavailable |
+
+So your band example becomes:
+
+```
+Song
+├── Respondable: YES
+├── Listed: NO
+└── Access: INVITED PARTICIPANTS
+```
+
+That is much better than trying to make listed=false somehow imply private
+access.
+
+I would therefore keep your two flags, but add an explicit access policy
+rather than allowing those flags to carry authorization semantics.
+
+## More importantly: don't create another system
+
+Given what you have now told me about TAKE-PLATFORM.md, I would not
+introduce another Take object, another invitation model, another assignment
+mechanism, or another multi-instance registry.
+
+Your ledger already establishes:
+
+```
+Studio One ──┐
+Studio Two ──┼──> Participation Request ──> Take
+Online TV ───┘
+```
+
+That's the foundation.
+
+The consumer app should simply become another client of that existing
+system:
+
+```
+                         BalanceVid
+                              │
+             ┌────────────────┼────────────────┐
+             │                │                │
+         Studio One       Studio Two       Online TV
+             │                │                │
+             └────────────────┼────────────────┘
+                              │
+                  Participation Request
+                              │
+                              ▼
+                       ┌─────────────┐
+                       │  TAKE APP   │
+                       └─────────────┘
+                              │
+                   ┌──────────┼──────────┐
+                   │          │          │
+                 Music      Video       TV
+                   │          │          │
+                   └──────────┼──────────┘
+                              │
+                         My Takes
+                              │
+                              ▼
+                    Existing Take API
+                              │
+                              ▼
+                    Existing BalanceVid
+```
+
+That means the next architectural work should be overwhelmingly
+consumer-side:
+
+1. Take App identity/session.
+2. Invitation/deep-link opening.
+3. Request presentation.
+4. Camera/microphone selection.
+5. Recording.
+6. Multiple takes.
+7. Local take management.
+8. Upload/resume.
+9. Submit.
+10. Status feedback.
+11. Music/video/TV discovery.
+12. My Takes.
+13. Private/unlisted/listed availability handling.
+
+The underlying BalanceVid installations remain the authorities.
+
+And the rule you highlighted should remain exactly as it is:
+
+**Any valid BalanceVid installation can be a Take destination.**
+
+Not a new feature. Not something the consumer app owns. It's a property of
+the existing platform.
+
+So I would treat the current work as:
+
+**Platform: substantially established.**
+**Protocol: established.**
+**Multi-instance model: established.**
+**Three-studio integration: established.**
+**Consumer experience: the major missing surface.**
+
+## How this lands in the code
+
+**`access` is a policy, and the two flags stop carrying authorization.**
+That is the whole of the correction and it is right: `listed: false` was
+being asked to mean *private*, which it does not — an unlisted song with
+`access: 'anyone'` is open to anybody who has the URL, and an unlisted song
+with `access: 'invited'` is open to four people. Those are different, and a
+boolean cannot say which.
+
+**It extends two existing types and introduces no third.** `Publication`
+already carries `respondable` and is shared by conversations and
+performances; `ChannelPublication` is separate because a channel publishes a
+schedule rather than a render. Both gain `listed` and `access` beside the
+bit that is already there. Nothing is moved, so no document migrates.
+
+**Access is meaningless when nothing may be submitted**, which the table
+says with its two em-dashes, and the model should enforce rather than
+merely allow: rows 1 and 6 differ only in `listed`, and a stored `access`
+on a non-respondable item is a value that will later be read as though it
+meant something.
+
+**The defaults preserve U-31 exactly.** An already-published respondable
+conversation is `listed: true, access: 'anyone'` — which is what it is
+today and what `/api/published` already returns. The fields are optional so
+nothing on disk changes, and the defaults are stated rather than implied.
+
+**Of the thirteen consumer-side items, six are built** — 2, 4, 5, 6, 7 and
+8 — three by #25 and #26 in the last two days. The ledger rows below say
+which.
+
+---
+
 # The ledger
 
 `HAVE` means it works today. `PARTIAL` means part of it does. `GAP` means
@@ -594,9 +766,9 @@ arrived, which is the point of measuring first.
 | P5 | My Takes as one section, not the whole app | PARTIAL | the per-link list of kept recordings exists; nothing spans requests, let alone instances |
 | P6 | a media + participation home screen | GAP | see U5: three of its four sections are one query grouped by assignment kind |
 | P7 | Studio creates / Take consumes / Studio receives | **HAVE, as the shape of the system** | the three studios create requests; the Take App consumes and submits; acceptance turns a submission into production material. This row is the architecture, and it is the shipped one |
-| P8 | "Available for Takes" published from Studio Two | GAP | and it wants TWO bits rather than one — see **U1**: respondable and listed are different decisions, and collapsing them makes the common case (open to a band, not to the public) impossible |
+| P8 | "Available for Takes" published from Studio Two | PARTIAL — **the model is built, the studio control is not** | `src/domain/availability.ts` holds the three concepts the author's correction specifies (PART FIVE): `respondable`, `listed` and an explicit `access` policy of four, widest first. The brief's six rows are tested row for row as the specification they are, and all ten mutations of the logic are killed. `Publication` and `ChannelPublication` each gained the two new fields beside the `respondable` they already had — no third object, nothing moved, nothing on disk migrated. What is missing is the control in Studio Two that sets them, and the listing that reads them |
 | P9 | "Accepting video responses" from Studio One | PARTIAL | the flag exists and `/api/published` returns it; nothing in Take reads it |
-| P10 | "Audience participation open" on an Online TV programme | GAP | no equivalent field on `Channel` |
+| P10 | "Audience participation open" on an Online TV programme | PARTIAL — the field exists now | `ChannelPublication` carries the same three, named identically and read by the same module, because a second vocabulary for one decision is how two surfaces come to disagree about who is allowed in. A channel's publication is its own type only because it publishes a schedule rather than a render. The control and the listing are still to build |
 | P11 | the production system determines what a Take user can do | **HAVE (domain)** | `Assignment` and `AllowedActions` already say what may be sent, and the recorder already reads them — an audio request does not open a camera |
 | P12 | Take = audience, participant and remote-capture app | GAP, as a positioning | the rows above are what it is made of |
 | P13 | multi-instance: Take assumes no central system | **HAVE, and load-bearing** | T14: the request is answered against the server that served it and the origin is never written into the record |
@@ -610,13 +782,18 @@ arrived, which is the point of measuring first.
 | P21 | Take speaks a defined API, never the customer's UI | **HAVE** | the Take App calls four JSON routes under `/api/take/<link>` and reads no studio markup |
 | P22 | one Take App works with many independent installations | **HAVE per link; GAP as an experience** | any link from any origin already works. What does not exist is a remembered list of instances — see **U3** |
 | P23 | home content from instances the user has a relationship with | GAP | needs U3's `Connection` object, held on the device |
-| P24 | global/public vs private/customer content | GAP | and see **U2**: discovery must be per added instance. A global index would be the central library P16 rejects, wearing a different hat |
+| P24 | global/public vs private/customer content | PARTIAL | the per-item half is built: `availabilityState` names the six cases and `maySubmit` answers who may take part, so an instance can now say what it lists and to whom. The per-INSTANCE half is still **U2** — discovery must be per added instance, because a global index would be the central library P16 rejects wearing a different hat |
 | P25 | a user connected to several production environments at once | GAP as a list; **HAVE per invitation** | and #25's per-link manifest already gives one home-screen icon per assignment, which is this from the other direction |
 | P26 | the customer owns the production data | **HAVE** | P16, and it is the self-hosted business model's load-bearing property |
 | P27 | Cloudflare Stream as the cloud live-media layer | out of scope here | a deployment choice for a hosted offering, not a change to this product. `docs/DEPLOYMENT.md` is where it would be recorded |
 | P28 | the invitation is the central object | **HAVE** | `ParticipationRequest`, its nine states as a table, and one object across all three studios |
 | P29 | the same mechanism for Studio Two, Studio One, Online TV and future products | **HAVE (domain)** | `AssignmentKind` as five rows. A fourth product adds a row, not a client |
 | P30 | not cloud-only with self-hosting retrofitted later | **HAVE, by construction** | the origin is never stored, so there was never a central assumption to remove |
+| P31 | availability is three concepts, not two | **HAVE (domain)** | the author's correction, and it was right: `listed: false` was being asked to mean *private*, which it does not. An unlisted item open to `anyone` and one open to `invited` are different situations and a boolean cannot say which. Discovery and authorization no longer carry each other's meaning |
+| P32 | access is meaningless where nothing may be submitted | **HAVE (domain)** | the two em-dashes in the author's table, enforced rather than allowed: `accessOf` returns null for a non-respondable item, so a stray stored policy cannot later be read as though it meant something |
+| P33 | an invitation satisfies every policy | **HAVE (domain)** | narrowing a song from public to invited must not refuse the people already invited — the sort of thing that otherwise shows up on the evening of the session |
+| P34 | the defaults change nothing already published | **HAVE (domain)** | absent `listed` is true and absent `access` is `anyone`, which is exactly what U-31 says a published conversation is and what `/api/published` already returns. Every field optional, so no document on disk becomes invalid by sitting still |
+| P35 | the consumer app is another client, not another system | **the governing rule**, and the ledger's own shape is the argument | no new Take object, no second invitation model, no parallel assignment mechanism, no multi-instance registry. Thirteen consumer-side items in PART FIVE; **six are already built** — deep-link opening, camera and microphone selection, recording, multiple takes, local take management, and upload/resume — by #25 and #26 |
 
 ---
 

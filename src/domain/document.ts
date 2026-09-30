@@ -8,6 +8,7 @@
  * the user meant.  [Doctrine §33, U-25]
  */
 
+import type { TakeAccess } from './availability.js';
 import type { Frames } from './time.js';
 import type { Id } from './ids.js';
 import type {
@@ -429,6 +430,30 @@ export interface Publication {
   publishedAt: string;
   /** Whether anyone may respond to this. The publisher's decision. [U-31] */
   respondable: boolean;
+  /**
+   * Whether it should appear in a browse surface.
+   *   [TAKE-PLATFORM PART FIVE]
+   *
+   * A DIFFERENT QUESTION FROM `respondable`, and from `access` below. The
+   * three were nearly collapsed into two, and the reason that fails is
+   * worth keeping here: `listed: false` was going to mean PRIVATE, and it
+   * does not — an unlisted item open to anyone is open to everybody
+   * holding the URL. Discovery and authorization must stop carrying each
+   * other's meaning.
+   *
+   * Absent means listed, because everything already published is, and a
+   * field added today must not quietly withdraw them. [U-31]
+   */
+  listed?: boolean;
+  /**
+   * Who may submit, when somebody may.  [TAKE-PLATFORM PART FIVE]
+   *
+   * Absent means `anyone`, which is what U-31 says a published
+   * conversation is. Meaningless unless `respondable` — `accessOf`
+   * enforces that rather than leaving a value to be read as though it
+   * meant something.
+   */
+  access?: TakeAccess;
   /** The render that was published; what a responder will be answering. */
   planHash: string;
   /** Shown as the author of the response, where one is given. */
