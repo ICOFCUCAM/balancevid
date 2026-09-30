@@ -2607,3 +2607,72 @@ The channel was restored from a copy taken first.
 * **A screen in a set shows nothing.** What would go in it is the
   programme or the graphics layer, and feeding a monitor its own output
   is a decision rather than a default.
+
+## C-20 — Stage 20: the region the set had drawn all along
+
+*"The logo region and the lower-third region are described and not yet
+drawn."* — C-18, still owed.
+
+### What was already there
+
+Every `VirtualSet` has carried two rectangles since the sets were drawn:
+`logo`, where the station's mark belongs in that scene, and `lowerThird`,
+the strip the lower third owns. They are fractions of the frame, like
+every other rectangle in the product, and `virtual-set.test.ts` has been
+asserting since they landed that a set with a desk in it keeps its
+lower-third strip clear of the desk.
+
+They were read by nothing. `marksFor` placed every mark by CORNER, and
+`bottom-left` in News Desk is the front of the desk — so the one caption
+the set had carefully made room for was written across the one surface in
+the picture guaranteed to be in front of it. The data was right, the test
+was right, and the consumer did not exist.
+
+### What was added
+
+`Mark` gained an optional `at: Rect`. `marksFor` fills it from the
+channel's set, where the channel has one: the bug takes `logo`, and the
+lower third, the cited contributor's name and NEXT all take `lowerThird`.
+`markFilters` turns a region into pixels — the only place that knows how
+big a frame is — and stacks upward from the region's floor exactly as the
+corner stack does, counted separately so a caption in the set's strip is
+not in the way of one in the frame's corner.
+
+**The LIVE lamp keeps its corner, set or no set.** It is not part of the
+scene's design: it is the one mark that is a statement of fact about the
+transmission rather than a decoration, and a viewer checking whether this
+is live should find it in the same place on every channel they watch
+rather than wherever this room's furniture allowed.
+
+**A channel with no set is unchanged.** `at` is absent, and the corner
+decides, exactly as before.
+
+**No extra inset.** Every set's rectangles already carry their own margin
+— `x` is 0.04 or wider on all four — and padding a padded rectangle would
+move the caption off the strip it was drawn to sit on.
+
+### Measured
+
+Seven mutations tried and seven caught, after the first sweep found one
+survivor worth having: the CITED contributor's lower third took the
+region through a different branch from the title's, and only the title's
+was covered. That is the caption most likely to land on a desk, because
+it is the one that goes up unbidden — somebody's answer is playing and
+the station names them over their own face. It has its own assertion now.
+
+`markFilters` was exported for the test rather than for a caller. A wrong
+drawtext expression does not produce a wrong caption: it fails the
+segment, and the encoder's own fallback turns that into four seconds of
+black.
+
+### Still owed
+
+* **`whyDark` is written and called by nothing.** `src/domain/health.ts`
+  carries the operator's sentence for the two states where every process
+  is healthy and the channel is still dark — armed but not taken to air,
+  and nothing scheduled — and cites a **C-19** that was never written. No
+  page asks it the question. The number is left free for whoever wires it
+  up, rather than reused here.
+* **The audio treatment (C-16) and the server-side compositor (C-17)**
+  are still owed in the same render path, as C-18 said.
+* **A screen in a set shows nothing.**
