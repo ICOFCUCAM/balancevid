@@ -15,6 +15,9 @@ import { SPACES } from '../../../src/domain/performance.js';
 import { SPACE_LOOKS } from '../../../src/domain/environment.js';
 import { PLATFORMS } from '../../../src/domain/distribution.js';
 import { LIVE_DELAY_MS } from '../../../src/domain/playout.js';
+import {
+  type Bus, busFor, onProgramCount, roomOnProgram, saysFor,
+} from '../../../src/domain/multiView.js';
 import StudioBar from '../../StudioBar.js';
 import Icon from '../../Icon.js';
 import {
@@ -663,6 +666,40 @@ export default function ChannelStudio({
         ...(level ? { energy: level.energy, speech: level.speech } : {}),
       };
     }), [guests.sources, guests.states, camera, tracks, levels]);
+  /*
+   * THE HOST'S OWN LEVEL. `useFeedLevels` meters every microphone on
+   * the desk and the operator's is one of them; tile 01 just never
+   * asked for it. Found the same way C-14 found the guests'. [D-19]
+   */
+  /*
+   * WHAT THE TWO STUDIOS HAVE FINISHED. Lifted out of the multi-view
+   * so that the grid's tally and the header's count are computed from
+   * ONE list: a header that found its own copy would be a second
+   * opinion about what is on the air, which is the fault C-27 is
+   * about. [D-22]
+   */
+  const fromStudioTwo = useMemo(
+    () => library.find((item) => item.document === 'performance'),
+    [library]);
+  const fromStudioOne = useMemo(
+    () => library.find((item) => item.document === 'conversation'),
+    [library]);
+
+  const hostLevel = useMemo(() => {
+    const me = guests.sources.find((person) => person.stream === camera);
+    return me ? levels[me.id]?.energy : undefined;
+  }, [guests.sources, camera, levels]);
+
+  /*
+   * HOW MANY SOURCES ARE ON PROGRAM, counted the way the tiles decide
+   * it and deduplicated by source — because the room is two monitors
+   * of one thing, and CAMERA 1 and GUESTS both wearing the tally is
+   * one source on air and not two.
+   *
+   * It can only ever read 0 or 1, and that is the point: it would
+   * read 2 the moment the tally started lying again, in the place an
+   * operator is already looking. [C-27]
+   */
   const guestReadings = useMemo(() => readGuests(guestFeeds, {
     solo,
     /*
@@ -670,9 +707,16 @@ export default function ChannelStudio({
      * transmitting anything — a rolled-in file is going out over the top
      * of them, and a quarter wearing a red tally under a music video
      * would be the tally lying. The same condition tile 01 uses. [§24]
+     *
+     * AND IT SAID THAT WHILE DOING THE OPPOSITE. `on.kind` stays
+     * `'live'` while a reference is rolled in, because a rolled-in
+     * segment replaces the feed INSIDE the live answer rather than
+     * beside it — so every quarter wore a red tally under exactly the
+     * music video this comment names. The rule was right from the
+     * first day and the condition never implemented it. [C-27]
      */
-    transmitting: on.kind === 'live',
-  }), [guestFeeds, solo, on.kind]);
+    transmitting: roomOnProgram(on),
+  }), [guestFeeds, solo, on]);
   /*
    * A SOLO ON SOMEBODY WHO HAS LEFT IS RELEASED, not remembered. Holding
    * it would black the programme out the moment a guest's browser closed,
@@ -716,6 +760,21 @@ export default function ChannelStudio({
    * still playing the same file would be the same thing on two monitors
    * a second apart. [§25]
    */
+  const programCount = useMemo(() => {
+    const cuedNow = cued?.source;
+    const mine = [
+      channel.live
+        ? { kind: 'live' as const, ingestId: channel.live.ingestId } : undefined,
+      fromStudioTwo?.source, fromStudioOne?.source, cuedNow,
+      on.kind === 'programme' || on.kind === 'rotation' ? on.source : undefined,
+    ].filter((one): one is ProgrammeSource => Boolean(one));
+    return new Set(mine
+      .filter((one) => busFor({
+        on, mine: one, ...(cuedNow ? { cued: cuedNow } : {}),
+      }) === 'program')
+      .map(sourceKey)).size;
+  }, [channel.live, fromStudioTwo, fromStudioOne, cued, on]);
+
   const mediaCued = (player.phase === 'loaded' || player.phase === 'playing')
     && cued
     ? {
@@ -1579,11 +1638,49 @@ export default function ChannelStudio({
                 <Head
                   text="Multi-view"
                   sub="Sources"
+                  /*
+                    * THE HEADER IS THE GRID'S OWN PROOF.  [§24, C-27]
+                    *
+                    * It read "N in mix", which is a fact about the
+                    * audio mixer and says nothing about the tally
+                    * beside it — and while three tiles were wearing
+                    * the program bar at once, that header sat above
+                    * them agreeing with none of it.
+                    *
+                    * PROGRAM is the count of tiles on the program bus
+                    * and it can only ever read 0 or 1. That is the
+                    * point: a number that would read 2 the moment the
+                    * tally started lying again, in the place an
+                    * operator is already looking.
+                    *
+                    * AND IT IS NOT ALONE, because by itself it would
+                    * have swapped one misreading for another. Rolling
+                    * a library item in over the live show puts a
+                    * picture on the wire that none of the six tiles
+                    * stands for, so the count correctly reads 0 —
+                    * which an operator glancing at a transmitting
+                    * channel would read as "nothing is on air".
+                    * ON AIR is the other half, and the two together
+                    * say the thing that is actually true: something
+                    * is going out, and it is not one of these six.
+                    * Found by rolling one in and reading the header.
+                    * [C-27]
+                    */
                   right={(
-                    <span className="muted" style={{
-                      fontSize: 'var(--text-2xs)', whiteSpace: 'nowrap', flex: '0 0 auto',
+                    <span className="row" data-testid="multiview-count" style={{
+                      gap: 'var(--space-2)', flexWrap: 'nowrap',
+                      flex: '0 0 auto', fontSize: 'var(--text-2xs)',
+                      whiteSpace: 'nowrap',
                     }}>
-                      {guests.sources.length || 1} in mix
+                      <span data-testid="multiview-air" style={{
+                        fontWeight: 'var(--weight-bold)',
+                        letterSpacing: '0.06em',
+                        color: on.kind === 'off'
+                          ? 'var(--muted)' : 'var(--state-live-ink)',
+                      }}>{on.kind === 'off' ? 'OFF AIR' : 'ON AIR'}</span>
+                      <span className="muted" style={{
+                        letterSpacing: '0.06em',
+                      }}>{programCount} PROGRAM</span>
                     </span>
                   )}
                 />
@@ -1592,6 +1689,9 @@ export default function ChannelStudio({
                   guestReadings={guestReadings} guestsStaged={guestFeeds}
                   solo={solo} onSolo={takeGuest}
                   player={player}
+                  {...(hostLevel === undefined ? {} : { hostLevel })}
+                  {...(fromStudioOne ? { fromStudioOne } : {})}
+                  {...(fromStudioTwo ? { fromStudioTwo } : {})}
                   {...(cued ? { cuedTitle: cued.title, cuedSource: cued.source } : {})}
                   onMedia={() => setDeskTab('media')}
                   library={library} nameOf={nameOf} studioOneId={studioOneId}
@@ -3590,9 +3690,22 @@ function SchedulesRail({
 function MultiView({
   channel, on, camera, guests, guestReadings, guestsStaged, solo,
   library, nameOf, studioOneId, studioTwoId, onAir,
-  player, cuedTitle, cuedSource,
+  player, cuedTitle, cuedSource, hostLevel, fromStudioOne, fromStudioTwo,
   onTake, onBackToRoom, onGraphics, onSolo, onMedia,
 }: {
+  /** What each studio has finished, found once by the studio. [C-27] */
+  fromStudioOne?: LibraryItem | undefined;
+  fromStudioTwo?: LibraryItem | undefined;
+  /**
+   * The operator's own microphone, 0–1, where it is being measured.
+   *
+   * ALREADY MEASURED AND THROWN AWAY, which is the same finding C-14
+   * made about the guests: `useFeedLevels` has metered every
+   * microphone on the desk since it was written, the host's among
+   * them, and tile 01 showed a picture with no indication of whether
+   * the person in it could be heard. [D-19]
+   */
+  hostLevel?: number;
   /** What the media player is doing, so tile 05 can say it. [§25] */
   player: PlayerState;
   cuedTitle?: string;
@@ -3619,8 +3732,6 @@ function MultiView({
   onBackToRoom: () => void;
   onGraphics: () => void;
 }) {
-  const fromStudioTwo = library.find((item) => item.document === 'performance');
-  const fromStudioOne = library.find((item) => item.document === 'conversation');
   const scheduled = on.kind === 'programme' || on.kind === 'rotation'
     ? on.source : undefined;
 
@@ -3641,14 +3752,62 @@ function MultiView({
    * transmitter. Exactly one of the first two can be true at a time.
    */
   const transmitting = on.kind !== 'off';
-  const roomOnProgram = on.kind === 'live';
-  const playerOnProgram = on.kind === 'programme' || on.kind === 'rotation'
-    || on.kind === 'emergency' || on.kind === 'backup';
+
+  /*
+   * EVERY TILE ASKS THE SAME QUESTION OF THE SAME FUNCTION.  [C-27]
+   *
+   * It used to ask three different ones — "the camera is on air",
+   * "something is scheduled", "a bug is configured" — and two of them
+   * were wrong whenever a reference was rolled in over a live show:
+   * CAMERA 1 wore the program tally while a film covered it, and the
+   * film's own tile stayed dark. `busFor` compares a tile's source
+   * against what `whatIsOn` says is going out, which is the same
+   * function the playout engine uses, so the tally cannot disagree
+   * with the transmitter. [D-22]
+   */
+  const roomSource: ProgrammeSource | undefined = channel.live
+    ? { kind: 'live', ingestId: channel.live.ingestId } : undefined;
+  const bus = (
+    mine?: ProgrammeSource, extra?: { keyed?: boolean },
+  ): Bus | null => busFor({
+    on,
+    ...(mine ? { mine } : {}),
+    ...(cuedSource ? { cued: cuedSource } : {}),
+    ...(extra?.keyed ? { keyed: true } : {}),
+  });
 
   const tiles: {
-    n: number; label: string; sub: string; live: boolean;
-    /** Lit, but not on program: an overlay that is keyed over it. */
-    on?: boolean;
+    n: number; label: string; sub: string;
+    /** Which bus, decided once, by the function above. */
+    bus: Bus | null;
+    /**
+     * A picture was expected and did not arrive. Undefined where the
+     * question does not apply: a tile standing for a file on disk has
+     * no signal to lose. [C-27]
+     */
+    signal?: boolean;
+    /**
+     * WHAT TO SAY WHEN THERE IS NOTHING TO SHOW.  [§24, D-04, C-27]
+     *
+     * A dead black rectangle is the one thing a rack must never be:
+     * an operator cannot tell it from a source that has failed. Every
+     * tile with nothing behind it now says, in a few words, what it
+     * is waiting for — which is also the difference between "absent"
+     * and "broken", and the reason absent is not dressed as a fault.
+     */
+    standby?: string;
+    /**
+     * A live microphone this browser is measuring, 0–1.
+     *
+     * ONLY WHERE IT IS REALLY MEASURED. Tiles 03, 04 and 05 stand for
+     * files whose audio is in the playout engine, which the web tier
+     * cannot hear — the same wall `health.ts` describes between the
+     * two processes. A bar fed from the master mix would be the room's
+     * level with a film's name on it, and a meter that reads zero for
+     * an unmeasurable source is worse than no meter: it says silence.
+     * [§11, D-20]
+     */
+    meter?: number;
     stream?: MediaStream | null; source?: ProgrammeSource; href?: string;
     /* A drawn mark, not a character — see Icon.tsx. The em dash
        fallback is text, which is why this is a node. */
@@ -3675,7 +3834,13 @@ function MultiView({
      */
     {
       n: 1, label: 'Camera 1', sub: 'Host',
-      live: roomOnProgram && Boolean(camera),
+      bus: bus(roomSource),
+      /* A camera is the one tile that can lose a picture it was
+         supposed to have: live, with no stream, is a fault. Off air
+         it is simply not running. */
+      ...(onAir ? { signal: Boolean(camera) } : {}),
+      ...(camera ? {} : { standby: onAir ? 'No camera' : 'Camera off' }),
+      ...(hostLevel === undefined ? {} : { meter: hostLevel }),
       stream: camera,
       ...(rolledIn ? { act: onBackToRoom } : {}),
       why: onAir
@@ -3696,7 +3861,12 @@ function MultiView({
       n: 2, label: 'Guests',
       sub: guestsStaged.length === 0 ? 'Nobody on stage'
         : `${guestCount(guestsStaged)} on stage`,
-      live: onAir && guestReadings.some((one) => one.onAir),
+      bus: guestReadings.some((one) => one.onAir) ? 'program' : null,
+      /* The loudest guest, so the tile says somebody is talking
+         without the operator reading four quarters. */
+      meter: Math.max(0, ...guestReadings.map((one) => one.energy)),
+      ...(guestsStaged.length === 0
+        ? { standby: 'Nobody on stage yet' } : {}),
       grid: (
         <GuestGrid
           readings={guestReadings}
@@ -3720,9 +3890,17 @@ function MultiView({
             : 'Click a guest to put them on programme alone',
     },
     {
-      n: 3, label: 'Studio Two', sub: fromStudioTwo?.title ?? 'Music Video',
-      live: Boolean(scheduled && fromStudioTwo
-        && sourceKey(scheduled) === sourceKey(fromStudioTwo.source)),
+      n: 3, label: 'Studio Two',
+      /* THE PROGRAMME, NAMED. "Music Video" was a placeholder standing
+         where the thing's own title belongs, and a rack whose third
+         input is labelled with a genre is a rack an operator cannot
+         call a cut from. [C-27] */
+      /* THE SUB SAYS WHAT THE INPUT IS, the standby says why it is
+         empty. Both saying "nothing finished" was one fact twice in a
+         hundred-pixel box. */
+      sub: fromStudioTwo?.title ?? 'Performance',
+      bus: bus(fromStudioTwo?.source),
+      ...(fromStudioTwo ? {} : { standby: 'Nothing yet' }),
       ...(fromStudioTwo ? { source: fromStudioTwo.source } : {}),
       ...(studioTwoId ? { href: `/p/${studioTwoId}` } : {}),
       ...(onAir && fromStudioTwo
@@ -3732,9 +3910,10 @@ function MultiView({
         : 'Nothing finished in Studio Two yet',
     },
     {
-      n: 4, label: 'Studio One', sub: fromStudioOne?.title ?? 'Conversation',
-      live: Boolean(scheduled && fromStudioOne
-        && sourceKey(scheduled) === sourceKey(fromStudioOne.source)),
+      n: 4, label: 'Studio One',
+      sub: fromStudioOne?.title ?? 'Conversation',
+      bus: bus(fromStudioOne?.source),
+      ...(fromStudioOne ? {} : { standby: 'Nothing yet' }),
       ...(fromStudioOne ? { source: fromStudioOne.source } : {}),
       ...(studioOneId ? { href: `/c/${studioOneId}` } : {}),
       ...(onAir && fromStudioOne
@@ -3761,7 +3940,10 @@ function MultiView({
       n: 5, label: 'Media Player',
       sub: playerSays(player, () => cuedTitle,
         scheduled ? nameOf(scheduled) : undefined),
-      live: playerOnProgram && Boolean(scheduled),
+      bus: bus(cuedSource ?? scheduled),
+      /* The player's own sub-line already says it is empty, so the
+         plate says what to do about it instead. */
+      ...(cuedSource || scheduled ? {} : { standby: 'Pick a clip' }),
       ...(cuedSource ? { source: cuedSource }
         : scheduled ? { source: scheduled } : {}),
       act: onMedia,
@@ -3777,9 +3959,12 @@ function MultiView({
        * job is to say which single thing is on — so it says ON,
        * quietly, which is what a keyer's indicator says.
        */
-      on: transmitting
-        && Boolean(channel.identity?.bug || channel.identity?.lowerThird),
-      live: false,
+      bus: bus(undefined, {
+        keyed: Boolean(channel.identity?.bug || channel.identity?.lowerThird),
+      }),
+      ...(channel.identity?.bug || channel.identity?.lowerThird ? {} : {
+        standby: transmitting ? 'Picture is bare' : 'Identity off',
+      }),
       glyph: <Icon name="graphics" size={15} />,
       act: onGraphics,
       why: 'Open the identity controls',
@@ -3813,6 +3998,29 @@ function MultiView({
             * two buses and an operator already knows which is which.
             * [brief §6 — "a restrained blue/white active edge"]
             */
+        /*
+         * THREE BUSES, THREE COLOURS, ONE BAR.  [§6, §24, C-27]
+         *
+         *   PROGRAM  red     this is what the audience can see
+         *   PREVIEW  blue    this is cued to go next
+         *   KEY      amber   this is drawn over whoever is on program
+         *
+         * The grid had two of these and used blue for both the
+         * second and the third, which is a gallery wall where blue
+         * means two things: an operator reading it could not tell
+         * "next" from "over the top". The keyer takes the house's
+         * third state colour, and the bar's thickness ranks them —
+         * program is the thickest because it is the only one that is
+         * already out of the building.
+         */
+        const live = tile.bus === 'program';
+        const says = saysFor(tile.bus, {
+          ...(tile.signal === undefined ? {} : { signal: tile.signal }),
+          ...(tile.act ? { ready: true } : {}),
+        });
+        const edge = live ? 'var(--state-live)'
+          : tile.bus === 'preview' ? 'var(--accent)'
+            : tile.bus === 'key' ? 'var(--state-armed)' : null;
         const style: React.CSSProperties = {
             position: 'relative', minHeight: 44,
             borderRadius: 'var(--radius-screen)', padding: 0, minWidth: 0,
@@ -3824,22 +4032,21 @@ function MultiView({
              * greyed: an operator watching six sources needs to see the one
              * they cannot cut to as much as the ones they can.
              */
-            opacity: tile.act || tile.live ? 1 : 0.7,
-            border: `1px solid ${tile.live
-              ? 'rgba(226,59,46,0.55)'
-              : tile.on ? 'rgba(63,142,232,0.45)' : 'var(--console-seam)'}`,
-            boxShadow: tile.live
-              ? 'inset 0 3px 0 0 var(--state-live),'
-                + ' inset 0 0 0 1px rgba(226,59,46,0.16)'
-              : tile.on
-                ? 'inset 0 2px 0 0 var(--accent),'
-                  + ' inset 0 1px 3px rgba(0,0,0,0.6)'
-                : 'inset 0 1px 3px rgba(0,0,0,0.6)',
+            opacity: tile.act || tile.bus ? 1 : 0.7,
+            border: `1px solid ${edge
+              ? `color-mix(in srgb, ${edge} 50%, transparent)`
+              : 'var(--console-seam)'}`,
+            boxShadow: edge
+              ? `inset 0 ${live ? 3 : 2}px 0 0 ${edge},`
+                + ` inset 0 0 0 1px color-mix(in srgb, ${edge} 16%,`
+                + ' transparent), inset 0 1px 3px rgba(0,0,0,0.6)'
+              : 'inset 0 1px 3px rgba(0,0,0,0.6)',
             transition: 'box-shadow var(--motion-fast) var(--ease-out),'
               + ' border-color var(--motion-fast) var(--ease-out),'
               + ' opacity var(--motion-fast) var(--ease-out)',
         };
         const title = `${tile.label} \u2014 ${tile.sub}`
+          + (says === '\u2014' ? '' : ` \u2014 ${says}`)
           + (tile.why ? `\n${tile.why}` : '');
 
         /*
@@ -3863,10 +4070,41 @@ function MultiView({
           ) : tile.source ? (
             <Thumb source={tile.source} />
           ) : (
-            <span aria-hidden="true" className="muted" style={{
-              position: 'absolute', inset: 0, display: 'grid',
-              placeItems: 'center', fontSize: 'var(--text-md)', opacity: 0.4,
-            }}>{tile.glyph ?? '\u2014'}</span>
+            /*
+              * A STANDBY PLATE, NOT A BLACK RECTANGLE.  [§24, D-04]
+              *
+              * Six dead black panels is a rack an operator cannot
+              * read: a source that has nothing in it and a source
+              * that has failed look identical, and the only way to
+              * tell them apart was to click. A tile with nothing
+              * behind it now says what it is waiting for — quietly,
+              * in the dim ink that means "absent" rather than the
+              * red that means "broken".
+              */
+            <span aria-hidden="true" className="muted" data-testid="tile-standby"
+              style={{
+                position: 'absolute', left: 0, right: 0, top: 0, bottom: 28,
+                display: 'flex', flexDirection: 'column',
+                alignItems: 'center', justifyContent: 'center', gap: 3,
+                padding: '0 var(--space-2)',
+                textAlign: 'center', opacity: 0.55,
+              }}
+            >
+              <span style={{ fontSize: 'var(--text-md)', opacity: 0.6 }}>
+                {tile.glyph ?? '\u2014'}</span>
+              {tile.standby && (
+                /* THREE OR FOUR WORDS, because a tile is about a
+                   hundred pixels wide and a sentence in it runs under
+                   the name plate. The sentence version of the same
+                   thing is already on the tile's own tooltip, where
+                   there is room for it. */
+                <span style={{
+                  fontSize: 'var(--text-2xs)', lineHeight: 1.2,
+                  maxWidth: '94%', overflow: 'hidden',
+                  textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>{tile.standby}</span>
+              )}
+            </span>
           )
         );
         const plates = (
@@ -3883,7 +4121,7 @@ function MultiView({
               * object. It sits below the tally bar rather than over it.
               */}
             <span className="mono readout" style={{
-              position: 'absolute', left: 0, top: tile.live ? 3 : 0,
+              position: 'absolute', left: 0, top: edge ? (live ? 3 : 2) : 0,
               padding: '2px 5px 2px 4px',
               borderBottomRightRadius: 'var(--radius-xs)',
               /* The same plate alpha as every other OSD in the product.
@@ -3895,7 +4133,7 @@ function MultiView({
               fontSize: 'var(--text-2xs)', lineHeight: 1.25,
               fontWeight: 'var(--weight-bold)',
               letterSpacing: '0.04em',
-              color: tile.live ? 'var(--state-live-ink)' : 'var(--ink-200)',
+              color: live ? 'var(--state-live-ink)' : 'var(--ink-200)',
             }}>{String(tile.n).padStart(2, '0')}</span>
             {/*
               * THE NAME PLATE. A single-stop gradient leaves a visible seam
@@ -3923,24 +4161,52 @@ function MultiView({
                   whiteSpace: 'nowrap', color: 'rgba(255,255,255,0.62)',
                 }}>{tile.sub}</span>
                 {/*
+                  * THE LEVEL, WHERE THERE IS ONE TO READ.  [§24, C-27]
+                  *
+                  * Four segments and no numbers: the question an
+                  * operator asks of a multi-view is "is that
+                  * microphone alive", not "how many dB". It appears
+                  * only on the two tiles whose audio this browser
+                  * actually measures — a bar that reads zero for a
+                  * source nobody is metering says silence, which is
+                  * a different and worse lie than saying nothing.
+                  */}
+                {tile.meter !== undefined && (
+                  <span className="row" data-testid="tile-meter"
+                    aria-hidden="true"
+                    style={{ gap: 1, flexWrap: 'nowrap', flex: '0 0 auto' }}
+                  >
+                    {[0.08, 0.26, 0.5, 0.74].map((step) => (
+                      <span key={step} style={{
+                        width: 2, height: 7, borderRadius: 1,
+                        background: tile.meter! > step
+                          ? (step > 0.6 ? 'var(--state-warn)' : 'var(--state-ok)')
+                          : 'rgba(255,255,255,0.18)',
+                      }} />
+                    ))}
+                  </span>
+                )}
+                {/*
                   * STATUS, IN A WORD, on every input. The brief asks each
                   * source to say availability as well as identity, and a
                   * tile that says only its name leaves "can I cut to this"
-                  * to be discovered by clicking. LIVE / READY / — is the
-                  * whole vocabulary, and it survives greyscale because it
-                  * is a word. [brief §8, U-19]
+                  * to be discovered by clicking. The vocabulary grew to
+                  * six with C-27 — PREVIEW and KEY because blue used to
+                  * mean both, NO SIGNAL because a tile offering a cut to
+                  * a dead input is the tally lying in its quietest form
+                  * — and every one of them survives greyscale, because
+                  * each is a word. [brief §8, U-19]
                   */}
-                <span style={{
+                <span data-testid="tile-says" style={{
                   flex: '0 0 auto', fontSize: 'var(--text-2xs)',
                   fontWeight: 'var(--weight-bold)', letterSpacing: '0.08em',
-                  color: tile.live ? 'var(--state-live-ink)'
-                    : tile.on ? 'rgba(146, 194, 240, 0.95)'
-                      : tile.act ? 'rgba(146, 214, 166, 0.92)'
-                        : 'rgba(255,255,255,0.35)',
-                }}>
-                  {tile.live ? 'LIVE' : tile.on ? 'ON'
-                    : tile.act ? 'READY' : '\u2014'}
-                </span>
+                  color: live ? 'var(--state-live-ink)'
+                    : tile.bus === 'preview' ? 'rgba(146, 194, 240, 0.95)'
+                      : tile.bus === 'key' ? 'var(--state-armed)'
+                        : says === 'NO SIGNAL' ? 'var(--state-bad)'
+                          : says === 'READY' ? 'rgba(146, 214, 166, 0.92)'
+                            : 'rgba(255,255,255,0.35)',
+                }}>{says}</span>
               </span>
             </span>
           </>
@@ -3958,14 +4224,16 @@ function MultiView({
         return tile.grid ? (
           <div
             key={tile.n} data-testid="multiview-tile"
-            data-source={tile.n} data-live={tile.live ? 'true' : 'false'}
+            data-source={tile.n} data-live={live ? 'true' : 'false'}
+            data-bus={tile.bus ?? 'off'} data-says={says}
             data-actionable="grid"
             role="group" aria-label={title} title={title} style={style}
           >{picture}{plates}</div>
         ) : (
           <button
             key={tile.n} type="button" data-testid="multiview-tile"
-            data-source={tile.n} data-live={tile.live ? 'true' : 'false'}
+            data-source={tile.n} data-live={live ? 'true' : 'false'}
+            data-bus={tile.bus ?? 'off'} data-says={says}
             data-actionable={tile.act ? 'true' : 'false'}
             disabled={!tile.act} onClick={tile.act} title={title}
             style={style}
