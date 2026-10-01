@@ -3121,3 +3121,107 @@ Those two together are the whole finding. A piece that could be placed
 relative to the performer zone, and a performer zone that knows its own
 width at the current aspect, would let one set hold its composition at
 any shape — which is what the brief asked the scene to be for.
+
+## S-39 — The boundary, and what the next piece is
+
+PR #43 ends here. Recorded so the next piece starts from a decision
+rather than from a reconstruction.
+
+### Closed
+
+| | |
+|---|---|
+| depth, floor, defocus | S-33 |
+| perspective | S-34a |
+| the scene, told once | S-35 |
+| Studio Two names a set and draws its furniture | S-36 |
+| the eyeline, and the room moving to meet it | S-37 |
+| desk occlusion, floor, band, horizon, defocus, clipping and proportion across 16:9, 4:3, 1:1 and 9:16 | S-38 |
+| whether the live compositor needs its own scene model | S-38 — **it does not** |
+
+### Held
+
+**S-34, the video capability.** No `VideoBackground` record, no duration
+policy, no `allowedContexts`, no loop-or-hold rule, no renderer change.
+Untouched through six sections, which was the point of naming it.
+
+**The live compositor's grounding.** The finding is that this is *a
+second translation, not a second model* — `paintSpace` is already the
+canvas analogue of `backdropChain`, and `useBroadcastMixer` already
+draws furniture in two passes. When it is taken up it consumes
+`scene.ts`; it does not get a parallel scene.
+
+### The next piece: relational placement and performer occupancy
+
+Not a responsive-layout failure. Everything structural held at all four
+shapes. The problem is **semantic**: the screen is authored as an
+absolute wall rectangle while the performer grows from a quarter of the
+frame to four-fifths of it.
+
+Two concepts are missing, and both belong to the scene rather than to
+any renderer.
+
+**1. `PerformerZone` needs occupancy.** It establishes the ground, the
+eyes, and the arrangement for N people. It does not establish *how much
+of the composition the performer may occupy* — and that must be a
+scene-level concept rather than four aspect-ratio-specific hacks.
+
+**2. `Piece` needs relational placement.** Today a piece says where it
+is:
+
+    x = 0.56
+    y = ...
+    width = ...
+    height = ...
+
+It does not say what it is relative to. The wall screen wants something
+closer to:
+
+    Piece
+    └── placement
+         ├── relation: beside-performer
+         ├── side: right
+         ├── clearance
+         ├── preferred zone
+         └── scale behaviour
+
+The renderer then resolves the actual rectangle from the current
+composition. That is fundamentally different from:
+
+    if 9:16 then move screen left
+    if 1:1 then shrink screen
+    if 4:3 then ...
+
+which is the four-tuned-layout answer the scene exists to avoid.
+
+### The shape it leaves
+
+                        SCENE
+                          │
+              ┌───────────┴───────────┐
+              │                       │
+        PerformerZone               Pieces
+              │                       │
+       ground / eyes             relational placement
+       N-person arrangement      beside / above / etc.
+       occupancy                  clearance / scale
+              │                       │
+              └───────────┬───────────┘
+                          ↓
+                  Composition shape
+                          ↓
+                 resolved geometry
+                          ↓
+                  Studio / Live
+
+**The scene describes spatial relationships; the renderer resolves them
+for the actual frame.**
+
+### One note on how this was found
+
+The corrected horizontal measurement is the evidence for the whole
+abstraction, and the first attempt would have hidden it: measuring only
+the vertical held the very dimension that changes the composition
+constant, and reported all four shapes identical. A test that varies
+everything except the thing under test reports success and means
+nothing.
