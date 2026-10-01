@@ -464,7 +464,7 @@ async function renderPerformanceShot(
         const under = placedFor(scene!, scene!.behind, box.w / box.h);
         const dressed = under.length > 0 ? `${behind}_set` : behind;
         filters.push(...backdropChain(
-          scene!.background, box.w, box.h, fps, seconds, dressed));
+          scene!, box.w, box.h, fps, seconds, dressed));
         if (under.length > 0) {
           filters.push(`[${dressed}]`
             + `${pieceBoxes(under, box.w, box.h).join(',')},`

@@ -22,11 +22,11 @@
  * colour of every pixel halfway to the backdrop.
  */
 
-import type { Grounding, SpaceLook } from '../domain/environment.js';
+import type { Grounding } from '../domain/environment.js';
 import type { Piece } from '../domain/virtualSet.js';
-import {
-  bandIsFloor, defocusFor, floorOf, perspectiveOf,
-} from '../domain/environment.js';
+import type { Scene } from '../domain/scene.js';
+import { bandIsFloor, defocusFor } from '../domain/environment.js';
+import { groundPlan } from '../domain/scene.js';
 
 /** Softening applied to a `blur` backdrop — their own room, out of focus. */
 const BLUR_SIGMA = 24;
@@ -38,9 +38,25 @@ const BLUR_SIGMA = 24;
  * thumbnail, and deterministic, so the shot cache means what it says (U-16).
  */
 export function backdropChain(
-  look: SpaceLook, width: number, height: number, fps: number,
+  scene: Scene, width: number, height: number, fps: number,
   seconds: string, out: string,
 ): string[] {
+  /*
+   * THE SCENE, NOT THE ROOM, and the difference is a whole feature.
+   *
+   * This took a `SpaceLook` and asked `floorOf` and `perspectiveOf` for
+   * the ground itself — which is the room's own answer, before the
+   * scene moved it. `sceneOf` moves the floor to a measured eyeline so
+   * that a performer's eyes sit on the drawn horizon, and that is the
+   * entire point of S-37; drawing the floor from the look threw the
+   * measurement away one call from the pixels. Concert Stage measured
+   * at 0.40 kept its horizon at 0.86 in every frame ever rendered.
+   *
+   * The wash, the pool, the band, the vignette and the grain are still
+   * the room's — they are facts about the place and nothing moves them.
+   * [S-37, S-41]
+   */
+  const look = scene.background;
   const wash = `${out}_wash`;
   const glow = `${out}_glow`;
   const lit = `${out}_lit`;
@@ -87,7 +103,7 @@ export function backdropChain(
       + `[${banded}]`);
     current = banded;
   }
-  const ground = floorOf(look);
+  const ground = groundPlan(scene, width, height);
   if (ground) {
     /*
      * A FLOOR, NOT A STRIPE.  [§4, S-6]
@@ -105,8 +121,7 @@ export function backdropChain(
      * Mixing towards black rather than to another hue keeps it one
      * floor rather than two surfaces.
      */
-    const top = Math.round(ground.y * height);
-    const deep = height - top;
+    const { top, deep } = ground;
     const floor = `${out}_floor`;
     const laid = `${out}_laid`;
     chains.push(
@@ -134,15 +149,16 @@ export function backdropChain(
      * depth decides: a long nave narrows fast, a vocal booth hardly at
      * all.
      */
-    const view = perspectiveOf(look);
+    const view = ground.vanish;
     let ground2 = floor;
     if (view) {
       const run = `${out}_run`;
       const converged = `${out}_conv`;
       chains.push(
         `gradients=s=${width}x${deep}:c0=${ground.from}:c1=0x000000`
-        + `:x0=${Math.round(view.vanishX * width)}:y0=0`
-        + `:x1=0:y1=${deep}:type=radial:d=${seconds}:r=${fps}${fixed},`
+        + `:x0=${view.at.x}:y0=${view.at.y}`
+        + `:x1=${view.faded.x}:y1=${view.faded.y}:type=radial`
+        + `:d=${seconds}:r=${fps}${fixed},`
         + `format=gbrp[${run}]`);
       /* Onto the floor strip itself, before it is laid down: both are
          the same size here, which `blend` requires and which keeps the

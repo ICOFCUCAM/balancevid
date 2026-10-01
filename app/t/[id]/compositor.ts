@@ -3,7 +3,10 @@
 import {
   type Composition, BLUR_SIGMA, boxFor, drawable, spaceOf,
 } from '../../../src/domain/composition.js';
-import { type SpaceLook, SPACE_LOOKS } from '../../../src/domain/environment.js';
+import {
+  type SpaceLook, SPACE_LOOKS, bandIsFloor, defocusFor, groundingFor,
+} from '../../../src/domain/environment.js';
+import { groundPlan, reachOf, sceneFor } from '../../../src/domain/scene.js';
 
 /**
  * The compositor, on the live canvas.  [Doctrine CHANNEL §26, §28, C-14]
@@ -85,27 +88,112 @@ bool inFrame(vec2 u) {
 const SPACE_FS = `
 precision mediump float;
 varying vec2 v;
-uniform vec3 uTop, uBottom, uGlow, uBand;
-uniform vec2 uGlowAt;
+uniform vec3 uTop, uBottom, uGlow, uBand, uFloorFrom, uFloorTo;
+uniform vec2 uGlowAt, uPx;
 uniform float uStrength, uVignette, uGrain, uBandY, uBandH, uSeed;
+uniform float uFloorTop, uFloorDeep, uVanishX, uReach, uConverge, uSoft;
 
 float hash(vec2 p) {
   return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
 }
 
+/* Screen, which is what the chain's blend=screen does, and it is not the
+   same as adding: light pools do not clip to white. */
+vec3 screen(vec3 under, vec3 over) {
+  return 1.0 - (1.0 - under) * (1.0 - over);
+}
+
 void main() {
-  vec3 wash = mix(uTop, uBottom, v.y);
-  /* Screen, which is what the chain's blend=screen does, and it is not
-     the same as adding: light pools do not clip to white. */
-  float d = distance(v * vec2(1.0, 1.0), uGlowAt);
-  float pool = clamp(1.0 - d * 1.6, 0.0, 1.0);
-  vec3 lit = 1.0 - (1.0 - wash) * (1.0 - uGlow * pool * uStrength);
-  if (uBandH > 0.0 && v.y >= uBandY && v.y <= uBandY + uBandH) lit = uBand;
+  /*
+   * DOWN THE FRAME, WHICH IS NOT WHICH WAY v GOES.
+   *
+   * The space was rendered UPSIDE DOWN on the air, and had been since
+   * it was written. v.y is zero at the bottom of what a viewer sees —
+   * the default framebuffer's origin is bottom-left and the merge
+   * passes this straight through — while every number a room states is
+   * a fraction DOWN the frame: 'uBandY' of 0.86 is a stage lip near
+   * the floor, 'uGlowAt' of 0.3 is a light high on the wall. Reading
+   * them against v put Concert Stage's lip across the ceiling and its
+   * lighting rig on the ground.
+   *
+   * It was invisible because a wash flipped is still a wash and a
+   * centred vignette is symmetrical: the only parts of a drawn room
+   * that say which way is up are the band and the glow, and both are
+   * subtle enough in a dark set to read as a choice. Measuring the
+   * three renderers against each other is what found it — Modern Room
+   * came off the chain at 210 at the top and 90 at the bottom, and off
+   * this shader at 85 and 164. [S-41]
+   */
+  vec2 f = vec2(v.x, 1.0 - v.y);
+  /* In pixels where it matters. A circle in uv is an ellipse on a 16:9
+     frame, and the floor's convergence is a circle in the chain. */
+  vec2 p = f * uPx;
+  vec3 wash = mix(uTop, uBottom, f.y);
+  /*
+   * AND THE POOL IS ROUND, which it was not.
+   *
+   * A distance taken in uv is a distance in a square, so on a 16:9
+   * frame the pool came out an ellipse half again as wide as it was
+   * tall — a window-shaped light in every room, where the thumbnail
+   * beside it and the export behind it both draw a circle. Measured
+   * in pixels it is a circle, at the radius 'paintSpace' uses, because
+   * the two live surfaces should not disagree about the shape of a
+   * lamp. [S-41]
+   */
+  float reach = max(uPx.x, uPx.y) * 0.62;
+  float d = distance(p, uGlowAt * uPx) / reach;
+  float pool = clamp(1.0 - d, 0.0, 1.0);
+  vec3 lit = screen(wash, uGlow * pool * uStrength);
+  /* A band is a LINE here. One that reaches the bottom of the frame is
+     the ground, and the ground is drawn below as a plane that recedes —
+     the caller sends no band in that case, exactly as the chain draws
+     none. [S-33, S-41] */
+  if (uBandH > 0.0) {
+    float top = uBandY * uPx.y;
+    float low = (uBandY + uBandH) * uPx.y;
+    lit = mix(lit, uBand,
+      smoothstep(top - uSoft, top + uSoft, p.y)
+      * (1.0 - smoothstep(low - uSoft, low + uSoft, p.y)));
+  }
+  /*
+   * THE GROUND.  [S-33, S-34, S-41]
+   *
+   * A real floor meets the wall at the horizon and comes towards the
+   * camera, and the near end is further from the room's light than the
+   * far end. It runs away to a point, and that is drawn in light rather
+   * than in lines: a floor brightest along the line running away from
+   * the lens and falling off towards the near corners is right at any
+   * camera angle, because it is a gradient and not a claim about where
+   * the walls are.
+   *
+   * EVERY ONE OF THOSE SENTENCES WAS ALREADY TRUE OF AN EXPORT and none
+   * of them was true on the air. This is the same floor the chain
+   * draws, from the same groundPlan, in the language of this machine.
+   */
+  if (uFloorDeep > 0.0) {
+    vec3 plane = mix(uFloorFrom, uFloorTo,
+      clamp((p.y - uFloorTop) / uFloorDeep, 0.0, 1.0));
+    vec2 at = vec2(uVanishX, uFloorTop);
+    vec3 run = uFloorFrom * (1.0 - clamp(distance(p, at) / uReach, 0.0, 1.0));
+    plane = mix(plane, screen(plane, run), uConverge);
+    /*
+     * AND THE JOIN IS SOFT, because the back of the room is not in
+     * focus. The chain blurs the whole backdrop before the vignette
+     * and the grain; on an analytic picture that blur lands nowhere
+     * except on the two drawn edges, so softening those edges IS the
+     * defocus, at a tenth of the cost of two more passes a frame.
+     * Saying it that way round is the honest version: this is not an
+     * approximation of a blur, it is the part of the blur that has
+     * anything to do.
+     */
+    lit = mix(lit, plane,
+      smoothstep(uFloorTop - uSoft, uFloorTop + uSoft, p.y));
+  }
   /* The corners fall off. The exponent is what keeps the falloff in the
      corners rather than spreading it across the whole picture. */
-  float r = distance(v, vec2(0.5));
+  float r = distance(f, vec2(0.5));
   lit *= 1.0 - clamp(pow(r * 1.42, 2.0) * uVignette, 0.0, 0.95);
-  lit += (hash(v * 997.0 + uSeed) - 0.5) * (uGrain / 255.0) * 2.0;
+  lit += (hash(f * 997.0 + uSeed) - 0.5) * (uGrain / 255.0) * 2.0;
   gl_FragColor = vec4(clamp(lit, 0.0, 1.0), 1.0);
 }
 `;
@@ -238,8 +326,49 @@ precision mediump float;
 varying vec2 v;
 uniform sampler2D uFg, uBack, uMask;
 uniform float uLight, uSpill, uCutout;
+uniform float uGround, uWrap, uShadow, uWrapBlur, uShadowBlur;
+uniform vec2 uShadowAt, uAspect;
 uniform vec3 uKey;
 ${FRAME_GLSL}
+
+/*
+ * A SOFT READ, which is not a gaussian and does not pretend to be.
+ *
+ * The chain softens the matte with gblur, which is a separable pass and
+ * costs two framebuffers and two draws; this is a ring of eight samples
+ * around the point plus the point itself. On the two things it is used
+ * for that is enough, and the reason is that both are low-frequency BY
+ * CONSTRUCTION: a contact shadow is a presence rather than a shape, and
+ * a light wrap is the room's colour averaged over most of a shoulder.
+ * Neither has any detail for a better blur to preserve.
+ *
+ * The ring is scaled by the frame's aspect so it is a circle on the
+ * screen rather than in uv — the same mistake the light pool was making.
+ */
+float ring(sampler2D tex, vec2 at, float r) {
+  /* Two rings and the middle, falling off outwards, because ONE ring
+     is a donut: it averages flat out to r and then stops, which gives
+     a shadow with a hard rim at exactly the radius it was meant to be
+     soft over. Weighted 2 at the centre, 1 at half the radius and a
+     half at the edge, a gaussian is near enough for a shadow. */
+  float sum = texture2D(tex, at).r * 2.0;
+  for (int i = 0; i < 8; i++) {
+    float a = float(i) * 0.785398;
+    vec2 d = vec2(cos(a), sin(a)) * r * uAspect;
+    sum += texture2D(tex, at + d * 0.5).r;
+    sum += texture2D(tex, at + d).r * 0.5;
+  }
+  return sum / 14.0;
+}
+vec3 ringRgb(sampler2D tex, vec2 at, float r) {
+  vec3 sum = texture2D(tex, at).rgb;
+  for (int i = 0; i < 8; i++) {
+    float a = float(i) * 0.785398;
+    sum += texture2D(tex, at + vec2(cos(a), sin(a)) * r * uAspect).rgb;
+  }
+  return sum / 9.0;
+}
+
 void main() {
   vec2 u = fgUv(v);
   vec3 back = texture2D(uBack, v).rgb;
@@ -251,7 +380,18 @@ void main() {
    * onto the set that is already there. [§27]
    */
   if (!inFrame(u)) {
-    gl_FragColor = uCutout > 0.5 ? vec4(0.0) : vec4(back, 1.0);
+    /*
+     * AND THE SHADOW REACHES PAST THEM, which is why this is no longer
+     * an early return for every pixel outside the box. A contact
+     * shadow falls on the floor beside somebody, so a pixel with no
+     * performer in it can still be a pixel the performer darkens.
+     */
+    if (uCutout > 0.5) { gl_FragColor = vec4(0.0); return; }
+    if (uGround > 0.0) {
+      float out_shade = ring(uMask, v + uShadowAt, uShadowBlur);
+      back *= 1.0 - uShadow * out_shade;
+    }
+    gl_FragColor = vec4(back, 1.0);
     return;
   }
   vec3 fg = texture2D(uFg, vec2(u.x, 1.0 - u.y)).rgb;
@@ -265,6 +405,41 @@ void main() {
   /* A stop up or a stop down, about mid grey so it is exposure and not a
      wash: adding a constant lifts the blacks and makes a cutout float. */
   fg = clamp((fg - 0.5) * (1.0 + uLight * 0.35) + 0.5 + uLight * 0.12, 0.0, 1.0);
+  /*
+   * STANDING IN THE ROOM RATHER THAN IN FRONT OF IT.  [§4, S-6, S-41]
+   *
+   * Everything above produces a CLEAN EDGE, and a clean edge is what
+   * makes a composite read as a sticker: nothing in a real room has
+   * one. The export has had the two corrections since S-6 and the air
+   * has had neither, which is the half of this gap that is about the
+   * person rather than about the room.
+   *
+   * In the order light actually works, and the chain's own order: the
+   * room is darkened where the performer blocks it, and then the
+   * room's colour is allowed onto the edge of the performer it is
+   * lighting. The numbers are 'groundingFor', derived from the space's
+   * own declared light, so the room that draws a purple glow from
+   * above throws a purple wrap and a short shadow. Nobody is asked a
+   * question about compositing. [D-19]
+   *
+   * ONLY WHERE THIS SHADER DREW THE ROOM. 'matteChain' takes no
+   * grounding for an original or a blur — their own room is already
+   * lighting them correctly, which is the one case that never needed
+   * correcting — and a cutout's room is on the 2D canvas where this
+   * cannot reach it. The same rule, by the same reasoning.
+   */
+  if (uGround > 0.0) {
+    float shade = ring(uMask, v + uShadowAt, uShadowBlur);
+    back *= 1.0 - uShadow * shade;
+    /* A band just INSIDE the outline — the matte minus a softened copy
+       of itself, which is zero everywhere except where the edge was —
+       carrying a heavily softened copy of the room. Added rather than
+       mixed, because light adds: this is the room's glow landing on a
+       shoulder, not the room showing through it. */
+    float band = clamp(m - ring(uMask, v, uWrapBlur * 2.0), 0.0, 1.0);
+    fg = clamp(fg + ringRgb(uBack, v, uWrapBlur * 4.0) * band * uWrap,
+      0.0, 1.0);
+  }
   float a = clamp(m, 0.0, 1.0);
   gl_FragColor = uCutout > 0.5
     ? vec4(fg, a)
@@ -416,8 +591,25 @@ export class LiveCompositor {
 
   private upload(name: string, source: TexImageSource, unit: number): WebGLTexture {
     const gl = this.gl;
-    const texture = this.texture(name);
+    /*
+     * THE UNIT IS CHOSEN FIRST, AND THAT IS NOT A TIDY-UP.
+     *
+     * `texture` binds the texture it creates so it can set its
+     * parameters, and it bound it to whatever unit happened to be
+     * active. Uploading the take to unit 0 and then the plate to unit
+     * 1 therefore left the PLATE bound to unit 0 as well — on the one
+     * frame where both textures were new — and the difference matte
+     * differenced the plate against itself and came back empty.
+     *
+     * It survived because it corrects itself: from the second frame
+     * both textures are cached, nothing new is bound, and the key
+     * works. One black frame at the top of a broadcast is exactly the
+     * kind of fault nobody reports and everybody sees. Found by
+     * compositing a drawn person against a drawn room and getting a
+     * room. [S-41]
+     */
     gl.activeTexture(gl.TEXTURE0 + unit);
+    const texture = this.texture(name);
     gl.bindTexture(gl.TEXTURE_2D, texture);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
     return texture;
@@ -470,19 +662,56 @@ export class LiveCompositor {
     const spaceId = cutout ? null : spaceOf(composition.backdrop);
     if (spaceId) {
       const look: SpaceLook = SPACE_LOOKS[spaceId]!;
+      /*
+       * THE SCENE, AND THE SAME SCENE THE EXPORT GETS.  [S-41]
+       *
+       * A participant's backdrop names a room and nothing else — a set
+       * is the station's studio and belongs to the identity, not to a
+       * person — so this is the room's own horizon rather than one
+       * measured from a take. It is still the scene that answers for
+       * the floor, because `groundPlan` is where the strip is worked
+       * out and there is to be one answer to that.
+       */
+      const scene = sceneFor({ spaceId });
+      const ground = scene ? groundPlan(scene, this.width, this.height) : null;
+      /* A band that reaches the bottom is the GROUND, and the ground is
+         the plane below, not a flat stripe. The chain skips it for the
+         same reason and by the same test. */
+      const line = look.band && !bandIsFloor(look.band) ? look.band : null;
       this.pass(this.programs['space']!, wash, (g, p) => {
         g.uniform3fv(g.getUniformLocation(p, 'uTop'), hex(look.top));
         g.uniform3fv(g.getUniformLocation(p, 'uBottom'), hex(look.bottom));
         g.uniform3fv(g.getUniformLocation(p, 'uGlow'), hex(look.glow.colour));
         g.uniform2f(g.getUniformLocation(p, 'uGlowAt'),
           look.glow.x, look.glow.y);
+        g.uniform2f(g.getUniformLocation(p, 'uPx'), this.width, this.height);
         g.uniform1f(g.getUniformLocation(p, 'uStrength'), look.glow.strength);
         g.uniform1f(g.getUniformLocation(p, 'uVignette'), look.vignette);
         g.uniform1f(g.getUniformLocation(p, 'uGrain'), look.grain);
         g.uniform3fv(g.getUniformLocation(p, 'uBand'),
-          hex(look.band?.colour ?? '0x000000'));
-        g.uniform1f(g.getUniformLocation(p, 'uBandY'), look.band?.y ?? 0);
-        g.uniform1f(g.getUniformLocation(p, 'uBandH'), look.band?.height ?? 0);
+          hex(line?.colour ?? '0x000000'));
+        g.uniform1f(g.getUniformLocation(p, 'uBandY'), line?.y ?? 0);
+        g.uniform1f(g.getUniformLocation(p, 'uBandH'), line?.height ?? 0);
+        /* The ground, in the pixels of this panel. Zero depth is the
+           six rooms and the one sea line that have no floor plane. */
+        g.uniform3fv(g.getUniformLocation(p, 'uFloorFrom'),
+          hex(ground?.from ?? '0x000000'));
+        g.uniform3fv(g.getUniformLocation(p, 'uFloorTo'),
+          hex(ground?.to ?? '0x000000'));
+        g.uniform1f(g.getUniformLocation(p, 'uFloorTop'), ground?.top ?? 0);
+        g.uniform1f(g.getUniformLocation(p, 'uFloorDeep'), ground?.deep ?? 0);
+        const run = ground?.vanish ?? null;
+        g.uniform1f(g.getUniformLocation(p, 'uVanishX'), run?.at.x ?? 0);
+        g.uniform1f(g.getUniformLocation(p, 'uReach'),
+          run ? Math.max(1, reachOf(run)) : 1);
+        g.uniform1f(g.getUniformLocation(p, 'uConverge'), run?.converge ?? 0);
+        /*
+         * HOW FAR A DRAWN EDGE IS SPREAD BY THIS ROOM'S OWN DEFOCUS.
+         * A gaussian of sigma carries an edge over about three sigma
+         * end to end, so half of that on each side is the ramp.
+         */
+        g.uniform1f(g.getUniformLocation(p, 'uSoft'),
+          1.5 * defocusFor(look, Math.min(this.width, this.height)));
         /* Grain that does not move is a texture printed on the backdrop. */
         g.uniform1f(g.getUniformLocation(p, 'uSeed'), (now % 1000) / 7);
       });
@@ -598,6 +827,17 @@ export class LiveCompositor {
     gl.bindTexture(gl.TEXTURE_2D, wash.texture);
     gl.activeTexture(gl.TEXTURE2);
     gl.bindTexture(gl.TEXTURE_2D, from.texture);
+    /*
+     * HOW THIS ROOM LANDS ON THE PERSON STANDING IN IT, or nothing.
+     *
+     * Present exactly where `matteChain` has it: a drawn space, which
+     * is the only backdrop this shader lights. An original or a blur
+     * is their own room already lighting them correctly, and a cutout
+     * is standing in a set the 2D canvas owns, which nothing here can
+     * reach. [§4, S-41]
+     */
+    const ground = spaceId ? groundingFor(SPACE_LOOKS[spaceId]!) : null;
+    const small = Math.min(this.width, this.height);
     this.pass(this.programs['merge']!, null, (g, p) => {
       g.uniform1i(g.getUniformLocation(p, 'uFg'), 0);
       g.uniform1i(g.getUniformLocation(p, 'uBack'), 1);
@@ -608,6 +848,29 @@ export class LiveCompositor {
         key.kind === 'chroma' ? key.spill : 0);
       g.uniform3fv(g.getUniformLocation(p, 'uKey'),
         hex(key.kind === 'chroma' ? key.colour : '#000000'));
+      g.uniform1f(g.getUniformLocation(p, 'uGround'), ground ? 1 : 0);
+      g.uniform1f(g.getUniformLocation(p, 'uWrap'), ground?.wrap ?? 0);
+      g.uniform1f(g.getUniformLocation(p, 'uShadow'), ground?.shadow ?? 0);
+      /* Both widths are fractions of the frame's SMALLER side, which is
+         what makes the same room the same room at any output size, and
+         `uAspect` is what turns one of those into a circle rather than
+         an ellipse in uv. [D-06] */
+      g.uniform1f(g.getUniformLocation(p, 'uWrapBlur'), 0.02);
+      g.uniform1f(g.getUniformLocation(p, 'uShadowBlur'),
+        ground?.shadowBlur ?? 0);
+      g.uniform2f(g.getUniformLocation(p, 'uAspect'),
+        small / this.width, small / this.height);
+      /*
+       * WHERE TO READ THE MATTE FROM TO DRAW THE SHADOW THERE.
+       *
+       * Negated in x and not in y, and that is not a typo. A shadow
+       * drawn at x + dx is the matte read at x - dx, so the x offset
+       * flips; v.y runs UP the displayed frame while `shadowY` is
+       * stated downwards, so the two negations cancel and the y offset
+       * does not.
+       */
+      g.uniform2f(g.getUniformLocation(p, 'uShadowAt'),
+        -(ground?.shadowX ?? 0), ground?.shadowY ?? 0);
       frame(g, p);
     });
     return true;
