@@ -264,6 +264,8 @@ export interface PerformanceBackdrop {
   spaceId?: string;
   /** For `custom`: the author's own picture. */
   assetId?: AssetId;
+  /** For `space`: a set standing in that room, with its own furniture. */
+  setId?: string;
   /** The still of the empty room this take is differenced against. */
   plateAssetId: AssetId;
   /** 0..255 on the difference, measured from the plate's own noise. */

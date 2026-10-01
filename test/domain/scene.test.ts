@@ -19,6 +19,9 @@ import { describe, expect, it } from 'vitest';
 import { SPACE_LOOKS, floorOf, perspectiveOf } from '../../src/domain/environment.js';
 import { VIRTUAL_SETS, inFront, setById } from '../../src/domain/virtualSet.js';
 import { horizonOf, sceneFor, sceneOf } from '../../src/domain/scene.js';
+import {
+  newPerformance, setEnvironment,
+} from '../../src/domain/performanceEdit.js';
 
 const room = SPACE_LOOKS['church']!;
 
@@ -152,5 +155,67 @@ describe('resolving from what a document stores', () => {
       expect(scene, one.id).not.toBeNull();
       expect(scene!.horizon, one.id).not.toBeNull();
     }
+  });
+});
+
+/**
+ * And the door Studio Two can finally knock on.
+ * [Doctrine STUDIO-TWO §4, S-35; INV-16]
+ *
+ * The scene carried the performer zone and the furniture from the
+ * moment the two systems were joined, and Studio Two had nowhere to
+ * ASK for them: its environment was `{kind: 'space', spaceId}` with no
+ * field for a set. No renderer code was written for furniture nothing
+ * could request — the door opens first.
+ */
+describe('a take can name a set', () => {
+  const song = () => newPerformance('Song', {
+    assetId: 'asset_song' as never, title: 'Song', class: 'own',
+    durationSamples: 48_000 * 10,
+  }, '2026-01-01T00:00:00.000Z');
+
+  const withTake = () => {
+    const p = song();
+    p.takes.push({
+      id: 'take_one' as never, label: 'One',
+      assetId: 'asset_take' as never,
+      alignment: { offsetSamples: 0, rateRatio: 1 } as never,
+      durationSamples: 48_000 * 10,
+      environment: { kind: 'original' },
+      plateAssetId: 'asset_plate' as never,
+    } as never);
+    p.plates.push({
+      assetId: 'asset_plate' as never, noise: 0.004, quality: 0.98,
+      frames: 90, width: 1920, height: 1080,
+      madeAt: '2026-01-01T00:00:00.000Z',
+    } as never);
+    return p;
+  };
+
+  it('refuses a set that stands in no room', () => {
+    /* `original`, `blur` and `custom` have no room for a set to name. */
+    for (const kind of ['original', 'blur'] as const) {
+      expect(() => setEnvironment(withTake(), 'take_one',
+        { kind, setId: 'news_desk' })).toThrow(/stands in one of the drawn/);
+    }
+  });
+
+  it('refuses a set nobody drew', () => {
+    expect(() => setEnvironment(withTake(), 'take_one',
+      { kind: 'space', spaceId: 'church', setId: 'no_such_set' }))
+      .toThrow(/unknown virtual set/);
+  });
+
+  it('accepts one, and the scene then carries its furniture', () => {
+    const p = withTake();
+    setEnvironment(p, 'take_one', {
+      kind: 'space', spaceId: 'modern_room', setId: 'news_desk',
+    });
+    const stored = p.takes[0]!.environment;
+    expect(stored.setId).toBe('news_desk');
+
+    const scene = sceneFor({ spaceId: stored.spaceId, setId: stored.setId })!;
+    expect(scene.foreground.some((one) => one.kind === 'desk')).toBe(true);
+    expect(Object.keys(scene.performer.positions).length).toBeGreaterThan(0);
   });
 });

@@ -2864,12 +2864,7 @@ plain room still has no opinion about head counts.
 
 ### Still owed, in the locked order
 
-1. **Studio Two cannot yet NAME a set.** Its environment is
-   `{kind: 'space', spaceId}` with nowhere to put a `setId`, so
-   `scene.foreground` is always empty there. The scene can carry the
-   desk; the document cannot yet ask for one. **No renderer code was
-   written for furniture Studio Two cannot request** — that door opens
-   first, then the drawing follows it.
+1. ~~**Studio Two cannot yet NAME a set.**~~ Done in S-36 below.
 2. **The eyeline measurement.** Where a person's eyes sit in their own
    frame, measured once from the take in the shape `measurePlate`
    already uses, and compared against the scene's eyeline. Not a
@@ -2879,3 +2874,61 @@ plain room still has no opinion about head counts.
 
 And **S-34 stays where it is**: no `VideoBackground` model, no duration
 policy, no `allowedContexts`, no loop-or-hold rule, no renderer change.
+
+
+## S-36 — The door, and then the drawing
+
+The scene carried the performer zone and the furniture from the moment
+the two systems were joined. Studio Two had nowhere to **ask** for them:
+its environment was `{kind: 'space', spaceId}` with no field for a set.
+So S-35 wrote no renderer code for furniture nothing could request. This
+opens the door and then draws through it, in that order.
+
+### The document
+
+`Environment.setId`, valid only alongside `kind: 'space'` — a set stands
+in a room, so it cannot stand in their own room, in a blur, or in a
+photograph. `setEnvironment` refuses both mistakes at the door: a set on
+the wrong kind, and a set nobody drew. A stored set nobody draws is the
+same fault as a stored space nobody drew, and INV-16 already refuses the
+second.
+
+It reaches the renderer the way everything else does — carried into the
+plan rather than looked up — and it **joins the shot's content address
+for free**, because `hashShot` canonicalises the whole shot. Adding a set
+to a take re-renders that take and nothing else. [U-16 §3]
+
+### The drawing
+
+`pieceBoxes` turns the same rectangles the canvas draws into the filter
+language of the other side. Not a copy of `spaceArt`: the pieces are
+shared, only their translation differs, which is exactly what sharing
+the scene was for.
+
+**And the ordering is the point.** Risers, screens and bands go down
+*with* the backdrop, so the matte composites the performer over them as
+it does over the wall. The desk does not — it is drawn *after* the
+merge, because the whole difference between a desk and a wall is that
+the bottom of a presenter disappears behind it.
+
+### Measured
+
+News Desk's desk is `{ y: 0.72, h: 0.28 }` — y=777 to the bottom of a
+1080 frame. The fixture's performer is a rectangle at y=240..840, so the
+two overlap between 777 and 840, and that overlap is where the test
+lives. At y=540 the performer is still the red rectangle; at y=900 the
+red is gone and blue outweighs it, which no amount of performer could
+do. Emptying the foreground fails it.
+
+### A guard against nothing, deleted rather than defended
+
+`pieceBoxes` first converted every `#1a222c` to `0x1a222c`, on the belief
+that a `#` in a filter graph starts a comment and would silently swallow
+the rest of the chain — a missing desk rather than a wrong colour.
+
+**A mutation that removed the conversion survived.** Rather than call
+that a gap in the test, the belief was checked directly: ffmpeg drew
+`color=#1a222c` as (25, 32, 44), which is the colour. `#` is a comment
+in a filter SCRIPT FILE, not in an inline graph. The conversion guarded
+nothing, so it is gone — the seventh unobservable guard this product has
+deleted rather than written a test around.

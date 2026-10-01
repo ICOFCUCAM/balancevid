@@ -507,6 +507,45 @@ describe('the finished picture', () => {
     expect(nearHorizon).toBeGreaterThan(nearCamera * 2);
   }, 240_000);
 
+  it('puts the desk in front of the performer and the room behind', async () => {
+    /*
+     * THE SINGLE ORDERING THAT MAKES A COMPOSITE READ AS A STUDIO.
+     * [§4, S-35; CHANNEL §27]
+     *
+     * A set's furniture has been drawn on the control room's canvas
+     * since sets existed, and Studio Two could not reach it until the
+     * scene was shared. The claim is not that a desk appears — it is
+     * that the performer disappears BEHIND it, which is the whole
+     * difference between a desk and a wall.
+     *
+     * News Desk's desk is { y: 0.72, h: 0.28 }, so y=777 to the bottom
+     * of a 1080 frame. The performer is a rectangle at x=720..1200,
+     * y=240..840, so the two overlap between 777 and 840 — and that
+     * overlap is where the test lives.
+     */
+    const p = performance();
+    setEnvironment(p, 'take_one', {
+      kind: 'space', spaceId: 'modern_room', setId: 'news_desk',
+    });
+    const out = await renderWith(p, 'set');
+
+    /* Above the desk, the performer survives: still the red rectangle. */
+    const [r, g, b] = await colourAt(out, 1, 960, 540);
+    expect(r).toBeGreaterThan(140);
+    expect(g).toBeLessThan(90);
+    expect(b).toBeLessThan(90);
+
+    /*
+     * Below its top edge, they do not. The desk's face is #1a222c — a
+     * dark blue-grey — so the red is gone and blue now outweighs it,
+     * which no amount of performer could do.
+     */
+    const [dr, dg, db] = await colourAt(out, 1, 960, 900);
+    expect(dr).toBeLessThan(80);
+    expect(db).toBeGreaterThan(dr);
+    expect(dg).toBeLessThan(90);
+  }, 240_000);
+
   it('renders the same plan to the same picture twice', async () => {
     /*
      * THE CONTRACT `backdropChain` ALREADY CLAIMED, and did not keep.

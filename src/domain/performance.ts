@@ -701,6 +701,19 @@ export interface Environment {
   spaceId?: string;
   /** For `custom`: the author's own image or loop. */
   assetId?: AssetId;
+  /**
+   * A SET STANDING IN THAT ROOM.  [§4, S-35; CHANNEL §27]
+   *
+   * A set is not a new space — it names its own room and adds what a
+   * room has no opinion about: where people go by head count, and the
+   * furniture that stands in front of them. The control room has
+   * carried `spaceId` and `setId` side by side since sets existed;
+   * this is the same pair, so one scene answers for both surfaces.
+   *
+   * Valid only alongside `kind: 'space'`, and the set wins over the
+   * space it is named with, exactly as `sceneFor` already resolves it.
+   */
+  setId?: string;
 }
 
 export type EnvironmentKind =

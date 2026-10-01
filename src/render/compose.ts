@@ -27,7 +27,7 @@ import {
 import { sceneFor } from '../domain/scene.js';
 import { mixExpression, transitionFor } from '../domain/transitions.js';
 import {
-  backdropChain, blurBackdropChain, matteChain, seedFor,
+  backdropChain, blurBackdropChain, matteChain, pieceBoxes, seedFor,
 } from './matte.js';
 import { mixPerformanceAudio } from './mix.js';
 import { HOUSE_SAMPLE_RATE, type Frames, framesToSamples } from '../domain/time.js';
@@ -423,7 +423,7 @@ async function renderPerformanceShot(
        * passes, because those are two jobs on two machines. [D-19]
        */
       const scene = backdrop.kind === 'space'
-        ? sceneFor({ spaceId: backdrop.spaceId }) : null;
+        ? sceneFor({ spaceId: backdrop.spaceId, setId: backdrop.setId }) : null;
       /* `sceneFor` answers null for a room nobody drew, where `lookFor`
          threw. A plan naming a space that does not exist is a broken
          plan — `setEnvironment` refuses one at the door — and failing
@@ -440,8 +440,25 @@ async function renderPerformanceShot(
         filters.push(...blurBackdropChain(`${keyable}_bg`, behind));
       } else if (backdrop.kind === 'space') {
         filters.push(`[${fitted}]format=gbrp[${keyable}]`);
+        /*
+         * THE ROOM, THEN WHAT STANDS IN IT BEHIND THE PEOPLE.
+         * [§4, S-35]
+         *
+         * Risers, screens and bands go down with the backdrop, so the
+         * matte composites the performer OVER them exactly as it does
+         * over the wall. The desk does not: it is drawn after the
+         * merge, below, which is the single ordering that makes a
+         * composite read as a studio rather than as cutouts standing
+         * on air.
+         */
+        const dressed = scene!.behind.length > 0 ? `${behind}_set` : behind;
         filters.push(...backdropChain(
-          scene!.background, box.w, box.h, fps, seconds, behind));
+          scene!.background, box.w, box.h, fps, seconds, dressed));
+        if (scene!.behind.length > 0) {
+          filters.push(`[${dressed}]`
+            + `${pieceBoxes(scene!.behind, box.w, box.h).join(',')},`
+            + `format=gbrp[${behind}]`);
+        }
       } else {
         filters.push(`[${fitted}]format=gbrp[${keyable}]`);
         const own = still(backdrop.assetId as AssetId);
@@ -498,8 +515,23 @@ async function renderPerformanceShot(
         width: box.w, height: box.h,
         ...(ground ? { ground } : {}),
       }));
+      /*
+       * AND THE DESK OVER THEM.  [§4, S-35; CHANNEL §27]
+       *
+       * After the merge, because the whole point of a desk is that the
+       * bottom of a presenter disappears behind it. Drawn before the
+       * panel is converted and composited into the layout, so it
+       * belongs to this person's panel rather than to the frame.
+       */
+      const front = scene?.foreground ?? [];
+      const merged = front.length > 0 ? `${composed}_front` : composed;
+      if (front.length > 0) {
+        filters.push(`[${composed}]`
+          + `${pieceBoxes(front, box.w, box.h).join(',')},`
+          + `format=gbrp[${merged}]`);
+      }
       panel = `${composed}_yuv`;
-      filters.push(`[${composed}]format=yuv420p[${panel}]`);
+      filters.push(`[${merged}]format=yuv420p[${panel}]`);
     }
 
     /*
