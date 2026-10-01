@@ -3108,3 +3108,100 @@ material.
 
 Nothing here mocks ffmpeg. The binary the product ships is the one
 asked.
+
+---
+
+## C-25 — Stage 25: the panel sent four of the fields the route accepted
+
+*"Keep the exact vertical card shape and upgrade the hierarchy,
+controls, states, and editing experience."*
+
+### What was actually broken
+
+Not the look. The route behind the slide writer has accepted
+`footnote`, `pictureAssetId` and `ink` since the day it was written,
+and the panel sent **none of them**. Four layouts shared the same two
+boxes, so:
+
+* **Picture** had nowhere to put a picture, and every picture slide the
+  panel could produce said *"no picture"*;
+* **Quote** had nowhere to put the person who said it, so every
+  quotation was anonymous;
+* an authored slide was white on black on a channel that is not white,
+  because `ink` was never passed.
+
+Three dead features, all of them already implemented, all of them
+unreachable from the only control that reaches them. That is D-19 read
+backwards: the feature existed and only the door was missing.
+
+### The fields follow the layout
+
+`FIELDS` is one table from layout to which boxes exist and what to call
+them. Absent means **not drawn**, rather than drawn and ignored —
+Quote has no heading box because the renderer puts a quotation in the
+body, and a heading box there would be a box that silently moves its
+contents.
+
+The picture comes from **the Library**, which already holds every
+image in the product: the chooser is a view of the list the studio
+already polls, passed down rather than fetched again. *"Since Online
+TV already has a Library, the slide system should reuse it rather than
+creating another media store."* A picture slide **names** an asset, so
+the same photograph can be on two slides without a second copy.
+
+`Fit` and `Fill`, and **no crop handle**. The two honest things to do
+with somebody else's photograph; a crop rectangle is a picture editor,
+and this panel is used between two cues.
+
+### The bug the derived slide fixed, which was mine
+
+The fields outlive the mode that showed them. Type a heading, switch to
+Quote, and the heading is still in a box that is no longer drawn.
+Three things read that state — the "a slide needs something" guard, the
+request body, and the word under the fields — and the first version let
+them disagree in both visible directions: a picture chosen and then
+abandoned left the panel saying **Draft** over four empty boxes, and a
+heading typed under Text would have arrived as **the words of a
+quotation**, because the renderer falls back to the heading when a
+quote has no body.
+
+One derived object, read by all three. Nothing else was a fix.
+
+### What the renderer took, and what it refused
+
+Two additions: a **numbered list**, because that is structure of the
+kind a bullet already is, and the numbers are the author's — a list
+continuing from six is a thing a presenter does; and **fill**, because
+the alternative to fitting is a real editorial choice.
+
+Refused: bold, italics, alignment, line spacing. `slide.ts` argues
+against them in its own words — *"a slide editor with thirty controls
+is a slide editor somebody uses to make an ugly slide"* — and the
+request to add them arrived with its own answer attached: *"The slide
+tool should remain fast enough that an operator can create a slide in
+seconds."*
+
+And **point 6 needed no work**: a slide is already a real programme
+graphic object. `Slide` is a library image and `sourceForSlide` already
+yields a `ProgrammeSource`, so Create → Deck → Preview → Take → Output
+was wired before this stage began. Finding that out is what D-19 is
+for.
+
+### The record
+
+Twenty assertions on the renderer, nine mutations, all nine caught:
+the start number hard-coded to one; `every` relaxed to `some`; the
+bracket form dropped; bleed always on; bleed never on; cover turned to
+contain; contain turned to cover; the ordered list losing the bulleted
+one's spacing; and the fill class moved to the root where it would
+have covered every text slide.
+
+The suite caught three things that were mine, all of them repo rules
+this stage broke: the raw-colour budget (76 against a ceiling of 74 —
+`SlidesPanel.tsx` now has **none**, down from three before this work);
+a `data-chosen` state stored for tests and never announced, now
+`role="tablist"` with `aria-selected`; and a picture rounded like a
+card instead of like a screen. Those three rules are the design system
+holding, and the stage is better for having been refused.
+
+139 files, 2,616 tests.

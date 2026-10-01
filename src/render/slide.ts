@@ -57,11 +57,33 @@ export interface SlideSpec {
   footnote?: string;
   /** A library image, read from disk and inlined. Never fetched. */
   picturePath?: string;
+  /**
+   * FILL THE FRAME, rather than fit inside it.  [CHANNEL §20, C-25]
+   *
+   * The two honest things to do with somebody else's photograph on a
+   * 16:9 slide, and a broadcast wants both: a chart or a screenshot
+   * must be WHOLE, and a landscape behind a caption should reach the
+   * edges. Fitting is the default because losing the edge of a chart
+   * is worse than a letterboxed photograph.
+   *
+   * These two and no crop handle. A crop rectangle is a picture editor,
+   * and this panel is a thing an operator uses between two cues.
+   */
+  fill?: boolean;
   /** The channel's ink, so an authored slide looks like the channel. */
   ink?: string;
 }
 
-/** Text becomes paragraphs and bullets. Nothing else is interpreted. */
+/**
+ * Text becomes paragraphs, bullets and numbered points.
+ *
+ * AND NOTHING ELSE IS INTERPRETED, which is a decision and not an
+ * omission. The four layouts exist so that a slide is hard to make
+ * ugly; bold, italics, alignment and line spacing are the controls
+ * that make it easy. A numbered list is the one addition that is
+ * STRUCTURE rather than decoration — the same kind of thing a bullet
+ * is — so it is here and the rest is not. [C-25]
+ */
 function bodyHtml(body: string): string {
   const blocks = body.split(/\n\s*\n/).filter((block) => block.trim());
   return blocks.map((block) => {
@@ -69,6 +91,15 @@ function bodyHtml(body: string): string {
     if (lines.every((line) => line.startsWith('- '))) {
       return `<ul>${lines.map(
         (line) => `<li>${escape(line.slice(2))}</li>`).join('')}</ul>`;
+    }
+    /* `1. `, `2. ` — and the numbers are the AUTHOR'S, started from
+       whatever they typed, because a list continuing from six in a
+       previous slide is a real thing a presenter does. */
+    if (lines.every((line) => /^\d+[.)]\s/.test(line))) {
+      const first = Number(/^(\d+)/.exec(lines[0] ?? '')?.[1] ?? 1);
+      return `<ol start="${first}">${lines.map(
+        (line) => `<li>${escape(line.replace(/^\d+[.)]\s+/, ''))}</li>`,
+      ).join('')}</ol>`;
     }
     return `<p>${escape(lines.join(' '))}</p>`;
   }).join('');
@@ -100,7 +131,7 @@ export function slideHtml(spec: SlideSpec, pictureDataUrl?: string): string {
          ${footnote ? `<div class="by">— ${footnote}</div>` : ''}</div>`
       : spec.layout === 'picture'
         ? `${heading ? `<h1>${heading}</h1>` : ''}
-           <div class="shot">${pictureDataUrl
+           <div class="shot${spec.fill ? ' bleed' : ''}">${pictureDataUrl
              ? `<img src="${pictureDataUrl}" alt="">`
              : '<div class="hole">no picture</div>'}</div>
            ${body ? `<div class="cap">${body}</div>` : ''}`
@@ -119,12 +150,15 @@ export function slideHtml(spec: SlideSpec, pictureDataUrl?: string): string {
   .words{font-size:46px;display:flex;flex-direction:column;gap:28px;
     overflow:hidden}
   p{margin:0}
-  ul{margin:0;padding-left:1.1em;display:flex;flex-direction:column;gap:20px}
+  ul,ol{margin:0;padding-left:1.1em;display:flex;flex-direction:column;gap:20px}
   blockquote{font-size:64px;line-height:1.3;font-style:italic;max-width:24ch;
     margin:0 auto}
   .by{font-size:34px;opacity:0.7}
   .shot{flex:1;min-height:0;display:grid;place-items:center}
   .shot img{max-width:100%;max-height:100%;object-fit:contain;border-radius:8px}
+  .shot.bleed{width:100%}
+  .shot.bleed img{width:100%;height:100%;max-width:none;max-height:none;
+    object-fit:cover}
   .hole{opacity:0.4;font-size:32px}
   .cap{font-size:32px;opacity:0.75}
   </style><body>${inner}</body>`;

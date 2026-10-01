@@ -30,23 +30,90 @@ import { type Deck, slideOnAir, sourceForSlide, step } from '../../../src/domain
  * way to tell that from a deck with one more slide.
  */
 
+type Layout = 'title' | 'text' | 'picture' | 'quote';
+
+/**
+ * The four, each with the one word that says when to reach for it.
+ *
+ * ICONS BESIDE THE WORDS because four words of the same length in a row
+ * is a thing an operator reads rather than recognises, and reading is
+ * what there is no time for between two cues. The picture one is the
+ * LIBRARY icon on purpose: a picture slide names a library asset, and
+ * the icon says where to go and get one.
+ */
+const LAYOUTS: {
+  id: Layout; label: string; icon: 'pencil' | 'list' | 'library' | 'conversation';
+  says: string;
+}[] = [
+  { id: 'title', label: 'Title', icon: 'pencil',
+    says: 'A title card: one big line, centred' },
+  { id: 'text', label: 'Text', icon: 'list',
+    says: 'Words: paragraphs, bullets or numbered points' },
+  { id: 'picture', label: 'Picture', icon: 'library',
+    says: 'A picture from the Library, with a caption' },
+  { id: 'quote', label: 'Quote', icon: 'conversation',
+    says: 'A quotation, with who said it underneath' },
+];
+
+/**
+ * WHICH FIELDS EACH LAYOUT HAS, and what to call them.
+ *
+ * The same two boxes were shown for all four, which is why Picture had
+ * nowhere to put a picture and Quote had nowhere to put the person who
+ * said it — both of which the route behind this has accepted since it
+ * was written. Absent means the field is not drawn at all, rather than
+ * drawn and ignored. [C-25]
+ */
+const FIELDS: Record<Layout, {
+  heading?: string; body?: string; footnote?: string;
+}> = {
+  title: { heading: 'The title', body: 'A line underneath (optional)' },
+  text: { heading: 'Slide heading (optional)', body: 'Write the text for this slide…' },
+  picture: { heading: 'Heading (optional)', body: 'Caption (optional)' },
+  /* A quotation's words are the BODY, because that is where the
+     renderer looks for them, and the attribution is the footnote it
+     draws the dash in front of. */
+  quote: { body: 'The quotation', footnote: 'Who said it' },
+};
+
 export default function SlidesPanel({
-  channel, onAir, onShow, onRollOut,
+  channel, onAir, onShow, onRollOut, pictures = [], ink,
 }: {
   channel: Channel;
   onAir: boolean;
   onShow: (source: ProgrammeSource) => void;
   onRollOut: () => void;
+  /**
+   * The library's images, for a picture slide.  [§3, D-18, C-25]
+   *
+   * PASSED IN, NOT FETCHED. The studio already holds the library and
+   * polls it; a second fetch here would be a second copy of the same
+   * list disagreeing with the first one about what exists. And a
+   * picture slide NAMES a library asset rather than uploading one,
+   * which is the route's own rule: a photograph can be on two slides
+   * without a second copy of it.
+   */
+  pictures?: { assetId: string; title: string }[];
+  /** The channel's own colour, so an authored slide looks like it. */
+  ink?: string;
 }) {
   const [decks, setDecks] = useState<Deck[]>([]);
   const [chosen, setChosen] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [writing, setWriting] = useState(false);
-  const [layout, setLayout] = useState<'title' | 'text' | 'picture' | 'quote'>('text');
+  const [layout, setLayout] = useState<Layout>('text');
   const [heading, setHeading] = useState('');
   const [text, setText] = useState('');
+  const [footnote, setFootnote] = useState('');
+  const [picture, setPicture] = useState<string | null>(null);
+  const [fill, setFill] = useState(false);
+  const [picking, setPicking] = useState(false);
+  /** Shown for a moment after a slide lands, so the press has an answer. */
+  const [added, setAdded] = useState(false);
+  const [help, setHelp] = useState(false);
   const file = useRef<HTMLInputElement | null>(null);
+  const modes = useRef<HTMLDivElement | null>(null);
 
   const read = useCallback(async () => {
     try {
@@ -62,6 +129,32 @@ export default function SlidesPanel({
 
   const deck = decks.find((candidate) => candidate.id === chosen) ?? null;
   const at = deck ? slideOnAir(deck, channel.live?.segment) : -1;
+
+  /*
+   * WHAT THIS SLIDE IS, worked out ONCE.  [C-25]
+   *
+   * The fields outlive the mode that showed them: type a heading, switch
+   * to Quote — which has no heading — and the text is still in the box
+   * that is no longer drawn. Three things read that state and they must
+   * not disagree: the "a slide needs something" guard, the request, and
+   * the word under the fields.
+   *
+   * So only the fields THIS layout has are read, and the first version
+   * got it wrong in both visible directions: a picture chosen and then
+   * abandoned for Text left the panel saying "Draft" over four empty
+   * boxes, and a heading typed under Text would have arrived as the
+   * words of a quotation, because the renderer falls back to the
+   * heading when a quote has no body.
+   */
+  const fields = FIELDS[layout];
+  const slide = {
+    ...(fields.heading && heading.trim() ? { heading: heading.trim() } : {}),
+    ...(fields.body && text.trim() ? { text: text.trim() } : {}),
+    ...(fields.footnote && footnote.trim() ? { footnote: footnote.trim() } : {}),
+    ...(layout === 'picture' && picture
+      ? { pictureAssetId: picture, fill } : {}),
+  };
+  const empty = Object.keys(slide).length === 0;
 
   const upload = async (chosenFile: File) => {
     setBusy(true);
@@ -102,8 +195,8 @@ export default function SlidesPanel({
    * making an empty deck costs a file.
    */
   const write = async () => {
-    if (!heading.trim() && !text.trim()) {
-      setNote('A slide needs a heading or some words.');
+    if (empty) {
+      setNote('A slide needs a heading, some words or a picture.');
       return;
     }
     setBusy(true);
@@ -120,7 +213,14 @@ export default function SlidesPanel({
       }
       const response = await fetch(`/api/decks/${target}/slides`, {
         method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ layout, heading, text }),
+        /*
+         * EVERYTHING THE ROUTE ALREADY TOOK. `footnote`, `pictureAssetId`
+         * and `ink` have been accepted since the route was written and
+         * this panel sent none of them — so a picture slide said "no
+         * picture", a quotation had nobody's name under it, and an
+         * authored slide was white where the channel is not. [C-25]
+         */
+        body: JSON.stringify({ layout, ...slide, ...(ink ? { ink } : {}) }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) { setNote(data.error ?? 'that slide was refused'); return; }
@@ -137,6 +237,11 @@ export default function SlidesPanel({
           setChosen(now.id);
           setHeading('');
           setText('');
+          setFootnote('');
+          setPicture(null);
+          setFill(false);
+          setAdded(true);
+          window.setTimeout(() => setAdded(false), 2400);
           setNote(`${now.title} \u2014 ${now.slides.length} slides`);
           return;
         }
@@ -165,7 +270,7 @@ export default function SlidesPanel({
           onClick={() => setWriting((open) => !open)}
           style={{
             border: 0, background: 'none', padding: 0, fontSize: 'var(--text-xs)',
-            color: '#5c9ee0', cursor: 'pointer', marginRight: 9,
+            color: 'var(--accent-soft)', cursor: 'pointer', marginRight: 9,
           }}
         >+ Write</button>
         <button
@@ -173,7 +278,7 @@ export default function SlidesPanel({
           onClick={() => file.current?.click()}
           style={{
             border: 0, background: 'none', padding: 0, fontSize: 'var(--text-xs)',
-            color: '#5c9ee0', cursor: 'pointer',
+            color: 'var(--accent-soft)', cursor: 'pointer',
           }}
         >+ Upload</button>
         <input
@@ -207,61 +312,275 @@ export default function SlidesPanel({
       )}
 
       {/*
-        * WRITING ONE.  [§21]
+        * WRITING ONE.  [§21, §20, C-25]
         *
-        * Four layouts and three fields. A slide editor with thirty controls
-        * is a slide editor somebody uses to make an ugly slide; these four
-        * are each hard to make look bad, and "diverse" is served by their
-        * being different from each other rather than by each being
-        * adjustable.
+        * Four layouts and no formatting controls. A slide editor with
+        * thirty of them is a slide editor somebody uses to make an ugly
+        * slide; these four are each hard to make look bad, and "diverse"
+        * is served by their being different from each other rather than
+        * by each being adjustable. Bold, italics, alignment and line
+        * spacing are exactly the controls that would undo that, so the
+        * upgrade here is HIERARCHY and STATE, not more knobs.
+        *
+        * WHAT CHANGED IS WHICH FIELDS EXIST. The same two boxes were
+        * shown for all four layouts, so Picture had nowhere to put a
+        * picture and Quote had nowhere to put the person who said it —
+        * while the route behind this has accepted both since it was
+        * written. The fields now follow the layout.
         */}
       {writing && (
         <div data-testid="slide-writer" style={{
-          display: 'flex', flexDirection: 'column', gap: 6, padding: 8,
+          display: 'flex', flexDirection: 'column', gap: 7, padding: 8,
           borderRadius: 'var(--radius-module)', background: 'var(--panel-2)',
           border: '1px solid var(--line)',
         }}>
-          <div className="row" style={{ gap: 4, flexWrap: 'wrap' }}>
-            {(['title', 'text', 'picture', 'quote'] as const).map((option) => (
-              <button
-                key={option} type="button" data-testid="slide-layout"
-                data-layout={option}
-                data-chosen={layout === option ? 'true' : 'false'}
-                aria-pressed={layout === option}
-                onClick={() => setLayout(option)}
-                style={{
-                  padding: '3px 8px', fontSize: 'var(--text-2xs)', borderRadius: 5,
-                  border: `1px solid ${layout === option ? '#3d7fd6' : 'var(--line)'}`,
-                  background: layout === option
-                    ? 'rgba(45,110,200,0.22)' : 'transparent',
-                }}
-              >{option}</button>
-            ))}
-          </div>
-          <input
-            data-testid="slide-heading" value={heading}
-            onChange={(event) => setHeading(event.target.value)}
-            placeholder={layout === 'quote' ? 'Who said it (optional)' : 'Heading'}
-            style={{ fontSize: 'var(--text-sm)', padding: '6px 9px' }}
-          />
-          <textarea
-            data-testid="slide-text" value={text} rows={3}
-            onChange={(event) => setText(event.target.value)}
-            placeholder={layout === 'quote'
-              ? 'The quotation'
-              : 'Words. A blank line starts a paragraph; \u201c- \u201d starts a bullet.'}
+          {/* ---- which kind of slide ------------------------------- */}
+          <div
+            className="row" role="tablist" aria-label="Slide layout"
+            ref={modes}
             style={{
-              fontSize: 'var(--text-sm)', padding: '6px 9px', width: '100%', resize: 'vertical',
-              font: 'inherit', background: 'var(--panel)',
+              gap: 3, flexWrap: 'nowrap', padding: 2,
+              background: 'var(--panel)', borderRadius: 6,
               border: '1px solid var(--line)',
-              borderRadius: 'var(--radius-control)', color: 'inherit',
             }}
-          />
+            /* ARROW KEYS MOVE BETWEEN THEM, which is what a radiogroup
+               promises and what an operator's hands expect of a row of
+               modes on a desk. */
+            onKeyDown={(event) => {
+              const by = event.key === 'ArrowRight' ? 1
+                : event.key === 'ArrowLeft' ? -1 : 0;
+              if (!by) return;
+              event.preventDefault();
+              const order = LAYOUTS.map((one) => one.id);
+              const next = order[
+                (order.indexOf(layout) + by + order.length) % order.length]!;
+              setLayout(next);
+              modes.current?.querySelector<HTMLButtonElement>(
+                `[data-layout="${next}"]`)?.focus();
+            }}
+          >
+            {LAYOUTS.map((option) => {
+              const on = layout === option.id;
+              return (
+                <button
+                  key={option.id} type="button" data-testid="slide-layout"
+                  data-layout={option.id}
+                  data-chosen={on ? 'true' : 'false'}
+                  role="tab" aria-selected={on}
+                  tabIndex={on ? 0 : -1}
+                  title={option.says}
+                  onClick={() => setLayout(option.id)}
+                  style={{
+                    flex: '1 1 0', display: 'inline-flex', alignItems: 'center',
+                    justifyContent: 'center', gap: 4,
+                    padding: '5px 4px', fontSize: 'var(--text-2xs)',
+                    borderRadius: 4, border: 0, cursor: 'pointer',
+                    /* The selected one is a RAISED TAB rather than a
+                       tinted outline: an operator reads a filled shape
+                       across a room and an outline they do not. */
+                    background: on ? 'var(--panel-2)' : 'transparent',
+                    boxShadow: on
+                      ? 'inset 0 0 0 1px var(--accent), 0 1px 2px rgba(0,0,0,0.35)'
+                      : 'none',
+                    color: on ? 'inherit' : 'var(--muted)',
+                    fontWeight: on ? 700 : 400,
+                  }}
+                >
+                  <Icon name={option.icon} size={11} />
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* ---- a picture, from the library ----------------------- */}
+          {layout === 'picture' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              {picture ? (
+                <>
+                  <div style={{
+                    position: 'relative', aspectRatio: '16 / 9',
+                    borderRadius: 'var(--radius-screen)', overflow: 'hidden',
+                    background: 'var(--screen-bed)',
+                    border: '1px solid var(--line)',
+                  }}>
+                    <img alt="" src={`/api/library/${picture}`} style={{
+                      width: '100%', height: '100%',
+                      objectFit: fill ? 'cover' : 'contain',
+                    }} />
+                  </div>
+                  <div className="row" style={{ gap: 4, flexWrap: 'nowrap' }}>
+                    {/* FIT OR FILL AND NO CROP HANDLE. The two honest
+                        things to do with somebody else's photograph;
+                        a crop rectangle is a picture editor, and this
+                        panel is used between two cues. */}
+                    {([['Fit', false], ['Fill', true]] as const).map(
+                      ([label, want]) => (
+                        <button
+                          key={label} type="button" className="small"
+                          data-testid="slide-fit" data-fit={label.toLowerCase()}
+                          aria-pressed={fill === want}
+                          onClick={() => setFill(want)}
+                          style={{
+                            flex: '1 1 0', fontSize: 'var(--text-2xs)',
+                            padding: '4px 6px',
+                            border: `1px solid ${
+                              fill === want ? 'var(--accent)' : 'var(--line)'}`,
+                            background: fill === want
+                              ? 'var(--accent-wash)' : 'transparent',
+                          }}
+                        >{label}</button>
+                      ))}
+                    <button
+                      type="button" className="small" data-testid="slide-unpick"
+                      onClick={() => { setPicture(null); setPicking(false); }}
+                      style={{
+                        flex: '0 0 auto', fontSize: 'var(--text-2xs)',
+                        padding: '4px 8px',
+                      }}
+                    >Remove</button>
+                  </div>
+                </>
+              ) : (
+                <button
+                  type="button" data-testid="slide-pick"
+                  onClick={() => setPicking((open) => !open)}
+                  style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center',
+                    justifyContent: 'center', gap: 4, padding: '18px 10px',
+                    borderRadius: 'var(--radius-control)',
+                    border: '1px dashed var(--line)', background: 'transparent',
+                    color: 'var(--muted)', cursor: 'pointer',
+                    fontSize: 'var(--text-xs)',
+                  }}
+                >
+                  <Icon name="library" size={15} />
+                  {pictures.length > 0
+                    ? 'Choose a picture from the Library'
+                    : 'No pictures in the Library yet'}
+                </button>
+              )}
+
+              {picking && pictures.length > 0 && (
+                <div data-testid="slide-library" style={{
+                  display: 'grid', gap: 4, maxHeight: 132, overflowY: 'auto',
+                  gridTemplateColumns: 'repeat(3, 1fr)', padding: 2,
+                }}>
+                  {pictures.map((one) => (
+                    <button
+                      key={one.assetId} type="button" title={one.title}
+                      data-testid="slide-library-item"
+                      onClick={() => { setPicture(one.assetId); setPicking(false); }}
+                      style={{
+                        padding: 0, border: '1px solid var(--line)',
+                        /* A PICTURE TAKES THE SCREEN RADIUS, not a card's.
+                           A monitor and a card are different objects and
+                           the console says so in one token. */
+                        borderRadius: 'var(--radius-screen)',
+                        overflow: 'hidden', cursor: 'pointer',
+                        aspectRatio: '16 / 9', background: 'var(--screen-bed)',
+                      }}
+                    >
+                      <img alt="" src={`/api/library/${one.assetId}`} style={{
+                        width: '100%', height: '100%', objectFit: 'cover',
+                        display: 'block',
+                      }} />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ---- the words ----------------------------------------- */}
+          {FIELDS[layout].heading && (
+            <input
+              data-testid="slide-heading" value={heading}
+              onChange={(event) => setHeading(event.target.value)}
+              placeholder={FIELDS[layout].heading}
+              style={{ fontSize: 'var(--text-sm)', padding: '6px 9px' }}
+            />
+          )}
+          {FIELDS[layout].body && (
+            <textarea
+              data-testid="slide-text" value={text}
+              rows={layout === 'picture' ? 2 : 3}
+              onChange={(event) => setText(event.target.value)}
+              placeholder={FIELDS[layout].body}
+              style={{
+                fontSize: 'var(--text-sm)', padding: '6px 9px', width: '100%',
+                resize: 'vertical', font: 'inherit', background: 'var(--panel)',
+                border: '1px solid var(--line)',
+                borderRadius: 'var(--radius-control)', color: 'inherit',
+              }}
+            />
+          )}
+          {FIELDS[layout].footnote && (
+            <input
+              data-testid="slide-footnote" value={footnote}
+              onChange={(event) => setFootnote(event.target.value)}
+              placeholder={FIELDS[layout].footnote}
+              style={{ fontSize: 'var(--text-sm)', padding: '6px 9px' }}
+            />
+          )}
+
+          {/* ---- what this slide is, and how to write one ----------- *
+            *
+            * THE SYNTAX WAS IN THE PLACEHOLDER, where it read as
+            * developer documentation and vanished the moment anybody
+            * typed. It is a hint now: out of the way, and still there
+            * after the first character. */}
+          <div className="row" style={{
+            gap: 6, flexWrap: 'nowrap', alignItems: 'center',
+            fontSize: 'var(--text-2xs)', color: 'var(--muted)',
+          }}>
+            <span data-testid="slide-state">
+              {added ? 'Added' : empty ? 'Empty' : 'Draft'}
+            </span>
+            <span aria-hidden="true">·</span>
+            <span>16:9</span>
+            <span className="grow" />
+            {FIELDS[layout].body && (
+              <button
+                type="button" data-testid="slide-help"
+                aria-expanded={help}
+                onClick={() => setHelp((open) => !open)}
+                style={{
+                  border: 0, background: 'none', padding: 0, cursor: 'pointer',
+                  color: 'var(--muted)', fontSize: 'var(--text-2xs)',
+                  textDecoration: 'underline dotted',
+                }}
+              >Writing help</button>
+            )}
+          </div>
+          {help && (
+            <p className="small muted" data-testid="slide-help-text" style={{
+              margin: 0, fontSize: 'var(--text-2xs)', lineHeight: 1.5,
+            }}>
+              A blank line starts a new paragraph. A line beginning
+              {' '}<code>- </code> is a bullet, and one beginning
+              {' '}<code>1. </code> is a numbered point — the numbering
+              starts wherever you do.
+            </p>
+          )}
+
           <button
             className="ctl" data-testid="make-slide" disabled={busy}
             onClick={() => { void write(); }}
+            style={{
+              display: 'inline-flex', alignItems: 'center',
+              justifyContent: 'center', gap: 5, fontWeight: 700,
+              /* A PRIMARY ACTION LOOKS LIKE ONE. It is the only thing in
+                 this card that commits anything. */
+              border: `1px solid ${added ? 'var(--ok)' : 'var(--accent)'}`,
+              background: added ? 'transparent' : 'var(--accent-wash)',
+              color: added ? 'var(--ok)' : 'inherit',
+            }}
           >
-            {busy ? 'Drawing\u2026' : deck ? 'Add to this deck' : 'Start a deck'}
+            {busy ? 'Drawing\u2026'
+              : added ? '\u2713 Added to deck'
+                : <><Icon name="plus" size={11} />
+                  {deck ? 'Add to deck' : 'Start a deck'}</>}
           </button>
         </div>
       )}
@@ -277,7 +596,7 @@ export default function SlidesPanel({
             position: 'relative', aspectRatio: '16 / 9',
             borderRadius: 'var(--radius-screen)',
             overflow: 'hidden', background: 'var(--screen-bed)',
-            border: `1px solid ${at >= 0 ? '#3d7fd6' : 'var(--line)'}`,
+            border: `1px solid ${at >= 0 ? 'var(--accent)' : 'var(--line)'}`,
           }}>
             {at >= 0 ? (
               <img alt="" src={`/api/library/${deck.slides[at]!.assetId}`}
