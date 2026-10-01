@@ -1721,6 +1721,26 @@ export function nudgeLyric(
 }
 
 /**
+ * Where this performer's eyes are, as the measurement found them.
+ * [STUDIO-TWO §4, S-6, S-37]
+ *
+ * Written by the worker and by nothing else: this is a MEASUREMENT, and
+ * a field an author could type into would be a number two things
+ * disagree about. Out of range is refused rather than clamped, because a
+ * measurement outside the frame is a broken measurement and storing it
+ * would move a room's horizon off the picture.
+ */
+export function setEyeline(
+  performance: Performance, takeId: string, at: number,
+): void {
+  const target = take(performance, takeId);
+  if (!Number.isFinite(at) || at < 0 || at > 1) {
+    fail(`an eyeline is a fraction of the frame, got ${at}`);
+  }
+  target.eyeline = at;
+}
+
+/**
  * Which part of this take's picture is used.  [MASTER-EDIT §2, §5, §15]
  *
  * The third of the three operations, and deliberately not folded into

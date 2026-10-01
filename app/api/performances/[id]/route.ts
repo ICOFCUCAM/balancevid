@@ -7,7 +7,7 @@ import { acceptBeats, setTempo,
 import type { Phrase } from '../../../../src/domain/lyrics.js';
 import { projectPerformance, covered } from '../../../../src/domain/performance.js';
 import { assertAlignmentInvariants } from '../../../../src/domain/invariants.js';
-import { listJobs } from '../../../../src/store/queue.js';
+import { enqueue, listJobs } from '../../../../src/store/queue.js';
 import {
   auditPerformance, loadPerformance, mutatePerformance,
 } from '../../../../src/store/performances.js';
@@ -58,6 +58,10 @@ export async function GET(_request: Request, { params }: Params): Promise<Respon
 export async function PATCH(request: Request, { params }: Params): Promise<Response> {
   const { id } = await params;
   const body = await request.json().catch(() => ({})) as Record<string, any>;
+
+  /* Set by `use-plate`, enqueued after the document is saved: a job that
+     raced the write would measure a take with no plate on it. */
+  let eyelineWanted: string | null = null;
 
   try {
     const performance = await mutatePerformance(id, (draft) => {
@@ -277,6 +281,20 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
           break;
         case 'use-plate':
           usePlate(draft, body['takeId'], body['plateAssetId'] ?? null);
+          /*
+           * AND MEASURE WHERE THEIR EYES ARE.  [§4, S-6, S-37]
+           *
+           * The first moment both halves exist: the take has been
+           * assembled and the room it was shot in has been measured, so
+           * the two can be differenced. A job rather than this request,
+           * because the web tier never runs ffmpeg (U-23) and attaching
+           * a plate must not wait on a decode.
+           *
+           * Nothing is blocked on it. Until it lands the scene keeps
+           * the horizon its own depth gives it, which is where every
+           * scene stood before the measurement existed.
+           */
+          if (body['plateAssetId']) eyelineWanted = String(body['takeId']);
           break;
         case 'remove-take': removeTake(draft, body['takeId']); break;
         /* Footage, which is a take that nobody performed. [§5, S-29] */
@@ -291,6 +309,13 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
       }
     });
     await auditPerformance(id, { action: `performance.${body['action']}`, detail: body });
+    if (eyelineWanted) {
+      await enqueue({
+        kind: 'measure_eyeline',
+        conversationId: id,
+        payload: { takeId: eyelineWanted },
+      });
+    }
     return json({ performance, timeline: projectPerformance(performance) });
   } catch (error) {
     if (error instanceof PerformanceEditError) return fail(400, error.message);

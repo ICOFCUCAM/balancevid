@@ -567,6 +567,7 @@ function backdropFor(
          address for free, because `hashShot` canonicalises the whole
          shot. A set added to a take re-renders that take. [U-16 §3] */
       ...(take.environment.setId ? { setId: take.environment.setId } : {}),
+      ...(take.eyeline !== undefined ? { eyeline: take.eyeline } : {}),
       plateAssetId: plate.assetId,
       threshold: matteThreshold(plate),
       feather: matteFeather(plate),

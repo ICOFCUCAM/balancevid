@@ -947,6 +947,20 @@ export interface PerformanceTake {
    * for this take, which is why its environment can only be `original`.
    */
   plateAssetId?: AssetId;
+  /**
+   * Where this performer's eyes are, as a fraction of their frame.
+   * [§4, S-6, S-37]
+   *
+   * MEASURED ONCE, FROM THE TAKE AND ITS PLATE, and stored because S-6
+   * rules out doing it per frame: a singer sways, and a backdrop whose
+   * horizon followed them would be a room moving against a person
+   * standing still, which is worse than a room that never moved.
+   *
+   * Absent until the measurement has run, and then the scene keeps the
+   * horizon its own depth gives it, which is where every scene stood
+   * before this existed.
+   */
+  eyeline?: number;
   alignment: Alignment;
   /** Measured by decoding. [U-02] */
   durationSamples: Samples;

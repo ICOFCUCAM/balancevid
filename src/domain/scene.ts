@@ -135,16 +135,40 @@ export function horizonOf(look: SpaceLook): number | null {
  * test can hand it a room that does not exist in the shelf. `sceneFor`
  * below is the version that resolves.
  */
-export function sceneOf(look: SpaceLook, set?: VirtualSet | null): Scene {
-  const horizon = horizonOf(look);
+export function sceneOf(
+  look: SpaceLook, set?: VirtualSet | null,
+  /**
+   * Where the performer's eyes actually are, where that was measured.
+   *
+   * THE MATCH THE BRIEF ASKED FOR, and it moves the ROOM rather than the
+   * person. The horizon in a photograph sits at the height of the lens,
+   * so a person whose eyes are on the drawn horizon is standing in that
+   * room and one whose eyes float above it is standing in front of a
+   * picture of it. Of the two things that could move, the drawn room is
+   * the one nobody recorded.
+   *
+   * Absent until a take has been measured, and then the room keeps the
+   * horizon its own depth gives it — which is where every scene stood
+   * before this existed.
+   */
+  eyeline?: number | null,
+): Scene {
+  const horizon = eyeline ?? horizonOf(look);
   const furniture = set?.furniture ?? [];
   return {
     id: set?.id ?? look.id,
     label: set?.label ?? look.label,
     background: look,
     horizon,
-    floor: floorOf(look),
-    perspective: perspectiveOf(look),
+    /*
+     * AND THE FLOOR FOLLOWS THE HORIZON IT WAS MOVED TO. A room whose
+     * eyeline was matched to the performer and whose floor stayed where
+     * the depth put it would have two horizons — the one the eyes sit
+     * on and the one the ground meets — which is worse than either
+     * alone, because the eye believes the ground.
+     */
+    floor: moved(floorOf(look), horizon),
+    perspective: moved(perspectiveOf(look), horizon),
     depth: look.depth,
     lighting: { glow: look.glow, adjust: set?.light ?? 0 },
     performer: {
@@ -170,14 +194,26 @@ export function sceneOf(look: SpaceLook, set?: VirtualSet | null): Scene {
  * air over a word nobody can see.
  */
 export function sceneFor(
-  { spaceId, setId }: { spaceId?: string; setId?: string },
+  { spaceId, setId, eyeline }: {
+    spaceId?: string; setId?: string; eyeline?: number | null;
+  },
 ): Scene | null {
   const set = setById(setId);
   const roomId = set?.spaceId ?? spaceId;
   if (!roomId) return null;
   try {
-    return sceneOf(lookFor(roomId), set);
+    return sceneOf(lookFor(roomId), set, eyeline);
   } catch {
     return null;
   }
+}
+
+
+/** The same plane, told to meet the wall somewhere else. */
+function moved<T extends { y: number } | { horizon: number } | null>(
+  plane: T, horizon: number | null,
+): T {
+  if (!plane || horizon === null) return plane;
+  if ('y' in plane) return { ...plane, y: horizon };
+  return { ...plane, horizon };
 }

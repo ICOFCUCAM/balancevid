@@ -423,7 +423,10 @@ async function renderPerformanceShot(
        * passes, because those are two jobs on two machines. [D-19]
        */
       const scene = backdrop.kind === 'space'
-        ? sceneFor({ spaceId: backdrop.spaceId, setId: backdrop.setId }) : null;
+        ? sceneFor({
+          spaceId: backdrop.spaceId, setId: backdrop.setId,
+          eyeline: backdrop.eyeline,
+        }) : null;
       /* `sceneFor` answers null for a room nobody drew, where `lookFor`
          threw. A plan naming a space that does not exist is a broken
          plan — `setEnvironment` refuses one at the door — and failing

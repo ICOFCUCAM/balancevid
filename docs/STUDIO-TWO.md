@@ -2932,3 +2932,95 @@ that a gap in the test, the belief was checked directly: ffmpeg drew
 in a filter SCRIPT FILE, not in an inline graph. The conversion guarded
 nothing, so it is gone — the seventh unobservable guard this product has
 deleted rather than written a test around.
+
+## S-37 — The eyeline, and the room moving to meet it
+
+*"Eyeline belongs to the relationship between the performer and the
+scene, not simply to the background image."*
+
+Which is why it is the last of the four and not the first: there was
+nowhere to put it until the scene existed and could state its own
+horizon.
+
+### The match
+
+**The horizon in any photograph sits at the height of the lens.** So a
+person whose eyes are on the drawn horizon is standing in that room, and
+one whose eyes float above it is standing in front of a picture of it.
+
+Of the two things that could move, **the drawn room is the one nobody
+recorded** — so the room moves. `sceneOf` takes an optional measured
+eyeline and puts its horizon there, and the floor and the perspective go
+with it. A room whose eyeline was matched and whose floor stayed where
+the depth put it would have two horizons — the one the eyes sit on and
+the one the ground meets — which is worse than either alone, because the
+eye believes the ground.
+
+### The measurement
+
+Split the way `measurePlate` is: the thinking in `src/domain/eyeline.ts`,
+where a silhouette is a line of code, and the pixels in
+`src/render/eyeline.ts`, which is four lines of filter and no decisions.
+
+A row profile is how much of each row differs from the empty room. The
+crown is the first row with a person in it; the chin is where the
+silhouette steps wider; and the eyes are halfway between — the oldest
+proportion in drawing a face, and true enough of everybody that it beats
+trying to find an eye, which at probe resolution is a few pixels of
+nothing in particular.
+
+**One frame, a second in.** Past a slate, still cheap, and S-6 rules out
+anything per-frame: a singer sways, and a backdrop whose horizon followed
+them would be a room moving against a person standing still.
+
+**Measured when a plate is attached**, which is the first moment both
+halves exist — and as a job, because the web tier never runs ffmpeg
+(U-23) and attaching a plate must not wait on a decode. Nothing is
+blocked on it: until it lands the scene keeps the horizon its depth gives
+it.
+
+**Failing is not a fault.** A take shorter than the probe, a plate that
+will not read, a performer out of frame — all mean no eyeline, and no
+eyeline means the room keeps its own horizon.
+
+### Two things the mutations found
+
+**A collar is not a pair of shoulders.** The chin was found as the first
+row a good deal wider than the head so far, with a comment claiming that
+beat comparing against the row above because *"hair and a collar both
+make a single row jump"*. A mutation swapping the two rules survived —
+and checking why showed the comment was false of **both**: against a
+head of ten with one row of nineteen in it, each rule called that row the
+shoulders and missed the real ones eight rows down. Shoulders are wide
+and **stay** wide, so the step now has to hold for three rows. The
+sentence is true now rather than merely written down.
+
+**A fixture that tested nothing.** The speckle test put a stray value of
+`Math.floor(100 * 0.015) - 1` in a row — which is zero. A mutation
+removing the floor entirely changed nothing and survived. The fixture now
+uses one pixel in a hundred, which is above zero and below the floor,
+which is what the test was always supposed to say.
+
+### And one comment corrected rather than defended
+
+The filter thresholds before it shrinks, and the comment said it had to,
+or *"a dark shirt against a dark wall would vanish before it was
+compared"*. A mutation swapping the order survived — because an area
+average of a **uniform** difference is that same difference, so for solid
+shapes, which is what a person mostly is, the order cannot matter. It
+would matter for detail finer than the shrink, and nothing tests that, so
+the comment no longer claims it. The order is kept because it is the
+matte's own.
+
+### The sequence is complete
+
+| | |
+|---|---|
+| S-33 | depth, floor, defocus |
+| S-34a | perspective |
+| S-35 | the scene, told once |
+| S-36 | Studio Two names a set and draws its furniture |
+| S-37 | the eyeline, and the room moving to meet it |
+
+**S-34 is untouched throughout**: no `VideoBackground` model, no duration
+policy, no `allowedContexts`, no loop-or-hold rule, no renderer change.

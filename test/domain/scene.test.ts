@@ -219,3 +219,58 @@ describe('a take can name a set', () => {
     expect(Object.keys(scene.performer.positions).length).toBeGreaterThan(0);
   });
 });
+
+/**
+ * And the match the whole sequence was for.
+ * [Doctrine STUDIO-TWO §4, S-6, S-35]
+ *
+ * The horizon in any photograph sits at the height of the lens, so a
+ * person whose eyes are on the drawn horizon is standing in that room,
+ * and one whose eyes float above it is standing in front of a picture of
+ * it. Of the two things that could move, **the drawn room is the one
+ * nobody recorded** — so the room moves.
+ */
+describe('matching the room to the person in it', () => {
+  const room = SPACE_LOOKS['church']!;
+
+  it('keeps its own horizon until a take has been measured', () => {
+    /* Where every scene stood before this existed. */
+    expect(sceneOf(room).horizon).toBe(horizonOf(room));
+    expect(sceneOf(room, null, null).horizon).toBe(horizonOf(room));
+  });
+
+  it('moves the horizon to the eyes once it has', () => {
+    expect(sceneOf(room, null, 0.41).horizon).toBe(0.41);
+    expect(sceneOf(room, null, 0.41).performer.eyeline).toBe(0.41);
+  });
+
+  it('brings the floor with it', () => {
+    /*
+     * A room whose eyeline was matched and whose floor stayed where the
+     * depth put it would have TWO horizons — the one the eyes sit on
+     * and the one the ground meets — which is worse than either alone,
+     * because the eye believes the ground.
+     */
+    const matched = sceneOf(room, null, 0.41);
+    expect(matched.floor!.y).toBe(0.41);
+    expect(matched.perspective!.horizon).toBe(0.41);
+  });
+
+  it('keeps the floor’s own colours while moving it', () => {
+    /* Moved, not rebuilt: the same floor, meeting the wall elsewhere. */
+    const was = sceneOf(room).floor!;
+    const now = sceneOf(room, null, 0.41).floor!;
+    expect(now.from).toBe(was.from);
+    expect(now.to).toBe(was.to);
+  });
+
+  it('moves where a person stands along with it', () => {
+    const high = sceneOf(room, null, 0.3);
+    const low = sceneOf(room, null, 0.8);
+    expect(high.performer.standsAt).toBeLessThan(low.performer.standsAt);
+  });
+
+  it('resolves one from the ids a document stores', () => {
+    expect(sceneFor({ spaceId: 'church', eyeline: 0.44 })!.horizon).toBe(0.44);
+  });
+});

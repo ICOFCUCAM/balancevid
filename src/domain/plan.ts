@@ -266,6 +266,13 @@ export interface PerformanceBackdrop {
   assetId?: AssetId;
   /** For `space`: a set standing in that room, with its own furniture. */
   setId?: string;
+  /**
+   * Where this performer's eyes are, where that was measured.
+   *
+   * On the BACKDROP rather than beside it, because it is the thing the
+   * backdrop is drawn around: the room's horizon moves to meet it. [S-37]
+   */
+  eyeline?: number;
   /** The still of the empty room this take is differenced against. */
   plateAssetId: AssetId;
   /** 0..255 on the difference, measured from the plate's own noise. */
