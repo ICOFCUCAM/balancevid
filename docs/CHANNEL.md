@@ -3388,3 +3388,167 @@ One repo rule caught me again: a background swatch stands for the
 slide's own canvas, so it is rounded like a screen and not like a
 control. The console says which object a thing is in one token, and it
 was right.
+
+---
+
+## C-27 — Stage 27: the tally was lying, and its own comment said so
+
+*"I would preserve the exact Multi-View shape and 2×3 grid… The
+professional upgrade is therefore mostly visual hierarchy + tally +
+audio state + meaningful empty states, not adding more controls."*
+
+The geometry did not move. `repeat(3, minmax(0, 1fr))` by
+`repeat(2, …)`, six numbered sources, the same header, the same box.
+Everything below happens inside it.
+
+### The finding: roll a film in, and two tiles were wrong at once
+
+`whatIsOn` answers `kind: 'live'` with **the rolled-in source** while a
+reference plays over the room — `channel.ts` says so in its own words:
+*"A segment rolled into the live show is what goes out while it is
+up"*. The grid read the **kind** and not the **source**, so:
+
+* **CAMERA 1 wore the program tally** while a film covered it — a red
+  bar on a picture nobody could see;
+* **the film's own tile stayed dark** — the thing actually on the wire,
+  reported as not on air;
+* **every guest quarter wore a red tally under the music video**.
+
+That last one is the part worth pausing on. The condition sat under
+this comment, which has been in the file since the guests tile was
+written:
+
+> *"a rolled-in file is going out over the top of them, and a quarter
+> wearing a red tally under a music video would be the tally lying"*
+
+The rule was right from the first day. The line underneath it
+(`transmitting: on.kind === 'live'`) never implemented it. A correct
+comment above an incorrect line is the hardest kind of bug to see,
+because reading the file tells you it is already handled.
+
+### One question, asked of the source
+
+`src/domain/multiView.ts` is pure and tested, like `identity.ts` and
+`guestGrid.ts`, because "is the room on air while a film is rolled in"
+is a question about two values and answering it inside a component is
+answering it where nobody can test it.
+
+    busFor({ on, mine, cued, keyed })  →  'program' | 'preview' | 'key' | null
+
+A tile is on PROGRAM when **it is what is going out**, compared against
+`whatIsOn` — the same function the playout engine uses, so the tally
+cannot disagree with the transmitter. [D-22] All six tiles ask it; the
+grid used to ask three different questions and got two of them wrong.
+
+### Three buses, three colours
+
+| | | |
+|---|---|---|
+| **PROGRAM** | red, 3px | this is what the audience can see |
+| **PREVIEW** | blue, 2px | this is cued to go next |
+| **KEY** | amber, 2px | this is drawn over whoever is on program |
+
+The grid had two of these and used **blue for both the second and the
+third**. A gallery wall where blue means two things is one an operator
+cannot read: "next" and "over the top" are different claims. The keyer
+takes the house's third state colour, and the bar's thickness ranks
+them — program is thickest because it is the only one already out of
+the building.
+
+A keyer is still deliberately not PROGRAM. The identity layer never has
+the air to itself, and giving it the program tally put two red bars in
+a grid whose entire job is to say which single thing is on.
+
+### The header is the grid's own proof — and the first version of it was wrong
+
+`N in mix` is a fact about the audio mixer and said nothing about the
+tally beside it. It sat above three tiles wearing the program bar and
+agreed with none of them.
+
+`PROGRAM` counts tiles on the program bus, deduplicated by source
+because CAMERA 1 and GUESTS are two monitors of one room. **It can only
+ever read 0 or 1**, which is the point: it would read 2 the moment the
+tally started lying again, in the place an operator is already looking.
+
+And by itself it swapped one misreading for another. Rolling a Library
+item in over a live show puts a picture on the wire that **none of the
+six tiles stands for** — the count correctly reads 0, which anybody
+glancing at a transmitting channel would read as *nothing is on air*.
+`ON AIR` is the other half. Together they say the thing that is
+actually true: something is going out, and it is not one of these six.
+Found by rolling one in and reading the header.
+
+### Standby, instead of six dead black panels
+
+*"Give `Studio One`, `Media Player` and `Graphics` purposeful standby
+states instead of dead black panels."*
+
+A black rectangle is the one thing a rack must never be: a source with
+nothing in it and a source that has failed look identical, and the only
+way to tell them apart was to click. Every empty tile now says what it
+is waiting for, in **three or four words** — a tile is about a hundred
+pixels wide, and the first version wrote sentences that ran under the
+name plate. The sentence is on the tooltip, where there is room.
+
+The sub-line says **what the input is**; the standby says **why it is
+empty**. Both saying "nothing finished" was one fact twice in a
+hundred-pixel box — also found by looking at it.
+
+And absent is not dressed as a fault. Studio One with nothing finished
+in it is a tile correctly reporting that there is nothing there; it is
+drawn in the dim ink that means *absent*, not the red that means
+*broken*. [D-04]
+
+### Six words, and one of them is new
+
+`LIVE / PREVIEW / KEY / NO SIGNAL / READY / —`. **NO SIGNAL outranks
+READY**, because a tile offering a cut to a dead input is the tally
+lying in its quietest form. It applies only where the question applies:
+a tile standing for a file on disk has no signal to lose, which is why
+`signal` is `undefined` rather than `true` on four of the six.
+
+### Audio, where it is really measured
+
+Four segments, no numbers: the question an operator asks of a
+multi-view is *is that microphone alive*, not *how many dB*.
+
+**Only on tiles 01 and 02.** The host's own level has been measured by
+`useFeedLevels` since it was written and tile 01 never asked for it —
+the same finding C-14 made about the guests. [D-19]
+
+**And not on 03, 04 or 05, which the request asked for.** Those tiles
+stand for files whose audio is in the playout engine, and the web tier
+cannot hear it — the same wall `health.ts` describes between the two
+processes. [§11, D-20] A bar fed from the master mix would be the
+room's level with a film's name on it, and a meter reading zero for an
+unmeasurable source is worse than no meter, because it says *silence*.
+Not measured is not the same as silent.
+
+### Studio Two, named
+
+Its sub-line was `'Music Video'` — a placeholder standing where the
+thing's own title belongs. A rack whose third input is labelled with a
+genre is a rack an operator cannot call a cut from.
+
+### The record
+
+Fourteen assertions, eight mutations, all eight caught — the first of
+them being the original bug put back (`return on.kind === 'live'`),
+which fails one test by name.
+
+One mutation survived and the **fixture** was at fault, not the code:
+counting every lit tile instead of every program tile passed, because
+no fixture had a preview bus and a program bus on the grid at the same
+time. *"A fixture must contain a value for which the mutated behaviour
+produces a different observable result."* The grid now has one of
+everything on it.
+
+One mutation was discarded rather than counted: reading `on.source`
+without checking the kind is not a mutation, because `off` has no
+`source` and the change does not compile.
+
+Verified against the author's real channel in a browser, through the
+whole sequence — off air, armed, room on program, a reference rolled in
+over it, and back to the room — reading `data-bus` and `data-says` off
+all six tiles at every step. The channel document was backed up before
+and restored to the byte after.
