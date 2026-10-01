@@ -349,3 +349,114 @@ export function placedFor(
   }
   return out;
 }
+
+/* ------------------------------------------------------------------------ *
+ *  The ground, in the pixels of one frame.  [S-41]
+ * ------------------------------------------------------------------------ */
+
+/**
+ * Where a renderer puts the floor and the light running away down it.
+ *
+ * THE THIRD RENDERER IS WHY THIS EXISTS. `floorOf` and `perspectiveOf`
+ * answer in fractions of the frame, which is right — a set works at
+ * 1280×720 and at whatever an export asks for. Turning those fractions
+ * into the strip of pixels a renderer actually fills was written once,
+ * inside the ffmpeg chain, and the live canvas and the live shader were
+ * both about to write it again. Three copies of one piece of arithmetic
+ * is three chances to disagree about where the floor is, and the one
+ * thing a floor must do is be in the same place in every picture of the
+ * same room.
+ *
+ * AND IT READS THE SCENE, NOT THE ROOM, which is the bug that made this
+ * worth doing rather than merely tidy. `sceneOf` moves the floor to a
+ * measured eyeline — the whole point of S-37, so a performer's eyes sit
+ * on the drawn horizon — and the chain called `floorOf(look)` for
+ * itself and drew the floor back where the room's own depth had put it.
+ * Concert Stage with an eyeline of 0.40 measured had its horizon moved
+ * to 0.40 and its floor rendered at 0.86, every time. The measurement
+ * was taken, stored, planned with, and thrown away one call from the
+ * pixels.
+ */
+export interface GroundPlan {
+  /** The top of the floor strip, in pixels down the frame. */
+  top: number;
+  /** How deep the strip is, in pixels. Never zero. */
+  deep: number;
+  /** Its colour where it meets the wall, and underfoot. */
+  from: string;
+  to: string;
+  /**
+   * The light running away to a point, or nothing.
+   *
+   * Null only where the room declares a floor and no perspective, which
+   * `perspectiveOf` never does today — it is kept separate because the
+   * two are separate questions and a room could answer one and not the
+   * other.
+   */
+  vanish: {
+    /** The point the floor runs to, in pixels. On the horizon. */
+    at: { x: number; y: number };
+    /**
+     * The corner the light has fallen off to by.
+     *
+     * The near-left corner of the strip: closest to the lens and
+     * furthest from the point. It is here rather than a radius because
+     * that is the shape of the question — a gradient runs from
+     * somewhere to somewhere — and because the ffmpeg side states both
+     * ends and derives the radius itself.
+     */
+    faded: { x: number; y: number };
+    /** How strongly it is screened on, 0..1. */
+    converge: number;
+  } | null;
+}
+
+/** How far the light reaches: the distance between the plan's two points. */
+export function reachOf(vanish: NonNullable<GroundPlan['vanish']>): number {
+  return Math.hypot(vanish.at.x - vanish.faded.x, vanish.at.y - vanish.faded.y);
+}
+
+/**
+ * This scene's floor, in the pixels of a frame this size.
+ *
+ * Null where the scene has no ground — a sea line is a horizon and not
+ * a plane, and six of the eleven rooms derive one only because `floorOf`
+ * gives them one.
+ *
+ * ROUNDED HERE AND NOWHERE ELSE. A filter graph wants integers and a
+ * canvas does not care, so rounding once in the shared answer is what
+ * stops the two renderers landing a pixel apart on the same horizon.
+ */
+export function groundPlan(
+  scene: Scene, width: number, height: number,
+): GroundPlan | null {
+  const ground = scene.floor;
+  if (!ground) return null;
+  const top = Math.round(ground.y * height);
+  /* A floor that starts at the very bottom edge is no floor; one pixel
+     is the least a gradient can be drawn in, and a renderer handed zero
+     would be handed an empty picture to blend against. */
+  const deep = Math.max(1, height - top);
+  /*
+   * THE SCENE'S PERSPECTIVE, AND A MUTATION THAT SURVIVES SAYING SO.
+   *
+   * Swapping this for `perspectiveOf(scene.background)` changes
+   * nothing any test can see, and the honest reason is better than a
+   * test invented to defend it: of the three fields a perspective
+   * has, the scene moves only the HORIZON, and this reads the other
+   * two. Where the ground meets the wall has already been answered by
+   * the floor above, which is the same number and moved the same way.
+   *
+   * It stays as the scene's because reading the room here is the
+   * exact bug this function was written to end, one field along.
+   */
+  const view = scene.perspective;
+  return {
+    top, deep, from: ground.from, to: ground.to,
+    vanish: view ? {
+      at: { x: Math.round(view.vanishX * width), y: 0 },
+      faded: { x: 0, y: deep },
+      converge: view.converge,
+    } : null,
+  };
+}

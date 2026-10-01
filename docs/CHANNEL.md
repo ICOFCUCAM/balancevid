@@ -2816,3 +2816,48 @@ black.
 * **The audio treatment (C-16) and the server-side compositor (C-17)**
   are still owed in the same render path, as C-18 said.
 * **A screen in a set shows nothing.**
+
+## C-22 — Stage 22: the air and the export, measured against each other
+
+Studio Two's record carries this as **S-41**; what it did to the control
+room belongs here.
+
+**The live compositor drew the room upside down.** `v.y` is zero at the
+bottom of what a viewer sees, and every number a `SpaceLook` states is a
+fraction DOWN the frame. Concert Stage's stage lip ran across the
+ceiling and its lighting rig sat on the floor, on every channel, since
+the shader was written. Modern Room came off the ffmpeg chain at 210 at
+the top and 90 at the bottom, and off the shader at 85 and 164.
+
+**Its pool of light was an ellipse.** A distance taken in uv is a
+distance in a square, so on a 16:9 frame the lamp came out half again as
+wide as it was tall. Measured: the same pool read a half-width of 0.250
+across and 0.250 down in fractions of the frame, where a circle on 16:9
+reads 0.5625 of its vertical span. It now reads 0.62.
+
+**And the first frame of every plate-keyed broadcast had no matte.**
+`upload` asked for its texture before choosing a texture unit, and
+creating a texture binds it — so the plate landed on unit 0 as well as
+unit 1, and the difference matte differenced the plate against itself.
+It corrects itself on the second frame, which is why nobody reported it.
+
+**`paintSet` now resolves placements.** S-40 put `placedFor` in the
+domain and said the canvas renderer could call it the moment it took up
+grounding. It does. At 16:9 — every control room today — it returns
+every piece exactly as authored, so nothing moves until somebody
+broadcasts in a shape the sets were not drawn for.
+
+### Still owed, and this adds one
+
+* **A person composited onto a virtual set gets no wrap and no contact
+  shadow.** The set is the studio, drawn once for the whole frame, so
+  each person comes back from the shader as a cutout with an alpha and
+  the 2D canvas composites them. The shader cannot reach the pixels
+  behind them to darken or to sample. A participant's own drawn room
+  gets both; a set gets neither.
+* **The light pool's radius still differs between the chain and the two
+  live surfaces.** The chain measures it to the bottom-right corner of
+  the frame, which turns a lamp low on the right into a pinpoint; both
+  live surfaces use a fixed 0.62 of the longer side. The two live
+  surfaces now agree with each other. Which of the two is wanted is a
+  decision about how a room should look, not a defect.

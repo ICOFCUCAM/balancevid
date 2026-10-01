@@ -3321,3 +3321,150 @@ the sweep, not for the assertion count.
 moment it takes up grounding. It is not called there yet, and that is
 not a gap for the control room: Online TV is 16:9, where the resolver
 returns every piece exactly as authored.
+
+## S-41 — The live path becomes a consumer of the scene
+
+*"The live compositor simply needs to become a consumer of the shared
+semantics when grounding is taken up."*
+
+S-35 built one scene description and S-38 drew the line under it: *"the
+objective is shared scene truth, not shared rendering implementation."*
+Studio Two's ffmpeg chain has read that description since. The two live
+surfaces — the WebGL compositor that puts a participant in a drawn room,
+and the 2D canvas that draws the station's own set sixty times a second
+into the stream the encoder is taking — read the raw `SpaceLook` and
+drew five of the eight things a scene is.
+
+### What the measurement found
+
+Three renderers, one room, rendered side by side at 1280×720 and read
+back off the pixels. Four findings, and only the first one was the
+feature:
+
+**One. The eyeline was measured and never drawn.** `sceneOf` moves the
+room's horizon to where a performer's eyes actually are — the whole of
+S-37, because a person whose eyes sit on the drawn horizon is standing
+in that room and one whose eyes float above it is standing in front of a
+picture of it. `backdropChain` then called `floorOf(look)` for itself
+and drew the floor back where the room's own depth had put it. Concert
+Stage with an eyeline of 0.40 measured rendered its horizon at 0.86, in
+every frame ever exported. The measurement was taken, stored, planned
+with, and thrown away one call from the pixels.
+
+**Two. The live shader drew the room upside down.** `v.y` is zero at the
+bottom of what a viewer sees; every number a room states is a fraction
+DOWN the frame. Concert Stage's stage lip was across the ceiling and its
+lighting rig was on the floor. Modern Room came off the chain at 210 at
+the top and 90 at the bottom, and off the shader at 85 and 164. It
+survived because a wash flipped is still a wash and a centred vignette
+is symmetrical: the only parts of a drawn room that say which way is up
+are the band and the glow.
+
+**Three. The pool of light was an ellipse.** A distance taken in uv is a
+distance in a square, so on a 16:9 frame the light pool came out half
+again as wide as it was tall — a window-shaped lamp in every room, where
+the thumbnail beside it and the export behind it both draw a circle.
+
+**Four. The first frame of every plate-keyed broadcast had no matte.**
+`upload` asked for its texture before choosing a texture unit, and
+creating a texture binds it — so uploading the take to unit 0 and the
+plate to unit 1 left the plate bound to unit 0 as well, on the one frame
+where both were new. The difference matte differenced the plate against
+itself and came back empty. It corrects itself from the second frame,
+which is why nobody reported it and everybody saw it.
+
+Numbers one and four are faults in shipped behaviour. Two and three are
+faults nobody could name while there was nothing to compare against;
+putting the three renderers side by side is what made them sayable.
+
+### `groundPlan`, and why the arithmetic moved
+
+`floorOf` and `perspectiveOf` answer in fractions of the frame, which is
+right: a set works at 1280×720 and at whatever an export asks for.
+Turning those fractions into the strip of pixels a renderer fills was
+written once, inside the ffmpeg chain, and the canvas and the shader
+were both about to write it again. Three copies of one piece of
+arithmetic is three chances to disagree about where the floor is, and
+the one thing a floor must do is be in the same place in every picture
+of the same room.
+
+`groundPlan(scene, width, height)` is the shared answer: the top of the
+strip, how deep it is, its two colours, and the point the light runs
+away to with the corner it has fallen off by. Rounded once, there, so
+the two renderers cannot land a pixel apart on the same horizon. It
+reads the SCENE, which is finding one above.
+
+This is still not shared rendering. The chain fills the strip with
+`gradients`, the canvas with `createLinearGradient` and the shader with
+a `mix`, because those are three different machines. What none of them
+does any more is work out where the strip goes.
+
+### What the live path gained
+
+The room: the floor, the perspective and the defocus, in both live
+renderers.
+
+The defocus is translated rather than copied, and the comment says so.
+The chain blurs the whole backdrop before the vignette and the grain. On
+an analytic picture that blur lands nowhere except on the two drawn
+edges — a wash has no detail to lose — so the shader softens those edges
+with a `smoothstep` the width of the blur, and the canvas draws the room
+on a slate and blits it back through a real `filter: blur()`, grown by
+three sigma on every side so the blur's own faded border falls outside
+the frame.
+
+The performer: the light wrap and the contact shadow, which the export
+has had since S-6 and the air had neither of. Present exactly where
+`matteChain` has them — a drawn space, never an original or a blur,
+whose own room is already lighting them correctly. The softening is a
+weighted two-ring sample rather than a separable gaussian, which is two
+framebuffers and two draws saved per person per frame, and is honest for
+the two things it is used on: a contact shadow is a presence rather than
+a shape, and a light wrap is the room's colour averaged over most of a
+shoulder. Neither has detail a better blur would preserve.
+
+And `paintSet` calls `placedFor`, which S-40 left in the domain waiting
+for exactly this.
+
+### What the live path still has not got
+
+A person composited onto a VIRTUAL SET comes back from the shader as a
+cutout with an alpha, because the set is the studio and is drawn once
+for the whole frame rather than four times in four panels. The 2D canvas
+owns that composite, and the shader cannot reach the pixels behind them
+to darken or to sample. Wrap and shadow therefore apply to a
+participant's own drawn room and not to a set. That is a gap, it is
+named here, and it is not covered by pretending otherwise.
+
+The light pool's RADIUS still differs between the chain and the two live
+surfaces: the chain measures it to the bottom-right corner of the frame,
+which makes a lamp low on the right into a pinpoint, and both live
+surfaces use a fixed 0.62 of the longer side. The two live surfaces now
+agree with each other. Which of the two is wanted is a decision about
+how a room should look, not a defect, so it is reported rather than
+taken.
+
+### The record
+
+Ten assertions on `groundPlan` and the chain it feeds. Ten mutations,
+nine caught; the tenth — reading `perspectiveOf(scene.background)`
+instead of `scene.perspective` — cannot be caught, because of the three
+fields a perspective has the scene moves only the horizon and the plan
+reads the other two. That is written into the code beside the line
+rather than defended with a test that proves nothing.
+
+One fixture had to be sharpened again. *"A floor at the very bottom
+edge"* was written at `y: 0.999`, which rounds to 719 of 720 and leaves
+a strip one pixel deep — so the guard against a strip of nothing and its
+absence agreed, and the mutation survived. At `y: 1` the strip rounds to
+zero, and the guard is worth having because the renderers disagree about
+it: ffmpeg is asked for a gradient of `1280x0` and the export fails
+outright, while the shader skips a floor of no depth and draws on.
+
+All eleven rooms render byte-identical through the chain with no eyeline
+measured, which is the proof that moving the arithmetic moved nothing
+else.
+
+**S-34's video capability remains untouched.** No `VideoBackground`, no
+duration policy, no `allowedContexts`, no loop-or-hold rule, no renderer
+change.

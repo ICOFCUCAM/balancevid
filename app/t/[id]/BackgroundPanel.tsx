@@ -11,6 +11,7 @@ import {
   drawable, whyNoBackdrop,
 } from '../../../src/domain/composition.js';
 import { SPACES_ARE_DRAWN, SPACE_LOOKS } from '../../../src/domain/environment.js';
+import { sceneOf } from '../../../src/domain/scene.js';
 import {
   type VirtualSet, VIRTUAL_SETS, holds, setById,
 } from '../../../src/domain/virtualSet.js';
@@ -51,6 +52,9 @@ function SpaceThumb({ spaceId, width = 92, height = 52 }: {
     const look = SPACE_LOOKS[spaceId];
     const paper = ref.current?.getContext('2d');
     if (!look || !paper) return;
+    /* The room with nothing standing in it: a swatch is the place, and
+       the furniture belongs to a set rather than to a space. [S-41] */
+    const scene = sceneOf(look);
     /*
      * At the device's own resolution: a 92×52 canvas upscaled on a
      * retina screen is a blurred thumbnail of a picture that is about
@@ -59,7 +63,7 @@ function SpaceThumb({ spaceId, width = 92, height = 52 }: {
     const ratio = Math.min(3, window.devicePixelRatio || 1);
     ref.current!.width = Math.round(width * ratio);
     ref.current!.height = Math.round(height * ratio);
-    paintSpace(paper, look, ref.current!.width, ref.current!.height);
+    paintSpace(paper, scene, ref.current!.width, ref.current!.height);
   }, [spaceId, width, height]);
   return (
     <canvas ref={ref} aria-hidden="true" data-testid="space-thumb"
