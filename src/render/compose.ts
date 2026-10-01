@@ -24,6 +24,7 @@ import { LAYOUTS, type Rect } from '../domain/presentation.js';
 import {
   type EffectLook, SUPPLIED_GROUNDING, groundingFor, lookFor,
 } from '../domain/environment.js';
+import { sceneFor } from '../domain/scene.js';
 import { mixExpression, transitionFor } from '../domain/transitions.js';
 import {
   backdropChain, blurBackdropChain, matteChain, seedFor,
@@ -408,6 +409,29 @@ async function renderPerformanceShot(
       const plate = `pl${index}`;
       const behind = `bd${index}`;
       const composed = `m${index}`;
+      /*
+       * THE SCENE, RESOLVED ONCE.  [S-34]
+       *
+       * The room's wash, its floor, its perspective, its depth, where a
+       * person belongs in it and what stands in front of them — one
+       * description, read here and by the control room's canvas, rather
+       * than each surface looking the room up for itself and agreeing
+       * by habit.
+       *
+       * This is shared TRUTH and not shared rendering: the chain below
+       * is still ffmpeg filters and the control room is still 2D
+       * passes, because those are two jobs on two machines. [D-19]
+       */
+      const scene = backdrop.kind === 'space'
+        ? sceneFor({ spaceId: backdrop.spaceId }) : null;
+      /* `sceneFor` answers null for a room nobody drew, where `lookFor`
+         threw. A plan naming a space that does not exist is a broken
+         plan — `setEnvironment` refuses one at the door — and failing
+         here rather than rendering a grey rectangle is the behaviour
+         this path has always had. [INV-16] */
+      if (backdrop.kind === 'space' && !scene) {
+        throw new Error(`unknown space: ${backdrop.spaceId}`);
+      }
 
       if (backdrop.kind === 'blur') {
         // Their own room, softened: the same picture twice, one copy out of
@@ -417,7 +441,7 @@ async function renderPerformanceShot(
       } else if (backdrop.kind === 'space') {
         filters.push(`[${fitted}]format=gbrp[${keyable}]`);
         filters.push(...backdropChain(
-          lookFor(backdrop.spaceId), box.w, box.h, fps, seconds, behind));
+          scene!.background, box.w, box.h, fps, seconds, behind));
       } else {
         filters.push(`[${fitted}]format=gbrp[${keyable}]`);
         const own = still(backdrop.assetId as AssetId);
@@ -465,8 +489,8 @@ async function renderPerformanceShot(
        * that was never wrong. Adding a second shadow to a real one is
        * how a correction becomes an effect.
        */
-      const ground = backdrop.kind === 'space'
-        ? groundingFor(lookFor(backdrop.spaceId))
+      const ground = backdrop.kind === 'space' && scene
+        ? groundingFor(scene!.background)
         : backdrop.kind === 'blur' ? undefined : SUPPLIED_GROUNDING;
       filters.push(...matteChain({
         fg: keyable, plate, backdrop: behind, out: composed,

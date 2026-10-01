@@ -2790,3 +2790,92 @@ Setting `converge` to zero fails it.
 * **§5 and §6.** Take offers no background at all — neither the uploads
   it must not have nor the destination's approved list it should. No
   production context decides what an environment may be.
+
+## S-35 — One scene, told once
+
+*"The correct next step is not to build another Scene system. It is to
+finish the one that already exists by unifying the missing pieces
+between SPACE_LOOKS and VIRTUAL_SETS."*
+
+### What was joined
+
+`src/domain/scene.ts` is the shared scene **truth**. It imports
+`environment.ts` and `virtualSet.ts`, and neither imports it — which is
+the whole reason it is its own file, because `virtualSet.ts` already
+reads `environment.ts` for the room behind a set and putting the join in
+either would be a cycle.
+
+| Scene | came from |
+|---|---|
+| background, horizon, floor plane, perspective, depth, lighting | `SpaceLook` |
+| performer zone, foreground elements | `VirtualSet` |
+
+**Nothing renders here.** The server chain still draws a space with
+ffmpeg filters and the canvas still draws a set with 2D passes, because
+those are two different jobs on two different machines and merging them
+would be a rewrite in exchange for nothing. Shared truth, not shared
+rendering — kept as the brief put it, and `compose.ts` still owns its
+own filter graph exactly as before.
+
+### Two things the join had to decide
+
+**The horizon is both kinds of band.** `floorOf` answers null for a band
+that is a horizon LINE rather than the ground — Beach's sea line —
+because there is no floor plane to draw there. There is still a horizon,
+and the eyeline depends on it, so `horizonOf` asks the question the
+other way round: the band first, the derived floor second.
+
+**The eyeline is the horizon, and that is not a coincidence.** The
+horizon in any photograph sits at the height of the lens, so a person of
+roughly the camera operator's height has their eyes ON it. It is the
+oldest rule in staging a shot, it needs no new data, and it is the
+reference the eyeline measurement will compare a real take against. The
+performer zone carries it now, so that work has somewhere to land.
+
+`standsAt` is deliberately NOT the horizon: at the horizon a person is
+pressed against the back wall. Halfway down the visible floor is where
+somebody stands in a room.
+
+### What Studio Two gained
+
+`compose.ts` resolves the scene once and reads the room from it, instead
+of looking the room up twice for itself — once for the backdrop and once
+for the grounding — and agreeing by habit. One description, read by the
+server renderer and available to the canvas one.
+
+`sceneFor` answers null for a room nobody drew, where `lookFor` threw, so
+the render path keeps its old failure explicitly: a plan naming a space
+that does not exist is a broken plan, and failing is better than a grey
+rectangle. An unknown SET is no set rather than an error, because
+`setIdentity` already refuses to store one and refusing twice would take
+a channel off the air over a word nobody can see.
+
+### Measured
+
+Eighteen assertions and seven mutations, all seven caught — after the
+first sweep included one that was a no-op (`if (x && undefined)`) and
+proved nothing, which is worth recording: a mutation that cannot change
+behaviour is not evidence of a test, it is evidence of a careless
+mutation.
+
+The sharpest assertions are the ones that check the join changed
+nothing: a set still answers the room's questions about the room, and a
+plain room still has no opinion about head counts.
+
+### Still owed, in the locked order
+
+1. **Studio Two cannot yet NAME a set.** Its environment is
+   `{kind: 'space', spaceId}` with nowhere to put a `setId`, so
+   `scene.foreground` is always empty there. The scene can carry the
+   desk; the document cannot yet ask for one. **No renderer code was
+   written for furniture Studio Two cannot request** — that door opens
+   first, then the drawing follows it.
+2. **The eyeline measurement.** Where a person's eyes sit in their own
+   frame, measured once from the take in the shape `measurePlate`
+   already uses, and compared against the scene's eyeline. Not a
+   per-frame estimate, which S-6 rules out.
+3. **Three planes, not one.** The defocus still treats the backdrop as a
+   single plane.
+
+And **S-34 stays where it is**: no `VideoBackground` model, no duration
+policy, no `allowedContexts`, no loop-or-hold rule, no renderer change.
