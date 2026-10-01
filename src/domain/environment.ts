@@ -316,6 +316,105 @@ export function lookFor(spaceId: string | undefined): SpaceLook {
   return look;
 }
 
+/* ------------------------------------------------------------------------ *
+ *  Standing in the room, rather than in front of a picture of it.
+ *  [STUDIO-TWO §4, S-6; D-19, U-16]
+ * ------------------------------------------------------------------------ */
+
+/**
+ * WHY A GOOD MATTE STILL LOOKS PASTED ON.
+ *
+ * The matte was never the problem. It is differenced against the room's own
+ * measured noise, eroded, dilated twice and feathered, and the edge it
+ * produces is clean. A clean edge is exactly what makes the composite look
+ * wrong: nothing in a real room has one.
+ *
+ * TWO THINGS ARE MISSING AND BOTH ARE ABOUT LIGHT.
+ *
+ *   A person in a room is LIT BY THAT ROOM. Some of the wall's colour lands
+ *     on the edge of their shoulder and their hair — that is what a camera
+ *     records, and a cut-out has none of it, so their outline stays the
+ *     colour of the room they were actually standing in. This is the single
+ *     biggest reason a composite reads as a sticker.
+ *   A person in a room STANDS ON SOMETHING. With no shadow they float, and
+ *     the eye reads floating as fake long before it can say why.
+ *
+ * NEITHER IS A NEW CONTROL, AND THAT IS THE POINT. A "light wrap" slider is
+ * a thing the operator has to understand, get wrong, and be blamed for. The
+ * room already declares where its light is and how strong — `glow` — and how
+ * bright its walls are. Everything below is DERIVED from that, so choosing
+ * Concert Stage gets a concert stage's wrap and a concert stage's shadow
+ * without anybody being asked a question about compositing.
+ *
+ * DERIVED RATHER THAN STORED, so it is deterministic and the shot cache
+ * still means what it says, and so a space added tomorrow is grounded
+ * correctly by existing. [U-16, D-19]
+ */
+export interface Grounding {
+  /** 0..1 — how much of the room's own colour lands on their edge. */
+  wrap: number;
+  /** 0..1 — how dark the contact shadow is under them. */
+  shadow: number;
+  /** Where the shadow falls, as a fraction of the frame. Away from the light. */
+  shadowX: number;
+  shadowY: number;
+  /** How soft it is, as a fraction of the frame's smaller side. */
+  shadowBlur: number;
+}
+
+/** 0..1 for a `0xrrggbb`, by the usual luma weights. */
+export function brightnessOf(hex: string): number {
+  const n = Number.parseInt(hex.replace(/^0x/i, ''), 16);
+  if (!Number.isFinite(n)) return 0.5;
+  const r = ((n >> 16) & 255) / 255;
+  const g = ((n >> 8) & 255) / 255;
+  const b = (n & 255) / 255;
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+export function groundingFor(look: SpaceLook): Grounding {
+  /* The walls and the light pool together: a dark stage with one hard
+     spotlight throws less colour than a white room with a window. */
+  const walls = (brightnessOf(look.top) + brightnessOf(look.bottom)) / 2;
+  const lit = 0.5 * look.glow.strength + 0.5 * walls;
+
+  /*
+   * A CEILING ON BOTH, because this is a correction and not an effect.
+   * Wrap past about a third starts eating the performer's own edge, and a
+   * shadow past about half is a second person on the floor.
+   */
+  const wrap = Math.min(0.34, Math.max(0.08, 0.10 + 0.30 * lit));
+  const shadow = Math.min(0.48, Math.max(0.12, 0.14 + 0.34 * look.glow.strength));
+
+  /*
+   * AND IT FALLS AWAY FROM THE LIGHT. The room already says where its
+   * light pool is; a shadow that ignored that would contradict the very
+   * backdrop it is drawn on. Light on the left throws the shadow right.
+   */
+  const shadowX = (0.5 - look.glow.x) * 0.12;
+  /* Down, always: a light high in the room puts it under their feet, a
+     low one stretches it out behind them. */
+  const shadowY = 0.012 + 0.036 * look.glow.y;
+  /* A contact shadow is soft. A sharp one is a cut-out of a cut-out. */
+  const shadowBlur = 0.035;
+
+  return { wrap, shadow, shadowX, shadowY, shadowBlur };
+}
+
+/**
+ * For a picture somebody supplied, which declares no light of its own.
+ *
+ * THE COLOUR STILL COMES FROM THE PICTURE — the wrap is a blurred copy of
+ * whatever is behind them, so a beach wraps sand and a cathedral wraps
+ * stone without anybody measuring it. Only the STRENGTH is a guess here,
+ * and it is a modest one: too little wrap looks like a sticker, and too
+ * much looks like a halo, and of the two the sticker is the one that can
+ * be fixed by supplying a better picture.
+ */
+export const SUPPLIED_GROUNDING: Grounding = {
+  wrap: 0.18, shadow: 0.26, shadowX: 0, shadowY: 0.022, shadowBlur: 0.035,
+};
+
 /** Said in the studio, so nobody expects a photograph. [§4, S-6] */
 export const SPACES_ARE_DRAWN =
   'The supplied spaces are drawn rather than photographed — stage lighting in '
