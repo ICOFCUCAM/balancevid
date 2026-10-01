@@ -2220,13 +2220,78 @@ a test compared two renders.
   is a different surface from a rendered master and this is an addition
   rather than a disagreement about numbers, but the two are meant to move
   together and for now they do not.
-* **Images and videos as backgrounds.** The renderer has implemented
-  `custom` all along — `compose.ts` loads the asset with `-loop 1` and
-  cover-fits it through the same matte — and **Studio Two never offers
-  it**. The shelf shows Original, Blur and the drawn spaces. A video
-  backdrop is not supported at all: `-loop 1` is the single-image flag,
-  and a moving backdrop needs `-stream_loop`, its own fps handling, and
-  a decision about what happens when the clip is shorter than the take.
+* ~~**Images as backgrounds.**~~ Done in S-32 below. **Video backdrops
+  are still not supported**: `-loop 1` is the single-image flag, and a
+  moving backdrop needs `-stream_loop`, its own fps handling, and a
+  decision about what happens when the clip is shorter than the take.
 * **Depth in the drawn spaces.** They are still a wash, a light pool, a
   vignette and grain. No floor-to-wall perspective, no depth of field,
   no horizon matched to the performer's eyeline.
+
+
+## S-32 — The promise made in three places and kept in none of the fourth
+
+*"What about images and videos as backgrounds?"*
+
+### Images were already built
+
+`environment.ts` has told the operator for as long as it has existed:
+
+> The supplied spaces are drawn rather than photographed — stage lighting
+> in the colours of the place, not a picture of it. **For a real place
+> behind you, use your own image.**
+
+And that image was there to be used. `Environment` carries
+`kind: 'custom'` with an `assetId`. `setEnvironment` refuses one without
+a picture — *"a custom background needs a picture"*. `compose.ts` loads
+the asset, cover-fits it, and runs it through the same difference matte
+as every drawn space, with the grounding of S-31 on top of it.
+
+**Studio Two's shelf offered Original, Blur and the drawn spaces, and
+never offered a picture.** A sentence, a field, a validation and a
+renderer, with no way in — which by this building's own rule is a
+capability that does not exist. It is the third time this exact shape has
+turned up: `nudgeLyric` (MASTER-EDIT L7), `whyDark` (CHANNEL C-19), and
+now this.
+
+### The door
+
+A **Your picture** tile beside Blur, disabled without a plate like every
+other replacement, and a shelf of the library's images underneath it when
+pressed. The tile's swatch is the chosen picture itself, because a tile
+here is a sample of the result and a grey square would be a sample of
+nothing.
+
+The library is fetched on the first press rather than with the studio: an
+author who never wants a custom backdrop should not pay a request for the
+library on the way to the timeline. Only `form: 'image'` rows are offered,
+because a song in a backdrop picker is a row that cannot be chosen.
+
+**And it opens under the shelf rather than in a dialog.** Choosing a
+backdrop is something an author does while looking at the performer it
+goes behind, and a modal over the stage hides the one picture the choice
+is about.
+
+### What the browser showed
+
+The labels. An uploaded picture is named by whoever uploaded it — *"Written
+here — Live from the control room"* — and at a quarter of this panel's
+width that is three wrapped lines under a 56px swatch, clipped by the
+bottom of the rail. The fifth time a label has overflowed a tile in this
+studio. The label is cut at eighteen characters and the full name stays on
+hover, and the grid takes a `maxHeight` because a library grows and the
+panel does not.
+
+Verified end to end on a performance whose takes carry a plate, backed up
+first and restored after: the tile is present and enabled, the shelf
+offers the five images in the library, choosing one writes
+`{"kind":"custom","assetId":"asset_c7db…"}` into the take, and the tile's
+swatch becomes that picture.
+
+### Videos are not this
+
+`still()` loads a backdrop with `-loop 1`, which is the single-image flag.
+A moving backdrop needs `-stream_loop`, its own fps handling, and a
+decision nobody has made about what happens when the clip is shorter than
+the take — hold the last frame, loop it, or refuse it. That is render
+work, not a tile, and it is owed rather than done.
