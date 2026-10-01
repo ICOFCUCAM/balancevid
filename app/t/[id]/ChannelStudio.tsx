@@ -1918,7 +1918,7 @@ export default function ChannelStudio({
                 }}
                 onRollOut={() => void patch({ action: 'roll-in', source: null })}
                 onShow={(source) => void patch({ action: 'roll-in', source })}
-                share={share}
+                share={share} library={library}
               />
             )}
 
@@ -4763,10 +4763,12 @@ function VMeter({ value, tint = 'var(--state-ok)' }: { value: number; tint?: str
  * and the feed is underneath it.
  */
 function ScreensTab({
-  channel, picked, onAir, nameOf, onRollIn, onRollOut, onShow, share,
+  channel, picked, onAir, nameOf, onRollIn, onRollOut, onShow, share, library,
 }: {
   channel: Channel;
   picked: LibraryItem | null;
+  /** The whole library, so a picture slide can name one of its images. */
+  library: LibraryItem[];
   onAir: boolean;
   nameOf: (source: ProgrammeSource) => string;
   onRollIn: () => void;
@@ -4885,6 +4887,20 @@ function ScreensTab({
       <SlidesPanel
         channel={channel} onAir={onAir}
         onShow={onShow} onRollOut={onRollOut}
+        /*
+         * THE LIBRARY'S IMAGES, from the list the studio already holds.
+         * A picture slide NAMES a library asset rather than uploading
+         * one — the route's own rule — so the chooser is a view of what
+         * is already there and not a second media store. [§3, D-18]
+         */
+        pictures={library
+          .filter((item) => item.source.kind === 'media'
+            && item.source.form === 'image')
+          .map((item) => ({
+            assetId: (item.source as { assetId: string }).assetId,
+            title: item.title,
+          }))}
+        ink={channel.identity?.ink}
       />
     </div>
   );

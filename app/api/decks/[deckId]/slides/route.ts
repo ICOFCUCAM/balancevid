@@ -32,7 +32,7 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
 
   const body = await request.json().catch(() => ({})) as {
     layout?: string; heading?: string; text?: string; footnote?: string;
-    pictureAssetId?: string; at?: number; ink?: string;
+    pictureAssetId?: string; at?: number; ink?: string; fill?: boolean;
   };
 
   const layout = body.layout ?? 'text';
@@ -75,6 +75,9 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
         ...(body.text?.trim() ? { body: body.text.trim() } : {}),
         ...(body.footnote?.trim() ? { footnote: body.footnote.trim() } : {}),
         ...(picturePath ? { picturePath } : {}),
+        /* Fill the frame rather than fit inside it. Only meaningful
+           with a picture, and harmless without one. [C-25] */
+        ...(body.fill ? { fill: true } : {}),
         ...(body.ink ? { ink: body.ink } : {}),
       },
       ...(body.at === undefined ? {} : { at: body.at }),

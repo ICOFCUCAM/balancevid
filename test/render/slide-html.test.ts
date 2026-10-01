@@ -108,3 +108,92 @@ describe('what typed text cannot do', () => {
     expect(html).toContain('src="data:image/png;base64,AAAA"');
   });
 });
+
+/**
+ * Two additions, and a long list of things deliberately not added.
+ * [CHANNEL §21, C-25]
+ *
+ * The panel that makes these slides was rebuilt to be read at a glance
+ * and operated between two cues. The renderer took two of that work's
+ * requests and refused the rest: a numbered list, because a numbered
+ * list is STRUCTURE and a bullet already exists; and a picture that
+ * fills the frame, because the alternative to fitting is a real
+ * editorial choice an operator makes about a photograph. Bold,
+ * italics, alignment and line spacing are decoration, and this file's
+ * own module says why they are absent.
+ */
+describe('a numbered list is structure, so it is interpreted (C-25)', () => {
+  it('turns a block of numbered lines into an ordered list', () => {
+    const html = slideHtml({ layout: 'text', body: '1. first\n2. second' });
+    expect(html).toContain('<li>first</li><li>second</li></ol>');
+    expect(html).not.toContain('<ul>');
+  });
+
+  /*
+   * THE NUMBERS ARE THE AUTHOR'S. A presenter whose list ran to five on
+   * the previous slide types `6.` on this one, and a renderer that
+   * restarted at one would have renumbered their talk for them.
+   */
+  it('starts from the number the author typed', () => {
+    expect(slideHtml({ layout: 'text', body: '6. sixth\n7. seventh' }))
+      .toContain('<ol start="6">');
+    expect(slideHtml({ layout: 'text', body: '1. first\n2. second' }))
+      .toContain('<ol start="1">');
+  });
+
+  it('takes the bracket form somebody else’s editor produces', () => {
+    expect(slideHtml({ layout: 'text', body: '1) first\n2) second' }))
+      .toContain('<ol start="1"><li>first</li>');
+  });
+
+  /* The same rule the dashes get: one numbered line in prose is prose. */
+  it('does not make a list out of a paragraph that mentions a number', () => {
+    const html = slideHtml({ layout: 'text', body: 'As follows\n1. first' });
+    expect(html).not.toContain('<ol');
+    expect(html).toContain('<p>As follows 1. first</p>');
+  });
+
+  it('styles an ordered list like the bulleted one it sits beside', () => {
+    /* Two lists on consecutive slides with different leading would read
+       as two different decks. */
+    const css = /ul,ol\{([^}]*)\}/.exec(
+      slideHtml({ layout: 'text', body: '1. first' }))?.[1] ?? '';
+    expect(css).toContain('padding-left');
+    expect(css).toContain('gap');
+  });
+});
+
+describe('fit or fill, and nothing between them (C-25)', () => {
+  const PIXEL = 'data:image/png;base64,AAAA';
+
+  it('fits by default, so a chart arrives whole', () => {
+    const html = slideHtml({ layout: 'picture' }, PIXEL);
+    /* The stylesheet always carries the rule; the ELEMENT is what says
+       which of the two this slide is. */
+    expect(html).toContain('<div class="shot">');
+  });
+
+  it('fills when asked, so a photograph reaches the edges', () => {
+    const html = slideHtml({ layout: 'picture', fill: true }, PIXEL);
+    expect(html).toContain('class="shot bleed"');
+    /* The class has to DO something: the rule behind it is the whole
+       of the feature, and a class with no rule is a fit slide. */
+    expect(/\.shot\.bleed img\{[^}]*object-fit:cover/.test(html)).toBe(true);
+  });
+
+  it('leaves the default fitting, rather than covering everything', () => {
+    expect(/\.shot img\{[^}]*object-fit:contain/.test(
+      slideHtml({ layout: 'picture' }, PIXEL))).toBe(true);
+  });
+
+  /* Fill is a statement about a picture. A layout with no picture in it
+     has nothing to fill, and the flag is stored anyway because the
+     operator may change the layout afterwards. */
+  it('means nothing on a layout that has no picture', () => {
+    /* Not just "not on the shot": not on ANY element. The cheap way to
+       implement filling is a class on the root, and that would letterbox
+       nothing and cover every text slide the operator ever flagged. */
+    const html = slideHtml({ layout: 'text', body: 'B', fill: true });
+    expect(/class="[^"]*bleed/.test(html)).toBe(false);
+  });
+});
