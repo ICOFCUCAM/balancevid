@@ -10,8 +10,8 @@ import { describe, expect, it } from 'vitest';
 
 import type { ProgrammeSource } from '../../src/domain/channel.js';
 import {
-  type Deck, canMakeDeckFrom, deckAssetIds, moveSlide, slideOnAir,
-  sourceForSlide, step, withSlide, withoutSlide,
+  type Deck, canMakeDeckFrom, deckAssetIds, moveSlide, replaceSlide,
+  slideOnAir, sourceForSlide, step, withSlide, withoutSlide,
 } from '../../src/domain/deck.js';
 
 const deck: Deck = {
@@ -170,5 +170,49 @@ describe('editing the order', () => {
 
   it('leaves the deck alone when asked to move something that is not in it', () => {
     expect(moveSlide(deck, 'ast_nope', 0).slides).toEqual(deck.slides);
+  });
+});
+
+/**
+ * Correcting a slide.  [§20, §21, C-26]
+ *
+ * A slide on air is a library PNG, and a PNG is not editable — so
+ * "edit" means draw it again and put the result where the old one
+ * stood. The position is the whole of the behaviour: a corrected
+ * slide appended to the end of the deck is a presenter pressing NEXT
+ * into the typo they just fixed.
+ */
+describe('correcting one', () => {
+  const made = { assetId: 'ast_fixed', page: 0 };
+
+  it('puts the new one exactly where the old one stood', () => {
+    const next = replaceSlide(deck, 'ast_2', made);
+    expect(next.slides.map((slide) => slide.assetId))
+      .toEqual(['ast_1', 'ast_fixed', 'ast_3']);
+    expect(next.slides.map((slide) => slide.page)).toEqual([1, 2, 3]);
+  });
+
+  it('holds the deck at the same length', () => {
+    expect(replaceSlide(deck, 'ast_1', made).slides).toHaveLength(3);
+  });
+
+  /*
+   * THE RACE THIS EXISTS FOR. Drawing takes seconds and the operator
+   * has a broadcast to run: the slide being corrected can be deleted,
+   * or the deck reordered, while the job is in the queue. A render
+   * that succeeded is work somebody did, so it lands at the end
+   * rather than being thrown away for a race they could not see.
+   */
+  it('appends rather than losing the work when the old slide went', () => {
+    const next = replaceSlide(deck, 'ast_gone', made);
+    expect(next.slides.map((slide) => slide.assetId))
+      .toEqual(['ast_1', 'ast_2', 'ast_3', 'ast_fixed']);
+  });
+
+  it('carries the definition forward, so it can be corrected again', () => {
+    const withSpec = { assetId: 'ast_fixed', page: 0,
+      spec: { layout: 'title', heading: 'Fixed' } } as const;
+    expect(replaceSlide(deck, 'ast_2', withSpec).slides[1]?.spec?.heading)
+      .toBe('Fixed');
   });
 });

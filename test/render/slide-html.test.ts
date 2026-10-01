@@ -6,6 +6,23 @@
  * on the machine that has a different one. What matters here is that the
  * four layouts differ, that typed text becomes the structure somebody
  * expects, and that nothing typed can escape into the page.
+ *
+ * FIVE OF THESE MOVED RATHER THAN WENT. C-26 replaced the four
+ * layouts with four compositions, so the assertions about which CSS
+ * class each one emitted, and about the channel's colour being
+ * applied to every word, are now made — more strictly — in
+ * `slide-design.test.ts`:
+ *
+ *   "draws each layout differently"   → "gives each layout a shape
+ *                                        none of the others has"
+ *   "takes a real colour"             → "colours the accent furniture
+ *                                        rather than the words"
+ *   the three `object-fit` ones       → "splits the frame when the
+ *                                        picture fits" and the two
+ *                                        full-bleed ones
+ *
+ * What stays here is this file's own subject: what typed text becomes
+ * and what it cannot do.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -20,23 +37,6 @@ describe('the shape of a slide', () => {
     const html = slideHtml({ layout: 'text', heading: 'Hello' });
     expect(html).toContain(`width:${SLIDE_WIDTH}px`);
     expect(html).toContain(`height:${SLIDE_HEIGHT}px`);
-  });
-
-  /* Four layouts that are different from each other, which is what makes
-     "diverse" mean something. */
-  it('draws each layout differently', () => {
-    const spec = { heading: 'H', body: 'B', footnote: 'F' } as const;
-    const title = slideHtml({ ...spec, layout: 'title' });
-    const text = slideHtml({ ...spec, layout: 'text' });
-    const quote = slideHtml({ ...spec, layout: 'quote' });
-    const picture = slideHtml({ ...spec, layout: 'picture' });
-
-    expect(title).toContain('class="big"');
-    expect(quote).toContain('<blockquote>');
-    expect(quote).toContain('— F');
-    expect(picture).toContain('class="shot"');
-    expect(text).not.toContain('<blockquote>');
-    expect(text).not.toContain('class="big"');
   });
 });
 
@@ -84,15 +84,10 @@ describe('what typed text cannot do', () => {
 
   it('refuses a colour that is not a colour', () => {
     const html = slideHtml({
-      layout: 'text', heading: 'H', ink: 'red;}body{display:none',
+      layout: 'text', heading: 'H', accent: 'red;}body{display:none',
     });
     expect(html).not.toContain('display:none');
     expect(html).toContain('color:#ffffff');
-  });
-
-  it('takes a real colour', () => {
-    expect(slideHtml({ layout: 'text', heading: 'H', ink: '#ffcc00' }))
-      .toContain('color:#ffcc00');
   });
 
   /* The picture is inlined by the renderer or it is absent. A slide can
@@ -165,26 +160,6 @@ describe('a numbered list is structure, so it is interpreted (C-25)', () => {
 
 describe('fit or fill, and nothing between them (C-25)', () => {
   const PIXEL = 'data:image/png;base64,AAAA';
-
-  it('fits by default, so a chart arrives whole', () => {
-    const html = slideHtml({ layout: 'picture' }, PIXEL);
-    /* The stylesheet always carries the rule; the ELEMENT is what says
-       which of the two this slide is. */
-    expect(html).toContain('<div class="shot">');
-  });
-
-  it('fills when asked, so a photograph reaches the edges', () => {
-    const html = slideHtml({ layout: 'picture', fill: true }, PIXEL);
-    expect(html).toContain('class="shot bleed"');
-    /* The class has to DO something: the rule behind it is the whole
-       of the feature, and a class with no rule is a fit slide. */
-    expect(/\.shot\.bleed img\{[^}]*object-fit:cover/.test(html)).toBe(true);
-  });
-
-  it('leaves the default fitting, rather than covering everything', () => {
-    expect(/\.shot img\{[^}]*object-fit:contain/.test(
-      slideHtml({ layout: 'picture' }, PIXEL))).toBe(true);
-  });
 
   /* Fill is a statement about a picture. A layout with no picture in it
      has nothing to fill, and the flag is stored anyway because the

@@ -13,7 +13,9 @@
 
 import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { type Deck, type Slide, withSlide } from '../domain/deck.js';
+import {
+  type Deck, type Slide, replaceSlide, withSlide,
+} from '../domain/deck.js';
 import { newId } from '../domain/ids.js';
 import {
   officeConverterAvailable, rasteriseOffice, rasterisePdf,
@@ -1734,14 +1736,23 @@ async function rasteriseDeck(job: Job): Promise<Job> {
 async function composeSlide(job: Job): Promise<Job> {
   const deckId = job.conversationId;
   const spec = job.payload['spec'] as SlideSpec;
-  const at = job.payload['at'] === undefined
-    ? undefined : Number(job.payload['at']);
-
+  const replaces = job.payload['replaces'] as string | undefined;
   const deck = await loadDeck(deckId);
+  /*
+   * EDITING ONE IS DRAWING A NEW ONE IN ITS PLACE, and the place is
+   * read here rather than sent by the client: by the time the worker
+   * gets to this job the deck may have been reordered, and an index
+   * from a minute ago would put the corrected slide somewhere else.
+   */
+  const standing = replaces
+    ? deck.slides.findIndex((one) => one.assetId === replaces) : -1;
+  const at = standing >= 0 ? standing
+    : job.payload['at'] === undefined
+      ? undefined : Number(job.payload['at']);
   const assetId = newId('asset');
   const outPath = paths.libraryMedia(assetId, 'png');
   await mkdir(paths.library(), { recursive: true });
-  await renderSlide(spec, outPath);
+  await renderSlide(spec, outPath, job.payload['picturePath'] as string | undefined);
 
   const heading = (spec.heading ?? spec.body ?? 'Slide').slice(0, 60);
   await writeFile(
@@ -1750,7 +1761,27 @@ async function composeSlide(job: Job): Promise<Job> {
     'utf8',
   );
 
-  const next = withSlide(deck, { assetId, page: deck.slides.length + 1 }, at);
+  /*
+   * THE DEFINITION TRAVELS WITH THE PICTURE, so the slide can be
+   * corrected and duplicated later without anybody retyping it. It
+   * holds the library asset's NAME and never a path, so it still
+   * means the same thing on another machine. [§21, C-26]
+   */
+  const made = { assetId, page: deck.slides.length + 1, spec };
+
+  /*
+   * THE SWAP HAPPENS ONLY NOW, after the drawing succeeded. A render
+   * that threw leaves the slide that may be on air exactly where it
+   * was, which is the whole reason the old one is not removed up
+   * front. [§5]
+   */
+  const next = standing >= 0
+    ? replaceSlide(deck, replaces!, made)
+    : withSlide(deck, made, at);
   await saveDeck(next);
+  if (standing >= 0) {
+    await rm(paths.libraryMedia(replaces!, 'png'), { force: true });
+    await rm(join(paths.library(), `${replaces!}.json`), { force: true });
+  }
   return { ...job, result: { deckId, assetId, slides: next.slides.length } };
 }

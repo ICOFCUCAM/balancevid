@@ -3,7 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Icon from '../../Icon.js';
 import type { Channel, ProgrammeSource } from '../../../src/domain/channel.js';
-import { type Deck, slideOnAir, sourceForSlide, step } from '../../../src/domain/deck.js';
+import { type Deck, type Slide, slideOnAir, sourceForSlide, step } from '../../../src/domain/deck.js';
+import {
+  BACKGROUNDS, SLIDE_HEIGHT, SLIDE_WIDTH, type Background, type Focus,
+  type SlideSpec, slideHtml, slideProblems,
+} from '../../../src/render/slideDesign.js';
 
 /**
  * Slides, on air.  [Doctrine CHANNEL §20, §5, U-33 §2, D-19]
@@ -108,6 +112,12 @@ export default function SlidesPanel({
   const [footnote, setFootnote] = useState('');
   const [picture, setPicture] = useState<string | null>(null);
   const [fill, setFill] = useState(false);
+  const [bed, setBed] = useState<Background>('black');
+  const [focus, setFocus] = useState<Focus>('centre');
+  /** The slide being corrected, if this is a correction. [C-26] */
+  const [editing, setEditing] = useState<string | null>(null);
+  /** Which rundown row has its actions open. One at a time. */
+  const [opened, setOpened] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
   /** Shown for a moment after a slide lands, so the press has an answer. */
   const [added, setAdded] = useState(false);
@@ -156,6 +166,68 @@ export default function SlidesPanel({
   };
   const empty = Object.keys(slide).length === 0;
 
+  /*
+   * WHAT THE OPERATOR IS ABOUT TO TRANSMIT, drawn by the renderer that
+   * will transmit it.  [§21, C-26]
+   *
+   * `slideHtml` is the function the worker rasterises. The preview is
+   * not a second stylesheet that looks similar: it is that output, in
+   * an iframe, scaled down. A preview drawn separately is a preview
+   * that lies, and the fault would only ever be found on air.
+   *
+   * The picture is the library's own path here and inlined bytes in
+   * the worker, because the renderer there is forbidden the network
+   * (D-06) and the operator's browser is already authenticated. The
+   * composition is identical either way.
+   */
+  const draft: SlideSpec = {
+    layout,
+    ...(fields.heading && heading.trim() ? { heading: heading.trim() } : {}),
+    ...(fields.body && text.trim() ? { body: text.trim() } : {}),
+    ...(fields.footnote && footnote.trim() ? { footnote: footnote.trim() } : {}),
+    ...(layout === 'picture' && picture ? { picture, fill } : {}),
+    ...(focus === 'centre' ? {} : { focus }),
+    ...(bed === 'black' ? {} : { background: bed }),
+    ...(ink ? { accent: ink } : {}),
+    ...(channel.name ? { channel: channel.name } : {}),
+  };
+  const pictureUrl = picture ? `/api/library/${picture}` : undefined;
+  const faults = empty ? [] : slideProblems(draft);
+  /*
+   * A FAULT THAT WOULD TRANSMIT SOMETHING BROKEN STOPS THE SLIDE;
+   * the rest are said and not enforced. An operator three minutes
+   * into a live programme is better placed to judge a heading four
+   * characters over its limit than this panel is, and a control room
+   * that refuses to put anything up until it is perfect is a control
+   * room somebody works around. [§5, D-04]
+   */
+  const blocked = faults.some((fault) => fault.blocking);
+
+  /** Load a slide back into the writer, to correct or to copy. [C-26] */
+  const take = (one: Slide, correcting: boolean) => {
+    const was = one.spec;
+    if (!was) return;
+    setLayout(was.layout);
+    setHeading(was.heading ?? '');
+    setText(was.body ?? '');
+    setFootnote(was.footnote ?? '');
+    setPicture(was.picture ?? null);
+    setFill(was.fill ?? false);
+    setFocus(was.focus ?? 'centre');
+    setBed(was.background ?? 'black');
+    setEditing(correcting ? one.assetId : null);
+    setWriting(true);
+    setAdded(false);
+    setOpened(null);
+  };
+
+  /** Put everything back, after a slide lands or an edit is abandoned. */
+  const clear = () => {
+    setHeading(''); setText(''); setFootnote('');
+    setPicture(null); setFill(false); setFocus('centre');
+    setEditing(null);
+  };
+
   const upload = async (chosenFile: File) => {
     setBusy(true);
     setNote(`Turning ${chosenFile.name} into slides…`);
@@ -199,8 +271,12 @@ export default function SlidesPanel({
       setNote('A slide needs a heading, some words or a picture.');
       return;
     }
+    if (blocked) {
+      setNote(faults.find((fault) => fault.blocking)!.says);
+      return;
+    }
     setBusy(true);
-    setNote('Drawing the slide\u2026');
+    setNote(editing ? 'Redrawing the slide\u2026' : 'Drawing the slide\u2026');
     try {
       let target = deck?.id;
       if (!target) {
@@ -220,26 +296,38 @@ export default function SlidesPanel({
          * picture", a quotation had nobody's name under it, and an
          * authored slide was white where the channel is not. [C-25]
          */
-        body: JSON.stringify({ layout, ...slide, ...(ink ? { ink } : {}) }),
+        body: JSON.stringify({
+          layout, ...slide,
+          ...(bed === 'black' ? {} : { background: bed }),
+          ...(focus === 'centre' ? {} : { focus }),
+          ...(ink ? { accent: ink } : {}),
+          ...(channel.name ? { channel: channel.name } : {}),
+          ...(editing ? { replaces: editing } : {}),
+        }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) { setNote(data.error ?? 'that slide was refused'); return; }
 
-      /* The worker is drawing it. Poll until the page count moves. */
+      /*
+       * The worker is drawing it. Poll until the deck says it landed —
+       * which is a longer count for a new slide, and the OLD ASSET
+       * GONE for a correction, because correcting one leaves the
+       * count exactly where it was. [C-26]
+       */
       const before = deck?.slides.length ?? 0;
+      const correcting = editing;
       for (let tries = 0; tries < 30; tries += 1) {
         await new Promise((resolve) => { setTimeout(resolve, 1500); });
         const check = await fetch(`/api/decks/${target}`, { cache: 'no-store' });
         if (!check.ok) continue;
         const now = (await check.json()).deck as Deck;
-        if (now.slides.length > before) {
+        const landed = correcting
+          ? !now.slides.some((one) => one.assetId === correcting)
+          : now.slides.length > before;
+        if (landed) {
           await read();
           setChosen(now.id);
-          setHeading('');
-          setText('');
-          setFootnote('');
-          setPicture(null);
-          setFill(false);
+          clear();
           setAdded(true);
           window.setTimeout(() => setAdded(false), 2400);
           setNote(`${now.title} \u2014 ${now.slides.length} slides`);
@@ -247,6 +335,89 @@ export default function SlidesPanel({
         }
       }
       setNote('Still drawing it. It will appear when the worker has finished.');
+    } finally { setBusy(false); }
+  };
+
+  /**
+   * Reorder, copy or remove one.  [§20, C-26]
+   *
+   * EVERY ONE OF THESE WENT THROUGH A ROUTE THAT ALREADY EXISTED.
+   * `PATCH … {action:'move'}` and `{action:'remove'}` have been there
+   * since the deck was written and the panel called neither, so the
+   * rundown is a door onto behaviour this product already had — which
+   * is what D-19 asks to be checked before anything is built. Copying
+   * is the write route again, with the stored definition and a
+   * position one further on.
+   */
+  const shift = async (one: Slide, by: 1 | -1) => {
+    if (!deck) return;
+    const to = deck.slides.findIndex((it) => it.assetId === one.assetId) + by;
+    if (to < 0 || to >= deck.slides.length) return;
+    setBusy(true);
+    try {
+      await fetch(`/api/decks/${deck.id}/slides`, {
+        method: 'PATCH', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'move', assetId: one.assetId, to }),
+      });
+      await read();
+    } finally { setBusy(false); }
+  };
+
+  const drop = async (one: Slide) => {
+    if (!deck) return;
+    setBusy(true);
+    try {
+      const response = await fetch(`/api/decks/${deck.id}/slides`, {
+        method: 'PATCH', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'remove', assetId: one.assetId }),
+      });
+      /* A slide may be somebody's safe playlist, and the route says
+         so rather than taking it. [D-23] */
+      if (!response.ok) {
+        setNote((await response.json().catch(() => ({}))).error
+          ?? 'that slide could not be removed');
+        return;
+      }
+      setOpened(null);
+      await read();
+    } finally { setBusy(false); }
+  };
+
+  const copy = async (one: Slide) => {
+    if (!deck || !one.spec) return;
+    const was = one.spec;
+    const at = deck.slides.findIndex((it) => it.assetId === one.assetId) + 1;
+    setBusy(true);
+    setNote('Copying the slide\u2026');
+    try {
+      await fetch(`/api/decks/${deck.id}/slides`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          layout: was.layout, at,
+          ...(was.heading ? { heading: was.heading } : {}),
+          ...(was.body ? { text: was.body } : {}),
+          ...(was.footnote ? { footnote: was.footnote } : {}),
+          ...(was.picture ? { pictureAssetId: was.picture } : {}),
+          ...(was.fill ? { fill: true } : {}),
+          ...(was.focus ? { focus: was.focus } : {}),
+          ...(was.background ? { background: was.background } : {}),
+          ...(was.accent ? { accent: was.accent } : {}),
+          ...(was.channel ? { channel: was.channel } : {}),
+        }),
+      });
+      const want = deck.slides.length + 1;
+      for (let tries = 0; tries < 30; tries += 1) {
+        await new Promise((resolve) => { setTimeout(resolve, 1500); });
+        const check = await fetch(`/api/decks/${deck.id}`, { cache: 'no-store' });
+        if (!check.ok) continue;
+        if (((await check.json()).deck as Deck).slides.length >= want) {
+          setOpened(null);
+          await read();
+          setNote(null);
+          return;
+        }
+      }
+      setNote('Still copying it. It will appear when the worker has finished.');
     } finally { setBusy(false); }
   };
 
@@ -393,23 +564,75 @@ export default function SlidesPanel({
             })}
           </div>
 
+          {/* ---- what it will look like, and what it is drawn on --- */}
+          <Stage
+            label="PREVIEW" tone={empty ? 'idle' : 'preview'}
+            empty="Write something and it appears here"
+            {...(empty ? {} : { html: slideHtml(draft, pictureUrl) })}
+          />
+
+          {/*
+            * FIVE BACKGROUNDS, and they are design assets rather than
+            * decoration: the thing that made every authored slide look
+            * unfinished was that all of them were black. Black stays
+            * the default, because a control room is dark and a slide
+            * that matches the programme's own black cuts cleanly.
+            */}
+          <div className="row" role="group" aria-label="Slide background"
+               style={{ gap: 4, flexWrap: 'nowrap' }}>
+            {BACKGROUNDS.map((preset) => {
+              const on = bed === preset.id;
+              return (
+                <button
+                  key={preset.id} type="button" className="small"
+                  data-testid="slide-bed" data-bed={preset.id}
+                  aria-pressed={on} title={preset.label}
+                  onClick={() => setBed(preset.id)}
+                  style={{
+                    flex: '1 1 0', padding: 0, height: 22, cursor: 'pointer',
+                    /* A swatch stands for the slide's own canvas, so
+                       it is rounded like a screen and not like a
+                       control. The console says which object this is
+                       in one token. */
+                    borderRadius: 'var(--radius-screen)',
+                    border: `1px solid ${on ? 'var(--accent)' : 'var(--line)'}`,
+                    /* The swatch IS the preset's own colour, which is
+                       the only label a background needs. */
+                    background: preset.id === 'image'
+                      ? 'var(--screen-bed)' : preset.base,
+                    boxShadow: on ? 'inset 0 0 0 1px var(--accent)' : 'none',
+                  }}
+                >{preset.id === 'image'
+                  ? <Icon name="library" size={10} /> : ''}</button>
+              );
+            })}
+          </div>
+
           {/* ---- a picture, from the library ----------------------- */}
           {layout === 'picture' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
               {picture ? (
                 <>
-                  <div style={{
-                    position: 'relative', aspectRatio: '16 / 9',
-                    borderRadius: 'var(--radius-screen)', overflow: 'hidden',
-                    background: 'var(--screen-bed)',
-                    border: '1px solid var(--line)',
-                  }}>
-                    <img alt="" src={`/api/library/${picture}`} style={{
-                      width: '100%', height: '100%',
-                      objectFit: fill ? 'cover' : 'contain',
-                    }} />
-                  </div>
+                  {/*
+                    * A THUMBNAIL AND NOT A SECOND PREVIEW. Until C-26
+                    * this was a 16:9 picture the width of the panel,
+                    * which was the only way to see what had been
+                    * chosen. The PREVIEW above now shows the whole
+                    * composition with the picture in it, so a second
+                    * big picture is the same thing twice and the
+                    * panel's compact footprint paying for it.
+                    */}
                   <div className="row" style={{ gap: 4, flexWrap: 'nowrap' }}>
+                    <img
+                      alt="" src={`/api/library/${picture}`}
+                      data-testid="slide-chosen"
+                      style={{
+                        width: 44, height: 25, flex: '0 0 auto',
+                        objectFit: 'cover', display: 'block',
+                        borderRadius: 'var(--radius-screen)',
+                        background: 'var(--screen-bed)',
+                      }}
+                    />
                     {/* FIT OR FILL AND NO CROP HANDLE. The two honest
                         things to do with somebody else's photograph;
                         a crop rectangle is a picture editor, and this
@@ -440,6 +663,36 @@ export default function SlidesPanel({
                       }}
                     >Remove</button>
                   </div>
+                  {fill && (
+                    /*
+                      * WHICH PART SURVIVES THE CROP. Filling a 16:9
+                      * frame with somebody's photograph takes something
+                      * away, and the operator is the one who knows
+                      * whether it is the sky or the feet. Three
+                      * positions and no drag handle: a crop rectangle
+                      * is a picture editor, and this panel is used
+                      * between two cues.
+                      */
+                    <div className="row" role="group" aria-label="Picture focus"
+                         style={{ gap: 4, flexWrap: 'nowrap' }}>
+                      {(['top', 'centre', 'bottom'] as const).map((where) => (
+                        <button
+                          key={where} type="button" className="small"
+                          data-testid="slide-focus" data-focus={where}
+                          aria-pressed={focus === where}
+                          onClick={() => setFocus(where)}
+                          style={{
+                            flex: '1 1 0', fontSize: 'var(--text-2xs)',
+                            padding: '3px 6px', textTransform: 'capitalize',
+                            border: `1px solid ${focus === where
+                              ? 'var(--accent)' : 'var(--line)'}`,
+                            background: focus === where
+                              ? 'var(--accent-wash)' : 'transparent',
+                          }}
+                        >{where}</button>
+                      ))}
+                    </div>
+                  )}
                 </>
               ) : (
                 <button
@@ -534,11 +787,26 @@ export default function SlidesPanel({
             gap: 6, flexWrap: 'nowrap', alignItems: 'center',
             fontSize: 'var(--text-2xs)', color: 'var(--muted)',
           }}>
-            <span data-testid="slide-state">
-              {added ? 'Added' : empty ? 'Empty' : 'Draft'}
+            {/*
+              * DRAFT, READY, OR WHAT IS WRONG. The gate is the quality
+              * check and not the operator's eye: a slide is READY when
+              * nothing is wrong with it, and "needs attention" names
+              * the one thing to change. Restrained on purpose — these
+              * are words in a status line, not badges. [D-04]
+              */}
+            <span data-testid="slide-state" data-ready={
+              empty ? 'empty' : faults.length ? 'faulty' : 'ready'
+            } style={{
+              fontWeight: faults.length ? 700 : 400,
+              color: added ? 'var(--ok)'
+                : faults.length ? 'var(--warn)' : 'var(--muted)',
+            }}>
+              {added ? '\u2713 Added'
+                : empty ? 'Empty'
+                  : faults.length ? '! Needs attention' : '\u2713 Ready'}
             </span>
             <span aria-hidden="true">·</span>
-            <span>16:9</span>
+            <span>{editing ? 'Correcting' : 'New slide'}</span>
             <span className="grow" />
             {FIELDS[layout].body && (
               <button
@@ -564,8 +832,33 @@ export default function SlidesPanel({
             </p>
           )}
 
+          {faults.length > 0 && (
+            <ul data-testid="slide-faults" style={{
+              margin: 0, paddingLeft: '1.1em', display: 'flex',
+              flexDirection: 'column', gap: 3,
+              fontSize: 'var(--text-2xs)', color: 'var(--warn)',
+            }}>
+              {faults.map((fault) => (
+                <li key={fault.code} data-fault={fault.code}
+                    data-blocking={fault.blocking ? 'true' : 'false'}
+                    style={fault.blocking ? { color: 'var(--bad)' } : undefined}
+                >{fault.says}</li>
+              ))}
+            </ul>
+          )}
+
+          <div className="row" style={{ gap: 5, flexWrap: 'nowrap' }}>
+          {editing && (
+            <button
+              type="button" className="small" data-testid="slide-abandon"
+              onClick={() => { clear(); setNote(null); }}
+              style={{ flex: '0 0 auto', fontSize: 'var(--text-2xs)',
+                padding: '6px 9px' }}
+            >Cancel</button>
+          )}
           <button
-            className="ctl" data-testid="make-slide" disabled={busy}
+            className="ctl grow" data-testid="make-slide"
+            disabled={busy || blocked}
             onClick={() => { void write(); }}
             style={{
               display: 'inline-flex', alignItems: 'center',
@@ -579,34 +872,201 @@ export default function SlidesPanel({
           >
             {busy ? 'Drawing\u2026'
               : added ? '\u2713 Added to deck'
-                : <><Icon name="plus" size={11} />
-                  {deck ? 'Add to deck' : 'Start a deck'}</>}
+                : editing ? <><Icon name="pencil" size={11} />Replace slide</>
+                  : <><Icon name="plus" size={11} />
+                    {deck ? 'Add to deck' : 'Start a deck'}</>}
           </button>
+          </div>
         </div>
       )}
 
       {deck && (
         <>
           {/*
-            * The page that is on air, at the size it can be read at. Drawn
-            * from the library like any other image, which is exactly what
-            * it is.
+            * THE RUNDOWN.  [§20, §5, C-26]
+            *
+            * `Written here (2)` was a count, and a count is not a
+            * rundown: an operator about to take a slide needs to know
+            * WHICH slide, and the only way to know that is to see it.
+            * So each row is a thumbnail, its number and its first
+            * line — the same three things a paper running order has
+            * had for sixty years.
+            *
+            * CLICKING A ROW TAKES IT, while live. That is the whole
+            * point of the list and it is the existing `roll-in`
+            * action, not a new one. The rest — up, down, copy,
+            * correct, remove — opens under the row that asked for it,
+            * one row at a time, because five buttons on every row is
+            * a rundown nobody can read.
             */}
-          <div style={{
-            position: 'relative', aspectRatio: '16 / 9',
-            borderRadius: 'var(--radius-screen)',
-            overflow: 'hidden', background: 'var(--screen-bed)',
-            border: `1px solid ${at >= 0 ? 'var(--accent)' : 'var(--line)'}`,
+          <div className="row" style={{ flexWrap: 'nowrap' }}>
+            <span className="muted grow" style={{
+              fontSize: 'var(--text-2xs)', letterSpacing: 0.8, fontWeight: 700,
+              textTransform: 'uppercase',
+            }}>{deck.title} {'\u2014'} {deck.slides.length} slide{
+              deck.slides.length === 1 ? '' : 's'}</span>
+          </div>
+          <div data-testid="slide-rundown" style={{
+            display: 'flex', flexDirection: 'column', gap: 2,
+            maxHeight: 186, overflowY: 'auto',
           }}>
-            {at >= 0 ? (
-              <img alt="" src={`/api/library/${deck.slides[at]!.assetId}`}
-                   style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-            ) : (
-              <span className="muted" style={{
-                position: 'absolute', inset: 0, display: 'grid',
-                placeItems: 'center', fontSize: 'var(--text-xs)',
-              }}>Not on air</span>
-            )}
+            {deck.slides.map((one, index) => {
+              const live = index === at;
+              const open = opened === one.assetId;
+              const says = one.spec?.heading?.trim()
+                || one.spec?.body?.trim().split('\n')[0]
+                || `Page ${one.page}`;
+              return (
+                <div key={one.assetId} style={{
+                  display: 'flex', flexDirection: 'column', gap: 2,
+                }}>
+                  <div className="row" style={{ gap: 5, flexWrap: 'nowrap' }}>
+                    <button
+                      type="button" data-testid="rundown-row"
+                      data-live={live ? 'true' : 'false'}
+                      aria-current={live ? 'true' : undefined}
+                      disabled={!onAir}
+                      title={onAir ? 'Take this slide to programme'
+                        : 'Only while you are live'}
+                      onClick={() => onShow(sourceForSlide(one))}
+                      style={{
+                        flex: '1 1 auto', display: 'flex', alignItems: 'center',
+                        gap: 6, padding: 3, cursor: onAir ? 'pointer' : 'default',
+                        textAlign: 'left', minWidth: 0,
+                        borderRadius: 'var(--radius-control)',
+                        border: `1px solid ${live
+                          ? 'var(--state-live)' : 'transparent'}`,
+                        background: live
+                          ? 'var(--state-live-wash)' : 'transparent',
+                      }}
+                    >
+                      <img
+                        alt="" src={`/api/library/${one.assetId}`}
+                        style={{
+                          width: 52, height: 29, flex: '0 0 auto',
+                          objectFit: 'cover', display: 'block',
+                          borderRadius: 'var(--radius-screen)',
+                          background: 'var(--screen-bed)',
+                        }}
+                      />
+                      <span className="mono" style={{
+                        fontSize: 'var(--text-2xs)', opacity: 0.7,
+                        flex: '0 0 auto',
+                      }}>{String(index + 1).padStart(2, '0')}</span>
+                      <span style={{
+                        fontSize: 'var(--text-2xs)', overflow: 'hidden',
+                        textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      }}>{says}</span>
+                    </button>
+                    <button
+                      type="button" className="small"
+                      data-testid="rundown-more" aria-expanded={open}
+                      aria-label={`What to do with slide ${index + 1}`}
+                      onClick={() => setOpened(open ? null : one.assetId)}
+                      style={{
+                        flex: '0 0 auto', padding: '4px 7px', border: 0,
+                        background: 'none', color: 'var(--muted)',
+                        cursor: 'pointer', fontSize: 'var(--text-2xs)',
+                      }}
+                    >{'\u22ef'}</button>
+                  </div>
+                  {open && (
+                    <div className="row" style={{
+                      gap: 3, flexWrap: 'nowrap', paddingLeft: 3,
+                      paddingBottom: 3,
+                    }}>
+                      <button
+                        type="button" className="small" disabled={busy || index === 0}
+                        data-testid="rundown-up" aria-label="Move up"
+                        onClick={() => { void shift(one, -1); }}
+                        style={{ padding: '3px 7px', lineHeight: 0 }}
+                      ><Icon name="chevron" size={10} turn={270} /></button>
+                      <button
+                        type="button" className="small"
+                        disabled={busy || index === deck.slides.length - 1}
+                        data-testid="rundown-down" aria-label="Move down"
+                        onClick={() => { void shift(one, 1); }}
+                        style={{ padding: '3px 7px', lineHeight: 0 }}
+                      ><Icon name="chevron" size={10} turn={90} /></button>
+                      {/*
+                        * CORRECT AND COPY EXIST WHERE A DEFINITION
+                        * DOES, and a page of somebody's PowerPoint
+                        * has none. Offering to edit an image this
+                        * product never composed would be a button
+                        * that cannot keep its promise. [§21]
+                        */}
+                      {one.spec && (
+                        <>
+                          <button
+                            type="button" className="small" disabled={busy}
+                            data-testid="rundown-edit"
+                            onClick={() => take(one, true)}
+                            style={{ padding: '3px 8px',
+                              fontSize: 'var(--text-2xs)' }}
+                          >Correct</button>
+                          <button
+                            type="button" className="small" disabled={busy}
+                            data-testid="rundown-copy"
+                            onClick={() => { void copy(one); }}
+                            style={{ padding: '3px 8px',
+                              fontSize: 'var(--text-2xs)' }}
+                          >Copy</button>
+                        </>
+                      )}
+                      <span className="grow" />
+                      <button
+                        type="button" className="small" disabled={busy}
+                        data-testid="rundown-remove"
+                        onClick={() => { void drop(one); }}
+                        style={{ padding: '3px 8px',
+                          fontSize: 'var(--text-2xs)', color: 'var(--bad)' }}
+                      >Remove</button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/*
+            * WHAT THE AUDIENCE CAN SEE, and it says so. The same
+            * component as the preview, in the other tally colour: a
+            * gallery's two states are PREVIEW and PROGRAM, and a
+            * control room that labels neither is one an operator has
+            * to guess at. [§6, §7]
+            *
+            * Drawn from the library, because the slide on air IS a
+            * library image — not re-rendered here, which would be a
+            * second opinion about what went out. [D-22]
+            */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <div className="row" style={{ gap: 5, flexWrap: 'nowrap' }}>
+              <span data-testid="programme-label" style={{
+                fontSize: 'var(--text-2xs)', letterSpacing: 1, fontWeight: 700,
+                color: at >= 0 ? 'var(--state-live)' : 'var(--muted)',
+              }}>{at >= 0 ? 'PROGRAM' : 'OFF'}</span>
+              <span className="grow" />
+              <span className="muted" style={{ fontSize: 'var(--text-2xs)' }}>
+                16:9</span>
+            </div>
+            <div style={{
+              position: 'relative', aspectRatio: '16 / 9',
+              borderRadius: 'var(--radius-screen)',
+              overflow: 'hidden', background: 'var(--screen-bed)',
+              border: `1px solid ${at >= 0
+                ? 'var(--state-live)' : 'var(--line)'}`,
+            }}>
+              {at >= 0 ? (
+                <img alt="" src={`/api/library/${deck.slides[at]!.assetId}`}
+                     style={{ width: '100%', height: '100%',
+                       objectFit: 'contain' }} />
+              ) : (
+                <span className="muted" style={{
+                  position: 'absolute', inset: 0, display: 'grid',
+                  placeItems: 'center', fontSize: 'var(--text-xs)',
+                }}>Not on air</span>
+              )}
+            </div>
           </div>
 
           <div className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
@@ -646,6 +1106,89 @@ export default function SlidesPanel({
         <p className="small muted" data-testid="slides-note"
            style={{ margin: 0, fontSize: 'var(--text-xs)' }}>{note}</p>
       )}
+    </div>
+  );
+}
+
+/**
+ * The slide at broadcast proportions, drawn by the broadcast renderer.
+ * [§21, §7, C-26]
+ *
+ * AN IFRAME AND NOT A RE-IMPLEMENTATION. What is inside it is the
+ * exact document the worker rasterises, at its real 1920 × 1080, scaled
+ * to whatever width the panel happens to be. So "the preview matches
+ * the programme" is not a thing anybody has to maintain: there is one
+ * document and this is it, smaller.
+ *
+ * SCRIPTS OFF AND NO POINTER. A slide is untrusted text (D-06) and the
+ * sandbox says so even though the renderer never emits a script; and
+ * the operator is looking at it rather than using it, so a click must
+ * reach the control underneath rather than the page inside.
+ *
+ * The label is the state, and the states are the two a gallery has:
+ * PREVIEW is what you are making, PROGRAM is what the audience can
+ * see. They are the house colours for exactly those (§6), so an
+ * operator reads this the way they read every other tally here.
+ */
+function Stage({ html, label, tone, empty }: {
+  html?: string;
+  label: string;
+  tone: 'preview' | 'program' | 'idle';
+  empty?: string;
+}) {
+  const box = useRef<HTMLDivElement | null>(null);
+  const [scale, setScale] = useState(0);
+
+  useEffect(() => {
+    const frame = box.current;
+    if (!frame) return undefined;
+    const watch = new ResizeObserver(() => {
+      setScale(frame.clientWidth / SLIDE_WIDTH);
+    });
+    watch.observe(frame);
+    return () => watch.disconnect();
+  }, []);
+
+  const edge = tone === 'program' ? 'var(--state-live)'
+    : tone === 'preview' ? 'var(--state-armed)' : 'var(--line)';
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <div className="row" style={{ gap: 5, flexWrap: 'nowrap' }}>
+        <span data-testid="stage-label" data-tone={tone} style={{
+          fontSize: 'var(--text-2xs)', letterSpacing: 1, fontWeight: 700,
+          color: tone === 'idle' ? 'var(--muted)' : edge,
+        }}>{label}</span>
+        <span className="grow" />
+        <span className="muted" style={{ fontSize: 'var(--text-2xs)' }}>16:9</span>
+      </div>
+      <div
+        ref={box} data-testid="stage"
+        style={{
+          position: 'relative', aspectRatio: '16 / 9', overflow: 'hidden',
+          borderRadius: 'var(--radius-screen)', background: 'var(--screen-bed)',
+          border: `1px solid ${edge}`,
+        }}
+      >
+        {html ? (
+          <iframe
+            title={label} srcDoc={html} sandbox="" scrolling="no"
+            style={{
+              width: SLIDE_WIDTH, height: SLIDE_HEIGHT, border: 0,
+              transform: `scale(${scale})`, transformOrigin: 'top left',
+              pointerEvents: 'none',
+              /* Until the width is known, drawing it at 1920 would
+                 flash a full-size slide across the control room. */
+              visibility: scale > 0 ? 'visible' : 'hidden',
+            }}
+          />
+        ) : (
+          <span className="muted" style={{
+            position: 'absolute', inset: 0, display: 'grid',
+            placeItems: 'center', fontSize: 'var(--text-xs)',
+          }}>{empty ?? 'Nothing yet'}</span>
+        )}
+      </div>
     </div>
   );
 }
