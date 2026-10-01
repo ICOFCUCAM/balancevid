@@ -2994,3 +2994,117 @@ would take a broadcast canvas ten pixels wide to produce one.
 One fixture was wrong before it was right, and the comment says which:
 Lecture's monitor looked like the one that would not fit a tall frame
 and is in fact the one that always does.
+
+## C-24 — Stage 24: the channel was transmitting black, and nothing said so
+
+Every segment this product ever put on the wire for a channel with an
+identity was black.
+
+### The fault
+
+`produceSegment` ends its filter chain with `markFilters` — the station
+bug, the lower third, the NEXT line — which emits ffmpeg's `drawtext`.
+The pinned `ffmpeg-static` is built without freetype and **has no
+`drawtext`**:
+
+    $ ffmpeg -filters | grep -c drawtext
+    0
+
+A filtergraph naming a filter that is not there does not degrade.
+**ffmpeg rejects the GRAPH.** So the bug did not quietly fail to
+appear; it took the whole segment with it, `encodePiece`'s fallback
+wrote four seconds of black, and the channel did that forever.
+
+Run against the shipped binary with the real `markFilters` output:
+
+| chain | result |
+|---|---|
+| scale, pad, fps, setsar | renders |
+| the same plus the identity | **`No such filter: 'drawtext'`** |
+
+### Why nobody could see it
+
+Four things hid it, and each was individually correct.
+
+* **The fallback succeeds.** *"A source that cannot be read is black,
+  not a dead channel"* is the right call. Nothing counted it, so a
+  channel rendering black four seconds at a time read as
+  `transmitting`.
+* **`streamState` asks whether segments are ARRIVING**, which they
+  were. There was no signal anywhere for what was in them.
+* **The control room's monitor is the operator's own canvas**, never
+  the transmission (§7, so a presenter does not talk over themselves).
+  It cannot show this.
+* **The viewer's page looked plausible** — a running clock, a LIVE
+  badge, and the channel's own name, because the title comes from the
+  document and not the picture. Had the engine truly been off air it
+  would have read *"Off air"*.
+
+A resilience path with no telemetry is a fault that cannot be found.
+
+### The fix, in three parts
+
+**Ask the binary.** `availableFilters` reads `ffmpeg -filters` once per
+process and `canDrawText` answers from it. Asked, not assumed — and a
+binary that will not answer is taken at its word as having nothing,
+because the caller then draws no text, and a picture without a bug
+beats no picture.
+
+**Emit nothing rather than something fatal.** `markFilters` takes the
+answer as a REQUIRED argument and returns `[]` when text cannot be
+drawn. The plate goes with the text: a box is drawable without
+freetype, and a black rectangle where a name should be looks
+deliberate.
+
+**Count the fallback.** Both catch sites now record what ffmpeg
+actually said, through `reasonFrom`, which prefers the line NAMING the
+refusal over the tail — *"No such filter: 'drawtext'"* is an operator's
+whole answer and *"Conversion failed!"* is not — and strips the graph
+address so one fault does not read as two. `controlRoomNote` says it
+**above everything, including a stopped engine**: a stopped engine
+announces itself because the channel is off, while a running engine
+writing black looks perfect from every angle an operator has.
+
+### Getting the bug back
+
+`BALANCEVID_FFMPEG` points at a binary of the deployment's choosing,
+and `WITH_TEXT=1` puts a capable `ffmpeg` and a font on the image.
+**Default off, because the size of that addition has not been measured
+on this base image and shipping an unmeasured number is the habit this
+record exists to prevent.** Turn it on, check `ffmpeg -filters | grep
+drawtext` in the built image, and leave it on.
+
+The entrypoint points at `/usr/bin/ffmpeg` only **if the file is
+really there**, and that is a bug before it is a decision: a Dockerfile
+cannot branch on a build argument inside an `ENV`, and the obvious
+`${WITH_TEXT:+/usr/bin/ffmpeg}` expands whenever `WITH_TEXT` is set to
+anything — `"0"` included. Written that way it would have pointed every
+render at a binary the image does not have, turning a channel with no
+bug into a channel with no renders at all. Looking for the file is
+correct in both directions and keeps nobody in step with anybody.
+
+### The record
+
+Eleven assertions, eight mutations, all eight caught — after two
+survived.
+
+A default of `true` on `markFilters`' new argument survived because
+nothing exercised it, and *a default of `true` is precisely the
+assumption that cost the product its picture*. The argument is required
+now and the one other caller states what it found out. And nothing
+exercised the probe's own failure path, so a test asks a binary that
+does not exist and checks the answer is "nothing" rather than
+"everything".
+
+And the suite caught a third thing, which was mine. The failure record
+was first written into the channel's `stream/` directory, beside the
+segments; a test that asserts that directory holds **only** `N.ts`
+failed within the hour. It was right: the sweeper deletes by age from
+there and the playlist route lists it, so a health record among the
+segments is one the sweeper will eventually delete and the playlist may
+eventually serve. It sits beside `playout.json` now, for
+`playout.json`'s own stated reason — liveness does not live with the
+material.
+
+Nothing here mocks ffmpeg. The binary the product ships is the one
+asked.

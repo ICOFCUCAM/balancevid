@@ -222,7 +222,27 @@ export type Tone =
  */
 export function controlRoomNote(
   engine: EngineState, stream: StreamState, dark: string | null,
+  /**
+   * The newest segment the encoder could not render, if it is recent.
+   *
+   * ABOVE EVERYTHING INCLUDING A STOPPED ENGINE, which is the one
+   * place the ordering above was wrong. A stopped engine is a channel
+   * with nothing on the wire, and the operator finds out because the
+   * channel is off. A RUNNING engine writing black is a channel that
+   * looks perfect from every angle an operator has: segments are
+   * arriving, health is green, the control room's own monitor shows
+   * the camera. It is the only fault in this file that nothing else
+   * can reveal, so it is the only one that gets to speak first. [C-24]
+   */
+  failing?: { says: string } | null,
 ): { says: string; tone: Tone } | null {
+  if (failing) {
+    return {
+      says: `The encoder cannot render this channel and is putting black on `
+        + `the wire: ${failing.says}`,
+      tone: 'fault',
+    };
+  }
   if (engine !== 'running') {
     const says = healthSentence(engine, stream, 'operator');
     return says ? { says, tone: 'fault' } : null;
@@ -230,4 +250,22 @@ export function controlRoomNote(
   if (dark) return { says: dark, tone: 'note' };
   const says = healthSentence(engine, stream, 'operator');
   return says ? { says, tone: 'fault' } : null;
+}
+
+/**
+ * How recent a render failure has to be to still be worth saying.
+ *
+ * Two segments' worth of slack past the stream's own staleness window:
+ * a fault that stopped happening is a fault that was fixed, and a
+ * control room still shouting about it is a control room nobody reads.
+ */
+export const FAILURE_FRESH_MS = 30_000;
+
+/** Is this failure recent enough to still be true? */
+export function stillFailing(
+  failure: { at: string } | null | undefined, now: number,
+): boolean {
+  if (!failure) return false;
+  const at = Date.parse(failure.at);
+  return Number.isFinite(at) && now - at <= FAILURE_FRESH_MS;
 }

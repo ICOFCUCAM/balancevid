@@ -75,6 +75,11 @@ watch the output. `marksFor` returns `[]` when there is no identity, no
 `drawtext` is emitted, and the picture should appear. If it does, this
 is the whole of it.
 
+### Fixed — see CHANNEL C-24
+
+All three are done. What follows is the reasoning as it stood when the
+fault was found; the record of the fix is C-24.
+
 ### The three fixes, in order of honesty
 
 1. **Ship an ffmpeg with `drawtext`.** A build with freetype, or the

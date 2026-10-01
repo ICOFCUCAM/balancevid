@@ -33,6 +33,26 @@ set -uo pipefail
 ROLE="${ROLE:-all}"
 PORT="${PORT:-3000}"
 
+# ------------------------------------------------------------------ ffmpeg
+# WHICH BINARY DRAWS THE CHANNEL'S OWN NAME.  [CHANNEL C-24]
+#
+# The pinned `ffmpeg-static` is built without freetype and so has no
+# `drawtext`. A filtergraph naming a filter that is not there is rejected
+# WHOLE, so the station bug did not quietly fail to appear — it took every
+# segment with it, and the fallback put black on the wire for as long as the
+# channel had an identity.
+#
+# `WITH_TEXT=1` puts a capable ffmpeg on the image. This points at it, and
+# ONLY if the file is really there: a Dockerfile cannot branch on a build
+# argument inside an ENV, and the obvious attempt pointed every render at a
+# binary that had not been installed. Looking for the file is correct in both
+# directions and needs nobody to keep two settings in step.
+#
+# An operator who sets BALANCEVID_FFMPEG themselves is not overruled.
+if [ -z "${BALANCEVID_FFMPEG:-}" ] && [ -x /usr/bin/ffmpeg ]; then
+  export BALANCEVID_FFMPEG=/usr/bin/ffmpeg
+fi
+
 pids=()
 
 # ---------------------------------------------------------------- models
