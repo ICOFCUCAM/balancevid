@@ -23,6 +23,7 @@
  */
 
 import type { Grounding, SpaceLook } from '../domain/environment.js';
+import { bandIsFloor, defocusFor, floorOf } from '../domain/environment.js';
 
 /** Softening applied to a `blur` backdrop — their own room, out of focus. */
 const BLUR_SIGMA = 24;
@@ -75,7 +76,7 @@ export function backdropChain(
   // A horizon, a stage lip, a balcony rail: one straight edge is the
   // difference between "a place" and "a gradient".
   let current = lit;
-  if (look.band) {
+  if (look.band && !bandIsFloor(look.band)) {
     const banded = `${out}_band`;
     chains.push(
       `[${current}]drawbox=x=0:y=${Math.round(look.band.y * height)}:w=${width}`
@@ -83,8 +84,48 @@ export function backdropChain(
       + `[${banded}]`);
     current = banded;
   }
+  const ground = floorOf(look);
+  if (ground) {
+    /*
+     * A FLOOR, NOT A STRIPE.  [§4, S-6]
+     *
+     * A band that reaches the bottom of the frame is not a rule across
+     * the picture, it is the ground — and it has been drawn as one flat
+     * colour since the spaces were made, which is exactly what makes a
+     * drawn room look like a stage flat. A real floor recedes: it meets
+     * the wall at the horizon and comes towards the camera, and the
+     * near end is further from the room's light than the far end.
+     *
+     * So the floor is its own gradient, laid over the wash between the
+     * horizon and the bottom edge, from the band's own colour where it
+     * meets the wall to a darker version of that same colour underfoot.
+     * Mixing towards black rather than to another hue keeps it one
+     * floor rather than two surfaces.
+     */
+    const top = Math.round(ground.y * height);
+    const deep = height - top;
+    const floor = `${out}_floor`;
+    const laid = `${out}_laid`;
+    chains.push(
+      `gradients=s=${width}x${deep}:c0=${ground.from}`
+      + `:c1=${ground.to}`
+      + `:x0=0:y0=0:x1=0:y1=${deep}:type=linear:d=${seconds}:r=${fps}${fixed},`
+      + `format=gbrp[${floor}]`);
+    chains.push(
+      `[${current}][${floor}]overlay=0:${top}:format=gbrp[${laid}]`);
+    current = laid;
+  }
 
   const tail: string[] = [];
+  /*
+   * AND THE BACK OF THE ROOM IS NOT IN FOCUS.  [§4]
+   *
+   * Before the vignette and the grain, because both of those are the
+   * lens and the sensor rather than the room: a vignette is the lens
+   * darkening its own corners, and grain is noise added after the
+   * picture was formed. Blurring them would be blurring the camera.
+   */
+  tail.push(`gblur=sigma=${defocusFor(look, Math.min(width, height))}`);
   if (look.vignette > 0) tail.push(`vignette=a=${(Math.PI / 5 * look.vignette).toFixed(4)}`);
   /*
    * Grain last, so it is not blurred by anything above it. A perfectly clean

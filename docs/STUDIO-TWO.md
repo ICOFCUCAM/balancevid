@@ -2224,9 +2224,10 @@ a test compared two renders.
   are still not supported**: `-loop 1` is the single-image flag, and a
   moving backdrop needs `-stream_loop`, its own fps handling, and a
   decision about what happens when the clip is shorter than the take.
-* **Depth in the drawn spaces.** They are still a wash, a light pool, a
-  vignette and grain. No floor-to-wall perspective, no depth of field,
-  no horizon matched to the performer's eyeline.
+* ~~**Depth in the drawn spaces.**~~ Done in S-33 below, except for the
+  eyeline: the horizon follows the room's declared depth rather than
+  where the performer's eyes are, because the backdrop is drawn before
+  anybody knows where they will stand.
 
 
 ## S-32 — The promise made in three places and kept in none of the fourth
@@ -2295,3 +2296,91 @@ A moving backdrop needs `-stream_loop`, its own fps handling, and a
 decision nobody has made about what happens when the clip is shorter than
 the take — hold the last frame, loop it, or refuse it. That is render
 work, not a tile, and it is owed rather than done.
+
+
+## S-33 — A wash is not a room
+
+*"...and the environments of best grade."*
+
+Three things were missing, and the third was the one that mattered.
+
+### Nothing was in focus, and nothing was out of it
+
+Every drawn space has been rendered pin sharp from edge to edge, which
+is the one thing no photograph of a room has ever looked like. A camera
+focused on a performer does not also focus on the wall behind them, and
+the further back that wall is the less it does.
+
+So `depth` — how far the back of the room is, 0..1 — is now on every
+space, and `defocusFor` turns it into a blur. **Stored rather than
+derived**, unlike the grounding of S-31, and the difference is worth
+stating: everything `groundingFor` needs is implied by the light and the
+walls, and this is not. A cathedral and a vocal booth can be the same
+colour and the same brightness and be forty metres apart. Nothing
+already on the record knows that, so the record has to say it — and it
+is required rather than optional, so a space added tomorrow has to
+answer the question rather than silently being a cupboard.
+
+Small, though: a cathedral blurred to a smear is a different error from
+a cathedral blurred not at all, and the second at least keeps the place
+recognisable. It is expressed against the frame's smaller side, so the
+same room is the same room at any output size. [D-06]
+
+### Six of the eleven spaces had no floor
+
+Four declared a `band` reaching the bottom of the frame — which is a
+floor, drawn as a flat stripe of one colour. One declared a thin sea
+line. **The other six were a wash, a light pool, a vignette and some
+grain.** A cathedral rendered as a brown gradient is not a cathedral,
+and no amount of grain makes a gradient into a place.
+
+The record already told the two kinds of band apart without having been
+asked to: Beach's runs from 0.62 for six hundredths of the frame, which
+is a horizon; Concert Stage's runs from 0.86 to the very bottom, which
+is the ground. `bandIsFloor` reads that difference, a declared floor
+keeps its own colour and becomes a gradient rather than a stripe, and a
+declared line stays a line.
+
+For the six with nothing, the floor is derived. **Where the line goes is
+geometry, not taste**: stand close to a wall and the join is low in the
+frame — a lot of wall, little ground — and at the back of a nave it
+rises. So it follows `depth`, the one thing the record now knows about
+how far away the back of the room is.
+
+### And the floor was invisible until it was lit correctly
+
+The first derivation darkened the wall's own colour at both ends of the
+floor. That is wrong in exactly the rooms that needed it most:
+**darkening a near-black concert hall by half gives another near-black**,
+and the floor was measurable in a pixel and invisible to an eye. The
+screenshot said so immediately; no test would have.
+
+A floor is lit from ABOVE. Where it meets the wall it picks up the
+room's own light, and it falls away towards the camera — and that join
+is what reads as a join rather than as a slightly different black. The
+far edge now mixes towards the light's own colour, not towards white, so
+a purple stage gets a purple floor and a candle-lit nave a warm one.
+
+### Measured
+
+Nine more assertions on the derivation, and two on the picture through
+real ffmpeg:
+
+| | sampled | claim |
+|---|---|---|
+| floor | the fall from y=700→860 against y=900→1060, at the horizontal centre | the floor falls away more than twice as fast as the wall, which a vignette cannot explain |
+| defocus | y=650, 669 and 690 across Beach's hard sea line | the step is a ramp: the middle sample sits strictly between the sky and the sea |
+
+Removing the defocus fails the second; flattening the floor gradient
+fails the first.
+
+### Still owed
+
+* **A horizon matched to the performer's eyeline.** The line follows the
+  room's depth, not where their eyes are, because the backdrop is drawn
+  before anybody knows where they will stand.
+* **The dark spaces stay dark.** Concert Stage and City declare near-black
+  floors of their own, and those are honoured rather than brightened.
+  Their ground is correct and barely visible, which is what a dark hall
+  looks like.
+* **The live compositor still has the matte and none of this.**

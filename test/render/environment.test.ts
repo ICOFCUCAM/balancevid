@@ -410,6 +410,55 @@ describe('the finished picture', () => {
     expect(leftFlank).toBeLessThan(farLeft - 15);
   }, 240_000);
 
+  it('draws a floor that recedes instead of a stripe', async () => {
+    /*
+     * A BAND THAT REACHES THE BOTTOM IS THE GROUND, and it was drawn as
+     * one flat colour, which is exactly what makes a drawn room read as
+     * a stage flat. Modern Room's runs from 0.82 to the bottom, so the
+     * floor is y=886..1080 and the wall is everything above it.
+     *
+     * The claim is not "the bottom is darker" — a vignette would do
+     * that. It is that the floor falls away FASTER than the wall does:
+     * the wall's own gradient is spread over 886 pixels and the floor's
+     * over 194, and both samples are at the horizontal centre where a
+     * vignette has least to say.
+     */
+    const p = performance();
+    setEnvironment(p, 'take_one', { kind: 'space', spaceId: 'modern_room' });
+    const out = await renderWith(p, 'floor');
+    const sum = (c: number[]) => c[0]! + c[1]! + c[2]!;
+    const at = async (y: number) => sum(await colourAt(out, 1, 300, y));
+
+    const wallFall = await at(700) - await at(860);
+    const floorFall = await at(900) - await at(1060);
+    expect(floorFall).toBeGreaterThan(wallFall * 2);
+  }, 240_000);
+
+  it('does not focus the back of the room as sharply as the performer', async () => {
+    /*
+     * Beach's band is a LINE rather than a floor — a hard-edged sea
+     * horizon drawn at y=670. Pin sharp, that edge is a step: the pixel
+     * just above it is wall and the pixel just below it is sea, with
+     * nothing in between. Defocused, the step becomes a ramp, and a
+     * sample inside the ramp sits strictly between the two.
+     *
+     * That is the whole claim, and it cannot be made by a gradient:
+     * above the horizon the wash is sky all the way up.
+     */
+    const p = performance();
+    setEnvironment(p, 'take_one', { kind: 'space', spaceId: 'beach' });
+    const out = await renderWith(p, 'defocus');
+    const sum = (c: number[]) => c[0]! + c[1]! + c[2]!;
+    const at = async (y: number) => sum(await colourAt(out, 1, 300, y));
+
+    const sky = await at(650);
+    const edge = await at(669);
+    const sea = await at(690);
+    expect(sea).toBeLessThan(sky);
+    expect(edge).toBeLessThan(sky - 5);
+    expect(edge).toBeGreaterThan(sea + 5);
+  }, 240_000);
+
   it('renders the same plan to the same picture twice', async () => {
     /*
      * THE CONTRACT `backdropChain` ALREADY CLAIMED, and did not keep.
