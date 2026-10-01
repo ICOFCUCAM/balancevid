@@ -236,6 +236,29 @@ export function useBroadcastMixer({
         paper.fillRect(0, 0, width, height);
       }
 
+      /*
+       * AND THEN THE COMPOSITOR IS SHOWN IT.  [§27, S-43]
+       *
+       * A person standing in a set comes back as a cutout, because the
+       * set is the studio and four panels are not four rooms — and
+       * that is exactly why the shader had no pixels to ground them
+       * against. It has them now: the room is finished on this canvas
+       * before anybody is drawn into it, so a light wrap and a contact
+       * shadow can be taken from the surface they are actually
+       * standing on.
+       *
+       * ONCE, HERE, AND BEFORE THE FIRST PERSON — not inside the loop.
+       * Per person it would be the same picture uploaded four times,
+       * and by the second person the canvas already carries the first,
+       * so nobody's shoulder would be lit by their colleague.
+       */
+      if (compositorRef.current) {
+        try {
+          compositorRef.current.useBackdrop(
+            scene ? canvas : null, scene?.spaceId);
+        } catch { /* A lost context. The broadcast carries on. */ }
+      }
+
       people.slice(0, Math.max(1, takeSlots(layout))).forEach((person, index) => {
         const rect = panels[index]?.rect ?? { x: 0, y: 0, w: 1, h: 1 };
         const box = {
@@ -255,6 +278,10 @@ export function useBroadcastMixer({
           try {
             if (!compositorRef.current) {
               compositorRef.current = new LiveCompositor();
+              /* The first person of the first frame: the backdrop was
+                 handed over above, before this existed. */
+              compositorRef.current.useBackdrop(
+                scene ? canvas : null, scene?.spaceId);
             }
             composited = compositorRef.current.draw(
               video, person.plate ?? null,
@@ -267,7 +294,9 @@ export function useBroadcastMixer({
                     person.composition.light + scene.light)) }
                 : person.composition,
               { w: box.w, h: box.h }, now,
-              { cutout: Boolean(scene) });
+              /* Where this panel is in the set, so the wrap and the
+                 shadow read the part of the room they are against. */
+              { cutout: Boolean(scene), within: box });
             if (composited) {
               paper.drawImage(compositorRef.current.canvas,
                 box.x, box.y, box.w, box.h);

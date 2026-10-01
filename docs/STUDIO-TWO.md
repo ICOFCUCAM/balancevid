@@ -3647,3 +3647,107 @@ thing is to build these capabilities into the existing take/timeline
 model, not create a second editing system."*
 
 **S-34's video capability remains untouched.**
+
+## S-43 — The performer stands in the set too
+
+The gap S-41 named and S-42 held open: *"a person composited onto a
+virtual set gets no wrap and no contact shadow, because the set is on
+the 2D canvas where the shader cannot reach it."*
+
+It turns out that was two problems wearing one coat, and only one of
+them was real.
+
+### The shadow never needed the background at all
+
+A contact shadow is a MULTIPLY. `matteChain` darkens the room with
+`colorlevels` and chooses between the room and the darker copy with a
+`maskedmerge`, which comes to `back × (1 − shadow × shade)`.
+
+Black at alpha `s`, drawn over anything with source-over, leaves
+`back × (1 − s)`. That is the same arithmetic. **Straight alpha can
+say "multiply this by a number", and a cutout has a whole channel free
+to say it in.** No background needed, nothing to reach, nothing to
+upload.
+
+What the edge needs is slightly more care, because there both the
+person and their shadow have a say. The opaque path lands on
+`mix(back × (1 − shade), fg, m)`. For a cutout to come out the same
+under source-over:
+
+    a   = m + shade × (1 − m)
+    rgb = fg × m / a
+
+Then `rgb × a` is `fg × m` and `back × (1 − a)` is
+`back × (1 − m) × (1 − shade)`, which is the opaque path term for term.
+Not an approximation of it.
+
+### The wrap did need it, and the canvas already had it
+
+A light wrap is the room's own colour landing on a shoulder, so it has
+to be sampled from the room. The mixer paints the set into the master
+canvas *before anybody is composited into it* — the room is finished
+and sitting there — so the compositor is handed that canvas as its
+background and samples it exactly as it samples a backdrop it drew
+itself. `uBackRect` says which part of it this panel is a window onto;
+one sampler, two pictures, the same question.
+
+**Once a frame, before the first person**, which is not only the cheap
+choice but the only honest one: by the second person the canvas
+already carries the first, and nobody's shoulder should be lit by
+their colleague.
+
+### So there is no second lighting system, and no new model
+
+Nothing was added to the scene. `groundingFor` already said how a room
+lands on a person; the set already names its room; `matteChain`'s rule
+— a drawn space grounds, an original or a blur does not — is unchanged.
+A cutout standing in a virtual set simply HAS a drawn space behind it,
+and now the code can see that it does.
+
+The performer branch of the diagram is not a new branch. It is the
+branch that was always there with nothing plugged into it.
+
+### Measured, because "it looks better" is not a result
+
+The two paths — the shader owning the whole picture, and the 2D canvas
+owning the room with a cutout composited over it — must produce the
+same composite. Rendered side by side on a probe room with no vignette
+and no grain, where S-42 established the two renderings of the room
+are themselves identical:
+
+| | mean difference | worst |
+|---|---|---|
+| whole frame | 0.47 | 17, in the probe band's own row |
+| below that row | **0.35** | **2** |
+
+Two parts in 255 at worst. The cutout composites to what the opaque
+path composites to, which is the claim the arithmetic above makes.
+
+**And no seam at a panel boundary.** A shadow is drawn inside a
+compositor canvas that is only as big as its panel, so the obvious
+worry is a shadow cut dead at the edge of one. Two people in two
+panels of News Desk: the shadows stay local to each silhouette and the
+boundary is invisible. The shadow reaches about three and a half
+hundredths of the frame's smaller side; a performer that close to the
+edge of their own panel is already cropped there.
+
+### What is NOT claimed
+
+**There is no new domain surface, so there are no new unit tests**, and
+saying that is better than inventing one. Everything this needed —
+`groundingFor`, the space behind a set, the grounding rule — was built
+and tested already. What is new is a shader branch and a texture
+upload, and those are verified by rendering them and reading the
+pixels, which is what the table above is.
+
+**A shadow from a person in a later panel falls on a person in an
+earlier one**, in the two layouts whose panels overlap. Their wrap
+still samples only the room, because the backdrop is uploaded before
+anybody is drawn. A shadow from somebody in front landing on somebody
+behind is right; the asymmetry with the wrap is noted rather than
+engineered away.
+
+**One texture upload per frame** of the master canvas is new work in
+the frame loop. Per person it would have been four.
+
+**S-34's video capability remains untouched.**
