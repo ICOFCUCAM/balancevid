@@ -3225,3 +3225,99 @@ the vertical held the very dimension that changes the composition
 constant, and reported all four shapes identical. A test that varies
 everything except the thing under test reports success and means
 nothing.
+
+## S-40 — Where an element belongs, not where it was drawn
+
+*"Describe where an element belongs in the scene, not where it happened
+to be drawn in one frame."*
+
+The extension S-39 named, and the two concepts it named, built.
+
+### Occupancy
+
+`PerformerZone` said where the ground is, where the eyes are, and which
+arrangement holds N people. It said nothing about **how much room a
+person needs** — which is the one thing every other element in the scene
+has to work around.
+
+`occupies` is not an estimate. S-38 rendered News Desk at four shapes
+and read the performer's span off the pixels: **25% at 16:9**. That is
+the number.
+
+`occupiesAt` turns it into what the current frame gets. A take is
+cover-fitted into its panel, so a frame narrower than the one it was
+shot in crops the sides away and magnifies what is left: the same person
+fills more of a narrower frame. A wider frame changes nothing, because
+cover crops the top and bottom there instead.
+
+**The arithmetic was written to explain the measurement, not the
+measurement taken to confirm the arithmetic:**
+
+| | measured (S-38) | derived |
+|---|---|---|
+| 16:9 | 25% | 0.250 |
+| 4:3 | 33% | 0.333 |
+| 1:1 | 44% | 0.444 |
+| 9:16 | 79% | 0.789 |
+
+### Relational placement
+
+A `rect` says where something is. It does not say what it is relative
+to. `Placement` does — `relation`, `side`, `clearance`, `scale`,
+`atLeast` — and `placedFor` resolves it against the frame in front of
+it.
+
+**The answer is not four layouts.** *"If 9:16 move it left, if 1:1
+shrink it"* is a table that grows a row per shape anybody ships in, each
+tuned by hand and each able to be wrong on its own.
+
+### The regression the first version caused
+
+The first resolver pushed every placed piece **fully clear** of the
+performer — and moved News Desk's screen from `x 0.56` to `0.65` at
+16:9, correcting the one frame the sets were actually drawn for.
+
+That screen sits sixty-five thousandths **behind** the presenter's
+shoulder on purpose: a set element tucked slightly behind somebody reads
+as a room, and one held at arm's length reads as a diagram. The
+relationship was already right; what changes is only how far the
+performer's edge has travelled since.
+
+So **the gap it was drawn with is the relationship, and it is kept**:
+
+| | performer | screen | |
+|---|---|---|---|
+| 16:9 | 0.38–0.63 | 0.56–0.96, w 0.40 | **exactly as authored** |
+| 4:3 | 0.33–0.67 | 0.60–1.00, w 0.40 | pushed, full width |
+| 1:1 | 0.28–0.72 | 0.66–1.00, w 0.34 | shrunk into what is left |
+| 9:16 | 0.11–0.89 | 0.83–1.00, w 0.17 | a strip beside them, not behind |
+
+A piece with no `placement` comes back untouched — a band across the
+floor is a fact about the frame, and only an element whose meaning is
+*"beside the presenter"* has anything to resolve. A piece there is no
+longer room for is **dropped**: squeezed to a stripe it is not a smaller
+version of itself, it is a mark nobody can read.
+
+### Measured
+
+Fourteen assertions, seven mutations, all seven caught — after the
+second weak fixture of this kind was found the same way.
+
+**The fixture that proved nothing, again.** *"A piece with no
+relationship comes back as authored"* was asserted on News Desk's band,
+which is authored at `x: 0` — so a mutation moving every unplaced piece
+to zero changed it not at all and survived. The claim is now checked
+across every set at three shapes, and asserts that at least one of the
+pieces it checked was somewhere a move would have shown. Stage's riser
+sits at 0.1, and that is the piece the claim needed.
+
+Twice now a fixture has passed while testing nothing, and both times the
+mutation found it rather than the test suite. That is the argument for
+the sweep, not for the assertion count.
+
+### Where this leaves the live path
+
+`placedFor` is in the domain, so the canvas renderer can call it the
+moment it takes up grounding. It is not called there yet, and that is
+not a gap for the control room: Online TV is 16:9, where the resolver
+returns every piece exactly as authored.
