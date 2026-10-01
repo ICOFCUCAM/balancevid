@@ -306,6 +306,49 @@ export function holds(set: VirtualSet): number {
   return Math.max(...Object.keys(set.positions).map(Number));
 }
 
+/**
+ * HOW FAR THE GLASS SITS INSIDE THE BEZEL.  [CHANNEL §27, C-23]
+ *
+ * A monitor is a frame and a piece of glass, and until now only the
+ * things that DREW one knew where the glass was — an inset worked out
+ * inline, twice, in two renderers. They disagreed. The canvas took a
+ * hundred-and-twenty-thousandths of the monitor's WIDTH and the
+ * chain took four hundredths of its SMALLER SIDE, which on News
+ * Desk's monitor at 1280×720 is six pixels against twelve. The same
+ * screen, drawn with twice the bezel in an export as on the air.
+ *
+ * It mattered little while the glass was dark and empty. The moment
+ * something is shown on it, it is the rectangle the picture has to
+ * land in, and two answers is a shared screen sitting proud of its
+ * own bezel in one of the two places.
+ *
+ * THE CHAIN'S RULE IS THE ONE KEPT, on its merits rather than its
+ * seniority: a fraction of the SMALLER side gives a monitor the same
+ * bezel whichever way round it is, where a fraction of the width
+ * gives a wide one a thick frame and a tall one a thin one. The
+ * control room moves to match the export, which is the direction this
+ * disagreement has gone every time it has been measured.
+ */
+export const SCREEN_INSET = 0.04;
+
+/** The glass of a monitor, in the pixels of a frame this size. */
+export function glassOf(
+  rect: Rect, frame: { w: number; h: number },
+): { x: number; y: number; w: number; h: number } {
+  const box = place(rect, frame);
+  /* At least two pixels, because a bezel nobody can see is a monitor
+     drawn as a rectangle of one colour — which is the thing `spaceArt`
+     says a screen must not be. */
+  const inset = Math.max(2, Math.round(Math.min(box.w, box.h) * SCREEN_INSET));
+  return {
+    x: box.x + inset, y: box.y + inset,
+    /* Never negative: a monitor smaller than its own bezel has no
+       glass, and a renderer handed a negative width draws backwards. */
+    w: Math.max(0, box.w - inset * 2),
+    h: Math.max(0, box.h - inset * 2),
+  };
+}
+
 /** A rectangle in fractions, as pixels of a frame. */
 export function place(
   rect: Rect, frame: { w: number; h: number },

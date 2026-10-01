@@ -410,8 +410,14 @@ export default function ChannelStudio({
 
   const mixed = useMemo(() => [
     ...guests.sources,
+    /* NOT A FACE, and the mixer is told so rather than left to read
+       the id: a set with a monitor puts this on it instead of giving
+       it a panel beside the people. [§27, C-23] */
     ...(share.stream
-      ? [{ id: 'screen', stream: share.stream, label: share.label ?? 'Screen' }]
+      ? [{
+        id: 'screen', stream: share.stream, label: share.label ?? 'Screen',
+        kind: 'screen' as const,
+      }]
       : []),
     ...(answer
       ? [{ id: answer.id, stream: answer.stream, label: answer.label }] : []),

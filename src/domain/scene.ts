@@ -43,7 +43,9 @@
 import {
   type SpaceLook, GLOW_REACH, floorOf, lookFor, perspectiveOf,
 } from './environment.js';
-import { type Piece, type VirtualSet, inFront, setById } from './virtualSet.js';
+import {
+  type Piece, type VirtualSet, glassOf, inFront, setById,
+} from './virtualSet.js';
 
 /**
  * Where a person belongs in this scene.
@@ -527,4 +529,46 @@ export function lampOf(
     ? { x: at.x * 2 <= width ? at.x + reach : at.x - reach, y: at.y }
     : { x: at.x, y: at.y * 2 <= height ? at.y + reach : at.y - reach };
   return { at, edge, reach, colour: glow.colour, strength: glow.strength };
+}
+
+/* ------------------------------------------------------------------------ *
+ *  The monitors in a scene.  [CHANNEL §27, C-23]
+ * ------------------------------------------------------------------------ */
+
+/**
+ * The glass of every monitor in this scene, placed for this frame.
+ *
+ * *"A screen in a set shows nothing."* It was drawn as a frame and a
+ * pane of dark glass and nothing was ever put in it, which is the
+ * oldest line on the channel's own owed list.
+ *
+ * WHERE, NOT WHETHER. This answers only where the glass is; what goes
+ * on it is the mixer's business and the renderer's. Separating them is
+ * what stops the answer being computed twice — the canvas fills the
+ * glass with its gradient and the mixer draws a picture into the same
+ * rectangle, and a monitor whose picture sits proud of its own bezel
+ * is what two answers would look like.
+ *
+ * AND IT GOES THROUGH `placedFor`, so a monitor that moved for a
+ * narrow frame takes its picture with it. That is the whole reason
+ * this is here rather than read off the set: at 16:9 the authored rect
+ * is the answer, and at 9:16 it is not. [S-40]
+ */
+export function screensIn(
+  scene: Scene, width: number, height: number,
+): { x: number; y: number; w: number; h: number }[] {
+  const frame = { w: width, h: height };
+  return placedFor(scene, scene.behind, width / Math.max(1, height))
+    .filter((piece) => piece.kind === 'screen')
+    .map((piece) => glassOf(piece.rect, frame));
+  /*
+   * AND NOTHING FILTERS OUT A MONITOR WITH NO GLASS, which a line here
+   * used to do. A mutation removing it survived, and checking why
+   * showed it was a guard against nothing twice over: `glassOf`
+   * already clamps a pane to zero rather than negative, and drawing
+   * into a rectangle of zero width is a no-op in both renderers. It
+   * would take a monitor four pixels across — a broadcast canvas ten
+   * pixels wide — to produce one at all. Deleted rather than defended,
+   * which is the eighth of these.
+   */
 }

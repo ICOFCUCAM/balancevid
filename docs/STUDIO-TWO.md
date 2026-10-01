@@ -3751,3 +3751,77 @@ engineered away.
 the frame loop. Per person it would have been four.
 
 **S-34's video capability remains untouched.**
+
+## S-44 — The scene as it stands, and what the blanks mean
+
+A closing entry rather than a piece of work. S-35 through S-43 moved
+the scene from a description two renderers half-shared into one both
+of them and a third read, and a status table is the easiest thing in
+this record to misread in six months.
+
+| | export, ffmpeg | live canvas | live shader |
+|---|---|---|---|
+| wash, lamp, band | yes | yes | yes |
+| floor, perspective, defocus | yes | yes | yes |
+| wrap, contact shadow | yes | n/a | yes, sets included |
+| `groundPlan` | yes | yes | yes |
+| `lampOf` | yes | yes | yes |
+
+### The canvas's blank is not a gap
+
+**`paintSpace` and `paintSet` draw ROOMS. They do not composite
+people.** A matte is cut by ffmpeg on one side and by the shader on
+the other; the canvas paints the studio and then blits a finished
+cutout onto it. There is no wrap or shadow missing from it, because
+there is no person in it to wrap — which is exactly what S-43 showed
+by routing the set's own pixels to the shader rather than teaching the
+canvas to light anybody.
+
+The one place the canvas does draw a person is the honest-failure
+path: no key, no plate, so no matte, and the raw picture goes down
+rather than a black rectangle. Nobody is composited there either.
+
+### Two differences that are named and NOT measured
+
+Three renderers still draw two things three ways.
+
+**The vignette.** `vignette=a=(π/5)×v` in the chain, a radial gradient
+from a quarter of the smaller side to 0.72 of the longer with alpha
+`min(0.95, v×0.7)` on the canvas, and `pow(r×1.42, 2)×v` in the
+shader. The corners are where S-41's probe found its largest
+disagreement between the two live surfaces, and that is the term
+responsible.
+
+**The grain.** Seeded `noise` per pixel in the chain, a seeded hash
+per pixel in the shader, and sparse one-pixel dots at four per cent
+coverage on the canvas — chosen because `getImageData` on twelve
+thumbnails is a visible pause. The canvas's is also the only one that
+is UNSEEDED, taking `Math.random` per dot; that costs nothing today
+because the canvas path is live rather than cached, and U-16's
+determinism contract covers the chain's output, which is seeded.
+
+**Neither has been through the export-reference measurement** that
+settled `groundPlan`, the perspective, the lamp and the grounding.
+That is the whole point of writing them here: *not measured is not the
+same as wrong*. If either starts to matter, the first step is the
+probe — a room isolating that one term, rendered three ways and read
+off the pixels — not a patch that makes three numbers equal.
+
+### The boundary that has held since S-34
+
+    S-34  video environment
+            │  DEFERRED, UNTOUCHED
+    ────────┴──────────────────────────────
+    S-35 → S-43  shared scene truth
+            ├── depth          ├── grounding
+            ├── floor          ├── lamp
+            ├── perspective    ├── wash and band
+            ├── defocus        ├── wrap
+            ├── eyeline        └── contact shadow
+
+Nine sections of spatial work and the oldest deferred capability has
+not been quietly eaten by any of them. No `VideoBackground`, no
+duration policy, no `allowedContexts`, no loop-or-hold rule, no
+renderer change. When video backgrounds are taken up they will be
+taken up as S-34 wrote them, against a scene model that is now
+substantially closed rather than one still being invented around them.
