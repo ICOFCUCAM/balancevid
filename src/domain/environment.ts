@@ -470,6 +470,37 @@ export function defocusFor(look: SpaceLook, smallSide: number): number {
 }
 
 /**
+ * HOW FAR A ROOM'S LAMP REACHES, as a fraction of the longer side.
+ * [STUDIO-TWO §4, S-41]
+ *
+ * THE NUMBER THE THREE RENDERERS HAD NEVER AGREED ON, and the one of
+ * them that looked authoritative turned out to be an accident.
+ *
+ * The ffmpeg chain states a radial gradient as two points and let the
+ * second one be `x1=width:y1=height` — the frame's corner, which is one
+ * past the last pixel in both axes. Handed a coordinate off the end,
+ * `gradients` returns a radius with no relation to the geometry: the
+ * same corner rule measured 393 pixels for a lamp at the centre, 364
+ * for one a little higher, 84 for Modern Room's and 584 for City's.
+ * Not a pool to the corner. Whatever the filter does with an
+ * out-of-range point.
+ *
+ * Given a second point that is a real pixel inside the frame, the
+ * gradient reaches zero at exactly that distance — measured at 199 for
+ * 200, 382 for 384, 498 for 500. So the renderers can be told the same
+ * thing, and this is it.
+ *
+ * THREE TENTHS, because that is the size the export has been drawing
+ * for a lamp near the middle of the frame, and because a pool is
+ * supposed to be a pool: the live surfaces reached 0.62 of the longer
+ * side, which on any frame is light still at a third of its strength
+ * when it runs off the edge. An evenly lit backdrop is the thing that
+ * reads as a screensaver, and that is the argument the pool existed to
+ * make.
+ */
+export const GLOW_REACH = 0.3;
+
+/**
  * A colour, further from the light.
  *
  * Used where one surface has to read as continuous with another and

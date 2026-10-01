@@ -2855,9 +2855,18 @@ broadcasts in a shape the sets were not drawn for.
   the 2D canvas composites them. The shader cannot reach the pixels
   behind them to darken or to sample. A participant's own drawn room
   gets both; a set gets neither.
-* **The light pool's radius still differs between the chain and the two
-  live surfaces.** The chain measures it to the bottom-right corner of
-  the frame, which turns a lamp low on the right into a pinpoint; both
-  live surfaces use a fixed 0.62 of the longer side. The two live
-  surfaces now agree with each other. Which of the two is wanted is a
-  decision about how a room should look, not a defect.
+**The canvas pool faded to transparent BLACK**, which is the oldest trap
+in a 2D gradient: a stop carries a colour as well as an alpha, so the
+studio's pools darkened as they thinned. They fade to the glow's own
+colour at zero alpha now.
+
+**And the lamp is one shared number.** This section first said the
+export and the air disagreed about the pool's size and left it as a
+decision. The decision was taken — the export's size, three tenths of
+the longer side — and taking it showed the export had not been drawing
+a rule at all: naming the frame's corner as the far end of a radial
+gradient hands `gradients` a coordinate one past the last pixel, and it
+returns a radius unrelated to the geometry. Modern Room's lamp drew 84
+pixels and City's drew 584, from the same rule. `lampOf` states the
+circle; all three renderers now read within one part in 255 of each
+other at every distance from it. [S-41]

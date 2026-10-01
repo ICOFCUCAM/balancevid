@@ -14,7 +14,7 @@ import { describe, expect, it } from 'vitest';
 import {
   type SpaceLook, SPACE_LOOKS, floorOf, lookFor,
 } from '../../src/domain/environment.js';
-import { groundPlan, reachOf, sceneOf } from '../../src/domain/scene.js';
+import { groundPlan, lampOf, reachOf, sceneOf } from '../../src/domain/scene.js';
 import { backdropChain } from '../../src/render/matte.js';
 
 /**
@@ -173,5 +173,114 @@ describe('the measurement reaches the pixels', () => {
     const grounded = Object.values(SPACE_LOOKS).filter((one) => floorOf(one));
     expect(grounded.length).toBeGreaterThan(0);
     expect(grounded.length).toBeLessThan(Object.keys(SPACE_LOOKS).length);
+  });
+});
+
+describe('the lamp, in pixels', () => {
+  /*
+   * THE NUMBER THREE RENDERERS HAD NEVER AGREED ON.
+   *
+   * The chain named the frame's CORNER as the far end of its radial
+   * gradient — `x1=width:y1=height`, which is one past the last pixel
+   * in both axes — and `gradients` handed a coordinate off the end
+   * returns a radius with no relation to the geometry. The same rule
+   * measured 393 pixels for a lamp at the middle of the frame, 84 for
+   * Modern Room's and 584 for City's.
+   *
+   * So the circle is stated here, as a centre and a point on its edge,
+   * because one renderer draws it from two points and two draw it from
+   * a radius. Same shape as `groundPlan`, same reason.
+   */
+  it('is the room’s own glow, in whole pixels', () => {
+    const lamp = lampOf(sceneOf(room({ glow: {
+      x: 0.28, y: 0.3, colour: '0xffd7a0', strength: 0.55,
+    } })), 1281, 721);
+    expect(lamp.at).toEqual({ x: Math.round(0.28 * 1281), y: Math.round(0.3 * 721) });
+    /* Whole, because a filter graph coordinate is an integer and a
+       fraction in one is a fraction the other two would not have. */
+    expect(Number.isInteger(lamp.at.x)).toBe(true);
+    expect(Number.isInteger(lamp.at.y)).toBe(true);
+    expect(lamp.colour).toBe('0xffd7a0');
+    expect(lamp.strength).toBe(0.55);
+  });
+
+  it('reaches three tenths of the LONGER side', () => {
+    /* Longer, not smaller and not the width: on 1280×720 those are
+       three different numbers, which is what makes this fixture able
+       to tell them apart. */
+    expect(lampOf(sceneOf(room()), 1280, 720).reach).toBe(384);
+    expect(lampOf(sceneOf(room()), 608, 1080).reach).toBe(324);
+  });
+
+  it('puts its edge exactly that far away', () => {
+    for (const [w, h] of [[1280, 720], [608, 1080], [1080, 1080]]) {
+      const lamp = lampOf(sceneOf(room({ glow: {
+        x: 0.4, y: 0.3, colour: '0xffffff', strength: 1,
+      } })), w!, h!);
+      expect(Math.hypot(lamp.edge.x - lamp.at.x, lamp.edge.y - lamp.at.y))
+        .toBeCloseTo(lamp.reach, 6);
+    }
+  });
+
+  it('and puts it somewhere that exists, wherever the lamp is', () => {
+    /*
+     * THE CORNERS ARE THE FIXTURE. A lamp in the middle has room on
+     * both sides and would agree with a rule that always went one way;
+     * a lamp at 0 or 1 has room on exactly one, and that is the case
+     * the old corner coordinate got wrong.
+     */
+    let hugged = 0;
+    for (const [w, h] of [[1280, 720], [608, 1080], [1080, 1080]]) {
+      for (const x of [0, 0.5, 1]) {
+        for (const y of [0, 0.5, 1]) {
+          const lamp = lampOf(sceneOf(room({ glow: {
+            x, y, colour: '0xffffff', strength: 1,
+          } })), w!, h!);
+          const where = `${w}x${h} at ${x},${y}`;
+          expect(lamp.edge.x, where).toBeGreaterThanOrEqual(0);
+          expect(lamp.edge.x, where).toBeLessThan(w!);
+          expect(lamp.edge.y, where).toBeGreaterThanOrEqual(0);
+          expect(lamp.edge.y, where).toBeLessThan(h!);
+          if (x === 0 || x === 1 || y === 0 || y === 1) hugged += 1;
+        }
+      }
+    }
+    /* And the loop is worth something only because it tried them. */
+    expect(hugged).toBe(24);
+  });
+
+  it('steps along the longer axis', () => {
+    /* Across a landscape frame and down a portrait one, because that
+       is the axis with room to spare: half of it less a pixel beats
+       three tenths of it for any frame wider than three. */
+    const wide = lampOf(sceneOf(room()), 1280, 720);
+    expect(wide.edge.y).toBe(wide.at.y);
+    expect(wide.edge.x).not.toBe(wide.at.x);
+    const tall = lampOf(sceneOf(room()), 608, 1080);
+    expect(tall.edge.x).toBe(tall.at.x);
+    expect(tall.edge.y).not.toBe(tall.at.y);
+  });
+
+  it('and away from the edge it is nearest', () => {
+    const left = lampOf(sceneOf(room({ glow: {
+      x: 0.1, y: 0.5, colour: '0xffffff', strength: 1,
+    } })), 1280, 720);
+    expect(left.edge.x).toBeGreaterThan(left.at.x);
+    const right = lampOf(sceneOf(room({ glow: {
+      x: 0.9, y: 0.5, colour: '0xffffff', strength: 1,
+    } })), 1280, 720);
+    expect(right.edge.x).toBeLessThan(right.at.x);
+  });
+
+  it('is the lamp the filter graph is given', () => {
+    const look = lookFor('modern_room');
+    const lamp = lampOf(sceneOf(look), 1280, 720);
+    const row = backdropChain(sceneOf(look), 1280, 720, 30, '1', 'o')
+      .find((one) => one.includes('type=radial') && one.includes('x1='))!;
+    expect(row).toContain(`:x0=${lamp.at.x}:y0=${lamp.at.y}`);
+    expect(row).toContain(`:x1=${lamp.edge.x}:y1=${lamp.edge.y}`);
+    /* And never the frame's corner again, which is the coordinate that
+       is one past the last pixel and started all this. */
+    expect(row).not.toContain(':x1=1280:y1=720');
   });
 });
