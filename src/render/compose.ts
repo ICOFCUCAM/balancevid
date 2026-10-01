@@ -24,7 +24,7 @@ import { LAYOUTS, type Rect } from '../domain/presentation.js';
 import {
   type EffectLook, SUPPLIED_GROUNDING, groundingFor, lookFor,
 } from '../domain/environment.js';
-import { sceneFor } from '../domain/scene.js';
+import { placedFor, sceneFor } from '../domain/scene.js';
 import { mixExpression, transitionFor } from '../domain/transitions.js';
 import {
   backdropChain, blurBackdropChain, matteChain, pieceBoxes, seedFor,
@@ -454,12 +454,20 @@ async function renderPerformanceShot(
          * composite read as a studio rather than as cutouts standing
          * on air.
          */
-        const dressed = scene!.behind.length > 0 ? `${behind}_set` : behind;
+        /*
+         * PLACED FOR THIS PANEL, not for the frame they were drawn in.
+         * A band across the floor is a fact about the frame and comes
+         * back untouched; a screen that means "beside the presenter"
+         * is resolved against how much of THIS panel they fill, and
+         * dropped if there is no room left for it. [S-40]
+         */
+        const under = placedFor(scene!, scene!.behind, box.w / box.h);
+        const dressed = under.length > 0 ? `${behind}_set` : behind;
         filters.push(...backdropChain(
           scene!.background, box.w, box.h, fps, seconds, dressed));
-        if (scene!.behind.length > 0) {
+        if (under.length > 0) {
           filters.push(`[${dressed}]`
-            + `${pieceBoxes(scene!.behind, box.w, box.h).join(',')},`
+            + `${pieceBoxes(under, box.w, box.h).join(',')},`
             + `format=gbrp[${behind}]`);
         }
       } else {
@@ -526,7 +534,8 @@ async function renderPerformanceShot(
        * panel is converted and composited into the layout, so it
        * belongs to this person's panel rather than to the frame.
        */
-      const front = scene?.foreground ?? [];
+      const front = scene
+        ? placedFor(scene, scene.foreground, box.w / box.h) : [];
       const merged = front.length > 0 ? `${composed}_front` : composed;
       if (front.length > 0) {
         filters.push(`[${composed}]`

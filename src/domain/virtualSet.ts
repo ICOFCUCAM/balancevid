@@ -62,11 +62,67 @@ export type Piece =
    * go in it is the programme or the graphics layer, and feeding a
    * monitor its own output is a decision, not a default.
    */
-  | { kind: 'screen'; rect: Rect; frame: string; glass: string }
+  | { kind: 'screen'; rect: Rect; frame: string; glass: string;
+    placement?: Placement }
   /** Something a presenter stands on, drawn behind them. */
   | { kind: 'riser'; rect: Rect; face: string }
   /** A band of the station's colour, for a set that wants one. */
   | { kind: 'band'; rect: Rect; face: string };
+
+/**
+ * WHAT A PIECE BELONGS BESIDE, rather than where it was drawn.
+ * [STUDIO-TWO §4, S-38, S-40]
+ *
+ * *"Describe where an element belongs in the scene, not where it
+ * happened to be drawn in one frame."*
+ *
+ * A `rect` says where something is. It does not say what it is relative
+ * to — and that is the whole of what S-38 found. News Desk's screen was
+ * authored at `x: 0.56` against a 16:9 frame where the presenter
+ * occupies a quarter of the width. At 1:1 they occupy 44% and the
+ * screen is behind their shoulder; at 9:16 they occupy 79% and it is a
+ * sliver.
+ *
+ * NOTHING IS BROKEN THERE. The rect is drawn exactly where it says. The
+ * set element the viewer is meant to see is simply behind the person,
+ * which is a sentence about meaning rather than about geometry.
+ *
+ * AND THE ANSWER IS NOT FOUR LAYOUTS. "If 9:16 move it left, if 1:1
+ * shrink it" is a table that grows by one row per shape anybody ever
+ * ships in, each tuned by hand and each able to be wrong on its own.
+ * One relationship, resolved against the frame in front of it, is the
+ * thing the scene exists to hold.
+ */
+export interface Placement {
+  /** What it stands next to. One relation for now; the shape allows more. */
+  relation: 'beside-performer';
+  /** Which side of them. */
+  side: 'left' | 'right';
+  /**
+   * The least clear frame it needs beside them to be worth placing.
+   *
+   * NOT the gap it keeps — that is whatever it was drawn with, and is
+   * preserved. This is the floor below which there is no point: a
+   * screen with two hundredths of a frame to live in is not a screen.
+   */
+  clearance: number;
+  /**
+   * What to do when the room runs out.
+   *
+   * `keep` holds its authored width and is dropped when it will not
+   * fit; `shrink` narrows into whatever is left until it reaches
+   * `atLeast`.
+   */
+  scale: 'keep' | 'shrink';
+  /**
+   * Narrower than this and it is not worth drawing.
+   *
+   * A set element squeezed to a stripe is not a smaller version of
+   * itself, it is a mark nobody can read. Dropping it is the honest
+   * outcome: the set adapts to the frame rather than littering it.
+   */
+  atLeast: number;
+}
 
 /** Where in the frame a piece is drawn relative to the people. */
 export function inFront(piece: Piece): boolean {
@@ -131,6 +187,10 @@ export const VIRTUAL_SETS: readonly VirtualSet[] = [
       { kind: 'band', rect: { x: 0, y: 0.58, w: 1, h: 0.04 }, face: INK },
       {
         kind: 'screen', rect: { x: 0.56, y: 0.12, w: 0.4, h: 0.4 },
+        /* Authored right of a presenter who filled a quarter of a
+           16:9 frame. The relationship is what it meant. [S-40] */
+        placement: { relation: 'beside-performer', side: 'right',
+          clearance: 0.02, scale: 'shrink', atLeast: 0.12 },
         frame: '#151a22', glass: '#1d2733',
       },
       {
@@ -157,10 +217,14 @@ export const VIRTUAL_SETS: readonly VirtualSet[] = [
       { kind: 'riser', rect: { x: 0, y: 0.84, w: 1, h: 0.16 }, face: '#12181f' },
       {
         kind: 'screen', rect: { x: 0.06, y: 0.08, w: 0.26, h: 0.3 },
+        placement: { relation: 'beside-performer', side: 'left',
+          clearance: 0.02, scale: 'shrink', atLeast: 0.1 },
         frame: '#151a22', glass: '#1b2430',
       },
       {
         kind: 'screen', rect: { x: 0.68, y: 0.08, w: 0.26, h: 0.3 },
+        placement: { relation: 'beside-performer', side: 'right',
+          clearance: 0.02, scale: 'shrink', atLeast: 0.1 },
         frame: '#151a22', glass: '#1b2430',
       },
     ],
@@ -195,6 +259,8 @@ export const VIRTUAL_SETS: readonly VirtualSet[] = [
     furniture: [
       {
         kind: 'screen', rect: { x: 0.44, y: 0.12, w: 0.5, h: 0.52 },
+        placement: { relation: 'beside-performer', side: 'right',
+          clearance: 0.02, scale: 'shrink', atLeast: 0.14 },
         frame: '#100d0a', glass: '#1d1913',
       },
       {

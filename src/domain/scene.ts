@@ -83,6 +83,63 @@ export interface PerformerZone {
    * people are standing on it.
    */
   positions: Readonly<Record<number, string>>;
+  /**
+   * HOW MUCH OF THE FRAME'S WIDTH A PERFORMER TAKES UP, at the shape the
+   * sets were drawn for.  [S-38, S-40]
+   *
+   * The field S-38 found missing. The zone said where the ground is,
+   * where the eyes are, and which arrangement holds N people — and
+   * nothing about how much room a person needs, which is the one thing
+   * every other element in the scene has to work around.
+   *
+   * Measured rather than guessed: a presenter shot 16:9 occupies about
+   * a quarter of the width, which is what the four-shape render read
+   * back and what the sets were drawn against.
+   */
+  occupies: number;
+}
+
+/**
+ * The shape the sets were drawn for.
+ *
+ * Not a preference — a fact about the existing content. Every rect in
+ * `VIRTUAL_SETS` was authored against a 16:9 control-room frame, so it
+ * is the frame their numbers mean something in, and the one everything
+ * else is resolved relative to.
+ */
+export const SET_REFERENCE_ASPECT = 16 / 9;
+
+/**
+ * A quarter of the width, which is what a presenter actually measured.
+ *
+ * S-38 rendered News Desk at four shapes and read the performer's span
+ * off the pixels: 25% at 16:9. That is the number, not an estimate of
+ * it.
+ */
+export const PERFORMER_OCCUPIES = 0.25;
+
+/**
+ * What that becomes in a frame of another shape.
+ *
+ * A TAKE IS COVER-FITTED INTO ITS PANEL, so a frame narrower than the
+ * one the take was shot in crops the sides away and magnifies what is
+ * left: the same person fills more of a narrower frame. That is not a
+ * fault, it is what cover fitting is for — and it is why an element
+ * authored at `x = 0.56` ends up behind somebody's shoulder.
+ *
+ * DERIVED, THEN CHECKED AGAINST THE PIXELS. The four shapes S-38
+ * measured read 25%, 33%, 44% and 79%; this returns 0.250, 0.333, 0.444
+ * and 0.789. The arithmetic was written to explain the measurement
+ * rather than the measurement taken to confirm the arithmetic.
+ *
+ * A WIDER FRAME CHANGES NOTHING. Cover crops the top and bottom there,
+ * not the sides, so the performer keeps the share of the width they
+ * already had.
+ */
+export function occupiesAt(zone: PerformerZone, frameAspect: number): number {
+  if (!Number.isFinite(frameAspect) || frameAspect <= 0) return zone.occupies;
+  const magnified = Math.max(1, SET_REFERENCE_ASPECT / frameAspect);
+  return Math.min(1, zone.occupies * magnified);
 }
 
 /** The eight fields, from wherever each of them already lived. */
@@ -172,6 +229,7 @@ export function sceneOf(
     depth: look.depth,
     lighting: { glow: look.glow, adjust: set?.light ?? 0 },
     performer: {
+      occupies: PERFORMER_OCCUPIES,
       /* Halfway down the visible floor: at the horizon they are against
          the back wall, and at the bottom edge they are in the lens. */
       standsAt: horizon === null ? 0.9 : horizon + (1 - horizon) * 0.5,
@@ -216,4 +274,78 @@ function moved<T extends { y: number } | { horizon: number } | null>(
   if (!plane || horizon === null) return plane;
   if ('y' in plane) return { ...plane, y: horizon };
   return { ...plane, horizon };
+}
+
+/* ------------------------------------------------------------------------ *
+ *  Resolving a scene for the frame in front of it.  [S-38, S-40]
+ * ------------------------------------------------------------------------ */
+
+/**
+ * The pieces of a scene, placed for THIS frame.
+ *
+ * *"Describe where an element belongs in the scene, not where it
+ * happened to be drawn in one frame."*
+ *
+ * A piece with no `placement` is returned exactly as authored, which is
+ * every piece that existed before this and every piece that genuinely
+ * is a fact about the frame — a band across the bottom, a riser on the
+ * floor. Only an element whose meaning is "beside the presenter" has a
+ * relationship to resolve.
+ *
+ * THE PERFORMER IS TAKEN AS CENTRED, because that is what a layout with
+ * one person in it does and what the four-shape measurement read back:
+ * 0.38–0.62 at 16:9, 0.11–0.89 at 9:16, centred on 0.5 in both. A
+ * layout that moves somebody off centre would hand its own box in; that
+ * is the next relation to add, not a reason to invent one now.
+ *
+ * AND A PIECE THAT WILL NOT FIT IS DROPPED. A set element squeezed to a
+ * stripe is not a smaller version of itself, it is a mark nobody can
+ * read. The set adapting to the frame is the honest outcome; littering
+ * it is not.
+ */
+export function placedFor(
+  scene: Scene, pieces: readonly Piece[], frameAspect: number,
+): Piece[] {
+  const now = occupiesAt(scene.performer, frameAspect);
+  const was = scene.performer.occupies;
+
+  const out: Piece[] = [];
+  for (const piece of pieces) {
+    const how = 'placement' in piece ? piece.placement : undefined;
+    if (!how) { out.push(piece); continue; }
+
+    /*
+     * THE GAP IT WAS DRAWN WITH IS THE RELATIONSHIP, and it is kept.
+     *
+     * News Desk's screen was authored at x 0.56 beside a presenter
+     * whose right edge is 0.625 — so it was drawn SIXTY-FIVE
+     * THOUSANDTHS BEHIND their shoulder, on purpose, because a set
+     * element tucked slightly behind somebody reads as a room and one
+     * held at arm's length reads as a diagram.
+     *
+     * A first version pushed every piece fully clear of the performer
+     * and moved that screen to 0.65 at 16:9 — correcting the one frame
+     * the sets were actually drawn for. The relationship was already
+     * right there; what changes is only how far the performer's edge
+     * has travelled since.
+     */
+    const edgeWas = how.side === 'right' ? 0.5 + was / 2 : 0.5 - was / 2;
+    const edgeNow = how.side === 'right' ? 0.5 + now / 2 : 0.5 - now / 2;
+    const gap = how.side === 'right'
+      ? piece.rect.x - edgeWas
+      : edgeWas - (piece.rect.x + piece.rect.w);
+
+    /* What is left of the frame on that side once they have it. */
+    const room = how.side === 'right' ? 1 - (edgeNow + gap) : edgeNow - gap;
+    if (room < how.clearance) continue;
+
+    const wide = how.scale === 'shrink'
+      ? Math.min(piece.rect.w, room) : piece.rect.w;
+    if (wide > room || wide < how.atLeast) continue;
+
+    const x = how.side === 'right'
+      ? edgeNow + gap : edgeNow - gap - wide;
+    out.push({ ...piece, rect: { ...piece.rect, x, w: wide } });
+  }
+  return out;
 }
