@@ -3205,3 +3205,186 @@ card instead of like a screen. Those three rules are the design system
 holding, and the stage is better for having been refused.
 
 139 files, 2,616 tests.
+
+---
+
+## C-26 — Stage 26: the slide was a text box, and it is a graphic now
+
+*"The editor is a control surface. The slide itself is a broadcast
+graphic."*
+
+*"Not 'a slide with text.' A broadcast graphic that happens to be
+created through a slide editor."*
+
+### The finding, which is about the output and not the panel
+
+C-25 fixed the panel and the panel was the wrong half. What came out
+the other end was still centred text on black — four layouts that were
+the same object three times over, with the channel's colour applied to
+every word on the slide. It was correct and it looked like an
+application.
+
+### What was already there, checked first [D-19]
+
+| | Source of truth before this stage | What C-26 did |
+|---|---|---|
+| Slide definition | `SlideSpec`, sent to the worker and **never stored** | stored on the slide |
+| Deck | `domain/deck.ts`, `store/decks.ts` | unchanged |
+| Reorder, remove | `PATCH /api/decks/[id]/slides` — **implemented, and the panel called neither** | the rundown calls both |
+| Programme state | `channel.live.segment` via `slideOnAir` | unchanged, now labelled |
+| Image selection | the Library | unchanged |
+| Renderer | `slideHtml()` → Chromium → library PNG | split, not duplicated |
+| Playout | slide → library image → `roll-in` | **nothing to do** |
+
+Two of the nine things asked for needed no code. Finding that out
+first is what D-19 is for, and it is also why this stage is mostly a
+renderer and not an architecture.
+
+### One renderer, and the preview is not a drawing of it
+
+    slide definition  (domain/graphic.ts)
+             │
+        slideHtml()                 ← ONE layout calculation
+         ╱        ╲
+     preview    programme
+     (iframe)   (Chromium → PNG → the wire)
+
+`slideHtml` was already pure. The only thing stopping the control room
+from using it was that `slide.ts` imports `node:fs` to open a browser
+— so the file is in two now, and the panel's PREVIEW is **an iframe
+containing the exact document the worker rasterises**, at 1920 × 1080,
+scaled. "The preview matches the programme" is therefore not a
+property anybody maintains; it is one document seen twice. The test
+that enforces it is one line: the function the renderer exports **is**
+the function the design system exports.
+
+**And the font is named.** `system-ui` is the operator's font in the
+browser and the render image's font on the wire, and those are not the
+same machine. A deterministic renderer starts with a deterministic
+face: Liberation Sans, which is on the image and metric-compatible
+with Arial.
+
+### The model is domain, the drawing is not
+
+`src/render` imports `src/domain` in this codebase and never the
+reverse, and the deck now stores what a slide SAYS so it can be
+corrected and copied. So `SlideSpec`, the backgrounds, the safe areas
+and the quality checks are in `domain/graphic.ts`, and only the
+stylesheet is in `render/slideDesign.ts`. The spec holds the library
+asset's **name** and never a path, so a stored definition still means
+the same thing on another machine.
+
+### Four compositions
+
+| | Before | Now |
+|---|---|---|
+| **Title** | centred text | eyebrow, 104px headline, accent rule, subtitle, left, vertically centred |
+| **Text** | centred text | eyebrow, 62px heading, rule, bullets or numbered points, top-aligned |
+| **Picture** | a contained image with a caption under it | **two compositions**: Fit splits the frame, Fill bleeds the photograph with the words over it |
+| **Quote** | centred italics | quote mark, 70px italic, rule, attribution |
+
+The test that matters is not that each one is pretty — it is that the
+set of shapes the four emit has **four members**.
+
+**Fit and Fill became compositions rather than two values of
+`object-fit`**, which is the honest reading of what an operator means
+by each: Fit is *the picture arrives whole*, Fill is *the picture is
+the frame*.
+
+### Five backgrounds, one wash, and the accent stops colouring words
+
+Black stays the default, because a control room is dark and a slide
+that matches the programme's own black cuts cleanly. White, Light,
+Studio and Image are the four other things television puts on screen.
+Every preset carries a flat base colour even where a wash is drawn on
+top, because contrast has to be measurable and a check that quietly
+skips a case is worse than no check.
+
+**The channel's colour is the accent, not the ink.** Applying it to
+every word is what made an authored slide look wrong; it now colours
+the eyebrow and the rule — the furniture — and the text takes the
+background's own ink. And **the channel is named exactly once**, in
+the eyebrow where the composition has one and in the foot where it
+does not. A name in two corners of the same graphic is a station that
+does not trust the viewer to have seen it.
+
+### Two faults that only rendering found
+
+Both were invisible in the code and obvious in the picture.
+
+1. **Fit cropped the picture.** The split's box used `object-fit:
+   cover`, so a 16:9 photograph in a portrait column lost both its
+   sides — which is precisely the fault that Fit is the answer to. And
+   the bed was held at full height, drawing a tall grey panel round a
+   landscape photograph: a letterbox with a border.
+2. **A title over a photograph was illegible.** The scrim rose from
+   the foot, which is right for a caption anchored to the bottom and
+   wrong for a headline in the middle of the frame. There are two
+   scrims now, chosen by where the composition puts its content and
+   never by a setting.
+
+Reasoning had not found either. *"That is why i need screen shots as
+you build to avoid these."*
+
+### The checks, and the line between a warning and a refusal
+
+`slideProblems` returns empty, no-picture, no-words, long-heading,
+long-body, many-points and contrast. **Content outside the safe area
+is not among them, because it cannot happen**: the content box IS the
+title-safe box and it clips. What is detected is the text being too
+long to fit inside it, which is the same fault one step earlier.
+
+The contrast check is the one that cannot be made by looking: a
+channel whose colour is a deep blue produces an eyebrow nobody can
+read on the Studio field, and in a bright control room it looks fine.
+
+**And only two of the seven stop a slide.** A picture slide with no
+picture transmits the words "no picture", so nothing takes it. A
+heading four characters over its limit is a judgement, and an operator
+three minutes into a live programme is better placed to make it than
+this file is. A control room that refuses to put anything on air until
+it is perfect is a control room somebody works around. [D-04]
+
+### The rundown, and correcting a slide
+
+`Written here (2)` was a count, and a count is not a rundown. Each row
+is now a thumbnail, its number and its first line — the three things a
+paper running order has had for sixty years — and clicking one takes
+it, which is the `roll-in` that already existed.
+
+Correcting a slide is **drawing a new one in its place**, because a
+slide on air is a PNG and a PNG is not editable. The position is the
+part worth testing, and the swap happens in the worker **after the
+render succeeded**, so a draw that throws leaves the slide that may be
+on air exactly where it was. If the old slide went while the new one
+was drawing, the new one is appended rather than discarded: a render
+that succeeded is work somebody did, and throwing it away for a race
+they could not see would be the deck punishing them for it.
+
+Correct and Copy appear **only where a definition exists**. A page of
+somebody's PowerPoint was never composed here, and offering to edit it
+would be a button that cannot keep its promise.
+
+### What was asked for and deliberately not built
+
+* **Crop and Position.** Position is here as Top / Centre / Bottom, which
+  is the question a 16:9 crop actually asks. A crop rectangle is a
+  picture editor, and this panel is used between two cues.
+* **Transitions.** Named as "later, but don't start there" in the
+  request itself, and that is the right order.
+* **Animation, free positioning, a graphics dashboard.** Excluded by
+  the request and by §21.
+* **Video backgrounds.** S-34, still untouched.
+
+### The record
+
+38 assertions on the design system, 24 mutations, all 24 caught —
+including the two that would have reverted the faults the screenshots
+found, and the two that would have made every check a refusal or none
+of them one. Four more on `replaceSlide` with three mutations, all
+three caught.
+
+One repo rule caught me again: a background swatch stands for the
+slide's own canvas, so it is rounded like a screen and not like a
+control. The console says which object a thing is in one token, and it
+was right.

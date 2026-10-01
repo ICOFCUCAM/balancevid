@@ -27,6 +27,7 @@
 
 import type { Id } from './ids.js';
 import type { ProgrammeSource } from './channel.js';
+import type { SlideSpec } from './graphic.js';
 
 export type DeckId = Id<'deck'>;
 
@@ -35,6 +36,21 @@ export interface Slide {
   assetId: string;
   /** Which page it came from, 1-based, for a label nobody has to type. */
   page: number;
+  /**
+   * WHAT THE SLIDE SAYS, for the ones somebody wrote.  [§21, C-26]
+   *
+   * The image is what goes on air and it is enough to transmit; it is
+   * not enough to EDIT. Without the definition, changing a typo means
+   * retyping the slide, and duplicating one means retyping it twice —
+   * which is why the deck now keeps it beside the picture.
+   *
+   * ABSENT ON AN UPLOADED SLIDE, and that absence is information
+   * rather than a gap: a page of somebody's PowerPoint was never
+   * composed here and this product cannot honestly offer to edit it.
+   * The panel offers Edit and Duplicate exactly where a definition
+   * exists, so the control says what is true.
+   */
+  spec?: SlideSpec;
 }
 
 export interface Deck {
@@ -138,6 +154,30 @@ export function withoutSlide(deck: Deck, assetId: string): Deck {
  * Move one. The order IS the deck, so this is the only edit that matters
  * after the slides exist.
  */
+/**
+ * Draw a corrected slide where the old one stood.  [§20, §21, C-26]
+ *
+ * EDITING A SLIDE IS DRAWING A NEW ONE, because a slide on air is a
+ * library PNG and a PNG is not editable — so "edit" means render
+ * again and put the result in the same position. That position is
+ * what this function is for, and it is the part worth testing: a
+ * corrected slide that lands at the end of the deck is a presenter
+ * pressing NEXT into a typo they just fixed.
+ *
+ * AND IF THE OLD SLIDE WENT WHILE THE NEW ONE WAS DRAWING — somebody
+ * deleted it, or reordered the deck out from under the job — the new
+ * one is appended rather than lost. A render that succeeded is work
+ * somebody did, and throwing it away because the target moved would
+ * be the deck punishing them for a race they could not see.
+ */
+export function replaceSlide(
+  deck: Deck, oldAssetId: string, made: Slide,
+): Deck {
+  const at = deck.slides.findIndex((one) => one.assetId === oldAssetId);
+  if (at < 0) return withSlide(deck, made);
+  return withoutSlide(withSlide(deck, made, at), oldAssetId);
+}
+
 export function moveSlide(deck: Deck, assetId: string, to: number): Deck {
   const from = deck.slides.findIndex((slide) => slide.assetId === assetId);
   if (from < 0) return deck;

@@ -1,5 +1,6 @@
 import { isOwner } from '../../../../../src/auth/request.js';
 import { moveSlide, withoutSlide } from '../../../../../src/domain/deck.js';
+import { BACKGROUNDS } from '../../../../../src/domain/graphic.js';
 import { bookingsFor, refusalFor } from '../../../../../src/domain/deletion.js';
 import { listChannels } from '../../../../../src/store/channels.js';
 import { loadDeck, saveDeck } from '../../../../../src/store/decks.js';
@@ -32,12 +33,35 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
 
   const body = await request.json().catch(() => ({})) as {
     layout?: string; heading?: string; text?: string; footnote?: string;
-    pictureAssetId?: string; at?: number; ink?: string; fill?: boolean;
+    pictureAssetId?: string; at?: number; fill?: boolean;
+    background?: string; focus?: string; accent?: string; channel?: string;
+    replaces?: string;
   };
 
   const layout = body.layout ?? 'text';
   if (!['title', 'text', 'picture', 'quote'].includes(layout)) {
     return fail(400, `unknown slide layout: ${layout}`);
+  }
+  /*
+   * A BACKGROUND AND A FOCUS ARE CLOSED SETS, checked here rather than
+   * trusted, because they reach a renderer that puts them in a
+   * stylesheet. `colourOr` makes the same check of the colours inside
+   * the renderer; this one is the door. [D-06]
+   */
+  const background = body.background ?? 'black';
+  if (!BACKGROUNDS.some((one) => one.id === background)) {
+    return fail(400, `unknown slide background: ${background}`);
+  }
+  const focus = body.focus ?? 'centre';
+  if (!['top', 'centre', 'bottom'].includes(focus)) {
+    return fail(400, `unknown picture focus: ${focus}`);
+  }
+  /* Editing one is drawing a new one in its place, and the swap
+     happens in the worker when the drawing succeeded — so a render
+     that fails leaves the slide that was already on air alone. */
+  if (body.replaces
+    && !deck.slides.some((one) => one.assetId === body.replaces)) {
+    return fail(404, 'that slide is not in this deck');
   }
   if (!body.heading?.trim() && !body.text?.trim() && !body.pictureAssetId) {
     return fail(400, 'a slide needs a heading, some words or a picture');
@@ -74,13 +98,21 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
         ...(body.heading?.trim() ? { heading: body.heading.trim() } : {}),
         ...(body.text?.trim() ? { body: body.text.trim() } : {}),
         ...(body.footnote?.trim() ? { footnote: body.footnote.trim() } : {}),
-        ...(picturePath ? { picturePath } : {}),
+        ...(body.pictureAssetId ? { picture: body.pictureAssetId } : {}),
         /* Fill the frame rather than fit inside it. Only meaningful
            with a picture, and harmless without one. [C-25] */
         ...(body.fill ? { fill: true } : {}),
-        ...(body.ink ? { ink: body.ink } : {}),
+        ...(focus === 'centre' ? {} : { focus }),
+        ...(background === 'black' ? {} : { background }),
+        ...(body.accent ? { accent: body.accent } : {}),
+        ...(body.channel?.trim() ? { channel: body.channel.trim() } : {}),
       },
+      /* Resolved here because this tier knows the library's layout,
+         and sent beside the spec rather than inside it: the spec is
+         stored and a path is this machine's. */
+      ...(picturePath ? { picturePath } : {}),
       ...(body.at === undefined ? {} : { at: body.at }),
+      ...(body.replaces ? { replaces: body.replaces } : {}),
     },
   });
   return json({ job }, { status: 202 });
