@@ -54,10 +54,10 @@ describe('the shelf offers the picture the renderer can already draw', () => {
 });
 
 describe('what the document does with it', () => {
-  const song = () => newPerformance('acct_owner', 'Song', {
+  const song = () => newPerformance('Song', {
     assetId: 'asset_song' as never, title: 'Song', class: 'own',
     durationSamples: 48_000 * 10,
-  });
+  }, '2026-01-01T00:00:00.000Z');
 
   it('refuses a custom background with no picture, and says so', () => {
     const p = song();
