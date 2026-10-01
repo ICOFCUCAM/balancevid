@@ -2847,6 +2847,15 @@ grounding. It does. At 16:9 — every control room today — it returns
 every piece exactly as authored, so nothing moves until somebody
 broadcasts in a shape the sets were not drawn for.
 
+### Where the live path stands
+
+The control room and an export now draw one room: the same floor, the
+same horizon, the same lamp, and the same light on the person standing
+in it, sets included. What they still draw differently is the vignette
+curve and the grain, and neither has been measured against the export
+the way the rest was — S-44 records that, and records that *not
+measured is not the same as wrong*.
+
 ### Still owed, and this adds one
 
 * **A person composited onto a virtual set gets no wrap and no contact
