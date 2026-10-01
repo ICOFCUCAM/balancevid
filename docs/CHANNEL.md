@@ -2890,3 +2890,99 @@ returns a radius unrelated to the geometry. Modern Room's lamp drew 84
 pixels and City's drew 584, from the same rule. `lampOf` states the
 circle; all three renderers now read within one part in 255 of each
 other at every distance from it. [S-41]
+
+## C-23 — Stage 23: the monitor shows something
+
+* ~~**A screen in a set shows nothing.**~~ The oldest line on the list
+  above, and the code said why: *"It shows nothing yet and says so —
+  what would go in it is the programme or the graphics layer, and
+  feeding a monitor its own output is a decision, not a default."*
+
+The decision taken is neither of those two. **A shared screen goes on
+the monitor.**
+
+### Why that source and not another
+
+The live studio holds three kinds of picture: staged guests, one
+screen share, and an answer clip. Every one of them has been treated
+as a person since the mixer existed — they go into `LAYOUTS` panels
+and compete for them — and exactly one of them never was a person.
+
+A slide cut into a quad beside three faces is a slide nobody can read.
+A studio has a monitor on the wall for precisely this, and the source
+already exists, already arrives distinguishable, and needs no new
+concept to reach the glass. The programme would have been a feedback
+loop and the graphics layer belongs over the picture rather than in
+it; a rolled-in library item is the better editorial answer and a
+larger piece of work, because the rolled-in segment is a playout
+concept today rather than a picture the studio canvas holds.
+
+### What it took, and what it found
+
+**`glassOf`, because the bezel was computed twice and differently.**
+The canvas inset by twelve thousandths of the monitor's WIDTH and the
+chain by four hundredths of its SMALLER SIDE — six pixels against
+twelve on News Desk's monitor at 1280×720. The same screen, drawn with
+twice the bezel in an export as on the air. It cost nothing while the
+glass was dark and empty; the moment a picture goes in it, it is the
+rectangle that picture has to land in.
+
+The chain's rule is the one kept, on its merits: a fraction of the
+smaller side gives a monitor the same bezel whichever way round it is,
+where a fraction of the width gives a wide one a thick frame. **All
+twenty-four screen renders across six frame shapes come out of the
+chain byte-identical**, so the export did not move; the control room
+moved to match it, which is the direction every one of these
+disagreements has gone since S-41.
+
+**`screensIn`, which goes through `placedFor`** — so a monitor that
+moved for a narrow frame takes its picture with it, and one there is
+no longer room for does not come back as an empty rectangle to draw
+into. Measured across the four sets: Talk Show's two are the ones that
+do not survive 9:16, where a performer taking four fifths of the width
+leaves neither of them its `atLeast`. Lecture's is the biggest and
+survives every shape, which is the opposite of what I guessed and the
+reason the fixture says so.
+
+**`MixerSource.kind`**, because `'screen'` was already a magic string
+in the studio and reading it a second time is how a magic string
+becomes load-bearing.
+
+### The rules it follows
+
+**Every monitor the set has**, because a studio with two screens on
+the wall shows the same thing on both, and because "which one" is a
+question nobody needs to answer for it to work.
+
+**Behind the people.** A screen is furniture drawn in the `behind`
+pass, so the picture goes down between the room and the performers and
+somebody stepping across the monitor occludes it, exactly as they
+occlude the wall.
+
+**Contain, not cover** — the opposite of the choice made for a face
+and for the opposite reason. A face cropped at the ears is still that
+person; a shared slide cropped at the margins has lost the sentence
+somebody is reading out.
+
+**Solo outranks the furniture.** Solo is the operator's hand saying
+"this, full frame", and it is the one instruction that beats the set:
+a soloed share takes the frame and the monitors stay dark.
+
+**And a set with no monitor changes nothing.** Stage has none, and a
+broadcast with no set at all has none either; the share keeps the
+panel it has always had, because the alternative is a picture with
+nowhere to go.
+
+### The record
+
+Nine assertions, nine mutations, all nine caught — after a guard was
+deleted rather than defended, which is the eighth of those. A filter
+dropping a monitor whose bezel had eaten its own glass survived its
+mutation, and checking why showed it guarded nothing twice over:
+`glassOf` already clamps a pane to zero rather than negative, and
+drawing into a rectangle of no width is a no-op in both renderers. It
+would take a broadcast canvas ten pixels wide to produce one.
+
+One fixture was wrong before it was right, and the comment says which:
+Lecture's monitor looked like the one that would not fit a tall frame
+and is in fact the one that always does.

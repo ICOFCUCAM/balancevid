@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import { LAYOUTS, takeSlots } from '../../../src/domain/presentation.js';
 import type { Composition } from '../../../src/domain/composition.js';
 import { type VirtualSet, arrangementIn } from '../../../src/domain/virtualSet.js';
+import { SPACE_LOOKS } from '../../../src/domain/environment.js';
+import { sceneOf, screensIn } from '../../../src/domain/scene.js';
 import { LiveCompositor } from './compositor.js';
 import { paintSet } from './spaceArt.js';
 
@@ -38,6 +40,19 @@ import { paintSet } from './spaceArt.js';
 export interface MixerSource {
   id: string;
   stream: MediaStream;
+  /**
+   * A FACE OR A PICTURE OF SOMETHING ELSE.  [§27, C-23]
+   *
+   * Everything in this list has been treated as a person since the
+   * mixer existed, and one of them never was: a shared screen took a
+   * panel beside the faces and competed with them for it. Said here
+   * rather than sniffed from an id, because `'screen'` was already a
+   * magic string in the studio and reading it twice is how a magic
+   * string becomes load-bearing.
+   *
+   * Absent is a person, which is what almost everything is.
+   */
+  kind?: 'person' | 'screen';
   /** Drawn under the picture, as the stage badge does in Studio Two. */
   label?: string;
   accent?: string;
@@ -81,6 +96,29 @@ export interface BroadcastMixer {
    * bytes for the same reason.
    */
   videoFor: (id: string) => HTMLVideoElement | null;
+}
+
+/**
+ * A picture inside a rectangle, whole.
+ *
+ * CONTAIN, NOT COVER, which is the opposite of the choice made for a
+ * face three hundred lines below and for the opposite reason. A face
+ * cropped at the ears is still that person; a shared slide cropped at
+ * the margins has lost the sentence somebody is reading out. The
+ * glass behind it is already drawn, so what the picture does not fill
+ * reads as a monitor showing a letterboxed source — which is what a
+ * monitor showing a letterboxed source looks like.
+ */
+function fitInto(
+  paper: CanvasRenderingContext2D, picture: HTMLVideoElement,
+  pane: { x: number; y: number; w: number; h: number },
+): void {
+  const scale = Math.min(pane.w / picture.videoWidth,
+    pane.h / picture.videoHeight);
+  const w = picture.videoWidth * scale;
+  const h = picture.videoHeight * scale;
+  paper.drawImage(picture,
+    pane.x + (pane.w - w) / 2, pane.y + (pane.h - h) / 2, w, h);
 }
 
 /**
@@ -170,9 +208,31 @@ export function useBroadcastMixer({
    * in it would be four people behind a desk drawn for two. The
    * operator's own choice still wins — that is what a vision mixer is.
    */
+  /*
+   * A SHARED SCREEN GOES ON THE MONITOR, NOT INTO A PANEL.  [§27, C-23]
+   *
+   * *"A screen in a set shows nothing."* It does now, and the picture
+   * it shows is the one that was always the wrong shape for a panel:
+   * a slide or a document cut into a quad beside three faces is a
+   * slide nobody can read, and a studio has a monitor on the wall for
+   * exactly this.
+   *
+   * Only where there IS a monitor. A set with none, or no set at all,
+   * leaves the share where it has always been — a source among the
+   * others — because the alternative is a picture with nowhere to go.
+   */
+  const monitors = set
+    ? set.furniture.filter((piece) => piece.kind === 'screen').length : 0;
+  const shown = monitors > 0
+    ? sources.find((one) => one.kind === 'screen') ?? null : null;
+  const faces = shown
+    ? sources.filter((one) => one !== shown) : sources;
+
+  /* And the arrangement is for the people, which is the point: the
+     share stops taking a seat at the table. */
   const chosen = layoutId
-    ?? (set ? arrangementIn(set, sources.length)
-      : arrangementFor(sources.length));
+    ?? (set ? arrangementIn(set, faces.length)
+      : arrangementFor(faces.length));
   /*
    * Kept in a ref as well, because the draw loop below runs for the length of
    * a broadcast and must not be torn down and rebuilt every time somebody
@@ -181,6 +241,8 @@ export function useBroadcastMixer({
    */
   const sourcesRef = useRef(sources);
   sourcesRef.current = sources;
+  const monitorsRef = useRef(monitors);
+  monitorsRef.current = monitors;
   const layoutRef = useRef(chosen);
   layoutRef.current = chosen;
   const soloRef = useRef(solo);
@@ -217,7 +279,19 @@ export function useBroadcastMixer({
       const all = sourcesRef.current;
       const alone = soloRef.current === null ? null
         : all.find((person) => person.id === soloRef.current) ?? null;
-      const people = alone ? [alone] : all;
+      /*
+       * THE SHARE GOES TO THE MONITOR — UNLESS SOMEBODY SOLOED IT.
+       *
+       * Solo is the operator's hand on the panel saying "this, full
+       * frame", and it is the one instruction that outranks the set's
+       * furniture. Working it out here rather than above is what keeps
+       * that true: the split has to know whether a human just
+       * overrode it. [§24]
+       */
+      const onMonitor = alone === null && monitorsRef.current > 0
+        ? all.find((one) => one.kind === 'screen') ?? null : null;
+      const people = alone
+        ? [alone] : all.filter((one) => one !== onMonitor);
       const layout = alone
         ? LAYOUTS['performance_full']!
         : LAYOUTS[layoutRef.current] ?? LAYOUTS['performance_full']!;
@@ -257,6 +331,31 @@ export function useBroadcastMixer({
           compositorRef.current.useBackdrop(
             scene ? canvas : null, scene?.spaceId);
         } catch { /* A lost context. The broadcast carries on. */ }
+      }
+
+      /*
+       * AND WHAT IS ON THE MONITORS, BEFORE ANYBODY STANDS IN FRONT.
+       * [§27, C-23]
+       *
+       * A screen is furniture drawn BEHIND the people, so the picture
+       * in it goes down between the room and them. A presenter who
+       * steps across the monitor occludes it, exactly as they occlude
+       * the wall — which is the whole reason the set is drawn in two
+       * passes and is why this belongs here rather than after.
+       *
+       * EVERY monitor the set has, because a studio with two screens
+       * on the wall shows the same thing on both, and because "which
+       * one" is a question nobody needs to answer for it to work.
+       */
+      const shareVideo = onMonitor
+        ? videosRef.current.get(onMonitor.id) : null;
+      if (scene && shareVideo && shareVideo.videoWidth > 0) {
+        const look = SPACE_LOOKS[scene.spaceId];
+        if (look) {
+          for (const pane of screensIn(sceneOf(look, scene), width, height)) {
+            fitInto(paper, shareVideo, pane);
+          }
+        }
       }
 
       people.slice(0, Math.max(1, takeSlots(layout))).forEach((person, index) => {

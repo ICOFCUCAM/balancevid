@@ -268,7 +268,7 @@ export function paintSpace(
  */
 
 import {
-  type Piece, type VirtualSet, inFront, place,
+  type Piece, type VirtualSet, glassOf, inFront, place,
 } from '../../../src/domain/virtualSet.js';
 import { SPACE_LOOKS } from '../../../src/domain/environment.js';
 
@@ -285,17 +285,19 @@ function piece(
   if (one.kind === 'screen') {
     /* A FRAME AND A GLASS, and the glass is not flat: a monitor in a lit
        room catches the room, and a rectangle of one colour reads as a
-       hole cut in the wall. */
+       hole cut in the wall.
+       The glass comes from `glassOf` rather than an inset worked out
+       here, because something is drawn INTO it now and the two have to
+       mean the same rectangle. [C-23] */
     paper.fillStyle = one.frame;
     paper.fillRect(box.x, box.y, box.w, box.h);
-    const inset = Math.max(2, Math.round(box.w * 0.012));
+    const pane = glassOf(one.rect, frame);
     const glass = paper.createLinearGradient(
       box.x, box.y, box.x + box.w * 0.4, box.y + box.h);
     glass.addColorStop(0, one.glass);
     glass.addColorStop(1, '#0b0f14');
     paper.fillStyle = glass;
-    paper.fillRect(box.x + inset, box.y + inset,
-      box.w - inset * 2, box.h - inset * 2);
+    paper.fillRect(pane.x, pane.y, pane.w, pane.h);
     return;
   }
   /*

@@ -24,6 +24,7 @@
 
 import type { Grounding } from '../domain/environment.js';
 import type { Piece } from '../domain/virtualSet.js';
+import { glassOf } from '../domain/virtualSet.js';
 import type { Scene } from '../domain/scene.js';
 import { bandIsFloor, defocusFor } from '../domain/environment.js';
 import { groundPlan, lampOf } from '../domain/scene.js';
@@ -450,11 +451,15 @@ export function pieceBoxes(
         break;
       }
       case 'screen': {
-        const bezel = Math.max(2, Math.round(Math.min(w, h) * 0.04));
+        /* The glass from `glassOf`, which both renderers read now: an
+           inset computed here and another computed on the canvas is
+           two answers to where a picture goes. [C-23] */
+        const pane = glassOf(one.rect, { w: width, h: height });
         boxes.push(`drawbox=x=${x}:y=${y}:w=${w}:h=${h}`
           + `:color=${one.frame}@1:t=fill`);
-        boxes.push(`drawbox=x=${x + bezel}:y=${y + bezel}`
-          + `:w=${Math.max(1, w - bezel * 2)}:h=${Math.max(1, h - bezel * 2)}`
+        boxes.push(`drawbox=x=${Math.round(pane.x)}:y=${Math.round(pane.y)}`
+          + `:w=${Math.max(1, Math.round(pane.w))}`
+          + `:h=${Math.max(1, Math.round(pane.h))}`
           + `:color=${one.glass}@1:t=fill`);
         break;
       }
