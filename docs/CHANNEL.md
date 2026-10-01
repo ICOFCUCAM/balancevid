@@ -2964,9 +2964,17 @@ and for the opposite reason. A face cropped at the ears is still that
 person; a shared slide cropped at the margins has lost the sentence
 somebody is reading out.
 
-**Solo outranks the furniture.** Solo is the operator's hand saying
-"this, full frame", and it is the one instruction that beats the set:
-a soloed share takes the frame and the monitors stay dark.
+**Solo suppresses the monitor.** When the operator solos the share it
+takes the whole picture and the set's monitors go dark for as long as
+the solo is held.
+
+Stated that way round because the first wording — *"solo outranks the
+furniture"* — was read, on first contact, as a rule about spatial
+priority: the monitor keeping its picture while something else won the
+frame. It is not a spatial rule. It is an operator STATE, and while it
+is held there is one source in the picture and the furniture has
+nothing in it. The two readings differ in what the audience sees, so
+the sentence is worth getting right.
 
 **And a set with no monitor changes nothing.** Stage has none, and a
 broadcast with no set at all has none either; the share keeps the
