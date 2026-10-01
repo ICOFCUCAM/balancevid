@@ -21,9 +21,12 @@ import {
 } from '../../../../src/store/channels.js';
 import { channelOwns } from '../../../../src/domain/deletion.js';
 import { missingSources, resolves } from '../../../../src/store/playoutSources.js';
-import { newestSegmentAt, readBeat } from '../../../../src/store/playoutHealth.js';
 import {
-  controlRoomNote, engineState, healthSentence, streamState, whyDark,
+  newestSegmentAt, readBeat, readFailure,
+} from '../../../../src/store/playoutHealth.js';
+import {
+  controlRoomNote, engineState, healthSentence, stillFailing, streamState,
+  whyDark,
 } from '../../../../src/domain/health.js';
 import { discardBuffer, keepBuffer } from '../../../../src/store/liveBuffer.js';
 import { fail, json } from '../../../../src/web/http.js';
@@ -91,6 +94,8 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
    * LIVE and not TAKE LIVE, and the channel has nothing to play. Both are
    * correct behaviour, which is exactly why they need saying.
    */
+  /* What the encoder last could not render, if it was recent. [C-24] */
+  const failure = await readFailure(id);
   const dark = whyDark({
     offAir: on.kind === 'off',
     armed: channel.live?.phase === 'armed',
@@ -154,7 +159,11 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
        * itself, so the order is decided in the domain where it can be
        * tested rather than in the component. [§6, D-04]
        */
-      note: controlRoomNote(engine, stream, dark),
+      /* A render failure outranks the rest, because it is the only
+         fault here that a green dashboard and a healthy-looking
+         control room both hide. [C-24] */
+      note: controlRoomNote(engine, stream, dark,
+        stillFailing(failure, now) ? failure : null),
       ...(heartbeat ? { beatAt: heartbeat.at, pid: heartbeat.pid } : {}),
       ...(newestSegment
         ? { segmentAt: new Date(newestSegment).toISOString() } : {}),

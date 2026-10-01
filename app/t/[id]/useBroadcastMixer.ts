@@ -282,11 +282,22 @@ export function useBroadcastMixer({
       /*
        * THE SHARE GOES TO THE MONITOR — UNLESS SOMEBODY SOLOED IT.
        *
-       * Solo is the operator's hand on the panel saying "this, full
-       * frame", and it is the one instruction that outranks the set's
-       * furniture. Working it out here rather than above is what keeps
-       * that true: the split has to know whether a human just
-       * overrode it. [§24]
+       * Solo SUPPRESSES the monitor. It is the operator's hand on the
+       * panel saying "this, full frame", so the share takes the whole
+       * picture and the set's monitors go dark for as long as the solo
+       * holds.
+       *
+       * SAID THAT WAY ROUND ON PURPOSE. The first version of this
+       * comment said solo "outranks the furniture", and a reader took
+       * it for a rule about spatial priority — the monitor keeping its
+       * picture while something else won the frame. It is not a
+       * spatial rule at all. It is an operator STATE: while a solo is
+       * held there is one source in the picture and the furniture has
+       * nothing in it. One wrong reading on first contact is enough to
+       * rewrite a sentence. [§24]
+       *
+       * Worked out here rather than above because the split has to
+       * know whether a human just overrode it.
        */
       const onMonitor = alone === null && monitorsRef.current > 0
         ? all.find((one) => one.kind === 'screen') ?? null : null;

@@ -33,7 +33,10 @@ import { marksFor } from '../domain/identity.js';
 import type { Mark } from '../domain/identity.js';
 import { kbps, streamQuality } from '../domain/quality.js';
 import { HOUSE } from '../render/ingest.js';
-import { ffmpeg, type RunOptions } from '../render/ffmpeg.js';
+import {
+  FfmpegError, type RunOptions, canDrawText, ffmpeg,
+} from '../render/ffmpeg.js';
+import { noteFailure, reasonFrom } from '../store/playoutHealth.js';
 import { paths } from '../store/paths.js';
 import { pathFor } from '../store/playoutSources.js';
 
@@ -93,6 +96,14 @@ export async function produceSegment(
     (on) => titleOf(channel, on),
     nextTitle(channel, fromAt),
   );
+  /*
+   * AND WHETHER THIS BUILD CAN DRAW THEM.  [C-24]
+   *
+   * Asked of the binary rather than assumed of it. The answer is
+   * cached for the life of the process, so this is one spawn at
+   * startup and a map lookup four times a second after that.
+   */
+  const canText = await canDrawText();
 
   const reads = playoutWindow(channel, fromAt, toAt, (source) => {
     const path = pathFor(channel, source);
@@ -113,7 +124,8 @@ export async function produceSegment(
      * inside the segment, so the pieces are one continuous timeline before
      * they are joined rather than two clips that each start at zero.
      */
-    await encodePiece(channel, read, piece, factsOf, read.atMs - fromAt, marks, opts);
+    await encodePiece(
+      channel, read, piece, factsOf, read.atMs - fromAt, marks, canText, opts);
     pieces.push(piece);
   }
 
@@ -185,7 +197,33 @@ async function appendAll(pieces: string[], out: string): Promise<void> {
  * would not produce a wrong caption, it would fail the whole segment and put
  * the channel to black.
  */
-export function markFilters(marks: Mark[]): string[] {
+export function markFilters(marks: Mark[], canDrawText: boolean): string[] {
+  /*
+   * NOTHING, WHEN THE BINARY CANNOT DRAW TEXT.  [C-24]
+   *
+   * `drawtext` needs freetype and the pinned `ffmpeg-static` is built
+   * without it. A filtergraph naming a filter that is not there is
+   * REJECTED WHOLE — so the station bug did not quietly fail to
+   * appear, it took the segment with it, and `encodePiece`'s fallback
+   * put four seconds of black on the wire. Every segment. For as long
+   * as the channel had an identity.
+   *
+   * A channel with no bug is a working channel. A black one is not.
+   * So where the text cannot be drawn, none of it is emitted — and
+   * the operator is told why, by the failure the health store now
+   * records, rather than by watching their own transmission.
+   *
+   * AND THE PLATE GOES WITH IT. A box is drawable without freetype,
+   * and a black rectangle where a name should be is worse than clean
+   * video: it looks deliberate.
+   */
+  /*
+   * REQUIRED, NOT DEFAULTED. A default of `true` passed the sweep only
+   * because nothing exercised it, and a default of `true` is exactly
+   * the assumption that cost the product its picture. Every caller
+   * states what it found out.
+   */
+  if (!canDrawText) return [];
   const pad = 28;
   /* The lower marks stack upward, so NEXT sits under the title. */
   let lowerLeft = 0;
@@ -262,6 +300,7 @@ async function encodePiece(
   factsOf: (path: string) => SourceFacts | undefined,
   offsetMs: number,
   marks: Mark[],
+  canText: boolean,
   opts: RunOptions,
 ): Promise<void> {
   const seconds = (read.durationMs / 1000).toFixed(3);
@@ -289,7 +328,10 @@ async function encodePiece(
       '-map', '0:v:0', '-map', '1:a:0',
       ...encodeArgs(offsetMs),
       out,
-    ], opts).catch(async () => { await black(seconds, out, offsetMs, marks, opts); });
+    ], opts).catch(async (error: unknown) => {
+      await fellBack(channel.id, error);
+      await black(seconds, out, offsetMs, marks, opts);
+    });
     return;
   }
 
@@ -351,20 +393,38 @@ async function encodePiece(
       `fps=${STREAM.fps}`,
       'setsar=1',
       /* The identity, over the picture and never inside it. [§13, D-16] */
-      ...markFilters(marks),
+      ...markFilters(marks, canText),
     ].join(','),
     '-map', '0:v:0',
     '-map', (facts?.hasAudio ?? following) ? '0:a:0' : '1:a:0',
     '-t', seconds,
     ...encodeArgs(offsetMs),
     out,
-  ], opts).catch(async () => {
+  ], opts).catch(async (error: unknown) => {
     /*
      * A source that cannot be read is black, not a dead channel. The stream's
      * job at that moment is to keep going.
+     *
+     * AND IT SAYS SO NOW. Keeping going is right; keeping quiet was
+     * not — the fallback succeeds, so a channel rendering black four
+     * seconds at a time read as healthy for as long as it did it.
+     * [C-24]
      */
+    await fellBack(channel.id, error);
     await black(seconds, out, offsetMs, marks, opts);
   });
+}
+
+/**
+ * The engine had a source, asked for it, and was refused.
+ *
+ * Narrower than "a black segment" on purpose: a channel with nothing
+ * scheduled is black by design and `whyDark` already explains that.
+ * This is the other kind, and it had no signal at all.
+ */
+async function fellBack(channelId: string, error: unknown): Promise<void> {
+  const said = error instanceof FfmpegError ? error.stderr : String(error);
+  await noteFailure(channelId, reasonFrom(said));
 }
 
 /** Four seconds of nothing, which is what a channel shows when it has none. */

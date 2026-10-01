@@ -22,6 +22,16 @@
 #                   and a PDF export needs none of it. Without it a deck is
 #                   still stored, hashed and cited — it just says to export it
 #                   as a PDF to put its pages on screen
+#   WITH_TEXT=1     add an ffmpeg that can draw text, so a channel can carry
+#                   its own station bug and lower thirds. The pinned
+#                   `ffmpeg-static` is built WITHOUT freetype and therefore
+#                   has no `drawtext`; without this the channel transmits a
+#                   clean picture and no identity, which is what the code
+#                   does when it asks the binary and is told no. Off by
+#                   default only because the size of the addition has not
+#                   been measured on this base image — turn it on, check
+#                   `ffmpeg -filters | grep drawtext` in the built image,
+#                   and leave it on. [CHANNEL C-24]
 
 ARG NODE=node:22-bookworm-slim
 
@@ -59,6 +69,7 @@ RUN mkdir -p /models && if [ "$WITH_MODELS" = "1" ]; then \
 FROM ${NODE} AS runtime
 ARG WITH_BROWSER=1
 ARG WITH_OFFICE=0
+ARG WITH_TEXT=0
 
 # python3 for the offline transcriber; tini so signals reach both processes and
 # ffmpeg children are not orphaned on a redeploy.
@@ -103,6 +114,29 @@ RUN if [ "$WITH_OFFICE" = "1" ]; then \
       && rm -rf /var/lib/apt/lists/*; \
     else \
       echo "office converter skipped: attach PowerPoint as PDF to show its pages"; \
+    fi
+
+# An ffmpeg that can draw text, and something to draw it with.
+#
+# NOT A REPLACEMENT FOR THE PINNED ONE EVERYWHERE BY ACCIDENT. The code
+# reads BALANCEVID_FFMPEG and falls back to `ffmpeg-static`, so this is an
+# explicit choice made here and nowhere else — and the engine still ASKS the
+# binary whether it can draw text rather than trusting this line. A build
+# where the install silently changes would produce a channel with no bug,
+# not a channel with no picture.
+#
+# AND NO `ENV` HERE, which was a bug before it was a decision. A
+# Dockerfile cannot branch on an ARG in an ENV: `${WITH_TEXT:+...}` expands
+# whenever WITH_TEXT is set to ANYTHING, "0" included, so the obvious one
+# line pointed every render at a binary this image does not have. The
+# entrypoint looks for the file instead, which is self-correcting in both
+# directions. [CHANNEL C-24]
+RUN if [ "$WITH_TEXT" = "1" ]; then \
+      apt-get update && apt-get install -y --no-install-recommends \
+        ffmpeg fonts-dejavu-core \
+      && rm -rf /var/lib/apt/lists/*; \
+    else \
+      echo "text drawing skipped: the channel will transmit without its bug"; \
     fi
 
 # ---- and what does depend on it goes after ----------------------------

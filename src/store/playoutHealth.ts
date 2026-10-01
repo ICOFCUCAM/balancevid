@@ -86,3 +86,98 @@ export async function newestSegmentAt(channelId: string): Promise<number | null>
   }
   return newest > 0 ? newest : null;
 }
+
+/* ------------------------------------------------------------------------ *
+ *  When a segment could not be rendered.  [CHANNEL §18, C-24]
+ * ------------------------------------------------------------------------ */
+
+/**
+ * The encoder had a source and could not render it.
+ *
+ * THE SIGNAL THAT WAS MISSING, and its absence cost this product every
+ * picture it transmitted. `produceSegment` falls back to black rather
+ * than taking the channel off the air, which is right — but the
+ * fallback SUCCEEDS, so a channel rendering black four seconds at a
+ * time read as `transmitting` and perfectly healthy. A resilience path
+ * with no telemetry is a fault that cannot be found.
+ *
+ * NOT EVERY BLACK SEGMENT IS THIS. A channel with nothing scheduled is
+ * black on purpose and says so through `whyDark`. What is recorded here
+ * is narrower and unambiguous: the engine resolved a source, asked
+ * ffmpeg for it, and ffmpeg refused.
+ *
+ * ONE FILE PER CHANNEL, OVERWRITTEN, like the heartbeat beside it and
+ * for the same reason: this is liveness, not history. The newest
+ * failure is the one worth acting on, and a log of them is a file
+ * somebody has to delete.
+ */
+export interface RenderFailure {
+  at: string;
+  /** The line of ffmpeg's complaint worth showing an operator. */
+  says: string;
+}
+
+/**
+ * Beside the heartbeat, NOT in the channel's stream directory.
+ *
+ * The first version put it in `stream/`, next to the segments, and a
+ * test caught it within the hour: that directory holds transport and
+ * nothing else — the sweeper deletes by age from it and the playlist
+ * route lists it. A health record among the segments is a health
+ * record the sweeper will eventually delete and the playlist may
+ * eventually serve.
+ *
+ * It belongs where `playout.json` is, for `playout.json`'s own stated
+ * reason: this is liveness, and liveness does not live with the
+ * material.
+ */
+function failureFile(channelId: string): string {
+  return join(VAR_ROOT, 'playout', `${safe(channelId)}.json`);
+}
+
+/**
+ * What ffmpeg actually said, out of what it says.
+ *
+ * ffmpeg is voluble and the useful line is rarely the last one, so the
+ * line NAMING the refusal is preferred over the tail. "No such filter:
+ * 'drawtext'" is an operator's whole answer; "conversion failed" is
+ * not.
+ */
+export function reasonFrom(stderr: string): string {
+  const lines = stderr.split('\n').map((line) => line.trim()).filter(Boolean);
+  const named = lines.find((line) => /No such filter|Unknown (filter|encoder|decoder)|Invalid argument|not found|Unrecognized/i.test(line));
+  return (named ?? lines[lines.length - 1] ?? 'ffmpeg failed')
+    /* The graph address in `[AVFilterGraph @ 0x55…]` changes every run,
+       so leaving it in makes two identical faults look different. */
+    .replace(/\s*\[[^\]]*@ 0x[0-9a-f]+\]\s*/gi, ' ')
+    .trim()
+    .slice(0, 200);
+}
+
+/** Record that this channel's segment could not be rendered. */
+export async function noteFailure(
+  channelId: string, says: string, at = new Date(),
+): Promise<void> {
+  const file = failureFile(channelId);
+  try {
+    await mkdir(join(VAR_ROOT, 'playout'), { recursive: true });
+    const temp = `${file}.${process.pid}.tmp`;
+    await writeFile(temp, JSON.stringify({ at: at.toISOString(), says }), 'utf8');
+    await rename(temp, file);
+  } catch {
+    /* A health record that cannot be written must not take the channel
+       off the air. The transmission outranks the telemetry. */
+  }
+}
+
+/** The newest render failure for this channel, or nothing. */
+export async function readFailure(
+  channelId: string,
+): Promise<RenderFailure | null> {
+  try {
+    return JSON.parse(
+      await readFile(failureFile(channelId), 'utf8')) as RenderFailure;
+  } catch {
+    return null;
+  }
+}

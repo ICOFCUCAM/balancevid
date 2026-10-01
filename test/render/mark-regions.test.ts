@@ -114,7 +114,7 @@ describe('the region becomes a filter (§27, C-20)', () => {
 
   it('puts the text on the rectangle, in pixels', () => {
     const at = { x: 0.05, y: 0.6, w: 0.5, h: 0.1 };
-    const [filter] = markFilters([mark({ at })]);
+    const [filter] = markFilters([mark({ at })], true);
     expect(filter).toContain(`:x=${Math.round(0.05 * STREAM.width)}`);
     /* Sitting ON the floor of the region, so a taller line grows upward
        into the strip rather than down through it. */
@@ -125,7 +125,7 @@ describe('the region becomes a filter (§27, C-20)', () => {
     const at = { x: 0.05, y: 0.6, w: 0.5, h: 0.1 };
     const [first, second] = markFilters([
       mark({ at }), mark({ kind: 'next', size: 18, at }),
-    ]);
+    ], true);
     const y = (filter: string | undefined) =>
       Number(/:y=(-?\d+)-th/.exec(filter ?? '')![1]);
     expect(y(second)).toBeLessThan(y(first));
@@ -133,7 +133,7 @@ describe('the region becomes a filter (§27, C-20)', () => {
   });
 
   it('leaves a mark with no region on its corner, exactly as before', () => {
-    const [filter] = markFilters([mark({ corner: 'bottom-right' })]);
+    const [filter] = markFilters([mark({ corner: 'bottom-right' })], true);
     expect(filter).toContain(':x=w-tw-28');
     expect(filter).toContain(':y=h-th-28');
   });
@@ -142,7 +142,7 @@ describe('the region becomes a filter (§27, C-20)', () => {
     /* Two stacks, counted apart: a caption in the set's strip is not in
        the way of one in the frame's corner. */
     const at = { x: 0.05, y: 0.6, w: 0.5, h: 0.1 };
-    const [inSet, inCorner] = markFilters([mark({ at }), mark({})]);
+    const [inSet, inCorner] = markFilters([mark({ at }), mark({})], true);
     expect(inSet).toContain(`:y=${Math.round(0.7 * STREAM.height)}-th`);
     expect(inCorner).toContain(':y=h-th-28');
   });
@@ -153,7 +153,7 @@ describe('the region becomes a filter (§27, C-20)', () => {
     for (const set of VIRTUAL_SETS) {
       for (const [name, at] of [['logo', set.logo],
         ['lowerThird', set.lowerThird]] as const) {
-        const [filter] = markFilters([mark({ at })]);
+        const [filter] = markFilters([mark({ at })], true);
         const x = Number(/:x=(-?\d+)/.exec(filter ?? '')![1]);
         const y = Number(/:y=(-?\d+)-th/.exec(filter ?? '')![1]);
         expect(x, `${set.id}'s ${name} starts off the frame`)
