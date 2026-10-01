@@ -410,6 +410,142 @@ describe('the finished picture', () => {
     expect(leftFlank).toBeLessThan(farLeft - 15);
   }, 240_000);
 
+  it('draws a floor that recedes instead of a stripe', async () => {
+    /*
+     * A BAND THAT REACHES THE BOTTOM IS THE GROUND, and it was drawn as
+     * one flat colour, which is exactly what makes a drawn room read as
+     * a stage flat. Modern Room's runs from 0.82 to the bottom, so the
+     * floor is y=886..1080 and the wall is everything above it.
+     *
+     * The claim is not "the bottom is darker" — a vignette would do
+     * that. It is that the floor falls away FASTER than the wall does:
+     * the wall's own gradient is spread over 886 pixels and the floor's
+     * over 194, and both samples are at the horizontal centre where a
+     * vignette has least to say.
+     */
+    const p = performance();
+    setEnvironment(p, 'take_one', { kind: 'space', spaceId: 'modern_room' });
+    const out = await renderWith(p, 'floor');
+    const sum = (c: number[]) => c[0]! + c[1]! + c[2]!;
+    const at = async (y: number) => sum(await colourAt(out, 1, 300, y));
+
+    const wallFall = await at(700) - await at(860);
+    const floorFall = await at(900) - await at(1060);
+    expect(floorFall).toBeGreaterThan(wallFall * 2);
+  }, 240_000);
+
+  it('does not focus the back of the room as sharply as the performer', async () => {
+    /*
+     * Beach's band is a LINE rather than a floor — a hard-edged sea
+     * horizon drawn at y=670. Pin sharp, that edge is a step: the pixel
+     * just above it is wall and the pixel just below it is sea, with
+     * nothing in between. Defocused, the step becomes a ramp, and a
+     * sample inside the ramp sits strictly between the two.
+     *
+     * That is the whole claim, and it cannot be made by a gradient:
+     * above the horizon the wash is sky all the way up.
+     */
+    const p = performance();
+    setEnvironment(p, 'take_one', { kind: 'space', spaceId: 'beach' });
+    const out = await renderWith(p, 'defocus');
+    const sum = (c: number[]) => c[0]! + c[1]! + c[2]!;
+    const at = async (y: number) => sum(await colourAt(out, 1, 300, y));
+
+    const sky = await at(650);
+    const edge = await at(669);
+    const sea = await at(690);
+    expect(sea).toBeLessThan(sky);
+    expect(edge).toBeLessThan(sky - 5);
+    expect(edge).toBeGreaterThan(sea + 5);
+  }, 240_000);
+
+  it('runs the floor away to a point rather than lying flat', async () => {
+    /*
+     * PERSPECTIVE, DRAWN IN LIGHT RATHER THAN IN LINES. [§4, S-34]
+     *
+     * A real floor is brightest along the line running away from the
+     * camera and falls off towards the near corners. Two claims, and
+     * the second is the one a flat floor cannot fake:
+     *
+     *   at a given height the middle is brighter than the edge; and
+     *   that difference GROWS towards the camera, because a receding
+     *     plane converges — near the horizon the lit run fills the
+     *     width, and near the lens it does not.
+     *
+     * Recording Studio, because its floor is derived rather than
+     * declared and its walls are dark enough for the lit run to be the
+     * only thing happening down there.
+     */
+    const p = performance();
+    setEnvironment(p, 'take_one', { kind: 'space', spaceId: 'recording_studio' });
+    const out = await renderWith(p, 'converge');
+    const sum = (c: number[]) => c[0]! + c[1]! + c[2]!;
+    const at = async (x: number, y: number) => sum(await colourAt(out, 1, x, y));
+
+    /* The floor begins at 0.74 + 0.12 * (1 - 0.25) = 0.83, so y=896. */
+    const nearHorizon = await at(960, 930) - await at(120, 930);
+    const nearCamera = await at(960, 1060) - await at(120, 1060);
+
+    /* The run exists: at the horizon the middle of the floor is lit and
+       its edges are not. Measured at 52 against a flat floor's 0. */
+    expect(nearHorizon).toBeGreaterThan(20);
+    /*
+     * AND IT CONVERGES ON THE POINT. The contrast between the middle of
+     * the floor and its edge is strongest where the floor runs away to
+     * and fades towards the lens — 52 at the horizon against 9 near the
+     * camera. A flat floor has the same contrast at both heights,
+     * because it has none at either.
+     *
+     * The first version of this test expected the opposite, on the
+     * reasoning that a converging plane is narrower near the camera.
+     * It is — but what is drawn here is the LIGHT on that plane, and
+     * light pools where the floor meets the wall and falls away
+     * towards the near corners, which are closest to the lens and
+     * furthest from the room's own lamp. The picture was right and the
+     * expectation was backwards.
+     */
+    expect(nearHorizon).toBeGreaterThan(nearCamera * 2);
+  }, 240_000);
+
+  it('puts the desk in front of the performer and the room behind', async () => {
+    /*
+     * THE SINGLE ORDERING THAT MAKES A COMPOSITE READ AS A STUDIO.
+     * [§4, S-35; CHANNEL §27]
+     *
+     * A set's furniture has been drawn on the control room's canvas
+     * since sets existed, and Studio Two could not reach it until the
+     * scene was shared. The claim is not that a desk appears — it is
+     * that the performer disappears BEHIND it, which is the whole
+     * difference between a desk and a wall.
+     *
+     * News Desk's desk is { y: 0.72, h: 0.28 }, so y=777 to the bottom
+     * of a 1080 frame. The performer is a rectangle at x=720..1200,
+     * y=240..840, so the two overlap between 777 and 840 — and that
+     * overlap is where the test lives.
+     */
+    const p = performance();
+    setEnvironment(p, 'take_one', {
+      kind: 'space', spaceId: 'modern_room', setId: 'news_desk',
+    });
+    const out = await renderWith(p, 'set');
+
+    /* Above the desk, the performer survives: still the red rectangle. */
+    const [r, g, b] = await colourAt(out, 1, 960, 540);
+    expect(r).toBeGreaterThan(140);
+    expect(g).toBeLessThan(90);
+    expect(b).toBeLessThan(90);
+
+    /*
+     * Below its top edge, they do not. The desk's face is #1a222c — a
+     * dark blue-grey — so the red is gone and blue now outweighs it,
+     * which no amount of performer could do.
+     */
+    const [dr, dg, db] = await colourAt(out, 1, 960, 900);
+    expect(dr).toBeLessThan(80);
+    expect(db).toBeGreaterThan(dr);
+    expect(dg).toBeLessThan(90);
+  }, 240_000);
+
   it('renders the same plan to the same picture twice', async () => {
     /*
      * THE CONTRACT `backdropChain` ALREADY CLAIMED, and did not keep.

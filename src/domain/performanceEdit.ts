@@ -39,6 +39,7 @@ import {
 import { type SoundReading, NO_CLEANUP, isCleanup } from './cleanup.js';
 import { type ColourReading, isMeasured } from './colour.js';
 import { NO_STABILIZER, isStabilizer } from './stabilize.js';
+import { setById } from './virtualSet.js';
 import {
   type Alignment, type Phrase, LyricsError, MIN_LINE_SAMPLES,
   alignLyrics, parseLrc,
@@ -181,6 +182,22 @@ export function setEnvironment(
   }
   if (environment.kind === 'custom' && !environment.assetId) {
     fail('a custom background needs a picture');
+  }
+  /*
+   * A SET STANDS IN A ROOM, so it cannot stand in their own room or in
+   * a photograph: `original`, `blur` and `custom` have no room for it
+   * to name. Refused at the door rather than ignored at the render,
+   * because a stored set nobody draws is the same fault as a stored
+   * space nobody drew. [§4, S-35, INV-16]
+   */
+  if (environment.setId) {
+    if (environment.kind !== 'space') {
+      fail('a set stands in one of the drawn spaces, not in '
+        + `a ${environment.kind} background`);
+    }
+    if (!setById(environment.setId)) {
+      fail(`unknown virtual set: ${environment.setId}`);
+    }
   }
   /*
    * INV-16, at the door as well as at the render. Anything but the room they
@@ -1701,6 +1718,26 @@ export function nudgeLyric(
   line.fromSample = moved as Samples;
   /* The line before ends where this one begins: no gap, no overlap. */
   if (before) before.toSample = moved as Samples;
+}
+
+/**
+ * Where this performer's eyes are, as the measurement found them.
+ * [STUDIO-TWO §4, S-6, S-37]
+ *
+ * Written by the worker and by nothing else: this is a MEASUREMENT, and
+ * a field an author could type into would be a number two things
+ * disagree about. Out of range is refused rather than clamped, because a
+ * measurement outside the frame is a broken measurement and storing it
+ * would move a room's horizon off the picture.
+ */
+export function setEyeline(
+  performance: Performance, takeId: string, at: number,
+): void {
+  const target = take(performance, takeId);
+  if (!Number.isFinite(at) || at < 0 || at > 1) {
+    fail(`an eyeline is a fraction of the frame, got ${at}`);
+  }
+  target.eyeline = at;
 }
 
 /**

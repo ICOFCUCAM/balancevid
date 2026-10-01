@@ -2224,9 +2224,10 @@ a test compared two renders.
   are still not supported**: `-loop 1` is the single-image flag, and a
   moving backdrop needs `-stream_loop`, its own fps handling, and a
   decision about what happens when the clip is shorter than the take.
-* **Depth in the drawn spaces.** They are still a wash, a light pool, a
-  vignette and grain. No floor-to-wall perspective, no depth of field,
-  no horizon matched to the performer's eyeline.
+* ~~**Depth in the drawn spaces.**~~ Done in S-33 below, except for the
+  eyeline: the horizon follows the room's declared depth rather than
+  where the performer's eyes are, because the backdrop is drawn before
+  anybody knows where they will stand.
 
 
 ## S-32 — The promise made in three places and kept in none of the fourth
@@ -2295,3 +2296,932 @@ A moving backdrop needs `-stream_loop`, its own fps handling, and a
 decision nobody has made about what happens when the clip is shorter than
 the take — hold the last frame, loop it, or refuse it. That is render
 work, not a tile, and it is owed rather than done.
+
+
+## S-33 — A wash is not a room
+
+*"...and the environments of best grade."*
+
+Three things were missing, and the third was the one that mattered.
+
+### Nothing was in focus, and nothing was out of it
+
+Every drawn space has been rendered pin sharp from edge to edge, which
+is the one thing no photograph of a room has ever looked like. A camera
+focused on a performer does not also focus on the wall behind them, and
+the further back that wall is the less it does.
+
+So `depth` — how far the back of the room is, 0..1 — is now on every
+space, and `defocusFor` turns it into a blur. **Stored rather than
+derived**, unlike the grounding of S-31, and the difference is worth
+stating: everything `groundingFor` needs is implied by the light and the
+walls, and this is not. A cathedral and a vocal booth can be the same
+colour and the same brightness and be forty metres apart. Nothing
+already on the record knows that, so the record has to say it — and it
+is required rather than optional, so a space added tomorrow has to
+answer the question rather than silently being a cupboard.
+
+Small, though: a cathedral blurred to a smear is a different error from
+a cathedral blurred not at all, and the second at least keeps the place
+recognisable. It is expressed against the frame's smaller side, so the
+same room is the same room at any output size. [D-06]
+
+### Six of the eleven spaces had no floor
+
+Four declared a `band` reaching the bottom of the frame — which is a
+floor, drawn as a flat stripe of one colour. One declared a thin sea
+line. **The other six were a wash, a light pool, a vignette and some
+grain.** A cathedral rendered as a brown gradient is not a cathedral,
+and no amount of grain makes a gradient into a place.
+
+The record already told the two kinds of band apart without having been
+asked to: Beach's runs from 0.62 for six hundredths of the frame, which
+is a horizon; Concert Stage's runs from 0.86 to the very bottom, which
+is the ground. `bandIsFloor` reads that difference, a declared floor
+keeps its own colour and becomes a gradient rather than a stripe, and a
+declared line stays a line.
+
+For the six with nothing, the floor is derived. **Where the line goes is
+geometry, not taste**: stand close to a wall and the join is low in the
+frame — a lot of wall, little ground — and at the back of a nave it
+rises. So it follows `depth`, the one thing the record now knows about
+how far away the back of the room is.
+
+### And the floor was invisible until it was lit correctly
+
+The first derivation darkened the wall's own colour at both ends of the
+floor. That is wrong in exactly the rooms that needed it most:
+**darkening a near-black concert hall by half gives another near-black**,
+and the floor was measurable in a pixel and invisible to an eye. The
+screenshot said so immediately; no test would have.
+
+A floor is lit from ABOVE. Where it meets the wall it picks up the
+room's own light, and it falls away towards the camera — and that join
+is what reads as a join rather than as a slightly different black. The
+far edge now mixes towards the light's own colour, not towards white, so
+a purple stage gets a purple floor and a candle-lit nave a warm one.
+
+### Measured
+
+Nine more assertions on the derivation, and two on the picture through
+real ffmpeg:
+
+| | sampled | claim |
+|---|---|---|
+| floor | the fall from y=700→860 against y=900→1060, at the horizontal centre | the floor falls away more than twice as fast as the wall, which a vignette cannot explain |
+| defocus | y=650, 669 and 690 across Beach's hard sea line | the step is a ramp: the middle sample sits strictly between the sky and the sea |
+
+Removing the defocus fails the second; flattening the floor gradient
+fails the first.
+
+### Still owed
+
+* **A horizon matched to the performer's eyeline.** The line follows the
+  room's depth, not where their eyes are, because the backdrop is drawn
+  before anybody knows where they will stand.
+* **The dark spaces stay dark.** Concert Stage and City declare near-black
+  floors of their own, and those are honoured rather than brightened.
+  Their ground is correct and barely visible, which is what a dark hall
+  looks like.
+* **The live compositor still has the matte and none of this.**
+
+## S-34 — The Background & Virtual Set System, as given
+
+Recorded verbatim, because this is a map to execute against rather than a
+note to act on once. The measurement against what exists follows it.
+
+---
+
+> **BalanceVid Background & Virtual Set System**
+>
+> **1. Current direction: build spatial depth first**
+>
+> I would take depth in the drawn spaces next, not video backdrops yet.
+>
+> The progression should be:
+>
+> Flat background → Spatial environment → Live/video environment
+>
+> The current renderer should therefore concentrate on making the existing
+> drawn environments feel like real spaces.
+>
+> Spatial cues
+>
+>     ```
+>                         BACK WALL
+>                  ┌─────────────────────┐
+>                  │                     │
+>                  │                     │
+>                  │     performer       │
+>                  │         ●           │
+>                  │                     │
+>     ─────────────┴─────────────────────┴────────
+>                      HORIZON / FLOOR
+>                       ╲             ╱
+>                        ╲           ╱
+>                         ╲_________╱
+>                             FLOOR
+>     ```
+>
+> The scene should support:
+>
+> Horizon matched to performer eyeline
+> Floor/wall transition
+> Perspective convergence
+> Foreground / midground / background separation
+> Depth-of-field treatment
+> Subtle spatial lighting
+> Performer remains the visual subject
+> Set supports the performer rather than competing with them
+>
+> This should not be manually painted into every background.
+>
+> Reusable scene metadata
+>
+>     ```
+>     Scene
+>     ├── background
+>     ├── horizon
+>     ├── floor plane
+>     ├── performer zone
+>     ├── perspective
+>     ├── depth
+>     ├── lighting
+>     └── foreground elements
+>     ```
+>
+> That turns the existing backgrounds into a reusable Virtual Set system,
+> rather than a collection of individually decorated pictures.
+>
+> **2. Video backgrounds remain a separate capability**
+>
+> Do not let the current renderer silently decide how video backgrounds
+> behave.
+>
+> The video-backdrop question remains an explicit product decision,
+> currently deferred to S-32.
+>
+> When S-32 is taken up, the duration rules should be contextual:
+>
+>     ```
+>     Studio Two → maximum 08:00
+>     Online TV  → maximum 01:00:00
+>     Take       → no video backgrounds
+>     ```
+>
+> If video backgrounds are eventually implemented, the intended
+> short-video behavior can be defined explicitly:
+>
+> Shorter than the production: loop by default
+> Slightly shorter: optionally hold the last frame if configured
+> Invalid asset: reject it
+> Valid but shorter: never silently refuse it
+> Longer than the production: trim to the required duration
+>
+> Those rules should remain outside the current renderer until S-32.
+>
+> **3. One underlying video-background asset model**
+>
+> Do not create separate technical systems for Studio Two and Online TV.
+>
+> Use one underlying model:
+>
+>     ```
+>     VideoBackground
+>     ├── file
+>     ├── duration
+>     ├── resolution
+>     ├── fps
+>     ├── thumbnail
+>     ├── owner
+>     ├── createdAt
+>     └── allowedContexts
+>     ```
+>
+> The production context determines what is permitted.
+>
+>     ```
+>                         BALANCEVID
+>                      VIDEO BACKGROUNDS
+>                              │
+>                   ┌──────────┴──────────┐
+>                   │                     │
+>              STUDIO TWO              ONLINE TV
+>              Performance             Channel/Playout
+>                   │                     │
+>                ≤ 08:00               ≤ 01:00:00
+>     ```
+>
+> **4. Online TV has two different video uses**
+>
+> This distinction is important.
+>
+> A video that is allowed to run for one hour does not necessarily mean it
+> is being used as a composited background.
+>
+> **A. Video Background**
+>
+> The video exists behind a presenter or guest.
+>
+>     ```
+>     Presenter
+>         +
+>     Moving environment
+>         ↓
+>     Compositor
+>         ↓
+>     Programme
+>     ```
+>
+> **B. Full-Screen Video**
+>
+> The video itself becomes the visual source.
+>
+>     ```
+>     1-hour video
+>          ↓
+>     Programme
+>          ↓
+>     Playout
+>          ↓
+>     Online TV
+>     ```
+>
+> Therefore Online TV should distinguish:
+>
+> Virtual Background
+> Behind a person.
+>
+> Full-Screen Video
+> The video itself is the programme/source.
+>
+> This will prevent the Online TV media system from being artificially
+> constrained by the virtual-background system.
+>
+> **5. Take is different**
+>
+> Take participants do not upload backgrounds.
+>
+> They do not own or manage production backgrounds.
+>
+> The destination BalanceVid installation provides the available choices.
+>
+>     ```
+>     Take App
+>         │
+>         │ participation session
+>         ↓
+>     Destination BalanceVid
+>         │
+>         └── Approved backgrounds
+>               ├── Recording Studio
+>               ├── University Hall
+>               ├── Concert Stage
+>               ├── Modern Room
+>               ├── Theatre
+>               └── etc.
+>     ```
+>
+> The participant simply chooses from what the destination makes
+> available.
+>
+> Take should therefore not have:
+>
+> Upload Background
+> My Backgrounds
+> My Background Library
+> Video Backgrounds
+>
+> The participant contributes themselves, not production assets.
+>
+> **6. Final background policy**
+>
+> | Environment | Image / system backgrounds | Virtual Set | Video Background |
+> |---|---|---|---|
+> | Take | Destination system only | Destination system | No |
+> | Studio Two | BalanceVid system | BalanceVid system | No |
+> | Online TV | System + production assets | System | Up to 1 hour |
+>
+> The key architectural principle is:
+>
+> The destination owns the production environment; Take is the
+> participation client.
+>
+> So if a channel sends someone a Take invitation, that channel's
+> BalanceVid installation determines which backgrounds that participant
+> can see.
+>
+> For example:
+>
+>     ```
+>     TAKE INVITATION
+>            ↓
+>     Destination Channel
+>            ↓
+>     Available backgrounds
+>            ↓
+>     ┌─────────────────────┐
+>     │ Recording Studio    │
+>     │ University Hall     │
+>     │ Concert Stage       │
+>     │ Modern Room         │
+>     │ Theatre             │
+>     └─────────────────────┘
+>            ↓
+>     Participant records
+>            ↓
+>     Take submitted
+>            ↓
+>     Destination receives it
+>     ```
+>
+> This keeps Take lightweight, keeps Studio Two focused on performance,
+> and gives Online TV the full broadcast-production capability without
+> mixing the three responsibilities.
+>
+> With the current test state already passing, I would make the next
+> implementation step the spatial depth/scene-metadata work only. Keep
+> video backgrounds explicitly marked S-32 / deferred, rather than
+> allowing them to creep into the renderer prematurely.
+
+---
+
+### A note on the numbering
+
+The brief defers video backdrops to **S-32**, and S-32 in this appendix is
+*"The promise made in three places"* — the section whose closing part,
+**"Videos are not this"**, is where that deferral was written down. The
+number is kept as the brief uses it: **S-32 is where the video-backdrop
+decision lives**, and nothing below moves it.
+
+### Measured: there are already two scene systems, and between them seven of the eight fields
+
+The brief asks for reusable scene metadata rather than *"a collection of
+individually decorated pictures"*. The useful finding is that this
+product has **two** environment systems that grew up on opposite sides of
+it, and together they almost are the model the brief draws.
+
+`SPACE_LOOKS` is Studio Two's: eleven drawn rooms, rendered server-side
+by ffmpeg, carrying a wash, a light pool, a vignette, grain, an optional
+band, and — since S-33 — a depth and a floor.
+
+`VIRTUAL_SETS` is Online TV's: four sets, drawn in a browser canvas,
+carrying a `spaceId` that points INTO `SPACE_LOOKS`, plus furniture,
+a logo region, a lower-third strip, a per-head-count layout, and a
+lighting adjustment. Its own header already says the thing the brief
+says: *"A reusable scene system rather than a collection of images."*
+And it already draws furniture in two passes so that **the bottom of a
+presenter disappears behind a desk, exactly as it would in a room** —
+which is foreground separation, built, working, and only in the control
+room.
+
+| Scene (as the brief draws it) | where it lives today | state |
+|---|---|---|
+| background | `SpaceLook` wash, glow, vignette, grain | **HAVE** |
+| horizon | `band`, and `floorOf().y` for the six rooms that declared none | **HAVE** — S-33 |
+| floor plane | `floorOf()`, a receding gradient lit at the join | **HAVE** — S-33 |
+| performer zone | `VirtualSet.positions`, a layout id per head count | **HAVE**, control room only |
+| perspective | — | **GAP** |
+| depth | `SpaceLook.depth`, driving the defocus | **HAVE** — S-33 |
+| lighting | `SpaceLook.glow`, `VirtualSet.light` | **HAVE** |
+| foreground elements | `VirtualSet.furniture` + `inFront()`, two-pass | **HAVE**, control room only |
+
+So the gap is not eight things. It is **one missing field** and **one
+split**: three of the eight exist only on the Online TV side, and
+Studio Two's drawn spaces cannot reach them.
+
+### The spatial cues, measured one by one
+
+| asked for | state |
+|---|---|
+| Horizon matched to performer eyeline | **GAP.** The horizon follows the room's depth. Nothing measures where the performer's eyes are — a grep for `eyeline` finds only audio headroom. The layout box IS known where the backdrop is built (`compose.ts` has `box.w`/`box.h`), so the panel is knowable; what is not known is where in their own frame the person's head sits. That is a measurement of the take, once, in the shape `measurePlate` already uses — not a per-frame estimate, which S-6 rules out |
+| Floor/wall transition | **HAVE** — S-33 |
+| Perspective convergence | **GAP**, and the one genuinely new field |
+| Foreground / midground / background separation | **PART.** The control room's sets do it with furniture in two passes; the drawn spaces have no foreground at all |
+| Depth-of-field treatment | **PART.** S-33 defocuses the whole backdrop by the room's depth. There is one plane, not three |
+| Subtle spatial lighting | **HAVE** — the light pool, the vignette, and S-31's wrap and shadow |
+| Performer remains the visual subject | **HAVE, and load-bearing.** The defocus is deliberately small and the wrap and shadow are clamped, both for this reason |
+| Set supports the performer rather than competing | **HAVE** as a stated rule; S-31 and S-33 both cite it |
+
+### What is NOT being built here
+
+Per §2 of the brief, and said plainly so it cannot drift: **no part of the
+video-background capability is in this work.** No duration rule, no
+`VideoBackground` record, no `allowedContexts`, no loop-or-hold decision.
+`still()` still loads a backdrop with `-loop 1`, which is the
+single-image flag, and the renderer is not being taught to do anything
+else. The rules in §2 and the model in §3 are written down here and
+implemented nowhere.
+
+### What §4, §5 and §6 measure to
+
+* **§4, Online TV's two uses.** The distinction is already real in the
+  code and was never named: a backdrop goes through
+  `Environment`/`compose.ts` behind a person, and a full-screen video
+  goes through `ProgrammeSource` and the playout engine as the programme
+  itself. They are separate paths already. What is missing is the NAME —
+  nothing in the product says "virtual background" and "full-screen
+  video" are different things, so nothing stops a one-hour limit written
+  for one being applied to the other.
+* **§5, Take.** Measured: the Take app offers **no background choice at
+  all**. It has no upload, no library, no video — which is what the brief
+  says it must not have — and it also has no list of the destination's
+  approved backgrounds, which the brief says it should. Half right by
+  having been left alone.
+* **§6, the policy table.** Nothing in the code expresses it. There is no
+  notion of a production context deciding what an environment may be.
+
+### S-34a — Perspective, the one field that existed nowhere
+
+Of the eight fields the brief draws, seven were already somewhere.
+`perspective` was the exception, and it is now on the scene.
+
+**Drawn in light, not in lines.** Ruled floorboards converging on a point
+would be a drawing of perspective — confidently wrong the moment a take
+was shot from anywhere but dead centre. It is the same objection
+`spaceArt` already makes about photographing a desk: *"a perspective that
+will not match the camera"*. A gradient makes no claim about where the
+walls are, and is therefore right at any camera angle.
+
+A real floor is brightest where it runs away to and falls off towards the
+near corners, which are closest to the lens and furthest from the room's
+own light. **That falloff is the convergence.**
+
+* The vanishing point sits on the horizon the floor already defines, and
+  horizontally wherever the space says. `vanishX` is **optional**, unlike
+  `depth`, and for the opposite reason: almost every room is seen square
+  on, so a required field would be ten spaces all writing `0.5`.
+* How hard it converges comes from `depth`. A long nave runs away from
+  you and the floor narrows fast; a vocal booth's floor is four tiles.
+* It is screened onto the floor strip before that strip is laid down —
+  both are the same size there, which `blend` requires, and it keeps the
+  light on the floor rather than over the wall above it.
+* A space with no floor gets no perspective. Beach's band is a sea
+  horizon, not the ground.
+
+#### The test that was backwards
+
+The first version expected the centre-to-edge contrast to GROW towards
+the camera, reasoning that a converging plane is narrower near the lens.
+It is — but what is drawn here is the light ON that plane, and light
+pools where the floor meets the wall and falls away towards the near
+corners. Measured: **52 at the horizon against 9 near the camera.** The
+picture was right and the expectation was backwards; the expectation was
+changed, and the reason is written into the test so the next person does
+not re-derive it.
+
+Setting `converge` to zero fails it.
+
+### Still owed after S-34a
+
+* **Horizon matched to performer eyeline.** The horizon follows the
+  room's depth. Where a person's eyes sit in their own frame is a
+  measurement of the take — once, stored, in the shape `measurePlate`
+  already uses — and not a per-frame estimate, which S-6 rules out.
+* **The split.** `performer zone` and `foreground elements` exist only
+  on the control room's `VIRTUAL_SETS`; Studio Two's drawn spaces cannot
+  reach them. One `Scene` over both is the brief's actual ask and is not
+  done.
+* **Three planes, not one.** The defocus treats the backdrop as a single
+  plane at one distance.
+* **Video backgrounds.** Untouched, by instruction. §2's duration rules,
+  §3's `VideoBackground` record and §4's two Online TV uses are written
+  down in S-34 and implemented nowhere.
+* **§5 and §6.** Take offers no background at all — neither the uploads
+  it must not have nor the destination's approved list it should. No
+  production context decides what an environment may be.
+
+## S-35 — One scene, told once
+
+*"The correct next step is not to build another Scene system. It is to
+finish the one that already exists by unifying the missing pieces
+between SPACE_LOOKS and VIRTUAL_SETS."*
+
+### What was joined
+
+`src/domain/scene.ts` is the shared scene **truth**. It imports
+`environment.ts` and `virtualSet.ts`, and neither imports it — which is
+the whole reason it is its own file, because `virtualSet.ts` already
+reads `environment.ts` for the room behind a set and putting the join in
+either would be a cycle.
+
+| Scene | came from |
+|---|---|
+| background, horizon, floor plane, perspective, depth, lighting | `SpaceLook` |
+| performer zone, foreground elements | `VirtualSet` |
+
+**Nothing renders here.** The server chain still draws a space with
+ffmpeg filters and the canvas still draws a set with 2D passes, because
+those are two different jobs on two different machines and merging them
+would be a rewrite in exchange for nothing. Shared truth, not shared
+rendering — kept as the brief put it, and `compose.ts` still owns its
+own filter graph exactly as before.
+
+### Two things the join had to decide
+
+**The horizon is both kinds of band.** `floorOf` answers null for a band
+that is a horizon LINE rather than the ground — Beach's sea line —
+because there is no floor plane to draw there. There is still a horizon,
+and the eyeline depends on it, so `horizonOf` asks the question the
+other way round: the band first, the derived floor second.
+
+**The eyeline is the horizon, and that is not a coincidence.** The
+horizon in any photograph sits at the height of the lens, so a person of
+roughly the camera operator's height has their eyes ON it. It is the
+oldest rule in staging a shot, it needs no new data, and it is the
+reference the eyeline measurement will compare a real take against. The
+performer zone carries it now, so that work has somewhere to land.
+
+`standsAt` is deliberately NOT the horizon: at the horizon a person is
+pressed against the back wall. Halfway down the visible floor is where
+somebody stands in a room.
+
+### What Studio Two gained
+
+`compose.ts` resolves the scene once and reads the room from it, instead
+of looking the room up twice for itself — once for the backdrop and once
+for the grounding — and agreeing by habit. One description, read by the
+server renderer and available to the canvas one.
+
+`sceneFor` answers null for a room nobody drew, where `lookFor` threw, so
+the render path keeps its old failure explicitly: a plan naming a space
+that does not exist is a broken plan, and failing is better than a grey
+rectangle. An unknown SET is no set rather than an error, because
+`setIdentity` already refuses to store one and refusing twice would take
+a channel off the air over a word nobody can see.
+
+### Measured
+
+Eighteen assertions and seven mutations, all seven caught — after the
+first sweep included one that was a no-op (`if (x && undefined)`) and
+proved nothing, which is worth recording: a mutation that cannot change
+behaviour is not evidence of a test, it is evidence of a careless
+mutation.
+
+The sharpest assertions are the ones that check the join changed
+nothing: a set still answers the room's questions about the room, and a
+plain room still has no opinion about head counts.
+
+### Still owed, in the locked order
+
+1. ~~**Studio Two cannot yet NAME a set.**~~ Done in S-36 below.
+2. **The eyeline measurement.** Where a person's eyes sit in their own
+   frame, measured once from the take in the shape `measurePlate`
+   already uses, and compared against the scene's eyeline. Not a
+   per-frame estimate, which S-6 rules out.
+3. **Three planes, not one.** The defocus still treats the backdrop as a
+   single plane.
+
+And **S-34 stays where it is**: no `VideoBackground` model, no duration
+policy, no `allowedContexts`, no loop-or-hold rule, no renderer change.
+
+
+## S-36 — The door, and then the drawing
+
+The scene carried the performer zone and the furniture from the moment
+the two systems were joined. Studio Two had nowhere to **ask** for them:
+its environment was `{kind: 'space', spaceId}` with no field for a set.
+So S-35 wrote no renderer code for furniture nothing could request. This
+opens the door and then draws through it, in that order.
+
+### The document
+
+`Environment.setId`, valid only alongside `kind: 'space'` — a set stands
+in a room, so it cannot stand in their own room, in a blur, or in a
+photograph. `setEnvironment` refuses both mistakes at the door: a set on
+the wrong kind, and a set nobody drew. A stored set nobody draws is the
+same fault as a stored space nobody drew, and INV-16 already refuses the
+second.
+
+It reaches the renderer the way everything else does — carried into the
+plan rather than looked up — and it **joins the shot's content address
+for free**, because `hashShot` canonicalises the whole shot. Adding a set
+to a take re-renders that take and nothing else. [U-16 §3]
+
+### The drawing
+
+`pieceBoxes` turns the same rectangles the canvas draws into the filter
+language of the other side. Not a copy of `spaceArt`: the pieces are
+shared, only their translation differs, which is exactly what sharing
+the scene was for.
+
+**And the ordering is the point.** Risers, screens and bands go down
+*with* the backdrop, so the matte composites the performer over them as
+it does over the wall. The desk does not — it is drawn *after* the
+merge, because the whole difference between a desk and a wall is that
+the bottom of a presenter disappears behind it.
+
+### Measured
+
+News Desk's desk is `{ y: 0.72, h: 0.28 }` — y=777 to the bottom of a
+1080 frame. The fixture's performer is a rectangle at y=240..840, so the
+two overlap between 777 and 840, and that overlap is where the test
+lives. At y=540 the performer is still the red rectangle; at y=900 the
+red is gone and blue outweighs it, which no amount of performer could
+do. Emptying the foreground fails it.
+
+### A guard against nothing, deleted rather than defended
+
+`pieceBoxes` first converted every `#1a222c` to `0x1a222c`, on the belief
+that a `#` in a filter graph starts a comment and would silently swallow
+the rest of the chain — a missing desk rather than a wrong colour.
+
+**A mutation that removed the conversion survived.** Rather than call
+that a gap in the test, the belief was checked directly: ffmpeg drew
+`color=#1a222c` as (25, 32, 44), which is the colour. `#` is a comment
+in a filter SCRIPT FILE, not in an inline graph. The conversion guarded
+nothing, so it is gone — the seventh unobservable guard this product has
+deleted rather than written a test around.
+
+## S-37 — The eyeline, and the room moving to meet it
+
+*"Eyeline belongs to the relationship between the performer and the
+scene, not simply to the background image."*
+
+Which is why it is the last of the four and not the first: there was
+nowhere to put it until the scene existed and could state its own
+horizon.
+
+### The match
+
+**The horizon in any photograph sits at the height of the lens.** So a
+person whose eyes are on the drawn horizon is standing in that room, and
+one whose eyes float above it is standing in front of a picture of it.
+
+Of the two things that could move, **the drawn room is the one nobody
+recorded** — so the room moves. `sceneOf` takes an optional measured
+eyeline and puts its horizon there, and the floor and the perspective go
+with it. A room whose eyeline was matched and whose floor stayed where
+the depth put it would have two horizons — the one the eyes sit on and
+the one the ground meets — which is worse than either alone, because the
+eye believes the ground.
+
+### The measurement
+
+Split the way `measurePlate` is: the thinking in `src/domain/eyeline.ts`,
+where a silhouette is a line of code, and the pixels in
+`src/render/eyeline.ts`, which is four lines of filter and no decisions.
+
+A row profile is how much of each row differs from the empty room. The
+crown is the first row with a person in it; the chin is where the
+silhouette steps wider; and the eyes are halfway between — the oldest
+proportion in drawing a face, and true enough of everybody that it beats
+trying to find an eye, which at probe resolution is a few pixels of
+nothing in particular.
+
+**One frame, a second in.** Past a slate, still cheap, and S-6 rules out
+anything per-frame: a singer sways, and a backdrop whose horizon followed
+them would be a room moving against a person standing still.
+
+**Measured when a plate is attached**, which is the first moment both
+halves exist — and as a job, because the web tier never runs ffmpeg
+(U-23) and attaching a plate must not wait on a decode. Nothing is
+blocked on it: until it lands the scene keeps the horizon its depth gives
+it.
+
+**Failing is not a fault.** A take shorter than the probe, a plate that
+will not read, a performer out of frame — all mean no eyeline, and no
+eyeline means the room keeps its own horizon.
+
+### Two things the mutations found
+
+**A collar is not a pair of shoulders.** The chin was found as the first
+row a good deal wider than the head so far, with a comment claiming that
+beat comparing against the row above because *"hair and a collar both
+make a single row jump"*. A mutation swapping the two rules survived —
+and checking why showed the comment was false of **both**: against a
+head of ten with one row of nineteen in it, each rule called that row the
+shoulders and missed the real ones eight rows down. Shoulders are wide
+and **stay** wide, so the step now has to hold for three rows. The
+sentence is true now rather than merely written down.
+
+**A fixture that tested nothing.** The speckle test put a stray value of
+`Math.floor(100 * 0.015) - 1` in a row — which is zero. A mutation
+removing the floor entirely changed nothing and survived. The fixture now
+uses one pixel in a hundred, which is above zero and below the floor,
+which is what the test was always supposed to say.
+
+### And one comment corrected rather than defended
+
+The filter thresholds before it shrinks, and the comment said it had to,
+or *"a dark shirt against a dark wall would vanish before it was
+compared"*. A mutation swapping the order survived — because an area
+average of a **uniform** difference is that same difference, so for solid
+shapes, which is what a person mostly is, the order cannot matter. It
+would matter for detail finer than the shrink, and nothing tests that, so
+the comment no longer claims it. The order is kept because it is the
+matte's own.
+
+### The sequence is complete
+
+| | |
+|---|---|
+| S-33 | depth, floor, defocus |
+| S-34a | perspective |
+| S-35 | the scene, told once |
+| S-36 | Studio Two names a set and draws its furniture |
+| S-37 | the eyeline, and the room moving to meet it |
+
+**S-34 is untouched throughout**: no `VideoBackground` model, no duration
+policy, no `allowedContexts`, no loop-or-hold rule, no renderer change.
+
+## S-38 — Two boundaries, measured before merging
+
+No feature was added here. Two questions were asked and answered, which
+is what the branch needed rather than more of it.
+
+### A. Can the live compositor consume the shared scene, or would it need a second model?
+
+**It can consume it. Giving it grounding is a second TRANSLATION, not a
+second model.**
+
+What the live path receives today: `LiveCompositor.draw` takes
+`(video, plate, composition, panel, now, {cutout})`. `Composition` is
+backdrop, key and frame — the matte's inputs. It does not carry depth,
+floor, perspective, wrap or shadow, because those did not exist when it
+was written.
+
+What draws the room there is **`paintSpace` in `spaceArt.ts`**, on a 2D
+canvas, and it is already the direct analogue of `backdropChain`: wash,
+then light pool, then band, then vignette and grain, in that order, with
+a comment pointing at the filter chain's own `blend=screen` to say so.
+Two translations of one description, already cross-referencing each
+other.
+
+And the live path **already draws furniture in two passes** —
+`useBroadcastMixer` calls `paintSet(…, 'behind')` before the people and
+`paintSet(…, 'front')` after them. The ordering S-36 added to the server
+has been in the control room all along.
+
+So the work, when it is taken up, is:
+
+| | where | analogue that already exists |
+|---|---|---|
+| floor, perspective | `paintSpace` | canvas gradients ↔ `gradients` + `blend=screen` |
+| defocus | `paintSpace` | canvas `filter: blur()` ↔ `gblur` |
+| wrap, shadow | `MERGE_FS` | it already carries `uLight` and `uSpill`; these are the same kind of uniform |
+| the scene itself | `paintSpace(look)` → `paintSpace(scene)` | the join S-35 already made |
+
+**Nothing here needs a live-only grounding model.** `scene.ts` is a
+domain module and the browser can import it, which was the point of
+putting the join in its own file.
+
+### B. Do the sets hold their shape when Studio Two is not 16:9?
+
+Rendered — News Desk, through the real server chain, with a performer
+whose geometry is written into the fixture — at **16:9, 4:3, 1:1 and
+9:16**.
+
+| | person across the frame | person's span | screen sits at |
+|---|---|---|---|
+| 16:9 | 25% | 0.38–0.62 | 0.56–0.96 |
+| 4:3 | 33% | 0.33–0.67 | 0.56–0.96 |
+| 1:1 | 44% | 0.28–0.72 | 0.56–0.96 |
+| 9:16 | **79%** | **0.11–0.89** | 0.56–0.96 |
+
+**What holds at every shape**, and can be closed: the desk occludes the
+performer (crown 0.113, lowest visible 0.719, desk top 0.720, at all
+four); the floor, the band, the horizon and the defocus all render; the
+performer is never clipped by an edge; nothing becomes disproportionate,
+because a piece is a fraction of the frame and scales with it.
+
+**What does not hold**, and is a finding: the **screen is set dressing
+placed for a frame the presenter occupies a quarter of.** As the frame
+narrows the presenter grows across it — 25% to 79% — and by 1:1 the
+screen is behind their shoulder, by 9:16 it is a sliver. Nothing is
+broken, clipped or misdrawn. The set element the viewer is meant to see
+is simply behind the person.
+
+**A first pass at this measured only the vertical and found all four
+shapes identical.** That was an artefact of the test: height was held at
+1080 and the source is 16:9, so the vertical scale factor was 3 in every
+case and nothing could have differed. The test was measuring its own
+setup. The horizontal is where the shapes actually differ.
+
+### Classification
+
+| | |
+|---|---|
+| desk occlusion, floor, band, horizon, defocus, clipping, proportion | **works across shapes — closed** |
+| wall dressing behind the presenter at narrow shapes | **shared scene model insufficient — extend S-35** |
+| anything video | **S-34, untouched** |
+
+### What extending S-35 would mean
+
+Not four separately tuned layouts, which is the answer the scene exists
+to avoid. The gap is precise:
+
+`PerformerZone` says where the ground is (`standsAt`), where the eyes
+are (`eyeline`) and which arrangement holds N people (`positions`). It
+does **not** say how WIDE the performer occupies the frame — and a
+`Piece` is an absolute rect, authored against one aspect, with no way to
+say *"on the wall beside the presenter"* rather than *"at x 0.56"*.
+
+Those two together are the whole finding. A piece that could be placed
+relative to the performer zone, and a performer zone that knows its own
+width at the current aspect, would let one set hold its composition at
+any shape — which is what the brief asked the scene to be for.
+
+## S-39 — The boundary, and what the next piece is
+
+PR #43 ends here. Recorded so the next piece starts from a decision
+rather than from a reconstruction.
+
+### Closed
+
+| | |
+|---|---|
+| depth, floor, defocus | S-33 |
+| perspective | S-34a |
+| the scene, told once | S-35 |
+| Studio Two names a set and draws its furniture | S-36 |
+| the eyeline, and the room moving to meet it | S-37 |
+| desk occlusion, floor, band, horizon, defocus, clipping and proportion across 16:9, 4:3, 1:1 and 9:16 | S-38 |
+| whether the live compositor needs its own scene model | S-38 — **it does not** |
+
+### Held
+
+**S-34, the video capability.** No `VideoBackground` record, no duration
+policy, no `allowedContexts`, no loop-or-hold rule, no renderer change.
+Untouched through six sections, which was the point of naming it.
+
+**The live compositor's grounding.** The finding is that this is *a
+second translation, not a second model* — `paintSpace` is already the
+canvas analogue of `backdropChain`, and `useBroadcastMixer` already
+draws furniture in two passes. When it is taken up it consumes
+`scene.ts`; it does not get a parallel scene.
+
+### The next piece: relational placement and performer occupancy
+
+Not a responsive-layout failure. Everything structural held at all four
+shapes. The problem is **semantic**: the screen is authored as an
+absolute wall rectangle while the performer grows from a quarter of the
+frame to four-fifths of it.
+
+Two concepts are missing, and both belong to the scene rather than to
+any renderer.
+
+**1. `PerformerZone` needs occupancy.** It establishes the ground, the
+eyes, and the arrangement for N people. It does not establish *how much
+of the composition the performer may occupy* — and that must be a
+scene-level concept rather than four aspect-ratio-specific hacks.
+
+**2. `Piece` needs relational placement.** Today a piece says where it
+is:
+
+    x = 0.56
+    y = ...
+    width = ...
+    height = ...
+
+It does not say what it is relative to. The wall screen wants something
+closer to:
+
+    Piece
+    └── placement
+         ├── relation: beside-performer
+         ├── side: right
+         ├── clearance
+         ├── preferred zone
+         └── scale behaviour
+
+The renderer then resolves the actual rectangle from the current
+composition. That is fundamentally different from:
+
+    if 9:16 then move screen left
+    if 1:1 then shrink screen
+    if 4:3 then ...
+
+which is the four-tuned-layout answer the scene exists to avoid.
+
+### The shape it leaves
+
+                        SCENE
+                          │
+              ┌───────────┴───────────┐
+              │                       │
+        PerformerZone               Pieces
+              │                       │
+       ground / eyes             relational placement
+       N-person arrangement      beside / above / etc.
+       occupancy                  clearance / scale
+              │                       │
+              └───────────┬───────────┘
+                          ↓
+                  Composition shape
+                          ↓
+                 resolved geometry
+                          ↓
+                  Studio / Live
+
+**The scene describes spatial relationships; the renderer resolves them
+for the actual frame.**
+
+### One note on how this was found
+
+The corrected horizontal measurement is the evidence for the whole
+abstraction, and the first attempt would have hidden it: measuring only
+the vertical held the very dimension that changes the composition
+constant, and reported all four shapes identical. A test that varies
+everything except the thing under test reports success and means
+nothing.

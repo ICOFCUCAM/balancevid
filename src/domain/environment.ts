@@ -234,17 +234,43 @@ export interface SpaceLook {
   grain: number;
   /** A band across the picture — a horizon, a stage lip, a balcony rail. */
   band?: { y: number; height: number; colour: string };
+  /**
+   * Where the floor runs away to, across the frame. 0.5 unless said.
+   *
+   * Optional, unlike `depth`, and for the opposite reason: almost every
+   * room is seen square on, so almost every room has nothing to say
+   * here, and a required field would be ten spaces all writing 0.5.
+   */
+  vanishX?: number;
+  /**
+   * HOW FAR THE BACK OF THE ROOM IS, 0..1.
+   *
+   * STORED RATHER THAN DERIVED, unlike the grounding, and for a reason
+   * worth stating: everything `groundingFor` needs is implied by the
+   * light and the walls, and this is not. A cathedral and a vocal booth
+   * can be the same colour and the same brightness and be forty metres
+   * apart in depth. Nothing already on this record knows that, so the
+   * record has to say it.
+   *
+   * Required rather than optional, so a space added tomorrow has to
+   * answer the question rather than silently being a cupboard. [D-19]
+   */
+  depth: number;
 }
 
 export const SPACE_LOOKS: Record<string, SpaceLook> = {
   recording_studio: {
     id: 'recording_studio', label: 'Recording Studio',
+    /* a treated room with the walls close enough to touch */
+    depth: 0.25,
     top: '0x1a1d24', bottom: '0x0b0d11',
     glow: { x: 0.5, y: 0.35, colour: '0x3a4a5e', strength: 0.55 },
     vignette: 0.9, grain: 12,
   },
   concert_stage: {
     id: 'concert_stage', label: 'Concert Stage',
+    /* a hall that goes back further than the light reaches */
+    depth: 0.85,
     top: '0x120a1e', bottom: '0x05030a',
     glow: { x: 0.5, y: 0.18, colour: '0x8a4fd0', strength: 0.8 },
     vignette: 1.1, grain: 16,
@@ -252,6 +278,8 @@ export const SPACE_LOOKS: Record<string, SpaceLook> = {
   },
   modern_room: {
     id: 'modern_room', label: 'Modern Room',
+    /* a room, and you can see where it ends */
+    depth: 0.3,
     top: '0xe8e4dc', bottom: '0xc7c0b4',
     glow: { x: 0.28, y: 0.3, colour: '0xfffaf0', strength: 0.5 },
     vignette: 0.5, grain: 8,
@@ -259,24 +287,32 @@ export const SPACE_LOOKS: Record<string, SpaceLook> = {
   },
   university_hall: {
     id: 'university_hall', label: 'University Hall',
+    /* a lecture hall seen from the front */
+    depth: 0.7,
     top: '0x3a2f26', bottom: '0x1b1510',
     glow: { x: 0.5, y: 0.25, colour: '0xd8b877', strength: 0.45 },
     vignette: 0.95, grain: 10,
   },
   church: {
     id: 'church', label: 'Church',
+    /* a nave is long, and that is most of what a nave is */
+    depth: 0.9,
     top: '0x2b3550', bottom: '0x0e1220',
     glow: { x: 0.5, y: 0.2, colour: '0xf0d9a0', strength: 0.6 },
     vignette: 1.0, grain: 9,
   },
   theatre: {
     id: 'theatre', label: 'Theatre',
+    /* an auditorium behind the lip */
+    depth: 0.8,
     top: '0x3d0d14', bottom: '0x120406',
     glow: { x: 0.5, y: 0.3, colour: '0xc03a44', strength: 0.5 },
     vignette: 1.15, grain: 14,
   },
   beach: {
     id: 'beach', label: 'Beach',
+    /* the horizon is the horizon */
+    depth: 1,
     top: '0x7fc4e8', bottom: '0xe8d9b5',
     glow: { x: 0.72, y: 0.22, colour: '0xfff2cc', strength: 0.7 },
     vignette: 0.35, grain: 6,
@@ -284,12 +320,16 @@ export const SPACE_LOOKS: Record<string, SpaceLook> = {
   },
   forest: {
     id: 'forest', label: 'Forest',
+    /* trees close behind, and more of them beyond */
+    depth: 0.6,
     top: '0x2c4a2a', bottom: '0x0f1c10',
     glow: { x: 0.4, y: 0.15, colour: '0xa8d08a', strength: 0.5 },
     vignette: 0.95, grain: 13,
   },
   city: {
     id: 'city', label: 'City',
+    /* a skyline is as far as seeing goes */
+    depth: 0.95,
     top: '0x1b2433', bottom: '0x080b12',
     glow: { x: 0.65, y: 0.55, colour: '0x5f8fd0', strength: 0.5 },
     vignette: 0.85, grain: 15,
@@ -297,6 +337,8 @@ export const SPACE_LOOKS: Record<string, SpaceLook> = {
   },
   mountain: {
     id: 'mountain', label: 'Mountain',
+    /* the far ridge */
+    depth: 1,
     top: '0x8fb4d9', bottom: '0xcfd9e2',
     glow: { x: 0.35, y: 0.2, colour: '0xffffff', strength: 0.55 },
     vignette: 0.45, grain: 7,
@@ -304,6 +346,8 @@ export const SPACE_LOOKS: Record<string, SpaceLook> = {
   },
   night_studio: {
     id: 'night_studio', label: 'Night Studio',
+    /* the same small room with the lights down */
+    depth: 0.3,
     top: '0x0d1117', bottom: '0x05070a',
     glow: { x: 0.5, y: 0.4, colour: '0x2b5f8a', strength: 0.65 },
     vignette: 1.2, grain: 18,
@@ -399,6 +443,184 @@ export function groundingFor(look: SpaceLook): Grounding {
   const shadowBlur = 0.035;
 
   return { wrap, shadow, shadowX, shadowY, shadowBlur };
+}
+
+/**
+ * How soft the back of the room is, in pixels of blur.
+ * [STUDIO-TWO §4, S-6]
+ *
+ * A CAMERA FOCUSED ON A PERFORMER DOES NOT ALSO FOCUS ON THE WALL BEHIND
+ * THEM, and the further back that wall is the less it does. Every drawn
+ * space has been rendered pin-sharp from edge to edge, which is the one
+ * thing no photograph of a room has ever looked like — and it is why
+ * they read as wallpaper rather than as somewhere.
+ *
+ * SMALL, THOUGH. This is a backdrop, not a portrait lens wide open: a
+ * cathedral blurred to a smear is a different error from a cathedral
+ * blurred not at all, and the second one at least keeps the place
+ * recognisable. A quarter of a percent of the frame at the far end.
+ *
+ * Expressed against the frame's smaller side, so the same room is the
+ * same room at any output size. [D-06]
+ */
+export function defocusFor(look: SpaceLook, smallSide: number): number {
+  const sigma = (0.0008 + 0.0042 * Math.min(1, Math.max(0, look.depth)))
+    * smallSide;
+  return Math.max(1, Math.round(sigma));
+}
+
+/**
+ * A colour, further from the light.
+ *
+ * Used where one surface has to read as continuous with another and
+ * further away — a floor receding from the horizon it meets. Mixing
+ * towards black rather than reducing lightness keeps it the same colour,
+ * which is what "the same floor, further off" means.
+ */
+export function darken(hex: string, amount: number): string {
+  const n = Number.parseInt(hex.replace(/^0x/i, ''), 16);
+  if (!Number.isFinite(n)) return hex;
+  const keep = Math.min(1, Math.max(0, 1 - amount));
+  const part = (shift: number) =>
+    Math.round(((n >> shift) & 255) * keep).toString(16).padStart(2, '0');
+  return `0x${part(16)}${part(8)}${part(0)}`;
+}
+
+/**
+ * Does this space's band reach the bottom of the frame?
+ *
+ * A BAND IS TWO DIFFERENT THINGS and the record already tells them
+ * apart without having been asked to. Beach's runs from 0.62 for six
+ * hundredths of the frame: that is a sea line, a horizon, a rule across
+ * the picture. Concert Stage's runs from 0.86 to the very bottom: that
+ * is not a line, it is the FLOOR, and it has been drawn as a flat
+ * stripe of one colour since the spaces were made.
+ *
+ * A floor that is one flat colour is the thing that makes a drawn room
+ * look like a stage flat, because a real floor recedes.
+ */
+export function bandIsFloor(band: SpaceLook['band']): boolean {
+  return band !== undefined && band.y + band.height > 0.99;
+}
+
+/**
+ * The ground, and where it meets the wall.  [STUDIO-TWO §4, S-6]
+ *
+ * SIX OF THE ELEVEN SPACES HAD NO FLOOR AT ALL. Four declared a band
+ * that reaches the bottom of the frame, which is a floor drawn as a flat
+ * stripe; one declared a thin sea line; and the other six — Recording
+ * Studio, University Hall, Church, Theatre, Forest, Night Studio — were
+ * a wash, a light pool, a vignette and some grain. A cathedral rendered
+ * as a brown gradient is not a cathedral, and no amount of grain makes
+ * a gradient into a place.
+ *
+ * WHERE THE LINE GOES IS GEOMETRY, NOT TASTE. Stand close to a wall and
+ * the line where it meets the floor is LOW in the frame: you see a lot
+ * of wall and little ground. Stand at the back of a nave and it rises
+ * towards the horizon. So the line follows `depth`, which is the one
+ * thing the record already knows about how far away the back of the
+ * room is.
+ *
+ * AND ITS COLOUR IS THE WALL'S, FURTHER FROM THE LIGHT. A floor painted
+ * a colour nobody chose would be a second decision per space and six
+ * chances to pick wrong; taking the wash's own lower colour and moving
+ * it away from the light keeps every room one room. A space that wants
+ * a floor of its own says so with a `band`, exactly as four already do.
+ */
+export function floorOf(look: SpaceLook): {
+  y: number; from: string; to: string;
+} | null {
+  if (look.band) {
+    /* A declared floor keeps its own colour; a declared LINE is a
+       horizon and not the ground, and gets no floor from here. */
+    return bandIsFloor(look.band)
+      ? { y: look.band.y, from: look.band.colour,
+        to: darken(look.band.colour, 0.45) }
+      : null;
+  }
+  const depth = Math.min(1, Math.max(0, look.depth));
+  /*
+   * THE FAR EDGE CATCHES THE LIGHT AND THE NEAR EDGE DOES NOT.
+   *
+   * The first version darkened the wall's colour at both ends, which is
+   * wrong in exactly the rooms that needed it most: darkening a
+   * near-black concert hall by half gives another near-black, and the
+   * floor was measurable and invisible. A floor is lit from ABOVE, so
+   * where it meets the wall it picks up the room's own light, and it
+   * falls away towards the camera. That is what makes the join read as
+   * a join rather than as a slightly different black.
+   *
+   * Mixed towards the light's own colour, not towards white, so a
+   * purple stage gets a purple floor and a candle-lit nave a warm one.
+   */
+  return {
+    y: 0.74 + 0.12 * (1 - depth),
+    from: mix(look.bottom, look.glow.colour, 0.16 + 0.22 * look.glow.strength),
+    to: darken(look.bottom, 0.45),
+  };
+}
+
+/**
+ * Two colours, part of the way between.
+ *
+ * `t` of 0 is all of the first and 1 is all of the second. Per channel
+ * and linear, which is not how light actually adds but is how every
+ * other blend in this file behaves, and being consistent with the
+ * neighbours matters more here than being right about gamma.
+ */
+export function mix(from: string, to: string, t: number): string {
+  const a = Number.parseInt(from.replace(/^0x/i, ''), 16);
+  const b = Number.parseInt(to.replace(/^0x/i, ''), 16);
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return from;
+  const k = Math.min(1, Math.max(0, t));
+  const part = (shift: number) => {
+    const one = (a >> shift) & 255;
+    const two = (b >> shift) & 255;
+    return Math.round(one + (two - one) * k).toString(16).padStart(2, '0');
+  };
+  return `0x${part(16)}${part(8)}${part(0)}`;
+}
+
+/**
+ * Where the floor goes to.  [STUDIO-TWO §4, S-34]
+ *
+ * THE ONE FIELD THE SCENE MODEL WAS MISSING. Background, horizon, floor,
+ * performer zone, depth, lighting and foreground all existed somewhere —
+ * split between the drawn spaces and the control room's virtual sets.
+ * Perspective existed nowhere.
+ *
+ * AND IT IS DRAWN IN LIGHT, NOT IN LINES, for the reason `spaceArt`
+ * already gives about a desk: a photograph brings somebody else's
+ * perspective and it will not match the camera. Ruled floorboards
+ * converging on a point would be a drawing of perspective, confidently
+ * wrong the moment a take was shot from anywhere but dead centre.
+ *
+ * A real floor recedes to a point and the light on it goes with it: it
+ * is brightest along the line running away from the camera and falls off
+ * towards the near corners, which are closest to the lens and furthest
+ * from the room's light. That falloff IS the convergence, and it is
+ * right at any camera angle because it is a gradient rather than a
+ * claim about where the walls are.
+ *
+ * The vanishing point sits on the horizon, and horizontally wherever the
+ * space says. Most rooms are seen square on, so most say nothing and get
+ * the middle.
+ */
+export function perspectiveOf(look: SpaceLook): {
+  vanishX: number; horizon: number; converge: number;
+} | null {
+  const ground = floorOf(look);
+  if (!ground) return null;
+  return {
+    vanishX: Math.min(1, Math.max(0, look.vanishX ?? 0.5)),
+    horizon: ground.y,
+    /*
+     * HOW HARD IT CONVERGES, from the depth the room already declares.
+     * A long nave runs away from you and the floor narrows fast; a vocal
+     * booth's floor is four tiles and barely converges at all.
+     */
+    converge: 0.18 + 0.34 * Math.min(1, Math.max(0, look.depth)),
+  };
 }
 
 /**

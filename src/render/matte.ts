@@ -23,6 +23,10 @@
  */
 
 import type { Grounding, SpaceLook } from '../domain/environment.js';
+import type { Piece } from '../domain/virtualSet.js';
+import {
+  bandIsFloor, defocusFor, floorOf, perspectiveOf,
+} from '../domain/environment.js';
 
 /** Softening applied to a `blur` backdrop — their own room, out of focus. */
 const BLUR_SIGMA = 24;
@@ -75,7 +79,7 @@ export function backdropChain(
   // A horizon, a stage lip, a balcony rail: one straight edge is the
   // difference between "a place" and "a gradient".
   let current = lit;
-  if (look.band) {
+  if (look.band && !bandIsFloor(look.band)) {
     const banded = `${out}_band`;
     chains.push(
       `[${current}]drawbox=x=0:y=${Math.round(look.band.y * height)}:w=${width}`
@@ -83,8 +87,86 @@ export function backdropChain(
       + `[${banded}]`);
     current = banded;
   }
+  const ground = floorOf(look);
+  if (ground) {
+    /*
+     * A FLOOR, NOT A STRIPE.  [§4, S-6]
+     *
+     * A band that reaches the bottom of the frame is not a rule across
+     * the picture, it is the ground — and it has been drawn as one flat
+     * colour since the spaces were made, which is exactly what makes a
+     * drawn room look like a stage flat. A real floor recedes: it meets
+     * the wall at the horizon and comes towards the camera, and the
+     * near end is further from the room's light than the far end.
+     *
+     * So the floor is its own gradient, laid over the wash between the
+     * horizon and the bottom edge, from the band's own colour where it
+     * meets the wall to a darker version of that same colour underfoot.
+     * Mixing towards black rather than to another hue keeps it one
+     * floor rather than two surfaces.
+     */
+    const top = Math.round(ground.y * height);
+    const deep = height - top;
+    const floor = `${out}_floor`;
+    const laid = `${out}_laid`;
+    chains.push(
+      `gradients=s=${width}x${deep}:c0=${ground.from}`
+      + `:c1=${ground.to}`
+      + `:x0=0:y0=0:x1=0:y1=${deep}:type=linear:d=${seconds}:r=${fps}${fixed},`
+      + `format=gbrp[${floor}]`);
+    /*
+     * AND THE FLOOR RUNS AWAY TO A POINT.  [§4, S-34]
+     *
+     * The one field the scene model was missing, drawn in light rather
+     * than in lines. A ruled set of floorboards converging on a point
+     * would be a drawing of perspective, confidently wrong the moment a
+     * take was shot from anywhere but dead centre — the same objection
+     * `spaceArt` already makes about photographing a desk.
+     *
+     * A real floor is brightest along the line running away from the
+     * camera and falls off towards the near corners, which are closest
+     * to the lens and furthest from the room's light. That falloff IS
+     * the convergence, and it is right at any camera angle because it
+     * is a gradient rather than a claim about where the walls are.
+     *
+     * Screened rather than overlaid, because this is light on a surface
+     * and not a surface of its own, and at an opacity the room's own
+     * depth decides: a long nave narrows fast, a vocal booth hardly at
+     * all.
+     */
+    const view = perspectiveOf(look);
+    let ground2 = floor;
+    if (view) {
+      const run = `${out}_run`;
+      const converged = `${out}_conv`;
+      chains.push(
+        `gradients=s=${width}x${deep}:c0=${ground.from}:c1=0x000000`
+        + `:x0=${Math.round(view.vanishX * width)}:y0=0`
+        + `:x1=0:y1=${deep}:type=radial:d=${seconds}:r=${fps}${fixed},`
+        + `format=gbrp[${run}]`);
+      /* Onto the floor strip itself, before it is laid down: both are
+         the same size here, which `blend` requires and which keeps the
+         light on the floor rather than over the wall above it. */
+      chains.push(
+        `[${ground2}][${run}]blend=all_mode=screen`
+        + `:all_opacity=${view.converge.toFixed(3)},format=gbrp[${converged}]`);
+      ground2 = converged;
+    }
+    chains.push(
+      `[${current}][${ground2}]overlay=0:${top}:format=gbrp[${laid}]`);
+    current = laid;
+  }
 
   const tail: string[] = [];
+  /*
+   * AND THE BACK OF THE ROOM IS NOT IN FOCUS.  [§4]
+   *
+   * Before the vignette and the grain, because both of those are the
+   * lens and the sensor rather than the room: a vignette is the lens
+   * darkening its own corners, and grain is noise added after the
+   * picture was formed. Blurring them would be blurring the camera.
+   */
+  tail.push(`gblur=sigma=${defocusFor(look, Math.min(width, height))}`);
   if (look.vignette > 0) tail.push(`vignette=a=${(Math.PI / 5 * look.vignette).toFixed(4)}`);
   /*
    * Grain last, so it is not blurred by anything above it. A perfectly clean
@@ -287,3 +369,74 @@ export function matteChain(options: {
   chain.push(`[${ground1}][${lit}][${maskD}]maskedmerge[${out}]`);
   return chain;
 }
+
+/* ------------------------------------------------------------------------ *
+ *  Furniture.  [STUDIO-TWO §4, S-35; CHANNEL §27]
+ * ------------------------------------------------------------------------ */
+
+/**
+ * A piece of a set, as filter boxes.
+ *
+ * THE SAME PIECES THE CONTROL ROOM DRAWS, on the other renderer. The
+ * canvas has drawn these since sets existed; Studio Two could not reach
+ * them until the scene was shared, and the point of sharing the scene
+ * was that this would not mean copying that code — only this, which
+ * turns the same rectangles into the filter language of this side.
+ *
+ * Two tones each, because that is what the pieces are: `spaceArt` makes
+ * the same argument about why they are drawn rather than photographed,
+ * and a desk at broadcast size is a face, a top and an edge.
+ *
+ * THE COLOURS GO STRAIGHT THROUGH, which was worth checking rather than
+ * assuming. The sets were written for a canvas, where a colour is
+ * `#1a222c`, and this first converted every one to `0x1a222c` on the
+ * belief that a `#` in a filter graph starts a comment and would
+ * silently swallow the rest of the chain. A mutation that removed the
+ * conversion survived, so the belief was tested directly: ffmpeg drew
+ * `color=#1a222c` as (25, 32, 44), which is the colour. `#` is a
+ * comment in a filter SCRIPT FILE, not in an inline graph. The
+ * conversion was a guard against nothing and is gone rather than
+ * defended.
+ */
+export function pieceBoxes(
+  pieces: readonly Piece[], width: number, height: number,
+): string[] {
+  const px = (v: number, of: number) => Math.round(v * of);
+  const boxes: string[] = [];
+  for (const one of pieces) {
+    const x = px(one.rect.x, width);
+    const y = px(one.rect.y, height);
+    const w = px(one.rect.w, width);
+    const h = px(one.rect.h, height);
+    if (w <= 0 || h <= 0) continue;
+    switch (one.kind) {
+      case 'desk': {
+        /* A top edge catching the light, and the face below it. That
+           lit edge is what stops a filled rectangle reading as a hole
+           cut in the picture. */
+        const lip = Math.max(2, Math.round(h * 0.06));
+        boxes.push(`drawbox=x=${x}:y=${y}:w=${w}:h=${h}`
+          + `:color=${one.face}@1:t=fill`);
+        boxes.push(`drawbox=x=${x}:y=${y}:w=${w}:h=${lip}`
+          + `:color=${one.top}@1:t=fill`);
+        break;
+      }
+      case 'screen': {
+        const bezel = Math.max(2, Math.round(Math.min(w, h) * 0.04));
+        boxes.push(`drawbox=x=${x}:y=${y}:w=${w}:h=${h}`
+          + `:color=${one.frame}@1:t=fill`);
+        boxes.push(`drawbox=x=${x + bezel}:y=${y + bezel}`
+          + `:w=${Math.max(1, w - bezel * 2)}:h=${Math.max(1, h - bezel * 2)}`
+          + `:color=${one.glass}@1:t=fill`);
+        break;
+      }
+      case 'riser':
+      case 'band':
+        boxes.push(`drawbox=x=${x}:y=${y}:w=${w}:h=${h}`
+          + `:color=${one.face}@1:t=fill`);
+        break;
+    }
+  }
+  return boxes;
+}
+

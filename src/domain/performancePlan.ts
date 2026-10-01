@@ -562,6 +562,12 @@ function backdropFor(
       kind: take.environment.kind as 'blur' | 'space' | 'custom',
       ...(take.environment.spaceId ? { spaceId: take.environment.spaceId } : {}),
       ...(take.environment.assetId ? { assetId: take.environment.assetId } : {}),
+      /* Carried into the plan rather than looked up by the renderer,
+         like everything else here — and it joins the shot's content
+         address for free, because `hashShot` canonicalises the whole
+         shot. A set added to a take re-renders that take. [U-16 §3] */
+      ...(take.environment.setId ? { setId: take.environment.setId } : {}),
+      ...(take.eyeline !== undefined ? { eyeline: take.eyeline } : {}),
       plateAssetId: plate.assetId,
       threshold: matteThreshold(plate),
       feather: matteFeather(plate),

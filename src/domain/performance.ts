@@ -701,6 +701,19 @@ export interface Environment {
   spaceId?: string;
   /** For `custom`: the author's own image or loop. */
   assetId?: AssetId;
+  /**
+   * A SET STANDING IN THAT ROOM.  [§4, S-35; CHANNEL §27]
+   *
+   * A set is not a new space — it names its own room and adds what a
+   * room has no opinion about: where people go by head count, and the
+   * furniture that stands in front of them. The control room has
+   * carried `spaceId` and `setId` side by side since sets existed;
+   * this is the same pair, so one scene answers for both surfaces.
+   *
+   * Valid only alongside `kind: 'space'`, and the set wins over the
+   * space it is named with, exactly as `sceneFor` already resolves it.
+   */
+  setId?: string;
 }
 
 export type EnvironmentKind =
@@ -934,6 +947,20 @@ export interface PerformanceTake {
    * for this take, which is why its environment can only be `original`.
    */
   plateAssetId?: AssetId;
+  /**
+   * Where this performer's eyes are, as a fraction of their frame.
+   * [§4, S-6, S-37]
+   *
+   * MEASURED ONCE, FROM THE TAKE AND ITS PLATE, and stored because S-6
+   * rules out doing it per frame: a singer sways, and a backdrop whose
+   * horizon followed them would be a room moving against a person
+   * standing still, which is worse than a room that never moved.
+   *
+   * Absent until the measurement has run, and then the scene keeps the
+   * horizon its own depth gives it, which is where every scene stood
+   * before this existed.
+   */
+  eyeline?: number;
   alignment: Alignment;
   /** Measured by decoding. [U-02] */
   durationSamples: Samples;

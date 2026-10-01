@@ -66,15 +66,14 @@ import type {
   Performance as PerformanceDocument, SoundLayer,
 } from '../domain/performance.js';
 import {
-  orderedScenes, projectPerformance, songSections,
-} from '../domain/performance.js';
+  orderedScenes, projectPerformance, songSections, plateFor,} from '../domain/performance.js';
 import { samplesToFrames } from '../domain/time.js';
 import {
-  addPlate, addSound, recordBeats, replaceSection,
-} from '../domain/performanceEdit.js';
+  addPlate, addSound, recordBeats, replaceSection, setEyeline,} from '../domain/performanceEdit.js';
 import { BEAT_DETECTOR, detectBeats } from '../domain/beats.js';
 import { matteThreshold, plateVerdict } from '../domain/environment.js';
 import { buildPlateStill, measurePlate } from '../render/plate.js';
+import { measureEyeline } from '../render/eyeline.js';
 import { EXPORT_PROFILES } from '../domain/presentation.js';
 
 const POLL_MS = 400;
@@ -105,6 +104,7 @@ export async function runJob(job: Job): Promise<Job> {
     case 'render_claim_cards': return renderClaimCards(job);
     case 'ingest_master': return ingestMaster(job);
     case 'ingest_plate': return ingestPlate(job);
+    case 'measure_eyeline': return measureTakeEyeline(job);
     case 'ingest_sound': return ingestSound(job);
     case 'assemble_performance_take': return assemblePerformanceTake(job);
     case 'render_performance': return renderPerformance(job);
@@ -413,6 +413,59 @@ async function ingestPlate(job: Job): Promise<Job> {
  * microphone. If it is not audible, which is the normal outcome of following
  * §10 and wearing headphones, the browser's measurement stands.
  */
+/**
+ * Where this take's performer has their eyes.  [§4, S-6, S-37]
+ *
+ * ENQUEUED WHEN A PLATE IS ATTACHED, because that is the first moment
+ * both halves exist: the take has been assembled into a mezzanine and the
+ * room it was shot in has been measured. Before that there is nothing to
+ * difference against.
+ *
+ * A JOB RATHER THAN THE REQUEST THAT CAUSED IT, because the web tier
+ * never runs ffmpeg (U-23) and attaching a plate must not wait on a
+ * decode. The scene keeps the horizon its depth gives it until this
+ * lands, so nothing is blocked on it either.
+ *
+ * FAILING IS NOT A FAULT. A take shorter than the probe point, a plate
+ * that will not read, a performer who walked out of frame — all of them
+ * mean no eyeline, and no eyeline means the room keeps its own horizon.
+ * Losing a take because a row of pixels could not be counted would be
+ * the tail wagging the dog.
+ */
+async function measureTakeEyeline(job: Job): Promise<Job> {
+  const id = job.conversationId;
+  const takeId = String(job.payload['takeId']);
+
+  const performance = await loadPerformance(id);
+  const take = performance.takes.find((one) => one.id === takeId);
+  const plate = take ? plateFor(performance, take) : undefined;
+  if (!take || !plate) {
+    return finish(job, 'done', { progress: 100, result: { measured: false } });
+  }
+
+  const found = await measureEyeline(
+    paths.performanceAsset(id, `${take.assetId}mezz`, 'mp4'),
+    paths.performancePlate(id, plate.assetId),
+    join(paths.performanceAssets(id), 'scratch'),
+    matteThreshold(plate),
+  );
+  if (!found) {
+    return finish(job, 'done', { progress: 100, result: { measured: false } });
+  }
+
+  const at = Number(found.at.toFixed(4));
+  await mutatePerformance(id, (draft) => { setEyeline(draft, takeId, at); });
+  await auditPerformance(id, {
+    action: 'take.eyeline',
+    detail: { takeId, at, crown: Number(found.crown.toFixed(4)),
+      covers: Number(found.covers.toFixed(4)) },
+  });
+  return finish(job, 'done', {
+    progress: 100,
+    result: { measured: true, at, covers: Number(found.covers.toFixed(4)) },
+  });
+}
+
 async function assemblePerformanceTake(job: Job): Promise<Job> {
   const id = job.conversationId;
   const takeId = String(job.payload['takeId']);

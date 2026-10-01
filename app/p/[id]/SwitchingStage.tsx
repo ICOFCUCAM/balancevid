@@ -1,5 +1,6 @@
 'use client';
 
+import { VIRTUAL_SETS } from '../../../src/domain/virtualSet.js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { TAKE_ACCENT_FALLBACK } from '../../../src/domain/performance.js';
 import Icon from '../../Icon.js';
@@ -1867,9 +1868,37 @@ export default function SwitchingStage({
                   disabled: !subject.plateAssetId,
                   title: 'A picture of your own, from the library',
                 })}
+              {/*
+                * A SET STANDING IN ONE OF THOSE ROOMS.  [§4, S-35]
+                *
+                * The scene has carried the performer zone and the
+                * furniture since the two systems were joined, and the
+                * only thing missing was a document field to ask for
+                * them. A set names its own room, so pressing one picks
+                * the room too — which is why these sit after the rooms
+                * rather than among them.
+                */}
+              {VIRTUAL_SETS.map((set) => tile(
+                set.id, set.label,
+                subject.environment.setId === set.id,
+                () => void patch({
+                  action: 'set-environment', takeId: subject.id,
+                  environment: {
+                    kind: 'space', spaceId: set.spaceId, setId: set.id,
+                  },
+                }),
+                'environment-option',
+                {
+                  height: 66,
+                  swatch: SPACE_SWATCHES[set.spaceId] ?? '#1b2028',
+                  disabled: !subject.plateAssetId,
+                  title: set.says,
+                },
+              ))}
               {(allSpaces ? SPACES : SPACES.slice(0, 6)).map((space) => tile(
                 space.id, space.label,
                 subject.environment.kind === 'space'
+                  && !subject.environment.setId
                   && subject.environment.spaceId === space.id,
                 () => void patch({
                   action: 'set-environment', takeId: subject.id,

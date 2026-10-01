@@ -24,9 +24,10 @@ import { LAYOUTS, type Rect } from '../domain/presentation.js';
 import {
   type EffectLook, SUPPLIED_GROUNDING, groundingFor, lookFor,
 } from '../domain/environment.js';
+import { sceneFor } from '../domain/scene.js';
 import { mixExpression, transitionFor } from '../domain/transitions.js';
 import {
-  backdropChain, blurBackdropChain, matteChain, seedFor,
+  backdropChain, blurBackdropChain, matteChain, pieceBoxes, seedFor,
 } from './matte.js';
 import { mixPerformanceAudio } from './mix.js';
 import { HOUSE_SAMPLE_RATE, type Frames, framesToSamples } from '../domain/time.js';
@@ -408,6 +409,32 @@ async function renderPerformanceShot(
       const plate = `pl${index}`;
       const behind = `bd${index}`;
       const composed = `m${index}`;
+      /*
+       * THE SCENE, RESOLVED ONCE.  [S-34]
+       *
+       * The room's wash, its floor, its perspective, its depth, where a
+       * person belongs in it and what stands in front of them — one
+       * description, read here and by the control room's canvas, rather
+       * than each surface looking the room up for itself and agreeing
+       * by habit.
+       *
+       * This is shared TRUTH and not shared rendering: the chain below
+       * is still ffmpeg filters and the control room is still 2D
+       * passes, because those are two jobs on two machines. [D-19]
+       */
+      const scene = backdrop.kind === 'space'
+        ? sceneFor({
+          spaceId: backdrop.spaceId, setId: backdrop.setId,
+          eyeline: backdrop.eyeline,
+        }) : null;
+      /* `sceneFor` answers null for a room nobody drew, where `lookFor`
+         threw. A plan naming a space that does not exist is a broken
+         plan — `setEnvironment` refuses one at the door — and failing
+         here rather than rendering a grey rectangle is the behaviour
+         this path has always had. [INV-16] */
+      if (backdrop.kind === 'space' && !scene) {
+        throw new Error(`unknown space: ${backdrop.spaceId}`);
+      }
 
       if (backdrop.kind === 'blur') {
         // Their own room, softened: the same picture twice, one copy out of
@@ -416,8 +443,25 @@ async function renderPerformanceShot(
         filters.push(...blurBackdropChain(`${keyable}_bg`, behind));
       } else if (backdrop.kind === 'space') {
         filters.push(`[${fitted}]format=gbrp[${keyable}]`);
+        /*
+         * THE ROOM, THEN WHAT STANDS IN IT BEHIND THE PEOPLE.
+         * [§4, S-35]
+         *
+         * Risers, screens and bands go down with the backdrop, so the
+         * matte composites the performer OVER them exactly as it does
+         * over the wall. The desk does not: it is drawn after the
+         * merge, below, which is the single ordering that makes a
+         * composite read as a studio rather than as cutouts standing
+         * on air.
+         */
+        const dressed = scene!.behind.length > 0 ? `${behind}_set` : behind;
         filters.push(...backdropChain(
-          lookFor(backdrop.spaceId), box.w, box.h, fps, seconds, behind));
+          scene!.background, box.w, box.h, fps, seconds, dressed));
+        if (scene!.behind.length > 0) {
+          filters.push(`[${dressed}]`
+            + `${pieceBoxes(scene!.behind, box.w, box.h).join(',')},`
+            + `format=gbrp[${behind}]`);
+        }
       } else {
         filters.push(`[${fitted}]format=gbrp[${keyable}]`);
         const own = still(backdrop.assetId as AssetId);
@@ -465,8 +509,8 @@ async function renderPerformanceShot(
        * that was never wrong. Adding a second shadow to a real one is
        * how a correction becomes an effect.
        */
-      const ground = backdrop.kind === 'space'
-        ? groundingFor(lookFor(backdrop.spaceId))
+      const ground = backdrop.kind === 'space' && scene
+        ? groundingFor(scene!.background)
         : backdrop.kind === 'blur' ? undefined : SUPPLIED_GROUNDING;
       filters.push(...matteChain({
         fg: keyable, plate, backdrop: behind, out: composed,
@@ -474,8 +518,23 @@ async function renderPerformanceShot(
         width: box.w, height: box.h,
         ...(ground ? { ground } : {}),
       }));
+      /*
+       * AND THE DESK OVER THEM.  [§4, S-35; CHANNEL §27]
+       *
+       * After the merge, because the whole point of a desk is that the
+       * bottom of a presenter disappears behind it. Drawn before the
+       * panel is converted and composited into the layout, so it
+       * belongs to this person's panel rather than to the frame.
+       */
+      const front = scene?.foreground ?? [];
+      const merged = front.length > 0 ? `${composed}_front` : composed;
+      if (front.length > 0) {
+        filters.push(`[${composed}]`
+          + `${pieceBoxes(front, box.w, box.h).join(',')},`
+          + `format=gbrp[${merged}]`);
+      }
       panel = `${composed}_yuv`;
-      filters.push(`[${composed}]format=yuv420p[${panel}]`);
+      filters.push(`[${merged}]format=yuv420p[${panel}]`);
     }
 
     /*
