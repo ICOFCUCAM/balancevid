@@ -3436,22 +3436,127 @@ to darken or to sample. Wrap and shadow therefore apply to a
 participant's own drawn room and not to a set. That is a gap, it is
 named here, and it is not covered by pretending otherwise.
 
-The light pool's RADIUS still differs between the chain and the two live
-surfaces: the chain measures it to the bottom-right corner of the frame,
-which makes a lamp low on the right into a pinpoint, and both live
-surfaces use a fixed 0.62 of the longer side. The two live surfaces now
-agree with each other. Which of the two is wanted is a decision about
-how a room should look, not a defect, so it is reported rather than
-taken.
+The light pool is the one thing left that the export and the air draw at
+different sizes, and saying where that stood took a second measurement
+because the first was wrong.
+
+**What was claimed, and was not true.** This record said *"the two live
+surfaces now agree with each other"* on the strength of a probe that was
+not measuring the pool. The probe room declared a depth and no band, so
+`floorOf` gave it a derived floor at 0.80 — and the vertical run down
+from the lamp stopped at the floor's edge rather than at the pool's.
+A room with a band the colour of its own wash, high and thin, has no
+floor plane and nothing else in the frame, and that is the probe the
+question needed.
+
+**And it found a second canvas bug.** `paintSpace` faded its pool to
+`rgba(0,0,0,0)`, which is the obvious way to write "and then nothing"
+and is the oldest trap in a 2D gradient: a stop carries a COLOUR as
+well as an alpha, so the pool darkened towards black as it thinned.
+Faded to the glow's own colour at zero alpha it thins and does nothing
+else. On the clean probe the canvas and the shader now read within one
+part in 255 of each other at every distance from the lamp, where before
+they were half as far apart as either was from the chain.
+
+**What remains, measured.** A white lamp at strength 0.9, centred, on a
+flat 40-grey wash with the vignette off, read along the row through it:
+
+| pixels from the lamp | export | canvas | shader |
+|---|---|---|---|
+| 0 | 232 | 233 | 233 |
+| 160 | 142 | 194 | 194 |
+| 320 | 50 | 155 | 155 |
+| 400 | 39 | 135 | 135 |
+| 630 | 39 | 80 | 79 |
+
+The export's lamp is spent by about 390 pixels. The live one is still at
+a third of its peak at the edge of the frame, and reaches nothing at
+about 794 — 0.62 of the longer side, which is what both live surfaces
+ask for. The chain hands `gradients` two points 734 pixels apart and
+gets an effective radius of roughly half that; what ffmpeg does with
+those two points is its own business, and the number that matters is the
+390 it draws.
+
+So the export's lamp is about half the size of the air's.
+
+### The lamp, decided and shared
+
+Asked which size the shared scene should state, the answer was **the
+export's, about three tenths of the longer side**. Taking it turned the
+last open number into a fifth finding, and it is the one that most
+deserved looking at.
+
+**The export's pool was never "a pool to the corner".** The chain named
+the frame's corner as the far end of its radial gradient —
+`x1=width:y1=height` — and that is one past the last pixel in both
+axes. Handed a coordinate off the end, `gradients` returns a radius
+with no relation to the geometry. The same rule, measured:
+
+| lamp at | distance to the corner | what it drew |
+|---|---|---|
+| 640, 360 | 734 | 393 |
+| 640, 216 | 815 | 364 |
+| 358, 216 (Modern Room) | 1051 | **84** |
+| 832, 396 (City) | 553 | **584** |
+
+A rule under which the furthest lamp gets the smallest pool is not a
+rule. Given a second point that is a real pixel inside the frame the
+gradient reaches zero at exactly that distance — 199 for 200, 382 for
+384, 498 for 500 — so the three renderers can be told the same thing.
+
+`lampOf(scene, width, height)` is that thing, and it is shaped like
+`groundPlan` for the same reason: a circle stated as its centre and a
+point on its edge, because one renderer draws it from two points and
+two draw it from a radius.
+
+**Along the longer axis, away from the nearer edge**, which is not a
+preference but the only choice that always works: a lamp anywhere on
+that axis has at least half of it less a pixel on one side, and half
+beats three tenths for any frame wider than three pixels. So there is
+never a case to clamp and never a reach that quietly came out smaller
+than it was asked for.
+
+**And a test caught what I had not thought of.** A room is free to
+declare its glow at the very edge, `Math.round(1 × 720)` is 720, and
+720 is one past the last row — the same off-the-end coordinate, moved
+from the edge of the circle to its centre. The lamp is clamped to a
+real pixel now because a fixture put one at each of the nine corners
+and midpoints of three differently shaped frames and asked.
+
+All three renderers, measured on the clean probe after the change:
+
+| pixels from the lamp | export | canvas | shader |
+|---|---|---|---|
+| 0 | 232 | 232 | 233 |
+| 160 | 152 | 152 | 152 |
+| 320 | 71 | 72 | 71 |
+| 400 | 39 | 39 | 39 |
+
+One room, three renderers, one lamp.
+
+**And it broke a test, correctly.** *"Lets the room light the edge of
+the person standing in it"* probed the performer's LEFT edge. Beach
+lights from `glow.x` 0.72 — to the RIGHT of a performer who spans 720
+to 1200 of a 1920 frame — so the light lands on their right, and the
+assertion passed only because the old pool had no real radius and
+washed the whole frame. Given a lamp with a size, the far edge fell to
+a lift of nine against a threshold of ten.
+
+The claim was right and the pixel was on the wrong side of the person.
+It now reads the near edge, and says the thing the old one could not:
+the near edge is lit more than the far one — 51, 44 and 33 in the
+middle — which is what "the ROOM lights them" means rather than "their
+outline glows".
 
 ### The record
 
-Ten assertions on `groundPlan` and the chain it feeds. Ten mutations,
-nine caught; the tenth — reading `perspectiveOf(scene.background)`
-instead of `scene.perspective` — cannot be caught, because of the three
-fields a perspective has the scene moves only the horizon and the plan
-reads the other two. That is written into the code beside the line
-rather than defended with a test that proves nothing.
+Seventeen assertions on `groundPlan`, `lampOf` and the chain they feed.
+Seventeen mutations, sixteen caught; the one survivor — reading
+`perspectiveOf(scene.background)` instead of `scene.perspective` —
+cannot be caught, because of the three fields a perspective has the
+scene moves only the horizon and the plan reads the other two. That is
+written into the code beside the line rather than defended with a test
+that proves nothing.
 
 One fixture had to be sharpened again. *"A floor at the very bottom
 edge"* was written at `y: 0.999`, which rounds to 719 of 720 and leaves
@@ -3468,3 +3573,77 @@ else.
 **S-34's video capability remains untouched.** No `VideoBackground`, no
 duration policy, no `allowedContexts`, no loop-or-hold rule, no renderer
 change.
+
+## S-42 — The lamp, decided; and the performer, still open
+
+S-41 measured. This is what was decided on the strength of it, recorded
+separately because a decision and a measurement are different things
+and the ledger should be able to tell them apart later.
+
+### The decision
+
+**Lamp geometry is part of the shared scene truth.** `lampOf` defines
+the light pool: a radius of three tenths of the frame's longer side,
+its centre stepped along that longer axis away from the nearer edge so
+the circle is always in frame. The export, the live shader and the live
+canvas consume the same definition.
+
+What makes this a contract rather than a resemblance is that each part
+of it is separately observable:
+
+* the **geometry** — the radius, and a step that provably always fits;
+* the **colour and alpha** — the pool keeps the lamp's colour and loses
+  only its alpha, rather than fading the colour itself towards black;
+* the **boundary** — a lamp authored at the very edge of the frame, the
+  `1 × dimension` case that is one past the last pixel;
+* the **falloff** — the canvas and the shader within one part in 255 of
+  each other at every tested distance from the lamp;
+* the **spatial relationship** — a performer's near edge brighter than
+  their far edge, and both brighter than their middle.
+
+Each of those has a fixture, and each of those fixtures has a mutation
+that fails it.
+
+### What is struck from the record
+
+**S-41 first said the two live surfaces already agreed about the pool.
+That was false, and it is not part of this contract.** It was asserted
+on a probe that was measuring its own floor rather than the pool, and
+the canvas and the shader were in fact as far apart as either was from
+the chain. It is kept in S-41 as a thing that was claimed and retracted,
+not as a thing that was true at the time.
+
+The distinction matters more than the embarrassment. A conclusion
+withdrawn by a better measurement leaves the record stronger; one
+reinterpreted until it fits leaves the record useless.
+
+### What is held open, and how it must be done
+
+**A performer composited over a virtual set receives no wrap and no
+contact shadow.** This is not renderer tuning left undone. It is
+architectural: the set is the studio and is drawn once for the whole
+frame, so each person comes back from the shader as a cutout with an
+alpha and the 2D canvas composites them afterwards. A shader cannot
+illuminate something that is composited after it has already run.
+
+When it is taken up, the scene model extends to cover the performer —
+
+                       SCENE
+                         │
+             ┌───────────┴───────────┐
+          environment            performer
+             │                       │
+      lamp / floor / depth    wrap / contact / light
+             └───────────┬───────────┘
+                         ↓
+                    composition
+
+— rather than a second lighting path beside the first:
+
+      scene lighting  +  virtual-set lighting            ← not this
+
+The same rule the whole of S-35 onward has followed. *"The important
+thing is to build these capabilities into the existing take/timeline
+model, not create a second editing system."*
+
+**S-34's video capability remains untouched.**

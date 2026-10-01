@@ -1,7 +1,7 @@
 'use client';
 
 import {
-  type Scene, groundPlan, placedFor, reachOf, sceneOf,
+  type Scene, groundPlan, lampOf, placedFor, reachOf, sceneOf,
 } from '../../../src/domain/scene.js';
 import { bandIsFloor, defocusFor } from '../../../src/domain/environment.js';
 
@@ -110,14 +110,27 @@ export function paintSpace(
    * reads as a screensaver. `screen` rather than `lighter`, because a
    * light pool does not clip to white, which is what the filter chain's
    * `blend=screen` also says. */
+  const lamp = lampOf(scene, width, height);
   const pool = room.createRadialGradient(
-    look.glow.x * width, look.glow.y * height, 0,
-    look.glow.x * width, look.glow.y * height, Math.max(width, height) * 0.62);
-  pool.addColorStop(0, hex(look.glow.colour));
-  pool.addColorStop(1, 'rgba(0,0,0,0)');
+    lamp.at.x, lamp.at.y, 0, lamp.at.x, lamp.at.y, lamp.reach);
+  pool.addColorStop(0, hex(lamp.colour));
+  /*
+   * AND IT FADES TO ITS OWN COLOUR, NOT TO TRANSPARENT BLACK.
+   *
+   * `rgba(0,0,0,0)` is the obvious way to write "and then nothing",
+   * and it is the oldest trap in a 2D gradient: the stop carries a
+   * COLOUR as well as an alpha, so the pool darkened towards black as
+   * it faded instead of simply thinning. Measured against the chain
+   * and the shader on a flat wash with the vignette off, the same lamp
+   * reached 170 pixels there, 383 in the shader and 230 here.
+   *
+   * The same colour at zero alpha fades to nothing and nowhere else.
+   * [S-41]
+   */
+  pool.addColorStop(1, `${hex(lamp.colour)}00`);
   room.save();
   room.globalCompositeOperation = 'screen';
-  room.globalAlpha = look.glow.strength;
+  room.globalAlpha = lamp.strength;
   room.fillStyle = pool;
   room.fillRect(0, 0, width, height);
   room.restore();

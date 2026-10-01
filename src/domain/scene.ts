@@ -41,7 +41,7 @@
  */
 
 import {
-  type SpaceLook, floorOf, lookFor, perspectiveOf,
+  type SpaceLook, GLOW_REACH, floorOf, lookFor, perspectiveOf,
 } from './environment.js';
 import { type Piece, type VirtualSet, inFront, setById } from './virtualSet.js';
 
@@ -459,4 +459,72 @@ export function groundPlan(
       converge: view.converge,
     } : null,
   };
+}
+
+
+/* ------------------------------------------------------------------------ *
+ *  The lamp, in the pixels of one frame.  [S-41]
+ * ------------------------------------------------------------------------ */
+
+/**
+ * The room's pool of light, where a renderer has to put it.
+ *
+ * THE SAME SHAPE AS `GroundPlan`, AND FOR THE SAME REASON: a circle
+ * stated as its centre and a point on its edge, because one of the
+ * three renderers draws a radial gradient by naming two points and the
+ * other two draw it by naming a radius. Saying both here is cheaper
+ * than each of them deriving the other's form, and it is what stopped
+ * the floor from being in three places.
+ */
+export interface LampPlan {
+  /** The lamp itself, in pixels. */
+  at: { x: number; y: number };
+  /**
+   * A point exactly `reach` away from it, and a real pixel.
+   *
+   * THE "REAL PIXEL" IS THE WHOLE POINT. The chain used to name the
+   * frame's corner, which is one past the last pixel in both axes, and
+   * `gradients` handed an out-of-range coordinate returns a radius
+   * with no relation to the geometry — 84 pixels for one room and 584
+   * for another, from the same rule.
+   */
+  edge: { x: number; y: number };
+  /** How far the light reaches, in pixels. */
+  reach: number;
+  colour: string;
+  /** 0..1, how strongly it is screened over the wash. */
+  strength: number;
+}
+
+/**
+ * This room's lamp, in a frame this size.
+ *
+ * ALONG THE LONGER AXIS, AND AWAY FROM THE NEARER EDGE, which is not a
+ * preference but the only choice that always works: the reach is three
+ * tenths of the longer side, a lamp anywhere on that axis has at least
+ * half of it less a pixel on one side, and half beats three tenths for
+ * any frame wider than three pixels. So there is never a case to clamp
+ * and never a reach that quietly came out smaller than it was told.
+ */
+export function lampOf(
+  scene: Scene, width: number, height: number,
+): LampPlan {
+  const { glow } = scene.background;
+  /*
+   * AND THE LAMP ITSELF HAS TO BE A REAL PIXEL, which a test caught
+   * and I had not thought of: a room is free to declare its glow at
+   * the very edge, `Math.round(1 * 720)` is 720, and 720 is one past
+   * the last row — the same off-the-end coordinate that made the
+   * chain's radius meaningless, moved from the edge of the circle to
+   * its centre.
+   */
+  const at = {
+    x: Math.min(width - 1, Math.max(0, Math.round(glow.x * width))),
+    y: Math.min(height - 1, Math.max(0, Math.round(glow.y * height))),
+  };
+  const reach = Math.max(1, Math.round(Math.max(width, height) * GLOW_REACH));
+  const edge = width >= height
+    ? { x: at.x * 2 <= width ? at.x + reach : at.x - reach, y: at.y }
+    : { x: at.x, y: at.y * 2 <= height ? at.y + reach : at.y - reach };
+  return { at, edge, reach, colour: glow.colour, strength: glow.strength };
 }

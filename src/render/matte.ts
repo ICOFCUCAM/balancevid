@@ -26,7 +26,7 @@ import type { Grounding } from '../domain/environment.js';
 import type { Piece } from '../domain/virtualSet.js';
 import type { Scene } from '../domain/scene.js';
 import { bandIsFloor, defocusFor } from '../domain/environment.js';
-import { groundPlan } from '../domain/scene.js';
+import { groundPlan, lampOf } from '../domain/scene.js';
 
 /** Softening applied to a `blur` backdrop — their own room, out of focus. */
 const BLUR_SIGMA = 24;
@@ -82,15 +82,27 @@ export function backdropChain(
     + `:x0=0:y0=0:x1=0:y1=${height}:type=linear:d=${seconds}:r=${fps}${fixed},`
     + `format=gbrp[${wash}]`);
 
-  // The light in the room, as a pool rather than an even wash: an evenly lit
-  // backdrop is the thing that reads as a screensaver.
+  /*
+   * The light in the room, as a pool rather than an even wash: an
+   * evenly lit backdrop is the thing that reads as a screensaver.
+   *
+   * AND THE SECOND POINT IS A REAL PIXEL NOW. This named the frame's
+   * corner — `x1=width:y1=height`, one past the last pixel in both
+   * axes — and `gradients` handed a coordinate off the end returns a
+   * radius with nothing to do with the geometry: 393 pixels for a lamp
+   * at the middle, 84 for Modern Room's, 584 for City's, all from the
+   * same rule. `lampOf` states the circle the renderers share, and
+   * puts its edge somewhere that exists. [S-41]
+   */
+  const lamp = lampOf(scene, width, height);
   chains.push(
-    `gradients=s=${width}x${height}:c0=${look.glow.colour}:c1=0x000000`
-    + `:x0=${Math.round(look.glow.x * width)}:y0=${Math.round(look.glow.y * height)}`
-    + `:x1=${width}:y1=${height}:type=radial:d=${seconds}:r=${fps}${fixed},`
+    `gradients=s=${width}x${height}:c0=${lamp.colour}:c1=0x000000`
+    + `:x0=${lamp.at.x}:y0=${lamp.at.y}`
+    + `:x1=${lamp.edge.x}:y1=${lamp.edge.y}:type=radial`
+    + `:d=${seconds}:r=${fps}${fixed},`
     + `format=gbrp[${glow}]`);
   chains.push(
-    `[${wash}][${glow}]blend=all_mode=screen:all_opacity=${look.glow.strength}[${lit}]`);
+    `[${wash}][${glow}]blend=all_mode=screen:all_opacity=${lamp.strength}[${lit}]`);
 
   // A horizon, a stage lip, a balcony rail: one straight edge is the
   // difference between "a place" and "a gradient".

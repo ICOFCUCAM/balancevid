@@ -355,10 +355,32 @@ describe('the finished picture', () => {
     /* The middle of the performer is untouched: a wrap that reached the
        middle of somebody would be a wash over them, not light on them. */
     const [, , middleBlue] = await colourAt(out, 1, 960, 540);
-    /* Just inside their left edge, where a bright sky is landing. */
-    const [, , edgeBlue] = await colourAt(out, 1, 745, 540);
+    /*
+     * JUST INSIDE THE EDGE NEAREST THE LAMP, which this asked for on
+     * the wrong side until S-41 gave the lamp a stated size.
+     *
+     * Beach lights from `glow.x` 0.72 — x 1382 of 1920, to the RIGHT
+     * of a performer who spans 720 to 1200. The light therefore lands
+     * on their right. This probed x 745, their LEFT edge, and passed
+     * only because the old pool had no real radius and washed the
+     * whole frame; once the lamp reached three tenths of the longer
+     * side the far edge fell to a lift of nine and the claim failed at
+     * a threshold of ten. The claim was right and the pixel was on the
+     * wrong side of the person.
+     */
+    const [, , litBlue] = await colourAt(out, 1, 1195, 540);
+    expect(litBlue).toBeGreaterThan(middleBlue + 12);
 
-    expect(edgeBlue).toBeGreaterThan(middleBlue + 10);
+    /*
+     * AND IT IS THE ROOM DOING IT, not an edge that glows in every
+     * direction. The far side of the same performer is lit too — a
+     * blurred copy of the backdrop reaches both edges — but less, and
+     * that difference is the whole claim: measured 51 on the near
+     * edge, 44 on the far one and 33 in the middle.
+     */
+    const [, , farBlue] = await colourAt(out, 1, 745, 540);
+    expect(farBlue).toBeGreaterThan(middleBlue);
+    expect(litBlue).toBeGreaterThan(farBlue + 4);
   }, 240_000);
 
   it('and puts a shadow under them, falling away from the light', async () => {

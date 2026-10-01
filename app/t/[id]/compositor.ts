@@ -6,7 +6,9 @@ import {
 import {
   type SpaceLook, SPACE_LOOKS, bandIsFloor, defocusFor, groundingFor,
 } from '../../../src/domain/environment.js';
-import { groundPlan, reachOf, sceneFor } from '../../../src/domain/scene.js';
+import {
+  groundPlan, lampOf, reachOf, sceneFor,
+} from '../../../src/domain/scene.js';
 
 /**
  * The compositor, on the live canvas.  [Doctrine CHANNEL §26, §28, C-14]
@@ -89,9 +91,12 @@ const SPACE_FS = `
 precision mediump float;
 varying vec2 v;
 uniform vec3 uTop, uBottom, uGlow, uBand, uFloorFrom, uFloorTo;
+/* 'uGlowAt' is in PIXELS, like everything else the scene hands over:
+   a circle in uv is an ellipse on a 16:9 frame. */
 uniform vec2 uGlowAt, uPx;
 uniform float uStrength, uVignette, uGrain, uBandY, uBandH, uSeed;
 uniform float uFloorTop, uFloorDeep, uVanishX, uReach, uConverge, uSoft;
+uniform float uGlowReach;
 
 float hash(vec2 p) {
   return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
@@ -112,7 +117,7 @@ void main() {
    * the default framebuffer's origin is bottom-left and the merge
    * passes this straight through — while every number a room states is
    * a fraction DOWN the frame: 'uBandY' of 0.86 is a stage lip near
-   * the floor, 'uGlowAt' of 0.3 is a light high on the wall. Reading
+   * the floor, and a glow at 0.3 is a light high on the wall. Reading
    * them against v put Concert Stage's lip across the ceiling and its
    * lighting rig on the ground.
    *
@@ -140,9 +145,7 @@ void main() {
    * the two live surfaces should not disagree about the shape of a
    * lamp. [S-41]
    */
-  float reach = max(uPx.x, uPx.y) * 0.62;
-  float d = distance(p, uGlowAt * uPx) / reach;
-  float pool = clamp(1.0 - d, 0.0, 1.0);
+  float pool = clamp(1.0 - distance(p, uGlowAt) / uGlowReach, 0.0, 1.0);
   vec3 lit = screen(wash, uGlow * pool * uStrength);
   /* A band is a LINE here. One that reaches the bottom of the frame is
      the ground, and the ground is drawn below as a plane that recedes —
@@ -682,10 +685,16 @@ export class LiveCompositor {
         g.uniform3fv(g.getUniformLocation(p, 'uTop'), hex(look.top));
         g.uniform3fv(g.getUniformLocation(p, 'uBottom'), hex(look.bottom));
         g.uniform3fv(g.getUniformLocation(p, 'uGlow'), hex(look.glow.colour));
+        /* The lamp's own place and span, from the scene, so the chain
+           and the two live surfaces draw one circle. [S-41] */
+        const lamp = scene
+          ? lampOf(scene, this.width, this.height) : null;
         g.uniform2f(g.getUniformLocation(p, 'uGlowAt'),
-          look.glow.x, look.glow.y);
+          lamp?.at.x ?? 0, lamp?.at.y ?? 0);
+        g.uniform1f(g.getUniformLocation(p, 'uGlowReach'),
+          Math.max(1, lamp?.reach ?? 1));
         g.uniform2f(g.getUniformLocation(p, 'uPx'), this.width, this.height);
-        g.uniform1f(g.getUniformLocation(p, 'uStrength'), look.glow.strength);
+        g.uniform1f(g.getUniformLocation(p, 'uStrength'), lamp?.strength ?? 0);
         g.uniform1f(g.getUniformLocation(p, 'uVignette'), look.vignette);
         g.uniform1f(g.getUniformLocation(p, 'uGrain'), look.grain);
         g.uniform3fv(g.getUniformLocation(p, 'uBand'),
