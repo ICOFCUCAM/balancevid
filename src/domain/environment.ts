@@ -235,6 +235,14 @@ export interface SpaceLook {
   /** A band across the picture — a horizon, a stage lip, a balcony rail. */
   band?: { y: number; height: number; colour: string };
   /**
+   * Where the floor runs away to, across the frame. 0.5 unless said.
+   *
+   * Optional, unlike `depth`, and for the opposite reason: almost every
+   * room is seen square on, so almost every room has nothing to say
+   * here, and a required field would be ten spaces all writing 0.5.
+   */
+  vanishX?: number;
+  /**
    * HOW FAR THE BACK OF THE ROOM IS, 0..1.
    *
    * STORED RATHER THAN DERIVED, unlike the grounding, and for a reason
@@ -571,6 +579,48 @@ export function mix(from: string, to: string, t: number): string {
     return Math.round(one + (two - one) * k).toString(16).padStart(2, '0');
   };
   return `0x${part(16)}${part(8)}${part(0)}`;
+}
+
+/**
+ * Where the floor goes to.  [STUDIO-TWO §4, S-34]
+ *
+ * THE ONE FIELD THE SCENE MODEL WAS MISSING. Background, horizon, floor,
+ * performer zone, depth, lighting and foreground all existed somewhere —
+ * split between the drawn spaces and the control room's virtual sets.
+ * Perspective existed nowhere.
+ *
+ * AND IT IS DRAWN IN LIGHT, NOT IN LINES, for the reason `spaceArt`
+ * already gives about a desk: a photograph brings somebody else's
+ * perspective and it will not match the camera. Ruled floorboards
+ * converging on a point would be a drawing of perspective, confidently
+ * wrong the moment a take was shot from anywhere but dead centre.
+ *
+ * A real floor recedes to a point and the light on it goes with it: it
+ * is brightest along the line running away from the camera and falls off
+ * towards the near corners, which are closest to the lens and furthest
+ * from the room's light. That falloff IS the convergence, and it is
+ * right at any camera angle because it is a gradient rather than a
+ * claim about where the walls are.
+ *
+ * The vanishing point sits on the horizon, and horizontally wherever the
+ * space says. Most rooms are seen square on, so most say nothing and get
+ * the middle.
+ */
+export function perspectiveOf(look: SpaceLook): {
+  vanishX: number; horizon: number; converge: number;
+} | null {
+  const ground = floorOf(look);
+  if (!ground) return null;
+  return {
+    vanishX: Math.min(1, Math.max(0, look.vanishX ?? 0.5)),
+    horizon: ground.y,
+    /*
+     * HOW HARD IT CONVERGES, from the depth the room already declares.
+     * A long nave runs away from you and the floor narrows fast; a vocal
+     * booth's floor is four tiles and barely converges at all.
+     */
+    converge: 0.18 + 0.34 * Math.min(1, Math.max(0, look.depth)),
+  };
 }
 
 /**

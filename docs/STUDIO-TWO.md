@@ -2384,3 +2384,409 @@ fails the first.
   Their ground is correct and barely visible, which is what a dark hall
   looks like.
 * **The live compositor still has the matte and none of this.**
+
+## S-34 — The Background & Virtual Set System, as given
+
+Recorded verbatim, because this is a map to execute against rather than a
+note to act on once. The measurement against what exists follows it.
+
+---
+
+> **BalanceVid Background & Virtual Set System**
+>
+> **1. Current direction: build spatial depth first**
+>
+> I would take depth in the drawn spaces next, not video backdrops yet.
+>
+> The progression should be:
+>
+> Flat background → Spatial environment → Live/video environment
+>
+> The current renderer should therefore concentrate on making the existing
+> drawn environments feel like real spaces.
+>
+> Spatial cues
+>
+>     ```
+>                         BACK WALL
+>                  ┌─────────────────────┐
+>                  │                     │
+>                  │                     │
+>                  │     performer       │
+>                  │         ●           │
+>                  │                     │
+>     ─────────────┴─────────────────────┴────────
+>                      HORIZON / FLOOR
+>                       ╲             ╱
+>                        ╲           ╱
+>                         ╲_________╱
+>                             FLOOR
+>     ```
+>
+> The scene should support:
+>
+> Horizon matched to performer eyeline
+> Floor/wall transition
+> Perspective convergence
+> Foreground / midground / background separation
+> Depth-of-field treatment
+> Subtle spatial lighting
+> Performer remains the visual subject
+> Set supports the performer rather than competing with them
+>
+> This should not be manually painted into every background.
+>
+> Reusable scene metadata
+>
+>     ```
+>     Scene
+>     ├── background
+>     ├── horizon
+>     ├── floor plane
+>     ├── performer zone
+>     ├── perspective
+>     ├── depth
+>     ├── lighting
+>     └── foreground elements
+>     ```
+>
+> That turns the existing backgrounds into a reusable Virtual Set system,
+> rather than a collection of individually decorated pictures.
+>
+> **2. Video backgrounds remain a separate capability**
+>
+> Do not let the current renderer silently decide how video backgrounds
+> behave.
+>
+> The video-backdrop question remains an explicit product decision,
+> currently deferred to S-32.
+>
+> When S-32 is taken up, the duration rules should be contextual:
+>
+>     ```
+>     Studio Two → maximum 08:00
+>     Online TV  → maximum 01:00:00
+>     Take       → no video backgrounds
+>     ```
+>
+> If video backgrounds are eventually implemented, the intended
+> short-video behavior can be defined explicitly:
+>
+> Shorter than the production: loop by default
+> Slightly shorter: optionally hold the last frame if configured
+> Invalid asset: reject it
+> Valid but shorter: never silently refuse it
+> Longer than the production: trim to the required duration
+>
+> Those rules should remain outside the current renderer until S-32.
+>
+> **3. One underlying video-background asset model**
+>
+> Do not create separate technical systems for Studio Two and Online TV.
+>
+> Use one underlying model:
+>
+>     ```
+>     VideoBackground
+>     ├── file
+>     ├── duration
+>     ├── resolution
+>     ├── fps
+>     ├── thumbnail
+>     ├── owner
+>     ├── createdAt
+>     └── allowedContexts
+>     ```
+>
+> The production context determines what is permitted.
+>
+>     ```
+>                         BALANCEVID
+>                      VIDEO BACKGROUNDS
+>                              │
+>                   ┌──────────┴──────────┐
+>                   │                     │
+>              STUDIO TWO              ONLINE TV
+>              Performance             Channel/Playout
+>                   │                     │
+>                ≤ 08:00               ≤ 01:00:00
+>     ```
+>
+> **4. Online TV has two different video uses**
+>
+> This distinction is important.
+>
+> A video that is allowed to run for one hour does not necessarily mean it
+> is being used as a composited background.
+>
+> **A. Video Background**
+>
+> The video exists behind a presenter or guest.
+>
+>     ```
+>     Presenter
+>         +
+>     Moving environment
+>         ↓
+>     Compositor
+>         ↓
+>     Programme
+>     ```
+>
+> **B. Full-Screen Video**
+>
+> The video itself becomes the visual source.
+>
+>     ```
+>     1-hour video
+>          ↓
+>     Programme
+>          ↓
+>     Playout
+>          ↓
+>     Online TV
+>     ```
+>
+> Therefore Online TV should distinguish:
+>
+> Virtual Background
+> Behind a person.
+>
+> Full-Screen Video
+> The video itself is the programme/source.
+>
+> This will prevent the Online TV media system from being artificially
+> constrained by the virtual-background system.
+>
+> **5. Take is different**
+>
+> Take participants do not upload backgrounds.
+>
+> They do not own or manage production backgrounds.
+>
+> The destination BalanceVid installation provides the available choices.
+>
+>     ```
+>     Take App
+>         │
+>         │ participation session
+>         ↓
+>     Destination BalanceVid
+>         │
+>         └── Approved backgrounds
+>               ├── Recording Studio
+>               ├── University Hall
+>               ├── Concert Stage
+>               ├── Modern Room
+>               ├── Theatre
+>               └── etc.
+>     ```
+>
+> The participant simply chooses from what the destination makes
+> available.
+>
+> Take should therefore not have:
+>
+> Upload Background
+> My Backgrounds
+> My Background Library
+> Video Backgrounds
+>
+> The participant contributes themselves, not production assets.
+>
+> **6. Final background policy**
+>
+> | Environment | Image / system backgrounds | Virtual Set | Video Background |
+> |---|---|---|---|
+> | Take | Destination system only | Destination system | No |
+> | Studio Two | BalanceVid system | BalanceVid system | No |
+> | Online TV | System + production assets | System | Up to 1 hour |
+>
+> The key architectural principle is:
+>
+> The destination owns the production environment; Take is the
+> participation client.
+>
+> So if a channel sends someone a Take invitation, that channel's
+> BalanceVid installation determines which backgrounds that participant
+> can see.
+>
+> For example:
+>
+>     ```
+>     TAKE INVITATION
+>            ↓
+>     Destination Channel
+>            ↓
+>     Available backgrounds
+>            ↓
+>     ┌─────────────────────┐
+>     │ Recording Studio    │
+>     │ University Hall     │
+>     │ Concert Stage       │
+>     │ Modern Room         │
+>     │ Theatre             │
+>     └─────────────────────┘
+>            ↓
+>     Participant records
+>            ↓
+>     Take submitted
+>            ↓
+>     Destination receives it
+>     ```
+>
+> This keeps Take lightweight, keeps Studio Two focused on performance,
+> and gives Online TV the full broadcast-production capability without
+> mixing the three responsibilities.
+>
+> With the current test state already passing, I would make the next
+> implementation step the spatial depth/scene-metadata work only. Keep
+> video backgrounds explicitly marked S-32 / deferred, rather than
+> allowing them to creep into the renderer prematurely.
+
+---
+
+### A note on the numbering
+
+The brief defers video backdrops to **S-32**, and S-32 in this appendix is
+*"The promise made in three places"* — the section whose closing part,
+**"Videos are not this"**, is where that deferral was written down. The
+number is kept as the brief uses it: **S-32 is where the video-backdrop
+decision lives**, and nothing below moves it.
+
+### Measured: there are already two scene systems, and between them seven of the eight fields
+
+The brief asks for reusable scene metadata rather than *"a collection of
+individually decorated pictures"*. The useful finding is that this
+product has **two** environment systems that grew up on opposite sides of
+it, and together they almost are the model the brief draws.
+
+`SPACE_LOOKS` is Studio Two's: eleven drawn rooms, rendered server-side
+by ffmpeg, carrying a wash, a light pool, a vignette, grain, an optional
+band, and — since S-33 — a depth and a floor.
+
+`VIRTUAL_SETS` is Online TV's: four sets, drawn in a browser canvas,
+carrying a `spaceId` that points INTO `SPACE_LOOKS`, plus furniture,
+a logo region, a lower-third strip, a per-head-count layout, and a
+lighting adjustment. Its own header already says the thing the brief
+says: *"A reusable scene system rather than a collection of images."*
+And it already draws furniture in two passes so that **the bottom of a
+presenter disappears behind a desk, exactly as it would in a room** —
+which is foreground separation, built, working, and only in the control
+room.
+
+| Scene (as the brief draws it) | where it lives today | state |
+|---|---|---|
+| background | `SpaceLook` wash, glow, vignette, grain | **HAVE** |
+| horizon | `band`, and `floorOf().y` for the six rooms that declared none | **HAVE** — S-33 |
+| floor plane | `floorOf()`, a receding gradient lit at the join | **HAVE** — S-33 |
+| performer zone | `VirtualSet.positions`, a layout id per head count | **HAVE**, control room only |
+| perspective | — | **GAP** |
+| depth | `SpaceLook.depth`, driving the defocus | **HAVE** — S-33 |
+| lighting | `SpaceLook.glow`, `VirtualSet.light` | **HAVE** |
+| foreground elements | `VirtualSet.furniture` + `inFront()`, two-pass | **HAVE**, control room only |
+
+So the gap is not eight things. It is **one missing field** and **one
+split**: three of the eight exist only on the Online TV side, and
+Studio Two's drawn spaces cannot reach them.
+
+### The spatial cues, measured one by one
+
+| asked for | state |
+|---|---|
+| Horizon matched to performer eyeline | **GAP.** The horizon follows the room's depth. Nothing measures where the performer's eyes are — a grep for `eyeline` finds only audio headroom. The layout box IS known where the backdrop is built (`compose.ts` has `box.w`/`box.h`), so the panel is knowable; what is not known is where in their own frame the person's head sits. That is a measurement of the take, once, in the shape `measurePlate` already uses — not a per-frame estimate, which S-6 rules out |
+| Floor/wall transition | **HAVE** — S-33 |
+| Perspective convergence | **GAP**, and the one genuinely new field |
+| Foreground / midground / background separation | **PART.** The control room's sets do it with furniture in two passes; the drawn spaces have no foreground at all |
+| Depth-of-field treatment | **PART.** S-33 defocuses the whole backdrop by the room's depth. There is one plane, not three |
+| Subtle spatial lighting | **HAVE** — the light pool, the vignette, and S-31's wrap and shadow |
+| Performer remains the visual subject | **HAVE, and load-bearing.** The defocus is deliberately small and the wrap and shadow are clamped, both for this reason |
+| Set supports the performer rather than competing | **HAVE** as a stated rule; S-31 and S-33 both cite it |
+
+### What is NOT being built here
+
+Per §2 of the brief, and said plainly so it cannot drift: **no part of the
+video-background capability is in this work.** No duration rule, no
+`VideoBackground` record, no `allowedContexts`, no loop-or-hold decision.
+`still()` still loads a backdrop with `-loop 1`, which is the
+single-image flag, and the renderer is not being taught to do anything
+else. The rules in §2 and the model in §3 are written down here and
+implemented nowhere.
+
+### What §4, §5 and §6 measure to
+
+* **§4, Online TV's two uses.** The distinction is already real in the
+  code and was never named: a backdrop goes through
+  `Environment`/`compose.ts` behind a person, and a full-screen video
+  goes through `ProgrammeSource` and the playout engine as the programme
+  itself. They are separate paths already. What is missing is the NAME —
+  nothing in the product says "virtual background" and "full-screen
+  video" are different things, so nothing stops a one-hour limit written
+  for one being applied to the other.
+* **§5, Take.** Measured: the Take app offers **no background choice at
+  all**. It has no upload, no library, no video — which is what the brief
+  says it must not have — and it also has no list of the destination's
+  approved backgrounds, which the brief says it should. Half right by
+  having been left alone.
+* **§6, the policy table.** Nothing in the code expresses it. There is no
+  notion of a production context deciding what an environment may be.
+
+### S-34a — Perspective, the one field that existed nowhere
+
+Of the eight fields the brief draws, seven were already somewhere.
+`perspective` was the exception, and it is now on the scene.
+
+**Drawn in light, not in lines.** Ruled floorboards converging on a point
+would be a drawing of perspective — confidently wrong the moment a take
+was shot from anywhere but dead centre. It is the same objection
+`spaceArt` already makes about photographing a desk: *"a perspective that
+will not match the camera"*. A gradient makes no claim about where the
+walls are, and is therefore right at any camera angle.
+
+A real floor is brightest where it runs away to and falls off towards the
+near corners, which are closest to the lens and furthest from the room's
+own light. **That falloff is the convergence.**
+
+* The vanishing point sits on the horizon the floor already defines, and
+  horizontally wherever the space says. `vanishX` is **optional**, unlike
+  `depth`, and for the opposite reason: almost every room is seen square
+  on, so a required field would be ten spaces all writing `0.5`.
+* How hard it converges comes from `depth`. A long nave runs away from
+  you and the floor narrows fast; a vocal booth's floor is four tiles.
+* It is screened onto the floor strip before that strip is laid down —
+  both are the same size there, which `blend` requires, and it keeps the
+  light on the floor rather than over the wall above it.
+* A space with no floor gets no perspective. Beach's band is a sea
+  horizon, not the ground.
+
+#### The test that was backwards
+
+The first version expected the centre-to-edge contrast to GROW towards
+the camera, reasoning that a converging plane is narrower near the lens.
+It is — but what is drawn here is the light ON that plane, and light
+pools where the floor meets the wall and falls away towards the near
+corners. Measured: **52 at the horizon against 9 near the camera.** The
+picture was right and the expectation was backwards; the expectation was
+changed, and the reason is written into the test so the next person does
+not re-derive it.
+
+Setting `converge` to zero fails it.
+
+### Still owed after S-34a
+
+* **Horizon matched to performer eyeline.** The horizon follows the
+  room's depth. Where a person's eyes sit in their own frame is a
+  measurement of the take — once, stored, in the shape `measurePlate`
+  already uses — and not a per-frame estimate, which S-6 rules out.
+* **The split.** `performer zone` and `foreground elements` exist only
+  on the control room's `VIRTUAL_SETS`; Studio Two's drawn spaces cannot
+  reach them. One `Scene` over both is the brief's actual ask and is not
+  done.
+* **Three planes, not one.** The defocus treats the backdrop as a single
+  plane at one distance.
+* **Video backgrounds.** Untouched, by instruction. §2's duration rules,
+  §3's `VideoBackground` record and §4's two Online TV uses are written
+  down in S-34 and implemented nowhere.
+* **§5 and §6.** Take offers no background at all — neither the uploads
+  it must not have nor the destination's approved list it should. No
+  production context decides what an environment may be.

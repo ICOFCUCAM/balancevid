@@ -459,6 +459,54 @@ describe('the finished picture', () => {
     expect(edge).toBeGreaterThan(sea + 5);
   }, 240_000);
 
+  it('runs the floor away to a point rather than lying flat', async () => {
+    /*
+     * PERSPECTIVE, DRAWN IN LIGHT RATHER THAN IN LINES. [§4, S-34]
+     *
+     * A real floor is brightest along the line running away from the
+     * camera and falls off towards the near corners. Two claims, and
+     * the second is the one a flat floor cannot fake:
+     *
+     *   at a given height the middle is brighter than the edge; and
+     *   that difference GROWS towards the camera, because a receding
+     *     plane converges — near the horizon the lit run fills the
+     *     width, and near the lens it does not.
+     *
+     * Recording Studio, because its floor is derived rather than
+     * declared and its walls are dark enough for the lit run to be the
+     * only thing happening down there.
+     */
+    const p = performance();
+    setEnvironment(p, 'take_one', { kind: 'space', spaceId: 'recording_studio' });
+    const out = await renderWith(p, 'converge');
+    const sum = (c: number[]) => c[0]! + c[1]! + c[2]!;
+    const at = async (x: number, y: number) => sum(await colourAt(out, 1, x, y));
+
+    /* The floor begins at 0.74 + 0.12 * (1 - 0.25) = 0.83, so y=896. */
+    const nearHorizon = await at(960, 930) - await at(120, 930);
+    const nearCamera = await at(960, 1060) - await at(120, 1060);
+
+    /* The run exists: at the horizon the middle of the floor is lit and
+       its edges are not. Measured at 52 against a flat floor's 0. */
+    expect(nearHorizon).toBeGreaterThan(20);
+    /*
+     * AND IT CONVERGES ON THE POINT. The contrast between the middle of
+     * the floor and its edge is strongest where the floor runs away to
+     * and fades towards the lens — 52 at the horizon against 9 near the
+     * camera. A flat floor has the same contrast at both heights,
+     * because it has none at either.
+     *
+     * The first version of this test expected the opposite, on the
+     * reasoning that a converging plane is narrower near the camera.
+     * It is — but what is drawn here is the LIGHT on that plane, and
+     * light pools where the floor meets the wall and falls away
+     * towards the near corners, which are closest to the lens and
+     * furthest from the room's own lamp. The picture was right and the
+     * expectation was backwards.
+     */
+    expect(nearHorizon).toBeGreaterThan(nearCamera * 2);
+  }, 240_000);
+
   it('renders the same plan to the same picture twice', async () => {
     /*
      * THE CONTRACT `backdropChain` ALREADY CLAIMED, and did not keep.

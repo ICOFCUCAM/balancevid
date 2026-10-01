@@ -21,7 +21,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   SPACE_LOOKS, type SpaceLook, bandIsFloor, brightnessOf, darken,
-  defocusFor, floorOf, groundingFor, mix,
+  defocusFor, floorOf, groundingFor, mix, perspectiveOf,
 } from '../../src/domain/environment.js';
 
 const look = (over: Partial<SpaceLook>): SpaceLook => ({
@@ -304,5 +304,45 @@ describe('two colours, part of the way between', () => {
 
   it('hands back the first colour when it cannot read the second', () => {
     expect(mix('0x102030', 'nonsense', 0.5)).toBe('0x102030');
+  });
+});
+
+describe('where the floor runs away to (S-34)', () => {
+  it('is the one field the scene model was missing', () => {
+    /* Background, horizon, floor, performer zone, depth, lighting and
+       foreground all existed somewhere. Perspective existed nowhere. */
+    for (const id of ['recording_studio', 'church', 'modern_room']) {
+      expect(perspectiveOf(SPACE_LOOKS[id]!), id).not.toBeNull();
+    }
+  });
+
+  it('sits on the horizon, wherever the floor put it', () => {
+    const look = SPACE_LOOKS['church']!;
+    expect(perspectiveOf(look)!.horizon).toBe(floorOf(look)!.y);
+  });
+
+  it('goes down the middle unless the space says otherwise', () => {
+    /* Almost every room is seen square on, so almost every room has
+       nothing to say and a required field would be ten spaces all
+       writing 0.5. */
+    expect(perspectiveOf(look({ depth: 0.5 }))!.vanishX).toBe(0.5);
+    expect(perspectiveOf(look({ depth: 0.5, vanishX: 0.2 }))!.vanishX).toBe(0.2);
+  });
+
+  it('converges harder in a long room than a small one', () => {
+    /* A nave runs away from you and the floor narrows fast; a vocal
+       booth's floor is four tiles and barely converges at all. */
+    expect(perspectiveOf(look({ depth: 1 }))!.converge)
+      .toBeGreaterThan(perspectiveOf(look({ depth: 0 }))!.converge);
+  });
+
+  it('has none where there is no floor to converge', () => {
+    /* Beach's band is a sea horizon, not the ground. */
+    expect(perspectiveOf(SPACE_LOOKS['beach']!)).toBeNull();
+  });
+
+  it('keeps the vanishing point on the frame', () => {
+    expect(perspectiveOf(look({ depth: 1, vanishX: 9 }))!.vanishX).toBe(1);
+    expect(perspectiveOf(look({ depth: 1, vanishX: -9 }))!.vanishX).toBe(0);
   });
 });

@@ -23,7 +23,9 @@
  */
 
 import type { Grounding, SpaceLook } from '../domain/environment.js';
-import { bandIsFloor, defocusFor, floorOf } from '../domain/environment.js';
+import {
+  bandIsFloor, defocusFor, floorOf, perspectiveOf,
+} from '../domain/environment.js';
 
 /** Softening applied to a `blur` backdrop — their own room, out of focus. */
 const BLUR_SIGMA = 24;
@@ -111,8 +113,46 @@ export function backdropChain(
       + `:c1=${ground.to}`
       + `:x0=0:y0=0:x1=0:y1=${deep}:type=linear:d=${seconds}:r=${fps}${fixed},`
       + `format=gbrp[${floor}]`);
+    /*
+     * AND THE FLOOR RUNS AWAY TO A POINT.  [§4, S-34]
+     *
+     * The one field the scene model was missing, drawn in light rather
+     * than in lines. A ruled set of floorboards converging on a point
+     * would be a drawing of perspective, confidently wrong the moment a
+     * take was shot from anywhere but dead centre — the same objection
+     * `spaceArt` already makes about photographing a desk.
+     *
+     * A real floor is brightest along the line running away from the
+     * camera and falls off towards the near corners, which are closest
+     * to the lens and furthest from the room's light. That falloff IS
+     * the convergence, and it is right at any camera angle because it
+     * is a gradient rather than a claim about where the walls are.
+     *
+     * Screened rather than overlaid, because this is light on a surface
+     * and not a surface of its own, and at an opacity the room's own
+     * depth decides: a long nave narrows fast, a vocal booth hardly at
+     * all.
+     */
+    const view = perspectiveOf(look);
+    let ground2 = floor;
+    if (view) {
+      const run = `${out}_run`;
+      const converged = `${out}_conv`;
+      chains.push(
+        `gradients=s=${width}x${deep}:c0=${ground.from}:c1=0x000000`
+        + `:x0=${Math.round(view.vanishX * width)}:y0=0`
+        + `:x1=0:y1=${deep}:type=radial:d=${seconds}:r=${fps}${fixed},`
+        + `format=gbrp[${run}]`);
+      /* Onto the floor strip itself, before it is laid down: both are
+         the same size here, which `blend` requires and which keeps the
+         light on the floor rather than over the wall above it. */
+      chains.push(
+        `[${ground2}][${run}]blend=all_mode=screen`
+        + `:all_opacity=${view.converge.toFixed(3)},format=gbrp[${converged}]`);
+      ground2 = converged;
+    }
     chains.push(
-      `[${current}][${floor}]overlay=0:${top}:format=gbrp[${laid}]`);
+      `[${current}][${ground2}]overlay=0:${top}:format=gbrp[${laid}]`);
     current = laid;
   }
 
