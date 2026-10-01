@@ -329,6 +329,111 @@ describe('the finished picture', () => {
     expect(br + bg + bb).toBeLessThan(160);
   }, 240_000);
 
+  /*
+   * STANDING IN THE ROOM RATHER THAN IN FRONT OF IT.  [§4, S-6]
+   *
+   * The matte was never the problem: the edge it cuts is clean, and a
+   * clean edge is exactly what makes a composite read as a sticker,
+   * because nothing in a real room has one. Two corrections, both
+   * derived from the light the space already declares, and both read
+   * out of a pixel rather than looked at.
+   *
+   * Beach, because it is the brightest space this product ships and
+   * therefore the one where "the room lands on the person" is a number
+   * rather than a subtlety. Its light pool sits right of centre
+   * (`glow.x` 0.72), which is what makes the shadow test below able to
+   * tell a shadow from a gradient.
+   *
+   * The performer is a 160x200 rectangle at x=240 in a 640x360 source,
+   * so x=720..1200 and y=240..840 once it is a 1920x1080 frame.
+   */
+  it('lets the room light the edge of the person standing in it', async () => {
+    const p = performance();
+    setEnvironment(p, 'take_one', { kind: 'space', spaceId: 'beach' });
+    const out = await renderWith(p, 'wrap');
+
+    /* The middle of the performer is untouched: a wrap that reached the
+       middle of somebody would be a wash over them, not light on them. */
+    const [, , middleBlue] = await colourAt(out, 1, 960, 540);
+    /* Just inside their left edge, where a bright sky is landing. */
+    const [, , edgeBlue] = await colourAt(out, 1, 745, 540);
+
+    expect(edgeBlue).toBeGreaterThan(middleBlue + 10);
+  }, 240_000);
+
+  it('and puts a shadow under them, falling away from the light', async () => {
+    const p = performance();
+    setEnvironment(p, 'take_one', { kind: 'space', spaceId: 'beach' });
+    const out = await renderWith(p, 'shadow');
+
+    /*
+     * BOTH SAMPLES ARE ON THE SAND AT THE SAME HEIGHT, so the wash's own
+     * vertical gradient cannot explain the difference — and the nearer
+     * one is nearer the light pool, so the gradient is pushing the other
+     * way. Beating that is the shadow or nothing.
+     */
+    const sum = (c: number[]) => c[0]! + c[1]! + c[2]!;
+    /*
+     * AVERAGED OVER A FEW PIXELS, because every space carries film grain
+     * — a perfectly clean backdrop behind a camera's own noise is what
+     * makes a composite look pasted, so the grain is wanted. It is
+     * seeded, so this is reproducible rather than merely usually right,
+     * but one pixel of a grainy picture is still a sample of one.
+     */
+    const at = async (x: number, y: number) => {
+      const spots = await Promise.all([
+        colourAt(out, 1, x, y), colourAt(out, 1, x + 6, y),
+        colourAt(out, 1, x - 6, y), colourAt(out, 1, x, y + 6),
+        colourAt(out, 1, x, y - 6),
+      ]);
+      return spots.reduce((total, one) => total + sum(one), 0) / spots.length;
+    };
+
+    /*
+     * DIRECTLY UNDER THEM, on the sand just below the performer's feet
+     * at y=840. Measured at 438 against roughly 600 either side: a
+     * quarter of the light gone, which is a shadow and not a gradient.
+     */
+    const under = await at(960, 850);
+    const beside = await at(300, 850);
+    expect(under).toBeLessThan(beside - 100);
+
+    /*
+     * AND IT FALLS AWAY FROM THE LIGHT. Beach lights from the right
+     * (`glow.x` 0.72), so the shadow is thrown LEFT. Both samples are on
+     * the sand at the same height, and the nearer one is nearer the
+     * light pool — so the wash's own gradient is pushing the other way,
+     * and beating it is the shadow or nothing.
+     */
+    const leftFlank = await at(660, 850);
+    const farLeft = await at(120, 850);
+    expect(leftFlank).toBeLessThan(farLeft - 15);
+  }, 240_000);
+
+  it('renders the same plan to the same picture twice', async () => {
+    /*
+     * THE CONTRACT `backdropChain` ALREADY CLAIMED, and did not keep.
+     * Its own comment says the backdrop is "deterministic, so the shot
+     * cache means what it says" — and `noise` without `all_seed` takes a
+     * fresh seed every run, so two renders of one unchanged plan came
+     * back different. U-16 caches a shot by its plan; a backdrop that
+     * will not render the same twice makes that cache a liar.
+     *
+     * Beach, because at `grain: 6` it is grainy enough for an unseeded
+     * filter to show, and the sampled points are spread so this is not
+     * one lucky pixel.
+     */
+    const p = performance();
+    setEnvironment(p, 'take_one', { kind: 'space', spaceId: 'beach' });
+    const once = await renderWith(p, 'twice-a');
+    const again = await renderWith(p, 'twice-b');
+
+    for (const [x, y] of [[120, 120], [400, 300], [960, 900], [1700, 1000]]) {
+      expect(await colourAt(once, 1, x!, y!), `${x},${y}`)
+        .toEqual(await colourAt(again, 1, x!, y!));
+    }
+  }, 240_000);
+
   it('and softens the room instead when that is what was asked for', async () => {
     const p = performance();
     setEnvironment(p, 'take_one', { kind: 'blur' });

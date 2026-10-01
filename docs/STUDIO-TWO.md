@@ -2088,3 +2088,210 @@ room you work in, not a page you read.
 ---
 
 *Appendix S ends. The brief above it is unedited.*
+
+## S-31 — Standing in the room, rather than in front of it
+
+*"What do we do to build now a professional CyberLink-type background and
+the environments of best grade?"*
+
+### What was measured first
+
+The matte was never the problem. A take is differenced against a still of
+the same room with nobody in it, thresholded at a multiple of that room's
+own measured noise, eroded to kill the fireflies, dilated twice to put the
+outline back, and feathered. The ffmpeg chain and the six GLSL passes run
+the same numbers on purpose. There is spill suppression, and a lighting
+adjustment that lets somebody lit for a bedroom sit in a concert stage.
+
+The edge it cuts is clean. **A clean edge is exactly what makes a
+composite read as a sticker, because nothing in a real room has one.**
+
+Two things were missing, and both are about light rather than about
+geometry:
+
+* a person in a room is **lit by that room**. Some of the wall's colour
+  lands on the edge of their shoulder and their hair — that is what a
+  camera records, and a cut-out has none of it, so their outline stays
+  the colour of the room they were actually standing in; and
+* a person in a room **stands on something**. With no shadow they float,
+  and the eye reads floating as fake long before it can say why.
+
+A search for `wrap`, `shadow` or `contact` across the matte, the
+compositor and the composition domain returned nothing at all.
+
+### Neither of them is a new control
+
+A "light wrap" slider is a thing the operator has to understand, get
+wrong, and be blamed for — and §4's whole argument is that the studio
+decides the hard parts from what it has already measured.
+
+The room already declares where its light is and how strong it is
+(`glow`), and how bright its walls are (`top`, `bottom`). `groundingFor`
+derives everything from that:
+
+| | derived from | because |
+|---|---|---|
+| **wrap** | the light pool's strength and the walls' brightness | a dark stage with one hard spotlight throws less colour than a white room with a window |
+| **shadow** | the light pool's strength | a strong light makes a definite shadow, a soft one barely any |
+| **direction** | `glow.x` | the shadow falls AWAY from the light; a shadow that ignored the glow would contradict the very backdrop it is drawn on |
+| **length** | `glow.y` | a light high in the room puts the shadow under their feet, a low one stretches it out behind them |
+
+So choosing Concert Stage gets a concert stage's wrap and a concert
+stage's shadow, and a space added tomorrow is grounded correctly by
+existing. Derived rather than stored, so it is deterministic and the shot
+cache still means what it says. [U-16, D-19]
+
+Both are clamped. Wrap past about a third eats the performer's own edge;
+a shadow past about half is a second person on the floor. This is a
+correction, not an effect.
+
+**A blur gets neither, and that is not an omission.** Their own room is
+already lighting them, already casting their real shadow, and already the
+right colour on their shoulder — it is the one case that was never wrong.
+Adding a second shadow to a real one is how a correction becomes an
+effect.
+
+**A supplied picture gets the house default**, because it declares no
+light of its own. The *colour* of its wrap still comes from the picture,
+since the wrap is a blurred copy of whatever is behind them — a beach
+wraps sand and a cathedral wraps stone without anybody measuring it. Only
+the strength is a guess.
+
+### The one that was silent
+
+Shifting a picture in a filter graph takes a pad and a crop, and the
+offset can be negative — Beach lights from the right, so its shadow falls
+left, and `dx` is `-51`. `pad` cannot express a negative offset. The
+first version padded to the frame's own size at a negative offset, which
+does not fail: **the shadow simply does not move**, which looks exactly
+like no shadow at all. The canvas now grows by the absolute distance on
+both axes and the crop chooses which side of the growth to keep.
+
+It was caught because the test asserts on pixels rather than on the
+filter string.
+
+### Measured
+
+Six mutations on the derivation, all six caught. Then the picture itself,
+through real ffmpeg, on the fixture whose room is one flat colour and
+whose performer is a rectangle of another:
+
+| | sampled | reads |
+|---|---|---|
+| wrap | just inside the left edge vs the middle of the performer | the sky lands on the edge and not on the middle |
+| shadow | under the feet at y=850 vs the same height to the side | **438** against **602** — a quarter of the light gone |
+| direction | the left flank vs the far left, same height | darker on the flank, *against* the wash's own gradient toward the light |
+
+Setting either strength to zero fails its own test, so both tests measure
+the picture and not the graph.
+
+### And two things the determinism test found
+
+Adding a test that renders one unchanged plan twice and compares the
+pixels — the contract `backdropChain` had been claiming in its own
+comment, *"deterministic, so the shot cache means what it says"* — showed
+it was not true, for two separate reasons.
+
+**`noise` takes a fresh seed every run.** Every drawn space carries film
+grain, deliberately: a perfectly clean backdrop behind a camera's own
+noise is itself a reason a composite looks pasted. Unseeded, it made two
+renders of one plan different pictures. U-16 caches a shot by its plan;
+a backdrop that will not render the same twice makes that cache a liar.
+The seed is now the space's own id, so each room keeps its own grain and
+keeps it for ever.
+
+**`gradients` defaults to `speed=0.01`, and had been slowly rotating.**
+Every wash and every light pool in every drawn space has been turning
+gently throughout every song since they were built. Nobody asked for it;
+it is the filter's default and no value was passed. A drawn room is a
+room, and its walls do not rotate. Motion in a backdrop is a decision
+somebody should make on purpose, and nobody made this one. Both
+gradients are now `speed=0` and seeded, as is the spotlight effect's
+lamp in `compose.ts`, which had the same two defaults for the same
+reason.
+
+Neither was visible from a filter string. Both were visible the moment
+a test compared two renders.
+
+### Still owed
+
+* **The live compositor has the matte and not the grounding.** The six
+  shader passes still cut the same clean edge they always did. Online TV
+  is a different surface from a rendered master and this is an addition
+  rather than a disagreement about numbers, but the two are meant to move
+  together and for now they do not.
+* ~~**Images as backgrounds.**~~ Done in S-32 below. **Video backdrops
+  are still not supported**: `-loop 1` is the single-image flag, and a
+  moving backdrop needs `-stream_loop`, its own fps handling, and a
+  decision about what happens when the clip is shorter than the take.
+* **Depth in the drawn spaces.** They are still a wash, a light pool, a
+  vignette and grain. No floor-to-wall perspective, no depth of field,
+  no horizon matched to the performer's eyeline.
+
+
+## S-32 — The promise made in three places and kept in none of the fourth
+
+*"What about images and videos as backgrounds?"*
+
+### Images were already built
+
+`environment.ts` has told the operator for as long as it has existed:
+
+> The supplied spaces are drawn rather than photographed — stage lighting
+> in the colours of the place, not a picture of it. **For a real place
+> behind you, use your own image.**
+
+And that image was there to be used. `Environment` carries
+`kind: 'custom'` with an `assetId`. `setEnvironment` refuses one without
+a picture — *"a custom background needs a picture"*. `compose.ts` loads
+the asset, cover-fits it, and runs it through the same difference matte
+as every drawn space, with the grounding of S-31 on top of it.
+
+**Studio Two's shelf offered Original, Blur and the drawn spaces, and
+never offered a picture.** A sentence, a field, a validation and a
+renderer, with no way in — which by this building's own rule is a
+capability that does not exist. It is the third time this exact shape has
+turned up: `nudgeLyric` (MASTER-EDIT L7), `whyDark` (CHANNEL C-19), and
+now this.
+
+### The door
+
+A **Your picture** tile beside Blur, disabled without a plate like every
+other replacement, and a shelf of the library's images underneath it when
+pressed. The tile's swatch is the chosen picture itself, because a tile
+here is a sample of the result and a grey square would be a sample of
+nothing.
+
+The library is fetched on the first press rather than with the studio: an
+author who never wants a custom backdrop should not pay a request for the
+library on the way to the timeline. Only `form: 'image'` rows are offered,
+because a song in a backdrop picker is a row that cannot be chosen.
+
+**And it opens under the shelf rather than in a dialog.** Choosing a
+backdrop is something an author does while looking at the performer it
+goes behind, and a modal over the stage hides the one picture the choice
+is about.
+
+### What the browser showed
+
+The labels. An uploaded picture is named by whoever uploaded it — *"Written
+here — Live from the control room"* — and at a quarter of this panel's
+width that is three wrapped lines under a 56px swatch, clipped by the
+bottom of the rail. The fifth time a label has overflowed a tile in this
+studio. The label is cut at eighteen characters and the full name stays on
+hover, and the grid takes a `maxHeight` because a library grows and the
+panel does not.
+
+Verified end to end on a performance whose takes carry a plate, backed up
+first and restored after: the tile is present and enabled, the shelf
+offers the five images in the library, choosing one writes
+`{"kind":"custom","assetId":"asset_c7db…"}` into the take, and the tile's
+swatch becomes that picture.
+
+### Videos are not this
+
+`still()` loads a backdrop with `-loop 1`, which is the single-image flag.
+A moving backdrop needs `-stream_loop`, its own fps handling, and a
+decision nobody has made about what happens when the clip is shorter than
+the take — hold the last frame, loop it, or refuse it. That is render
+work, not a tile, and it is owed rather than done.

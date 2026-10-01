@@ -1138,6 +1138,24 @@ export default function SwitchingStage({
    * make every take ends up below the fold.
    */
   const [allSpaces, setAllSpaces] = useState(false);
+  /*
+   * THE PICTURES THE AUTHOR ALREADY HAS.  [§4, S-6, D-19]
+   *
+   * `environment.ts` has told the operator for as long as it has
+   * existed: *"For a real place behind you, use your own image."* The
+   * document has carried `kind: 'custom'` with an `assetId`,
+   * `setEnvironment` has refused one without a picture, and
+   * `compose.ts` has rendered it through the same matte as every drawn
+   * space. The shelf never offered it. A promise in a sentence, a field
+   * in a document, a branch in the renderer, and no door.
+   *
+   * Loaded on the first press rather than with the studio: an author
+   * who never wants a custom backdrop should not pay a request for the
+   * library on the way to the timeline.
+   */
+  const [pictures, setPictures] = useState<
+    { assetId: string; title: string }[] | null>(null);
+  const [picking, setPicking] = useState(false);
   const subject = usable.find((t) => t.id === chosen) ?? usable[0];
 
   /**
@@ -1814,6 +1832,41 @@ export default function SwitchingStage({
                 }), 'environment-option',
                 { height: 66, swatch: '#2a3038', disabled: !subject.plateAssetId,
                   title: 'The room you are in, softened' })}
+              {/*
+                * YOUR OWN PICTURE, which the renderer has always been
+                * able to draw. The swatch is the picture itself once
+                * one is chosen, because a tile is a sample of the
+                * result and a grey square would be a sample of
+                * nothing.
+                */}
+              {tile('custom', 'Your picture',
+                subject.environment.kind === 'custom',
+                () => {
+                  setPicking((was) => !was);
+                  if (pictures === null) {
+                    void fetch('/api/library')
+                      .then((response) => response.json())
+                      .then((data: { items?: {
+                        source: { assetId: string; form: string };
+                        title: string }[] }) => setPictures(
+                        (data.items ?? [])
+                          .filter((one) => one.source.form === 'image')
+                          .map((one) => ({
+                            assetId: one.source.assetId, title: one.title }))))
+                      .catch(() => setPictures([]));
+                  }
+                },
+                'environment-option',
+                {
+                  height: 66,
+                  swatch: subject.environment.kind === 'custom'
+                    && subject.environment.assetId
+                    ? `url(/api/library/${subject.environment.assetId})`
+                      + ' center/cover no-repeat'
+                    : '#242a33',
+                  disabled: !subject.plateAssetId,
+                  title: 'A picture of your own, from the library',
+                })}
               {(allSpaces ? SPACES : SPACES.slice(0, 6)).map((space) => tile(
                 space.id, space.label,
                 subject.environment.kind === 'space'
@@ -1831,6 +1884,64 @@ export default function SwitchingStage({
                   disabled: !subject.plateAssetId,
                 },
               ))}
+            </div>
+          )}
+
+          {/*
+            * AND THE PICTURES THEMSELVES, under the shelf rather than in
+            * a dialog. Choosing a backdrop is a thing an author does
+            * while looking at the performer it goes behind, and a modal
+            * over the stage hides the one picture the choice is about.
+            */}
+          {subject && picking && (
+            <div data-testid="picture-shelf" style={{ marginTop: 8 }}>
+              {pictures === null ? (
+                <p className="small muted" style={{
+                  fontSize: 'var(--text-2xs)', margin: 0 }}>Looking…</p>
+              ) : pictures.length === 0 ? (
+                <p className="small muted" style={{
+                  fontSize: 'var(--text-2xs)', margin: 0 }}>
+                  No pictures in the library yet. Anything you upload there
+                  can stand behind you here.
+                </p>
+              ) : (
+                <div style={{
+                  display: 'grid', gap: 6,
+                  gridTemplateColumns: 'repeat(4, 1fr)',
+                  /* A library grows and this panel does not. Six rows of
+                     pictures pushed the transport off the bottom of the
+                     screen the first time it was looked at. */
+                  maxHeight: 190, overflowY: 'auto',
+                }}>
+                  {pictures.map((one) => tile(
+                    one.assetId,
+                    /*
+                      * THE LABEL IS CUT AND THE TITLE IS NOT. An uploaded
+                      * picture is named by whoever uploaded it — "Written
+                      * here — Live from the control room" — and at a
+                      * quarter of this panel's width that is three lines
+                      * of wrapped text under a 56px swatch, which clips.
+                      * The swatch is what identifies a picture anyway;
+                      * the full name is on hover and in the tooltip.
+                      */
+                    one.title.length > 18
+                      ? `${one.title.slice(0, 17)}\u2026` : one.title,
+                    subject.environment.kind === 'custom'
+                      && subject.environment.assetId === one.assetId,
+                    () => void patch({
+                      action: 'set-environment', takeId: subject.id,
+                      environment: { kind: 'custom', assetId: one.assetId },
+                    }),
+                    'picture-option',
+                    {
+                      height: 56,
+                      swatch: `url(/api/library/${one.assetId})`
+                        + ' center/cover no-repeat',
+                      title: one.title,
+                    },
+                  ))}
+                </div>
+              )}
             </div>
           )}
 

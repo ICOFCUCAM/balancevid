@@ -21,9 +21,13 @@ import type {
   TransitionShot,
 } from '../domain/plan.js';
 import { LAYOUTS, type Rect } from '../domain/presentation.js';
-import { type EffectLook, lookFor } from '../domain/environment.js';
+import {
+  type EffectLook, SUPPLIED_GROUNDING, groundingFor, lookFor,
+} from '../domain/environment.js';
 import { mixExpression, transitionFor } from '../domain/transitions.js';
-import { backdropChain, blurBackdropChain, matteChain } from './matte.js';
+import {
+  backdropChain, blurBackdropChain, matteChain, seedFor,
+} from './matte.js';
 import { mixPerformanceAudio } from './mix.js';
 import { HOUSE_SAMPLE_RATE, type Frames, framesToSamples } from '../domain/time.js';
 import { ffmpeg, type RunOptions } from './ffmpeg.js';
@@ -442,9 +446,33 @@ async function renderPerformanceShot(
       filters.push(
         `[${plateInput}:v]${reframe}${fitFilter(layer.fit, box.w, box.h)},`
         + `setsar=1,fps=${fps},format=gbrp[${plate}]`);
+      /*
+       * AND HOW THIS ROOM LANDS ON THE PERSON IN IT.  [§4, S-6]
+       *
+       * A space declares its own light, so `groundingFor` reads the wrap
+       * and the shadow straight off it — a purple glow from above throws
+       * a purple wrap and a short shadow, with nobody asked a question
+       * about compositing.
+       *
+       * A supplied picture declares nothing, so it gets the house
+       * default: the COLOUR of the wrap still comes from that picture,
+       * because the wrap is a blurred copy of whatever is behind them.
+       * Only its strength is a guess, and a modest one.
+       *
+       * A BLUR GETS NEITHER, and that is not an omission. Their own room
+       * is already lighting them, already casting their real shadow, and
+       * already the right colour on their shoulder — it is the one case
+       * that was never wrong. Adding a second shadow to a real one is
+       * how a correction becomes an effect.
+       */
+      const ground = backdrop.kind === 'space'
+        ? groundingFor(lookFor(backdrop.spaceId))
+        : backdrop.kind === 'blur' ? undefined : SUPPLIED_GROUNDING;
       filters.push(...matteChain({
         fg: keyable, plate, backdrop: behind, out: composed,
         threshold: backdrop.threshold, feather: backdrop.feather,
+        width: box.w, height: box.h,
+        ...(ground ? { ground } : {}),
       }));
       panel = `${composed}_yuv`;
       filters.push(`[${composed}]format=yuv420p[${panel}]`);
@@ -588,9 +616,12 @@ function effectChain(
   const base = `${to}_base`;
   return [
     `[${from}]${chain}[${base}]`,
+    /* Seeded and still, for the reason `backdropChain` gives: `gradients`
+       defaults to a fresh seed every run and to a slow rotation, and a
+       spotlight that moved on its own would be a light nobody hung. */
     `gradients=s=${width}x${height}:c0=0x2a2a2a:c1=0x000000:type=radial:`
       + `x0=${Math.round(width / 2)}:y0=${Math.round(height * 0.42)}:`
-      + `nb_colors=2:d=1[${lamp}]`,
+      + `nb_colors=2:d=1:seed=${seedFor('spotlight')}:speed=0[${lamp}]`,
     `[${base}][${lamp}]blend=all_mode=screen:all_opacity=`
       + `${Math.min(0.5, look.spotlight).toFixed(3)},`
       + `crop=${width}:${height}:0:0,format=yuv420p[${to}]`,
