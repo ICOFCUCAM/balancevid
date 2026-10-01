@@ -3573,3 +3573,77 @@ else.
 **S-34's video capability remains untouched.** No `VideoBackground`, no
 duration policy, no `allowedContexts`, no loop-or-hold rule, no renderer
 change.
+
+## S-42 — The lamp, decided; and the performer, still open
+
+S-41 measured. This is what was decided on the strength of it, recorded
+separately because a decision and a measurement are different things
+and the ledger should be able to tell them apart later.
+
+### The decision
+
+**Lamp geometry is part of the shared scene truth.** `lampOf` defines
+the light pool: a radius of three tenths of the frame's longer side,
+its centre stepped along that longer axis away from the nearer edge so
+the circle is always in frame. The export, the live shader and the live
+canvas consume the same definition.
+
+What makes this a contract rather than a resemblance is that each part
+of it is separately observable:
+
+* the **geometry** — the radius, and a step that provably always fits;
+* the **colour and alpha** — the pool keeps the lamp's colour and loses
+  only its alpha, rather than fading the colour itself towards black;
+* the **boundary** — a lamp authored at the very edge of the frame, the
+  `1 × dimension` case that is one past the last pixel;
+* the **falloff** — the canvas and the shader within one part in 255 of
+  each other at every tested distance from the lamp;
+* the **spatial relationship** — a performer's near edge brighter than
+  their far edge, and both brighter than their middle.
+
+Each of those has a fixture, and each of those fixtures has a mutation
+that fails it.
+
+### What is struck from the record
+
+**S-41 first said the two live surfaces already agreed about the pool.
+That was false, and it is not part of this contract.** It was asserted
+on a probe that was measuring its own floor rather than the pool, and
+the canvas and the shader were in fact as far apart as either was from
+the chain. It is kept in S-41 as a thing that was claimed and retracted,
+not as a thing that was true at the time.
+
+The distinction matters more than the embarrassment. A conclusion
+withdrawn by a better measurement leaves the record stronger; one
+reinterpreted until it fits leaves the record useless.
+
+### What is held open, and how it must be done
+
+**A performer composited over a virtual set receives no wrap and no
+contact shadow.** This is not renderer tuning left undone. It is
+architectural: the set is the studio and is drawn once for the whole
+frame, so each person comes back from the shader as a cutout with an
+alpha and the 2D canvas composites them afterwards. A shader cannot
+illuminate something that is composited after it has already run.
+
+When it is taken up, the scene model extends to cover the performer —
+
+                       SCENE
+                         │
+             ┌───────────┴───────────┐
+          environment            performer
+             │                       │
+      lamp / floor / depth    wrap / contact / light
+             └───────────┬───────────┘
+                         ↓
+                    composition
+
+— rather than a second lighting path beside the first:
+
+      scene lighting  +  virtual-set lighting            ← not this
+
+The same rule the whole of S-35 onward has followed. *"The important
+thing is to build these capabilities into the existing take/timeline
+model, not create a second editing system."*
+
+**S-34's video capability remains untouched.**

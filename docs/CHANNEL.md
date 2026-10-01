@@ -2854,7 +2854,11 @@ broadcasts in a shape the sets were not drawn for.
   each person comes back from the shader as a cutout with an alpha and
   the 2D canvas composites them. The shader cannot reach the pixels
   behind them to darken or to sample. A participant's own drawn room
-  gets both; a set gets neither.
+  gets both; a set gets neither. **Architectural, not unfinished**: a
+  shader cannot illuminate something composited after it has run, so
+  closing it means extending the scene model to cover the performer,
+  never a second lighting path beside the first. S-42 records the
+  shape it has to take.
 **The canvas pool faded to transparent BLACK**, which is the oldest trap
 in a 2D gradient: a stop carries a colour as well as an alpha, so the
 studio's pools darkened as they thinned. They fade to the glow's own
