@@ -2854,11 +2854,18 @@ broadcasts in a shape the sets were not drawn for.
   each person comes back from the shader as a cutout with an alpha and
   the 2D canvas composites them. The shader cannot reach the pixels
   behind them to darken or to sample. A participant's own drawn room
-  gets both; a set gets neither. **Architectural, not unfinished**: a
-  shader cannot illuminate something composited after it has run, so
-  closing it means extending the scene model to cover the performer,
-  never a second lighting path beside the first. S-42 records the
-  shape it has to take.
+  gets both; a set gets neither. ~~**Architectural, not unfinished**~~
+  — **done in S-43**, and the architecture argument was half wrong.
+  The shadow never needed the pixels behind the person: black at alpha
+  `s` composited with source-over leaves `back × (1 − s)`, which is the
+  multiply a contact shadow is, so a cutout carries its own shadow in
+  its alpha channel. The wrap did need them, and the mixer paints the
+  set into the master canvas before anybody is composited into it — so
+  the compositor is handed that canvas and samples it exactly as it
+  samples a backdrop it drew itself. No second lighting path: the set
+  names its room, `groundingFor` answers for it, and the rule that a
+  drawn space grounds while an original or a blur does not is
+  unchanged.
 **The canvas pool faded to transparent BLACK**, which is the oldest trap
 in a 2D gradient: a stop carries a colour as well as an alpha, so the
 studio's pools darkened as they thinned. They fade to the glow's own

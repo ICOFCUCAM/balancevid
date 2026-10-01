@@ -332,7 +332,27 @@ uniform float uLight, uSpill, uCutout;
 uniform float uGround, uWrap, uShadow, uWrapBlur, uShadowBlur;
 uniform vec2 uShadowAt, uAspect;
 uniform vec3 uKey;
+/*
+ * WHERE THIS PANEL SITS IN THE PICTURE BEHIND IT.  [S-43]
+ *
+ * For a participant's own drawn room the background IS this panel —
+ * this shader drew it a moment ago, at this size — and the rect is the
+ * whole of it. For somebody standing in a VIRTUAL SET the background
+ * is the studio, drawn once for the whole frame on the 2D canvas, and
+ * this panel is a window onto part of it. One sampler either way,
+ * because they are the same question asked about two pictures.
+ *
+ * 'uBackFlip' is on for the set, because a canvas uploaded as a
+ * texture has its first row at t=0 while v runs up the screen.
+ */
+uniform vec4 uBackRect;
+uniform float uBackFlip;
 ${FRAME_GLSL}
+
+vec2 backUv(vec2 p) {
+  return uBackRect.xy
+    + vec2(p.x, uBackFlip > 0.5 ? 1.0 - p.y : p.y) * uBackRect.zw;
+}
 
 /*
  * A SOFT READ, which is not a gaussian and does not pretend to be.
@@ -364,17 +384,17 @@ float ring(sampler2D tex, vec2 at, float r) {
   return sum / 14.0;
 }
 vec3 ringRgb(sampler2D tex, vec2 at, float r) {
-  vec3 sum = texture2D(tex, at).rgb;
+  vec3 sum = texture2D(tex, backUv(at)).rgb;
   for (int i = 0; i < 8; i++) {
     float a = float(i) * 0.785398;
-    sum += texture2D(tex, at + vec2(cos(a), sin(a)) * r * uAspect).rgb;
+    sum += texture2D(tex, backUv(at + vec2(cos(a), sin(a)) * r * uAspect)).rgb;
   }
   return sum / 9.0;
 }
 
 void main() {
   vec2 u = fgUv(v);
-  vec3 back = texture2D(uBack, v).rgb;
+  vec3 back = texture2D(uBack, backUv(v)).rgb;
   /*
    * A CUTOUT, when the scene behind this person is the whole frame and
    * not this panel. A virtual set draws its room once — the room is the
@@ -384,17 +404,26 @@ void main() {
    */
   if (!inFrame(u)) {
     /*
-     * AND THE SHADOW REACHES PAST THEM, which is why this is no longer
-     * an early return for every pixel outside the box. A contact
-     * shadow falls on the floor beside somebody, so a pixel with no
-     * performer in it can still be a pixel the performer darkens.
+     * AND THE SHADOW REACHES PAST THEM, which is why this is not an
+     * early return for every pixel outside the box. A contact shadow
+     * falls on the floor beside somebody, so a pixel with no performer
+     * in it can still be a pixel the performer darkens.
      */
-    if (uCutout > 0.5) { gl_FragColor = vec4(0.0); return; }
-    if (uGround > 0.0) {
-      float out_shade = ring(uMask, v + uShadowAt, uShadowBlur);
-      back *= 1.0 - uShadow * out_shade;
-    }
-    gl_FragColor = vec4(back, 1.0);
+    float out_shade = uGround > 0.0
+      ? uShadow * ring(uMask, v + uShadowAt, uShadowBlur) : 0.0;
+    /*
+     * A CUTOUT CARRIES ITS OWN SHADOW IN ITS ALPHA.  [S-43]
+     *
+     * The set is on the 2D canvas and this shader cannot write to it,
+     * which is what made the performer's grounding look architectural
+     * rather than unfinished. It is not: black at alpha 's' drawn over
+     * anything with source-over leaves 'back * (1 - s)' exactly, which
+     * is the same arithmetic 'matteChain' performs with 'colorlevels'
+     * and a 'maskedmerge'. A shadow IS a multiply, and straight alpha
+     * can say so.
+     */
+    if (uCutout > 0.5) { gl_FragColor = vec4(0.0, 0.0, 0.0, out_shade); return; }
+    gl_FragColor = vec4(back * (1.0 - out_shade), 1.0);
     return;
   }
   vec3 fg = texture2D(uFg, vec2(u.x, 1.0 - u.y)).rgb;
@@ -431,9 +460,10 @@ void main() {
    * correcting — and a cutout's room is on the 2D canvas where this
    * cannot reach it. The same rule, by the same reasoning.
    */
+  float shade = 0.0;
   if (uGround > 0.0) {
-    float shade = ring(uMask, v + uShadowAt, uShadowBlur);
-    back *= 1.0 - uShadow * shade;
+    shade = uShadow * ring(uMask, v + uShadowAt, uShadowBlur);
+    back *= 1.0 - shade;
     /* A band just INSIDE the outline — the matte minus a softened copy
        of itself, which is zero everywhere except where the edge was —
        carrying a heavily softened copy of the room. Added rather than
@@ -444,9 +474,26 @@ void main() {
       0.0, 1.0);
   }
   float a = clamp(m, 0.0, 1.0);
-  gl_FragColor = uCutout > 0.5
-    ? vec4(fg, a)
-    : vec4(mix(back, fg, a), 1.0);
+  if (uCutout < 0.5) { gl_FragColor = vec4(mix(back, fg, a), 1.0); return; }
+  /*
+   * THE EDGE, WHERE THE PERSON AND THEIR SHADOW BOTH HAVE A SAY.
+   *
+   * The opaque path above lands on 'mix(back * (1 - shade), fg, m)'.
+   * For a cutout to come out the same under source-over, the alpha has
+   * to carry both — the person at 'm', and the shadow on whatever of
+   * the background still shows — and the colour has to be unweighted
+   * by it, because source-over will multiply it back.
+   *
+   *   a   = m + shade * (1 - m)
+   *   rgb = fg * m / a
+   *
+   * Then rgb*a is fg*m and back*(1-a) is back*(1-m)*(1-shade), which
+   * is the opaque path term for term. Not an approximation of it.
+   */
+  float out_a = a + shade * (1.0 - a);
+  gl_FragColor = out_a < 0.001
+    ? vec4(0.0)
+    : vec4(fg * a / out_a, out_a);
 }
 `;
 
@@ -502,6 +549,8 @@ export class LiveCompositor {
   private targets: Target[] = [];
   private width = 0;
   private height = 0;
+  /** The 2D canvas's set, when there is one. See `useBackdrop`. */
+  private backdrop: { spaceId: string; w: number; h: number } | null = null;
 
   constructor() {
     this.canvas = document.createElement('canvas');
@@ -592,6 +641,37 @@ export class LiveCompositor {
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
 
+  /**
+   * The picture the people are about to stand in, when it is not this
+   * shader's own.  [§27, S-43]
+   *
+   * UPLOADED ONCE A FRAME, BEFORE ANYBODY. A virtual set's room is the
+   * studio — drawn once for the whole frame on the 2D canvas — so the
+   * wrap and the shadow need those pixels and there is exactly one
+   * copy of them. Per person it would be the same megabytes four
+   * times; before the loop it is also the only version that is
+   * honest, because by the second person the canvas already has the
+   * first one on it and nobody's shoulder is lit by their colleague.
+   *
+   * The space id is the set's own room, so the grounding comes from
+   * `groundingFor` exactly as it does for a backdrop this shader drew.
+   * Nobody is asked a question about compositing. [D-19]
+   */
+  useBackdrop(
+    source: (TexImageSource & { width: number; height: number }) | null,
+    spaceId?: string,
+  ): void {
+    if (!source || !spaceId || !SPACE_LOOKS[spaceId]) {
+      this.backdrop = null;
+      return;
+    }
+    /* Uploaded HERE and not in `draw`, which is the whole point of the
+       method existing: `draw` runs once per person and this runs once
+       per frame. */
+    this.upload('set', source, 1);
+    this.backdrop = { spaceId, w: source.width, h: source.height };
+  }
+
   private upload(name: string, source: TexImageSource, unit: number): WebGLTexture {
     const gl = this.gl;
     /*
@@ -628,7 +708,19 @@ export class LiveCompositor {
   draw(
     video: HTMLVideoElement, plate: TexImageSource | null,
     composition: Composition, panel: { w: number; h: number }, now: number,
-    { cutout = false }: { cutout?: boolean } = {},
+    {
+      cutout = false, within,
+    }: {
+      cutout?: boolean;
+      /**
+       * Where this panel sits in the backdrop, in its pixels.
+       *
+       * Only meaningful with `useBackdrop`, and only for a cutout: a
+       * participant's own room is drawn at panel size and is the whole
+       * of its own picture. [S-43]
+       */
+      within?: { x: number; y: number; w: number; h: number };
+    } = {},
   ): boolean {
     if (!drawable(composition)) return false;
     /*
@@ -830,23 +922,34 @@ export class LiveCompositor {
       gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
     }
+    /*
+     * HOW THIS ROOM LANDS ON THE PERSON, AND NOW FOR A SET TOO. [S-43]
+     *
+     * `matteChain`'s rule, unchanged: a drawn space grounds, an
+     * original or a blur does not, because their own room is already
+     * lighting them correctly. What has changed is that a cutout
+     * standing in a virtual set HAS a drawn space behind it — the one
+     * the 2D canvas painted for the whole frame — so it grounds by the
+     * same rule rather than being the exception the rule could not
+     * reach.
+     */
+    const set = cutout && within ? this.backdrop : null;
+    const roomId = spaceId ?? set?.spaceId;
+    const ground = roomId ? groundingFor(SPACE_LOOKS[roomId]!) : null;
+    const small = Math.min(this.width, this.height);
+    /* Where this panel is in the picture behind it, as a uv rect. A
+       participant's own room is the whole of its own, so (0,0,1,1). */
+    const rect = set && within
+      ? [within.x / Math.max(1, set.w), within.y / Math.max(1, set.h),
+        within.w / Math.max(1, set.w), within.h / Math.max(1, set.h)]
+      : [0, 0, 1, 1];
+
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, this.texture('fg'));
     gl.activeTexture(gl.TEXTURE1);
-    gl.bindTexture(gl.TEXTURE_2D, wash.texture);
+    gl.bindTexture(gl.TEXTURE_2D, set ? this.texture('set') : wash.texture);
     gl.activeTexture(gl.TEXTURE2);
     gl.bindTexture(gl.TEXTURE_2D, from.texture);
-    /*
-     * HOW THIS ROOM LANDS ON THE PERSON STANDING IN IT, or nothing.
-     *
-     * Present exactly where `matteChain` has it: a drawn space, which
-     * is the only backdrop this shader lights. An original or a blur
-     * is their own room already lighting them correctly, and a cutout
-     * is standing in a set the 2D canvas owns, which nothing here can
-     * reach. [§4, S-41]
-     */
-    const ground = spaceId ? groundingFor(SPACE_LOOKS[spaceId]!) : null;
-    const small = Math.min(this.width, this.height);
     this.pass(this.programs['merge']!, null, (g, p) => {
       g.uniform1i(g.getUniformLocation(p, 'uFg'), 0);
       g.uniform1i(g.getUniformLocation(p, 'uBack'), 1);
@@ -880,6 +983,12 @@ export class LiveCompositor {
        */
       g.uniform2f(g.getUniformLocation(p, 'uShadowAt'),
         -(ground?.shadowX ?? 0), ground?.shadowY ?? 0);
+      g.uniform4f(g.getUniformLocation(p, 'uBackRect'),
+        rect[0]!, rect[1]!, rect[2]!, rect[3]!);
+      /* A canvas uploaded as a texture has its first row at t=0 while
+         v runs up the screen; a render target this shader filled does
+         not. */
+      g.uniform1f(g.getUniformLocation(p, 'uBackFlip'), set ? 1 : 0);
       frame(g, p);
     });
     return true;
@@ -894,6 +1003,7 @@ export class LiveCompositor {
     for (const texture of this.textures.values()) gl.deleteTexture(texture);
     this.targets = [];
     this.textures.clear();
+    this.backdrop = null;
   }
 }
 
