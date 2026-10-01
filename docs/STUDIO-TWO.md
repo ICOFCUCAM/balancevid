@@ -3024,3 +3024,100 @@ matte's own.
 
 **S-34 is untouched throughout**: no `VideoBackground` model, no duration
 policy, no `allowedContexts`, no loop-or-hold rule, no renderer change.
+
+## S-38 — Two boundaries, measured before merging
+
+No feature was added here. Two questions were asked and answered, which
+is what the branch needed rather than more of it.
+
+### A. Can the live compositor consume the shared scene, or would it need a second model?
+
+**It can consume it. Giving it grounding is a second TRANSLATION, not a
+second model.**
+
+What the live path receives today: `LiveCompositor.draw` takes
+`(video, plate, composition, panel, now, {cutout})`. `Composition` is
+backdrop, key and frame — the matte's inputs. It does not carry depth,
+floor, perspective, wrap or shadow, because those did not exist when it
+was written.
+
+What draws the room there is **`paintSpace` in `spaceArt.ts`**, on a 2D
+canvas, and it is already the direct analogue of `backdropChain`: wash,
+then light pool, then band, then vignette and grain, in that order, with
+a comment pointing at the filter chain's own `blend=screen` to say so.
+Two translations of one description, already cross-referencing each
+other.
+
+And the live path **already draws furniture in two passes** —
+`useBroadcastMixer` calls `paintSet(…, 'behind')` before the people and
+`paintSet(…, 'front')` after them. The ordering S-36 added to the server
+has been in the control room all along.
+
+So the work, when it is taken up, is:
+
+| | where | analogue that already exists |
+|---|---|---|
+| floor, perspective | `paintSpace` | canvas gradients ↔ `gradients` + `blend=screen` |
+| defocus | `paintSpace` | canvas `filter: blur()` ↔ `gblur` |
+| wrap, shadow | `MERGE_FS` | it already carries `uLight` and `uSpill`; these are the same kind of uniform |
+| the scene itself | `paintSpace(look)` → `paintSpace(scene)` | the join S-35 already made |
+
+**Nothing here needs a live-only grounding model.** `scene.ts` is a
+domain module and the browser can import it, which was the point of
+putting the join in its own file.
+
+### B. Do the sets hold their shape when Studio Two is not 16:9?
+
+Rendered — News Desk, through the real server chain, with a performer
+whose geometry is written into the fixture — at **16:9, 4:3, 1:1 and
+9:16**.
+
+| | person across the frame | person's span | screen sits at |
+|---|---|---|---|
+| 16:9 | 25% | 0.38–0.62 | 0.56–0.96 |
+| 4:3 | 33% | 0.33–0.67 | 0.56–0.96 |
+| 1:1 | 44% | 0.28–0.72 | 0.56–0.96 |
+| 9:16 | **79%** | **0.11–0.89** | 0.56–0.96 |
+
+**What holds at every shape**, and can be closed: the desk occludes the
+performer (crown 0.113, lowest visible 0.719, desk top 0.720, at all
+four); the floor, the band, the horizon and the defocus all render; the
+performer is never clipped by an edge; nothing becomes disproportionate,
+because a piece is a fraction of the frame and scales with it.
+
+**What does not hold**, and is a finding: the **screen is set dressing
+placed for a frame the presenter occupies a quarter of.** As the frame
+narrows the presenter grows across it — 25% to 79% — and by 1:1 the
+screen is behind their shoulder, by 9:16 it is a sliver. Nothing is
+broken, clipped or misdrawn. The set element the viewer is meant to see
+is simply behind the person.
+
+**A first pass at this measured only the vertical and found all four
+shapes identical.** That was an artefact of the test: height was held at
+1080 and the source is 16:9, so the vertical scale factor was 3 in every
+case and nothing could have differed. The test was measuring its own
+setup. The horizontal is where the shapes actually differ.
+
+### Classification
+
+| | |
+|---|---|
+| desk occlusion, floor, band, horizon, defocus, clipping, proportion | **works across shapes — closed** |
+| wall dressing behind the presenter at narrow shapes | **shared scene model insufficient — extend S-35** |
+| anything video | **S-34, untouched** |
+
+### What extending S-35 would mean
+
+Not four separately tuned layouts, which is the answer the scene exists
+to avoid. The gap is precise:
+
+`PerformerZone` says where the ground is (`standsAt`), where the eyes
+are (`eyeline`) and which arrangement holds N people (`positions`). It
+does **not** say how WIDE the performer occupies the frame — and a
+`Piece` is an absolute rect, authored against one aspect, with no way to
+say *"on the wall beside the presenter"* rather than *"at x 0.56"*.
+
+Those two together are the whole finding. A piece that could be placed
+relative to the performer zone, and a performer zone that knows its own
+width at the current aspect, would let one set hold its composition at
+any shape — which is what the brief asked the scene to be for.
