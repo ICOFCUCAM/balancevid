@@ -39,6 +39,9 @@ import {
 import { noteFailure, reasonFrom } from '../store/playoutHealth.js';
 import type { Aired } from '../domain/asRun.js';
 import { volumeFilter } from '../domain/loudness.js';
+import {
+  type Dip, afadeFilters, dipAt, fadeFilters,
+} from '../domain/transition.js';
 import { paths } from '../store/paths.js';
 import { pathFor } from '../store/playoutSources.js';
 
@@ -131,6 +134,13 @@ export async function produceSegment(
    */
   const pieces: string[] = [];
   let fellBackHere = false;
+  /*
+   * WHAT IS ON EITHER SIDE OF EACH READ, so a join can be told from
+   * a split. `playoutWindow` divides a segment wherever the answer
+   * changes AND wherever one has to be read in parts, and only the
+   * first of those is a transition. [C-34]
+   */
+  const whatsOn = reads.map((read) => whatIsOn(channel, read.atMs));
   for (const [ordinal, read] of reads.entries()) {
     const piece = `${target}.${ordinal}.part.ts`;
     /*
@@ -140,8 +150,39 @@ export async function produceSegment(
      */
     const level = read.offAir ? null : volumeFilter(
       gainOf(pathFor(channel, read.source) ?? '') ?? 0);
+    /*
+     * A DIP AT EACH END THAT IS A JOIN.  [§5, C-34]
+     *
+     * The incoming side is faded up when the piece BEFORE it is a
+     * different thing; the outgoing side faded down when the piece
+     * AFTER it is. A segment that is all one programme has neither,
+     * and the commonest segment is exactly that — so the filters
+     * are absent four times out of five and the encode is as it
+     * was.
+     *
+     * A BOUNDARY AT THE SEGMENT'S OWN EDGE IS NOT SEEN HERE, and
+     * that is a real limit rather than an oversight: the engine
+     * produces each segment independently, so the piece before this
+     * one is in a file that was written four seconds ago. Joins are
+     * dipped where they fall INSIDE a segment, which is most of
+     * them, and cut where they fall exactly on the boundary. Said
+     * plainly rather than papered over.
+     */
+    const mine = whatsOn[ordinal]!;
+    const before = ordinal > 0 ? whatsOn[ordinal - 1] : undefined;
+    const after = whatsOn[ordinal + 1];
+    const dip = {
+      inMs: before ? dipAt({
+        leaving: before, arriving: mine,
+        leavingMs: reads[ordinal - 1]!.durationMs, arrivingMs: read.durationMs,
+      }).inMs : 0,
+      outMs: after ? dipAt({
+        leaving: mine, arriving: after,
+        leavingMs: read.durationMs, arrivingMs: reads[ordinal + 1]!.durationMs,
+      }).outMs : 0,
+    };
     if (await encodePiece(channel, read, piece, factsOf, read.atMs - fromAt,
-      marks, canText, level, opts)) {
+      marks, canText, level, dip, opts)) {
       fellBackHere = true;
     }
     pieces.push(piece);
@@ -342,6 +383,8 @@ async function encodePiece(
   canText: boolean,
   /** The item's measured level correction, if anybody has one. [C-33] */
   gain: string | null,
+  /** How to dip in and out of this piece, if either end is a join. [C-34] */
+  dip: Dip,
   opts: RunOptions,
 /**
  * TRUE WHEN IT PUT BLACK OUT INSTEAD OF WHAT WAS ASKED FOR.
@@ -450,6 +493,18 @@ async function encodePiece(
       `pad=${STREAM.width}:${STREAM.height}:(ow-iw)/2:(oh-ih)/2`,
       `fps=${STREAM.fps}`,
       'setsar=1',
+      /*
+       * THE DIP, BEFORE THE MARKS AND NOT AFTER.  [§13, D-16, C-34]
+       *
+       * The bug and the lower third are composited onto the
+       * outgoing frame by this same chain, and a fade applied
+       * after them takes the station's own identity down with the
+       * picture. A viewer watching a channel dip between
+       * programmes sees the picture go and the bug stay, because
+       * the bug is the channel and the channel did not go
+       * anywhere.
+       */
+      ...fadeFilters(dip, read.durationMs),
       /* The identity, over the picture and never inside it. [§13, D-16] */
       ...markFilters(marks, canText),
     ].join(','),
@@ -465,7 +520,13 @@ async function encodePiece(
      * somebody has measured the file, and absent for ever on
      * generated silence, which has nothing to correct.
      */
-    ...(gain && (facts?.hasAudio ?? following) ? ['-af', gain] : []),
+    ...((() => {
+      const sound = [
+        ...(gain ? [gain] : []),
+        ...afadeFilters(dip, read.durationMs),
+      ];
+      return sound.length ? ['-af', sound.join(',')] : [];
+    })()),
     '-t', seconds,
     ...encodeArgs(offsetMs),
     out,
