@@ -17,6 +17,7 @@ import Brand from '../../Brand.js';
 import SignOut from '../../SignOut.js';
 import SourceTransport from './SourceTransport.js';
 import { useConfirm } from '../../Confirm.js';
+import { typingIn } from '../../../src/domain/keys.js';
 import { useMenu, type MenuEntry } from '../../Menu.js';
 import SearchPanel from './SearchPanel.js';
 import Stage, { StageStatus, type Stance } from './Stage.js';
@@ -594,15 +595,13 @@ export default function Studio({ conversationId }: { conversationId: string }) {
        * phase, so this is a second line of defence rather than the only one.
        */
       if (readerRef.current) return;
-      const target = event.target as HTMLElement | null;
       /*
-       * Anything the person is typing or reading into keeps its own keys.
-       * `isContentEditable` and `[role=textbox]` catch the editors that are
-       * not <textarea>, which the tag test alone misses.
+       * Anything the person is typing or reading into keeps its own
+       * keys. This studio's version of the test was the strongest of
+       * the three in the product — it is the one `domain/keys.ts`
+       * took, and it is asked from there now. [C-39]
        */
-      if (target && (/^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)
-        || target.isContentEditable
-        || target.closest('[data-keys="own"]'))) return;
+      if (typingIn(event.target as HTMLElement | null)) return;
       event.preventDefault();
       const current = phaseRef.current;
       if (current === 'recording') { resume(); return; }

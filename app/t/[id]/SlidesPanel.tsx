@@ -9,6 +9,7 @@ import {
   slideOnAir, slideSays, sourceForSlide, step, toCheck,
 } from '../../../src/domain/deck.js';
 import { useConfirm } from '../../Confirm.js';
+import { deckKey } from '../../../src/domain/keys.js';
 import {
   ACTION_SAFE, BACKGROUNDS, SLIDE_HEIGHT, SLIDE_WIDTH, TITLE_SAFE,
   type Background, type Focus,
@@ -506,6 +507,56 @@ export default function SlidesPanel({
     if (wanted) onShow(sourceForSlide(wanted));
   };
 
+  /*
+   * THE KEYS A GALLERY RUNS ON.  [§20, §5, C-39]
+   *
+   * This panel had none. Advancing a slide meant finding a 30px
+   * button with a mouse, on the one surface of this product that
+   * most resembles a vision mixer — and the person who most needs
+   * to advance a slide is standing up in front of a room with a
+   * clicker in their hand, which is a keyboard that sends Page
+   * Down.
+   *
+   * ONLY WHILE THERE IS SOMETHING TO DRIVE. Not live, or no deck,
+   * and the listener is not attached at all — so the arrows belong
+   * to whatever else wants them rather than being swallowed and
+   * ignored. A key that silently does nothing is worse than no key,
+   * because the operator cannot tell it from a key that did
+   * something they did not see.
+   *
+   * CAPTURE, so the page's other handlers cannot take an arrow
+   * mid-talk; and `pageTakes` inside `deckKey` hands it straight
+   * back the moment focus is in a field, on the layout row, or
+   * inside an open confirmation.
+   *
+   * AND RE-ATTACHED EVERY RENDER, deliberately. The handler has to
+   * read the slide that is on air NOW; a dependency list that
+   * missed one of the things it closes over would advance from
+   * where the deck was a moment ago, which is a wrong slide on the
+   * wire. Adding and removing one window listener per render costs
+   * nothing measurable and cannot go stale.
+   */
+  useEffect(() => {
+    if (!onAir || !deck) return undefined;
+    const onKey = (event: KeyboardEvent) => {
+      const wanted = deckKey(event, event.target as HTMLElement | null);
+      if (!wanted) return;
+      if (wanted === 'blank') {
+        /* Nothing of the deck is up: there is nothing to blank, and
+           taking the room down from here would be a key doing
+           something this panel never offered as a button. */
+        if (at < 0) return;
+        event.preventDefault();
+        onRollOut();
+        return;
+      }
+      event.preventDefault();
+      go(wanted === 'next' ? 1 : -1);
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  });
+
   return (
     <div data-testid="slides-panel" style={{
       display: 'flex', flexDirection: 'column', gap: 7,
@@ -618,7 +669,14 @@ export default function SlidesPanel({
             }}
             /* ARROW KEYS MOVE BETWEEN THEM, which is what a radiogroup
                promises and what an operator's hands expect of a row of
-               modes on a desk. */
+               modes on a desk.
+
+               AND THE PAGE DOES NOT ALSO TAKE THEM. The deck now
+               answers to the same two arrows, so this row says the
+               keys are its own — the opt-out the product has had a
+               reader for since the conversation studio was written
+               and a writer for since never. [C-39] */
+            data-keys="own"
             onKeyDown={(event) => {
               const by = event.key === 'ArrowRight' ? 1
                 : event.key === 'ArrowLeft' ? -1 : 0;
@@ -1263,6 +1321,9 @@ export default function SlidesPanel({
             <button
               className="small" data-testid="slide-back"
               disabled={!onAir || !step(deck, at, -1)}
+              /* THE KEY IS ON THE BUTTON THAT DOES THE SAME THING,
+                 which is the only place anybody looks for it. [C-39] */
+              title="Previous slide  (←  or Page Up)"
               onClick={() => go(-1)}
               style={{ flex: '0 0 auto', padding: '7px 11px', lineHeight: 0 }}
             ><Icon name="chevron" size={12} turn={180} /></button>
@@ -1276,7 +1337,8 @@ export default function SlidesPanel({
               className="small" data-testid="slide-next"
               disabled={!onAir || !step(deck, at, 1)}
               title={onAir
-                ? (step(deck, at, 1) ? 'Put the next slide on air'
+                ? (step(deck, at, 1)
+                  ? 'Put the next slide on air  (\u2192  or Page Down)'
                   : 'That is the last slide')
                 : 'Only while you are live'}
               onClick={() => go(1)}
@@ -1284,7 +1346,7 @@ export default function SlidesPanel({
             ><Icon name="chevron" size={12} /></button>
             <button
               className="small" data-testid="slide-blank" disabled={at < 0}
-              title="Take the slides down and go back to the room"
+              title="Take the slides down and go back to the room  (.)"
               onClick={onRollOut}
               style={{ flex: '0 0 auto', padding: '7px 10px', fontSize: 'var(--text-xs)' }}
             >Blank</button>

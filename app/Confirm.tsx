@@ -115,6 +115,21 @@ function ConfirmDialog({ ask, onClose }: { ask: Ask | null; onClose: () => void 
     <dialog
       ref={ref}
       data-testid="confirm-dialog"
+      /*
+       * THE PAGE'S KEYS STOP AT THE DIALOG.  [C-39]
+       *
+       * `<dialog>` traps focus, so the focused element while a
+       * confirmation is open is a BUTTON — not an input, not
+       * contenteditable — and every page-key handler in this
+       * product therefore fired straight through it. Pressing a
+       * number with a confirmation open cut to a take; pressing an
+       * arrow would have advanced a slide behind the question
+       * asking whether to delete one.
+       *
+       * One attribute, read by `typingIn`, on the element that
+       * contains all of them.
+       */
+      data-keys="own"
       onCancel={(event) => { event.preventDefault(); onClose(); }}
       /* The backdrop is outside the panel, so a click on it is a cancel. */
       onClick={(event) => { if (event.target === ref.current) onClose(); }}
