@@ -43,6 +43,8 @@ import { ffprobe } from '../render/ffmpeg.js';
 import { beat } from '../store/playoutHealth.js';
 import { produceSegment, type SourceFacts } from './segment.js';
 import { reconcileSenders, settle, stopAllSenders } from './send.js';
+import { measureLoudness } from '../render/ffmpeg.js';
+import { gainFor } from '../domain/loudness.js';
 import { type Aired, type Ran, fold } from '../domain/asRun.js';
 import { recordRan } from '../store/asRun.js';
 
@@ -70,6 +72,60 @@ const IDLE_MS = 1000;
  * file somebody can overwrite. [U-16]
  */
 const facts = new Map<string, SourceFacts | undefined>();
+
+/* ------------------------------------------------------------------------ *
+ *  How loud each item is.  [§5, §10, U-23, C-33]
+ * ------------------------------------------------------------------------ */
+
+/**
+ * The gain each file plays at, once somebody has measured it.
+ *
+ * MEASURED OFF THE CRITICAL PATH, which is the whole of the design
+ * here. Integrated loudness is a property of a WHOLE item — that is
+ * what makes it the right thing to normalise against, and it is also
+ * what makes measuring it cost a full decode. A forty-minute film
+ * takes a minute to scan, and a segment has four seconds to be
+ * ready: measuring inline would take the channel off the air to
+ * improve its audio, which is a trade nobody would choose.
+ *
+ * So the engine asks, carries on at the item's own level, and
+ * applies the gain from the pass after the answer lands. The first
+ * minutes of the first play of a new item are as they are today,
+ * and everything after is at the house loudness. A product that
+ * waited to be perfect would be a product that stuttered.
+ */
+const gains = new Map<string, number>();
+
+/** One at a time, because a scan is a full decode. */
+let measuring: Promise<void> = Promise.resolve();
+const asked = new Set<string>();
+
+/**
+ * Ask for an item's loudness, at most once, and never wait for it.
+ *
+ * QUEUED RATHER THAN PARALLEL. Six assets in a rotation would be six
+ * concurrent decodes on the box that also has to keep the channel on
+ * the air, and the engine would miss segments to measure the things
+ * it was late for.
+ */
+function wantLoudness(path: string): void {
+  if (asked.has(path)) return;
+  asked.add(path);
+  measuring = measuring.then(async () => {
+    const measured = await measureLoudness(path).catch(() => undefined);
+    if (!measured) return;
+    const gain = gainFor(measured);
+    gains.set(path, gain);
+    process.stdout.write(
+      `playout: ${path.split('/').pop()} is ${measured.lufs.toFixed(1)} LUFS, `
+      + `playing at ${gain >= 0 ? '+' : ''}${gain.toFixed(1)} dB\n`);
+  }).catch(() => undefined);
+}
+
+/** What this file should play at, or nothing if nobody has measured it. */
+export function gainOf(path: string): number | undefined {
+  return gains.get(path);
+}
 
 async function factsFor(path: string): Promise<SourceFacts | undefined> {
   if (facts.has(path)) return facts.get(path);
@@ -128,7 +184,10 @@ export async function advance(channel: Channel, nowMs = Date.now()): Promise<num
      */
     if (source.kind === 'media' && source.form === 'image') continue;
     const path = pathFor(channel, source);
-    if (path) await factsFor(path);
+    if (!path) continue;
+    const measured = await factsFor(path);
+    /* A still and a silent file have no loudness to correct. */
+    if (measured?.hasAudio) wantLoudness(path);
   }
 
   let made = 0;
@@ -138,7 +197,8 @@ export async function advance(channel: Channel, nowMs = Date.now()): Promise<num
       await access(target);
       continue;
     } catch { /* not there yet, which is why we are here. */ }
-    const aired = await produceSegment(channel, index, (path) => facts.get(path));
+    const aired = await produceSegment(
+      channel, index, (path) => facts.get(path), gainOf);
     await logAired(channel.id, aired);
     made += 1;
   }

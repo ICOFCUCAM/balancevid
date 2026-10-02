@@ -149,3 +149,57 @@ export async function canDrawText(bin = FFMPEG): Promise<boolean> {
 
 /** For a test that needs to ask a second binary. */
 export function forgetFilters(): void { known = null; }
+
+/* ------------------------------------------------------------------------ *
+ *  How loud is it?  [CHANNEL §5, §10, U-23, C-33]
+ * ------------------------------------------------------------------------ */
+
+/**
+ * Measure an item's integrated loudness and true peak, once.
+ *
+ * `ebur128` WITH `peak=true`, WHICH IS THE WHOLE MEASUREMENT. The
+ * summary lands on stderr at the end of a pass over the file, so the
+ * file is decoded once and discarded — `-f null -` writes nothing.
+ * That is a real cost on a long film, which is exactly why the
+ * caller caches it for the life of the process.
+ *
+ * TRUE PEAK, NOT SAMPLE PEAK. `peak=true` asks for both; the true
+ * peak is the one R128 writes its ceiling against, because a signal
+ * that only touches 0 dBFS at the samples can overshoot between them
+ * and every lossy codec downstream reconstructs the overshoot as
+ * clipping. Reading the sample peak and calling it true would be a
+ * ceiling that does not hold.
+ *
+ * NOTHING IS GUESSED WHEN IT FAILS. A file ffmpeg cannot decode, a
+ * build without the filter, a probe that times out — all return
+ * nothing, and the caller leaves the item's level alone. A guessed
+ * loudness is a gain applied to somebody's master on the strength of
+ * an assumption.
+ */
+export async function measureLoudness(
+  path: string,
+): Promise<{ lufs: number; truePeak: number } | undefined> {
+  let said: string;
+  try {
+    ({ stderr: said } = await ffmpegCapture([
+      '-nostdin', '-hide_banner', '-i', path,
+      '-map', '0:a:0', '-af', 'ebur128=peak=true',
+      '-f', 'null', '-',
+    ]));
+  } catch {
+    return undefined;
+  }
+  /*
+   * THE SUMMARY, NOT THE RUNNING COMMENTARY. `ebur128` prints a line
+   * per frame as it goes and a block at the end; the running lines
+   * also contain `I:` and would match a loose pattern, giving the
+   * loudness of whichever moment the regex happened to reach. The
+   * summary's own labels are indented and distinct, so they are what
+   * is read.
+   */
+  const summary = said.slice(said.lastIndexOf('Integrated loudness'));
+  const lufs = Number(/I:\s*(-?[\d.]+|-inf)\s*LUFS/.exec(summary)?.[1]);
+  const truePeak = Number(/Peak:\s*(-?[\d.]+|-inf)\s*dBFS/.exec(summary)?.[1]);
+  if (!Number.isFinite(lufs)) return undefined;
+  return { lufs, truePeak };
+}

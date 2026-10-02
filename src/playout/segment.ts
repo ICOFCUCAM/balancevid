@@ -38,6 +38,7 @@ import {
 } from '../render/ffmpeg.js';
 import { noteFailure, reasonFrom } from '../store/playoutHealth.js';
 import type { Aired } from '../domain/asRun.js';
+import { volumeFilter } from '../domain/loudness.js';
 import { paths } from '../store/paths.js';
 import { pathFor } from '../store/playoutSources.js';
 
@@ -77,6 +78,8 @@ export interface SourceFacts {
 export async function produceSegment(
   channel: Channel, index: number,
   factsOf: (path: string) => SourceFacts | undefined,
+  /** What each file plays at, measured elsewhere. [C-33] */
+  gainOf: (path: string) => number | undefined = () => undefined,
   opts: RunOptions = {},
 /**
  * WHAT IT ACTUALLY PUT OUT, for the as-run.  [§5, C-32]
@@ -135,8 +138,10 @@ export async function produceSegment(
      * inside the segment, so the pieces are one continuous timeline before
      * they are joined rather than two clips that each start at zero.
      */
-    if (await encodePiece(
-      channel, read, piece, factsOf, read.atMs - fromAt, marks, canText, opts)) {
+    const level = read.offAir ? null : volumeFilter(
+      gainOf(pathFor(channel, read.source) ?? '') ?? 0);
+    if (await encodePiece(channel, read, piece, factsOf, read.atMs - fromAt,
+      marks, canText, level, opts)) {
       fellBackHere = true;
     }
     pieces.push(piece);
@@ -335,6 +340,8 @@ async function encodePiece(
   offsetMs: number,
   marks: Mark[],
   canText: boolean,
+  /** The item's measured level correction, if anybody has one. [C-33] */
+  gain: string | null,
   opts: RunOptions,
 /**
  * TRUE WHEN IT PUT BLACK OUT INSTEAD OF WHAT WAS ASKED FOR.
@@ -448,6 +455,17 @@ async function encodePiece(
     ].join(','),
     '-map', '0:v:0',
     '-map', (facts?.hasAudio ?? following) ? '0:a:0' : '1:a:0',
+    /*
+     * THE ITEM'S OWN LEVEL, CORRECTED.  [§5, §10, C-33]
+     *
+     * One constant gain, measured over the whole item somewhere
+     * else and applied here — not `loudnorm`, which over four
+     * seconds normalises each segment to its own contents and makes
+     * the programme breathe at every boundary. Absent until
+     * somebody has measured the file, and absent for ever on
+     * generated silence, which has nothing to correct.
+     */
+    ...(gain && (facts?.hasAudio ?? following) ? ['-af', gain] : []),
     '-t', seconds,
     ...encodeArgs(offsetMs),
     out,

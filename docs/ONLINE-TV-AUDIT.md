@@ -210,7 +210,7 @@ Not everything below is worth fixing. It is the honest distance.
 | **Fault reporting** | ~~Silent fallback to black~~ **Render failures counted (C-24), black picture alarmed (C-28)** | Alarms on encoder failure, dropped frames, bitrate floor |
 | **Latency** | ~12 s | 2–8 s typical, sub-second with WebRTC egress |
 | **Transitions** | Cut only | Dissolve, wipe, stinger |
-| **Audio** | Per-source meters and a master | Per-source EQ, compression, ducking, loudness to −23 LUFS |
+| **Audio** | Per-source meters, a master, and ~~no~~ **every item measured and played at −23 LUFS (C-33)** | Per-source EQ, compression, ducking |
 | **Graphics** | Bug, lower third, NEXT | Full template engine, data-bound tickers, crawls |
 | **Recording** | Optional, one file | Always-on ISO recording per source |
 | **As-run** | ~~None~~ **A log of what transmitted, as JSON or CSV (C-32)** | A log of what actually transmitted, which broadcasters need |

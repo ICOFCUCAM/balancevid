@@ -4174,3 +4174,125 @@ escaping — the CSV quoting and the header — and those two are worth
 the second attempt: a title with a comma in it is a title and not two
 columns, and a file whose first line is data is a file somebody will
 read one row short.
+
+---
+
+## C-33 — Stage 33: every programme at the same loudness
+
+The audit: *"Audio | Per-source meters and a master | Per-source EQ,
+compression, ducking, loudness to −23 LUFS."* Of those four, loudness
+is the one that is a **requirement** rather than a refinement — EBU
+R128 and ATSC A/85 are law for broadcasters — and the complaint they
+exist to answer is the one every viewer has.
+
+### This channel is the case the standard was written for
+
+It cuts between a Studio Two music video, mastered loud the way music
+is, and a Studio One conversation recorded on whatever microphone
+somebody had. **Measured on the author's own library:**
+
+| | measured | gain | after |
+|---|---|---|---|
+| `asset_fe37…` | −17.7 LUFS | −5.3 dB | −23.0 |
+| `asset_84fa…` | −28.1 LUFS | **+5.1 dB** | −23.0 |
+| `asset_8f79…` | −16.0 LUFS, peak **+0.8 dBTP** | −7.0 dB | −23.0 |
+
+**A 12.1 LU spread**, and one file already over full scale before
+anything downstream touches it. That is the viewer reaching for the
+remote at every join, and it was not a hypothesis — it is what the
+files say.
+
+### A static gain per item, not `loudnorm` on the way out
+
+`loudnorm` is the obvious thing and the wrong one. This engine emits
+**four seconds at a time**, and single-pass loudnorm over four
+seconds normalises each segment to its own contents — a quiet passage
+pushed up, the next segment's loud passage pushed down, and the
+programme audibly breathing at every segment boundary. A dynamic
+normaliser does the same more smoothly and is still a compressor
+nobody asked for on somebody's master.
+
+What a playout system actually does is measure the whole item once,
+store one number, and apply it as a constant offset for as long as
+that item plays. The dynamics of the mix survive untouched; only its
+level moves.
+
+### Three judgements, and the one that decides the others
+
+**The peak wins.** A quiet item that is also peaky cannot be both
+brought to −23 and kept under −1 dBTP; the constraints disagree and
+the ceiling is the one that must hold, because being two decibels
+quiet is a thing a viewer does not notice and clipping is a thing
+they do. So the gain is reduced and the item plays slightly under
+target. The alternative — hold the loudness, limit the peaks — is
+dynamics processing on somebody's master, which is exactly what
+measuring beforehand exists to avoid.
+
+**Twelve decibels of lift and no more.** The gain applies to
+everything in the file, so lifting a −41 LUFS recording eighteen
+decibels lifts its room tone and hiss by eighteen too. Past about
+twelve the noise is louder than the programme was. A very quiet item
+stays quiet, deliberately, rather than the channel pretending it
+fixed something. There is no cap on turning something **down**:
+reducing a signal cannot introduce anything that was not already in
+it.
+
+**Silence is left alone.** `ebur128` reports −70 or lower for a gate
+that never opened, and a gain computed against that is forty-seven
+decibels of hiss.
+
+### Measured off the critical path, which is the whole of the design
+
+Integrated loudness is a property of a WHOLE item — that is what
+makes it the right thing to normalise against, and it is also what
+makes measuring it cost a full decode. A forty-minute film takes a
+minute to scan and a segment has four seconds to be ready: measuring
+inline would take the channel off the air to improve its audio, which
+is a trade nobody would choose.
+
+So the engine asks, carries on at the item's own level, and applies
+the gain from the pass after the answer lands. The first minutes of
+the first play of a new item are as they are today; everything after
+is at the house loudness. Queued one at a time, because six assets in
+a rotation would be six concurrent decodes on the box that also has
+to keep the channel on the air.
+
+### Verified against real ffmpeg, on real content
+
+    source                 -17.6 LUFS   peak -1.3
+    apply volume=-5.3dB    (the engine's own gain)
+    result                 -22.9 LUFS   peak -6.4
+
+Within 0.1 LU of target, and the peak well clear of the ceiling. The
+engine's own log, running against the author's channel:
+
+    playout: master.mp4 is -18.5 LUFS, playing at -4.5 dB
+    playout: master.mp4 is -17.7 LUFS, playing at -5.3 dB
+    playout: master.mp4 is -18.2 LUFS, playing at -4.8 dB
+
+### The record
+
+Nineteen assertions, thirteen mutations, all thirteen caught.
+
+One survived at first and it was a real gap in the test rather than
+the code: the ceiling's own value. Every assertion compared the
+arithmetic against `CEILING_DBTP`, so moving the constant was
+invisible — and −1 dBTP is a **standards claim**, not an
+implementation detail. It is asserted as a number now, for the reason
+R128 gives it: a lossy codec reconstructs overshoots the original
+never had.
+
+### What is still not done
+
+The other three in the audit's row — per-source EQ, compression and
+ducking — are not here and are not planned. They are a mixing desk's
+job and this is a transmission chain; a product that quietly
+compressed somebody's master would be doing the thing this stage
+spent its whole design avoiding.
+
+**Not measured in this container:** what a produced segment itself
+reads. ffmpeg segfaults probing MPEG-TS here — the same quirk C-28
+hit — so the chain was verified one step earlier, by applying the
+engine's own gain through real ffmpeg to the real source and
+measuring the result. The first thing to check on a machine that can
+probe a `.ts` is a transmitted segment.
