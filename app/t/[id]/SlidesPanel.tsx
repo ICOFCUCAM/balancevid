@@ -5,10 +5,13 @@ import Icon from '../../Icon.js';
 import type { Channel, ProgrammeSource } from '../../../src/domain/channel.js';
 import {
   type Deck, type House, type Slide,
-  deckStanding, slideOnAir, sourceForSlide, step, toCheck,
+  deckStanding, losingDeck, losingSlide, losingWriting,
+  slideOnAir, slideSays, sourceForSlide, step, toCheck,
 } from '../../../src/domain/deck.js';
+import { useConfirm } from '../../Confirm.js';
 import {
-  BACKGROUNDS, SLIDE_HEIGHT, SLIDE_WIDTH, type Background, type Focus,
+  ACTION_SAFE, BACKGROUNDS, SLIDE_HEIGHT, SLIDE_WIDTH, TITLE_SAFE,
+  type Background, type Focus,
   type SlideSpec, slideHtml, slideProblems,
 } from '../../../src/render/slideDesign.js';
 
@@ -125,8 +128,23 @@ export default function SlidesPanel({
   /** Shown for a moment after a slide lands, so the press has an answer. */
   const [added, setAdded] = useState(false);
   const [help, setHelp] = useState(false);
+  /*
+   * OFF UNTIL ASKED FOR. The guides are a measuring instrument, not
+   * part of the picture, and a preview permanently crossed with two
+   * rectangles is a preview that no longer shows what goes out.
+   * [§27, C-38]
+   */
+  const [guides, setGuides] = useState(false);
   const file = useRef<HTMLInputElement | null>(null);
   const modes = useRef<HTMLDivElement | null>(null);
+  /*
+   * THE PRODUCT'S OWN DIALOG, WHICH THIS PANEL NEVER USED.  [D-04, C-37]
+   *
+   * Nine surfaces ask before something irreversible. The one used
+   * BETWEEN TWO CUES, with a Remove that deletes a picture out of the
+   * library on a single press, asked nothing at all.
+   */
+  const { confirm, dialog: confirmDialog } = useConfirm();
 
   const read = useCallback(async () => {
     try {
@@ -451,6 +469,37 @@ export default function SlidesPanel({
     } finally { setBusy(false); }
   };
 
+  /**
+   * Throw a deck away.  [§19, D-04, C-37]
+   *
+   * THE ROUTE HAS BEEN THERE SINCE THE DECK STORE WAS WRITTEN AND
+   * NOTHING CALLED IT. A deck could be made and never unmade, so
+   * every upload and every mistaken one stayed for ever — and a
+   * DELETE that no surface reaches is the same shape of gap as a
+   * predicate nothing calls. Reached now, behind the dialog, because
+   * this is the one deletion in the product that really does take
+   * media with it.
+   */
+  const scrap = async (which: Deck) => {
+    setBusy(true);
+    try {
+      const response = await fetch(`/api/decks/${which.id}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) {
+        /* A slide may be somebody's safe playlist, and the route says
+           so rather than taking it. [D-23] */
+        setNote((await response.json().catch(() => ({}))).error
+          ?? 'that deck could not be thrown away');
+        return;
+      }
+      setChosen(null);
+      setOpened(null);
+      setNote(null);
+      await read();
+    } finally { setBusy(false); }
+  };
+
   const go = (by: 1 | -1) => {
     if (!deck) return;
     const wanted = step(deck, at, by);
@@ -462,6 +511,7 @@ export default function SlidesPanel({
       display: 'flex', flexDirection: 'column', gap: 7,
       borderTop: '1px solid var(--line)', paddingTop: 9, marginTop: 2,
     }}>
+      {confirmDialog}
       <div className="row" style={{ flexWrap: 'nowrap' }}>
         <span className="muted grow" style={{
           fontSize: 'var(--text-2xs)', letterSpacing: 0.8, fontWeight: 700,
@@ -499,17 +549,39 @@ export default function SlidesPanel({
           a slide you can put on air.
         </p>
       ) : (
-        <select
-          data-testid="deck-choice" value={chosen ?? ''}
-          onChange={(event) => setChosen(event.target.value)}
-          style={{ fontSize: 'var(--text-sm)', padding: '6px 9px' }}
-        >
-          {decks.map((candidate) => (
-            <option key={candidate.id} value={candidate.id}>
-              {candidate.title} ({candidate.slides.length})
-            </option>
-          ))}
-        </select>
+        <div className="row" style={{ gap: 5, flexWrap: 'nowrap' }}>
+          <select
+            className="grow"
+            data-testid="deck-choice" value={chosen ?? ''}
+            onChange={(event) => setChosen(event.target.value)}
+            style={{ fontSize: 'var(--text-sm)', padding: '6px 9px',
+              minWidth: 0 }}
+          >
+            {decks.map((candidate) => (
+              <option key={candidate.id} value={candidate.id}>
+                {candidate.title} ({candidate.slides.length})
+              </option>
+            ))}
+          </select>
+          {/*
+            * AND A WAY TO UNMAKE ONE, at last. A deck could be made and
+            * never thrown away — the DELETE route has been there since
+            * the store was written and no surface reached it, so every
+            * upload and every mistaken one stayed for ever. [D-19, C-37]
+            */}
+          {deck && (
+            <button
+              type="button" className="small" disabled={busy}
+              data-testid="deck-remove"
+              onClick={() => confirm({
+                ...losingDeck(deck), danger: true,
+                go: () => { void scrap(deck); },
+              })}
+              style={{ flex: '0 0 auto', padding: '5px 9px',
+                fontSize: 'var(--text-2xs)', color: 'var(--bad)' }}
+            >Throw away</button>
+          )}
+        </div>
       )}
 
       {/*
@@ -598,6 +670,7 @@ export default function SlidesPanel({
           <Stage
             label="PREVIEW" tone={empty ? 'idle' : 'preview'}
             empty="Write something and it appears here"
+            guides={guides} onGuides={setGuides}
             {...(empty ? {} : { html: slideHtml(draft, pictureUrl) })}
           />
 
@@ -958,9 +1031,10 @@ export default function SlidesPanel({
               const live = index === at;
               const open = opened === one.assetId;
               const stands = standings[index];
-              const says = one.spec?.heading?.trim()
-                || one.spec?.body?.trim().split('\n')[0]
-                || `Page ${one.page}`;
+              /* The same words the confirmation uses, so the person
+                 checking which slide they are about to destroy is not
+                 comparing two labels. [C-37] */
+              const says = slideSays(one);
               return (
                 <div key={one.assetId} style={{
                   display: 'flex', flexDirection: 'column', gap: 2,
@@ -1095,7 +1169,21 @@ export default function SlidesPanel({
                           <button
                             type="button" className="small" disabled={busy}
                             data-testid="rundown-edit"
-                            onClick={() => take(one, true)}
+                            /* CORRECT FILLS EVERY FIELD FROM THE STORED
+                               DEFINITION, so a half-written slide in the
+                               boxes goes with no press that said so.
+                               Asked only where there is something to
+                               lose. [C-37] */
+                            onClick={() => {
+                              if (empty || editing === one.assetId) {
+                                take(one, true);
+                                return;
+                              }
+                              confirm({
+                                ...losingWriting(one), danger: true,
+                                go: () => take(one, true),
+                              });
+                            }}
                             style={{ padding: '3px 8px',
                               fontSize: 'var(--text-2xs)' }}
                           >Correct</button>
@@ -1112,7 +1200,14 @@ export default function SlidesPanel({
                       <button
                         type="button" className="small" disabled={busy}
                         data-testid="rundown-remove"
-                        onClick={() => { void drop(one); }}
+                        /* THE PICTURE IS DELETED BY THE ROUTE AND THERE
+                           IS NO TRASH. On air, it is deleted out from
+                           under the transmitter. [D-04, C-37] */
+                        onClick={() => confirm({
+                          ...losingSlide(deck, one.assetId, live),
+                          danger: true,
+                          go: () => { void drop(one); },
+                        })}
                         style={{ padding: '3px 8px',
                           fontSize: 'var(--text-2xs)', color: 'var(--bad)' }}
                       >Remove</button>
@@ -1225,11 +1320,14 @@ export default function SlidesPanel({
  * see. They are the house colours for exactly those (§6), so an
  * operator reads this the way they read every other tally here.
  */
-function Stage({ html, label, tone, empty }: {
+function Stage({ html, label, tone, empty, guides, onGuides }: {
   html?: string;
   label: string;
   tone: 'preview' | 'program' | 'idle';
   empty?: string;
+  /** Draw the two broadcast boxes over the picture. [§27, C-38] */
+  guides?: boolean;
+  onGuides?: (next: boolean) => void;
 }) {
   const box = useRef<HTMLDivElement | null>(null);
   const [scale, setScale] = useState(0);
@@ -1255,6 +1353,20 @@ function Stage({ html, label, tone, empty }: {
           color: tone === 'idle' ? 'var(--muted)' : edge,
         }}>{label}</span>
         <span className="grow" />
+        {onGuides && (
+          <button
+            type="button" className="small" data-testid="stage-guides"
+            aria-pressed={guides === true}
+            title="Show the action-safe and title-safe boxes"
+            onClick={() => onGuides(!guides)}
+            style={{
+              padding: '2px 6px', fontSize: 'var(--text-2xs)',
+              border: `1px solid ${guides ? 'var(--accent)' : 'var(--line)'}`,
+              background: guides ? 'var(--accent-wash)' : 'transparent',
+              color: guides ? 'inherit' : 'var(--muted)',
+            }}
+          >Safe area</button>
+        )}
         <span className="muted" style={{ fontSize: 'var(--text-2xs)' }}>16:9</span>
       </div>
       <div
@@ -1283,7 +1395,57 @@ function Stage({ html, label, tone, empty }: {
             placeItems: 'center', fontSize: 'var(--text-xs)',
           }}>{empty ?? 'Nothing yet'}</span>
         )}
+        {/*
+          * THE TWO BOXES, DRAWN HERE AND NEVER BY THE RENDERER.
+          * [§27, C-38]
+          *
+          * This is the measuring instrument, not part of the
+          * picture. It is a sibling of the iframe in the control
+          * room's own document, so there is no path by which it can
+          * reach `slideHtml` and therefore none by which it can
+          * reach the wire — which is the whole safety property, and
+          * the test that holds it is on the renderer rather than
+          * here.
+          *
+          * AS PERCENTAGES, so they survive the scale. The stage is
+          * the frame at whatever width the panel is; 5% of it is
+          * action safe at any size, and a pixel inset computed from
+          * 1920 would be wrong the moment the column moved.
+          *
+          * The words inside a slide are already clipped to title
+          * safe and cannot leave it. WHAT THESE ARE FOR IS THE
+          * PICTURE: a full-bleed photograph runs to the frame edge
+          * by design, and the Top / Centre / Bottom control decides
+          * which part of it survives — a choice nobody could make
+          * well without seeing where the lines fall on the face.
+          */}
+        {guides && html && (
+          <div data-testid="safe-guides" aria-hidden="true" style={{
+            position: 'absolute', inset: 0, pointerEvents: 'none',
+          }}>
+            <div data-testid="guide-action" style={{
+              position: 'absolute',
+              inset: `${ACTION_SAFE * 100}%`,
+              border: '1px dashed rgba(255,255,255,0.42)',
+            }} />
+            <div data-testid="guide-title" style={{
+              position: 'absolute',
+              inset: `${TITLE_SAFE * 100}%`,
+              border: '1px solid rgba(255,255,255,0.62)',
+            }} />
+          </div>
+        )}
       </div>
+      {guides && html && (
+        <p className="muted" style={{
+          margin: 0, fontSize: 'var(--text-2xs)', lineHeight: 1.4,
+        }}>
+          {/* Said once, because two unlabelled rectangles are a
+              puzzle rather than a guide. */}
+          Dashed: action safe — nothing meaningful outside it. Solid:
+          title safe — where text goes.
+        </p>
+      )}
     </div>
   );
 }

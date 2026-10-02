@@ -294,8 +294,17 @@ export function slideHtml(spec: SlideSpec, pictureUrl?: string): string {
   .plate-box img{display:block;max-width:100%;
     max-height:${SLIDE_HEIGHT - 2 * SAFE_Y}px;object-fit:contain}
   .hole{opacity:0.4;font-size:${TYPE.caption}px}
+  /* ON THE TITLE-SAFE LINE, NOT BELOW IT.  [§27, C-38]
+     This row is positioned absolutely and is the one thing on a
+     slide drawn OUTSIDE the safe box. It was tucked down to 56% of
+     the title-safe margin, which put the credit and the station's
+     own name 44px outside the box the constants say text never
+     leaves. Measured on a real render: ink at 64px from the bottom
+     of 1080, against a title-safe line at 108.
+     Prevented-by-construction was true of everything inside the
+     safe box and false of the one thing beside it. */
   .foot{position:absolute;left:${SAFE_X}px;right:${SAFE_X}px;
-    bottom:${Math.round(SAFE_Y * 0.56)}px;display:flex;
+    bottom:${SAFE_Y}px;display:flex;
     justify-content:space-between;gap:${STEP.apart}px;
     font-size:${TYPE.source}px;opacity:0.55;letter-spacing:0.04em}
   .mark{text-transform:uppercase;letter-spacing:0.18em;font-weight:700}

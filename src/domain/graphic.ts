@@ -40,6 +40,28 @@ export const SLIDE_HEIGHT = 1080;
  * "content outside the safe area" check: it is prevented rather than
  * detected, and what IS detected is the text being too long to fit
  * inside it, which is the same fault one step earlier. [§27]
+ *
+ * THAT WAS TRUE OF EVERYTHING THE CLIP CONTAINED AND FALSE OF THE ONE
+ * ROW BESIDE IT.  [C-38]
+ *
+ * `.foot` — the credit and the station's own name — is positioned
+ * absolutely, outside the clipped box, and sat at 56% of the
+ * title-safe margin: measured on a real render, ink at 64px from the
+ * bottom of 1080 against a line at 108. Prevention by clipping only
+ * prevents what is inside the thing that clips.
+ *
+ * So there are two mechanisms now and a test for the second: content
+ * is clipped, and the one row outside the clip is asserted to sit on
+ * the line. Anything else positioned absolutely fails that test,
+ * which is the point of it — the next row added outside the box has
+ * to say where it sits rather than inheriting a guarantee it is not
+ * covered by.
+ *
+ * AND `ACTION_SAFE` IS THE EDITOR'S, NOT THE RENDERER'S. Nothing in a
+ * composition is positioned against it, because a picture may run to
+ * the frame edge by design. It is what the preview's safe-area guides
+ * draw, so an author choosing which part of a full-bleed photograph
+ * survives can see where the lines fall. [C-38]
  */
 export const ACTION_SAFE = 0.05;
 export const TITLE_SAFE = 0.10;
