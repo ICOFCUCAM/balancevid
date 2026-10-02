@@ -92,3 +92,49 @@ export function clockAt(channel: Channel, atMs: number): string | undefined {
     return undefined;
   }
 }
+
+/**
+ * What the VIEWER is told is on.  [§2, §9, D-04, TV-NETWORK N-2]
+ *
+ * THE THIRD ANSWER TO ONE QUESTION, and the three differ on
+ * purpose:
+ *
+ * | function | audience | `off` reads |
+ * |---|---|---|
+ * | `onAirTitle` | the wire | the channel's name |
+ * | `viewerTitle` | a viewer | `Off air` |
+ * | the control room's `titleOf` | the operator | `Off air` |
+ *
+ * `onAirTitle` says the channel's name when nothing is on because
+ * it goes UNDER THE BUG, where "Off air" would be a caption on a
+ * black frame nobody is watching. A viewer reading a listing is
+ * asking a different question — *is there anything on* — and the
+ * honest answer to that is "Off air".
+ *
+ * IT LIVED INSIDE `/api/channels/<id>/now`, which was fine while
+ * one endpoint asked it. The directory, the guide, the station page
+ * and every future client all need exactly this answer, and a
+ * fourth copy is how they come to disagree about what a channel is
+ * showing. Moved before they are written rather than after. [D-19]
+ *
+ * A SLOT WITH NO TITLE IS THE CHANNEL'S NAME, not the document id
+ * behind it. Falling back to `render conv_a1b2c3…` would leak an
+ * identifier through the one hole a careful route left open, and
+ * the channel's name is what a listing without a title says anyway.
+ */
+export function viewerTitle(channel: Channel, on: OnAir): string {
+  switch (on.kind) {
+    case 'off': return 'Off air';
+    case 'live': return on.session.segment ? channel.name : 'Live';
+    case 'programme': return on.programme.title ?? channel.name;
+    case 'rotation': return on.entry.title ?? channel.name;
+    /*
+     * An emergency or a failover is NOT ANNOUNCED. The viewer is
+     * being shown a caption card because something went wrong
+     * behind it, and a channel that captioned its own fault
+     * "BACKUP" would be telling them about a problem they cannot
+     * do anything about. [§9]
+     */
+    default: return channel.name;
+  }
+}

@@ -15,6 +15,7 @@ import { describe, expect, it } from 'vitest';
 
 import { MOST_SAID, bodyOf, saysFor } from '../../src/domain/saidBy.js';
 import { deckRefusalFor } from '../../src/domain/deletion.js';
+import { onAirTitle, viewerTitle } from '../../src/domain/onAir.js';
 
 describe('the parser is never the messenger (C-49)', () => {
   /*
@@ -211,5 +212,63 @@ describe('a deck still needs its pages (C-49)', () => {
   it('has something to call a deck with no name', () => {
     const said = deckRefusalFor([{ title: '', slides: [{ assetId: 'a' }] }], 'a')!;
     expect(said).toContain('untitled deck');
+  });
+});
+
+describe('three answers to "what is on" (N-2)', () => {
+  /*
+   * THEY DIFFER ON PURPOSE, and the difference is the audience.
+   * `onAirTitle` goes UNDER THE BUG, where "Off air" would be a
+   * caption on a black frame nobody is watching; a viewer reading
+   * a listing is asking whether there is anything on, and the
+   * honest answer to that is "Off air".
+   */
+  const channel = { name: 'REdemption TV' } as never;
+
+  it('tells the wire and the viewer different things about silence', () => {
+    expect(onAirTitle(channel, { kind: 'off' })).toBe('REdemption TV');
+    expect(viewerTitle(channel, { kind: 'off' })).toBe('Off air');
+  });
+
+  /* And the same thing about everything else, which is why one
+     copy of each is enough and a fourth would be a disagreement. */
+  it('agrees with itself everywhere else', () => {
+    const film = { kind: 'media', assetId: 'a', form: 'video' } as never;
+    for (const on of [
+      { kind: 'programme', programme: { title: 'Worship' }, source: film,
+        fromMs: 0, untilMs: 1 },
+      { kind: 'rotation', entry: { title: 'Ident' }, source: film,
+        fromMs: 0, untilMs: 1 },
+      { kind: 'emergency', source: film, fromMs: 0 },
+      { kind: 'backup', source: film, fromMs: 0 },
+    ] as never[]) {
+      expect(viewerTitle(channel, on)).toBe(onAirTitle(channel, on));
+    }
+  });
+
+  /*
+   * AN EMERGENCY IS NOT ANNOUNCED. The viewer is shown a caption
+   * card because something went wrong behind it, and a channel
+   * that captioned its own fault "BACKUP" would be telling them
+   * about a problem they cannot do anything about. [§9]
+   */
+  it('never names the fault to the viewer', () => {
+    const film = { kind: 'media', assetId: 'a', form: 'video' } as never;
+    for (const kind of ['emergency', 'backup'] as const) {
+      const said = viewerTitle(channel, { kind, source: film, fromMs: 0 } as never);
+      expect(said).toBe('REdemption TV');
+      expect(said.toLowerCase()).not.toContain('backup');
+      expect(said.toLowerCase()).not.toContain('emergency');
+    }
+  });
+
+  /* An untitled slot is the channel's name, never the id behind it. */
+  it('never leaks an identifier through an untitled slot', () => {
+    const source = { kind: 'render', document: 'conversation',
+      documentId: 'conv_a1b2c3', planHash: 'x' } as never;
+    const said = viewerTitle(channel,
+      { kind: 'rotation', entry: { id: 'r1' }, source, fromMs: 0, untilMs: 1 } as never);
+    expect(said).toBe('REdemption TV');
+    expect(said).not.toContain('conv_');
   });
 });
