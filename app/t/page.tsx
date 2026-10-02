@@ -3,7 +3,7 @@ import {
   nextAfter, orderedProgrammes, programmeStart, whatIsOn,
 } from '../../src/domain/channel.js';
 import type { Channel } from '../../src/domain/channel.js';
-import { engineState, healthSentence, streamState } from '../../src/domain/health.js';
+import { airState, engineState, healthSentence, streamState } from '../../src/domain/health.js';
 import { newestSegmentAt, readBeat } from '../../src/store/playoutHealth.js';
 import { PLATFORMS, type DestinationKind } from '../../src/domain/distribution.js';
 import { roomFor } from '../../src/domain/rooms.js';
@@ -78,6 +78,18 @@ export default async function OnlineTvPage() {
               : on.kind === 'backup' ? 'the backup' : null,
       /** And whether the transmitter agrees. */
       transmitting: stream === 'transmitting',
+      /*
+       * THE TWO, RECONCILED.  [§18, §5, D-04, C-31]
+       *
+       * `transmitting` asks the transmitter and `showing` asks the
+       * schedule, and the card put one beside the other with nothing
+       * saying they were different questions: an off-air channel
+       * with the engine running read *"ON AIR"* above *"Nothing
+       * currently on air"*, which is what the author saw. Both were
+       * true. `airState` is the one place that decides what the
+       * pair means.
+       */
+      air: airState(stream, on.kind !== 'off'),
       health: healthSentence(engine, stream, 'operator'),
       next: coming
         ? { title: coming.title ?? 'a programme', at: programmeStart(coming) }

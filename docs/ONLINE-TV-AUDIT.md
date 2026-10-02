@@ -150,6 +150,15 @@ Two concrete gaps rather than opinions:
 fragment target a one-second highlight. That is a small change and it
 turns six identical-looking buttons into six visibly different ones.
 
+### Fixed — see CHANNEL C-30
+
+All three are done, and a fourth thing turned out to be wrong: two of
+the four fragment targets were `display: contents` anchors with no
+box, so there was nothing to scroll to and nothing to highlight. Each
+fragment now names a real panel. The table of fragments lives in the
+domain and the test walks it against both the links and the targets,
+so a renamed tab is a failing test rather than a dead link.
+
 ---
 
 ## 4. Social media: there is nothing to set up yet
@@ -196,9 +205,9 @@ Not everything below is worth fixing. It is the honest distance.
 
 | | BalanceVid today | What a vMix / Wirecast / Restream operator expects |
 |---|---|---|
-| **Multistreaming** | One output, its own HLS | Simultaneous RTMP to many platforms, per-destination bitrate |
-| **Confidence monitor** | Operator's own canvas only | A return feed of what is actually going out — the fault in §1 would have been seen in seconds |
-| **Fault reporting** | Silent fallback to black | Alarms on encoder failure, dropped frames, bitrate floor |
+| **Multistreaming** | ~~One output, its own HLS~~ **RTMP to any 16:9 ingest (C-29)** | Simultaneous RTMP to many platforms, per-destination bitrate |
+| **Confidence monitor** | ~~Operator's own canvas only~~ **The transmission, sampled, in the corner (C-28)** | A return feed of what is actually going out — the fault in §1 would have been seen in seconds |
+| **Fault reporting** | ~~Silent fallback to black~~ **Render failures counted (C-24), black picture alarmed (C-28)** | Alarms on encoder failure, dropped frames, bitrate floor |
 | **Latency** | ~12 s | 2–8 s typical, sub-second with WebRTC egress |
 | **Transitions** | Cut only | Dissolve, wipe, stinger |
 | **Audio** | Per-source meters and a master | Per-source EQ, compression, ducking, loudness to −23 LUFS |
@@ -211,11 +220,20 @@ Not everything below is worth fixing. It is the honest distance.
 
 1. **Count and surface the black fallback** (§1.3). Smallest change,
    largest reduction in the risk of broadcasting nothing.
+   **Done — CHANNEL C-24.**
 2. **A confidence monitor** — the transmission, 12 s late, in a corner
    of the control room, clearly labelled as the delayed one. The player
    already exists on the watch page; this is reusing it.
+   **Done — CHANNEL C-28.**
 3. **Generic RTMP out** (§4.1). Turns a one-channel product into a
    multistreaming one with no platform negotiation.
+   **Done — CHANNEL C-29.**
+
+All three are in. What each one actually cost, against what this
+section guessed, is in its own record; the two worth knowing are that
+the confidence monitor found its own threshold written in the wrong
+colour space, and that RTMP out turned out to be mostly a question
+about where a credential lives rather than about ffmpeg.
 
 ---
 
@@ -235,3 +253,27 @@ and both are reported rather than diagnosed.
 Each needs one reading of `/api/channels/{id}` while the state is live
 to settle. Neither should be guessed at from a screenshot, including by
 me.
+
+### Settled — see CHANNEL C-31
+
+Measured rather than guessed, and they turned out to be **one fault
+wearing two coats**: a surface showing the answer to one question
+beside the answer to another, with nothing saying they were different
+questions.
+
+* **ON AIR beside "Nothing currently on air".** `transmitting` asks
+  the TRANSMITTER; `showing` asks the SCHEDULE. An off-air channel
+  with the engine running satisfies the first and not the second,
+  because `segment.ts` keeps writing black so players do not treat
+  the gap as the end of the stream. Both halves were true. Reproduced
+  by construction, not inferred.
+* **A full timeline against "0 scheduled · no loop".** Only a
+  programme and a turn of the loop know when they end, so the walker
+  advanced by five minutes for everything else and pushed a block
+  each time. An empty channel drew a day of five-minute items, every
+  one of them nothing. **A step is not a structure.**
+
+Measured before and after on the same data: an empty channel with the
+engine running read `ON AIR` and drew ~72 blocks across six hours; it
+now reads `ON AIR · BLANK` and draws **one**. The author's real
+channel is unchanged at 26 stretches.
