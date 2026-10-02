@@ -152,6 +152,30 @@ export function colourOr(value: string | undefined, fallback: string): string {
   return value && HEX.test(value) ? value : fallback;
 }
 
+/**
+ * Two colours written differently are still one colour.  [C-36]
+ *
+ * `#FFF`, `#fff` and `#ffffff` are the same white, and a deck checked
+ * for drifted identity has to compare what was drawn against what the
+ * channel is now — so a comparison that called those three different
+ * would mark every slide on a channel whose colour was typed twice.
+ *
+ * NOTHING IS A COLOUR TOO, and equal to itself: a slide composed
+ * before the channel had an identity carries no accent, and neither
+ * does one composed after it was cleared.
+ */
+export function sameColour(
+  one: string | undefined, two: string | undefined,
+): boolean {
+  const flat = (value: string | undefined): string | undefined => {
+    if (!value || !HEX.test(value)) return undefined;
+    const low = value.toLowerCase();
+    return low.length === 4
+      ? `#${low[1]!}${low[1]!}${low[2]!}${low[2]!}${low[3]!}${low[3]!}` : low;
+  };
+  return flat(one) === flat(two);
+}
+
 /* ------------------------------------------------------------------------ *
  *  Is this slide any good?  [§21, D-04, C-26]
  * ------------------------------------------------------------------------ */
@@ -183,7 +207,11 @@ const MOST_POINTS = 7;
 export interface SlideProblem {
   /** Stable, so a test names the fault rather than the sentence. */
   code: 'empty' | 'no-picture' | 'no-words' | 'long-heading' | 'long-body'
-    | 'many-points' | 'contrast';
+    | 'many-points' | 'contrast'
+    /* The two a slide cannot know about itself: both need the deck's
+       surroundings, and both are found by `slideFaults` in `deck.ts`
+       rather than here. [C-36] */
+    | 'off-identity' | 'lost-picture';
   /** What to tell the operator, in one line they can act on. */
   says: string;
   /**
@@ -296,13 +324,19 @@ export function slideProblems(spec: SlideSpec): SlideProblem[] {
   return out;
 }
 
-/** Nothing wrong with it at all. The line between DRAFT and READY. */
-export function slideReady(spec: SlideSpec): boolean {
-  return slideProblems(spec).length === 0;
-}
-
-/** Nothing wrong with it that would put a broken graphic on the wire. */
-export function slideTransmittable(spec: SlideSpec): boolean {
-  return !slideProblems(spec).some((one) => one.blocking);
-}
+/*
+ * `slideReady` AND `slideTransmittable` STOOD HERE AND NOTHING EVER
+ * CALLED THEM.  [C-36]
+ *
+ * They were written at C-26 to be the line between DRAFT and READY,
+ * and no surface ever asked: the editor called `slideProblems`
+ * directly, no route called anything, and a deck was never checked at
+ * all. Two predicates with a test each and no caller are a capability
+ * this product claimed and did not have.
+ *
+ * The line they drew is real and is now drawn where something reads
+ * it — `standingOf` in `deck.ts`, which answers for a slide IN a
+ * deck and can therefore also see the two faults a spec cannot know
+ * about itself. One vocabulary, called from one place.
+ */
 

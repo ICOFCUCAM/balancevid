@@ -3376,6 +3376,15 @@ would be a button that cannot keep its promise.
   the request and by §21.
 * **Video backgrounds.** S-34, still untouched.
 
+### Corrected at C-36: the checks ran on one slide and stopped
+
+`slideProblems` above judges the slide being TYPED. It has never
+judged a slide already in the deck, and `slideReady` — written here
+as *"the line between DRAFT and READY"* — was never called by
+anything but its own test. **C-36** checks the whole deck, against
+the channel as it is now rather than as it was when each slide was
+drawn, and deletes the two predicates nothing asked.
+
 ### The record
 
 38 assertions on the design system, 24 mutations, all 24 caught —
@@ -4593,3 +4602,121 @@ real answer is only ever the second.
   On an image built with `WITH_TEXT=1` the probe passes and the
   sender starts; the first push to a real platform remains the first
   thing to watch.
+
+---
+
+## C-36 — Stage 36: the deck nobody checked
+
+C-26 built the slide quality checks and the panel has run them on
+every keystroke since. It has never once run them on a slide that
+was already in the deck.
+
+Press Add and the judgement stops. The deck holds nine slides and the
+product has no opinion about any of them — not about the heading that
+was four characters over its limit when it was typed, and not about
+the two faults that only appeared later.
+
+**And `slideReady` was never called by anything.** Written at C-26,
+with the comment *"the line between DRAFT and READY"*, and its only
+caller in the whole repository was its own test. So was
+`slideTransmittable`. Two predicates with a test each and no caller
+are a capability this product claimed and did not have.
+
+### Two faults a slide cannot see from inside itself
+
+Both need the deck's surroundings, which is why they are in `deck.ts`
+and not in `graphic.ts`.
+
+**The channel changed colour underneath it.** A slide is drawn once,
+into a PNG, with the accent the channel had at that moment. Change
+`identity.ink` and every slide composed before the change keeps the
+old one — so a deck composed either side of a rebrand transmits two
+different stations, in order, and nothing anywhere said so. The PNGs
+are not wrong; they are *stale*, which is a different word and needs
+a different sentence.
+
+**Its picture was deleted from the library.** `bookingsFor` walks a
+channel's programmes, rotation, blocks, filler, backup and emergency
+cut — and no deck slide's `spec.picture`. So a photograph used by a
+slide can be deleted with nothing refusing it. The slide still
+transmits, because the rendered PNG is its own asset. But its
+definition now names a picture that is gone: **Correct** reopens a
+slide that cannot be redrawn, and **Copy** fails at the route with
+*"that picture is not in the library"* — the first anybody hears of
+it being the press that fails.
+
+### Four standings, and the fourth is the one worth arguing about
+
+`ready`, `draft`, `broken` — and `as-is`, for a slide this product
+holds no definition for. There are two ways to be one:
+
+* a page of somebody's PowerPoint, which was never composed here;
+* a slide this product **did** compose, before C-26 made the
+  definition travel with the picture.
+
+**The author's own decks are five of those**, which is how the second
+case was found: both decks on the real instance predate C-26 entirely.
+Both ways have the same consequence and deserve the same word —
+nothing to check, nothing to correct, nothing to copy. Calling either
+"draft" would be inventing a judgement with no basis, and the panel
+already refuses Correct and Copy there for exactly that reason.
+
+### Neither new fault stops a slide
+
+Both are said and neither is blocking, and that line is where this
+stage could most easily have gone wrong. A slide in last month's
+colour and a slide whose source photograph was deleted **both
+transmit correctly**. Marking either broken would be the product
+calling a correct graphic broken — the same lie D-21 is about,
+pointed the other way. The sentence for the lost picture says both
+halves in order: *"It still transmits, but it cannot be corrected or
+copied until a picture is chosen again."*
+
+### A mark only where there is something to mark
+
+`ready` and `as-is` rows get nothing at all. A tick beside every clean
+row is forty ticks an operator reads past, and the deck badge is
+absent rather than reading `0 to check` — a count that is always there
+is a count nobody reads. A deck of forty uploaded PowerPoint pages
+reads *"40 slides"*, not *"40 to check"*.
+
+### Measured, on the real instance and on a staged one
+
+The author's two real decks read completely quiet: five slides, no
+marks, no badge — correct, because not one of them carries a
+definition.
+
+A staged deck exercising all four standings read `3 to check`, with
+amber marks on exactly the three rows that have something wrong and
+none on the clean one or on the page with no definition. Opening a
+row printed its faults in the same words the writer uses while a slide
+is being typed — one vocabulary for one judgement. Both decks on disk
+were left exactly as they were found.
+
+### The record
+
+Twenty-one assertions, twelve mutations, all twelve caught. Two of
+them were wrong patches of mine before they were mutants: inserting
+`blocking: true` ahead of the real key produced an object literal
+where the later key wins, which is a mutant that changes nothing and
+therefore proves nothing. The surviving one that *was* real —
+`off-identity` made blocking — had no assertion holding it, and now
+does: a slide in last month's colour reads `draft`, never `broken`.
+
+`slideReady` and `slideTransmittable` are deleted. The line they drew
+is real and is drawn now where something reads it.
+
+### What this does not do
+
+* **It does not stop the picture being deleted.** Teaching
+  `bookingsFor` about deck slides would refuse a deletion the author
+  may well want — the slide still transmits either way. Saying so
+  afterwards is the honest half; refusing beforehand is a separate
+  decision about whose library it is.
+* **It does not offer to redraw the drifted slides.** The remedy is
+  Correct, which already exists and already works. A "restyle this
+  deck" button would re-render every slide in it, which is a batch
+  job and a different stage.
+* **It does not check uploaded pages.** It cannot. There is no
+  definition to check, and guessing from the pixels would be a
+  judgement about somebody else's work made by reading a picture.

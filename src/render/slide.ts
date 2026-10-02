@@ -48,7 +48,7 @@ const CHROMIUM = process.env['BALANCEVID_CHROMIUM']
  */
 export {
   ACTION_SAFE, BACKGROUNDS, FACE, SLIDE_HEIGHT, SLIDE_WIDTH, STEP, TITLE_SAFE,
-  TYPE, colourOr, contrast, presetFor, slideHtml, slideProblems, slideReady,
+  TYPE, colourOr, contrast, presetFor, sameColour, slideHtml, slideProblems,
 } from './slideDesign.js';
 export type {
   Background, Focus, Preset, SlideLayout, SlideProblem, SlideSpec,

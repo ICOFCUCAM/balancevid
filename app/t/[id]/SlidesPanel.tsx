@@ -1,9 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Icon from '../../Icon.js';
 import type { Channel, ProgrammeSource } from '../../../src/domain/channel.js';
-import { type Deck, type Slide, slideOnAir, sourceForSlide, step } from '../../../src/domain/deck.js';
+import {
+  type Deck, type House, type Slide,
+  deckStanding, slideOnAir, sourceForSlide, step, toCheck,
+} from '../../../src/domain/deck.js';
 import {
   BACKGROUNDS, SLIDE_HEIGHT, SLIDE_WIDTH, type Background, type Focus,
   type SlideSpec, slideHtml, slideProblems,
@@ -139,6 +142,33 @@ export default function SlidesPanel({
 
   const deck = decks.find((candidate) => candidate.id === chosen) ?? null;
   const at = deck ? slideOnAir(deck, channel.live?.segment) : -1;
+
+  /*
+   * AND WHAT IS WRONG WITH THE SLIDES THAT ARE ALREADY IN IT.  [C-36]
+   *
+   * The fault list under the writer has always judged the slide being
+   * TYPED, and has never once judged a slide already in the deck. So
+   * a heading four characters over its limit was said while it was
+   * being written and never again, a picture deleted from the library
+   * left its slide uncorrectable with nothing said until the button
+   * failed, and a channel that changed colour left every slide
+   * composed before it carrying the old one — a deck that transmits
+   * two stations in order.
+   *
+   * THE HOUSE IS WHAT THE CHANNEL IS NOW, not what it was when the
+   * slide was drawn, which is the entire point: the drift is the
+   * difference between the two. The library list is the one this
+   * panel is already given (there is no second fetch), so a picture
+   * that is gone from that list is gone.
+   */
+  const house: House = useMemo(() => ({
+    ...(ink ? { accent: ink } : {}),
+    ...(channel.name ? { channel: channel.name } : {}),
+    pictures: new Set(pictures.map((one) => one.assetId)),
+  }), [ink, channel.name, pictures]);
+  const standings = useMemo(
+    () => (deck ? deckStanding(deck, house) : []), [deck, house]);
+  const wanting = toCheck(standings);
 
   /*
    * WHAT THIS SLIDE IS, worked out ONCE.  [C-25]
@@ -905,6 +935,20 @@ export default function SlidesPanel({
               textTransform: 'uppercase',
             }}>{deck.title} {'\u2014'} {deck.slides.length} slide{
               deck.slides.length === 1 ? '' : 's'}</span>
+            {/*
+              * SAID ONLY WHEN THERE IS SOMETHING TO SAY. A deck with
+              * nothing wrong with it gets no badge at all: a count
+              * that is always there is a count nobody reads, and the
+              * uploaded pages of somebody's PowerPoint are not
+              * counted because this product never composed them and
+              * has no basis for an opinion. [§21, C-36]
+              */}
+            {wanting > 0 && (
+              <span data-testid="deck-to-check" style={{
+                flex: '0 0 auto', fontSize: 'var(--text-2xs)',
+                fontWeight: 700, color: 'var(--state-armed)',
+              }}>{wanting} to check</span>
+            )}
           </div>
           <div data-testid="slide-rundown" style={{
             display: 'flex', flexDirection: 'column', gap: 2,
@@ -913,6 +957,7 @@ export default function SlidesPanel({
             {deck.slides.map((one, index) => {
               const live = index === at;
               const open = opened === one.assetId;
+              const stands = standings[index];
               const says = one.spec?.heading?.trim()
                 || one.spec?.body?.trim().split('\n')[0]
                 || `Page ${one.page}`;
@@ -953,10 +998,34 @@ export default function SlidesPanel({
                         fontSize: 'var(--text-2xs)', opacity: 0.7,
                         flex: '0 0 auto',
                       }}>{String(index + 1).padStart(2, '0')}</span>
-                      <span style={{
+                      <span className="grow" style={{
                         fontSize: 'var(--text-2xs)', overflow: 'hidden',
                         textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        minWidth: 0,
                       }}>{says}</span>
+                      {/*
+                        * A MARK ONLY WHERE THERE IS SOMETHING TO
+                        * MARK. `ready` and `as-is` both get nothing,
+                        * and that is deliberate: a tick beside every
+                        * clean row is forty ticks an operator reads
+                        * past, and a mark beside a slide this
+                        * product holds no definition for would be it
+                        * grading work it cannot see. [§21, C-36]
+                        */}
+                      {stands && stands.standing !== 'ready'
+                        && stands.standing !== 'as-is' && (
+                        <span
+                          data-testid="slide-standing"
+                          data-standing={stands.standing}
+                          title={stands.faults.map((f) => f.says).join(' ')}
+                          style={{
+                            flex: '0 0 auto', width: 6, height: 6,
+                            borderRadius: '50%',
+                            background: stands.standing === 'broken'
+                              ? 'var(--state-bad)' : 'var(--state-armed)',
+                          }}
+                        />
+                      )}
                     </button>
                     <button
                       type="button" className="small"
@@ -970,6 +1039,32 @@ export default function SlidesPanel({
                       }}
                     >{'\u22ef'}</button>
                   </div>
+                  {/*
+                    * AND THE SENTENCES UNDER THE ROW THAT ASKED.
+                    * The dot says there is something; this says what,
+                    * in the same words the writer uses while a slide
+                    * is being typed — one vocabulary for one
+                    * judgement. [C-26, C-36]
+                    */}
+                  {open && stands && stands.faults.length > 0 && (
+                    <ul data-testid="slide-row-faults" style={{
+                      margin: '0 0 2px', padding: '5px 8px', listStyle: 'none',
+                      display: 'flex', flexDirection: 'column', gap: 3,
+                      borderRadius: 6, borderLeft: `2px solid ${
+                        stands.standing === 'broken'
+                          ? 'var(--state-bad)' : 'var(--state-armed)'}`,
+                      background: 'var(--panel-2)',
+                      fontSize: 'var(--text-2xs)', lineHeight: 1.45,
+                      color: 'var(--muted)',
+                    }}>
+                      {stands.faults.map((fault) => (
+                        <li key={fault.code} data-fault={fault.code}
+                            data-blocking={fault.blocking ? 'true' : 'false'}
+                            style={{ color: fault.blocking
+                              ? 'var(--bad)' : undefined }}>{fault.says}</li>
+                      ))}
+                    </ul>
+                  )}
                   {open && (
                     <div className="row" style={{
                       gap: 3, flexWrap: 'nowrap', paddingLeft: 3,
