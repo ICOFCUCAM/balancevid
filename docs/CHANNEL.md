@@ -5805,3 +5805,185 @@ control that skips a stop depending on where you happened to start
 is a control nobody can aim — so the property asserted is that a
 step never skips a stop, which is observable and is the reason the
 comparison is written the way it is.
+
+## C-47 — Stage 47: the lane that had never spoken to the compositor
+
+The author, over the refined strip:
+
+> *"this part of the Live TV control room is fundamentally good. I
+> would not redesign the timeline structure… But it needs a
+> professional refinement pass."*
+
+Six points and one more *"I would add later"*. Three were already
+answered by C-46's uncommitted work when the note arrived; this is
+the rest, plus the question that followed it: *"can we edit, add,
+remove files directly from this?"*
+
+### The finding, which is the same finding again
+
+> *"You shouldn't build Slide graphics / Lower thirds / Channel bug
+> / NEXT graphic / Programme title as five unrelated features."*
+
+**They never were five features.** `marksFor` has computed the bug,
+the LIVE lamp, the lower third and NEXT from one list since the
+identity was written, and the compositor draws that list.
+
+**The GRAPHICS lane drew one of them.** Not because the other three
+were missing — because `marksFor` takes three inputs that lived
+inside the playout worker as private functions at the bottom of the
+file that spawns encoders:
+
+| | |
+|---|---|
+| `onAirTitle` | what the VIEWER is told this is called |
+| `intoProgramme` | how far past the join, for the hold |
+| `nextUp` | what follows, and when |
+
+Pure arithmetic over the channel document — no filesystem, no
+clock, no ffmpeg — and unreachable from anywhere else. So *"what
+graphics are up at 21:02"* was answerable in exactly one process,
+and the surface whose entire job is to answer it could not ask.
+
+The lane did not disagree with the compositor. **It had never
+spoken to it.** It read the identity document and drew lower
+thirds from the settings.
+
+Moved, not copied. A second copy would be a second answer.
+
+### Sampled, not re-derived
+
+The lane does not know that a lower third holds for eight seconds,
+that a lamp follows `kind === 'live'`, or that NEXT rides with the
+caption. Encoding any of it here would be the second graphics
+system the brief forbids, and it would be wrong the first time
+somebody changed `marksFor` — which is the fault it already had.
+
+It asks `marksFor` at every instant where the answer can change —
+each join, and each join plus the hold — and reads the intervals
+off the answers. A mark the compositor stops emitting is a block
+that ends. Nothing about why.
+
+**And `onAirTitle` is not the control room's `titleOf`, which is
+why it has a different name.** The control room says "Off air" and
+"The live studio"; this says the channel's own name for both,
+because it is what goes under the bug and `captionFor` exists to
+stop it being printed there twice [C-42]. Two functions because
+there are two questions. Merging them would put the operator's
+word on the wire.
+
+**A slide is not on this lane and should not be.** A slide is a
+`media` source with `form: 'image'` — it IS the programme, full
+frame, and belongs in PROGRAM where every other source does.
+Drawing it here would claim it composites over a picture when it
+is the picture.
+
+### The other five
+
+**The video lane said nothing at all.** > *"The timeline should
+tell the operator what source is actually occupying that period."*
+`sourceLine` says exactly that, in exactly those words — "Studio
+Two · Performance", "Live from the studio", "Film" — written for
+the lower third in C-42 and read by one caller. The lane that
+needed it most could not have told you it existed. [D-19]
+
+**The block is two lines, which is what the brief drew.** Title and
+length on one, because they are one fact; the length sits right and
+never truncates, which is the whole reason the line exists. The
+second line is what this is — or, on the one block under the
+playhead, when it ends and how much is left.
+
+**● ON AIR leads that line**, which is the brief's *"one thing I
+would add later"*. And it says it only when it is TRUE: the
+playhead is drawn whenever now falls in the window, which it does
+at four in the morning on a channel that is off air. A marker
+claiming ON AIR over a hole is the fault U-20 already fixed once on
+the playhead's own flag.
+
+**The red says state instead of filling the event.** At a third
+opacity a two-hour live broadcast was the loudest object in the
+room for two hours, and the one block actually going out this
+second had nothing left to be louder than.
+
+**Audio has three states, not two.** Silence the schedule asked for
+and silence caused by a fault are the same `anullsrc` on the wire
+and opposite facts about the channel. **And there is no `muted`,
+because there is no mute** — nothing in the document can mute the
+master bus, so there is no state to report and nothing invents one.
+A lane with a colour that can never be reached is a lane claiming a
+control the product does not have. No meter either, and the brief
+says why.
+
+**"Today" alone is a word, not a date.**
+
+### And the question: can you edit from here?
+
+> *"can we edit, add, remove files directly from this?"*
+
+Not from the strip: a block's whole click handler was `onChoose` —
+it SELECTED. Every verb existed on the rails beside it, behind a
+menu built to be shared — *"every rail built its own markup and
+right-clicking a row was not possible without building it a second
+time"* — that the strip had never been given.
+
+Hoisted out of the two rails that had them inline and handed to
+both. One list, one set of confirmations, two surfaces.
+
+**And there is no drag, deliberately.** On a 24/7 channel the
+horizontal axis is wall clock: dragging a block changes when
+something transmits, by however far a hand slipped — at the day
+span one pixel is ninety-eight seconds. A rotation entry has no
+clock time of its own, so dragging it sideways would mean nothing.
+An edge-drag to trim would either lie about the media or silently
+re-encode somebody's master; a take has a timeline for that and
+this is not it. **A menu is reversible and names what it does.**
+
+### Three faults the screenshots found, all of them the same fault
+
+**A block laid out by rules it does not declare.**
+
+1. **`button` is `display: flex` in the room's stylesheet**, so two
+   spans written to stack were flex ITEMS splitting eighty pixels:
+   `Statio… 1…`, a duration cut to one digit, which reads worse
+   than no duration at all.
+2. **`.row` is `flex-wrap: wrap`**, which is right for a toolbar and
+   wrong inside a fifty-pixel block: the length dropped to a third
+   line and the block overflowed its lane by seven pixels, on
+   exactly the blocks wide enough to show a length at all.
+3. **`Lane` was declared inside `Timeline`'s body**, so every render
+   made a new component type and React unmounted and remounted all
+   four lanes and everything on them — sixty times a minute, because
+   the clock ticks. Not a tidiness point: it remounts a `<video>`
+   per filmstrip cell every second, which is most of why the browser
+   reached its media ceiling the moment the window widened, and it
+   is why a right-click had to race the clock to land on a block
+   that still existed long enough to receive it.
+
+Measured rather than argued: `scrollHeight` 56 against a 49-pixel
+block, on the one block in the lane wide enough to show its length.
+
+### The record
+
+**Twenty-one new assertions, fourteen mutations, all fourteen
+caught — and the sixteenth unobservable guard deleted.**
+
+A clause skipped a hold instant falling past the end of its own
+stretch, and survived everything. The reason is worth keeping:
+
+> **An extra sample cannot change the answer, only the resolution.**
+
+`marksFor` is asked afresh at each instant, so a redundant sample
+reports the same marks as its neighbour and the two blocks merge
+straight back. It was never a correctness guard; it was a guard
+against one cheap call, preventing nothing anybody could measure.
+
+Three more survived until the fixture that could see them existed.
+All three needed the same thing — **a channel with no presenter
+typed**, where the caption is the programme's own title and so
+differs either side of a join. With a presenter the caption is the
+same words all day, and three separate claims about what makes two
+samples one block were all trivially true.
+
+> **A fixture where every row holds the same value cannot test what
+> distinguishes rows.**
+
+Full suite: 162 files, 3016 tests.
