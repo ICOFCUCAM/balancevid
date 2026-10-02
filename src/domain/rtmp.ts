@@ -155,6 +155,36 @@ export function refusalFor(
 }
 
 /**
+ * The refusal that is not about the destination at all.  [C-35]
+ *
+ * EVERY OTHER SENTENCE ABOVE IS ABOUT SOMETHING AN OPERATOR TYPED.
+ * This one is about the machine underneath: a build of ffmpeg that
+ * writes MPEG-TS perfectly and cannot read it back. The sender is a
+ * remux of the engine's own segments, so on such a build it spawns,
+ * dies before it has read a packet, and is restarted for ever by a
+ * supervisor doing exactly what it was told — the destination sits
+ * BLOCKED with `Stopped (null)` against it, which tells nobody
+ * anything. That is the pinned `ffmpeg-static` this product ships.
+ *
+ * THE CHANNEL IS UNAFFECTED AND THE SENTENCE SAYS SO FIRST, because
+ * the first thing an operator does when a destination turns red is
+ * wonder whether the television channel went with it. The engine only
+ * WRITES transport streams and the viewer's browser demuxes them
+ * itself; neither goes near the demuxer that is broken.
+ *
+ * AND IT NAMES THE REMEDY, which is C-24's remedy: point
+ * `BALANCEVID_FFMPEG` at a build that works. The image installs one
+ * already, under the argument that was added for the station bug.
+ */
+export const CANNOT_SEND_FROM_THIS_BUILD =
+  'This build of ffmpeg cannot read the transport stream the channel '
+  + 'writes, so it cannot push it anywhere. The channel itself is '
+  + 'unaffected — viewers are served those same segments directly. '
+  + 'Build the image with WITH_TEXT=1, or point BALANCEVID_FFMPEG at an '
+  + 'ffmpeg whose mpegts demuxer works, and this destination starts on '
+  + 'its own.';
+
+/**
  * What to run.
  *
  * `-re` IS ABSENT ON PURPOSE. It paces input at its native rate and is

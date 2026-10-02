@@ -150,6 +150,79 @@ export async function canDrawText(bin = FFMPEG): Promise<boolean> {
 /** For a test that needs to ask a second binary. */
 export function forgetFilters(): void { known = null; }
 
+/**
+ * Can this build READ the segments the engine writes?  [§11, §15, C-35]
+ *
+ * ASKED BY DOING IT, which is the difference between this probe and
+ * `canDrawText` above. A missing filter is a missing NAME and
+ * `-filters` lists names; this failure is a **segmentation fault in
+ * the mpegts demuxer** of a binary that lists mpegts among its
+ * formats and writes it perfectly. Nothing it can be asked about
+ * itself reveals it. The only question it answers truthfully is
+ * "here is one, read it".
+ *
+ * AND IT MATTERS BECAUSE ONE FEATURE DEPENDS ON IT. The playout
+ * engine only ever WRITES transport streams, and the viewer's
+ * browser demuxes them itself — both unaffected. The RTMP sender
+ * (C-29) reads them, and on a build like this it spawns, dies by
+ * signal before it has read a packet, and is restarted for ever by
+ * a supervisor doing exactly what it was told. A destination that
+ * can never work reads BLOCKED with no reason worth printing.
+ *
+ * That is C-24's fault in a second place: *"a connector that cannot
+ * be tested is a connector that is wrong"*, and the test is this.
+ *
+ * TWO SPAWNS, ONCE. A tenth of a second of generated colour, written
+ * as mpegts and read back. No file of the operator's is involved and
+ * nothing is left behind.
+ */
+let reads: Promise<boolean> | null = null;
+export function canReadSegments(bin = FFMPEG): Promise<boolean> {
+  if (reads) return reads;
+  reads = (async () => {
+    const { mkdtemp, rm } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    let where: string | undefined;
+    try {
+      where = await mkdtemp(join(tmpdir(), 'bv-ts-'));
+      const probe = join(where, 'probe.ts');
+      await runCapture(bin, [
+        '-hide_banner', '-v', 'error',
+        '-f', 'lavfi', '-i', 'testsrc=size=160x90:rate=10:duration=0.2',
+        '-f', 'lavfi', '-i', 'anullsrc=r=48000:cl=stereo',
+        '-t', '0.2', '-c:v', 'libx264', '-preset', 'ultrafast',
+        '-c:a', 'aac', '-f', 'mpegts', probe, '-y',
+      ]);
+      /*
+       * AND NOW READ IT. `-c copy` to nothing, which is the sender's
+       * own operation with the socket taken off the end. A build
+       * that cannot do this cannot send.
+       */
+      await runCapture(bin, [
+        '-hide_banner', '-v', 'error', '-i', probe,
+        '-c', 'copy', '-f', 'mpegts', '-',
+      ]);
+      return true;
+    } catch {
+      /*
+       * A CRASH AND A REFUSAL ARE THE SAME ANSWER HERE. Whether the
+       * binary died by signal or exited complaining, it will not
+       * read what this product writes, and the sender must not be
+       * started against it.
+       */
+      return false;
+    } finally {
+      if (where) await rm(where, { recursive: true, force: true })
+        .catch(() => undefined);
+    }
+  })();
+  return reads;
+}
+
+/** For a test that needs to ask a second binary. */
+export function forgetSegmentReads(): void { reads = null; }
+
 /* ------------------------------------------------------------------------ *
  *  How loud is it?  [CHANNEL §5, §10, U-23, C-33]
  * ------------------------------------------------------------------------ */

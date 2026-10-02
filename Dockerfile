@@ -22,16 +22,23 @@
 #                   and a PDF export needs none of it. Without it a deck is
 #                   still stored, hashed and cited — it just says to export it
 #                   as a PDF to put its pages on screen
-#   WITH_TEXT=1     add an ffmpeg that can draw text, so a channel can carry
-#                   its own station bug and lower thirds. The pinned
+#   WITH_TEXT=1     add a capable ffmpeg. TWO THINGS NEED IT, and the name
+#                   only mentions the first. (1) Drawing text: the pinned
 #                   `ffmpeg-static` is built WITHOUT freetype and therefore
-#                   has no `drawtext`; without this the channel transmits a
-#                   clean picture and no identity, which is what the code
-#                   does when it asks the binary and is told no. Off by
-#                   default only because the size of the addition has not
-#                   been measured on this base image — turn it on, check
-#                   `ffmpeg -filters | grep drawtext` in the built image,
-#                   and leave it on. [CHANNEL C-24]
+#                   has no `drawtext`, so without this the channel transmits
+#                   a clean picture and no identity, which is what the code
+#                   does when it asks the binary and is told no. [C-24]
+#                   (2) PUSHING TO RTMP: the same pinned binary SEGFAULTS
+#                   reading MPEG-TS — any MPEG-TS, including one it just
+#                   wrote — and the sender is a remux of the engine's own
+#                   segments, so on the default build no destination can
+#                   ever receive the stream. The code asks that one by
+#                   doing it and refuses the destination with the reason
+#                   rather than retrying into the crash for ever. [C-35]
+#                   Off by default only because the size of the addition
+#                   has not been measured on this base image — turn it on,
+#                   check `ffmpeg -filters | grep drawtext` in the built
+#                   image, and leave it on.
 
 ARG NODE=node:22-bookworm-slim
 
@@ -116,7 +123,8 @@ RUN if [ "$WITH_OFFICE" = "1" ]; then \
       echo "office converter skipped: attach PowerPoint as PDF to show its pages"; \
     fi
 
-# An ffmpeg that can draw text, and something to draw it with.
+# An ffmpeg that can draw text and read back what the engine writes, and
+# something to draw it with.
 #
 # NOT A REPLACEMENT FOR THE PINNED ONE EVERYWHERE BY ACCIDENT. The code
 # reads BALANCEVID_FFMPEG and falls back to `ffmpeg-static`, so this is an
@@ -136,7 +144,8 @@ RUN if [ "$WITH_TEXT" = "1" ]; then \
         ffmpeg fonts-dejavu-core \
       && rm -rf /var/lib/apt/lists/*; \
     else \
-      echo "text drawing skipped: the channel will transmit without its bug"; \
+      echo "capable ffmpeg skipped: the channel transmits without its bug,"; \
+      echo "and RTMP destinations will refuse with the reason (C-24, C-35)"; \
     fi
 
 # ---- and what does depend on it goes after ----------------------------

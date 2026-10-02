@@ -3876,6 +3876,20 @@ restored to the byte.
   sender has been exercised to the point where it spawns; the first
   push to a real ingest is the first thing to watch.
 
+### Corrected at C-35: it spawns, and on this build it dies
+
+The line above — *"exercised to the point where it spawns"* — was
+the exact boundary of what had been tested, and the fault was on the
+other side of it. **The pinned `ffmpeg-static` segfaults reading
+MPEG-TS**, so on the binary this product ships the sender spawns,
+dies by signal before it has read a packet, and is restarted by the
+backoff for ever. Every word of this stage's design holds; none of
+it reached an ingest.
+
+C-35 is the correction. Nothing in the supervisor changed except
+that it now asks the binary first and refuses with a sentence. The
+stage record below says the rest.
+
 ---
 
 ## C-30 — Stage 30: the links were real and said nothing
@@ -4400,3 +4414,182 @@ channels that are off have no source and compare equal, one that is
 off and one that is not compare unequal. The method stays, with a
 caveat it did not have before: **a guard that only narrows a type
 cannot be judged by mutation alone.**
+
+---
+
+## C-35 — Stage 35: the sender that could never have worked
+
+C-29 shipped an RTMP sender, tested it to the point where it spawns,
+and wrote that sentence down as the limit of what had been checked.
+C-33 and C-28 carried their own version of the same caveat. Going
+back to collect those three caveats is what found this.
+
+**The pinned `ffmpeg-static` segfaults reading MPEG-TS.** Not a
+refusal, not an error message — exit 139, on every transport stream
+it is given, including one it has just written itself.
+
+| asked of `ffmpeg-static` | result |
+|---|---|
+| write `.ts` (the engine's own operation) | exit 0 |
+| read that `.ts`, `-c copy` | **exit 139** |
+| read it, video only | **exit 139** |
+| read it, audio only | **exit 139** |
+| read it, decode one frame | **exit 139** |
+| read it, `-c copy -f flv` (the sender's operation) | **exit 139** |
+| the same content written as `.mp4`, read back | exit 0 |
+| `ffprobe-static` reading the same `.ts` | exit 0 |
+
+The last two lines are what make it the binary and not the files.
+
+### Two of the three things that touch a segment are fine
+
+The playout engine only **writes** transport streams. The viewer's
+browser **demuxes them itself**, in hls.js. Neither goes near the
+demuxer that is broken, which is why Online TV has been transmitting
+correctly throughout and nothing in the control room suggested
+otherwise.
+
+The RTMP sender **reads** them, with `-c copy`, which is precisely
+the operation that crashes. So on the shipped binary a destination
+with a correct server, a correct key and the right shape spawns a
+process that dies before it reads a packet, is restarted two seconds
+later, then four, then eight, up to once a minute, for the length of
+a broadcast — and the control room shows `BLOCKED — Stopped (null)`.
+
+This is C-24's fault in a second place, two stages after C-24 was
+written: *"a connector that cannot be tested is a connector that is
+wrong"*.
+
+### And the codebase already knew
+
+`segment.ts`, in the comment explaining why segments are joined by
+appending bytes rather than with ffmpeg's concat demuxer:
+
+> *"The concat demuxer would also work in principle and was tried
+> first; on this platform's static ffmpeg it segfaults on `-c copy`
+> over MPEG-TS, which is a good reminder that reaching for a tool to
+> do what a `cat` does is a dependency taken for nothing."*
+
+The defect was found, understood, worked around, and written
+down — and then the RTMP sender was written on top of it, doing
+exactly `-c copy` over MPEG-TS, by somebody who had read that module
+and did not connect the two. **A fact recorded in one module's
+comment is not a fact the next module knows.** That is what
+`canReadSegments` is for: the knowledge is now a function the code
+can ask, in the place that has to act on it, rather than a paragraph
+somebody has to have read.
+
+It also settles the blast radius. The only two things in this
+product that hand a transport stream to ffmpeg are the piece join in
+`segment.ts`, which stopped doing it, and the sender, which is this
+stage. Everything else that assembles media reads WebM chunks from a
+browser (`ingest.ts`) or a file in its own container.
+
+### Asked by doing it, because nothing else reveals it
+
+`canDrawText` works by reading `-filters`, because a missing filter
+is a missing **name**. That method cannot find this one. The binary
+lists `mpegts` among its formats, writes it perfectly, and crashes
+reading it — every question it can be asked about itself returns the
+wrong answer. The only question that does not is *"here is one, read
+it"*.
+
+So `canReadSegments` writes a tenth of a second of generated colour
+as mpegts into a temporary directory and reads it back with `-c
+copy`. Two spawns, once per process, cached for the life of the
+engine, nothing of the operator's involved and nothing left behind.
+A crash and a refusal are the same answer: no.
+
+### Asked last, and that order carries two decisions
+
+The supervisor asks after `refusalFor`, never before.
+
+* **A destination with no key is told it has no key.** That is the
+  sentence its operator can act on; the machine's problem is not yet
+  in their way. A 9:16 destination keeps *"a different composition,
+  not a crop"*, because fixing the binary would not change it.
+* **And the probe is never spawned for a destination that could not
+  start anyway.** Everything already configured and still refused
+  here is refused for a reason no amount of configuring will move.
+
+### The reason is printed, not hovered
+
+`BLOCKED` was already in the control room, and `sender.says` was
+already written — into a `title` attribute. A tooltip is where a
+detail goes when the lamp already says enough, and BLOCKED says
+nothing: it covers wanting a key, wanting an approved app, wanting a
+different composition, and sitting on a build that cannot read what
+the channel writes. One of those an operator fixes in the box
+directly below; one of them nobody fixes without being told.
+
+So the sentence is on the screen whenever the state is the bad one —
+in a wash with a red edge rather than five lines of warning colour,
+because the alarm is already carried by the lamp and the word, and
+the sentence has to be **read**.
+
+It says three things, in this order:
+
+1. what is wrong — this build of ffmpeg cannot read the transport
+   stream the channel writes;
+2. **that the channel itself is unaffected**, because that is the
+   first thing anybody wonders when a destination turns red;
+3. the remedy — `WITH_TEXT=1`, or `BALANCEVID_FFMPEG` pointed at an
+   ffmpeg whose mpegts demuxer works.
+
+### The remedy already existed, under the wrong name
+
+`WITH_TEXT=1` installs the distribution's ffmpeg, and `serve.sh`
+points `BALANCEVID_FFMPEG` at it if the file is really there. That
+build has both freetype and a working mpegts demuxer, so the one
+argument fixes both faults. The argument is **not renamed** — a
+build argument is somebody's deployment — but the Dockerfile and the
+entrypoint now say what the second thing is, and the `else` branch
+prints both consequences rather than one.
+
+### Measured
+
+Against the author's real channel, with a real key on disk, running
+the real supervisor:
+
+```
+"dest_c35demo": { "state": "blocked",
+  "says": "This build of ffmpeg cannot read the transport stream the
+           channel writes, so it cannot push it anywhere. …" }
+```
+
+Nothing spawned. `sendingNow()` empty. Then in the browser: the
+destination row reading `16:9 BLOCKED` with the sentence printed
+under it, legible at the size the panel is actually used at. The
+channel document was backed up before and restored to the byte, and
+the staged key removed.
+
+The probe's own test is the one worth keeping: it runs the sender's
+real operation on this machine and asserts the probe **agrees with
+it**. On a broken build both fail, on a good one both succeed, and a
+probe that disagreed with reality would be this same class of bug
+one layer up.
+
+### The record
+
+Twenty-one assertions across two new test files, nine mutations, all
+nine caught — and one assertion rewritten because it did not
+discriminate: the cache test compared two binaries whose real
+answers on this container are both `false`, so removing the cache
+changed nothing observable. Seeding `true` from a command that
+always exits 0 and `false` from one that does not exist makes both
+branches testable on every machine, including this one, where the
+real answer is only ever the second.
+
+### What this does not do
+
+* **It does not make the sender work here.** It cannot: the binary
+  is the fault. What changed is that the product says so, with the
+  remedy, instead of retrying into a crash for ever.
+* **It does not check anything else about the binary.** `drawtext`
+  and segment reading are the two capabilities this product has been
+  burned by; a general capability survey would be guessing at the
+  third.
+* **It is still not run against a live ingest**, for C-29's reason.
+  On an image built with `WITH_TEXT=1` the probe passes and the
+  sender starts; the first push to a real platform remains the first
+  thing to watch.
