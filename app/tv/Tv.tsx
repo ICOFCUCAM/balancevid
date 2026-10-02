@@ -103,7 +103,11 @@ export function ChannelCard({ channel }: { channel: Listing }) {
         height: '100%',
       }}>
         <div aria-hidden="true" style={{
-          flex: '0 0 auto', width: 56, height: 56, borderRadius: 10,
+          /* A LOGO IS A PICTURE, so it is rounded like a screen and
+             not like a card — the house rule the console test
+             enforces across every surface. [D-19, brief §4] */
+          flex: '0 0 auto', width: 56, height: 56,
+          borderRadius: 'var(--radius-screen)',
           display: 'grid', placeItems: 'center', overflow: 'hidden',
           background: 'var(--screen-bed)', border: '1px solid var(--line)',
           fontWeight: 800, letterSpacing: '0.04em', fontSize: 'var(--text-sm)',

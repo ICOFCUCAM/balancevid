@@ -93,7 +93,11 @@ export default function Station(
 
       <div style={{
         borderRadius: 'var(--radius-screen)', overflow: 'hidden',
-        border: '1px solid var(--line)', background: '#000',
+        /* The bed is NAMED, never typed. compose.ts pads with
+           color=black, so a player drawn on a hand-picked
+           near-black shows a different frame from the file it is
+           playing. [D-19] */
+        border: '1px solid var(--line)', background: 'var(--screen-bed)',
       }}>
         <ChannelPlayer channelId={channelId} onAir={on.live} />
       </div>
