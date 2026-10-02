@@ -164,6 +164,16 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
          control room both hide. [C-24] */
       note: controlRoomNote(engine, stream, dark,
         stillFailing(failure, now) ? failure : null),
+      /*
+       * AND THE FAILURE ITSELF, because the confidence monitor has to
+       * rank it against what it can see. Two instruments on one desk
+       * describing one condition two different ways — "the encoder
+       * cannot render" and "the picture is black" — is the fault
+       * `controlRoomNote` exists to prevent, so the monitor is given
+       * the same input and keeps the same order. [§6, C-28]
+       */
+      ...(stillFailing(failure, now) && failure
+        ? { failing: { says: failure.says } } : {}),
       ...(heartbeat ? { beatAt: heartbeat.at, pid: heartbeat.pid } : {}),
       ...(newestSegment
         ? { segmentAt: new Date(newestSegment).toISOString() } : {}),

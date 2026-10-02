@@ -36,12 +36,34 @@ import VideoTransport from '../../../VideoTransport.js';
 const DRIFT_S = 12;
 
 export default function ChannelPlayer({
-  channelId, poster, onAir = false,
+  channelId, poster, onAir = false, compact = false, onVideo,
 }: {
   channelId: string;
   poster?: string;
   /** From the channel's own `now` endpoint — see VideoTransport. */
   onAir?: boolean;
+  /**
+   * The same player, small enough to sit in the corner of a desk.
+   * [§18, C-28]
+   *
+   * No transport and no prose: a confidence monitor is a hundred and
+   * sixty pixels wide, and a clock, a LIVE badge and two lines of
+   * explanation do not fit in it — nor are they wanted, because an
+   * operator is looking at this to answer one question and the
+   * answer is the picture. What the prose used to say is said
+   * instead by the sentence the control room already computes, which
+   * knows about the engine as well as the player. [D-19]
+   */
+  compact?: boolean;
+  /**
+   * The element, once it exists, so a caller can sample it.
+   *
+   * A confidence monitor an operator has to WATCH is a confidence
+   * monitor that misses the fault, which is exactly how C-24
+   * survived. Handing the element out lets the desk measure the
+   * picture instead of hoping somebody notices it.
+   */
+  onVideo?: (video: HTMLVideoElement | null) => void;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [video, setVideo] = useState<HTMLVideoElement | null>(null);
@@ -144,7 +166,11 @@ export default function ChannelPlayer({
             * only wakes up if something else happens to re-render
             * the page afterwards.
             */
-          ref={(element) => { videoRef.current = element; setVideo(element); }}
+          ref={(element) => {
+            videoRef.current = element;
+            setVideo(element);
+            onVideo?.(element);
+          }}
           data-testid="channel-player"
           autoPlay playsInline muted
           {...(poster ? { poster } : {})}
@@ -155,15 +181,15 @@ export default function ChannelPlayer({
         />
         {/* A channel has no end, so: a clock and no scrub. The LIVE
             badge is a separate fact and comes from the server. */}
-        <VideoTransport video={video} continuous onAir={onAir} />
+        {!compact && <VideoTransport video={video} continuous onAir={onAir} />}
       </div>
-      {error && (
+      {!compact && error && (
         <p className="small" data-testid="player-error"
            style={{ color: 'var(--bad)', marginTop: 8 }}>
           {error}
         </p>
       )}
-      {!ready && !error && (
+      {!compact && !ready && !error && (
         <p className="small muted" data-testid="player-waiting"
            style={{ marginTop: 8 }}>
           {/* Honest about which of the two it is. A channel whose engine is
