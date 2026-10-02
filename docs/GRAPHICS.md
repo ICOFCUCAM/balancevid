@@ -308,3 +308,36 @@ building job, and it is not the one the brief expected:
 
 Each lands as its own stage in `CHANNEL.md`, measured against the
 author's own channel, with the picture to show for it.
+
+---
+
+## Done
+
+| | | stage |
+|---|---|---|
+| 1 | A compositor that can draw | **C-40** |
+| | An image bug, reaching `bug.assetId` at last | **C-44** |
+| 2 | The lower third as two lines, with a role | **C-40**, **C-42** |
+| 3 | The source kind on the caption | **C-42** |
+| 4 | LIVE inside the picture | **C-40** |
+| 5 | Programme graphics that vary by source | **C-42** |
+| 6 | NEXT with its time | **C-42** |
+| 7 | One compositor feeding programme out | already built; **C-40** gave it a way to draw |
+| 9 | The Watch page printing what is on | **C-43** |
+| 10 | Don't overdo the writing | held throughout: never three lines, no mark without something to say |
+
+**Point 8 — the camera's own picture — is not done and is not a
+graphics change.** Soft, flat, badly framed, the subject at the
+bottom edge, a door dominating the left: no amount of compositing
+fixes a room. The product already has the pieces aimed at it —
+virtual sets, the space table, eyeline, framing and reframing, the
+recording-quality checks — and pointing them at a live camera is a
+production phase of its own.
+
+**And one thing the measurement found that the brief could not
+have.** All of this was dark on the shipped image because the
+pinned `ffmpeg-static` cannot draw text, and C-35 found the same
+binary cannot read a transport stream either. An image built with
+`WITH_TEXT=1` fixes both — and C-40 means the graphics no longer
+depend on it, because a page rasterised by the browser needs no
+freetype at all.
