@@ -3875,3 +3875,87 @@ restored to the byte.
   is not a thing to do to find out whether a flag is right. The
   sender has been exercised to the point where it spawns; the first
   push to a real ingest is the first thing to watch.
+
+---
+
+## C-30 — Stage 30: the links were real and said nothing
+
+*"image 4 most of bottons leads to one direction. try to check that."*
+
+The audit checked it and found the author was right about the symptom
+and wrong about the cause — which is the useful kind of wrong:
+
+> *"**Six of the seven open the same page.** The fragments are
+> honoured… so the code is not inert. But on a wide screen the control
+> room shows everything at once, so `#schedules` scrolls to something
+> already on screen and the page looks untouched. **The behaviour is
+> real and the feedback is nil**, which is indistinguishable from a
+> dead button."*
+
+### Three faults, and the third was not in the audit
+
+1. **`#schedules` selected no tab.** The handler had two branches,
+   `identity` and `live`, and everything else fell through to a
+   scroll. Clicking "Schedule" from the landing page landed on
+   whichever rail tab was open, which on a fresh page is PLAYLIST.
+2. **Nothing acknowledged the jump.** D-22: the control room is a
+   place and every panel is already on screen, so `scrollIntoView` is
+   a no-op and a link looks dead however correctly it worked.
+3. **Two of the four targets were not elements.** `#schedules` and
+   `#live` were `display: contents` anchors with no box — nothing to
+   scroll to, and nothing a highlight could have been drawn on even
+   if one had existed. The audit did not find this; writing the
+   highlight did.
+
+### One table, in the domain, walked against the source
+
+The links are written in `ControlRoom.tsx` and the targets in
+`ChannelStudio.tsx`, and **nothing connected them**: a renamed tab
+was a dead link nobody would notice until somebody pressed it. The
+table is `src/domain/fragments.ts` and the test reads both files:
+
+* every fragment the landing page links to is one the table honours;
+* every jump names a rail tab and a desk that exist;
+* every jump names a panel that is in the control room;
+* and no jump names a `display: contents` anchor.
+
+`RailTab` and `DeskTab` moved there too. They were declared in the
+component and the table would have had to name them as strings,
+which is two definitions of one thing.
+
+### The acknowledgement is colour, which is why it survives reduced motion
+
+A 2px accent ring on the panel the link named, fading over 1.1s. The
+global reduced-motion rule collapses every animation to 1ms — which
+here would mean the one piece of feedback this gives vanishing before
+anybody saw it, reducing motion into no answer at all. So the ring
+**holds** instead for somebody who asked for less motion, which is
+what `motion.css` already argues: *"distance and scale go, colour
+stays."*
+
+### The bug the browser found, under the comment forbidding it
+
+The first version marked the new panel and cancelled the previous
+one's fade, so after two jumps a panel stayed ringed **for the rest
+of the session**. The comment immediately above that code says a
+highlight that stayed "would be a panel that looks selected for the
+rest of the session, which is a worse lie than no feedback at all."
+
+That is the second time in three stages that a correct comment sat
+directly above the code contradicting it — C-27 was the other. Both
+were found by running the thing twice; neither was visible in a
+single pass, and neither was visible by reading.
+
+### The record
+
+Ten assertions, ten mutations, all ten caught — the first being the
+original bug put back, which fails two tests by name.
+
+Verified in a browser across every fragment: the tab each one
+selects, the panel each one marks, that the computed style really is
+the accent ring (`bv-arrived`, `inset 0 0 0 2px`), and that the mark
+is gone two seconds later in every case. On a cold load the ring
+appears about 300ms after the page commits.
+
+`ONLINE-TV-AUDIT.md` §3 and §5 are updated: all three of the items
+that section ranked above the rest are now in.

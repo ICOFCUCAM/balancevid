@@ -16,6 +16,9 @@ import { SPACE_LOOKS } from '../../../src/domain/environment.js';
 import { PLATFORMS, type Destination } from '../../../src/domain/distribution.js';
 import { LIVE_DELAY_MS } from '../../../src/domain/playout.js';
 import {
+  FLASH_MS, type DeskTab, type RailTab, jumpFor,
+} from '../../../src/domain/fragments.js';
+import {
   type Bus, busFor, onProgramCount, roomOnProgram, saysFor,
 } from '../../../src/domain/multiView.js';
 import StudioBar from '../../StudioBar.js';
@@ -127,9 +130,12 @@ const STEP_MS = 30 * MINUTE;
 /** How far back the window starts, so what is on now has visible history. */
 const BEHIND_MS = 15 * MINUTE;
 
-type RailTab = 'playlist' | 'library' | 'schedules';
-type DeskTab = 'camera' | 'guests' | 'screens' | 'media' | 'set' | 'graphics'
-  | 'audio' | 'answers';
+/*
+ * THE TWO TAB TYPES ARE THE FRAGMENT TABLE'S, not this file's. They
+ * were declared here and the table had to name them as strings,
+ * which is two definitions of one thing and a renamed tab silently
+ * breaking a link. One definition, imported. [C-30]
+ */
 type ScheduleView = 'timeline' | 'list' | 'calendar';
 
 interface LibraryItem {
@@ -534,11 +540,34 @@ export default function ChannelStudio({
    */
   useEffect(() => {
     let timer = 0;
+    let fade = 0;
     const act = () => {
-      const asked = window.location.hash.slice(1);
-      if (!asked) return;
-      if (asked === 'identity') setDeskTab('graphics');
-      if (asked === 'live') setDeskTab('camera');
+      /*
+       * ONE TABLE DECIDES. `#schedules` used to fall through both of
+       * the two branches that were here and scroll to a zero-size
+       * anchor that was already on screen, so it selected nothing
+       * and said nothing: the audit's *"the behaviour is real and
+       * the feedback is nil"*. The table is in the domain and tested
+       * against this file, so a renamed tab is a failing test rather
+       * than a dead link nobody presses until it matters. [C-30]
+       */
+      const jump = jumpFor(window.location.hash);
+      if (!jump) return;
+      /*
+       * EVERY PREVIOUS MARK GOES FIRST.  [C-30]
+       *
+       * Without this the second jump cancelled the first panel's
+       * fade and left it marked for the rest of the session — the
+       * exact *"panel that looks selected"* this comment calls a
+       * worse lie than no feedback, written above the code that did
+       * it. Visible only by jumping twice, which is what a browser
+       * found and reading did not.
+       */
+      for (const marked of document.querySelectorAll('[data-arrived]')) {
+        marked.removeAttribute('data-arrived');
+      }
+      if (jump.rail) setRailTab(jump.rail);
+      if (jump.desk) setDeskTab(jump.desk);
       /*
        * AND IT WAITS FOR THE ELEMENT. One `setTimeout` after paint was
        * not enough and the browser said so: `#distribution` is a
@@ -554,10 +583,23 @@ export default function ChannelStudio({
       let tries = 0;
       timer = window.setInterval(() => {
         tries += 1;
-        const target = document.getElementById(asked);
+        const target = document.getElementById(jump.panel)
+          ?? document.querySelector(`[data-testid="${jump.panel}"]`);
         if (target) {
           if (target instanceof HTMLDetailsElement) target.open = true;
           target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+          /*
+           * AND SOMETHING MOVES. A console answers a link by doing
+           * the thing, and every panel is already on screen — so
+           * without this the operator has no way to tell a link that
+           * worked from one that did nothing. Removed again after a
+           * second: a mark that stayed would be a panel that looks
+           * selected for the rest of the session. [D-04]
+           */
+          target.setAttribute('data-arrived', 'true');
+          window.clearTimeout(fade);
+          fade = window.setTimeout(
+            () => target.removeAttribute('data-arrived'), FLASH_MS);
         }
         if (target || tries > 16) window.clearInterval(timer);
       }, 120);
@@ -567,6 +609,7 @@ export default function ChannelStudio({
     return () => {
       window.removeEventListener('hashchange', act);
       window.clearInterval(timer);
+      window.clearTimeout(fade);
     };
   }, []);
 
