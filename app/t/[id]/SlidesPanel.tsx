@@ -5,8 +5,10 @@ import Icon from '../../Icon.js';
 import type { Channel, ProgrammeSource } from '../../../src/domain/channel.js';
 import {
   type Deck, type House, type Slide,
-  deckStanding, slideOnAir, sourceForSlide, step, toCheck,
+  deckStanding, losingDeck, losingSlide, losingWriting,
+  slideOnAir, slideSays, sourceForSlide, step, toCheck,
 } from '../../../src/domain/deck.js';
+import { useConfirm } from '../../Confirm.js';
 import {
   BACKGROUNDS, SLIDE_HEIGHT, SLIDE_WIDTH, type Background, type Focus,
   type SlideSpec, slideHtml, slideProblems,
@@ -127,6 +129,14 @@ export default function SlidesPanel({
   const [help, setHelp] = useState(false);
   const file = useRef<HTMLInputElement | null>(null);
   const modes = useRef<HTMLDivElement | null>(null);
+  /*
+   * THE PRODUCT'S OWN DIALOG, WHICH THIS PANEL NEVER USED.  [D-04, C-37]
+   *
+   * Nine surfaces ask before something irreversible. The one used
+   * BETWEEN TWO CUES, with a Remove that deletes a picture out of the
+   * library on a single press, asked nothing at all.
+   */
+  const { confirm, dialog: confirmDialog } = useConfirm();
 
   const read = useCallback(async () => {
     try {
@@ -451,6 +461,37 @@ export default function SlidesPanel({
     } finally { setBusy(false); }
   };
 
+  /**
+   * Throw a deck away.  [§19, D-04, C-37]
+   *
+   * THE ROUTE HAS BEEN THERE SINCE THE DECK STORE WAS WRITTEN AND
+   * NOTHING CALLED IT. A deck could be made and never unmade, so
+   * every upload and every mistaken one stayed for ever — and a
+   * DELETE that no surface reaches is the same shape of gap as a
+   * predicate nothing calls. Reached now, behind the dialog, because
+   * this is the one deletion in the product that really does take
+   * media with it.
+   */
+  const scrap = async (which: Deck) => {
+    setBusy(true);
+    try {
+      const response = await fetch(`/api/decks/${which.id}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) {
+        /* A slide may be somebody's safe playlist, and the route says
+           so rather than taking it. [D-23] */
+        setNote((await response.json().catch(() => ({}))).error
+          ?? 'that deck could not be thrown away');
+        return;
+      }
+      setChosen(null);
+      setOpened(null);
+      setNote(null);
+      await read();
+    } finally { setBusy(false); }
+  };
+
   const go = (by: 1 | -1) => {
     if (!deck) return;
     const wanted = step(deck, at, by);
@@ -462,6 +503,7 @@ export default function SlidesPanel({
       display: 'flex', flexDirection: 'column', gap: 7,
       borderTop: '1px solid var(--line)', paddingTop: 9, marginTop: 2,
     }}>
+      {confirmDialog}
       <div className="row" style={{ flexWrap: 'nowrap' }}>
         <span className="muted grow" style={{
           fontSize: 'var(--text-2xs)', letterSpacing: 0.8, fontWeight: 700,
@@ -499,17 +541,39 @@ export default function SlidesPanel({
           a slide you can put on air.
         </p>
       ) : (
-        <select
-          data-testid="deck-choice" value={chosen ?? ''}
-          onChange={(event) => setChosen(event.target.value)}
-          style={{ fontSize: 'var(--text-sm)', padding: '6px 9px' }}
-        >
-          {decks.map((candidate) => (
-            <option key={candidate.id} value={candidate.id}>
-              {candidate.title} ({candidate.slides.length})
-            </option>
-          ))}
-        </select>
+        <div className="row" style={{ gap: 5, flexWrap: 'nowrap' }}>
+          <select
+            className="grow"
+            data-testid="deck-choice" value={chosen ?? ''}
+            onChange={(event) => setChosen(event.target.value)}
+            style={{ fontSize: 'var(--text-sm)', padding: '6px 9px',
+              minWidth: 0 }}
+          >
+            {decks.map((candidate) => (
+              <option key={candidate.id} value={candidate.id}>
+                {candidate.title} ({candidate.slides.length})
+              </option>
+            ))}
+          </select>
+          {/*
+            * AND A WAY TO UNMAKE ONE, at last. A deck could be made and
+            * never thrown away — the DELETE route has been there since
+            * the store was written and no surface reached it, so every
+            * upload and every mistaken one stayed for ever. [D-19, C-37]
+            */}
+          {deck && (
+            <button
+              type="button" className="small" disabled={busy}
+              data-testid="deck-remove"
+              onClick={() => confirm({
+                ...losingDeck(deck), danger: true,
+                go: () => { void scrap(deck); },
+              })}
+              style={{ flex: '0 0 auto', padding: '5px 9px',
+                fontSize: 'var(--text-2xs)', color: 'var(--bad)' }}
+            >Throw away</button>
+          )}
+        </div>
       )}
 
       {/*
@@ -958,9 +1022,10 @@ export default function SlidesPanel({
               const live = index === at;
               const open = opened === one.assetId;
               const stands = standings[index];
-              const says = one.spec?.heading?.trim()
-                || one.spec?.body?.trim().split('\n')[0]
-                || `Page ${one.page}`;
+              /* The same words the confirmation uses, so the person
+                 checking which slide they are about to destroy is not
+                 comparing two labels. [C-37] */
+              const says = slideSays(one);
               return (
                 <div key={one.assetId} style={{
                   display: 'flex', flexDirection: 'column', gap: 2,
@@ -1095,7 +1160,21 @@ export default function SlidesPanel({
                           <button
                             type="button" className="small" disabled={busy}
                             data-testid="rundown-edit"
-                            onClick={() => take(one, true)}
+                            /* CORRECT FILLS EVERY FIELD FROM THE STORED
+                               DEFINITION, so a half-written slide in the
+                               boxes goes with no press that said so.
+                               Asked only where there is something to
+                               lose. [C-37] */
+                            onClick={() => {
+                              if (empty || editing === one.assetId) {
+                                take(one, true);
+                                return;
+                              }
+                              confirm({
+                                ...losingWriting(one), danger: true,
+                                go: () => take(one, true),
+                              });
+                            }}
                             style={{ padding: '3px 8px',
                               fontSize: 'var(--text-2xs)' }}
                           >Correct</button>
@@ -1112,7 +1191,14 @@ export default function SlidesPanel({
                       <button
                         type="button" className="small" disabled={busy}
                         data-testid="rundown-remove"
-                        onClick={() => { void drop(one); }}
+                        /* THE PICTURE IS DELETED BY THE ROUTE AND THERE
+                           IS NO TRASH. On air, it is deleted out from
+                           under the transmitter. [D-04, C-37] */
+                        onClick={() => confirm({
+                          ...losingSlide(deck, one.assetId, live),
+                          danger: true,
+                          go: () => { void drop(one); },
+                        })}
                         style={{ padding: '3px 8px',
                           fontSize: 'var(--text-2xs)', color: 'var(--bad)' }}
                       >Remove</button>

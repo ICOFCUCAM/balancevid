@@ -4720,3 +4720,111 @@ is real and is drawn now where something reads it.
 * **It does not check uploaded pages.** It cannot. There is no
   definition to check, and guessing from the pixels would be a
   judgement about somebody else's work made by reading a picture.
+
+---
+
+## C-37 — Stage 37: the one desk that never asked
+
+`Confirm` exists in this product and nine surfaces use it. Its own
+docstring is an argument rather than a description: *"a confirmation
+is the last thing between a person and an action they cannot take
+back, so the only interesting question about it is whether it makes
+them think."*
+
+The slides panel reached it from nowhere. It is the panel used
+**between two cues**, and its Remove button deleted a picture out of
+the library on one press — no dialog, no trash, no way back.
+
+### Three presses that destroyed something silently
+
+* **Remove a slide.** `PATCH {action:'remove'}` takes it out of the
+  deck and the route deletes its PNG and its label file. Gone.
+* **Remove a slide that is on air.** `bookingsFor` refuses a slide
+  held by the schedule, the filler, the backup or the emergency cut
+  — and knows nothing about `channel.live.segment`, which is what is
+  on the wire *right now*. Deleting that file does not fail politely:
+  the next segment cannot read it, the encode falls back, and the
+  channel goes to black until somebody takes something else.
+* **Correct.** Not a destructive button, and it destroys something:
+  it fills every field from the stored definition, so a half-written
+  slide in the boxes went with no press that said so.
+
+### And a deck could be made and never unmade
+
+`DELETE /api/decks/[deckId]` has existed since the deck store was
+written and **no surface ever reached it** — the same shape of gap as
+the two predicates C-36 deleted, with the opposite remedy: this one
+is worth reaching. Every upload and every mistaken one stayed for
+ever. It is reached now, behind the dialog, because it is the one
+deletion in this product that really does take media with it: a
+deck's slides are its own pages and belong nowhere else.
+
+### The sentences are in the domain, and tested
+
+A confirmation is only worth having if it says what is lost. *"Are
+you sure?"* is the version that gets clicked through, so the
+sentences are `losingSlide`, `losingDeck` and `losingWriting` —
+functions with assertions on them rather than strings in JSX.
+
+**The on-air case is a different decision, not a louder version of
+the same one**, so it is a different sentence and a different verb:
+
+> **Slide 2, "The new gallery" is on air now.** Removing it deletes
+> its picture, so the channel falls back to black until you take
+> something else. There is no way to bring it back.
+> `[ Cancel ]  [ Remove it anyway ]`
+
+against the ordinary one:
+
+> Remove slide 2, "The new gallery"? Its picture is deleted from the
+> library with it, and there is no way to bring it back.
+> `[ Cancel ]  [ Remove the slide ]`
+
+`slideSays` is one function now, used by the rundown row and by the
+confirmation, so the person checking which slide they are about to
+destroy is not comparing two labels.
+
+### Measured
+
+All three dialogs raised in the real control room, on a real deck.
+Then the deck deletion run end to end: **Cancel changed nothing** —
+three rows, three decks — and Confirm removed the deck, all three of
+its slide PNGs and all three label files. The author's two real decks
+were untouched, and `channel.json` and the deck directory both
+compare identical to their backups.
+
+The staged deck for the first three dialogs borrowed the author's
+real library images, which would have been deleted by confirming the
+throw-away. It was replaced with one made of throwaway copies before
+anything was confirmed. That is the hazard this stage is about,
+met while testing the fix for it.
+
+### The record
+
+Thirteen assertions, eleven mutations, all eleven caught.
+
+**And a fourteenth guard deleted as unobservable.** `at >= 0 ?
+deck.slides[at] : undefined` survived every mutation, because
+`slides[-1]` in JavaScript is `undefined` rather than the last
+element — the guard was a habit from a language with negative
+indices. C-34's caveat was checked and does not apply:
+`noUncheckedIndexedAccess` is on, so the indexed read is already
+`Slide | undefined` and the guard narrowed nothing either. The test
+that proves the absent slide still gets a sentence that reads is what
+makes deleting it safe.
+
+### What this does not do
+
+* **It is not undo.** The request asked for undo and this is
+  confirmation, which is what the rest of this product does and what
+  `Confirm` was built for. Real undo for a removed slide means not
+  deleting the PNG, which means a trash — and an orphan in the
+  library breaks the invariant that counts a deck's images against
+  what is on disk. That is a decision about storage, not a dialog,
+  and it is said here rather than quietly substituted.
+* **It does not confirm Cancel.** The button is labelled Cancel and
+  the person pressed it on purpose. A control room that asks twice
+  about the thing somebody asked for is a control room somebody works
+  around. [D-04]
+* **No deck rename and no deck duplicate.** Neither destroys
+  anything, so neither belongs in this stage.

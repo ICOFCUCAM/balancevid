@@ -349,3 +349,116 @@ export function toCheck(standings: readonly SlideStanding[]): number {
   return standings.filter(
     (one) => one.standing === 'draft' || one.standing === 'broken').length;
 }
+
+/* ------------------------------------------------------------------------ *
+ *  What is lost, said before it is lost.  [§20, §5, D-04, C-26, C-37]
+ * ------------------------------------------------------------------------ */
+
+/**
+ * What to call a slide, in one line.
+ *
+ * ITS OWN WORDS WHERE IT HAS ANY. A rundown row and a confirmation
+ * about the same slide must name it the same way, or the person
+ * checking which one they are about to destroy is comparing two
+ * different labels. One expression, in the domain, used by both.
+ */
+export function slideSays(slide: Slide): string {
+  return slide.spec?.heading?.trim()
+    || slide.spec?.body?.trim().split('\n')[0]
+    || `Page ${slide.page}`;
+}
+
+/** A question and the verb that answers it. Shaped for `Confirm`. */
+export interface Loss {
+  question: string;
+  verb: string;
+}
+
+/**
+ * Removing a slide, in the sentence that should precede it.
+ *
+ * THE PANEL HAD NO CONFIRMATION AT ALL, and it is the panel used
+ * BETWEEN TWO CUES. One press of Remove took the slide out of the
+ * deck and the route deleted its PNG from the library — no dialog,
+ * no undo, no trash. Every other destructive control in this product
+ * goes through `Confirm` (nine surfaces do); the one on the live desk
+ * did not.
+ *
+ * AND THE ON-AIR CASE IS A DIFFERENT DECISION, not a louder version
+ * of the same one. `bookingsFor` refuses a slide that is in the
+ * schedule, the filler, the backup or the emergency cut — and knows
+ * nothing about `channel.live.segment`, which is what is on the wire
+ * RIGHT NOW. Deleting that file does not fail politely: the next
+ * segment cannot read it, the encode falls back, and the channel goes
+ * to black until somebody takes something else. That belongs in the
+ * first sentence, not in a footnote.
+ */
+export function losingSlide(
+  deck: Deck, assetId: string, onAir = false,
+): Loss {
+  const at = deck.slides.findIndex((one) => one.assetId === assetId);
+  /*
+   * NO `at >= 0` GUARD, AND THAT IS NOT AN OVERSIGHT. One was written
+   * here and survived every mutation, because `slides[-1]` in
+   * JavaScript is `undefined` rather than the last element — the
+   * guard was a habit from a language with negative indices, and
+   * `noUncheckedIndexedAccess` already types this `Slide | undefined`
+   * so it narrowed nothing either. The sentence below handles the
+   * absent slide, and the test that proves it is the one that makes
+   * deleting the guard safe. [C-34's caveat, checked and not met]
+   */
+  const slide = deck.slides[at];
+  const named = slide
+    ? `slide ${at + 1}, “${slideSays(slide)}”` : 'this slide';
+  return {
+    question: onAir
+      ? `${capital(named)} is on air now. Removing it deletes its picture, `
+        + 'so the channel falls back to black until you take something '
+        + 'else. There is no way to bring it back.'
+      : `Remove ${named}? Its picture is deleted from the library with `
+        + 'it, and there is no way to bring it back.',
+    verb: onAir ? 'Remove it anyway' : 'Remove the slide',
+  };
+}
+
+/**
+ * Throwing a whole deck away.
+ *
+ * THE ROUTE HAS EXISTED SINCE THE DECK STORE WAS WRITTEN AND NOTHING
+ * EVER CALLED IT — the same shape of gap as the two predicates C-36
+ * deleted, with the opposite remedy: this one is worth reaching. A
+ * deck is the only deletion in this product that really does remove
+ * media, because its slides exist as its pages and belong nowhere
+ * else, so the count goes in the sentence.
+ */
+export function losingDeck(deck: Deck): Loss {
+  const pages = deck.slides.length;
+  return {
+    question: `Throw away “${deck.title}”? Its ${pages} `
+      + `slide${pages === 1 ? '' : 's'} ${pages === 1 ? 'is' : 'are'} `
+      + 'deleted with it — they are the deck’s own pages and are not '
+      + 'kept anywhere else.',
+    verb: 'Throw the deck away',
+  };
+}
+
+/**
+ * Loading a slide into the writer over words somebody typed.
+ *
+ * CORRECT IS NOT A DESTRUCTIVE BUTTON AND IT DESTROYS SOMETHING. It
+ * fills every field from the stored definition, so a half-written
+ * slide in the boxes is gone with no press that said so. Asked only
+ * when there is something to lose: a writer that is empty, or already
+ * holding this same slide, loses nothing and must not be interrupted.
+ */
+export function losingWriting(slide: Slide): Loss {
+  return {
+    question: `Load “${slideSays(slide)}” into the writer? What you have `
+      + 'typed there is replaced, and it is not saved anywhere.',
+    verb: 'Replace what I wrote',
+  };
+}
+
+function capital(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
