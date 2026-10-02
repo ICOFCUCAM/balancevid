@@ -20,19 +20,27 @@
 import { readFile, rename, stat, writeFile, readdir, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Heartbeat } from '../domain/health.js';
+import type { Pacing } from '../domain/pace.js';
 import { VAR_ROOT, paths, safe } from './paths.js';
 
 const BEAT_FILE = join(VAR_ROOT, 'playout.json');
 
 /** The engine says it is still here. Called at the end of every pass. */
 export async function beat(
-  what: { channels: number; made: number }, at = new Date(),
+  what: {
+    channels: number; made: number;
+    /** Whether it is keeping up, when the pass produced anything. [C-41] */
+    pacing?: Pacing; load?: number;
+  },
+  at = new Date(),
 ): Promise<void> {
   const body: Heartbeat = {
     at: at.toISOString(),
     pid: process.pid,
     channels: what.channels,
     made: what.made,
+    ...(what.pacing ? { pacing: what.pacing } : {}),
+    ...(what.load === undefined ? {} : { load: what.load }),
   };
   await mkdir(VAR_ROOT, { recursive: true });
   const temp = `${BEAT_FILE}.${process.pid}.tmp`;

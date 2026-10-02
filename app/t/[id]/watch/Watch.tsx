@@ -23,9 +23,13 @@ import ChannelPlayer from './ChannelPlayer.js';
 interface NowAndNext {
   name: string;
   live: boolean;
-  title: string;
+  title: string | null;
+  /** What kind of thing it is: "Studio Two · Performance". [C-43] */
+  kind: string | null;
   untilMs: number | null;
   next: string | null;
+  /** When it starts, as an instant. [C-43] */
+  nextAt: number | null;
   /** Whether segments are actually arriving. [§18] */
   transmitting: boolean;
   /** What to tell the viewer when they are not. */
@@ -180,13 +184,29 @@ export default function Watch({
                 fontSize: 'var(--text-2xs)', letterSpacing: '0.09em',
                 fontWeight: 'var(--weight-bold)', color: 'var(--text-faint)',
               }}>{now?.transmitting ? 'NOW PLAYING' : 'SCHEDULED'}</div>
-              <div style={{
+              <div data-testid="viewer-title" style={{
                 fontSize: 'var(--text-lg)', fontWeight: 'var(--weight-semi)',
                 letterSpacing: 'var(--tracking-tight)',
                 marginTop: 'var(--space-1)',
               }}>
                 {now?.title ?? '—'}
               </div>
+              {/*
+                * AND WHAT KIND OF THING IT IS.  [brief point 9, C-43]
+                *
+                * *"THE ANCIENT OF DAYS / Studio Two · Performance."*
+                * The title alone tells a viewer the name of
+                * something they have never heard of; the line under
+                * it tells them what they are looking at. Same
+                * sentence the lower third carries, from the same
+                * function, so the page and the picture cannot
+                * disagree.
+                */}
+              {now?.kind && (
+                <div className="muted" data-testid="viewer-kind" style={{
+                  fontSize: 'var(--text-base)', marginTop: 2,
+                }}>{now.kind}</div>
+              )}
             </div>
             {/*
               * AND THE COUNTDOWN ONLY RUNS ON SOMETHING THAT IS
@@ -212,6 +232,14 @@ export default function Watch({
               <span className="muted" style={{
                 fontSize: 'var(--text-2xs)', letterSpacing: 0.8, fontWeight: 700, flex: '0 0 auto',
               }}>NEXT</span>
+              {/* The time it starts, which is the half a viewer
+                  deciding whether to wait actually needs. [C-42] */}
+              {now.nextAt !== null && (
+                <span className="mono muted" data-testid="viewer-next-at"
+                      style={{ flex: '0 0 auto', fontSize: 'var(--text-sm)' }}>
+                  {clockOf(now.nextAt)}
+                </span>
+              )}
               <span style={{
                 minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
@@ -229,6 +257,25 @@ export default function Watch({
       </div>
     </div>
   );
+}
+
+/**
+ * A wall clock, in the VIEWER'S own zone and not the channel's.
+ *
+ * The picture's NEXT carries the channel's local time, because a
+ * caption burnt into a broadcast is the same for everybody watching
+ * it. A page is not: it is being read on one person's device, and
+ * "16:30" means the time on their own clock. Two surfaces, two
+ * correct answers. [§2, C-43]
+ */
+function clockOf(atMs: number): string {
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      hour: '2-digit', minute: '2-digit',
+    }).format(new Date(atMs));
+  } catch {
+    return '';
+  }
 }
 
 /** `01:04:17`, or `04:17`. Hours only once there are any. */

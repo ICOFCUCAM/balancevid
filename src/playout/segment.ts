@@ -30,6 +30,7 @@ import {
 } from '../domain/playout.js';
 import { whatIsOn } from '../domain/channel.js';
 import { marksFor } from '../domain/identity.js';
+import { overlayNow } from '../render/overlay.js';
 import type { Mark } from '../domain/identity.js';
 import { kbps, streamQuality } from '../domain/quality.js';
 import { HOUSE } from '../render/ingest.js';
@@ -44,6 +45,7 @@ import {
 } from '../domain/transition.js';
 import { paths } from '../store/paths.js';
 import { pathFor } from '../store/playoutSources.js';
+import { libraryFile } from '../store/libraryMedia.js';
 
 /**
  * What the stream looks like. Constant across every programme.
@@ -110,7 +112,8 @@ export async function produceSegment(
     whatIsOn(channel, fromAt),
     intoProgramme(channel, fromAt),
     (on) => titleOf(channel, on),
-    nextTitle(channel, fromAt),
+    nextUp(channel, fromAt),
+    channel.name,
   );
   /*
    * AND WHETHER THIS BUILD CAN DRAW THEM.  [C-24]
@@ -120,6 +123,20 @@ export async function produceSegment(
    * startup and a map lookup four times a second after that.
    */
   const canText = await canDrawText();
+  /*
+   * AND THE MARKS, DRAWN.  [§13, C-40]
+   *
+   * A transparent PNG of this channel's own graphics, by the
+   * renderer the slides already use. Asked for, never waited for:
+   * the first segment wanting a new overlay goes out without it and
+   * the next one has it, which is the same bargain the loudness
+   * queue makes (C-33) and for the same reason — a channel that
+   * paused for a browser to start would stutter every time its
+   * caption changed.
+   */
+  const overlay = overlayNow(marks, STREAM, paths.overlays(),
+    /* A logo names a library asset; the store turns it into a file. */
+    (assetId) => libraryFile(assetId, { moving: false })?.path);
 
   const reads = playoutWindow(channel, fromAt, toAt, (source) => {
     const path = pathFor(channel, source);
@@ -182,7 +199,7 @@ export async function produceSegment(
       }).outMs : 0,
     };
     if (await encodePiece(channel, read, piece, factsOf, read.atMs - fromAt,
-      marks, canText, level, dip, opts)) {
+      marks, canText, overlay, level, dip, opts)) {
       fellBackHere = true;
     }
     pieces.push(piece);
@@ -277,6 +294,47 @@ async function appendAll(pieces: string[], out: string): Promise<void> {
  * would not produce a wrong caption, it would fail the whole segment and put
  * the channel to black.
  */
+/**
+ * THE COMPOSITOR'S FIRST CHOICE, AND WHY IT IS NOT `drawtext`.
+ * [§13, D-16, C-24, C-40]
+ *
+ * An overlay drawn by the browser this product already uses beats
+ * `drawtext` on every axis that matters: it is the same picture on
+ * every build rather than whatever font the binary happened to
+ * find, it can put a name over a role, and it works on the binary
+ * that ships — which cannot draw a single character. One composite
+ * instead of four text filters, too.
+ *
+ * `movie` loads the PNG inside a plain `-vf`, so the graph still has
+ * ONE external input and one output and every `-map` below is
+ * untouched. It is the idiom ffmpeg's own documentation uses for a
+ * watermark, and both filters are present in the pinned build —
+ * asked, by doing it, before any of this was written. [C-35's lesson]
+ *
+ * THE CHAINS ARE JOINED WITH `;` AND THE FILTERS WITH `,`, which is
+ * the distinction that makes this one function rather than a list
+ * the caller joins: a graph with a second source cannot be a comma
+ * list, and a caller that forgot would produce a filtergraph ffmpeg
+ * rejects whole — the exact failure C-24 is about.
+ */
+export function videoChain(
+  filters: readonly string[], overlay?: string,
+): string {
+  const chain = filters.join(',');
+  if (!overlay) return chain;
+  /*
+   * THE PATH IS ESCAPED FOR A FILTERGRAPH, where a colon separates
+   * options and a backslash escapes. Ours are hex names under
+   * `var/` and contain neither — escaped anyway, because the day one
+   * does is the day the whole graph is rejected and the picture goes
+   * black.
+   */
+  const named = overlay.replace(/\\/g, '\\\\')
+    .replace(/:/g, '\\:').replace(/'/g, "\\'");
+  return `${chain}[bv_bg];movie=${named}[bv_marks];`
+    + '[bv_bg][bv_marks]overlay=0:0';
+}
+
 export function markFilters(marks: Mark[], canDrawText: boolean): string[] {
   /*
    * NOTHING, WHEN THE BINARY CANNOT DRAW TEXT.  [C-24]
@@ -381,6 +439,8 @@ async function encodePiece(
   offsetMs: number,
   marks: Mark[],
   canText: boolean,
+  /** The marks as a transparent PNG, when one has been drawn. [C-40] */
+  overlay: string | undefined,
   /** The item's measured level correction, if anybody has one. [C-33] */
   gain: string | null,
   /** How to dip in and out of this piece, if either end is a join. [C-34] */
@@ -415,9 +475,22 @@ async function encodePiece(
       '-f', 'lavfi', '-i',
       `anullsrc=channel_layout=stereo:sample_rate=${HOUSE.audioSampleRate}`,
       '-t', seconds,
-      '-vf',
-      `scale=${STREAM.width}:${STREAM.height}:force_original_aspect_ratio=decrease,`
-        + `pad=${STREAM.width}:${STREAM.height}:(ow-iw)/2:(oh-ih)/2,setsar=1`,
+      /*
+       * AND A STILL CARRIES THE CHANNEL'S MARKS TOO.  [§13, C-40]
+       *
+       * This branch drew none. A slide, a caption card or a station
+       * ident went out with no bug and no LIVE lamp — on the one
+       * kind of picture where there is nothing else to tell a viewer
+       * whose channel this is. It was not a decision; the branch was
+       * written before the identity existed and never caught up.
+       */
+      '-vf', videoChain([
+        `scale=${STREAM.width}:${STREAM.height}`
+          + ':force_original_aspect_ratio=decrease',
+        `pad=${STREAM.width}:${STREAM.height}:(ow-iw)/2:(oh-ih)/2`,
+        'setsar=1',
+        ...markFilters(marks, canText),
+      ], overlay),
       '-map', '0:v:0', '-map', '1:a:0',
       ...encodeArgs(offsetMs),
       out,
@@ -488,7 +561,7 @@ async function encodePiece(
     /* A live feed always carries the microphone; a file says whether it does. */
     ...((facts?.hasAudio ?? following) ? [] : silence),
     '-vf',
-    [
+    videoChain([
       `scale=${STREAM.width}:${STREAM.height}:force_original_aspect_ratio=decrease`,
       `pad=${STREAM.width}:${STREAM.height}:(ow-iw)/2:(oh-ih)/2`,
       `fps=${STREAM.fps}`,
@@ -507,7 +580,7 @@ async function encodePiece(
       ...fadeFilters(dip, read.durationMs),
       /* The identity, over the picture and never inside it. [§13, D-16] */
       ...markFilters(marks, canText),
-    ].join(','),
+    ], overlay),
     '-map', '0:v:0',
     '-map', (facts?.hasAudio ?? following) ? '0:a:0' : '1:a:0',
     /*
@@ -630,10 +703,41 @@ function intoProgramme(channel: Channel, at: number): number {
   return 0;
 }
 
-function nextTitle(channel: Channel, at: number): string | undefined {
+/**
+ * WHAT FOLLOWS, AND WHEN IT STARTS.  [§6, brief point 6, C-42]
+ *
+ * The title has been here since the identity was written and the
+ * clock never was — which is the half a viewer deciding whether to
+ * wait actually needs. *"NEXT / Live Conversation / 16:30."*
+ *
+ * THE TIME IS THE CURRENT THING'S END, which is the next thing's
+ * start, and it is the only instant either of them agrees on: a
+ * rotation entry has no clock time of its own because it loops.
+ * Formatted HERE, because formatting it needs the channel's own
+ * zone and the identity does not get to know what a timezone is.
+ * [§2]
+ */
+function nextUp(
+  channel: Channel, at: number,
+): { title?: string; at?: string } | undefined {
   const on = whatIsOn(channel, at);
   if (on.kind !== 'rotation' || channel.rotation.length === 0) return undefined;
   const index = channel.rotation.findIndex((entry) => entry.id === on.entry.id);
   const after = channel.rotation[(index + 1) % channel.rotation.length];
-  return after?.title;
+  if (!after?.title) return undefined;
+  return { title: after.title, at: clockAt(channel, on.untilMs) };
+}
+
+/** An instant as the channel's own wall clock reads it. */
+function clockAt(channel: Channel, atMs: number): string | undefined {
+  try {
+    return new Intl.DateTimeFormat('en-GB', {
+      hour: '2-digit', minute: '2-digit', hour12: false,
+      timeZone: channel.timezone,
+    }).format(new Date(atMs));
+  } catch {
+    /* A zone the platform does not know is a zone nobody should be
+       shown a time in. The title still goes out. */
+    return undefined;
+  }
 }

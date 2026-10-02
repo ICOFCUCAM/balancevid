@@ -5061,3 +5061,540 @@ Fourteen assertions, twelve mutations, all twelve caught.
 * **It does not take Space.** Said above, and worth saying twice:
   the temptation is real and the cost is a key that means something
   different in the next studio.
+
+---
+
+## C-40 — Stage 40: the compositor that can draw
+
+The brief said the transmitted picture is *"missing the visual
+language of television"* and asked for a graphics system: a channel
+bug, a lower third, programme identification, a LIVE mark, NEXT, and
+**one compositor feeding programme out**.
+
+`docs/GRAPHICS.md` is the brief kept whole with the measurement
+written against each point of it. The measurement reorders the list:
+
+**All of it is already built.** The bug, the lower third, the LIVE
+lamp and NEXT are modelled on the channel, derived by one function
+(`marksFor`), drawn by one compositor (`markFilters`), composited
+over the programme and never burnt into a file. The architecture the
+brief draws and the architecture in the code are the same drawing.
+
+**None of it reaches the wire**, because of one line:
+
+```ts
+if (!canDrawText) return [];
+```
+
+`drawtext` needs freetype and the pinned `ffmpeg-static` is built
+without it. C-24 found that a filtergraph naming an absent filter is
+rejected WHOLE — the bug did not fail to appear, it took the picture
+with it — and traded a black channel for a clean one with no
+identity. **The screenshot in the brief is that trade, seen from the
+sofa.**
+
+### Drawn by the renderer this product already has
+
+C-26 built a deterministic HTML renderer for slides: pinned face,
+fixed sizes, one layout calculation shared by the preview and the
+transmission. **A transparent screenshot of a page is a broadcast
+overlay**, and `movie` and `overlay` are in every ffmpeg ever built —
+including the one that cannot draw a character. Asked by doing it
+before a line was written, which is C-35's lesson:
+
+| | |
+|---|---|
+| `movie` | present |
+| `overlay` | present |
+| `drawtext` | **absent** |
+
+It is not a second graphics system, which the brief is explicit
+about. The same `Mark[]` from the same `marksFor` arrives; only what
+draws them changed. The one that knows how to draw still is not the
+one that decides what.
+
+### And it does what `drawtext` never could
+
+**A lower third is a name and a role, not a sentence.** The brief
+draws two lines — the name large, what they are small underneath —
+and that hierarchy is most of what separates a television graphic
+from a subtitle. The model composed `title · presenter` into one
+string, so the renderer splits on the separator the identity already
+uses, once, on the first one: three lines in the corner of a
+broadcast is the "don't overdo the writing" the brief warns about,
+in its own hierarchy.
+
+A plate with a corner radius, two weights, letter-spacing on a
+station mark, and a drawn dot beside LIVE rather than a bullet
+character that is a different shape in every font.
+
+### Inside title safe, which the identity never was
+
+`markFilters` used a flat 28px inset — 2.6% of a 1080-line frame,
+well outside the line C-38 measured a slide's credit against. A
+slide is watched on a laptop; a channel is watched on a set that may
+overscan the outer 5%. Every mark is inset to title safe now, by the
+same constant.
+
+### Two faults found on the way
+
+* **A still carried no marks at all.** The `-loop 1` branch — a
+  slide, a caption card, a station ident — drew none of them, on the
+  one kind of picture where there is nothing else to tell a viewer
+  whose channel this is. Not a decision: the branch was written
+  before the identity existed and never caught up.
+* **`bug.assetId` is read by nothing.** A channel that uploads a logo
+  and clears the text gets no bug at all. The fourth capability in
+  four stages this product declared and did not reach, after
+  `slideReady`, `ACTION_SAFE` and `data-keys="own"`. Named in
+  `GRAPHICS.md` and left for its own stage, because an image bug is
+  a different change from a text one.
+
+### Drawn once, never waited for
+
+The engine makes a segment every four seconds. The marks change when
+the programme changes, when somebody is cited, or when the lower
+third's eight seconds run out — so the overlay is keyed on **what
+the marks say** and the same PNG serves a hundred segments.
+
+The first segment that wants a new overlay asks for it and goes out
+without it; the next one has it. That is the loudness queue's bargain
+(C-33) for the same reason: a channel that paused for a browser to
+start would stutter every time its caption changed. Four seconds of a
+correct picture with last moment's caption beats four seconds of
+nothing.
+
+### Measured
+
+The real mark set — bug, lamp, two-line lower third, NEXT —
+rendered at 1280×720 and composited onto a picture by the shipped
+binary: `exit 0`, 26 KB of overlay, every mark inside title safe,
+LIVE with its dot top-left, the station top-right, the programme and
+the presenter bottom-left with NEXT stacked above.
+
+### The record
+
+Twenty assertions, fourteen mutations, all fourteen caught. Two
+needed their anchor corrected first: the separator in the source is
+the character itself, not an escape, so the patch matched nothing and
+proved nothing until it did.
+
+### What this does not do
+
+* **It does not change `marksFor`.** Not one decision about what the
+  channel says moved. This stage is entirely about what draws it.
+* **It does not remove `drawtext`.** A build that has freetype still
+  uses it when no overlay has been drawn yet, which is the first few
+  seconds after a caption changes and any build with no browser.
+* **The rest of the brief is still to come**: the role field, the
+  source kind on the caption, the image bug, NEXT with its time, and
+  the Watch page. Each is named in `GRAPHICS.md` with what it needs.
+
+---
+
+## C-41 — Stage 41: the engine knew and threw it away
+
+A report arrived from another machine: the live path uses `-ss` to
+seek into a growing browser recording, the engine assumes a keyframe
+every second, a browser may produce one only at the start, and so
+each segment takes longer than the last until the channel falls
+behind. It came with measurements — 1.1 s at ten seconds in, 7.2 s
+at five minutes — taken in a different container against a
+synthetic file.
+
+### Measured here, on a recording this product actually makes
+
+Chromium, VP8/Opus, the product's own MIME list, its own two-second
+timeslice, 190 seconds of capture, then the engine's own cut command
+at increasing offsets:
+
+| keyframes | | the engine's cut | at |
+|---|---|---|---|
+| count | 38 in 190 s | 1.04 s | 10 s |
+| spacing | **5.05 s** (min 5.04, max 5.10) | 0.80 s | 40 s |
+| | | 0.78 s | 80 s |
+| | | 0.73 s | 120 s |
+| | | 0.71 s | 160 s |
+
+**Flat.** Slightly faster at the end, as a warm page cache would
+predict. On this browser the reported fault does not reproduce, and
+the reason is the first column: Chromium writes a keyframe every five
+seconds, not only at the start, so a fast seek decodes at most five
+seconds before the cut and the cost is bounded rather than growing.
+
+Two things remain true from the report:
+
+* **The engine's own comment is wrong about live.** It justifies
+  `-ss` with *"the house format puts one second apart"* — a claim
+  about what this product encodes, not about what a browser records.
+  Five seconds, not one.
+* **Firefox is unmeasured.** Only Chromium is installed here, the
+  author uses Firefox, and a browser that really did key only at the
+  start would behave exactly as reported. Nothing here rules that
+  out.
+
+### So the stage is not the fix. It is the instrument.
+
+Building a continuous re-keying pass — a second encode per live
+session, on a two-core box — on the strength of an unreproduced
+hypothesis would be the opposite of this product's method. What the
+measurement actually exposed is worse than the bug it was looking
+for:
+
+**`index.ts` has computed `const spent = Date.now() - started` at
+the end of every pass since the loop was written, and used it only
+to decide how long to sleep.** The number that says whether this is
+a television station or a slideshow was measured four times a second,
+for the life of every broadcast, and thrown away.
+
+That is why the question had to be answered with a stopwatch in a
+different container against a file nobody broadcasts. The right
+answer to *"is it falling behind"* is not a better guess. It is for
+the thing that knows to say so.
+
+### Spent over produced, and one is the edge of the cliff
+
+Below one the engine has spare time and the channel runs for ever.
+Above one every pass starts further behind the clock than the last
+and the gap grows without limit — **there is no equilibrium above
+one**, which is why this is a ratio rather than a duration.
+
+Measured against what the pass **produced**, not against the segment
+length: a pass that made three segments had twelve seconds of
+television to make and twelve seconds of grace to make it in.
+
+**The worst recent pass, not the average.** Nineteen passes at 0.3 s
+and one at 5 s has already dropped a segment, and a mean of 0.5 would
+call that healthy. Each time it runs out of time the picture arrives
+late and nothing catches it up. The average is the honest number for
+*how hard is this box working*; the maximum is the honest number for
+*did we make it*.
+
+**And the warning is at two thirds, not at one.** A channel running
+at 95% of real time has no room for a longer programme, a second
+channel, or the minute the operating system spends elsewhere — and
+the first anybody would know is a stall.
+
+### Where it speaks
+
+Below a render putting black on the wire and above everything else,
+and the placement is the argument: a channel falling behind is still
+transmitting, still green, still producing segments. It is the third
+fault in this product that nothing else can reveal, after the silent
+black render (C-24) and the picture nobody could see (C-28).
+
+The sentence names the consequence rather than the measurement,
+because "slow" is not a thing anybody acts on and *"the picture will
+start arriving late and players will stall"* is.
+
+### The record
+
+Seventeen assertions, eleven mutations, all eleven caught.
+
+### What this does not do
+
+* **It does not change the seek.** Nothing is known to be wrong with
+  it on a browser that keys every five seconds, and the instrument
+  now exists to find out on the server where it matters: a channel
+  that reads `behind` while live, and recovers when the broadcast is
+  restarted, is the report's hypothesis confirmed — and then the
+  re-keying pass is justified by data instead of by argument.
+* **It does not ask the browser for keyframes.** `MediaRecorder` has
+  no portable control for it, the one Chrome offers is non-standard,
+  and Chromium already keys often enough. A hint that Firefox ignores
+  would be a fix that looks applied and is not.
+
+---
+
+## C-42 — Stage 42: the caption said the station's name
+
+The brief's point 3: *"The viewer needs to know what they are
+watching, not just which channel."* The lower third has carried the
+programme's title since the identity was written, which is half of
+it. The missing half is the one the brief keeps drawing — **what
+kind of thing this is**.
+
+### And the title was frequently the channel's own name
+
+`titleOf` falls back to `channel.name` for a live session with a
+segment up, for the emergency cut, for the backup, and for anything
+untitled. So the lower third said REDEMPTION TV, under a bug that
+also said REDEMPTION TV.
+
+C-26 condemns that in this product's own words:
+
+> *"A name in two corners of the same graphic is a station that does
+> not trust the viewer to have seen it."*
+
+It was doing it on air. The Watch page's NOW PLAYING in the brief's
+screenshot is the same fact on a third surface.
+
+### What goes on each of the two lines
+
+C-40 gave the renderer a name over a role; this decides what each
+one is.
+
+**A lower third identifies the person when there is one**, and the
+programme when there is not. That is what a lower third is for and
+what the brief draws twice. A caption that led with the show's title
+over somebody's face would be the station introducing itself while a
+person is talking.
+
+| | lead | under |
+|---|---|---|
+| presenter + role | the name | the role |
+| presenter, no role | the name | what the schedule knows |
+| no presenter | the programme | what the schedule knows |
+| nothing but the station's name | the one true thing | — |
+
+**The second line is derived, not typed.** The schedule already
+knows: a render carries which studio made it, a live session is a
+camera that is on now. A field somebody fills in is a field that
+disagrees with the schedule by the second week.
+
+**"Live from the studio", not "Live".** The lamp in the corner
+already says it is live, and a caption repeating the lamp is the
+second name in the second corner again.
+
+**And two things outrank the source.** The emergency cut and the
+backup are statements about the *transmission* rather than the
+programme, and a viewer who has just been cut away from needs that
+before they need to know which studio made the replacement. [§9]
+
+### Never three lines
+
+The role beats the source on the second line rather than joining it.
+Both are "what this is", the operator typed one of them on purpose,
+and two of them would be the brief's own point 10: *"professional
+television does not mean putting text everywhere."*
+
+### NEXT, with the time it starts
+
+*"NEXT / Live Conversation / 16:30."* The mark carried the title
+since the identity was written and never the clock, which is the
+half a viewer deciding whether to wait actually needs.
+
+The time is the current item's **end**, which is the next one's
+start and the only instant either agrees on — a rotation entry has
+no clock time of its own because it loops. Formatted in the
+channel's own zone by the caller, because the identity does not get
+to know what a timezone is (§2), and omitted rather than guessed
+when the platform does not know the zone.
+
+### The record, and the two mutants that mattered
+
+Nineteen assertions, twelve mutations, all twelve caught — **after
+two survived and exposed a real hole**.
+
+`caption.ts` was tested to the letter, and nothing asserted that
+`marksFor` reads the role or joins the two lines. A wiring that
+threw half the caption away passed the whole suite. **The judgement
+being right is not the same as the judgement being used**, and the
+only thing that found the difference was mutating the wiring rather
+than the judgement.
+
+### What this does not do
+
+* **No third line, ever.** Said twice above because the temptation
+  is constant and the brief warns about it by name.
+* **It does not invent a role.** A channel that types none gets what
+  the schedule knows, which is true without anybody maintaining it.
+* **Still to come:** the image bug (`bug.assetId`, read by nothing)
+  and the Watch page, which prints the channel where the programme
+  belongs — the same fault as this stage, on the surface the brief's
+  screenshot was taken from.
+
+---
+
+## C-43 — Stage 43: the Watch page said it too
+
+The brief's screenshot, read from the sofa:
+
+```
+REdemption TV                          LIVE
+              VIDEO
+NOW PLAYING
+REdemption TV
+```
+
+**The same fault as C-42, on a third surface.** The viewer route
+has its own copy of `titleOf`, with the same fallback to the
+channel's name, so the page under the player announced the station
+to somebody who had just read the station's name in the header.
+
+Fixed with the same function rather than a second opinion:
+`captionFor` decides, the lower third draws it, and the page prints
+it. The picture and the page cannot now disagree about what is on,
+because there is one answer.
+
+### And NEXT could say the channel's name too
+
+`next = after.title ?? channel.name` — so a loop of untitled items
+listed **"NEXT REdemption TV"**: the station announcing itself as
+its own next programme. An untitled item has no title, and the
+listing says nothing rather than something false.
+
+### What was added, and what was already there
+
+The page already had NOW PLAYING / SCHEDULED chosen by whether
+segments are arriving, a countdown that only runs on something
+running, and a NEXT block. The brief credits it with less than it
+has. What it did not have:
+
+* **the kind line** — *"THE ANCIENT OF DAYS / Studio Two ·
+  Performance"*. The title alone tells a viewer the name of
+  something they have never heard of; the line under it tells them
+  what they are looking at.
+* **the time NEXT starts.**
+
+### Two clocks, two correct answers
+
+The picture's NEXT carries the **channel's** local time, because a
+caption burnt into a broadcast is the same for everybody watching
+it. The page's carries the **viewer's**, because a page is being
+read on one person's device and 16:30 means the time on their own
+clock. Said here because the two look like a duplication and are
+not. [§2]
+
+---
+
+## C-44 — Stage 44: the logo nothing could draw
+
+`bug.assetId` — a station's logo rather than its name — has been in
+the model since the identity was written and **was read by
+nothing**. `marksFor` pushed a bug only where there was TEXT, so a
+channel that uploaded a logo and cleared the name got no bug at all.
+
+The fourth capability this product declared and did not reach, after
+`slideReady` (C-36), `ACTION_SAFE` (C-38) and `data-keys="own"`
+(C-39).
+
+**And `drawtext` could never have drawn one**, which is why it
+waited for a compositor that draws pages. C-40 made this a four-line
+change.
+
+* **A logo beats a name**, and either is a bug. A channel that
+  uploaded one has said what it wants in the corner; the text stays
+  the fallback it always was, because a channel that has just been
+  created has a name and does not have a logo.
+* **Sized by its height, not its width.** A bug is a thing of a
+  certain height in the corner of a frame whatever shape the artwork
+  is; sizing by width makes a wide wordmark tiny and a square emblem
+  enormous.
+* **A logo that has gone draws nothing**, rather than its own empty
+  string. A deleted logo leaves a channel with no bug, which is what
+  it had before anybody uploaded one; an empty plate in the corner
+  looks deliberate.
+* **The bytes are inlined**, like a slide's picture, because the
+  page is given no network and no disk. [D-06]
+
+### The record, and a pattern worth naming
+
+Nine assertions across the two stages, with eighteen mutations
+between them, all caught — and **twice now the survivors were the
+same thing**: at C-42 nothing asserted that `marksFor` reads the
+role or joins the two lines; here nothing asserted that it ever
+produces a picture bug at all. Both times the judgement was tested
+to the letter and the renderer was tested to the letter.
+
+> **When a stage adds a field to the model and a branch to the
+> renderer, the thing in between is where the test is missing.**
+
+That is the second general lesson this method has produced, after
+C-34's *a guard that only narrows a type cannot be judged by
+mutation alone*.
+
+### What this leaves
+
+Every point of the brief that is a graphics change is now built. The
+two it names that are not are recorded in `GRAPHICS.md` as what they
+are: the camera's own picture, which is a production problem no
+compositing fixes, and the restraint rule, which is the thing to
+keep while doing all of the above.
+
+---
+
+## C-45 — Stage 45: nobody looked at the camera
+
+The brief's point 8, which it says no graphics fix:
+
+> *"quite soft, heavily compressed, poorly framed, subject very
+> close to the bottom edge, large empty wall area, door dominates
+> the left side, lighting relatively flat… even if you add a perfect
+> lower third, it will still look like a home webcam feed."*
+
+It is right, and **the product said nothing**. The Live Studio's
+camera panel reports the device, the preset and the feed's bitrate —
+everything about the TRANSPORT and nothing about the PICTURE. An
+operator could watch their own preview for ten minutes and never be
+told the room is flat, because nothing was measuring it.
+
+Studio Two has had an honest verdict before recording since it was
+built. The surface the brief is complaining about had none. Same
+shape as every other finding this month: a capability this product
+has, on a surface it was never pointed at. [D-19]
+
+### Three numbers, and the one that is missing
+
+| | |
+|---|---|
+| **exposure** | mean luma — unambiguous arithmetic |
+| **spread** | the distance between the dark and bright parts |
+| **weight** | where the detail sits, vertically |
+
+**And softness is deliberately absent, although the brief names it
+first.** Sharpness from a frame alone is confounded by content: a
+person against a plain wall has little detail because the wall has
+none, not because the lens is soft. Telling an operator their camera
+is soft when their room is plain is a check that cries wolf, and a
+control room learns to ignore one of those in a week. [D-04]
+
+**The spread is a percentile range, not a minimum and a maximum.**
+One blown highlight off a window and one black doorway would make
+every picture read as full-range, which is the opposite of what the
+number is for. The fifth and ninety-fifth are what a colourist
+looks at and they ignore exactly those two pixels.
+
+**And the weight is a proxy, said as one.** Without knowing where a
+person is, "the subject is low in frame" cannot be measured. What
+can is where the EDGES are: three quarters of the frame's detail
+below the midline is a subject sitting low with a wall above them.
+A wide shot of a desk is a real shot, so the sentence suggests
+rather than complains — *"Raising the camera to eye level, or moving
+closer, fills the frame."*
+
+### It reads the mixed feed, not the camera
+
+A dark camera composited onto a bright set is not a dark picture,
+and judging the camera would be judging something nobody sees.
+[D-22]
+
+### Never more than two
+
+A camera panel listing four complaints is a panel somebody stops
+reading — the brief's own point 10 pointed at the control room
+instead of at the picture. And nothing at all when the shot is
+fine.
+
+### Measured
+
+A real camera frame through the product's own sampling, and the
+brief's own shot drawn so the numbers are reproducible:
+
+| | luma | spread | weight | said |
+|---|---|---|---|---|
+| a camera frame | 0.412 | 0.361 | 0.594 | **nothing** |
+| the brief's shot | 0.794 | 0.596 | **0.928** | washing out; empty above you |
+
+The second row is the point: *"subject very close to the bottom
+edge, large empty wall area"*, in a number, said in a sentence an
+operator can act on before they go on air.
+
+### The record
+
+Twelve assertions, twelve mutations, all twelve caught — **and the
+fifteenth unobservable guard deleted.** An `else` between "too dark"
+and "too bright" survived everything, because `TOO_DARK` is below
+`TOO_BRIGHT` and no number is both: the branch could never have
+fired twice and the keyword was doing nothing. What makes it true
+is the two constants, so the constants are what the test holds now.

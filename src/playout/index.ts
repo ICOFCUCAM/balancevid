@@ -43,6 +43,9 @@ import { ffprobe } from '../render/ffmpeg.js';
 import { beat } from '../store/playoutHealth.js';
 import { produceSegment, type SourceFacts } from './segment.js';
 import { reconcileSenders, settle, stopAllSenders } from './send.js';
+import {
+  type Pace, type Pacing, keep, pacing, worstLoad,
+} from '../domain/pace.js';
 import { measureLoudness } from '../render/ffmpeg.js';
 import { gainFor } from '../domain/loudness.js';
 import { type Aired, type Ran, fold } from '../domain/asRun.js';
@@ -307,6 +310,8 @@ async function sweep(channelId: string, before: number): Promise<void> {
  */
 export async function pass(
   nowMs = Date.now(), announce = false,
+  /** What the LAST few passes said about keeping up. [C-41] */
+  how: { pacing?: Pacing; load?: number } = {},
 ): Promise<number> {
   const channels = await listChannels();
   let made = 0;
@@ -351,7 +356,8 @@ export async function pass(
    * demonstrably completed something.
    */
   if (announce) {
-    await beat({ channels: channels.length, made }).catch(() => undefined);
+    await beat({ channels: channels.length, made, ...how })
+      .catch(() => undefined);
   }
   return made;
 }
@@ -370,11 +376,16 @@ async function main(): Promise<void> {
   process.on('exit', stopAllSenders);
 
   process.stdout.write('playout: on air\n');
+  /* The last few passes, so one slow segment is not a verdict. [C-41] */
+  let paces: Pace[] = [];
   while (running) {
     const started = Date.now();
     let made = 0;
     try {
-      made = await pass(Date.now(), true);
+      made = await pass(Date.now(), true, {
+        ...(pacing(paces) === 'unknown' ? {} : { pacing: pacing(paces) }),
+        ...(worstLoad(paces) === null ? {} : { load: worstLoad(paces)! }),
+      });
     } catch (error) {
       /*
        * A pass that threw is a pass, not the end of the channel. The most
@@ -392,6 +403,24 @@ async function main(): Promise<void> {
       await beat({ channels: 0, made: 0 }).catch(() => undefined);
     }
     const spent = Date.now() - started;
+    /*
+     * AND THE NUMBER IS WRITTEN DOWN AT LAST.  [§18, §7, C-41]
+     *
+     * `spent` has been computed here since this loop was written and
+     * used only to decide how long to sleep. It is the number that
+     * says whether this product is a television station or a
+     * slideshow: four seconds of broadcast made in more than four
+     * seconds is a channel that falls further behind every pass,
+     * and nothing fails while it happens.
+     *
+     * Measured against what the pass PRODUCED rather than against
+     * the segment length, because a pass that made three segments
+     * had twelve seconds of television to make and twelve seconds
+     * of grace to make it in.
+     */
+    if (made > 0) {
+      paces = keep(paces, { spentMs: spent, coveredMs: made * SEGMENT_MS });
+    }
     if (made === 0) {
       await new Promise((resolve) => { setTimeout(resolve, IDLE_MS); });
     } else if (spent < SEGMENT_MS / 4) {

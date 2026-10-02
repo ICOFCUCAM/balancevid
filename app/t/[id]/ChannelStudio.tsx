@@ -63,6 +63,7 @@ import {
 } from '../../useDevices.js';
 import { useQuality } from '../../useQuality.js';
 import { useConfirm } from '../../Confirm.js';
+import { useShot } from './useShot.js';
 import type { StudioId } from '../../../src/domain/account.js';
 import {
   type Quality, type QualityId, QUALITIES, QUALITY_ORDER, aboveTransmission,
@@ -4992,6 +4993,17 @@ function CameraTab({
   encoder: { running: boolean; sent: number; dropped: number; rate: number; error: string | null };
 }) {
   const feed = mixer ?? camera;
+  /*
+   * AND WHETHER THE PICTURE IS ANY GOOD.  [§23, C-45]
+   *
+   * This panel has always reported the device, the preset and the
+   * feed's bitrate — everything about the TRANSPORT and nothing
+   * about the PICTURE. Read from the feed that is actually going
+   * out, because a dark camera composited onto a bright set is not
+   * a dark picture, and judging the camera would be judging
+   * something nobody sees. [D-22]
+   */
+  const shot = useShot(feed);
   return (
     <>
       <div className="row" style={{ gap: 9, alignItems: 'stretch' }}>
@@ -5130,6 +5142,32 @@ function CameraTab({
           </p>
         )}
       </div>
+
+      {/*
+        * WHAT IS WRONG WITH THE PICTURE, if anything.  [§23, C-45]
+        *
+        * Above the feed's own health rather than below it, because
+        * a bitrate is a number an operator checks and a flat room
+        * is a thing they can still fix in the minute before they
+        * go on air.
+        *
+        * Nothing at all when the shot is fine: a camera panel that
+        * always has something to say is a panel nobody reads, which
+        * is the brief's own point 10 pointed at the control room.
+        */}
+      {shot.length > 0 && (
+        <ul data-testid="shot-notes" style={{
+          margin: '8px 0 0', padding: '7px 9px', listStyle: 'none',
+          display: 'flex', flexDirection: 'column', gap: 4,
+          borderRadius: 7, borderLeft: '2px solid var(--state-armed)',
+          background: 'var(--panel-2)', color: 'var(--muted)',
+          fontSize: 'var(--text-2xs)', lineHeight: 1.45,
+        }}>
+          {shot.map((one) => (
+            <li key={one.code} data-shot={one.code}>{one.says}</li>
+          ))}
+        </ul>
+      )}
 
       <div data-testid="feed-health" style={{
         fontSize: 'var(--text-xs)', padding: '6px 8px', borderRadius: 7, marginTop: 8,
