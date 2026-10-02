@@ -40,7 +40,16 @@ export type RailTab = 'playlist' | 'library' | 'schedules';
 /** The live studio's desks. */
 export type DeskTab =
   | 'camera' | 'guests' | 'screens' | 'media' | 'set' | 'graphics'
-  | 'audio' | 'answers';
+  | 'audio' | 'answers'
+  /*
+   * WHAT THE WORLD CALLS IT, which is not what it draws.
+   * `graphics` is the bug, the lamp and the lower third — things
+   * composited onto the picture. This is the address, the
+   * callsign and the shelf: what a stranger sees in a directory
+   * before they have watched a frame. Two desks because the model
+   * holds them apart for the same reason. [TV-NETWORK N-1]
+   */
+  | 'listing';
 
 export interface Jump {
   /** Which view of the left rail this fragment is about. */

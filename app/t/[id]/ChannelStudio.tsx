@@ -93,6 +93,7 @@ import { sourceLine, sourceOf, stateLine } from '../../../src/domain/caption.js'
 /* A deck is one thing with twelve pages, and the rail listed the
    pages. [§20, D-04, C-48] */
 import { deckSays, libraryRows } from '../../../src/domain/libraryRows.js';
+import { GENRES } from '../../../src/domain/station.js';
 /* One table of what an upload may be, read by the route that
    enforces it and the picker that offers it. [D-19, C-14, C-48] */
 import {
@@ -2380,6 +2381,9 @@ export default function ChannelStudio({
               /* What each person is composited into. [§26, §27] */
               { id: 'set', label: 'Set' },
               { id: 'graphics', label: 'Graphics' },
+              /* What the world calls it: the address and the shelf,
+                 which is not what it draws. [N-1] */
+              { id: 'listing', label: 'Listing' },
               { id: 'audio', label: 'Audio' },
               /* The queue: questions sent to phones, and what came
                  back. [TIMELINE B14d, B14e] */
@@ -2514,6 +2518,12 @@ export default function ChannelStudio({
               />
             )}
 
+            {deskTab === 'listing' && (
+              <ListingTab
+                channel={channel}
+                onStation={(station) => void patch({ action: 'station', station })}
+              />
+            )}
             {deskTab === 'graphics' && (
               /*
                * NAMED, because the home page's hero links straight here:
@@ -7085,6 +7095,110 @@ function RtmpKey({
           }}
         >Save</button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * What the world calls this channel.  [§2, §3, TV-NETWORK N-1]
+ *
+ * SEPARATE FROM GRAPHICS BECAUSE THE MODEL SEPARATES THEM. The bug,
+ * the lamp and the lower third are composited onto the picture;
+ * this is the address a stranger types, the callsign in a listing
+ * and the shelf it stands on. One is seen by somebody already
+ * watching, the other by somebody deciding whether to.
+ *
+ * EVERY FIELD SAVES ON BLUR AND NONE OF THEM IS REQUIRED. A channel
+ * with a name already has everything it needs to be listed — the
+ * address is suggested from the name the first time this is opened
+ * — and the rest is a station filling in its own card over time.
+ */
+function ListingTab({ channel, onStation }: {
+  channel: Channel;
+  onStation: (station: Record<string, unknown>) => void;
+}) {
+  const station = channel.station;
+  const listed = channel.publication
+    && !channel.publication.unpublishedAt
+    && channel.publication.listed !== false;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-xs)' }}>
+        How this channel appears to somebody who has not found it yet.
+      </p>
+
+      <label className="small" style={{ margin: 0, fontSize: 'var(--text-xs)' }}>
+        Web address
+        <input className="small" data-testid="station-slug"
+               defaultValue={station?.slug ?? ''}
+               placeholder={channel.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}
+               onBlur={(event) => onStation({ slug: event.target.value })} />
+      </label>
+      {station?.slug && (
+        <p className="small muted" data-testid="station-url"
+           style={{ margin: 0, fontSize: 'var(--text-2xs)' }}>
+          /tv/channels/{station.slug}
+        </p>
+      )}
+
+      <label className="small" style={{ margin: 0, fontSize: 'var(--text-xs)' }}>
+        Callsign
+        <input className="small" data-testid="station-callsign-field"
+               defaultValue={station?.callsign ?? ''} placeholder="RDTV"
+               onBlur={(event) => onStation({ callsign: event.target.value })} />
+      </label>
+
+      <label className="small" style={{ margin: 0, fontSize: 'var(--text-xs)' }}>
+        Kind
+        <select className="small" data-testid="station-genre"
+                defaultValue={station?.genre ?? ''}
+                onChange={(event) => onStation({ genre: event.target.value || undefined })}>
+          <option value="">Not said</option>
+          {GENRES.map((genre) => (
+            <option key={genre} value={genre}
+                    style={{ textTransform: 'capitalize' }}>{genre}</option>
+          ))}
+        </select>
+      </label>
+
+      <div className="row" style={{ gap: 8 }}>
+        <label className="small grow" style={{ margin: 0, fontSize: 'var(--text-xs)' }}>
+          Language
+          <input className="small" data-testid="station-language"
+                 defaultValue={station?.language ?? ''} placeholder="en"
+                 onBlur={(event) => onStation({ language: event.target.value })} />
+        </label>
+        <label className="small grow" style={{ margin: 0, fontSize: 'var(--text-xs)' }}>
+          Country
+          <input className="small" data-testid="station-country"
+                 defaultValue={station?.country ?? ''} placeholder="CM"
+                 onBlur={(event) => onStation({ country: event.target.value })} />
+        </label>
+      </div>
+
+      <label className="small" style={{ margin: 0, fontSize: 'var(--text-xs)' }}>
+        About
+        <textarea className="small" rows={3} data-testid="station-description"
+                  defaultValue={station?.description ?? ''}
+                  placeholder="One or two sentences for the directory."
+                  onBlur={(event) => onStation({ description: event.target.value })} />
+      </label>
+
+      {/*
+        * AND WHETHER IT IS FINDABLE AT ALL, said here rather than
+        * assumed. Being listed is `publication.listed`, which is a
+        * different decision from being watchable and has been in
+        * the document for a long time — this is the first surface
+        * that tells an owner which way theirs is set. [§10]
+        */}
+      <p className="small muted" data-testid="station-standing"
+         style={{ margin: '4px 0 0', fontSize: 'var(--text-2xs)' }}>
+        {!channel.publication || channel.publication.unpublishedAt
+          ? 'Not published, so it is not in the directory.'
+          : listed
+            ? 'Listed in BalanceVid TV.'
+            : 'Published but unlisted — reachable by its address only.'}
+      </p>
     </div>
   );
 }
