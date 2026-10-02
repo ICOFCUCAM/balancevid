@@ -5189,3 +5189,117 @@ proved nothing until it did.
 * **The rest of the brief is still to come**: the role field, the
   source kind on the caption, the image bug, NEXT with its time, and
   the Watch page. Each is named in `GRAPHICS.md` with what it needs.
+
+---
+
+## C-41 — Stage 41: the engine knew and threw it away
+
+A report arrived from another machine: the live path uses `-ss` to
+seek into a growing browser recording, the engine assumes a keyframe
+every second, a browser may produce one only at the start, and so
+each segment takes longer than the last until the channel falls
+behind. It came with measurements — 1.1 s at ten seconds in, 7.2 s
+at five minutes — taken in a different container against a
+synthetic file.
+
+### Measured here, on a recording this product actually makes
+
+Chromium, VP8/Opus, the product's own MIME list, its own two-second
+timeslice, 190 seconds of capture, then the engine's own cut command
+at increasing offsets:
+
+| keyframes | | the engine's cut | at |
+|---|---|---|---|
+| count | 38 in 190 s | 1.04 s | 10 s |
+| spacing | **5.05 s** (min 5.04, max 5.10) | 0.80 s | 40 s |
+| | | 0.78 s | 80 s |
+| | | 0.73 s | 120 s |
+| | | 0.71 s | 160 s |
+
+**Flat.** Slightly faster at the end, as a warm page cache would
+predict. On this browser the reported fault does not reproduce, and
+the reason is the first column: Chromium writes a keyframe every five
+seconds, not only at the start, so a fast seek decodes at most five
+seconds before the cut and the cost is bounded rather than growing.
+
+Two things remain true from the report:
+
+* **The engine's own comment is wrong about live.** It justifies
+  `-ss` with *"the house format puts one second apart"* — a claim
+  about what this product encodes, not about what a browser records.
+  Five seconds, not one.
+* **Firefox is unmeasured.** Only Chromium is installed here, the
+  author uses Firefox, and a browser that really did key only at the
+  start would behave exactly as reported. Nothing here rules that
+  out.
+
+### So the stage is not the fix. It is the instrument.
+
+Building a continuous re-keying pass — a second encode per live
+session, on a two-core box — on the strength of an unreproduced
+hypothesis would be the opposite of this product's method. What the
+measurement actually exposed is worse than the bug it was looking
+for:
+
+**`index.ts` has computed `const spent = Date.now() - started` at
+the end of every pass since the loop was written, and used it only
+to decide how long to sleep.** The number that says whether this is
+a television station or a slideshow was measured four times a second,
+for the life of every broadcast, and thrown away.
+
+That is why the question had to be answered with a stopwatch in a
+different container against a file nobody broadcasts. The right
+answer to *"is it falling behind"* is not a better guess. It is for
+the thing that knows to say so.
+
+### Spent over produced, and one is the edge of the cliff
+
+Below one the engine has spare time and the channel runs for ever.
+Above one every pass starts further behind the clock than the last
+and the gap grows without limit — **there is no equilibrium above
+one**, which is why this is a ratio rather than a duration.
+
+Measured against what the pass **produced**, not against the segment
+length: a pass that made three segments had twelve seconds of
+television to make and twelve seconds of grace to make it in.
+
+**The worst recent pass, not the average.** Nineteen passes at 0.3 s
+and one at 5 s has already dropped a segment, and a mean of 0.5 would
+call that healthy. Each time it runs out of time the picture arrives
+late and nothing catches it up. The average is the honest number for
+*how hard is this box working*; the maximum is the honest number for
+*did we make it*.
+
+**And the warning is at two thirds, not at one.** A channel running
+at 95% of real time has no room for a longer programme, a second
+channel, or the minute the operating system spends elsewhere — and
+the first anybody would know is a stall.
+
+### Where it speaks
+
+Below a render putting black on the wire and above everything else,
+and the placement is the argument: a channel falling behind is still
+transmitting, still green, still producing segments. It is the third
+fault in this product that nothing else can reveal, after the silent
+black render (C-24) and the picture nobody could see (C-28).
+
+The sentence names the consequence rather than the measurement,
+because "slow" is not a thing anybody acts on and *"the picture will
+start arriving late and players will stall"* is.
+
+### The record
+
+Seventeen assertions, eleven mutations, all eleven caught.
+
+### What this does not do
+
+* **It does not change the seek.** Nothing is known to be wrong with
+  it on a browser that keys every five seconds, and the instrument
+  now exists to find out on the server where it matters: a channel
+  that reads `behind` while live, and recovers when the broadcast is
+  restarted, is the report's hypothesis confirmed — and then the
+  re-keying pass is justified by data instead of by argument.
+* **It does not ask the browser for keyframes.** `MediaRecorder` has
+  no portable control for it, the one Chrome offers is non-standard,
+  and Chromium already keys often enough. A hint that Firefox ignores
+  would be a fix that looks applied and is not.

@@ -24,6 +24,7 @@
  */
 
 import { SEGMENT_MS } from './playout.js';
+import type { Pacing } from './pace.js';
 
 /**
  * How long a heartbeat may go unrefreshed before the engine is presumed gone.
@@ -70,6 +71,22 @@ export interface Heartbeat {
   channels: number;
   /** How many segments it produced. Zero is normal and not a fault. */
   made: number;
+  /**
+   * WHETHER IT IS KEEPING UP.  [§18, §7, C-41]
+   *
+   * The engine has measured how long each pass took since it was
+   * written, and used the number only to decide how long to sleep.
+   * A channel that takes longer to make four seconds of television
+   * than four seconds is a channel falling behind — and nothing
+   * fails, nothing throws, and the picture simply arrives later and
+   * later until a player gives up.
+   *
+   * Absent on a heartbeat from a pass that produced nothing, which
+   * is the healthy idle state and not a measurement.
+   */
+  pacing?: Pacing;
+  /** The worst recent pass, as a fraction of real time. */
+  load?: number;
 }
 
 export function engineState(
@@ -235,6 +252,18 @@ export function controlRoomNote(
    * can reveal, so it is the only one that gets to speak first. [C-24]
    */
   failing?: { says: string } | null,
+  /**
+   * AND WHETHER IT IS KEEPING UP.  [§18, §7, C-41]
+   *
+   * Below a render failure and above everything else, which is
+   * where it belongs on the evidence: a channel that has started
+   * falling behind is still transmitting, still green, and still
+   * producing segments — it is simply producing them slower than
+   * the clock, and every one after this is further behind. Nothing
+   * else in this file can reveal it, which is the same argument
+   * that puts a black render first.
+   */
+  behind?: { says: string } | null,
 ): { says: string; tone: Tone } | null {
   if (failing) {
     return {
@@ -247,6 +276,7 @@ export function controlRoomNote(
     const says = healthSentence(engine, stream, 'operator');
     return says ? { says, tone: 'fault' } : null;
   }
+  if (behind) return { says: behind.says, tone: 'fault' };
   if (dark) return { says: dark, tone: 'note' };
   const says = healthSentence(engine, stream, 'operator');
   return says ? { says, tone: 'fault' } : null;
