@@ -24,11 +24,14 @@
  * only correct behaviour for a thing whose job is to agree with the time.
  */
 
-import { readdir, rm, stat } from 'node:fs/promises';
-import { join } from 'node:path';
-import { access } from 'node:fs/promises';
+import {
+  access, mkdir, readdir, rename, rm, stat, writeFile,
+} from 'node:fs/promises';
+import { dirname, join } from 'node:path';
 import type { Channel } from '../domain/channel.js';
-import { SEGMENT_MS, WINDOW_SEGMENTS, segmentIndexAt } from '../domain/playout.js';
+import {
+  SEGMENT_MS, WINDOW_SEGMENTS, livePlaylist, segmentIndexAt,
+} from '../domain/playout.js';
 import { referencedAssets } from '../domain/channel.js';
 import {
   auditChannel, listChannels, loadChannel, saveChannel,
@@ -39,6 +42,7 @@ import { pathFor } from '../store/playoutSources.js';
 import { ffprobe } from '../render/ffmpeg.js';
 import { beat } from '../store/playoutHealth.js';
 import { produceSegment, type SourceFacts } from './segment.js';
+import { reconcileSenders, settle, stopAllSenders } from './send.js';
 
 /**
  * How far ahead of the playhead to keep the stream.
@@ -149,6 +153,31 @@ export async function advance(channel: Channel, nowMs = Date.now()): Promise<num
  * forbids — the whole schedule, re-encoded, forever, with nobody having asked
  * for it. Somebody who wants that asks for a recording (§6).
  */
+/**
+ * The playlist a sender reads.  [§15, D-21, C-29]
+ *
+ * THE SAME `livePlaylist` THE VIEWER'S ROUTE CALLS, rendering
+ * absolute file paths instead of URLs. One generator, two
+ * renderings, so a sender and a viewer cannot be watching different
+ * windows of the same channel — which is the whole of D-21's *"one
+ * master broadcast output, and destinations receive that output"*.
+ *
+ * Written every pass because the window moves every pass, and
+ * through a temp file like every other write here, so a sender
+ * reading it never catches it half-written.
+ */
+async function writeSenderPlaylist(
+  channelId: string, nowMs: number,
+): Promise<void> {
+  const path = paths.senderPlaylist(channelId);
+  await mkdir(dirname(path), { recursive: true });
+  const body = livePlaylist(
+    nowMs, (index) => paths.channelSegment(channelId, index));
+  const temp = `${path}.${process.pid}.tmp`;
+  await writeFile(temp, body, 'utf8');
+  await rename(temp, path);
+}
+
 async function sweep(channelId: string, before: number): Promise<void> {
   if (before <= 0) return;
   let entries: string[];
@@ -195,7 +224,23 @@ export async function pass(
      */
     await watchTheFeed(fresh, nowMs);
     made += await advance(fresh, nowMs).catch(() => 0);
+    /*
+     * AND THEN THE SENDERS, AFTER the segments, because a sender
+     * started before there is anything to read spends its first
+     * seconds failing on an empty playlist and earns a backoff it
+     * did not deserve.
+     *
+     * CAUGHT, ALWAYS. A push to somebody else's ingest must never be
+     * able to stop the television channel: the worst an unreachable
+     * platform may do is leave its own destination blocked with a
+     * reason. [D-21, §5]
+     */
+    await writeSenderPlaylist(fresh.id, nowMs).catch(() => undefined);
+    await reconcileSenders(fresh, nowMs).catch((error: unknown) => {
+      process.stderr.write(`playout: senders ${String(error).slice(0, 200)}\n`);
+    });
   }
+  settle(nowMs);
   /*
    * THE PULSE, AT THE END OF THE PASS rather than the start.  [§18]
    *
@@ -219,6 +264,9 @@ async function main(): Promise<void> {
   const stop = () => { running = false; };
   process.on('SIGINT', stop);
   process.on('SIGTERM', stop);
+  /* A sender outliving the engine is a push to somebody's ingest that
+     nothing is supervising any more. */
+  process.on('exit', stopAllSenders);
 
   process.stdout.write('playout: on air\n');
   while (running) {

@@ -13,7 +13,7 @@ import {
 } from '../../../src/domain/channel.js';
 import { SPACES } from '../../../src/domain/performance.js';
 import { SPACE_LOOKS } from '../../../src/domain/environment.js';
-import { PLATFORMS } from '../../../src/domain/distribution.js';
+import { PLATFORMS, type Destination } from '../../../src/domain/distribution.js';
 import { LIVE_DELAY_MS } from '../../../src/domain/playout.js';
 import {
   type Bus, busFor, onProgramCount, roomOnProgram, saysFor,
@@ -197,6 +197,18 @@ export default function ChannelStudio({
    * Held here because the monitor is the only thing that knows, and
    * the status bar is the only place an operator reads. [§18, C-28]
    */
+  /*
+   * WHAT EACH DESTINATION IS ACTUALLY DOING, from the engine, which
+   * is the only thing that knows. `enabled` is in the document and is
+   * the operator's switch; this is the connector's answer, and D-21
+   * requires both to be shown. No key is in it: the server address
+   * and whether one exists, and nothing else. [§15, C-29]
+   */
+  const [senders, setSenders] = useState<Record<string, {
+    state?: string; says?: string; at?: string;
+    server?: string; hasKey: boolean;
+  }>>({});
+
   const [seen, setSeen] = useState<
     { says: string; tone: 'fault' | 'note' } | null>(null);
 
@@ -489,6 +501,7 @@ export default function ChannelStudio({
     setMissing(data.missing ?? []);
     setViolations(data.violations ?? []);
     setHealth(data.health ?? null);
+    setSenders(data.senders ?? {});
   }, [id]);
 
   useEffect(() => { void refresh(); }, [refresh]);
@@ -2596,11 +2609,28 @@ export default function ChannelStudio({
                  * blocked, and saying "ON" for one of those would be the
                  * screen that loses a broadcast.
                  */
-                const canSend = destination.kind === 'own';
+                /*
+                 * THE CONNECTOR'S OWN ANSWER, not a guess from the
+                 * kind. Until C-29 this read `kind === 'own'` and
+                 * said NOT CONNECTED for everything else, which was
+                 * true then and is not now: a plain RTMP destination
+                 * with a key is a destination that sends, and the
+                 * engine is the only thing that knows whether it is
+                 * actually sending. [§15, D-21]
+                 */
+                const sender = senders[destination.id];
+                const canSend = destination.kind === 'own'
+                  || destination.kind === 'rtmp';
                 const state = !destination.enabled ? 'OFF'
-                  : canSend ? (onAir ? 'ON' : 'READY') : 'NOT CONNECTED';
+                  : destination.kind === 'own' ? (onAir ? 'ON' : 'READY')
+                    : sender?.state === 'on' ? 'ON'
+                      : sender?.state === 'blocked' ? 'BLOCKED'
+                        : canSend && sender?.hasKey ? 'READY'
+                          : canSend ? 'NO KEY' : 'NOT CONNECTED';
                 return (
-                  <div key={destination.id} className="row"
+                  <div key={destination.id}
+                       style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <div className="row"
                        data-testid="destination" data-kind={destination.kind}
                        data-state={state}
                        style={{
@@ -2619,7 +2649,9 @@ export default function ChannelStudio({
                         border: 0, cursor: 'pointer', flex: '0 0 auto',
                         background: state === 'ON' ? 'var(--state-live-dim)'
                           : state === 'READY' ? 'var(--state-ok)'
-                            : state === 'NOT CONNECTED' ? 'var(--state-armed-dim)' : 'var(--ink-500)',
+                            : state === 'BLOCKED' ? 'var(--state-bad)'
+                              : state === 'NOT CONNECTED' || state === 'NO KEY'
+                                ? 'var(--state-armed-dim)' : 'var(--ink-500)',
                       }}
                     />
                     <span className="grow" style={{
@@ -2629,8 +2661,15 @@ export default function ChannelStudio({
                     <span className="muted" style={{ fontSize: 'var(--text-2xs)' }}>
                       {destination.shape}
                     </span>
-                    <span className="muted" style={{ fontSize: 'var(--text-2xs)', fontWeight: 700 }}
-                          title={platform?.needsReview ? platform.hint : undefined}>
+                    <span className="muted" style={{
+                      fontSize: 'var(--text-2xs)', fontWeight: 700,
+                      color: state === 'BLOCKED' ? 'var(--bad)' : undefined,
+                    }}
+                      /* THE CONNECTOR'S WORDS WHERE THERE ARE ANY.
+                         D-21 wants both facts, and "BLOCKED" without
+                         a reason is the lamp that loses an evening. */
+                          title={sender?.says
+                            ?? (platform?.needsReview ? platform.hint : undefined)}>
                       {state}
                     </span>
                     <button
@@ -2643,6 +2682,22 @@ export default function ChannelStudio({
                         color: 'var(--bad)', cursor: 'pointer', fontSize: 'var(--text-sm)',
                       }}
                     >&times;</button>
+                  </div>
+                  {destination.kind === 'rtmp' && (
+                    <RtmpKey
+                      destination={destination}
+                      {...(sender?.server ? { server: sender.server } : {})}
+                      hasKey={Boolean(sender?.hasKey)}
+                      onSet={(server, key) => void patch({
+                        action: 'set-destination-key',
+                        destinationId: destination.id, server, key,
+                      })}
+                      onClear={() => void patch({
+                        action: 'set-destination-key',
+                        destinationId: destination.id, server: '', key: '',
+                      })}
+                    />
+                  )}
                   </div>
                 );
               })}
@@ -5955,5 +6010,130 @@ function Monitor({
       }}
       style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
     />
+  );
+}
+
+/**
+ * Where a stream key is typed, and the only place.  [§15, D-21, C-29]
+ *
+ *     server  rtmp://a.rtmp.youtube.com/live2
+ *     key     ••••••••  (set)                       Replace   Clear
+ *
+ * THE KEY IS WRITE-ONLY, which is the whole design of this control.
+ * There is no route that returns one and nothing here ever holds one
+ * after it is sent: the field is cleared on submit and the row
+ * afterwards says only that a key EXISTS. A product that can show you
+ * your own stream key can show it to whoever is standing behind you,
+ * and there is nothing you can do with it on screen that you cannot
+ * do by pasting a new one.
+ *
+ * THE SERVER IS NOT A SECRET and is shown, because an operator
+ * checking which of four destinations points at YouTube needs to see
+ * that, and the address alone lets nobody broadcast as anybody.
+ *
+ * AND IT IS THE DOOR FOR THREE PLATFORMS. YouTube, Facebook and X all
+ * take a server URL and a key today; their own connectors wait on an
+ * app review, this does not. [ONLINE-TV-AUDIT §4.1]
+ */
+function RtmpKey({
+  destination, server, hasKey, onSet, onClear,
+}: {
+  destination: Destination;
+  server?: string;
+  hasKey: boolean;
+  onSet: (server: string, key: string) => void;
+  onClear: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [where, setWhere] = useState(server ?? '');
+  const [key, setKey] = useState('');
+
+  if (!open) {
+    return (
+      <div className="row" style={{
+        gap: 6, flexWrap: 'nowrap', padding: '0 7px 2px',
+        fontSize: 'var(--text-2xs)',
+      }}>
+        <span className="muted grow" style={{
+          minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}>
+          {hasKey ? `${server ?? 'Server set'} · key set`
+            : 'No server or key yet'}
+        </span>
+        <button
+          type="button" className="small" data-testid="set-rtmp-key"
+          onClick={() => { setWhere(server ?? ''); setKey(''); setOpen(true); }}
+          style={{ fontSize: 'var(--text-2xs)', padding: '2px 7px' }}
+        >{hasKey ? 'Replace' : 'Set key'}</button>
+        {hasKey && (
+          <button
+            type="button" className="small" data-testid="clear-rtmp-key"
+            onClick={onClear}
+            style={{
+              fontSize: 'var(--text-2xs)', padding: '2px 7px',
+              color: 'var(--bad)',
+            }}
+          >Clear</button>
+        )}
+      </div>
+    );
+  }
+
+  const ready = where.trim().length > 0 && key.trim().length > 0;
+  return (
+    <div data-testid="rtmp-key-form" style={{
+      display: 'flex', flexDirection: 'column', gap: 4,
+      padding: '6px 7px 8px',
+      borderRadius: 'var(--radius-control)',
+      background: 'var(--panel-2)', border: '1px solid var(--line)',
+    }}>
+      <input
+        data-testid="rtmp-server" value={where} spellCheck={false}
+        onChange={(event) => setWhere(event.target.value)}
+        placeholder={`Server URL — e.g. rtmp://a.rtmp.youtube.com/live2`}
+        style={{ fontSize: 'var(--text-xs)', padding: '5px 8px' }}
+      />
+      <input
+        data-testid="rtmp-key" value={key} spellCheck={false}
+        /*
+         * A PASSWORD FIELD, because the thing being typed is one:
+         * it keeps the key off the screen in a room with a camera in
+         * it, and out of the browser's own form history.
+         */
+        type="password" autoComplete="off"
+        onChange={(event) => setKey(event.target.value)}
+        placeholder={hasKey ? 'New stream key' : 'Stream key'}
+        style={{ fontSize: 'var(--text-xs)', padding: '5px 8px' }}
+      />
+      <div className="row" style={{ gap: 5, flexWrap: 'nowrap' }}>
+        <span className="muted grow" style={{ fontSize: 'var(--text-2xs)' }}>
+          {destination.shape === '16:9'
+            ? 'Sent as a copy of the channel — no re-encode.'
+            : `A ${destination.shape} destination needs its own encode, `
+              + 'which is not built yet.'}
+        </span>
+        <button
+          type="button" className="small" data-testid="cancel-rtmp-key"
+          onClick={() => { setKey(''); setOpen(false); }}
+          style={{ fontSize: 'var(--text-2xs)', padding: '3px 8px' }}
+        >Cancel</button>
+        <button
+          type="button" className="small" data-testid="save-rtmp-key"
+          disabled={!ready}
+          onClick={() => {
+            onSet(where.trim(), key.trim());
+            /* Not kept for a moment longer than it takes to send. */
+            setKey('');
+            setOpen(false);
+          }}
+          style={{
+            fontSize: 'var(--text-2xs)', padding: '3px 8px',
+            border: '1px solid var(--accent)',
+            background: ready ? 'var(--accent-wash)' : 'transparent',
+          }}
+        >Save</button>
+      </div>
+    </div>
   );
 }
