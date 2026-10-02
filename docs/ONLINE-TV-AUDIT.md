@@ -102,7 +102,7 @@ fault was found; the record of the fix is C-24.
 | Area | What works | What it cannot do |
 |---|---|---|
 | **Continuous channel** | 24/7 playout, 4-second HLS segments, a 6-segment (24 s) window, automatic sweeping so the stream is transport and not an archive | No DVR or catch-up — the viewer page says so plainly: *"no beginning to go back to"* |
-| **Schedule** | Fixed-time programmes, day-parts, a rotating loop, `whatIsOn` resolving one moment to one source | No recurrence rules, no rights windows, no as-run log |
+| **Schedule** | Fixed-time programmes, day-parts, a rotating loop, `whatIsOn` resolving one moment to one source | No recurrence rules, no rights windows |
 | **Live studio** | Camera, WebRTC guest room, layouts shared with the renderer, virtual sets, screen share, media player, graphics, audio mixer with per-source meters, viewer answers | One master 16:9 output only |
 | **Vision mixing** | Preview/programme, TAKE LIVE, solo one source full-frame, operator-chosen or automatic arrangement, roll a reference in over the live feed | No transitions beyond a cut; no return feed |
 | **Resilience** | Emergency source above everything, backup source, automatic failover when the feed faults, black rather than a dead stream | The fallbacks are silent (see §1) |
@@ -210,10 +210,10 @@ Not everything below is worth fixing. It is the honest distance.
 | **Fault reporting** | ~~Silent fallback to black~~ **Render failures counted (C-24), black picture alarmed (C-28)** | Alarms on encoder failure, dropped frames, bitrate floor |
 | **Latency** | ~12 s | 2–8 s typical, sub-second with WebRTC egress |
 | **Transitions** | Cut only | Dissolve, wipe, stinger |
-| **Audio** | Per-source meters and a master | Per-source EQ, compression, ducking, loudness to −23 LUFS |
+| **Audio** | Per-source meters, a master, and ~~no~~ **every item measured and played at −23 LUFS (C-33)** | Per-source EQ, compression, ducking |
 | **Graphics** | Bug, lower third, NEXT | Full template engine, data-bound tickers, crawls |
 | **Recording** | Optional, one file | Always-on ISO recording per source |
-| **As-run** | None | A log of what actually transmitted, which broadcasters need |
+| **As-run** | ~~None~~ **A log of what transmitted, as JSON or CSV (C-32)** | A log of what actually transmitted, which broadcasters need |
 | **Redundancy** | Single playout process | Hot spare, automatic takeover |
 
 ### The three I would weigh above the rest

@@ -4068,3 +4068,231 @@ instant it was asked about. **Deleted rather than defended**, the
 tenth in this project, with the invariant it was guarding kept as the
 test that every stretch has width. An untested guard against a case
 the layer below forbids is a guard nobody can check.
+
+---
+
+## C-32 — Stage 32: a record of what actually went out
+
+The audit's last open row: *"As-run | None | A log of what actually
+transmitted, which broadcasters need."*
+
+### It is not the audit log, and that is the whole point
+
+This product already keeps `audit.log` per channel, append-only, and
+it records **what somebody did to the document** — created a channel,
+added a turn to the rotation. That is a record of *intentions*.
+
+An as-run records **what came out of the transmitter**, which is a
+record of *outcomes*, and the two disagree exactly when it matters: a
+programme that was scheduled and never played is in one and not the
+other. That gap is the whole reason broadcasters keep an as-run.
+
+**Nor is it the schedule walked.** `airtime` (C-31) answers *what
+will this channel show*, from the document. This answers *what did
+it show*, from the segments the engine actually wrote. A channel
+whose encoder failed for ten minutes has an untouched schedule and a
+very different as-run — and a log derived from the document would
+report the ten minutes as perfect. That is C-24's fault, recorded.
+
+### `produceSegment` is the only thing that knows
+
+It already computes what is on and whether ffmpeg managed it, so it
+returns an `Aired` rather than being asked again afterwards. The
+`fellBack` flag is threaded out of the three paths that put black on
+the wire, and the distinction C-28 drew is kept:
+
+* **a source that could not be rendered** counts as black in the log;
+* **a channel with nothing scheduled** does not — it is black by
+  design, and counting it would fill the black column with every gap
+  between two programmes.
+
+And the quiet one counts too: *ffmpeg exiting successfully having
+written no packets* is the commonest way a channel goes black, and an
+as-run that recorded only the loud failures would miss the ones that
+matter most.
+
+### Coalesced before it is written
+
+Four seconds at a time goes in; stretches come out. The engine holds
+the open stretch in memory and appends only its finished shape — a
+half-hour programme is one line, not 450.
+
+**A gap starts a new entry even when the thing is the same.** The
+engine can be stopped and restarted, and joining across the hole
+would be the log claiming continuous transmission across exactly the
+outage it exists to record. The open stretches are written down on
+the way out, because an as-run missing the programme that was on when
+the engine stopped is missing the thing somebody is most likely to
+ask about.
+
+### The one thing here that is an archive
+
+D-18 is careful that segments are transport and not an archive —
+written, served for half a minute, swept. The as-run is the opposite
+by design: it is what survives them, and nothing deletes it. One file
+per **UTC** day, because a log whose days turn in the channel's local
+zone has a day with twenty-five hours in it once a year.
+
+### What gets handed over
+
+CSV, because an as-run is evidence — for a regulator, a rights
+holder, an advertiser — and the people who ask for one ask for a file
+they can open, not an endpoint they can query. JSON from the same
+route for anybody building on it.
+
+    start,end,seconds,title,source,id,black_seconds
+
+**Owner's only.** An as-run names every asset a channel played and
+when: a schedule, an inventory and a set of viewing figures'
+denominators in one. None of it is a viewer's business. [§17]
+
+### Measured on a real engine run
+
+The engine was started against the author's own channel and left to
+run:
+
+| | |
+|---|---|
+| segments produced | 153 |
+| rows written | **1** |
+| the row | `08:26:24 → 08:36:36`, 612s, black 0 |
+| JSON | `day`, `days`, `ran` |
+| CSV | `content-type: text/csv`, named `as-run-<channel>-<day>.csv` |
+| without a cookie | **401** |
+| `?day=../../etc` | **400** |
+
+`playout: off air` printed on the way out, which is the shutdown path
+writing the open stretch — the row above ends at the moment the
+engine stopped.
+
+### The record
+
+Eighteen assertions, thirteen mutations, all thirteen caught.
+
+Two had to be re-run through a file because the shell ate their
+escaping — the CSV quoting and the header — and those two are worth
+the second attempt: a title with a comma in it is a title and not two
+columns, and a file whose first line is data is a file somebody will
+read one row short.
+
+---
+
+## C-33 — Stage 33: every programme at the same loudness
+
+The audit: *"Audio | Per-source meters and a master | Per-source EQ,
+compression, ducking, loudness to −23 LUFS."* Of those four, loudness
+is the one that is a **requirement** rather than a refinement — EBU
+R128 and ATSC A/85 are law for broadcasters — and the complaint they
+exist to answer is the one every viewer has.
+
+### This channel is the case the standard was written for
+
+It cuts between a Studio Two music video, mastered loud the way music
+is, and a Studio One conversation recorded on whatever microphone
+somebody had. **Measured on the author's own library:**
+
+| | measured | gain | after |
+|---|---|---|---|
+| `asset_fe37…` | −17.7 LUFS | −5.3 dB | −23.0 |
+| `asset_84fa…` | −28.1 LUFS | **+5.1 dB** | −23.0 |
+| `asset_8f79…` | −16.0 LUFS, peak **+0.8 dBTP** | −7.0 dB | −23.0 |
+
+**A 12.1 LU spread**, and one file already over full scale before
+anything downstream touches it. That is the viewer reaching for the
+remote at every join, and it was not a hypothesis — it is what the
+files say.
+
+### A static gain per item, not `loudnorm` on the way out
+
+`loudnorm` is the obvious thing and the wrong one. This engine emits
+**four seconds at a time**, and single-pass loudnorm over four
+seconds normalises each segment to its own contents — a quiet passage
+pushed up, the next segment's loud passage pushed down, and the
+programme audibly breathing at every segment boundary. A dynamic
+normaliser does the same more smoothly and is still a compressor
+nobody asked for on somebody's master.
+
+What a playout system actually does is measure the whole item once,
+store one number, and apply it as a constant offset for as long as
+that item plays. The dynamics of the mix survive untouched; only its
+level moves.
+
+### Three judgements, and the one that decides the others
+
+**The peak wins.** A quiet item that is also peaky cannot be both
+brought to −23 and kept under −1 dBTP; the constraints disagree and
+the ceiling is the one that must hold, because being two decibels
+quiet is a thing a viewer does not notice and clipping is a thing
+they do. So the gain is reduced and the item plays slightly under
+target. The alternative — hold the loudness, limit the peaks — is
+dynamics processing on somebody's master, which is exactly what
+measuring beforehand exists to avoid.
+
+**Twelve decibels of lift and no more.** The gain applies to
+everything in the file, so lifting a −41 LUFS recording eighteen
+decibels lifts its room tone and hiss by eighteen too. Past about
+twelve the noise is louder than the programme was. A very quiet item
+stays quiet, deliberately, rather than the channel pretending it
+fixed something. There is no cap on turning something **down**:
+reducing a signal cannot introduce anything that was not already in
+it.
+
+**Silence is left alone.** `ebur128` reports −70 or lower for a gate
+that never opened, and a gain computed against that is forty-seven
+decibels of hiss.
+
+### Measured off the critical path, which is the whole of the design
+
+Integrated loudness is a property of a WHOLE item — that is what
+makes it the right thing to normalise against, and it is also what
+makes measuring it cost a full decode. A forty-minute film takes a
+minute to scan and a segment has four seconds to be ready: measuring
+inline would take the channel off the air to improve its audio, which
+is a trade nobody would choose.
+
+So the engine asks, carries on at the item's own level, and applies
+the gain from the pass after the answer lands. The first minutes of
+the first play of a new item are as they are today; everything after
+is at the house loudness. Queued one at a time, because six assets in
+a rotation would be six concurrent decodes on the box that also has
+to keep the channel on the air.
+
+### Verified against real ffmpeg, on real content
+
+    source                 -17.6 LUFS   peak -1.3
+    apply volume=-5.3dB    (the engine's own gain)
+    result                 -22.9 LUFS   peak -6.4
+
+Within 0.1 LU of target, and the peak well clear of the ceiling. The
+engine's own log, running against the author's channel:
+
+    playout: master.mp4 is -18.5 LUFS, playing at -4.5 dB
+    playout: master.mp4 is -17.7 LUFS, playing at -5.3 dB
+    playout: master.mp4 is -18.2 LUFS, playing at -4.8 dB
+
+### The record
+
+Nineteen assertions, thirteen mutations, all thirteen caught.
+
+One survived at first and it was a real gap in the test rather than
+the code: the ceiling's own value. Every assertion compared the
+arithmetic against `CEILING_DBTP`, so moving the constant was
+invisible — and −1 dBTP is a **standards claim**, not an
+implementation detail. It is asserted as a number now, for the reason
+R128 gives it: a lossy codec reconstructs overshoots the original
+never had.
+
+### What is still not done
+
+The other three in the audit's row — per-source EQ, compression and
+ducking — are not here and are not planned. They are a mixing desk's
+job and this is a transmission chain; a product that quietly
+compressed somebody's master would be doing the thing this stage
+spent its whole design avoiding.
+
+**Not measured in this container:** what a produced segment itself
+reads. ffmpeg segfaults probing MPEG-TS here — the same quirk C-28
+hit — so the chain was verified one step earlier, by applying the
+engine's own gain through real ffmpeg to the real source and
+measuring the result. The first thing to check on a machine that can
+probe a `.ts` is a transmitted segment.

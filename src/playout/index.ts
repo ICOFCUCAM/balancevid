@@ -43,6 +43,10 @@ import { ffprobe } from '../render/ffmpeg.js';
 import { beat } from '../store/playoutHealth.js';
 import { produceSegment, type SourceFacts } from './segment.js';
 import { reconcileSenders, settle, stopAllSenders } from './send.js';
+import { measureLoudness } from '../render/ffmpeg.js';
+import { gainFor } from '../domain/loudness.js';
+import { type Aired, type Ran, fold } from '../domain/asRun.js';
+import { recordRan } from '../store/asRun.js';
 
 /**
  * How far ahead of the playhead to keep the stream.
@@ -68,6 +72,60 @@ const IDLE_MS = 1000;
  * file somebody can overwrite. [U-16]
  */
 const facts = new Map<string, SourceFacts | undefined>();
+
+/* ------------------------------------------------------------------------ *
+ *  How loud each item is.  [§5, §10, U-23, C-33]
+ * ------------------------------------------------------------------------ */
+
+/**
+ * The gain each file plays at, once somebody has measured it.
+ *
+ * MEASURED OFF THE CRITICAL PATH, which is the whole of the design
+ * here. Integrated loudness is a property of a WHOLE item — that is
+ * what makes it the right thing to normalise against, and it is also
+ * what makes measuring it cost a full decode. A forty-minute film
+ * takes a minute to scan, and a segment has four seconds to be
+ * ready: measuring inline would take the channel off the air to
+ * improve its audio, which is a trade nobody would choose.
+ *
+ * So the engine asks, carries on at the item's own level, and
+ * applies the gain from the pass after the answer lands. The first
+ * minutes of the first play of a new item are as they are today,
+ * and everything after is at the house loudness. A product that
+ * waited to be perfect would be a product that stuttered.
+ */
+const gains = new Map<string, number>();
+
+/** One at a time, because a scan is a full decode. */
+let measuring: Promise<void> = Promise.resolve();
+const asked = new Set<string>();
+
+/**
+ * Ask for an item's loudness, at most once, and never wait for it.
+ *
+ * QUEUED RATHER THAN PARALLEL. Six assets in a rotation would be six
+ * concurrent decodes on the box that also has to keep the channel on
+ * the air, and the engine would miss segments to measure the things
+ * it was late for.
+ */
+function wantLoudness(path: string): void {
+  if (asked.has(path)) return;
+  asked.add(path);
+  measuring = measuring.then(async () => {
+    const measured = await measureLoudness(path).catch(() => undefined);
+    if (!measured) return;
+    const gain = gainFor(measured);
+    gains.set(path, gain);
+    process.stdout.write(
+      `playout: ${path.split('/').pop()} is ${measured.lufs.toFixed(1)} LUFS, `
+      + `playing at ${gain >= 0 ? '+' : ''}${gain.toFixed(1)} dB\n`);
+  }).catch(() => undefined);
+}
+
+/** What this file should play at, or nothing if nobody has measured it. */
+export function gainOf(path: string): number | undefined {
+  return gains.get(path);
+}
 
 async function factsFor(path: string): Promise<SourceFacts | undefined> {
   if (facts.has(path)) return facts.get(path);
@@ -126,7 +184,10 @@ export async function advance(channel: Channel, nowMs = Date.now()): Promise<num
      */
     if (source.kind === 'media' && source.form === 'image') continue;
     const path = pathFor(channel, source);
-    if (path) await factsFor(path);
+    if (!path) continue;
+    const measured = await factsFor(path);
+    /* A still and a silent file have no loudness to correct. */
+    if (measured?.hasAudio) wantLoudness(path);
   }
 
   let made = 0;
@@ -136,7 +197,9 @@ export async function advance(channel: Channel, nowMs = Date.now()): Promise<num
       await access(target);
       continue;
     } catch { /* not there yet, which is why we are here. */ }
-    await produceSegment(channel, index, (path) => facts.get(path));
+    const aired = await produceSegment(
+      channel, index, (path) => facts.get(path), gainOf);
+    await logAired(channel.id, aired);
     made += 1;
   }
 
@@ -153,6 +216,44 @@ export async function advance(channel: Channel, nowMs = Date.now()): Promise<num
  * forbids — the whole schedule, re-encoded, forever, with nobody having asked
  * for it. Somebody who wants that asks for a recording (§6).
  */
+/* ------------------------------------------------------------------------ *
+ *  The as-run.  [§5, §18, D-18, C-32]
+ * ------------------------------------------------------------------------ */
+
+/**
+ * The stretch each channel is in the middle of.
+ *
+ * HELD IN MEMORY AND WRITTEN ONCE. A stretch grows four seconds at
+ * a time for as long as a programme lasts, and appending a line per
+ * segment would turn a half-hour programme into 450 lines of a file
+ * somebody is meant to read. Only the finished shape is written.
+ *
+ * The cost is that an engine killed mid-programme loses the open
+ * stretch, which is why `main` closes them on the way out — and why
+ * losing one is survivable: the segments it describes are gone too,
+ * swept within the minute, so there is nothing it could be checked
+ * against anyway.
+ */
+const openRun = new Map<string, Ran>();
+
+async function logAired(channelId: string, aired: Aired): Promise<void> {
+  const open = openRun.get(channelId);
+  const folded = fold(open ? [open] : [], aired);
+  /* Two entries means the one that was open has ended. */
+  if (folded.length > 1) {
+    await recordRan(channelId, folded[0]!).catch(() => undefined);
+  }
+  openRun.set(channelId, folded[folded.length - 1]!);
+}
+
+/** Write down whatever was still running. Called on the way out. */
+async function closeRuns(): Promise<void> {
+  for (const [channelId, ran] of openRun) {
+    await recordRan(channelId, ran).catch(() => undefined);
+  }
+  openRun.clear();
+}
+
 /**
  * The playlist a sender reads.  [§15, D-21, C-29]
  *
@@ -297,6 +398,12 @@ async function main(): Promise<void> {
       await new Promise((resolve) => { setTimeout(resolve, 200); });
     }
   }
+  /*
+   * THE OPEN STRETCHES GO DOWN BEFORE THE PROCESS DOES. An as-run
+   * missing the programme that was on when the engine was stopped is
+   * an as-run missing the thing somebody is most likely to ask about.
+   */
+  await closeRuns();
   process.stdout.write('playout: off air\n');
 }
 
