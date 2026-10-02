@@ -4828,3 +4828,114 @@ makes deleting it safe.
   around. [D-04]
 * **No deck rename and no deck duplicate.** Neither destroys
   anything, so neither belongs in this stage.
+
+---
+
+## C-38 — Stage 38: the safe area nobody could see
+
+`ACTION_SAFE` was declared at C-26 and **consumed by nothing**. The
+only references in the repository were its own declaration, the
+re-export beside it, and one test asserting it was smaller than
+`TITLE_SAFE`. A constant nothing reads is a rule the product states
+and does not keep.
+
+### And the rule it states was not kept
+
+`graphic.ts` said of the two boxes:
+
+> *"Content is positioned against title safe and `overflow:hidden`,
+> so a slide cannot put a word outside it. That is the whole of the
+> 'content outside the safe area' check: it is prevented rather than
+> detected."*
+
+True of everything the clip contained, and false of the one row
+beside it. **`.foot` is positioned absolutely, outside the clipped
+box**, and carries the credit and the station's own name — both text.
+It sat at 56% of the title-safe margin.
+
+Measured in Chromium at 1920×1080, lowest row carrying ink:
+
+| | ink from the bottom | title safe |
+|---|---|---|
+| before | **64 px** | 108 px |
+| after | **112 px** | 108 px |
+
+Inside action safe, so it survived an overscanning set — and 44 px
+outside the box this product's own constants say text never leaves.
+
+**Prevention by clipping only prevents what is inside the thing that
+clips.** There are two mechanisms now and a test for the second: the
+one row outside the clip is asserted to sit on the line, and any
+*other* absolutely positioned element fails that test. That is the
+point of it — the next row added outside the box has to say where it
+sits rather than inheriting a guarantee it is not covered by.
+
+### The guides, drawn by the editor and never by the renderer
+
+This is the whole safety property of the stage. The guides are a
+sibling of the preview iframe in the control room's own document, so
+there is no path by which they reach `slideHtml` and therefore none
+by which they reach the wire. Drawn inside the renderer instead they
+would be rasterised into the PNG and transmitted — two white
+rectangles across somebody's broadcast — and **nothing would notice**,
+because the preview would look exactly as intended.
+
+So the test is on the renderer, where the mistake would be made,
+across all six compositions, and not on the overlay.
+
+**As percentages, so they survive the scale.** The stage is the frame
+at whatever width the panel happens to be; 5% of it is action safe at
+any size, and a pixel inset computed from 1920 is wrong the moment the
+column moves.
+
+**Off until asked for.** A preview permanently crossed with two
+rectangles is a preview that no longer shows what goes out.
+
+### What they are actually for
+
+The words on a slide are already clipped to title safe and cannot
+leave it, which is what C-26 said and what made a guide look
+redundant. The guide is not for the words. **It is for the picture.**
+A full-bleed photograph runs to the frame edge by design, and the
+Top / Centre / Bottom control decides which part of it survives — a
+choice nobody can make well without seeing where the lines fall on
+the face.
+
+Two unlabelled rectangles are a puzzle rather than a guide, so the
+legend is said once underneath: *"Dashed: action safe — nothing
+meaningful outside it. Solid: title safe — where text goes."*
+
+### Measured
+
+Both lines drawn over a real picture slide in the real control room,
+the toggle pressed on and off, the overlay gone when off. And the
+before/after band rendered at full size with the two lines marked by
+the measurement rather than by the renderer: the credit moved from
+below the title-safe line to above it.
+
+### The record
+
+Seven assertions, eight mutations, all eight caught — plus one
+re-run, because the first version of the mutant that bakes the guides
+into the render referenced a constant the module does not import, so
+it failed to compile and was killed by the wrong tests. Rewritten as
+a literal percentage it compiles, and the assertion that was supposed
+to catch it does.
+
+**And a test that would have measured the wrong thing.** `.foot` is
+also the tail of `.scrim.foot`, the gradient under a picture caption,
+so a loose selector match read that rule instead and found no
+`bottom` at all — passing for the wrong reason either way. The
+selector is anchored now.
+
+### What this does not do
+
+* **No guides on the on-air view.** That panel shows the library PNG
+  of what is actually transmitting; measuring boxes belong where the
+  decision is made, not over the record of it.
+* **It does not check that the subject of a photograph is inside the
+  box.** That needs to know what the subject is, which is a
+  judgement about a picture and not a geometry.
+* **It does not redraw slides already made.** Every existing slide
+  keeps the foot where it was drawn. Correct redraws one; nothing
+  redraws them in bulk, for C-36's reason.

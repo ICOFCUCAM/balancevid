@@ -10,7 +10,8 @@ import {
 } from '../../../src/domain/deck.js';
 import { useConfirm } from '../../Confirm.js';
 import {
-  BACKGROUNDS, SLIDE_HEIGHT, SLIDE_WIDTH, type Background, type Focus,
+  ACTION_SAFE, BACKGROUNDS, SLIDE_HEIGHT, SLIDE_WIDTH, TITLE_SAFE,
+  type Background, type Focus,
   type SlideSpec, slideHtml, slideProblems,
 } from '../../../src/render/slideDesign.js';
 
@@ -127,6 +128,13 @@ export default function SlidesPanel({
   /** Shown for a moment after a slide lands, so the press has an answer. */
   const [added, setAdded] = useState(false);
   const [help, setHelp] = useState(false);
+  /*
+   * OFF UNTIL ASKED FOR. The guides are a measuring instrument, not
+   * part of the picture, and a preview permanently crossed with two
+   * rectangles is a preview that no longer shows what goes out.
+   * [§27, C-38]
+   */
+  const [guides, setGuides] = useState(false);
   const file = useRef<HTMLInputElement | null>(null);
   const modes = useRef<HTMLDivElement | null>(null);
   /*
@@ -662,6 +670,7 @@ export default function SlidesPanel({
           <Stage
             label="PREVIEW" tone={empty ? 'idle' : 'preview'}
             empty="Write something and it appears here"
+            guides={guides} onGuides={setGuides}
             {...(empty ? {} : { html: slideHtml(draft, pictureUrl) })}
           />
 
@@ -1311,11 +1320,14 @@ export default function SlidesPanel({
  * see. They are the house colours for exactly those (§6), so an
  * operator reads this the way they read every other tally here.
  */
-function Stage({ html, label, tone, empty }: {
+function Stage({ html, label, tone, empty, guides, onGuides }: {
   html?: string;
   label: string;
   tone: 'preview' | 'program' | 'idle';
   empty?: string;
+  /** Draw the two broadcast boxes over the picture. [§27, C-38] */
+  guides?: boolean;
+  onGuides?: (next: boolean) => void;
 }) {
   const box = useRef<HTMLDivElement | null>(null);
   const [scale, setScale] = useState(0);
@@ -1341,6 +1353,20 @@ function Stage({ html, label, tone, empty }: {
           color: tone === 'idle' ? 'var(--muted)' : edge,
         }}>{label}</span>
         <span className="grow" />
+        {onGuides && (
+          <button
+            type="button" className="small" data-testid="stage-guides"
+            aria-pressed={guides === true}
+            title="Show the action-safe and title-safe boxes"
+            onClick={() => onGuides(!guides)}
+            style={{
+              padding: '2px 6px', fontSize: 'var(--text-2xs)',
+              border: `1px solid ${guides ? 'var(--accent)' : 'var(--line)'}`,
+              background: guides ? 'var(--accent-wash)' : 'transparent',
+              color: guides ? 'inherit' : 'var(--muted)',
+            }}
+          >Safe area</button>
+        )}
         <span className="muted" style={{ fontSize: 'var(--text-2xs)' }}>16:9</span>
       </div>
       <div
@@ -1369,7 +1395,57 @@ function Stage({ html, label, tone, empty }: {
             placeItems: 'center', fontSize: 'var(--text-xs)',
           }}>{empty ?? 'Nothing yet'}</span>
         )}
+        {/*
+          * THE TWO BOXES, DRAWN HERE AND NEVER BY THE RENDERER.
+          * [§27, C-38]
+          *
+          * This is the measuring instrument, not part of the
+          * picture. It is a sibling of the iframe in the control
+          * room's own document, so there is no path by which it can
+          * reach `slideHtml` and therefore none by which it can
+          * reach the wire — which is the whole safety property, and
+          * the test that holds it is on the renderer rather than
+          * here.
+          *
+          * AS PERCENTAGES, so they survive the scale. The stage is
+          * the frame at whatever width the panel is; 5% of it is
+          * action safe at any size, and a pixel inset computed from
+          * 1920 would be wrong the moment the column moved.
+          *
+          * The words inside a slide are already clipped to title
+          * safe and cannot leave it. WHAT THESE ARE FOR IS THE
+          * PICTURE: a full-bleed photograph runs to the frame edge
+          * by design, and the Top / Centre / Bottom control decides
+          * which part of it survives — a choice nobody could make
+          * well without seeing where the lines fall on the face.
+          */}
+        {guides && html && (
+          <div data-testid="safe-guides" aria-hidden="true" style={{
+            position: 'absolute', inset: 0, pointerEvents: 'none',
+          }}>
+            <div data-testid="guide-action" style={{
+              position: 'absolute',
+              inset: `${ACTION_SAFE * 100}%`,
+              border: '1px dashed rgba(255,255,255,0.42)',
+            }} />
+            <div data-testid="guide-title" style={{
+              position: 'absolute',
+              inset: `${TITLE_SAFE * 100}%`,
+              border: '1px solid rgba(255,255,255,0.62)',
+            }} />
+          </div>
+        )}
       </div>
+      {guides && html && (
+        <p className="muted" style={{
+          margin: 0, fontSize: 'var(--text-2xs)', lineHeight: 1.4,
+        }}>
+          {/* Said once, because two unlabelled rectangles are a
+              puzzle rather than a guide. */}
+          Dashed: action safe — nothing meaningful outside it. Solid:
+          title safe — where text goes.
+        </p>
+      )}
     </div>
   );
 }
