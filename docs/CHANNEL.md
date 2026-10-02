@@ -5303,3 +5303,103 @@ Seventeen assertions, eleven mutations, all eleven caught.
   no portable control for it, the one Chrome offers is non-standard,
   and Chromium already keys often enough. A hint that Firefox ignores
   would be a fix that looks applied and is not.
+
+---
+
+## C-42 — Stage 42: the caption said the station's name
+
+The brief's point 3: *"The viewer needs to know what they are
+watching, not just which channel."* The lower third has carried the
+programme's title since the identity was written, which is half of
+it. The missing half is the one the brief keeps drawing — **what
+kind of thing this is**.
+
+### And the title was frequently the channel's own name
+
+`titleOf` falls back to `channel.name` for a live session with a
+segment up, for the emergency cut, for the backup, and for anything
+untitled. So the lower third said REDEMPTION TV, under a bug that
+also said REDEMPTION TV.
+
+C-26 condemns that in this product's own words:
+
+> *"A name in two corners of the same graphic is a station that does
+> not trust the viewer to have seen it."*
+
+It was doing it on air. The Watch page's NOW PLAYING in the brief's
+screenshot is the same fact on a third surface.
+
+### What goes on each of the two lines
+
+C-40 gave the renderer a name over a role; this decides what each
+one is.
+
+**A lower third identifies the person when there is one**, and the
+programme when there is not. That is what a lower third is for and
+what the brief draws twice. A caption that led with the show's title
+over somebody's face would be the station introducing itself while a
+person is talking.
+
+| | lead | under |
+|---|---|---|
+| presenter + role | the name | the role |
+| presenter, no role | the name | what the schedule knows |
+| no presenter | the programme | what the schedule knows |
+| nothing but the station's name | the one true thing | — |
+
+**The second line is derived, not typed.** The schedule already
+knows: a render carries which studio made it, a live session is a
+camera that is on now. A field somebody fills in is a field that
+disagrees with the schedule by the second week.
+
+**"Live from the studio", not "Live".** The lamp in the corner
+already says it is live, and a caption repeating the lamp is the
+second name in the second corner again.
+
+**And two things outrank the source.** The emergency cut and the
+backup are statements about the *transmission* rather than the
+programme, and a viewer who has just been cut away from needs that
+before they need to know which studio made the replacement. [§9]
+
+### Never three lines
+
+The role beats the source on the second line rather than joining it.
+Both are "what this is", the operator typed one of them on purpose,
+and two of them would be the brief's own point 10: *"professional
+television does not mean putting text everywhere."*
+
+### NEXT, with the time it starts
+
+*"NEXT / Live Conversation / 16:30."* The mark carried the title
+since the identity was written and never the clock, which is the
+half a viewer deciding whether to wait actually needs.
+
+The time is the current item's **end**, which is the next one's
+start and the only instant either agrees on — a rotation entry has
+no clock time of its own because it loops. Formatted in the
+channel's own zone by the caller, because the identity does not get
+to know what a timezone is (§2), and omitted rather than guessed
+when the platform does not know the zone.
+
+### The record, and the two mutants that mattered
+
+Nineteen assertions, twelve mutations, all twelve caught — **after
+two survived and exposed a real hole**.
+
+`caption.ts` was tested to the letter, and nothing asserted that
+`marksFor` reads the role or joins the two lines. A wiring that
+threw half the caption away passed the whole suite. **The judgement
+being right is not the same as the judgement being used**, and the
+only thing that found the difference was mutating the wiring rather
+than the judgement.
+
+### What this does not do
+
+* **No third line, ever.** Said twice above because the temptation
+  is constant and the brief warns about it by name.
+* **It does not invent a role.** A channel that types none gets what
+  the schedule knows, which is true without anybody maintaining it.
+* **Still to come:** the image bug (`bug.assetId`, read by nothing)
+  and the Watch page, which prints the channel where the programme
+  belongs — the same fault as this stage, on the surface the brief's
+  screenshot was taken from.

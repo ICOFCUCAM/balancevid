@@ -21,6 +21,7 @@
  */
 
 import type { OnAir } from './channel.js';
+import { captionFor, nextLine } from './caption.js';
 import type { Rect } from './presentation.js';
 import { setById } from './virtualSet.js';
 
@@ -62,6 +63,20 @@ export interface ChannelIdentity {
     /** How long it stays up at the start of a programme. */
     holdMs: number;
     presenter?: string;
+    /**
+     * WHAT THEY ARE. "Host", "Guest", "In conversation with…"
+     * [brief point 2, C-42]
+     *
+     * A name and a role are a hierarchy — the name large, the role
+     * small underneath — and that is most of what makes a lower
+     * third look like television rather than a subtitle. The model
+     * had a name and nowhere to put the other half.
+     *
+     * Typed, like the name, because nothing knows it. A channel
+     * that leaves it blank gets what the schedule knows instead:
+     * which studio made this, or that it is live from the studio.
+     */
+    role?: string;
   };
   /** The colour the marks are drawn in, so a channel looks like itself. */
   ink?: string;
@@ -151,7 +166,10 @@ export function marksFor(
   /** How far into the current programme the channel is. */
   intoProgrammeMs: number,
   titleOf: (on: OnAir) => string,
-  nextTitle?: string,
+  /** What follows, and when it starts in the channel's own zone. [C-42] */
+  nextUp?: { title?: string; at?: string },
+  /** So a caption can tell a real title from the channel's own name. */
+  channelName?: string,
 ): Mark[] {
   if (!identity) return [];
   const ink = identity.ink ?? '#ffffff';
@@ -231,33 +249,52 @@ export function marksFor(
   if (!citing && lower && lower.show !== 'never' && on.kind !== 'off') {
     const showing = lower.show === 'always' || intoProgrammeMs < lower.holdMs;
     if (showing) {
-      const title = titleOf(on);
-      marks.push({
-        kind: 'lower-third',
-        text: lower.presenter ? `${title}  ·  ${lower.presenter}` : title,
-        corner: 'bottom-left',
-        opacity: 1,
-        size: 26,
-        plate: true,
-        ink,
-        ...(scene ? { at: scene.lowerThird } : {}),
-      });
       /*
-       * NEXT rides with the title rather than appearing on its own, because
-       * the moment a viewer wants to know what is next is the moment they are
-       * being told what this is.
+       * WHAT THE CAPTION SAYS IS DECIDED NEXT DOOR.  [C-42]
+       *
+       * It used to be `title · presenter` and nothing else, so a
+       * viewer was told the programme's name — which, for a live
+       * session, the emergency cut, the backup and anything
+       * untitled, is the CHANNEL'S name, printed under a bug that
+       * already says it. Two lines now, and the second one says
+       * what kind of thing this is.
        */
-      if (nextTitle) {
+      const caption = captionFor(on, titleOf(on), {
+        ...(lower.presenter ? { presenter: lower.presenter } : {}),
+        ...(lower.role ? { role: lower.role } : {}),
+      }, channelName);
+      if (caption) {
         marks.push({
-          kind: 'next',
-          text: `NEXT  ${nextTitle}`,
+          kind: 'lower-third',
+          /* The renderer splits on this separator into its two
+             lines; a caption with no second line is one line. [C-40] */
+          text: caption.under
+            ? `${caption.lead}  ·  ${caption.under}` : caption.lead,
           corner: 'bottom-left',
-          opacity: 0.85,
-          size: 18,
+          opacity: 1,
+          size: 26,
           plate: true,
           ink,
           ...(scene ? { at: scene.lowerThird } : {}),
         });
+        /*
+         * NEXT rides with the title rather than appearing on its own,
+         * because the moment a viewer wants to know what is next is the
+         * moment they are being told what this is.
+         */
+        const next = nextLine(nextUp);
+        if (next) {
+          marks.push({
+            kind: 'next',
+            text: next,
+            corner: 'bottom-left',
+            opacity: 0.85,
+            size: 18,
+            plate: true,
+            ink,
+            ...(scene ? { at: scene.lowerThird } : {}),
+          });
+        }
       }
     }
   }

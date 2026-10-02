@@ -41,7 +41,7 @@ function channelOn(setId: string | undefined) {
 
 const live = (c: ReturnType<typeof channelOn>) =>
   marksFor(c.identity, { kind: 'live', session: c.live! } as never, 0,
-    title, 'The Nine O’Clock News');
+    title, { title: 'The Nine O’Clock News' });
 
 describe('a set says where its own captions go (§27)', () => {
   it('gives the bug the set’s logo region', () => {

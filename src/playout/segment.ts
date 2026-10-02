@@ -111,7 +111,8 @@ export async function produceSegment(
     whatIsOn(channel, fromAt),
     intoProgramme(channel, fromAt),
     (on) => titleOf(channel, on),
-    nextTitle(channel, fromAt),
+    nextUp(channel, fromAt),
+    channel.name,
   );
   /*
    * AND WHETHER THIS BUILD CAN DRAW THEM.  [C-24]
@@ -699,10 +700,41 @@ function intoProgramme(channel: Channel, at: number): number {
   return 0;
 }
 
-function nextTitle(channel: Channel, at: number): string | undefined {
+/**
+ * WHAT FOLLOWS, AND WHEN IT STARTS.  [§6, brief point 6, C-42]
+ *
+ * The title has been here since the identity was written and the
+ * clock never was — which is the half a viewer deciding whether to
+ * wait actually needs. *"NEXT / Live Conversation / 16:30."*
+ *
+ * THE TIME IS THE CURRENT THING'S END, which is the next thing's
+ * start, and it is the only instant either of them agrees on: a
+ * rotation entry has no clock time of its own because it loops.
+ * Formatted HERE, because formatting it needs the channel's own
+ * zone and the identity does not get to know what a timezone is.
+ * [§2]
+ */
+function nextUp(
+  channel: Channel, at: number,
+): { title?: string; at?: string } | undefined {
   const on = whatIsOn(channel, at);
   if (on.kind !== 'rotation' || channel.rotation.length === 0) return undefined;
   const index = channel.rotation.findIndex((entry) => entry.id === on.entry.id);
   const after = channel.rotation[(index + 1) % channel.rotation.length];
-  return after?.title;
+  if (!after?.title) return undefined;
+  return { title: after.title, at: clockAt(channel, on.untilMs) };
+}
+
+/** An instant as the channel's own wall clock reads it. */
+function clockAt(channel: Channel, atMs: number): string | undefined {
+  try {
+    return new Intl.DateTimeFormat('en-GB', {
+      hour: '2-digit', minute: '2-digit', hour12: false,
+      timeZone: channel.timezone,
+    }).format(new Date(atMs));
+  } catch {
+    /* A zone the platform does not know is a zone nobody should be
+       shown a time in. The title still goes out. */
+    return undefined;
+  }
 }

@@ -1106,7 +1106,7 @@ describe('the channel identity is drawn, never burned in (§13, D-16)', () => {
       kind: 'rotation',
       entry: { id: 'rot_x' as never, source: FILM, durationMs: HOUR, createdAt: AT },
       source: FILM, fromMs: 0, untilMs: 1,
-    }, 0, title, 'History Discussion');
+    }, 0, title, { title: 'History Discussion' });
     expect(marks.find((m) => m.kind === 'next')?.text).toContain('History Discussion');
   });
 
