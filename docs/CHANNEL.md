@@ -3552,3 +3552,148 @@ whole sequence — off air, armed, room on program, a reference rolled in
 over it, and back to the room — reading `data-bus` and `data-says` off
 all six tiles at every step. The channel document was backed up before
 and restored to the byte after.
+
+---
+
+## C-28 — Stage 28: something that looks at the output
+
+*"A confidence monitor — the transmission, 12 s late, in a corner of
+the control room, clearly labelled as the delayed one. The player
+already exists on the watch page; this is reusing it."*
+— `ONLINE-TV-AUDIT.md` §5, the second of the three it ranked above the
+rest. The first was C-24.
+
+### Why the audit put this second
+
+C-24 was a channel transmitting four seconds of black, forever, while
+every instrument in the building read healthy. The audit said why, and
+the sentence is the specification for this stage:
+
+> *"The control room looks fine — by design. Its monitor is the
+> operator's own canvas, never the transmission (§7, so a presenter
+> does not talk over themselves). It cannot show this fault."*
+
+`playoutHealth` now catches the cause that was found — an ffmpeg
+without `drawtext`. It catches that cause and not the class. **Nothing
+in this product was looking at the output**, and every instrument that
+said "healthy" was asking a component whether it thought it was
+working.
+
+### §7 survives, because this is a different object
+
+§7 forbids a presenter watching themselves twelve seconds late. It
+cannot be read to forbid the station ever looking at its own output,
+because the alternative is a channel transmitting black for as long as
+it takes somebody to open the viewer page in another tab.
+
+So: a sixth of the size, **permanently silent** — not muted by default
+but with no volume control and no way to reach one, because the desk's
+microphones are open in the same room and audio from a monitor playing
+the mix those microphones feed is a feedback loop at twelve seconds'
+delay — labelled with its own delay, and **off until asked for**.
+
+It is the same `ChannelPlayer` the viewer page uses, in a `compact`
+mode that drops the transport and the prose. [D-19] It writes nothing
+and encodes nothing: it reads the published playlist, which is exactly
+what makes it the only instrument in the product that tests the chain
+**end to end**.
+
+### Measured, not watched
+
+An operator glancing at a small muted picture in the corner of a busy
+desk will not notice that it has been black for a minute. That is
+precisely the attention the fault survived the first time, so the
+picture is sampled once a second onto a 32×18 grid, and the judgement
+is a sentence in the status bar where an operator already reads.
+
+`confidenceSays` keeps `controlRoomNote`'s order exactly — a render
+failure first, then the engine, then the stream, then the picture —
+because the two sit on one desk and must not describe one condition
+two different ways. Its last case is why any of this exists: engine
+running, segments arriving, nothing complaining, **and the picture is
+black**.
+
+### Three things only running it could find
+
+1. **Off air is black on purpose.** `segment.ts` says so in its own
+   words: *"Black and silence, generated — which is also the honest
+   picture: the channel has nothing to show and says so by showing
+   nothing."* The first version alarmed on it, which would have fired
+   on every gap between two programmes — the exact mistake `whyDark`
+   exists to avoid. `expectsPicture(on)` is now a required argument,
+   not a defaulted one, because the default that looks obvious is
+   `true` and `true` is the bug.
+2. **The chip sat on top of the ON AIR plate.** Every corner of the
+   program monitor is spoken for — NOW PLAYING bottom left, the
+   station lockup bottom right, the clock top right, ON AIR top left
+   — so the one place a second picture fits without hiding one of the
+   first picture's own captions is directly beneath that plate. The
+   screenshot showed it; reading the file would not have.
+3. **The floor was written in the wrong colour space.** Its own
+   comment claimed 0.04 had to clear MPEG's limited-range black at
+   16/255. That is a number in YUV; by the time a decoded frame
+   reaches a canvas it has been expanded, and broadcast black arrives
+   at RGB 0–4. The threshold would have sat *above* everything it was
+   meant to catch — **a black-picture alarm that could not fire on a
+   black picture**. A test that measured it said so.
+
+Where the floor actually sits:
+
+|  |  |
+|---|---|
+| 0.000 | pure black |
+| 0.016 | decoded black with the noise an encoder leaves |
+| 0.034 | the product's own darkest background, `#07090c`, bare |
+| **0.04** | **the floor** |
+| 0.094 | a dark grey picture |
+| 0.112 | that same background with a headline on it |
+
+A bare slide below the line is correct and not a miss: a frame with
+nothing on it **is** a black picture. The same slide with a line of
+type on it is comfortably above, which is the case that matters.
+
+### Patience, because a channel is allowed to go to black
+
+Twelve seconds — the same patience `STREAM_STALE_MS` uses. A dissolve
+through black, the gap at the end of a programme and the moment an
+operator takes a source down are all black and all correct, and an
+alarm that fired on them is an alarm nobody reads. [D-04]
+
+The run is measured **from the oldest unbroken dark sample to now**,
+not counted in samples: a background tab is throttled to whatever the
+browser feels like, and counting frames would make the alarm fire late
+on a slow machine and early on a fast one for the same picture.
+Measuring to `now` also means a sampler that stopped keeps the clock
+running — and the counterpart matters more: when the sampler stops on
+a **lit** picture the clock stays at zero, because an alarm raised out
+of an absence of evidence is an alarm about a tab that went to the
+background.
+
+### The record
+
+Twenty-six assertions, twenty mutations, nineteen caught.
+
+The one survivor was a length guard on an empty pixel buffer, which
+the `pixels === 0` line below it already covers. **Deleted rather than
+defended** — the ninth time in this project.
+
+And one test failure was a finding rather than a bug: `meanLuma` on
+RGB 16 returned 0.063 against a floor of 0.04, which is how the colour
+space error above was caught. The comment was wrong and the number was
+right, and only the measurement could tell which.
+
+### What is not verified here, and why
+
+**The sampling path has not been run against a moving picture.** This
+container's Chromium is built without H.264, so the stream does not
+decode in it — the viewer's own watch page is equally blank here, which
+is how that was established rather than guessed. What the browser does
+is `drawImage` into a canvas and hand back bytes; every piece of
+arithmetic that could be wrong was moved out of the component into
+`meanLuma` and tested, and the monitor was driven in a real browser far
+enough to confirm it mounts, opens, takes the player, and ranks a
+stopped engine above a black picture exactly as the tests say.
+
+Not verified is not the same as not working, and it is not the same as
+working either. It is stated here so the first person to open it on a
+machine with codecs knows what to check.

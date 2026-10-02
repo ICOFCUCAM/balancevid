@@ -24,6 +24,7 @@ import {
   MenuButton, MenuHost, RightClickHint, useRowMenu, type MenuEntry,
 } from '../../Menu.js';
 import { useLiveEncoder } from './useLiveEncoder.js';
+import ConfidenceMonitor from './ConfidenceMonitor.js';
 import GuestGrid from './GuestGrid.js';
 import MediaPlayerPanel, { MediaPreview } from './MediaPlayer.js';
 import BackgroundPanel, { type Composited } from './BackgroundPanel.js';
@@ -190,6 +191,15 @@ export default function ChannelStudio({
    * heartbeat and at the age of the newest segment, and hands back the
    * answer and a sentence.
    */
+  /*
+   * WHAT THE CONFIDENCE MONITOR CAN SEE, raised out of it so it sits
+   * with the desk's own sentence rather than beside it in a corner.
+   * Held here because the monitor is the only thing that knows, and
+   * the status bar is the only place an operator reads. [§18, C-28]
+   */
+  const [seen, setSeen] = useState<
+    { says: string; tone: 'fault' | 'note' } | null>(null);
+
   const [health, setHealth] = useState<{
     engine: 'running' | 'stale' | 'stopped';
     stream: 'transmitting' | 'stalled' | 'silent';
@@ -203,6 +213,8 @@ export default function ChannelStudio({
      * fault is the one nobody can diagnose. [§6, §9]
      */
     dark: string | null;
+    /** A recent render failure, for the confidence monitor to rank. [C-28] */
+    failing?: { says: string };
     /*
      * AND WHICH OF THEM TO SHOW. Both can be true at once, so the order
      * is decided in the domain where it can be tested, and the tone
@@ -1498,6 +1510,33 @@ export default function ChannelStudio({
                   </span>
                 )}
 
+                {/*
+                  * THE TRANSMISSION, IN THE CORNER.  [§18, §7, C-28]
+                  *
+                  * This monitor is the operator's own canvas and must
+                  * stay that way — a presenter watching themselves
+                  * twelve seconds late talks over themselves. What
+                  * §7 cannot be read to forbid is the station ever
+                  * looking at its own output: C-24 was a channel
+                  * transmitting black for as long as it took somebody
+                  * to open the viewer page in another tab.
+                  *
+                  * So it is a sixth of the size, permanently silent,
+                  * labelled with its own delay, and off until asked
+                  * for. And it is measured rather than watched,
+                  * because an operator glancing at a small muted
+                  * picture on a busy desk is exactly the attention
+                  * the fault survived the first time.
+                  */}
+                {health && (
+                  <ConfidenceMonitor
+                    channelId={id}
+                    engine={health.engine} stream={health.stream} on={on}
+                    {...(health.failing ? { failing: health.failing } : {})}
+                    onNote={setSeen}
+                  />
+                )}
+
                 {/* The station lockup, bottom right, where a channel's is. */}
                 {/*
                   * THE STATION LOCKUP GETS NO PLATE. A channel's bug is
@@ -2663,6 +2702,37 @@ export default function ChannelStudio({
                         : 'On air'}
             </span>
           </span>
+
+          {/*
+            * WHAT THE CONFIDENCE MONITOR CAN SEE.  [§18, C-28]
+            *
+            * In the status bar rather than beside the picture that
+            * found it, because this is the line an operator reads and
+            * a fault announced only in a 168-pixel corner is a fault
+            * announced to nobody. It appears only while the monitor
+            * is open: a sentence about a picture nothing is looking
+            * at would be a claim with no evidence behind it.
+            *
+            * It ranks itself against the engine and the stream with
+            * `confidenceSays`, which keeps `controlRoomNote`'s own
+            * order — two instruments on one desk must not describe
+            * one condition two different ways. [§6]
+            */}
+          {seen && (
+            <span className="row" data-testid="confidence-note"
+                  data-tone={seen.tone} style={{
+                    gap: 6, fontSize: 'var(--text-xs)', minWidth: 0,
+                  }} title={seen.says}>
+              <Dot on colour={seen.tone === 'fault'
+                ? 'var(--state-bad)' : 'var(--state-warn)'} />
+              <span style={{
+                color: seen.tone === 'fault'
+                  ? 'var(--state-bad)' : 'var(--muted)',
+                overflow: 'hidden', textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap', maxWidth: 420,
+              }}>{seen.says}</span>
+            </span>
+          )}
 
           {/*
             * WHO CAN WATCH, where a broadcaster cannot miss it. An
