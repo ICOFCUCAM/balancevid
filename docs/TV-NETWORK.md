@@ -1048,3 +1048,97 @@ Stated so the decision stays honest:
   and the speed work comes before either.
 - **Nobody is sharing channel links yet.** The front-door argument
   weakens if no link is being shared to be mis-described.
+
+---
+
+# PART SIX — The record: N-1 to N-5, built
+
+Stages N-1 through N-5 are implemented. N-6 (the registry and
+channel numbers) and beyond are not, by the recommendation in PART
+FIVE: *"Start with B, and stop after N-4."* N-5, the guide, came
+with it because the arithmetic was small once `airtime` was
+already there.
+
+## What a stranger can now do
+
+Verified against a running server with **no session cookie at
+all**:
+
+```
+/tv                 200      /                    307 → sign in
+/tv/channels        200      /t/<id>              307 → sign in
+/tv/guide           200
+/tv/search          200
+/api/tv/channels    200
+```
+
+The directory answers:
+
+```json
+{"channels":[{"slug":"balancevid-tv","name":"BalanceVid TV",
+  "says":"General · English · GB","callsign":"BVTV",
+  "genre":"general","language":"en","country":"GB"}]}
+```
+
+and the station page says `BVTV`, `ON AIR`, `NOW Late Night Loop
+— Studio Two · Performance — until 11:07 PM`, `NEXT Morning
+Music`. The guide drew one row and twelve slots across three
+hours, in the viewer's own clock.
+
+## The findings, in order
+
+**Every stage found something the tests caught rather than a
+reader.**
+
+| | what survived or failed | what it meant |
+|---|---|---|
+| N-1 | `slugFor('!!!')` → `channel` | the suggester produced what its own validator refused |
+| N-1 | the fix's own fallback | unreachable once the prefix was `station-`; **deleted** |
+| N-3 | two guards about an empty slug | every fixture had a good address or none; a document on disk is not a type |
+| N-4 | `if (true)` for the loop-vs-programme choice | no fixture had a schedule, so the comparison was never exercised |
+| N-4 | the caption replaced by the raw title | no fixture had an untitled item, so C-42's rule was never tested |
+| N-5 | three clipping clauses | `airtime` already guarantees it; **deleted** |
+| N-4 | a partial callsign match | noise for every realistic query; **deleted** |
+
+**Three deletions, and the second is the one worth keeping.**
+`rowFor` clamped every stretch to the window and dropped the empty
+ones. All three clauses survived everything, because `airtime`
+starts at `fromMs`, stops at `toMs` and takes `Math.min(toMs, …)`
+for every end — and `airtime` had already deleted a guard of its
+own for exactly this reason:
+
+> *"an untested guard against a case the layer below forbids is a
+> guard nobody can check."*
+
+The words applied unchanged one layer up.
+
+## And two faults found by looking
+
+**The console tests failed on the new pages**, against rules
+written for the control room: a logo tile rounded like a card when
+it is a picture, and a player bed typed as `#000` rather than
+named. The second matters — `compose.ts` pads with `color=black`,
+so a player on a hand-picked near-black shows a different frame
+from the file it is playing.
+
+**And the station page buried its own answer.** At full width the
+player is 720 pixels tall and pushed NOW and NEXT below the fold.
+
+## What is still true from PART THREE
+
+The claim that opened this document holds, and the build confirms
+it: **nothing about transmission changed.** No new player, no new
+streaming path, no change to how a channel broadcasts. The player
+on the station page is `ChannelPlayer`, which has served
+`/t/<id>/watch` since before any of this.
+
+## Not built
+
+- **N-6 · the registry**, and with it channel numbers. The field
+  is deliberately absent from `Station`: a number is allocated by
+  the network, and a field before an allocator is an invitation to
+  pick one.
+- **N-7 · M3U and XMLTV.** Small, once a registry exists.
+- **N-8 · custom domains.**
+- **N-9 · the mobile and CTV applications.** `/tv` is the web
+  client, and the API they would consume is built.
