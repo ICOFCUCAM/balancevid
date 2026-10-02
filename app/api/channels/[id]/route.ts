@@ -29,6 +29,9 @@ import {
   whyDark,
 } from '../../../../src/domain/health.js';
 import { discardBuffer, keepBuffer } from '../../../../src/store/liveBuffer.js';
+import { isSendable } from '../../../../src/domain/rtmp.js';
+import { forgetKey, keyNote, putKey } from '../../../../src/store/streamKeys.js';
+import { forgetSender, readSenders } from '../../../../src/store/senderHealth.js';
 import { fail, json } from '../../../../src/web/http.js';
 
 export const dynamic = 'force-dynamic';
@@ -48,6 +51,29 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * to discover: a programme whose render was deleted looks fine in a listing
  * and goes out as black.
  */
+/**
+ * Each destination's state and address, with no credential in it.
+ * [§15, D-21, C-29]
+ */
+async function sendersFor(channel: { id: string;
+  destinations?: { id: string; settingsRef?: string }[] }): Promise<
+  Record<string, { state?: string; says?: string; at?: string;
+    server?: string; hasKey: boolean }>> {
+  const notes = await readSenders(channel.id)
+    .catch(() => ({} as Awaited<ReturnType<typeof readSenders>>));
+  const out: Record<string, { state?: string; says?: string; at?: string;
+    server?: string; hasKey: boolean }> = {};
+  for (const destination of channel.destinations ?? []) {
+    const key = await keyNote(destination.settingsRef).catch(() => null);
+    out[destination.id] = {
+      ...(notes[destination.id] ?? {}),
+      ...(key ? { server: key.server } : {}),
+      hasKey: Boolean(key?.has),
+    };
+  }
+  return out;
+}
+
 export async function GET(request: Request, { params }: Params): Promise<Response> {
   const { id } = await params;
   if (!(await isOwner(request))) return fail(404, 'channel not found');
@@ -178,6 +204,20 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
       ...(newestSegment
         ? { segmentAt: new Date(newestSegment).toISOString() } : {}),
     },
+    /*
+     * WHAT EACH DESTINATION IS ACTUALLY DOING, and what it is
+     * pointed at.  [§15, D-21, C-29]
+     *
+     * `enabled` is in the document and is the operator's switch;
+     * this is the connector's answer, and D-21 requires both to be
+     * shown because *"a destination showing 'on' with nothing
+     * arriving is the screen that loses a broadcast"*.
+     *
+     * AND NO KEY IS IN IT. `keyNote` returns the server address and
+     * whether a key exists. There is no route in this product that
+     * returns one.
+     */
+    senders: await sendersFor(channel),
     serverNow: new Date(now).toISOString(),
   });
 }
@@ -341,9 +381,61 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
             ...(body['label'] ? { label: body['label'] } : {}),
           });
           break;
-        case 'remove-destination':
-          removeDestination(draft, body['destinationId']);
+        /*
+         * THE KEY NEVER ENTERS THE DOCUMENT.  [§15, D-21]
+         *
+         * The edit sets a `settingsRef` and nothing else; the
+         * credential goes to `streamKeys`, outside the account tree
+         * that backups and exports walk. There is deliberately no
+         * action that READS one back: the control room is told that
+         * a key exists and where it points, and a product that can
+         * show you your own stream key can show it to whoever is
+         * behind you.
+         */
+        case 'set-destination-key': {
+          const destination = (draft.destinations ?? []).find(
+            (one) => one.id === body['destinationId']);
+          if (!destination) {
+            throw new ChannelEditError('no such destination');
+          }
+          const server = String(body['server'] ?? '').trim();
+          const key = String(body['key'] ?? '').trim();
+          if (!server && !key) {
+            /* Clearing it. The reference goes with the credential, or
+               the document would point at a file that is not there. */
+            if (destination.settingsRef) {
+              await forgetKey(destination.settingsRef);
+              delete destination.settingsRef;
+            }
+            destination.enabled = false;
+            break;
+          }
+          if (!isSendable(server)) {
+            throw new ChannelEditError(
+              'that server address is not an RTMP URL \u2014 it should '
+              + 'begin rtmp:// or rtmps://');
+          }
+          if (!key) throw new ChannelEditError('a stream key is needed');
+          /* The reference IS the destination's id: one key per
+             destination, and nothing to keep in step. */
+          await putKey(destination.id, { server, key });
+          destination.settingsRef = destination.id;
           break;
+        }
+        case 'remove-destination': {
+          /*
+           * THE CREDENTIAL GOES WITH THE DESTINATION. A key whose
+           * destination was deleted is a live credential in a file
+           * nothing references, and nothing will ever remove it
+           * because nothing remembers it is there.
+           */
+          const going = (draft.destinations ?? []).find(
+            (one) => one.id === body['destinationId']);
+          removeDestination(draft, body['destinationId']);
+          if (going?.settingsRef) await forgetKey(going.settingsRef);
+          await forgetSender(draft.id, body['destinationId']);
+          break;
+        }
         /* ---- the safe playlist (§9) ----------------------------------- */
         case 'backup':
           if (body['source'] && !await resolves(draft, body['source'])) {

@@ -3697,3 +3697,181 @@ stopped engine above a black picture exactly as the tests say.
 Not verified is not the same as not working, and it is not the same as
 working either. It is stated here so the first person to open it on a
 machine with codecs knows what to check.
+
+---
+
+## C-29 — Stage 29: the door that needed nobody's permission
+
+*"`PLATFORMS.rtmp` is already modelled with `needsReview: false` —
+'anything that takes a server URL and a stream key'. YouTube,
+Facebook and X all accept exactly that today… **This unlocks three of
+the four platform cards without anybody's permission, and it is the
+single highest-value piece of work on this list.**"*
+— `ONLINE-TV-AUDIT.md` §4.1, the third and last of the three the
+audit ranked above the rest. C-24 was the first, C-28 the second.
+
+### It is not a second output path
+
+The instruction this product has been given repeatedly is *"do not
+add a second Media Player → Output path"*. The sender reads **the HLS
+the playout engine has already written** — the same bytes a viewer
+gets — and copies them to a socket. It renders nothing, decides
+nothing about what is on air, and if it dies the channel does not
+notice. That is D-21's *"one master broadcast output, and
+destinations receive that output"* taken literally rather than
+paraphrased.
+
+**`-c copy`, not a re-encode.** The house format is already
+H.264/AAC in MPEG-TS at the shape a 16:9 platform wants, so the
+sender is a remux and the box it shares with the encoder notices
+nothing.
+
+**And `-re` is deliberately absent.** It paces input at its native
+rate, which is right for pushing a file and wrong for a live playlist
+already arriving in real time. Pacing a live source twice is how a
+sender drifts further behind every hour until the ingest drops it.
+
+### The shape line, held rather than fudged
+
+A 9:16 destination is **refused, with the reason**, not cropped. D-21
+and U-22 both forbid the crop by name — *"Don't merely crop the
+television channel"*, *"vertical is a different edit"* — and a
+vertical output that silently arrived as a cropped 16:9 would be the
+product doing the forbidden thing while appearing to do the asked-for
+one. A different shape needs a different composition, which is a
+second encode and the audit's own item (2). Not built, and said so.
+
+### Where a stream key lives, which is not in the document
+
+D-21: *"No credentials in the document… A conversation directory is a
+portable archive (U-25), and a stream key in one is a stream key in
+somebody's backup."*
+
+So the document holds a `settingsRef` and `var/keys/<ref>.json` holds
+the credential — **outside the account tree**, which is what a backup
+walks and an export copies. Directory 0700, file 0600, and the mode
+is on the create rather than a `chmod` afterwards: a file that is
+world-readable for the microseconds between `writeFile` and a
+following `chmod` is a file that was world-readable.
+
+**There is no route that returns a key.** The control room is told
+that one exists and what server it points at; the key itself leaves
+the process only as an argument to ffmpeg. A product that can show
+you your own stream key can show it to whoever is standing behind
+you, and there is nothing you can do with it on screen that you
+cannot do by pasting a new one. The field is `type="password"`, is
+cleared the instant it is sent, and is never populated from the
+server.
+
+**And the credential goes when the destination does.** A key whose
+destination was deleted is a live credential in a file nothing
+references, and nothing will ever remove it because nothing remembers
+it is there.
+
+### Two things tested as security properties rather than behaviour
+
+1. **The allowlist.** ffmpeg writes its output wherever it is told:
+   `file:///` plus a path is a sender that overwrites whatever it is
+   pointed at, with the engine's own privileges, from a string
+   somebody typed into a form. Exactly two schemes are accepted, at
+   the door, and the test enumerates the dangerous ones by name.
+   [D-06]
+2. **The redaction.** A stream key lets anybody broadcast as the
+   account that owns it, and the two places credentials escape are
+   logs and error messages — an ingest that rejects a URL routinely
+   echoes it back. There is one function for printing a target, one
+   for sanitising ffmpeg's own words, and the test asserts that **no
+   four-character substring of the key** appears in either. The
+   placeholder is fixed-width, so the log does not leak how long the
+   key was either; showing the last four is the card-number
+   convention, where the rest is already known, and a stream key is
+   uniformly secret.
+
+### A push must never be able to stop the television channel
+
+Every failure in the supervisor is caught. The worst an unreachable
+platform may do is leave **its own** destination blocked with a
+reason. The reconciliation runs after the segments, because a sender
+started before there is anything to read spends its first seconds
+failing on an empty playlist and earns a backoff it did not deserve.
+
+It is a **reconciliation and not a set of commands**, which is the
+only shape that survives the engine being restarted mid-broadcast:
+the desired state is the channel document plus the keys on disk, and
+each pass closes the gap. Nothing remembers what an operator pressed.
+
+The backoff doubles to a minute and stops, because the two things
+that kill a sender want opposite treatment — a network blip wants an
+immediate retry, an ingest refusing a key wants to be left alone
+before it bans the address — and one curve covers both. A sender that
+has stayed up fifteen seconds has its count reset.
+
+### The playlist the sender reads
+
+`livePlaylist` is the same function the viewer's route calls,
+rendering **absolute file paths instead of URLs**. One generator, two
+renderings, so a sender and a viewer cannot be watching different
+windows of the same channel.
+
+It is written to `var/senders/<id>/playlist.m3u8` and **not** into
+`stream/`, which holds only `N.ts` and is swept by age: a playlist
+among the segments is one the sweeper will eventually delete and the
+playlist route may eventually serve. That is the mistake C-24 made
+once already, with the failure record, and the suite caught it within
+the hour.
+
+### The control room tells both facts
+
+D-21: *"`enabled` is the operator's switch and the connector's state
+is a separate answer."* The row used to read `kind === 'own'` and say
+NOT CONNECTED for everything else — true when it was written, false
+now. It reads the engine's own record, and shows the connector's
+sentence on hover, because BLOCKED without a reason is the lamp that
+loses an evening.
+
+### The record
+
+Thirty-seven assertions across the sender and the key store, twenty-
+four mutations, all twenty-four caught — the two redaction mutations
+among them, which were the ones worth running.
+
+Two mutations survived at first and **both were real**: the create
+modes on the key file and its directory were unobservable because a
+`chmod` afterwards covered them. Rather than defend them, the
+redundant `chmod` on the file was deleted — which makes the create
+mode observable — and the directory's `chmod` was kept and given the
+test that justifies it: a `keys` directory that already exists with
+loose permissions is tightened, which `mkdir`'s own mode cannot do.
+Belt-and-braces that survives every mutation is belt-and-braces.
+
+Verified end to end against the author's real channel, through the
+API rather than the UI, because the claim being checked is about what
+the API returns:
+
+| | |
+|---|---|
+| occurrences of the key in the channel GET | **0** |
+| occurrences in `channel.json` on disk | **0** |
+| JSON files anywhere under `var/accounts` containing it | **0** |
+| where it is | `var/keys/`, dir 0700, file 0600 |
+| after removing the destination | `var/keys/` empty |
+
+And in the browser: the row reading READY with a key set, the form
+masking the key, and the row afterwards showing the server address
+and never the key. The channel document was backed up before and
+restored to the byte.
+
+### What this does not do
+
+* **No vertical destination.** A second encode, deliberately not
+  built; the refusal says so.
+* **No reviewed-platform connectors.** TikTok LIVE, and the official
+  YouTube, Facebook and X apps, still need an approved application.
+  What changed is that three of them do not need it to receive a
+  stream: their own RTMP ingest URL in a plain RTMP destination works
+  today.
+* **Not run against a live ingest.** Pushing to a real platform from
+  this container would be broadcasting to somebody's account, which
+  is not a thing to do to find out whether a flag is right. The
+  sender has been exercised to the point where it spawns; the first
+  push to a real ingest is the first thing to watch.

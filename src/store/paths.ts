@@ -265,6 +265,24 @@ export const paths = {
     join(paths.channelLive(id), `${safe(bufferId)}.webm`),
   channelSegment: (id: string, index: number) =>
     join(paths.channelStream(id), `${Math.max(0, Math.floor(index))}.ts`),
+  /**
+   * THE PLAYLIST A SENDER READS.  [CHANNEL §15, D-21, C-29]
+   *
+   *   var/senders/<id>/playlist.m3u8
+   *
+   * NOT IN `stream/`, which holds only `N.ts` and is swept by age: a
+   * playlist among the segments is one the sweeper will eventually
+   * delete and the playlist route may eventually serve. The same
+   * argument `playoutHealth` makes about not living with the
+   * material, and the same mistake C-24 made once already.
+   *
+   * It names its segments by ABSOLUTE PATH, because it is not beside
+   * them. The viewer's playlist is the same `livePlaylist` function
+   * rendering URLs instead — one generator, two renderings, so the
+   * sender and the viewer cannot be watching different windows.
+   */
+  senderPlaylist: (id: string) =>
+    join(VAR_ROOT, 'senders', safe(id), 'playlist.m3u8'),
   /** Clips and the link preview of a performance. [STUDIO-TWO §14] */
   performanceClips: (id: string) => join(paths.performance(id), 'clips'),
   performanceCard: (id: string) => join(paths.performance(id), 'share-card.png'),
