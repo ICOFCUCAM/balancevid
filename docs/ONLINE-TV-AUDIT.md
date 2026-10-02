@@ -104,7 +104,7 @@ fault was found; the record of the fix is C-24.
 | **Continuous channel** | 24/7 playout, 4-second HLS segments, a 6-segment (24 s) window, automatic sweeping so the stream is transport and not an archive | No DVR or catch-up — the viewer page says so plainly: *"no beginning to go back to"* |
 | **Schedule** | Fixed-time programmes, day-parts, a rotating loop, `whatIsOn` resolving one moment to one source | No recurrence rules, no rights windows |
 | **Live studio** | Camera, WebRTC guest room, layouts shared with the renderer, virtual sets, screen share, media player, graphics, audio mixer with per-source meters, viewer answers | One master 16:9 output only |
-| **Vision mixing** | Preview/programme, TAKE LIVE, solo one source full-frame, operator-chosen or automatic arrangement, roll a reference in over the live feed | No transitions beyond a cut; no return feed |
+| **Vision mixing** | Preview/programme, TAKE LIVE, solo one source full-frame, operator-chosen or automatic arrangement, roll a reference in over the live feed | No cross-dissolve; the return feed arrived in C-28 |
 | **Resilience** | Emergency source above everything, backup source, automatic failover when the feed faults, black rather than a dead stream | The fallbacks are silent (see §1) |
 | **Identity** | Channel bug, lower third, NEXT line, placed by the set's own region rather than a corner | Currently fatal to the picture (§1) |
 | **Recording** | Optional save of a live session | Off by default; the live buffer is discarded otherwise |
@@ -209,7 +209,7 @@ Not everything below is worth fixing. It is the honest distance.
 | **Confidence monitor** | ~~Operator's own canvas only~~ **The transmission, sampled, in the corner (C-28)** | A return feed of what is actually going out — the fault in §1 would have been seen in seconds |
 | **Fault reporting** | ~~Silent fallback to black~~ **Render failures counted (C-24), black picture alarmed (C-28)** | Alarms on encoder failure, dropped frames, bitrate floor |
 | **Latency** | ~12 s | 2–8 s typical, sub-second with WebRTC egress |
-| **Transitions** | Cut only | Dissolve, wipe, stinger |
+| **Transitions** | ~~Cut only~~ **A dip to black at joins inside a segment (C-34)** | Dissolve, wipe, stinger |
 | **Audio** | Per-source meters, a master, and ~~no~~ **every item measured and played at −23 LUFS (C-33)** | Per-source EQ, compression, ducking |
 | **Graphics** | Bug, lower third, NEXT | Full template engine, data-bound tickers, crawls |
 | **Recording** | Optional, one file | Always-on ISO recording per source |

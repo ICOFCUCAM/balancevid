@@ -4296,3 +4296,107 @@ hit — so the chain was verified one step earlier, by applying the
 engine's own gain through real ffmpeg to the real source and
 measuring the result. The first thing to check on a machine that can
 probe a `.ts` is a transmitted segment.
+
+---
+
+## C-34 — Stage 34: the join between two programmes
+
+The audit: *"Transitions | Cut only | Dissolve, wipe, stinger."* A
+channel that hard-cuts from a music video to a conversation sounds
+like a mistake at every join — and **the click is worse than the
+jump**, because an ear notices a discontinuity an eye forgives.
+
+### A dip to black, and the reason is material rather than taste
+
+A cross-dissolve needs the two items to OVERLAP: the outgoing one
+has to keep playing while the incoming one starts. At a programme
+boundary the outgoing item has usually just **ended**, so there is
+nothing after it to dissolve from, and reading past the end of a
+file produces the frozen frame or the black a dissolve was supposed
+to avoid.
+
+A dip needs nothing extra from either side: the last 400ms of what
+was playing fades down, the first 400ms of what follows fades up,
+both inside material that already exists. It is also what a
+broadcaster does between two unrelated programmes. A true dissolve
+belongs where the two things genuinely overlap, which is the vision
+mixer and not the playout engine.
+
+### The rules matter more than the effect
+
+Three joins stay hard cuts, and each is a case where four hundred
+milliseconds is worth less than what it costs.
+
+* **Never into or out of the emergency source.** Somebody pressed a
+  button marked EMERGENCY, and answering with a slow dip is the
+  product deciding its own polish is worth more than the reason
+  they pressed it. [§9]
+* **Never into or out of a live feed.** Cutting to live is what a
+  cut is FOR — a gallery cuts to a camera, it does not mix to one
+  from the schedule — and fading a live feed means choosing to lose
+  half a second of something that is happening while it happens.
+  [§6]
+* **Never into itself.** `playoutWindow` divides a segment wherever
+  the answer changes *and* wherever one has to be read in parts, and
+  only the first is a transition. Dipping at the second would put a
+  hole in the middle of a programme. This is the rule a careless
+  implementation gets wrong, and the other two are special cases of
+  it.
+
+### Before the marks, not after
+
+The bug and the lower third are composited onto the outgoing frame
+by the same filter chain (§13, D-16), and a fade applied after them
+takes the station's own identity down with the picture. The dip goes
+first: a viewer sees the picture go and **the bug stay**, because the
+bug is the channel and the channel did not go anywhere.
+
+### The limit, said plainly
+
+**A join that falls exactly on a segment boundary is still a cut.**
+The engine produces each segment independently, so the piece before
+this one is in a file written four seconds ago and is not available
+to fade against. Joins are dipped where they fall *inside* a
+segment, which is most of them. Papering over that would mean
+holding segments back to look at their neighbours, which is latency
+spent on a transition.
+
+### Measured
+
+ffmpeg accepted the full chain — scale, pad, fps, setsar, fade,
+marks, with `volume` and `afade` on the audio — and the fade is
+really there:
+
+| t | mean luma |
+|---|---|
+| 0.00 s | 0.0000 |
+| 0.10 s | 0.0118 |
+| 0.20 s | 0.0609 |
+| **0.40 s** | **0.1775** |
+
+A clean ramp reaching full picture at exactly the 400ms specified.
+The out-fade could not be distinguished in the same clip because the
+source content there is itself near-black; it is the same filter with
+the same arithmetic, and the unit tests cover where it starts.
+
+### The record, and a correction to the method
+
+Eighteen assertions, sixteen mutations, fourteen caught. One was not
+a behaviour mutation — it rewrote a typed read as a cast — and is
+discarded, as C-27's was.
+
+**And one survivor was a wrong verdict of mine, which is the part
+worth keeping.** A guard in `sameThing` survived every mutation, so
+by the rule this project has used for eleven stages it was deleted as
+unobservable. `tsc` failed a minute later: the guard was **narrowing
+the type**, not deciding the answer, and *a mutant is never
+typechecked* — so mutation testing is blind to exactly that kind of
+line.
+
+The fix is better than the guard was. Naming the thing that is
+sometimes absent — `sourceOf(on)`, which is `undefined` when the
+channel is off — removes both the guard and the question: two
+channels that are off have no source and compare equal, one that is
+off and one that is not compare unequal. The method stays, with a
+caveat it did not have before: **a guard that only narrows a type
+cannot be judged by mutation alone.**
