@@ -6119,3 +6119,154 @@ outside the source: a `.pdf` and a `.docx` are not media, whatever
 the table says.
 
 Full suite: 163 files, 3032 tests.
+
+## C-49 — Stage 49: the parser was the messenger
+
+Four questions from the author over two screenshots. Three were
+faults; one was the product working and the word for it being
+wrong.
+
+### 1. "ANCIENT OF DAYS IS LIVE BUT THE TV HAS NOT GONE LIVE"
+
+> *"DOES THAT MEAN THAT PLAYLIST CAN GO LIVE EVEN WITHOUT WE GOING
+> LIVE?"*
+
+**Yes, and that is the whole of Online TV.** A channel transmits
+from its schedule and its loop whether or not anybody is in the
+room — the footer of the author's own screenshot says it:
+*"PROGRAM — the channel is running itself."* GO LIVE opens a
+camera into PREVIEW, and nothing reaches the wire until TAKE LIVE.
+
+**The architecture is right. The word was wrong, in two places.**
+The playlist rail and the multi-view both badged a transmitting
+RECORDING as `LIVE`.
+
+This product already holds that line where it costs something.
+`marksFor` pushes the LIVE lamp only when `on.kind === 'live'`,
+and says why:
+
+> *"a channel whose LIVE light is part of its logo is a channel
+> lying to its viewers."*
+
+It enforced that on the wire and broke it in its own control room
+— on the surface read by the one person who most needs to know
+whether a camera is open. Both now say ON AIR, which is what they
+meant.
+
+### 2. The parser was the messenger
+
+> `JSON.parse: unexpected end of data at line 1 column 1 of the JSON data`
+
+Shown under a thirteen-megabyte video on the first screen of
+Studio One. It is the browser's JSON parser complaining about a
+body, and the person reading it had not asked for any JSON.
+
+**Two faults, and the second is the one that matters.**
+
+```js
+const data = await response.json();              // ← throws here
+if (!response.ok) throw new Error(data.error);   // ← never runs
+```
+
+The first is an unguarded `.json()`. The second is that it was
+called **before** `response.ok` — so a server answering with a
+status and an empty body, which is what a refused upload, a
+gateway timeout and a crashed route all look like, could only ever
+produce the parser's complaint. **The status was sitting one line
+below, unread.**
+
+**Seventy-eight places ask a server something and fifty-one guard
+it.** The pattern was known and applied two times in three, which
+is C-14's finding in a third place: the answer was not wrong, it
+was written seventy-eight times.
+
+Six sites read the body before the status — the actual fault —
+and are now typed and routed through one function. Ten more check
+the status first and could still throw on a malformed 200; those
+read through `bodyOf`, which cannot.
+
+**And `bodyOf` gives back what `.json()` gave back, minus the
+throwing.** That default is deliberate rather than lazy: ten call
+sites read fields nobody has ever typed, and inventing shapes for
+responses in nine components without reading them, as a side
+effect of a safety fix, is a different and worse job. A caller
+that wants the check passes a type; the six that were broken now
+do.
+
+**A proxy's page is somebody else's markup.** The first guard
+listed `<!doctype`, `<html` and `<?xml`, and a bare
+`<h1>413 Request Entity Too Large</h1>` — which several proxies
+emit — walked past all three and became a person's error message.
+Anything starting with `<` is markup now: no sentence meant for a
+person begins with an angle bracket.
+
+**And the caller's context is kept.** Each site already had a
+sentence behind `data.error`, and trading it for a status would
+be swapping one half of the answer for the other. A bare 502 now
+reads *"could not start the conversation — the server is not
+answering"*. A server that explained itself needs no prefix.
+
+### 3. "IS IT POSSIBLE TO DELETE INFORMATION FROM THE LIBRARY?"
+
+It was not — and the route was there the whole time.
+
+`DELETE /api/library/<id>` has existed, careful and complete:
+owner-checked, refusing with a 409 and a sentence if the asset is
+the safe playlist on any channel, removing every container, the
+sidecar and the measurement. **Nothing in this product called it.**
+The sixth capability this month that was built and not reached.
+
+**And offering the verb made a gap reachable.** The route asked
+the channels and not the DECKS, which could not matter while
+nothing could reach it: a deck's page deleted from the library
+leaves the deck pointing at a file that is not there, and a deck
+transmits a page at a time. A page is not "on the air", so it does
+not borrow that sentence — it says which deck holds it and to
+delete the slide from the deck instead.
+
+**Measured, in the room**, with the asset scheduled:
+
+> *"it is on the air: BalanceVid TV (station-ident, station-ident).
+> Take it off the schedule first — unscheduling changes no files,
+> and the video stays where it is."*
+
+That is the server's own sentence, naming the channel and the
+slots, where a status code or a parser complaint used to be. The
+test uploaded a 179-byte PNG into the author's own library,
+scheduled it, was refused, and the library and the rotation were
+both restored to the listing taken before the run.
+
+### 4. "RECORD NOW and SCREEN CAPTURE seem contradictory"
+
+They are, and the code already knows it:
+
+> *"RECORD, AND SCREEN CAPTURE, WHICH ARE THE SAME CONTROL. One
+> asks a camera and one asks the browser for a display; after that
+> they are a picture, a clock and a stop button. Two panels would
+> be two places for the stop button to behave differently."*
+
+**The panel was unified and the doors were not.** One control
+behind two front doors, where every professional tool presents one
+Record door that asks what to record. Not built in this stage —
+it is a change to the first screen of Studio One and deserves its
+own, with the camera-and-screen-together case that neither door
+offers today.
+
+### The record
+
+**Thirty-one assertions, twenty-eight mutations, all twenty-eight
+caught.**
+
+One survivor is worth keeping. A guard against a proxy's HTML
+survived every mutation because the fixture that was meant to
+catch it had a NEWLINE in it — and a different rule, the one
+against relaying a stack trace, rejected it first. The guard was
+never exercised.
+
+> **A fixture that two rules both reject tests neither of them.**
+
+The one-line fixture written to fix that then failed against the
+real code, because the guard genuinely did not recognise a bare
+`<h1>`. The test found a fault rather than a gap in itself.
+
+Full suite: 164 files, 3050 tests.

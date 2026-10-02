@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { bodyOf } from '../../../src/domain/saidBy.js';
 
 /**
  * Research Mode.  [Doctrine §43, §16, U-09]
@@ -51,7 +52,7 @@ export default function SearchPanel({
       const response = await fetch(
         `/api/search?conversation=${conversationId}&q=${encodeURIComponent(text)}`);
       if (!response.ok) { setHits([]); setTotal(0); return; }
-      const data = await response.json();
+      const data = bodyOf(await response.text());
       setHits(data.results?.[0]?.hits ?? []);
       setTotal(data.results?.[0]?.total ?? 0);
     } finally {

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import type { ClaimCard } from '../../../src/publish/claimCard.js';
+import { bodyOf } from '../../../src/domain/saidBy.js';
 
 /**
  * A card per exchange, and the page that plays them.  [Doctrine U-30, D-16]
@@ -37,7 +38,7 @@ export default function CardsPanel({ conversationId }: { conversationId: string 
     const response = await fetch(`/api/conversations/${conversationId}/cards`,
       { cache: 'no-store' });
     if (!response.ok) return;
-    const data = await response.json();
+    const data = bodyOf(await response.text());
     setCards(data.cards ?? []);
     setDrawn(data.drawn ?? []);
     setJobs(data.jobs ?? []);

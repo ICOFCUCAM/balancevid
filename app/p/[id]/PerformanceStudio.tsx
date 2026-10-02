@@ -26,6 +26,7 @@ import { useCalibration } from './useCalibration.js';
 import { nudgeItems, nudgeSays } from './takeNudge.js';
 import StudioBar from '../../StudioBar.js';
 import type { StudioId } from '../../../src/domain/account.js';
+import { bodyOf } from '../../../src/domain/saidBy.js';
 
 /**
  * The Performance Studio.  [Doctrine STUDIO-TWO §1, §3, §4, §10, §13]
@@ -134,7 +135,7 @@ export default function PerformanceStudio(
       await new Promise((r) => setTimeout(r, 1000));
       const response = await fetch(`/api/performances/${id}`, { cache: 'no-store' });
       if (!response.ok) continue;
-      const data = await response.json();
+      const data = bodyOf(await response.text());
       setPerformance(data.performance);
       const job = (data.jobs ?? []).find((j: any) => j.id === jobId);
       if (!job || job.state === 'pending' || job.state === 'running') continue;

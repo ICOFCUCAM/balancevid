@@ -2,8 +2,9 @@ import { isOwner } from '../../../../src/auth/request.js';
 import { paths } from '../../../../src/store/paths.js';
 import { CONTAINERS, libraryFile } from '../../../../src/store/libraryMedia.js';
 import { fail, json, serveFile } from '../../../../src/web/http.js';
-import { bookingsFor, refusalFor } from '../../../../src/domain/deletion.js';
+import { bookingsFor, deckRefusalFor, refusalFor } from '../../../../src/domain/deletion.js';
 import { listChannels } from '../../../../src/store/channels.js';
+import { listDecks } from '../../../../src/store/decks.js';
 
 export const dynamic = 'force-dynamic';
 
@@ -52,6 +53,18 @@ export async function DELETE(request: Request, { params }: Params): Promise<Resp
   const channels = await listChannels().catch(() => []);
   const refusal = refusalFor(bookingsFor(channels, 'media', assetId));
   if (refusal) return fail(409, refusal);
+  /*
+   * AND THE DECKS, WHICH THIS DID NOT ASK.  [§20, C-49]
+   *
+   * Invisible for as long as nothing could reach this route: a
+   * deck's page deleted from the library leaves the deck pointing
+   * at a file that is not there, and a deck transmits a page at a
+   * time. The channels were asked because an ident is the safe
+   * playlist on four of them and looks unused on all four; a page
+   * is the same argument one surface along.
+   */
+  const pageOf = deckRefusalFor(await listDecks().catch(() => []), assetId);
+  if (pageOf) return fail(409, pageOf);
 
   const { rm } = await import('node:fs/promises');
   const { join } = await import('node:path');

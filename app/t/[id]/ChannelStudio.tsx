@@ -103,6 +103,8 @@ import {
   type Quality, type QualityId, QUALITIES, QUALITY_ORDER, aboveTransmission,
   qualityFor, rateSentence, rateVerdict, targetBytesPerSecond,
 } from '../../../src/domain/quality.js';
+import { bodyOf } from '../../../src/domain/saidBy.js';
+import { asked } from '../../answered.js';
 
 /**
  * The control room.  [Doctrine CHANNEL §1–§9, §15, D-18, D-19, INV-17]
@@ -531,7 +533,7 @@ export default function ChannelStudio({
   const refresh = useCallback(async () => {
     const response = await fetch(`/api/channels/${id}`, { cache: 'no-store' });
     if (!response.ok) return;
-    const data = await response.json();
+    const data = bodyOf(await response.text());
     setChannel(data.channel);
     setMissing(data.missing ?? []);
     setViolations(data.violations ?? []);
@@ -1264,6 +1266,24 @@ export default function ChannelStudio({
     return [];
   }, [channel.rotation, confirm, patch]);
 
+  /**
+   * DELETE A PIECE OF MEDIA FROM THE LIBRARY.  [§3, D-19, C-49]
+   *
+   * THE REFUSAL IS THE INTERESTING PATH and it is the server's to
+   * write: it knows which channels hold the asset and in which
+   * slots, and it answers with a sentence naming them. Showing
+   * that sentence rather than a status is the whole of `asked`.
+   */
+  const removeFromLibrary = useCallback(async (item: LibraryItem) => {
+    if (item.source.kind !== 'media') return;
+    const { ok, says } = await asked(
+      await fetch(`/api/library/${item.source.assetId}`, { method: 'DELETE' }),
+      'could not delete it');
+    if (!ok) { setError(says); return; }
+    setError(null);
+    await refreshLibrary();
+  }, [refreshLibrary]);
+
   const railRows = useMemo(() => {
     const needle = (filter ?? '').trim().toLowerCase();
     const keep = (text: string) =>
@@ -1574,6 +1594,42 @@ export default function ChannelStudio({
                       });
                     },
                   },
+                  /*
+                   * AND IT CAN BE DELETED.  [§3, §20, D-18, D-19, C-49]
+                   *
+                   * > *"ALSO IT POSSIBLE TO DELETE INFORMATION FROM
+                   * > THE LIBRARY? BECAUSE I DONT THINK SO AND IT
+                   * > SHOULD BE A CONCERN."*
+                   *
+                   * It was not. `DELETE /api/library/<id>` has existed,
+                   * careful and complete — owner-checked, refusing with
+                   * a 409 and a sentence if the asset is the safe
+                   * playlist on any channel, removing every container,
+                   * the sidecar and the measurement — and **nothing in
+                   * this product called it.** The sixth capability this
+                   * month that was built and not reached.
+                   *
+                   * ONLY FOR MEDIA SOMEBODY PUT IN. A render belongs to
+                   * the conversation or performance that made it and is
+                   * deleted with that; offering a verb here that the
+                   * route would refuse is a menu item that exists to
+                   * fail. [§3]
+                   */
+                  ...(item.source.kind === 'media' ? [{
+                    label: 'Delete from the library…',
+                    danger: true,
+                    hint: 'Removes the file. Refused while anything is '
+                      + 'scheduled on it.',
+                    onSelect: () => confirm({
+                      question: `Delete “${item.title}” from the `
+                        + 'library? The file is removed and this cannot be '
+                        + 'undone. Anything scheduled on it will refuse the '
+                        + 'deletion rather than go to black.',
+                      verb: 'Delete it',
+                      danger: true,
+                      go: () => void removeFromLibrary(item),
+                    }),
+                  }] : []),
                 ]}
               />
             )}
@@ -3964,12 +4020,30 @@ function PlaylistRail({
               'data-entry-id': entry.id,
               'data-playing': playing ? 'true' : 'false',
             } as Record<string, string>}
+            /*
+             * ON AIR, NOT LIVE.  [§13, D-21, U-20, C-49]
+             *
+             * > *"ANCIENT OF DAYS IS LIVE BUT THE TV HAS NOT GONE
+             * > LIVE."*
+             *
+             * The author read the badge correctly; the badge was
+             * wrong. This entry is a RECORDING being transmitted
+             * from the loop, and the channel has no camera open.
+             *
+             * The product already holds this line where it costs
+             * something — `marksFor` pushes the LIVE lamp only when
+             * `on.kind === 'live'`, because *"a channel whose LIVE
+             * light is part of its logo is a channel lying to its
+             * viewers"* — and broke it in its own control room,
+             * where the operator who most needs to know whether a
+             * camera is open reads it.
+             */
             badge={playing ? (
               <span style={{
                 flex: '0 0 auto', padding: '1px 5px', borderRadius: 3,
                 background: 'var(--state-live-dim)', color: 'var(--ink-000)', fontSize: 'var(--text-2xs)',
                 fontWeight: 800, letterSpacing: 0.5,
-              }}>LIVE</span>
+              }}>ON AIR</span>
             ) : entry.loop ? (
               <span className="muted" style={{ lineHeight: 0 }}
                     title="Plays round for ever"><Icon name="loop" size={11} /></span>
@@ -4171,10 +4245,12 @@ function SchedulesRail({
                 background: 'var(--state-live-dim)', color: 'var(--ink-000)', fontSize: 'var(--text-2xs)', fontWeight: 800,
               }}>NO FILE</span>
             ) : liveId === entry.id ? (
+              /* ON AIR, not LIVE: a scheduled programme transmitting
+                 is not a camera that is open. [§13, U-20, C-49] */
               <span style={{
                 flex: '0 0 auto', padding: '1px 5px', borderRadius: 3,
                 background: 'var(--state-live-dim)', color: 'var(--ink-000)', fontSize: 'var(--text-2xs)', fontWeight: 800,
-              }}>LIVE</span>
+              }}>ON AIR</span>
             ) : undefined}
             about={title}
             items={() => [{

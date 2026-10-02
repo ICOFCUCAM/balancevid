@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import type { ListeningCost } from '../../../src/domain/audioExport.js';
+import { bodyOf } from '../../../src/domain/saidBy.js';
 
 /**
  * The conversation, to listen to.  [Doctrine U-22, D-16, INV-00]
@@ -42,7 +43,7 @@ export default function AudioPanel({
     const response = await fetch(`/api/conversations/${conversationId}/audio`,
       { cache: 'no-store' });
     if (!response.ok) return;
-    const data = await response.json();
+    const data = bodyOf(await response.text());
     setJobs(data.jobs ?? []);
     setListening(data.listening ?? null);
   }, [conversationId]);
