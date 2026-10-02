@@ -15,6 +15,92 @@ brief, measure the system, measure the browser, then decide.
 
 ---
 
+# PART ZERO — What this is, and what it is not
+
+**Take Software for desktop is a separate application that a person
+installs on a Windows or Linux desktop or laptop.** It is the second
+form of Take: the phone app is one client, this is another. It is
+not a page, a tab, a mode or a route inside BalanceVid.
+
+Stated plainly because the rest of this document discusses the
+BalanceVid codebase constantly, and a reader three stages in could
+reasonably conclude the work belongs there. It does not.
+
+| it IS | it is NOT |
+|---|---|
+| installed software on a desktop or laptop | a page in the BalanceVid web app |
+| a Take client, like the phone app | a second Take **server** |
+| a capture station | an editor |
+| a thing that submits to BalanceVid | Studio Two |
+
+**Studio Two appears throughout this document in exactly one role:
+the destination.** Take Software for desktop submits into a
+BalanceVid installation; that installation's Studio Two is where the
+material is produced afterwards. The brief's own words:
+
+> *"Take Desktop captures. Studio Two produces. Online TV
+> broadcasts."*
+
+Nothing in any stage below puts capture into Studio Two, and nothing
+puts production into Take.
+
+## Then why is most of this document about the BalanceVid codebase?
+
+Because a separate application is not an unrelated one, and the
+brief is emphatic about it:
+
+> *"The key is that they are not two different participation
+> protocols. They are two clients of the same Take system."*
+
+So the desktop application has to speak the protocol that exists,
+and the way it does that without copying anything is the point of
+PART TWO.
+
+## How a separate application shares code without duplicating it
+
+This product already made the decision that makes it possible, for
+a different reason. Every module in `src/domain/` states the same
+rule at the top of its file:
+
+> *"Nothing here touches the filesystem, the network or a clock."*
+
+That rule was written for testability. Its second consequence is
+that **the domain layer is a library a second application can
+depend on**: the alignment arithmetic (`align.ts`), the clock
+(`time.ts`), the participation vocabulary, the connection rules —
+all of it is pure, and none of it assumes a browser, a server, or
+this repository's web tier.
+
+So the division is:
+
+```
+  Take Software for desktop            BalanceVid
+  ───────────────────────────          ──────────────────────
+  its own application                  the installation
+  its own window and install           the participation request
+  device discovery                     the inbox
+  multi-camera capture                 Studio Two
+  local disk                           Online TV
+          │                                   ▲
+          └──── the Take protocol ────────────┘
+                 the shared domain library
+```
+
+**Two applications, one protocol, one copy of the arithmetic.**
+
+## Where its code lives
+
+Not in `app/`. `app/` is the BalanceVid web tier and everything in
+it is served by the installation. The desktop application is its
+own project with its own build, its own release and its own
+version, depending on the shared domain library.
+
+Whether that is a directory in this repository or a repository of
+its own is a packaging decision, not an architectural one, and it
+is taken at Stage T-1 rather than assumed here.
+
+---
+
 # PART ONE — The brief, as given
 
 ## The distinction
@@ -469,6 +555,23 @@ And the brief's stated hardest problem is softer than feared: the
 sub-frame start spread means synchronisation at the API level is
 nearly free, before `align.ts` is asked anything.
 
+**What this measurement decides, and what it does not.** It does
+NOT say "ship it in the browser instead" — the deliverable is
+installed software, per PART ZERO, and a measurement does not get
+to redefine that. What it decides is **what goes inside the
+installed application**: the capture engine can be web technology
+in a desktop shell rather than native capture code, which is
+exactly how the brief's own requirement is met —
+
+> *"Don't build a huge Electron-style production suite if you don't
+> need it… it is a capture client, not a broadcast engine."*
+
+Eight recorders at sub-frame spread is the evidence that a thin
+shell is enough for four cameras. The native work is then only
+what the shell cannot reach — NDI, RTSP, hidden capture cards,
+guaranteed disk — which is a short list rather than a whole
+capture stack.
+
 ---
 
 # PART FOUR — The gaps that are real
@@ -557,133 +660,198 @@ is missing is recording it rather than assuming it.
 
 # PART FIVE — The stages
 
-Ordered so each ships something usable on its own, nothing is built
-before what it depends on, and **the native work is last, because the
-measurement says it does not block the rest.**
+**Two tracks, because there are two pieces of software.**
 
-**UPGRADE** changes something that exists. **ADD** creates something
-new. Nothing here rewrites.
+**Track T** is Take Software for desktop: the installed
+application. **Track B** is what the BalanceVid installation must
+learn in order to receive what it sends. They are separate
+codebases with separate releases, and the order below is the order
+that keeps each one shippable on its own.
+
+**T depends on B only at T-5.** Everything before that is the
+desktop application recording to its own disk, which is the brief's
+whole point: *"The recording does not need to depend on the
+internet."*
+
+**UPGRADE** changes something that exists in BalanceVid.
+**ADD** creates something new. Nothing rewrites.
 
 ---
 
-## Stage D-1 · Takes know which capture they came from — **UPGRADE**
+## Track T — the installed application
 
-The smallest possible model change, and the one everything else
-writes into.
+### T-1 · The shell, and where it lives — **ADD**
 
-- A take gains the capture it was recorded in and its measured start.
-- Takes sharing a capture are **angles**; takes not sharing one are
-  **attempts**, exactly as today.
-- `Take.assetId` is untouched. No migration. Every existing take is
-  an attempt with no capture, which is what it is.
-- Studio Two's ALL TAKES multiview already shows them; it learns only
-  to say which are angles of one capture.
+The decision the rest of the track needs and nothing else does:
+the packaging (shell technology, repository layout, build, signing,
+release), and the shared domain library it depends on.
 
-Done when: four hand-written takes sharing a capture appear as angles
-in the multiview, and every existing performance is unchanged.
+It ships as an application that installs, opens a window, and says
+it is not connected to anything. That is a complete, honest first
+release.
 
-## Stage D-2 · The recorder takes a set of sources — **UPGRADE**
+**Judged on:** it installs on Windows and on Linux; it imports
+`align.ts` and `time.ts` from the shared library without a copy;
+it contains no BalanceVid web-tier code.
 
-- `useCamera` → N cameras and N microphones, with N = 1 the existing
-  behaviour exactly.
-- `RecordingSink` gains a track dimension, `track: 0` meaning what
-  no track meant.
-- The upload route, the IndexedDB queue and `take-sw.js` carry the
-  track through.
+### T-2 · Connect — **ADD** (desktop) / **UPGRADE** (model)
 
-**Must not touch:** the offset and latency arithmetic in
-`useMasterRecording`. It is correct, it is shared by every client,
-and it is the whole reason `RecordingSink` exists.
+The brief's CONNECT screen: QR, typed invitation code, pasted link,
+typed address, recently connected.
 
-## Stage D-3 · One start, and every start recorded — **UPGRADE**
+The model is already written and is not rewritten —
+`app/take/connections.ts` holds origin-keyed installations and the
+rule against a registry. The desktop application implements the
+same rules against its own storage, from the same shared
+definition.
 
-- All recorders start from one call; each track's measured start is
-  written into its take.
-- The sub-millisecond spread of Part Three becomes a **recorded
-  number per session on real hardware**, not an assumption carried
-  from a fake device.
-- Where the tracks share audible room sound — the case `align.ts`
-  describes and the one it never gets on a phone — correlation is
-  offered as a *check* on the measured start, stored beside it, never
-  silently replacing it.
+**Judged on:** it connects to a cloud installation, a self-hosted
+one and a local one with no code that distinguishes them, and shows
+the participation request it was invited to.
 
-## Stage D-4 · Multiview and PREPARE — **ADD**
+### T-3 · Cameras, multiview and PREPARE — **ADD**
 
-- An N-up grid in Take with per-source signal and per-microphone
-  level: the brief's CAMERAS step.
-- PREPARE: resolution, frame rate, free disk and sustained write rate
-  **on the recording device**, and a per-source "is anything
-  arriving" check.
-- Refuses to arm with a reason, rather than failing mid-record.
+Device discovery, the N-up grid, per-source signal, per-microphone
+level, and the PREPARE checks: resolution, frame rate, free disk and
+sustained write rate **on this machine**, and whether anything is
+arriving from each source.
 
-Read `guestGrid.ts` and `SwitchingStage.tsx` first. Two grids exist.
+Refuses to arm with a reason rather than failing mid-record.
 
-## Stage D-5 · REVIEW and SUBMIT a multi-angle capture — **UPGRADE**
+Read `guestGrid.ts` and `SwitchingStage.tsx` first. Two multiviews
+exist and a third should not be invented.
 
-- Review each angle and all of them. No editing, per the brief.
-- Submit sends the set under one capture, resuming per track.
-- The participation inbox shows one arrival with N angles, not N
-  arrivals.
+**Judged on:** four cameras previewing at once, and a refusal with a
+sentence when a disk cannot sustain four streams.
 
-**At the end of D-5 the brief is delivered in the browser**: four
-cameras, local-first, synchronised, submitted, and already switchable
-in Studio Two's multiview — on Windows, Linux, macOS and anything
-else with a current browser, with no runtime to build, sign or ship.
+### T-4 · Record, with one start and every start recorded — **ADD**
 
-## Stage D-6 · The Connect screen — **UPGRADE**
+All recorders start from one call, to local disk. Each source's
+measured start is written into the session.
 
-- QR, typed invitation code, pasted link, typed address, recently
-  connected: four doors onto `connections.ts`, which already holds
-  the model and the rule against a registry.
-- The destination line the brief draws: installation, then
-  participation request.
+The sub-millisecond spread of PART THREE becomes **a recorded
+number per session on real hardware**, not an assumption carried
+from a fake device in a container.
 
-After D-5 deliberately. It widens reach for something that already
-works, and nothing depends on it.
+Where the sources share audible room sound — the case `align.ts`
+describes and never gets on a phone — correlation is offered as a
+*check* on the measured start, stored beside it, never silently
+replacing it.
 
-## Stage D-7 · A source abstraction — **ADD**
+**Judged on:** four files on disk, each with a measured start, with
+the machine offline for the whole recording.
+
+### T-5 · Review and Submit — **ADD**
+
+Review each angle and all of them; no editing, per the brief.
+Submit sends the set under one capture, resumable per source, over
+the existing Take protocol.
+
+**This is the first stage that needs the network, and the first
+that needs Track B.**
+
+**Judged on:** a four-camera capture recorded offline, then
+submitted when a connection returns, arriving in the inbox as one
+capture with four angles.
+
+### T-6 · Sources beyond the shell — **ADD**
 
 ```
 CameraSource
-├── LocalCamera      (exists, as getUserMedia)
-├── CaptureDevice    (exists where the OS presents it as a camera)
-├── NDISource        (needs a runtime)
-└── RTSPSource       (needs a runtime)
+├── LocalCamera      (T-3)
+├── CaptureDevice    (T-3, where the OS presents it as a camera)
+├── NDISource        (here)
+└── RTSPSource       (here)
 ```
 
-Introduced as a type with its two reachable implementations, so the
-rest of Take stops caring where a camera came from **before** any
-native code exists. The brief's own rule: *"Then the rest of Take
-doesn't care where the camera came from."*
+The abstraction is introduced at T-3 with its two reachable
+implementations, so that by the time NDI and RTSP arrive the rest
+of the application does not change. The brief's own rule:
 
-## Stage D-8 · The desktop runtime — **ADD**
+> *"Then the rest of Take doesn't care where the camera came from."*
 
-Only now, and only for what a browser genuinely cannot reach:
+**Last, and optional.** By T-5 the application already does what the
+brief asks on hardware people have. NDI and RTSP extend it; they do
+not enable it.
 
-- NDI and RTSP discovery and ingest.
-- Capture cards the OS does not present as cameras.
-- Guaranteed disk headroom and sustained write.
-- More streams, at higher resolutions, than a tab will hold.
+---
 
-**It hosts the same Take application** and implements `CameraSource`
-from D-7 and `RecordingSink` from D-2. It is a host for Take, not a
-second Take — the brief's *"a capture client, not a broadcast
-engine"*.
+## Track B — what BalanceVid must learn
 
-By the time D-8 begins everything above already works without it, so
-the runtime has to justify only those four lines. That is the test of
-whether it should be built at all.
+Small, and independent of the desktop application's existence.
+
+### B-1 · Takes know which capture they came from — **UPGRADE**
+
+A take gains the capture it was recorded in and its measured start.
+Takes sharing a capture are **angles**; takes not sharing one are
+**attempts**, exactly as today.
+
+`Take.assetId` is untouched. No migration. Every existing take is an
+attempt with no capture, which is what it is.
+
+Studio Two's ALL TAKES multiview already shows them
+(`SwitchingStage.tsx:457`); it learns only to say which are angles
+of one capture.
+
+**Judged on:** four hand-written takes sharing a capture read as
+angles in the multiview, and every existing performance is
+unchanged.
+
+### B-2 · A submission may carry several sources — **UPGRADE**
+
+`RecordingSink` gains a track dimension — `track: 0` meaning what
+no track meant — and
+`app/api/take/[link]/submissions/[submissionId]/route.ts`,
+the IndexedDB queue and `public/take-sw.js` carry it through.
+
+**Must not touch:** the offset and latency arithmetic in
+`useMasterRecording`. It is correct, it is shared by four clients,
+and it is the whole reason `RecordingSink` exists.
+
+**Judged on:** the phone app is byte-identical in behaviour, and a
+two-track submission joins correctly on the server.
+
+### B-3 · The inbox shows a capture, not N arrivals — **UPGRADE**
+
+One arrival with four angles, rather than four arrivals somebody has
+to recognise as related.
+
+---
+
+## The order, end to end
+
+```
+B-1 ─┐
+B-2 ─┼──────────────────┐
+B-3 ─┘                  │
+                        ▼
+T-1 → T-2 → T-3 → T-4 → T-5 → T-6
+                        ▲
+            everything left of here
+            works with no network
+```
+
+Track B can be done at any time before T-5 and is useful on its own:
+B-1 alone lets a producer who records four angles by hand today mark
+them as angles.
 
 ---
 
 ## What must not happen
 
-- **No second participation protocol.** Four clients, one system.
+- **No second participation protocol.** Four clients today, five
+  with the desktop application, one system.
+- **No second Take server.** The desktop application submits to an
+  installation; it never becomes one.
 - **No editor in Take.** Connect → Prepare → Record → Review →
   Submit. Studio Two produces.
+- **No capture in Studio Two.** Studio Two is the destination and
+  nothing in Track B puts a camera in it.
 - **No second recorder.** `useMasterRecording`'s offset and latency
-  arithmetic is the one copy for all four clients, and the reason
+  arithmetic is the one copy for every client, and the reason
   `RecordingSink` exists.
+- **No copied domain code.** `align.ts` and `time.ts` are depended
+  on, not pasted. Two copies of alignment arithmetic is two answers.
 - **No third multiview** written without reading the two that exist.
 - **No registry of installations.** `connections.ts` says why.
 - **No data model that assumes four.** N throughout, four in the UI.
@@ -691,3 +859,5 @@ whether it should be built at all.
   what it is today.
 - **No new render path.** Studio Two already switches between takes
   on one clock; angles are takes.
+- **No BalanceVid web-tier code in the desktop application**, and no
+  desktop code in `app/`.
