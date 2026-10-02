@@ -20,8 +20,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   ACTION_SAFE, BACKGROUNDS, SLIDE_HEIGHT, SLIDE_WIDTH, TITLE_SAFE, TYPE,
-  contrast, presetFor, slideHtml, slideProblems, slideReady,
-  slideTransmittable,
+  contrast, presetFor, slideHtml, slideProblems,
 } from '../../src/render/slideDesign.js';
 import { slideHtml as fromRenderer } from '../../src/render/slide.js';
 
@@ -367,23 +366,26 @@ describe('a slide is checked before it is READY (§21, D-04, C-26)', () => {
   it('separates what is broken from what is merely imperfect', () => {
     const broken = slideProblems({ layout: 'picture', heading: 'H' });
     expect(broken.some((one) => one.blocking)).toBe(true);
-    expect(slideTransmittable({ layout: 'picture', heading: 'H' })).toBe(false);
 
     const long = { layout: 'title',
       heading: 'A heading that keeps going well past the point at which '
         + 'anybody could read it from across a room' } as const;
     expect(slideProblems(long)).not.toEqual([]);
-    expect(slideProblems(long).every((one) => !one.blocking)).toBe(true);
     /* Said, and still allowed on the wire. */
-    expect(slideTransmittable(long)).toBe(true);
-    expect(slideReady(long)).toBe(false);
+    expect(slideProblems(long).every((one) => !one.blocking)).toBe(true);
   });
 
-  it('agrees with itself about what READY means', () => {
+  /*
+   * WHAT READY MEANS IS NOW ANSWERED IN `deck.ts`, by `standingOf`,
+   * which is the only thing that ever asks it. The two predicates
+   * tested here before had no caller at all — see
+   * `deck-standing.test.ts` for the line they drew, drawn where
+   * something reads it. [C-36]
+   */
+  it('finds nothing wrong with a slide that has nothing wrong with it', () => {
     const good = { layout: 'title', heading: 'Live from the control room',
       body: 'Written in the studio.', accent: '#4aa3ff' } as const;
     expect(slideProblems(good)).toEqual([]);
-    expect(slideReady(good)).toBe(true);
-    expect(slideReady({ layout: 'text' })).toBe(false);
+    expect(slideProblems({ layout: 'text' })).not.toEqual([]);
   });
 });

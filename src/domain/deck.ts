@@ -27,7 +27,8 @@
 
 import type { Id } from './ids.js';
 import type { ProgrammeSource } from './channel.js';
-import type { SlideSpec } from './graphic.js';
+import type { SlideProblem, SlideSpec } from './graphic.js';
+import { sameColour, slideProblems } from './graphic.js';
 
 export type DeckId = Id<'deck'>;
 
@@ -191,4 +192,160 @@ export function moveSlide(deck: Deck, assetId: string, to: number): Deck {
 export function canMakeDeckFrom(filename: string): boolean {
   const dot = filename.lastIndexOf('.');
   return dot >= 0 && DECK_EXTENSIONS.has(filename.slice(dot).toLowerCase());
+}
+
+/* ------------------------------------------------------------------------ *
+ *  What standing is each slide in?  [§21, §5, D-04, C-26, C-36]
+ * ------------------------------------------------------------------------ */
+
+/**
+ * WHY THIS EXISTS, WHEN `slideProblems` ALREADY DID THE CHECKING.
+ *
+ * It ran on the slide being TYPED and on nothing else. The moment the
+ * author pressed Add, the judgement stopped: the deck held nine
+ * slides and the product had no opinion about any of them. A check
+ * that only runs while you type stops being true the moment you stop
+ * typing, and `slideReady` — written for exactly this, with the
+ * comment *"the line between DRAFT and READY"* — was never called by
+ * anything but its own test.
+ *
+ * AND TWO FAULTS CANNOT BE SEEN FROM A SLIDE AT ALL. Both need the
+ * deck's surroundings, which is why they live here and not in
+ * `graphic.ts`:
+ *
+ *   * **The channel changed colour underneath it.** A slide is drawn
+ *     once, into a PNG, with the accent the channel had at the time.
+ *     Change `identity.ink` and every slide composed before the
+ *     change keeps the old one — so a deck composed either side of a
+ *     rebrand transmits two different stations, in order, and
+ *     nothing anywhere said so.
+ *   * **Its picture was deleted from the library.** The slide still
+ *     transmits, because the PNG is its own asset. But the stored
+ *     definition names a picture that is gone, so Correct reopens a
+ *     slide that cannot be redrawn and Copy fails at the route with
+ *     *"that picture is not in the library"* — the first anybody
+ *     hears of it being the press that fails.
+ */
+
+/**
+ * The channel as it is NOW, which is what a stored slide is measured
+ * against. Each part is optional because each is separately unknown:
+ * a caller with no library list asks about identity only, and gets no
+ * opinion about pictures rather than a wrong one.
+ */
+export interface House {
+  /** The channel's colour now. */
+  accent?: string;
+  /** The channel's name now. */
+  channel?: string;
+  /** The library images that still exist. */
+  pictures?: ReadonlySet<string>;
+}
+
+/**
+ * Where a slide stands.
+ *
+ * `as-is` IS NOT A FAULT AND NOT A GRADE. It is a slide this product
+ * holds no definition for, and there are two ways to be one:
+ *
+ *   * a page of somebody's PowerPoint, which was never composed here;
+ *   * a slide this product DID compose, before C-26 made the
+ *     definition travel with the picture. The author's own deck is
+ *     two of those.
+ *
+ * Both have the same consequence and deserve the same word: there is
+ * nothing to check, nothing to correct and nothing to copy. Saying
+ * "draft" about either would be inventing a judgement with no basis
+ * — the panel already refuses to offer Correct and Copy there for
+ * exactly that reason, and the control says what is true (§21).
+ */
+export type Standing = 'ready' | 'draft' | 'broken' | 'as-is';
+
+export interface SlideStanding {
+  assetId: string;
+  standing: Standing;
+  /** Everything wrong with it, in the author's words. */
+  faults: SlideProblem[];
+}
+
+/**
+ * Everything wrong with one slide of a deck, including the two things
+ * only the deck can see.
+ */
+export function slideFaults(slide: Slide, house: House = {}): SlideProblem[] {
+  const spec = slide.spec;
+  if (!spec) return [];
+  const out = [...slideProblems(spec)];
+
+  /*
+   * THE PICTURE FIRST, because it is the one that stops work rather
+   * than merely looking wrong, and `pictures` being absent means the
+   * caller did not ask — not that the library is empty. A check that
+   * treated "I do not know" as "it is gone" would mark every picture
+   * slide on every surface that has no library list to hand.
+   */
+  if (spec.picture && house.pictures && !house.pictures.has(spec.picture)) {
+    out.push({
+      code: 'lost-picture',
+      says: 'The picture this slide was made from is no longer in the '
+        + 'library. It still transmits, but it cannot be corrected or '
+        + 'copied until a picture is chosen again.',
+      /*
+       * NOT BLOCKING, and the sentence says why in its second clause.
+       * The slide on air is a PNG that was drawn when the picture
+       * existed and is exactly as good as it ever was. Marking it
+       * broken would be the product calling a correct graphic broken,
+       * which is the lie D-21 is about pointed the other way.
+       */
+      blocking: false,
+    });
+  }
+
+  /*
+   * AND THE IDENTITY, which is only a question where there is an
+   * identity to differ from. A channel that has never set a colour
+   * cannot have drifted from one.
+   */
+  const drifted = (house.accent !== undefined
+      && !sameColour(spec.accent, house.accent))
+    || (house.channel !== undefined && (spec.channel ?? '') !== house.channel);
+  if (drifted) {
+    out.push({
+      code: 'off-identity',
+      says: 'This slide was drawn before the channel’s look changed, so '
+        + 'it carries the old one. Correct it to redraw it.',
+      blocking: false,
+    });
+  }
+  return out;
+}
+
+/** Ready, draft, broken — or not ours to judge. */
+export function standingOf(slide: Slide, house: House = {}): Standing {
+  if (!slide.spec) return 'as-is';
+  const faults = slideFaults(slide, house);
+  if (faults.some((one) => one.blocking)) return 'broken';
+  return faults.length === 0 ? 'ready' : 'draft';
+}
+
+/** Every slide of a deck, in deck order. */
+export function deckStanding(deck: Deck, house: House = {}): SlideStanding[] {
+  return deck.slides.map((slide) => ({
+    assetId: slide.assetId,
+    standing: standingOf(slide, house),
+    faults: slideFaults(slide, house),
+  }));
+}
+
+/**
+ * How many slides want looking at.
+ *
+ * `as-is` IS NOT COUNTED, and that is the decision this function
+ * exists to hold: a deck of forty uploaded PowerPoint pages must read
+ * "40 slides", not "40 to check". A count that is always alarming is
+ * a count nobody reads.
+ */
+export function toCheck(standings: readonly SlideStanding[]): number {
+  return standings.filter(
+    (one) => one.standing === 'draft' || one.standing === 'broken').length;
 }
