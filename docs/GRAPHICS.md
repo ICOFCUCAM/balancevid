@@ -326,13 +326,21 @@ author's own channel, with the picture to show for it.
 | 9 | The Watch page printing what is on | **C-43** |
 | 10 | Don't overdo the writing | held throughout: never three lines, no mark without something to say |
 
-**Point 8 — the camera's own picture — is not done and is not a
-graphics change.** Soft, flat, badly framed, the subject at the
-bottom edge, a door dominating the left: no amount of compositing
-fixes a room. The product already has the pieces aimed at it —
-virtual sets, the space table, eyeline, framing and reframing, the
-recording-quality checks — and pointing them at a live camera is a
-production phase of its own.
+**Point 8 — the camera's own picture — is begun at C-45 and is not
+a graphics change.** No amount of compositing fixes a room, so what
+C-45 adds is not a fix but a *verdict*: the Live Studio measures the
+feed it is about to transmit and says, before air, that the light is
+flat or that the frame is empty above the subject. Studio Two has
+had that since it was built and this surface had none.
+
+What it measures is shorter than the brief's list, on purpose:
+exposure, the spread between the dark and bright parts, and where
+the detail sits. **Softness is left out although the brief names it
+first** — sharpness from a frame alone is confounded by content, and
+a check that cries wolf is one a control room ignores within a week.
+
+Still untouched, and genuinely a production phase of its own: the
+virtual set on a live camera, and the microphone.
 
 **And one thing the measurement found that the brief could not
 have.** All of this was dark on the shipped image because the
