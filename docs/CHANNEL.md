@@ -5511,3 +5511,90 @@ two it names that are not are recorded in `GRAPHICS.md` as what they
 are: the camera's own picture, which is a production problem no
 compositing fixes, and the restraint rule, which is the thing to
 keep while doing all of the above.
+
+---
+
+## C-45 — Stage 45: nobody looked at the camera
+
+The brief's point 8, which it says no graphics fix:
+
+> *"quite soft, heavily compressed, poorly framed, subject very
+> close to the bottom edge, large empty wall area, door dominates
+> the left side, lighting relatively flat… even if you add a perfect
+> lower third, it will still look like a home webcam feed."*
+
+It is right, and **the product said nothing**. The Live Studio's
+camera panel reports the device, the preset and the feed's bitrate —
+everything about the TRANSPORT and nothing about the PICTURE. An
+operator could watch their own preview for ten minutes and never be
+told the room is flat, because nothing was measuring it.
+
+Studio Two has had an honest verdict before recording since it was
+built. The surface the brief is complaining about had none. Same
+shape as every other finding this month: a capability this product
+has, on a surface it was never pointed at. [D-19]
+
+### Three numbers, and the one that is missing
+
+| | |
+|---|---|
+| **exposure** | mean luma — unambiguous arithmetic |
+| **spread** | the distance between the dark and bright parts |
+| **weight** | where the detail sits, vertically |
+
+**And softness is deliberately absent, although the brief names it
+first.** Sharpness from a frame alone is confounded by content: a
+person against a plain wall has little detail because the wall has
+none, not because the lens is soft. Telling an operator their camera
+is soft when their room is plain is a check that cries wolf, and a
+control room learns to ignore one of those in a week. [D-04]
+
+**The spread is a percentile range, not a minimum and a maximum.**
+One blown highlight off a window and one black doorway would make
+every picture read as full-range, which is the opposite of what the
+number is for. The fifth and ninety-fifth are what a colourist
+looks at and they ignore exactly those two pixels.
+
+**And the weight is a proxy, said as one.** Without knowing where a
+person is, "the subject is low in frame" cannot be measured. What
+can is where the EDGES are: three quarters of the frame's detail
+below the midline is a subject sitting low with a wall above them.
+A wide shot of a desk is a real shot, so the sentence suggests
+rather than complains — *"Raising the camera to eye level, or moving
+closer, fills the frame."*
+
+### It reads the mixed feed, not the camera
+
+A dark camera composited onto a bright set is not a dark picture,
+and judging the camera would be judging something nobody sees.
+[D-22]
+
+### Never more than two
+
+A camera panel listing four complaints is a panel somebody stops
+reading — the brief's own point 10 pointed at the control room
+instead of at the picture. And nothing at all when the shot is
+fine.
+
+### Measured
+
+A real camera frame through the product's own sampling, and the
+brief's own shot drawn so the numbers are reproducible:
+
+| | luma | spread | weight | said |
+|---|---|---|---|---|
+| a camera frame | 0.412 | 0.361 | 0.594 | **nothing** |
+| the brief's shot | 0.794 | 0.596 | **0.928** | washing out; empty above you |
+
+The second row is the point: *"subject very close to the bottom
+edge, large empty wall area"*, in a number, said in a sentence an
+operator can act on before they go on air.
+
+### The record
+
+Twelve assertions, twelve mutations, all twelve caught — **and the
+fifteenth unobservable guard deleted.** An `else` between "too dark"
+and "too bright" survived everything, because `TOO_DARK` is below
+`TOO_BRIGHT` and no number is both: the branch could never have
+fired twice and the keyword was doing nothing. What makes it true
+is the two constants, so the constants are what the test holds now.
