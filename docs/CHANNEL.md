@@ -5987,3 +5987,135 @@ samples one block were all trivially true.
 > distinguishes rows.**
 
 Full suite: 162 files, 3016 tests.
+
+## C-48 — Stage 48: nowhere to put a file in
+
+The author, over the Library rail:
+
+> *"HOW COME I CANNOT UPLOAD MEDIA INTO PLAYLIST"*
+
+Because there was nowhere to. Three findings, and the first is the
+plainest this project has produced.
+
+### 1. The route was written and called by nothing
+
+`POST /api/library` has existed with its allow-list, its size cap,
+its sidecar and its 415 since the library learned to hold a song.
+**Every reference to `/api/library` in this product is a GET.** The
+upload endpoint was reachable from no surface at all.
+
+`+ Add to playlist` is not an uploader and never claimed to be —
+its whole handler is `setAdding(open => !open); setRailTab('library')`.
+It adds something *already in the library* to the loop. The control
+room could broadcast what existed and had no way to make something
+exist. The product has five file inputs; none of them was here.
+
+**The fifth capability this month that was built and not reached**,
+after `slideReady` (C-36), `ACTION_SAFE` (C-38), `bug.assetId`
+(C-44) and the entire marks system (C-40).
+
+### 2. The fourth list, and it renamed things
+
+C-14 found three places each knowing their own containers and made
+them one table, and wrote down why:
+
+> *"an `.mp3` stored as `.mp4` would be a file whose name lies to
+> every reader of it."*
+
+**`KINDS` was a fourth list, private to the upload route, and it
+did exactly that.** Every still mapped to `jpg`, because `jpg` was
+the only still `CONTAINERS` had room for — so a PNG went in as PNG
+bytes under a name claiming JPEG, two lines below a comment saying
+a deck's pages are PNG. WebM and QuickTime went in as `.mp4`. And
+*nothing is transcoded here*; the route says so in its own opening
+paragraph.
+
+| arriving | was stored as | now |
+|---|---|---|
+| `image/png` | `.jpg` | `.png` |
+| `image/webp` | `.jpg` | `.webp` |
+| `video/webm` | `.mp4` | `.webm` |
+| `video/quicktime` | `.mp4` | `.mov` |
+
+ffmpeg sniffs and never noticed. A `<video>` element is the one
+that does.
+
+**And the list had to be readable from both sides of the wire**,
+because the other thing that needs it is a file picker's `accept` —
+and an `accept` typed by hand beside a server allow-list is two
+lists again, failing the worst way available: a person chooses a
+file the dialog showed them, waits for it to go up, and is told
+415. It lives in the DOMAIN rather than the store, which the build
+decided: `libraryMedia.ts` imports `node:fs`, so a page importing
+it for this table dragged the filesystem into the browser bundle.
+[D-14]
+
+### 3. A deck is one thing with twelve pages
+
+The rail held twelve rows all called "Admission Package — Dorot…",
+above the one video the author wanted.
+
+**Every row was correct**, which is what makes it a listing fault
+rather than a data one. A page is a still, a still is schedulable,
+and the schedule is the only way to put a caption card out AT A
+TIME — the Slides panel says so itself: *"this panel adds no way of
+putting anything on air… the schedule can already hold one."* So
+the pages cannot be hidden.
+
+What was wrong is that nothing said they were one thing. The deck
+has a title and a page count and is the unit a person thinks in,
+and it was not in the list at all.
+
+Asked of the decks, not of the files: a page on disk is a `.png`
+with a `{"label":"deck — 3/3"}` sidecar and nothing saying which
+deck it belongs to, while the deck document holds the list.
+Parsing "3/3" out of somebody's words would be guessing at a fact
+that is written down. [D-18]
+
+**And the row is shut until it is asked for.** A deck of twelve is
+one line until somebody wants a page out of it, and then it is
+twelve — the bargain every file list has made since folders were
+invented, and the only one that keeps both facts: *this is one
+deck* and *this page is schedulable*. A deck keeps the place of
+its first page, because moving decks to the top would be the
+grouping having an opinion about what matters, which belongs to
+whoever sorted the list. [D-04]
+
+That rail already guards against listing the `decks/` DIRECTORY as
+a programme. It did not guard against listing everything inside
+it.
+
+### Measured, in the room
+
+```
+accept = image/jpeg,image/png,image/webp,video/mp4,video/webm,
+         video/quicktime,audio/mpeg,audio/mp4,audio/x-m4a,audio/aac,
+         audio/ogg,audio/wav,audio/x-wav,audio/flac,audio/x-flac
+
+shut        : 43 items, 2 decks,  0 pages
+deck open   : 43 items, 2 decks,  2 pages
+after upload: 44 items, 2 decks,  0 pages     error banner: (none)
+```
+
+The upload was a 179-byte PNG written into the author's own
+library and deleted afterwards; the directory listing was compared
+before and after and is identical.
+
+### The record
+
+**Twenty-one assertions, nineteen mutations, all nineteen caught —
+and the seventeenth unobservable thing deleted.**
+
+A `storable()` stood for one pass with exactly one caller: the
+assertion that used it. Breaking it broke nothing a person could
+see, and the mutation that made it always say yes survived
+everything.
+
+> **A query whose only reader is its own test is a question nobody
+> is asking.**
+
+The assertion asks `CONTAINERS` directly now, and is grounded
+outside the source: a `.pdf` and a `.docx` are not media, whatever
+the table says.
+
+Full suite: 163 files, 3032 tests.

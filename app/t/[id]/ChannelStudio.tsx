@@ -90,6 +90,14 @@ import {
  * source occupies a period — said nothing at all. [D-19, C-47]
  */
 import { sourceLine, sourceOf, stateLine } from '../../../src/domain/caption.js';
+/* A deck is one thing with twelve pages, and the rail listed the
+   pages. [§20, D-04, C-48] */
+import { deckSays, libraryRows } from '../../../src/domain/libraryRows.js';
+/* One table of what an upload may be, read by the route that
+   enforces it and the picker that offers it. [D-19, C-14, C-48] */
+import {
+  MOST_UPLOAD_BYTES, acceptsAttribute,
+} from '../../../src/domain/libraryUpload.js';
 import type { StudioId } from '../../../src/domain/account.js';
 import {
   type Quality, type QualityId, QUALITIES, QUALITY_ORDER, aboveTransmission,
@@ -162,6 +170,8 @@ interface LibraryItem {
   planHash: string;
   bytes: number;
   madeAt: string;
+  /** Which deck's page this is, when it is one. [§20, C-48] */
+  deck?: { id: string; title: string; page: number; of: number };
   /**
    * What a song is, and what everything else is too.  [§25]
    *
@@ -199,6 +209,10 @@ export default function ChannelStudio({
 }) {
   const [channel, setChannel] = useState(initial);
   const [library, setLibrary] = useState<LibraryItem[]>([]);
+  /** Which deck in the library rail is showing its pages. [C-48] */
+  const [openDeck, setOpenDeck] = useState<string | null>(null);
+  const upload = useRef<HTMLInputElement | null>(null);
+  const [putting, setPutting] = useState(false);
   const [chosen, setChosen] = useState<string | null>(null);
   const [picked, setPicked] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -688,12 +702,75 @@ export default function ChannelStudio({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, mixer.stream]);
 
-  useEffect(() => {
-    void (async () => {
-      const response = await fetch('/api/channels/library', { cache: 'no-store' });
-      if (response.ok) setLibrary((await response.json()).items ?? []);
-    })();
+  const refreshLibrary = useCallback(async () => {
+    const response = await fetch('/api/channels/library', { cache: 'no-store' });
+    if (response.ok) setLibrary((await response.json()).items ?? []);
   }, []);
+
+  useEffect(() => { void refreshLibrary(); }, [refreshLibrary]);
+
+  /**
+   * PUT A FILE IN THE LIBRARY, from the room that broadcasts it.
+   *   [§3, §25, D-19, C-48]
+   *
+   * RAW BYTES WITH THE TYPE IN THE HEADER, because that is what the
+   * route has always taken: `Content-Type` is the allow-list key and
+   * `X-Label` is the name. Not multipart — there is one file and no
+   * fields, and a boundary-encoded body would be a second thing to
+   * parse for no second thing to carry.
+   *
+   * AND THE SIZE IS CHECKED HERE AS WELL AS THERE. The server's cap
+   * is the one that counts, but a cap a person meets by waiting out
+   * a long upload and then being refused is a cap nobody was told
+   * about. Refusing it before a byte leaves is the same answer,
+   * sooner.
+   *
+   * THE NAME IS THE FILENAME, MINUS ITS EXTENSION. Asking for one
+   * would be a dialog between choosing a file and seeing it arrive,
+   * and the file already has a name somebody chose. It can be
+   * renamed afterwards like anything else.
+   */
+  const putInLibrary = useCallback(async (file: File) => {
+    if (file.size === 0) { setError('that file is empty'); return; }
+    if (file.size > MOST_UPLOAD_BYTES) {
+      setError(`${file.name} is too big for the library — an ident, a `
+        + 'caption card or a song, up to '
+        + `${Math.round(MOST_UPLOAD_BYTES / (1024 * 1024))} MB. A film `
+        + 'comes from a studio as a render.');
+      return;
+    }
+    setPutting(true);
+    try {
+      const response = await fetch('/api/library', {
+        method: 'POST',
+        headers: {
+          'content-type': file.type,
+          'x-label': file.name.replace(/\.[^.]+$/, '').slice(0, 120),
+        },
+        body: file,
+      });
+      if (!response.ok) {
+        const said = await response.json().catch(() => ({}));
+        setError(said.error ?? 'that file was refused');
+        return;
+      }
+      setError(null);
+      /*
+       * AND THE RAIL IS ASKED AGAIN RATHER THAN TOLD. The response
+       * carries the item, but the broadcast listing is a different
+       * question from the upload listing — it measures duration,
+       * reads sidecars and knows which deck a page belongs to —
+       * and building a row from the POST's answer would be a
+       * second, thinner version of it. [D-19]
+       */
+      await refreshLibrary();
+      setRailTab('library');
+    } catch {
+      setError('that file did not reach the library');
+    } finally {
+      setPutting(false);
+    }
+  }, [refreshLibrary]);
 
   const patch = useCallback(async (body: Record<string, unknown>) => {
     const response = await fetch(`/api/channels/${id}`, {
@@ -1308,6 +1385,49 @@ export default function ChannelStudio({
             >
               + Add to playlist
             </button>
+            {/*
+              * AND SOMEWHERE TO PUT A FILE IN.  [§3, §25, D-19, C-48]
+              *
+              * > *"HOW COME I CANNOT UPLOAD MEDIA INTO PLAYLIST"*
+              *
+              * Because there was nowhere to. `+ Add to playlist`
+              * is not an uploader and never claimed to be — its
+              * whole handler opens the Library tab — and the
+              * control room had no file input at all. The product
+              * has five; none of them was here.
+              *
+              * AND THE ROUTE WAS WRITTEN AND CALLED BY NOTHING.
+              * `POST /api/library` has existed with its allow-list,
+              * its size cap, its sidecar and its 415 since the
+              * library could hold a song, and every reference to
+              * `/api/library` in this product is a GET. The
+              * capability was built and no surface reached it,
+              * which is the fifth time this month.
+              *
+              * IT IS AN IDENT, NOT A FILM, and the control says so
+              * rather than letting somebody find out by waiting out
+              * a four-hundred-megabyte upload and being refused.
+              * Films arrive from the studios as renders and are
+              * referenced, never copied. [§3, D-18]
+              */}
+            <button
+              type="button" className="ctl" data-testid="library-upload"
+              disabled={putting}
+              title={'An ident, a caption card, a sting or a song \u2014 up to '
+                + `${Math.round(MOST_UPLOAD_BYTES / (1024 * 1024))} MB. `
+                + 'Films come from the studios as renders.'}
+              onClick={() => upload.current?.click()}
+              style={{ flex: '0 0 auto', padding: '7px 10px' }}
+            >{putting ? 'Adding\u2026' : '+ File'}</button>
+            <input
+              ref={upload} type="file" hidden data-testid="library-file"
+              accept={acceptsAttribute()}
+              onChange={(event) => {
+                const picked = event.target.files?.[0];
+                event.target.value = '';
+                if (picked) void putInLibrary(picked);
+              }}
+            />
             <button
               type="button" aria-label="Search" data-testid="rail-search"
               onClick={() => setFilter((value) => (value === null ? '' : null))}
@@ -1382,6 +1502,7 @@ export default function ChannelStudio({
               <LibraryRail
                 items={library} listing={listing} picked={picked}
                 keep={railRows.keep}
+                openDeck={openDeck} onOpenDeck={setOpenDeck}
                 onPick={(key) => setPicked(picked === key ? null : key)}
                 /*
                   * WHAT A FINISHED RENDER CAN BE DONE WITH, on the render.
@@ -3645,7 +3766,7 @@ function Meter({ value, label }: { value: number; label: string }) {
 /** A numbered row: index, thumbnail, title, subtitle, duration, menu. */
 function Row({
   index, source, title, subtitle, duration, badge, chosen, testid, dataset,
-  onClick, about, items,
+  onClick, about, items, inset,
 }: {
   index: number;
   source?: ProgrammeSource;
@@ -3657,6 +3778,8 @@ function Row({
   testid: string;
   dataset?: Record<string, string>;
   onClick?: () => void;
+  /** A page belonging to the row above it, stepped in. [§20, C-48] */
+  inset?: boolean;
   /*
    * WHAT CAN BE DONE TO THIS ROW, as a list rather than as a rendered
    * menu. It used to be a `<React.ReactNode>` holding a `<details>`, so
@@ -3701,6 +3824,17 @@ function Row({
       style={{
         display: 'flex', gap: 'var(--space-3)', alignItems: 'center',
         padding: 'var(--space-3)',
+        /*
+         * A PAGE BELONGS TO THE ROW ABOVE IT, and the step plus the
+         * rule on its leading edge is what says so. Without it a
+         * deck's twelve pages read as twelve more things in the
+         * list, which is the state this grouping exists to leave.
+         * [§20, C-48]
+         */
+        ...(inset ? {
+          paddingLeft: 'calc(var(--space-3) + 16px)',
+          boxShadow: 'inset 2px 0 0 var(--console-rule)',
+        } : {}),
         background: chosen ? 'var(--console-control)' : 'transparent',
         borderBottom: '1px solid var(--console-rule)',
         boxShadow: chosen
@@ -3874,7 +4008,7 @@ function PlaylistRail({
 
 /** THE LIBRARY — every finished render both other studios have made. [§3] */
 function LibraryRail({
-  items, listing, picked, keep, onPick, itemsFor,
+  items, listing, picked, keep, onPick, itemsFor, openDeck, onOpenDeck,
 }: {
   items: LibraryItem[];
   listing: Programme[];
@@ -3883,6 +4017,9 @@ function LibraryRail({
   onPick: (key: string) => void;
   /* What to do with a finished render. The rail does not know; §3. */
   itemsFor: (item: LibraryItem) => MenuEntry[];
+  /** Which deck is showing its pages, if any. [C-48] */
+  openDeck: string | null;
+  onOpenDeck: (id: string | null) => void;
 }) {
   if (items.length === 0) {
     return (
@@ -3892,10 +4029,53 @@ function LibraryRail({
       </p>
     );
   }
+  /*
+   * A DECK IS ONE THING WITH TWELVE PAGES.  [§20, D-04, C-48]
+   *
+   * > *"HOW COME I CANNOT UPLOAD MEDIA INTO PLAYLIST"*
+   *
+   * The rail that question was asked of held twelve rows all
+   * called "Admission Package — Dorot…", above the one video the
+   * author wanted. Every row was CORRECT — a page is a still, a
+   * still is schedulable, and the schedule is the only way to put
+   * a caption card out at a TIME, the Slides panel being the way
+   * to put one up NOW. Nothing said they were one thing.
+   */
+  const rows = libraryRows(
+    items.filter((item) => keep(item.title) || Boolean(item.deck)), openDeck);
   return (
     <>
-      {items.map((item, index) => {
-        if (!keep(item.title)) return null;
+      {rows.map((row, index) => {
+        if (row.kind === 'deck') {
+          /* A shut deck is one line; the pages are what it stands
+             for, and the line is what shuts them again. */
+          if (!keep(row.title)) return null;
+          return (
+            <Row
+              key={`deck:${row.id}`}
+              index={index + 1}
+              source={row.pages[0]!.source}
+              title={row.title}
+              subtitle={`Deck · ${deckSays(row.pages.length)}`}
+              duration=""
+              chosen={false}
+              testid="library-deck"
+              dataset={{
+                'data-deck': row.id,
+                'data-open': row.open ? 'true' : 'false',
+              } as Record<string, string>}
+              onClick={() => onOpenDeck(row.open ? null : row.id)}
+              about={row.title}
+              items={() => [{
+                label: row.open ? 'Close the deck' : 'Show its slides',
+                hint: 'Each page can be scheduled on its own.',
+                onSelect: () => onOpenDeck(row.open ? null : row.id),
+              }]}
+            />
+          );
+        }
+        const item = row.item;
+        if (row.kind === 'item' && !keep(item.title)) return null;
         const key = sourceKey(item.source);
         const times = listing.filter(
           (entry) => sourceKey(entry.source) === key).length;
@@ -3903,6 +4083,10 @@ function LibraryRail({
           <Row
             key={key}
             index={index + 1}
+            /* A page of an open deck is stepped in, so the list
+               reads as a deck with pages under it rather than as
+               thirteen things in a row. */
+            inset={row.kind === 'page'}
             source={item.source}
             title={item.title}
             /*
@@ -3922,7 +4106,7 @@ function LibraryRail({
             ].filter(Boolean).join(' · ')}
             duration={item.kind === 'image' ? '' : runsFor(item.durationMs)}
             chosen={picked === key}
-            testid="library-item"
+            testid={row.kind === 'page' ? 'library-page' : 'library-item'}
             dataset={{ 'data-source-key': key } as Record<string, string>}
             onClick={() => onPick(key)}
             about={item.title}

@@ -23,6 +23,11 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
+import {
+  ACCEPTS, acceptsAttribute,
+} from '../../src/domain/libraryUpload.js';
+import { CONTAINERS } from '../../src/store/libraryMedia.js';
+
 const ROOT = join(import.meta.dirname, '..', '..');
 const LISTINGS = {
   'the broadcast library': join(ROOT, 'src', 'store', 'broadcastLibrary.ts'),
@@ -42,5 +47,82 @@ describe('every listing of the library skips what it cannot play', () => {
     for (const [what, path] of Object.entries(LISTINGS)) {
       expect(readFileSync(path, 'utf8'), what).toContain('isStill');
     }
+  });
+});
+
+/* ------------------------------------------------------------------------ *
+ *  And one table for what may come IN.  [§3, §25, D-19, C-14, C-48]
+ * ------------------------------------------------------------------------ */
+
+describe('an upload is stored under a name that tells the truth', () => {
+  /*
+   * THE FOURTH LIST. C-14 found three places each knowing their own
+   * containers and made them one table. The question *may this file
+   * become one* was a fourth, private to the upload route, where the
+   * only other thing that needs it — a file picker's `accept` — could
+   * not read it. There was no picker, because the route had never been
+   * called by any surface in this product.
+   *
+   * AND IT RENAMED THINGS. Every still mapped to `jpg` because `jpg`
+   * was the only still the table had, so a PNG went in as PNG bytes
+   * under a name claiming JPEG. WebM and QuickTime went in as `.mp4`,
+   * and nothing is transcoded here. *"A file whose name lies to every
+   * reader of it"* — this file's own words, about the sound it had
+   * just fixed.
+   */
+  it('never stores a file under another container’s extension', () => {
+    for (const [type, accepted] of Object.entries(ACCEPTS)) {
+      const named = CONTAINERS.find((one) => one.type === type);
+      /* Where this product HAS a container for exactly what arrived,
+         that is the container it must be stored as. */
+      if (named) expect(accepted.ext, type).toBe(named.ext);
+    }
+  });
+
+  /*
+   * AND WHATEVER IT IS STORED AS, THE SERVING ROUTE MUST KNOW IT.
+   *
+   * Asked of `CONTAINERS` directly rather than through a helper.
+   * A `storable()` stood here for one pass and had exactly one
+   * caller — this assertion — so breaking it broke nothing a
+   * person could see, and the mutation that made it always say
+   * yes survived. A query whose only reader is its own test is a
+   * question nobody is asking. [the seventeenth]
+   */
+  it('only ever stores something the library can serve back', () => {
+    const serves = new Set(CONTAINERS.map((one) => one.ext));
+    for (const [type, accepted] of Object.entries(ACCEPTS)) {
+      expect(serves.has(accepted.ext), type).toBe(true);
+    }
+    /* Grounded outside the source: these are not media. */
+    expect(serves.has('pdf')).toBe(false);
+    expect(serves.has('docx')).toBe(false);
+  });
+
+  /* A picture must not land as a moving container, or the schedule
+     would hold it for a duration it does not have. [§3's `stillMs`] */
+  it('keeps pictures and moving things apart', () => {
+    for (const [type, accepted] of Object.entries(ACCEPTS)) {
+      const stored = CONTAINERS.find((one) => one.ext === accepted.ext)!;
+      expect(stored.still, type).toBe(accepted.form === 'image');
+    }
+  });
+
+  /*
+   * THE PICKER OFFERS EXACTLY WHAT THE SERVER TAKES. An `accept`
+   * typed by hand beside an allow-list is two lists again, and it
+   * fails the worst way available: a person chooses a file the dialog
+   * showed them, waits for it to go up, and is told 415.
+   */
+  it('offers the picker exactly the list the route enforces', () => {
+    expect(acceptsAttribute().split(',').sort())
+      .toEqual(Object.keys(ACCEPTS).sort());
+  });
+
+  /* And the route reads the table rather than keeping its own. */
+  it('leaves the upload route with no list of its own', () => {
+    const source = readFileSync(LISTINGS['the library API'], 'utf8');
+    expect(source).toContain('ACCEPTS');
+    expect(source).not.toContain('image/jpeg');
   });
 });
