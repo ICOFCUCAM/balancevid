@@ -4460,6 +4460,31 @@ This is C-24's fault in a second place, two stages after C-24 was
 written: *"a connector that cannot be tested is a connector that is
 wrong"*.
 
+### And the codebase already knew
+
+`segment.ts`, in the comment explaining why segments are joined by
+appending bytes rather than with ffmpeg's concat demuxer:
+
+> *"The concat demuxer would also work in principle and was tried
+> first; on this platform's static ffmpeg it segfaults on `-c copy`
+> over MPEG-TS, which is a good reminder that reaching for a tool to
+> do what a `cat` does is a dependency taken for nothing."*
+
+The defect was found, understood, worked around, and written
+down — and then the RTMP sender was written on top of it, doing
+exactly `-c copy` over MPEG-TS, by somebody who had read that module
+and did not connect the two. **A fact recorded in one module's
+comment is not a fact the next module knows.** That is what
+`canReadSegments` is for: the knowledge is now a function the code
+can ask, in the place that has to act on it, rather than a paragraph
+somebody has to have read.
+
+It also settles the blast radius. The only two things in this
+product that hand a transport stream to ffmpeg are the piece join in
+`segment.ts`, which stopped doing it, and the sender, which is this
+stage. Everything else that assembles media reads WebM chunks from a
+browser (`ingest.ts`) or a file in its own container.
+
 ### Asked by doing it, because nothing else reveals it
 
 `canDrawText` works by reading `-filters`, because a missing filter
