@@ -5061,3 +5061,131 @@ Fourteen assertions, twelve mutations, all twelve caught.
 * **It does not take Space.** Said above, and worth saying twice:
   the temptation is real and the cost is a key that means something
   different in the next studio.
+
+---
+
+## C-40 — Stage 40: the compositor that can draw
+
+The brief said the transmitted picture is *"missing the visual
+language of television"* and asked for a graphics system: a channel
+bug, a lower third, programme identification, a LIVE mark, NEXT, and
+**one compositor feeding programme out**.
+
+`docs/GRAPHICS.md` is the brief kept whole with the measurement
+written against each point of it. The measurement reorders the list:
+
+**All of it is already built.** The bug, the lower third, the LIVE
+lamp and NEXT are modelled on the channel, derived by one function
+(`marksFor`), drawn by one compositor (`markFilters`), composited
+over the programme and never burnt into a file. The architecture the
+brief draws and the architecture in the code are the same drawing.
+
+**None of it reaches the wire**, because of one line:
+
+```ts
+if (!canDrawText) return [];
+```
+
+`drawtext` needs freetype and the pinned `ffmpeg-static` is built
+without it. C-24 found that a filtergraph naming an absent filter is
+rejected WHOLE — the bug did not fail to appear, it took the picture
+with it — and traded a black channel for a clean one with no
+identity. **The screenshot in the brief is that trade, seen from the
+sofa.**
+
+### Drawn by the renderer this product already has
+
+C-26 built a deterministic HTML renderer for slides: pinned face,
+fixed sizes, one layout calculation shared by the preview and the
+transmission. **A transparent screenshot of a page is a broadcast
+overlay**, and `movie` and `overlay` are in every ffmpeg ever built —
+including the one that cannot draw a character. Asked by doing it
+before a line was written, which is C-35's lesson:
+
+| | |
+|---|---|
+| `movie` | present |
+| `overlay` | present |
+| `drawtext` | **absent** |
+
+It is not a second graphics system, which the brief is explicit
+about. The same `Mark[]` from the same `marksFor` arrives; only what
+draws them changed. The one that knows how to draw still is not the
+one that decides what.
+
+### And it does what `drawtext` never could
+
+**A lower third is a name and a role, not a sentence.** The brief
+draws two lines — the name large, what they are small underneath —
+and that hierarchy is most of what separates a television graphic
+from a subtitle. The model composed `title · presenter` into one
+string, so the renderer splits on the separator the identity already
+uses, once, on the first one: three lines in the corner of a
+broadcast is the "don't overdo the writing" the brief warns about,
+in its own hierarchy.
+
+A plate with a corner radius, two weights, letter-spacing on a
+station mark, and a drawn dot beside LIVE rather than a bullet
+character that is a different shape in every font.
+
+### Inside title safe, which the identity never was
+
+`markFilters` used a flat 28px inset — 2.6% of a 1080-line frame,
+well outside the line C-38 measured a slide's credit against. A
+slide is watched on a laptop; a channel is watched on a set that may
+overscan the outer 5%. Every mark is inset to title safe now, by the
+same constant.
+
+### Two faults found on the way
+
+* **A still carried no marks at all.** The `-loop 1` branch — a
+  slide, a caption card, a station ident — drew none of them, on the
+  one kind of picture where there is nothing else to tell a viewer
+  whose channel this is. Not a decision: the branch was written
+  before the identity existed and never caught up.
+* **`bug.assetId` is read by nothing.** A channel that uploads a logo
+  and clears the text gets no bug at all. The fourth capability in
+  four stages this product declared and did not reach, after
+  `slideReady`, `ACTION_SAFE` and `data-keys="own"`. Named in
+  `GRAPHICS.md` and left for its own stage, because an image bug is
+  a different change from a text one.
+
+### Drawn once, never waited for
+
+The engine makes a segment every four seconds. The marks change when
+the programme changes, when somebody is cited, or when the lower
+third's eight seconds run out — so the overlay is keyed on **what
+the marks say** and the same PNG serves a hundred segments.
+
+The first segment that wants a new overlay asks for it and goes out
+without it; the next one has it. That is the loudness queue's bargain
+(C-33) for the same reason: a channel that paused for a browser to
+start would stutter every time its caption changed. Four seconds of a
+correct picture with last moment's caption beats four seconds of
+nothing.
+
+### Measured
+
+The real mark set — bug, lamp, two-line lower third, NEXT —
+rendered at 1280×720 and composited onto a picture by the shipped
+binary: `exit 0`, 26 KB of overlay, every mark inside title safe,
+LIVE with its dot top-left, the station top-right, the programme and
+the presenter bottom-left with NEXT stacked above.
+
+### The record
+
+Twenty assertions, fourteen mutations, all fourteen caught. Two
+needed their anchor corrected first: the separator in the source is
+the character itself, not an escape, so the patch matched nothing and
+proved nothing until it did.
+
+### What this does not do
+
+* **It does not change `marksFor`.** Not one decision about what the
+  channel says moved. This stage is entirely about what draws it.
+* **It does not remove `drawtext`.** A build that has freetype still
+  uses it when no overlay has been drawn yet, which is the first few
+  seconds after a caption changes and any build with no browser.
+* **The rest of the brief is still to come**: the role field, the
+  source kind on the caption, the image bug, NEXT with its time, and
+  the Watch page. Each is named in `GRAPHICS.md` with what it needs.

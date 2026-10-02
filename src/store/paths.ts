@@ -283,6 +283,16 @@ export const paths = {
    */
   senderPlaylist: (id: string) =>
     join(VAR_ROOT, 'senders', safe(id), 'playlist.m3u8'),
+  /**
+   * THE CHANNEL'S GRAPHICS, RASTERISED.  [CHANNEL §13, C-40]
+   *
+   * Outside the account tree for the same reason the stream is: a
+   * transparent PNG of this moment's lower third is derived from the
+   * channel document and worth nothing in a backup. Named by what
+   * the marks say, so an identity that has not changed is drawn once
+   * and used for a thousand segments.
+   */
+  overlays: () => join(VAR_ROOT, 'overlays'),
   /** Clips and the link preview of a performance. [STUDIO-TWO §14] */
   performanceClips: (id: string) => join(paths.performance(id), 'clips'),
   performanceCard: (id: string) => join(paths.performance(id), 'share-card.png'),
