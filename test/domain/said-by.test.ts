@@ -15,7 +15,8 @@ import { describe, expect, it } from 'vitest';
 
 import { MOST_SAID, bodyOf, saysFor } from '../../src/domain/saidBy.js';
 import { deckRefusalFor } from '../../src/domain/deletion.js';
-import { onAirTitle, viewerTitle } from '../../src/domain/onAir.js';
+import { nowAndNext, onAirTitle, viewerTitle } from '../../src/domain/onAir.js';
+import { newChannel } from '../../src/domain/channelEdit.js';
 
 describe('the parser is never the messenger (C-49)', () => {
   /*
@@ -270,5 +271,118 @@ describe('three answers to "what is on" (N-2)', () => {
       { kind: 'rotation', entry: { id: 'r1' }, source, fromMs: 0, untilMs: 1 } as never);
     expect(said).toBe('REdemption TV');
     expect(said).not.toContain('conv_');
+  });
+});
+
+describe('now and next, for a viewer (N-4)', () => {
+  /*
+   * LIFTED OUT OF THE ROUTE because the station page, the
+   * directory's LIVE NOW row and the guide all ask it, and each
+   * re-deriving it is how four pages disagree about what a channel
+   * is showing.
+   */
+  const MIN = 60_000;
+  const AT = Date.parse('2026-10-02T20:00:00.000Z');
+
+  function looping(titles: (string | undefined)[]) {
+    const channel = newChannel('REdemption TV', 'Europe/London',
+      new Date(AT).toISOString());
+    channel.rotation = titles.map((title, at) => ({
+      id: `r${at}`, durationMs: 10 * MIN,
+      ...(title ? { title } : {}),
+      source: { kind: 'media', assetId: `a${at}`, form: 'video' },
+    })) as never;
+    return channel;
+  }
+
+  it('names what follows in the loop, not the next fixed slot', () => {
+    const said = nowAndNext(looping(['Worship', 'Live Talk']), AT);
+    expect(said.title).toBe('Worship');
+    expect(said.next).toBe('Live Talk');
+    expect(said.nextAt).toBeGreaterThan(AT);
+  });
+
+  /*
+   * AND NOT THE CHANNEL'S NAME. A loop of untitled items listed
+   * "NEXT REdemption TV" — the station announcing itself as its
+   * own next programme. [C-42, C-43]
+   */
+  it('says nothing rather than announcing the station as its own next', () => {
+    const said = nowAndNext(looping(['Worship', undefined]), AT);
+    expect(said.next).toBe(null);
+    expect(said.next).not.toBe('REdemption TV');
+  });
+
+  /* An instant, not a countdown: a cached countdown is wrong by
+     its own age. */
+  it('gives an instant and never a remaining time', () => {
+    const said = nowAndNext(looping(['Worship', 'Talk']), AT);
+    expect(said.untilMs).toBe(AT + 10 * MIN);
+  });
+
+  it('knows a channel with nothing on is not live', () => {
+    const empty = newChannel('Quiet', 'Europe/London', new Date(AT).toISOString());
+    const said = nowAndNext(empty, AT);
+    expect(said.live).toBe(false);
+    expect(said.title).toBe('Off air');
+  });
+});
+
+describe('now and next: the two cases a plain loop cannot show (N-4)', () => {
+  const MIN = 60_000;
+  const AT = Date.parse('2026-10-02T20:00:00.000Z');
+
+  function channelWith(titles: (string | undefined)[]) {
+    const channel = newChannel('REdemption TV', 'Europe/London',
+      new Date(AT).toISOString());
+    channel.rotation = titles.map((title, at) => ({
+      id: `r${at}`, durationMs: 10 * MIN,
+      ...(title ? { title } : {}),
+      source: { kind: 'media', assetId: `a${at}`, form: 'video' },
+    })) as never;
+    return channel;
+  }
+
+  /*
+   * NEXT IS WHICHEVER COMES SOONER. A loop turning every ten
+   * minutes, with a scheduled programme five minutes away, must
+   * name the PROGRAMME — it is what pre-empts. Every fixture above
+   * had no schedule at all, so the comparison that decides this
+   * was never exercised and `if (true)` passed everything. [§4]
+   */
+  it('names the programme that pre-empts, not the next turn of the loop', () => {
+    const channel = channelWith(['Worship', 'Live Talk']);
+    channel.programmes.push({
+      id: 'p1', startsAt: new Date(AT + 5 * MIN).toISOString(),
+      durationMs: 30 * MIN, title: 'The Evening Feature',
+      source: { kind: 'media', assetId: 'film', form: 'video' },
+    } as never);
+    const said = nowAndNext(channel, AT);
+    expect(said.next).toBe('The Evening Feature');
+    expect(said.nextAt).toBe(AT + 5 * MIN);
+  });
+
+  /* And the loop wins when it turns first. */
+  it('names the next turn when the loop turns first', () => {
+    const channel = channelWith(['Worship', 'Live Talk']);
+    channel.programmes.push({
+      id: 'p1', startsAt: new Date(AT + 60 * MIN).toISOString(),
+      durationMs: 30 * MIN, title: 'Much Later',
+      source: { kind: 'media', assetId: 'film', form: 'video' },
+    } as never);
+    expect(nowAndNext(channel, AT).next).toBe('Live Talk');
+  });
+
+  /*
+   * AND THE CAPTION IS `captionFor`'s, NOT THE RAW TITLE. An
+   * untitled item makes `viewerTitle` fall back to the channel's
+   * name, and printing that would put REdemption TV under a header
+   * that already says REdemption TV — the fault C-42 exists to
+   * stop. `captionFor` drops it and says what the thing IS instead.
+   */
+  it('never captions a channel with its own name', () => {
+    const said = nowAndNext(channelWith([undefined, 'Later']), AT);
+    expect(said.title).not.toBe('REdemption TV');
+    expect(said.title).toBe('Film');
   });
 });

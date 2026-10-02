@@ -35,7 +35,8 @@
  */
 
 import type { Channel, OnAir } from './channel.js';
-import { whatIsOn } from './channel.js';
+import { nextAfter, programmeStart, whatIsOn } from './channel.js';
+import { captionFor } from './caption.js';
 
 /** What the viewer is told this is called. */
 export function onAirTitle(channel: Channel, on: OnAir): string {
@@ -137,4 +138,75 @@ export function viewerTitle(channel: Channel, on: OnAir): string {
      */
     default: return channel.name;
   }
+}
+
+/* ------------------------------------------------------------------------ *
+ *  Now and next, for a viewer.  [§2, §4, C-42, C-43, TV-NETWORK N-4]
+ * ------------------------------------------------------------------------ */
+
+export interface NowAndNext {
+  /** What is on, as a caption's two lines. */
+  title: string | null;
+  kind: string | null;
+  live: boolean;
+  /** When the thing on air ends, as an instant. */
+  untilMs: number | null;
+  next: string | null;
+  nextAt: number | null;
+}
+
+/**
+ * The two sentences a viewer's page needs.
+ *
+ * LIFTED OUT OF THE ROUTE BECAUSE A SECOND SURFACE NOW ASKS. The
+ * station page, the directory's LIVE NOW row and the guide all want
+ * what `/api/channels/<id>/now` has computed alone until now, and
+ * each of them re-deriving it is how four pages come to disagree
+ * about what a channel is showing. [D-19]
+ *
+ * NEXT IS RARELY THE NEXT FIXED SLOT, in a channel with a loop: it
+ * is whichever comes sooner, the programme that pre-empts or the
+ * turn of the rotation after this one. A listing that skipped the
+ * loop would be wrong most of the day. [§4]
+ *
+ * AND NOT THE CHANNEL'S NAME. A loop of untitled items listed
+ * "NEXT REdemption TV" — the station announcing itself as its own
+ * next programme. An untitled item has no title and the listing
+ * says nothing rather than something false. [C-42, C-43]
+ *
+ * AN INSTANT, NOT A COUNTDOWN: a cached countdown is wrong by its
+ * own age.
+ */
+export function nowAndNext(channel: Channel, at: number): NowAndNext {
+  const on = whatIsOn(channel, at);
+  const coming = nextAfter(channel, at);
+
+  let next: string | null = coming?.title ?? null;
+  let nextAt: number | null = coming ? programmeStart(coming) : null;
+  if (on.kind === 'rotation' && channel.rotation.length > 0) {
+    const index = channel.rotation.findIndex((entry) => entry.id === on.entry.id);
+    const after = channel.rotation[(index + 1) % channel.rotation.length]!;
+    const soonest = coming ? programmeStart(coming) : Infinity;
+    if (on.untilMs <= soonest) {
+      next = after.title ?? null;
+      nextAt = on.untilMs;
+    }
+  }
+
+  /*
+   * WHAT IS ON, SAID THE SAME WAY THE PICTURE SAYS IT. The lower
+   * third had the identical fault and C-42 fixed it in
+   * `captionFor`; this is that judgement reused rather than a
+   * second opinion about what a programme is called. [§13]
+   */
+  const caption = captionFor(on, viewerTitle(channel, on), {}, channel.name);
+
+  return {
+    title: caption?.lead ?? null,
+    kind: caption?.under ?? null,
+    live: on.kind === 'live',
+    untilMs: on.kind === 'programme' || on.kind === 'rotation' ? on.untilMs : null,
+    next,
+    nextAt,
+  };
 }
