@@ -1,4 +1,4 @@
-# Take Desktop — the brief, what already exists, and the stages
+# Take Desktop — the frozen concept, what already exists, and the stages
 
 > *"Phone Take = personal participation. Desktop Take = multi-camera
 > capture station."*
@@ -12,6 +12,155 @@ upgrades, and what it must not touch.
 
 The order of the parts is the order the work was done in: read the
 brief, measure the system, measure the browser, then decide.
+
+---
+
+# THE FREEZE — the concept, settled before implementation
+
+**Frozen 2 October 2026.** Everything below is agreed scope. The
+stages in PART FIVE implement this and nothing else; anything not
+on this list is out until the freeze is reopened deliberately.
+
+## Take Desktop — Windows + Linux
+
+- Lightweight capture station
+- 4-camera minimum architecture, expandable
+- Local recording first
+- Synchronized camera/audio capture
+- Multiview monitoring
+- Camera/capture-card/network-source support
+- Connect to any authorized BalanceVid installation
+- QR/deep-link/invitation-code connection
+- Review locally
+- Submit through the existing Participation Request system
+- No full editing suite
+- Studio Two remains the production/editing destination
+- Same Take identity and protocol as mobile, but a different
+  capture experience
+
+## The core flow
+
+```
+CONNECT → CAMERAS → PREPARE → RECORD → REVIEW → SUBMIT
+```
+
+## The architectural boundary
+
+```
+Take Desktop captures
+      ↓
+BalanceVid receives / reviews
+      ↓
+Studio Two produces
+      ↓
+Online TV broadcasts
+```
+
+---
+
+## Every frozen item, and where it is built
+
+Nothing on the list is unaccounted for, and no stage exists that
+the list does not ask for.
+
+| frozen | stage | status |
+|---|---|---|
+| Lightweight capture station | T-1 | shell only; measurement in PART THREE says thin is enough |
+| 4-camera minimum, expandable | T-3, T-4 | N throughout, four in the UI; 8 measured |
+| Local recording first | T-4 | records with the machine offline |
+| Synchronized camera/audio | T-4 | one start, each start recorded, `align.ts` as a check |
+| Multiview monitoring | T-3 | read the two that exist first |
+| Camera / capture-card sources | T-3 | where the OS presents them as cameras |
+| Network sources (NDI/RTSP) | T-6 | last and optional; extends, does not enable |
+| Connect to any authorized installation | T-2 | origin-keyed, already modelled |
+| QR / deep-link / invitation-code | T-2 | four doors, one model |
+| Review locally | T-5 | |
+| Submit via Participation Request | T-5 + B-2 | the protocol exists |
+| No full editing suite | — | a boundary, enforced in *What must not happen* |
+| Studio Two is the destination | B-1, B-3 | it already multiviews angles |
+| Same Take identity and protocol | T-2, T-5 | see the definition below |
+
+The flow maps to the stages exactly:
+
+```
+CONNECT   CAMERAS   PREPARE   RECORD   REVIEW   SUBMIT
+  T-2        T-3      T-3       T-4      T-5     T-5
+```
+
+CAMERAS and PREPARE are one stage of work and two steps of the
+flow. They are built together because a multiview that cannot tell
+you a source is dead is the thing PREPARE exists to prevent.
+
+---
+
+## Three definitions this freeze pins
+
+A freeze is only as good as the words in it. Three of these could be
+read two ways, and the wrong reading would be built.
+
+### "Same Take identity" means the link, not a login
+
+`app/take/TakeHome.tsx` states the rule:
+
+> *"NOTHING HERE ASKS WHO YOU ARE. There is no account on this
+> surface."*
+
+A Take link is an origin plus a credential, and the credential is
+the invitation. Every wrong link — *"Missing, mistyped, expired,
+rotated, already attached — all 404"* — answers alike, because
+*"A 403 would confirm
+that something is there to guess at."*
+
+**So "connect to any authorized BalanceVid installation" is not a
+sign-in.** The desktop application authorises exactly as the phone
+does: by holding a link somebody sent. Building a desktop account,
+a profile or a password would be a second identity model for the
+same system, and it is out of scope by this freeze.
+
+### "Expandable" means the model, not the window
+
+> *"The application should therefore not have a data model that
+> assumes exactly four."*
+
+Four is what the UI presents. N is what everything beneath it
+holds. A stage that hard-codes four anywhere below the grid has
+broken the freeze even if it looks right.
+
+### "Lightweight" is measured, not asserted
+
+The brief sets the test — *"it is a capture client, not a broadcast
+engine"* — and PART THREE is the evidence that it can be met: eight
+concurrent recorders at sub-frame start spread means the shell does
+not need a native capture stack for four cameras.
+
+**Lightweight is therefore a thing each stage can be judged
+against**, not a word in a preamble: if a stage needs native
+capture code to do something the shell already does, it is doing
+the wrong thing.
+
+---
+
+## What the freeze does not settle
+
+Stated so it is not mistaken for agreed:
+
+- **The shell technology and repository layout.** Taken at T-1 as a
+  decision with reasons, not assumed here.
+- **Which capture-card and network-camera hardware is supported.**
+  T-3 and T-6 discover what the OS and the shell actually expose;
+  no list is promised.
+- **Whether T-6 is built at all.** By T-5 the frozen flow is
+  complete on hardware people already have. NDI and RTSP extend it.
+- **How many cameras a given machine will hold.** The measurement
+  in PART THREE is a fake device in a container; the real number is
+  recorded per session at T-4, on real hardware.
+
+## Changing the freeze
+
+Any change is a decision with a reason, written into this document
+beside the item it changes, with the stage it affects. The point of
+freezing is not that nothing may change — it is that a change is
+visible and argued rather than discovered half-built.
 
 ---
 
@@ -40,6 +189,19 @@ material is produced afterwards. The brief's own words:
 
 > *"Take Desktop captures. Studio Two produces. Online TV
 > broadcasts."*
+
+The freeze names the link between the first two that the sentence
+leaves implicit:
+
+```
+Take Desktop captures → BalanceVid receives / reviews
+→ Studio Two produces → Online TV broadcasts
+```
+
+**"Receives / reviews" is a stage of its own** — the participation
+inbox, where somebody accepts a submission before it becomes
+material. It is why B-3 exists: four angles must arrive as one
+capture to be reviewed as one decision.
 
 Nothing in any stage below puts capture into Studio Two, and nothing
 puts production into Take.
