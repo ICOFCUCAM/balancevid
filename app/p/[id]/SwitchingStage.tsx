@@ -18,6 +18,7 @@ import {
   proposeFirstCut, worthProposing,
 } from '../../../src/domain/takeRanking.js';
 import { useConfirm } from '../../Confirm.js';
+import { pageTakes, typingIn } from '../../../src/domain/keys.js';
 import { useMenu, type MenuEntry } from '../../Menu.js';
 import type { TakeId } from '../../../src/domain/document.js';
 import { nudgeSays } from './takeNudge.js';
@@ -979,17 +980,21 @@ export default function SwitchingStage({
        */
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z'
         && !event.altKey) {
-        const field = event.target as HTMLElement | null;
-        if (field && (/^(INPUT|TEXTAREA|SELECT)$/.test(field.tagName)
-          || field.isContentEditable)) return;
+        if (typingIn(event.target as HTMLElement | null)) return;
         event.preventDefault();
         void step(event.shiftKey ? 'redo' : 'undo');
         return;
       }
-      if (event.metaKey || event.ctrlKey || event.altKey) return;
-      const target = event.target as HTMLElement | null;
-      if (target && (/^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)
-        || target.isContentEditable)) return;
+      /*
+       * ASKED ONCE, SOMEWHERE ELSE.  [C-39]
+       *
+       * This test was written twice in this function, and in a
+       * weaker form than the conversation studio's: it did not
+       * honour an element's own opt-out, so markup protected on that
+       * surface lost its keys on this one. One judgement now, in
+       * `domain/keys.ts`, where it is tested.
+       */
+      if (!pageTakes(event, event.target as HTMLElement | null)) return;
       if (event.key >= '1' && event.key <= '9') {
         event.preventDefault();
         choose(Number(event.key) - 1);

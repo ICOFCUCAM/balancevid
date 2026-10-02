@@ -4939,3 +4939,125 @@ selector is anchored now.
 * **It does not redraw slides already made.** Every existing slide
   keeps the foot where it was drawn. Correct redraws one; nothing
   redraws them in bulk, for C-36's reason.
+
+---
+
+## C-39 — Stage 39: the keys a gallery runs on
+
+Online TV is the surface of this product that most resembles a
+vision mixer, and it had **no keyboard at all**. Advancing a slide
+meant finding a 30-pixel button with a mouse. The person who most
+needs to advance a slide is standing up in front of a room with a
+clicker in their hand — and **a clicker is a keyboard**: every one
+sold sends Page Down and Page Up, which is the whole of what the
+hardware is. Nothing in this product listened for either.
+
+### One judgement, written three times
+
+Deciding whether a keystroke belongs to the page or to whatever has
+focus is the same question everywhere, and it was answered
+separately in two studios:
+
+| | where | opt-out honoured |
+|---|---|---|
+| performance studio | twice in one function | **no** |
+| conversation studio | once | yes |
+| Online TV | — | — |
+
+So the same markup kept its keys on one surface and lost them on
+another, and nothing anywhere said which was right. A rule with two
+implementations is a rule with one bug in it that cannot be seen
+from either side.
+
+### And the opt-out was set by nothing
+
+`data-keys="own"` had **a reader and no writer** in the whole
+product. No element had ever used it, which is why the disagreement
+had never been felt. That is the third capability in three stages
+this product declared and did not reach — after `slideReady` (C-36)
+and `ACTION_SAFE` (C-38). The pattern is worth naming: *a mechanism
+with no caller is not a mechanism, and the place it was supposed to
+protect is unprotected in a way no test will show.*
+
+It has two writers now, and both were already broken without it.
+
+### The dialog was never protected from the page
+
+`<dialog>` traps focus, so the focused element while a confirmation
+is open is a **button** — not an input, not contenteditable. Every
+page-key handler in this product therefore fired straight through
+it. In the performance studio, pressing a number with a
+confirmation open cut to that take. In Online TV an arrow would
+have advanced a slide behind the question asking whether to delete
+one.
+
+One attribute on `Confirm`, read by the shared judgement, closes it
+on every surface at once.
+
+### The keys, and the one that is deliberately missing
+
+`→` / `Page Down` forward, `←` / `Page Up` back, `.` to blank —
+the key every presentation tool has used for thirty years, and
+reversible by the key beside it, which is why it is safe to give it
+a key at all. The irreversible things on this desk go through a
+dialog (C-37) and none of them is here.
+
+**Space is deliberately absent.** It scrolls a page, and it starts a
+recording in the conversation studio. A key meaning three things on
+three surfaces of one product is a key an operator cannot trust —
+and the clickers that send Space send Page Down too.
+
+**The listener is not attached at all** unless the channel is live
+and a deck is chosen. A key that silently does nothing is worse than
+no key, because the operator cannot tell it from a key that did
+something they did not see.
+
+**And it is re-attached every render, deliberately.** The handler
+has to read the slide that is on air *now*; a dependency list that
+missed one of the things it closes over would advance from where the
+deck was a moment ago, which is a wrong slide on the wire. One
+window listener added and removed per render costs nothing
+measurable and cannot go stale.
+
+The keys are named in the `title` of the buttons that do the same
+thing, which is the only place anybody looks for them.
+
+### Measured, against the real server
+
+Every press a real round trip through `onShow` and back:
+
+| | key | before → after |
+|---|---|---|
+| arrow forward | `→` | 1/3 → 2/3 |
+| a clicker forward | `Page Down` | 2/3 → 3/3 |
+| arrow back | `←` | 3/3 → 2/3 |
+| a clicker back | `Page Up` | 2/3 → 1/3 |
+| held with a modifier | `Cmd-→` | 1/3 → 1/3 |
+| while typing a caption | `→` | 1/3 → 1/3 |
+| on the layout row | `→` | 1/3 → 1/3, **layout moved** |
+| with a confirmation open | `→` | 1/3 → 1/3 |
+| blank | `.` | 1/3 → — /3 |
+
+The seventh row is the opt-out working for the first time in this
+product's life: the arrow changed the layout and did not touch the
+transmission.
+
+The deck was made of throwaway copies so nothing of the author's was
+at risk, and `channel.json` and the deck directory both compare
+identical to their backups.
+
+### The record
+
+Fourteen assertions, twelve mutations, all twelve caught.
+
+### What this does not do
+
+* **No number keys.** The performance studio cuts to a take with
+  1–9 because its takes are a fixed small set. A deck is forty
+  slides, and a two-digit key is a mode.
+* **No shortcut for Add.** Committing a slide is the one thing in
+  the writer that changes the deck, and it is a press somebody
+  should make on purpose.
+* **It does not take Space.** Said above, and worth saying twice:
+  the temptation is real and the cost is a key that means something
+  different in the next studio.
