@@ -5403,3 +5403,111 @@ than the judgement.
   and the Watch page, which prints the channel where the programme
   belongs — the same fault as this stage, on the surface the brief's
   screenshot was taken from.
+
+---
+
+## C-43 — Stage 43: the Watch page said it too
+
+The brief's screenshot, read from the sofa:
+
+```
+REdemption TV                          LIVE
+              VIDEO
+NOW PLAYING
+REdemption TV
+```
+
+**The same fault as C-42, on a third surface.** The viewer route
+has its own copy of `titleOf`, with the same fallback to the
+channel's name, so the page under the player announced the station
+to somebody who had just read the station's name in the header.
+
+Fixed with the same function rather than a second opinion:
+`captionFor` decides, the lower third draws it, and the page prints
+it. The picture and the page cannot now disagree about what is on,
+because there is one answer.
+
+### And NEXT could say the channel's name too
+
+`next = after.title ?? channel.name` — so a loop of untitled items
+listed **"NEXT REdemption TV"**: the station announcing itself as
+its own next programme. An untitled item has no title, and the
+listing says nothing rather than something false.
+
+### What was added, and what was already there
+
+The page already had NOW PLAYING / SCHEDULED chosen by whether
+segments are arriving, a countdown that only runs on something
+running, and a NEXT block. The brief credits it with less than it
+has. What it did not have:
+
+* **the kind line** — *"THE ANCIENT OF DAYS / Studio Two ·
+  Performance"*. The title alone tells a viewer the name of
+  something they have never heard of; the line under it tells them
+  what they are looking at.
+* **the time NEXT starts.**
+
+### Two clocks, two correct answers
+
+The picture's NEXT carries the **channel's** local time, because a
+caption burnt into a broadcast is the same for everybody watching
+it. The page's carries the **viewer's**, because a page is being
+read on one person's device and 16:30 means the time on their own
+clock. Said here because the two look like a duplication and are
+not. [§2]
+
+---
+
+## C-44 — Stage 44: the logo nothing could draw
+
+`bug.assetId` — a station's logo rather than its name — has been in
+the model since the identity was written and **was read by
+nothing**. `marksFor` pushed a bug only where there was TEXT, so a
+channel that uploaded a logo and cleared the name got no bug at all.
+
+The fourth capability this product declared and did not reach, after
+`slideReady` (C-36), `ACTION_SAFE` (C-38) and `data-keys="own"`
+(C-39).
+
+**And `drawtext` could never have drawn one**, which is why it
+waited for a compositor that draws pages. C-40 made this a four-line
+change.
+
+* **A logo beats a name**, and either is a bug. A channel that
+  uploaded one has said what it wants in the corner; the text stays
+  the fallback it always was, because a channel that has just been
+  created has a name and does not have a logo.
+* **Sized by its height, not its width.** A bug is a thing of a
+  certain height in the corner of a frame whatever shape the artwork
+  is; sizing by width makes a wide wordmark tiny and a square emblem
+  enormous.
+* **A logo that has gone draws nothing**, rather than its own empty
+  string. A deleted logo leaves a channel with no bug, which is what
+  it had before anybody uploaded one; an empty plate in the corner
+  looks deliberate.
+* **The bytes are inlined**, like a slide's picture, because the
+  page is given no network and no disk. [D-06]
+
+### The record, and a pattern worth naming
+
+Nine assertions across the two stages, with eighteen mutations
+between them, all caught — and **twice now the survivors were the
+same thing**: at C-42 nothing asserted that `marksFor` reads the
+role or joins the two lines; here nothing asserted that it ever
+produces a picture bug at all. Both times the judgement was tested
+to the letter and the renderer was tested to the letter.
+
+> **When a stage adds a field to the model and a branch to the
+> renderer, the thing in between is where the test is missing.**
+
+That is the second general lesson this method has produced, after
+C-34's *a guard that only narrows a type cannot be judged by
+mutation alone*.
+
+### What this leaves
+
+Every point of the brief that is a graphics change is now built. The
+two it names that are not are recorded in `GRAPHICS.md` as what they
+are: the camera's own picture, which is a production problem no
+compositing fixes, and the restraint rule, which is the thing to
+keep while doing all of the above.

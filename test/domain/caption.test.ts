@@ -221,3 +221,50 @@ describe('and the identity actually composes it (C-42)', () => {
     expect(next?.text).toBe('NEXT  16:30  Live Conversation');
   });
 });
+
+describe('and a channel with a logo gets a bug (C-44)', () => {
+  /*
+   * THE SAME CLASS OF SURVIVOR AS C-42, ONE STAGE LATER. The
+   * renderer was tested to draw a picture and nothing asserted that
+   * `marksFor` ever produces one — so a model field and a renderer
+   * branch both worked and the wiring between them did not.
+   *
+   * The pattern is worth naming: when a stage adds a field to the
+   * model and a branch to the renderer, **the thing in between is
+   * where the test is missing**.
+   */
+  const live: OnAir = {
+    kind: 'live', session: {} as never, source: LIVE, fromMs: 0,
+  };
+  const bugOf = (bug: ChannelIdentity['bug']) => marksFor(
+    { bug, ink: '#ffffff' } as ChannelIdentity, live, 0,
+    () => 'A title', undefined, 'A channel',
+  ).find((one) => one.kind === 'bug');
+
+  it('draws a bug for a channel that has only a logo', () => {
+    const bug = bugOf({ assetId: 'asset_logo', corner: 'top-right',
+      opacity: 0.85 });
+    expect(bug).toBeDefined();
+    expect(bug?.picture).toBe('asset_logo');
+  });
+
+  /* The text stays the fallback it always was. */
+  it('still draws a name for a channel that has only one', () => {
+    const bug = bugOf({ text: 'REDEMPTION TV', corner: 'top-right',
+      opacity: 0.85 });
+    expect(bug?.text).toBe('REDEMPTION TV');
+    expect(bug?.picture).toBe(undefined);
+  });
+
+  /* A station with a logo wants the logo. */
+  it('prefers the logo when a channel has both', () => {
+    const bug = bugOf({ assetId: 'asset_logo', text: 'REDEMPTION TV',
+      corner: 'top-right', opacity: 0.85 });
+    expect(bug?.picture).toBe('asset_logo');
+    expect(bug?.text).toBe('');
+  });
+
+  it('draws nothing for a channel with neither', () => {
+    expect(bugOf(undefined)).toBe(undefined);
+  });
+});

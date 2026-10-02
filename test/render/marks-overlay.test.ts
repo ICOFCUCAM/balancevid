@@ -227,3 +227,66 @@ describe('drawing it only when it changed (C-40)', () => {
       .not.toBe(overlayKey([mark()], { width: 1920, height: 1080 }));
   });
 });
+
+describe('a logo instead of a name (C-44)', () => {
+  /*
+   * `bug.assetId` HAS BEEN IN THE MODEL SINCE THE IDENTITY WAS
+   * WRITTEN AND WAS READ BY NOTHING. `marksFor` pushed a bug only
+   * where there was TEXT, so a channel that uploaded a logo and
+   * cleared the name got no bug at all — the fourth capability this
+   * product declared and did not reach.
+   *
+   * And `drawtext` could never have drawn one, which is why it
+   * waited for a compositor that draws pages.
+   */
+  const LOGO = 'data:image/png;base64,iVBORw0KGgo=';
+
+  it('draws the picture where one is given', () => {
+    const html = marksHtml([mark({ picture: 'asset_logo', text: '' })],
+      FRAME, { asset_logo: LOGO });
+    expect(html).toContain('<img');
+    expect(html).toContain(LOGO);
+  });
+
+  /*
+   * SIZED BY ITS HEIGHT AND NOT ITS WIDTH. A bug is a thing of a
+   * certain height in the corner of a frame whatever shape the
+   * artwork is; sizing by width makes a wide wordmark tiny and a
+   * square emblem enormous.
+   */
+  it('sizes it by height and lets the width follow', () => {
+    const html = marksHtml([mark({ picture: 'asset_logo', text: '' })],
+      FRAME, { asset_logo: LOGO });
+    expect(html).toContain('width:auto');
+    expect(html).toMatch(/height:\d+px;width:auto/);
+  });
+
+  /*
+   * AND A MARK WHOSE PICTURE HAS GONE DRAWS NOTHING, rather than
+   * its own empty string. A logo deleted from the library leaves a
+   * channel with no bug, which is what it had before anybody
+   * uploaded one; an empty plate in the corner looks deliberate.
+   */
+  it('draws nothing at all when the picture is missing', () => {
+    const html = marksHtml([mark({ picture: 'asset_gone', text: '' })],
+      FRAME, {});
+    expect(html).toContain('<body></body>');
+  });
+
+  it('still draws a text bug beside a picture one', () => {
+    const html = marksHtml([
+      mark({ picture: 'asset_logo', text: '', corner: 'top-right' }),
+      mark({ kind: 'lamp', text: 'LIVE', corner: 'top-left', plate: true }),
+    ], FRAME, { asset_logo: LOGO });
+    expect(html).toContain('<img');
+    expect(html).toContain('LIVE');
+  });
+
+  /* A changed logo is a different overlay. */
+  it('keys a picture bug apart from a text one', () => {
+    expect(overlayKey([mark({ picture: 'a', text: '' })], FRAME))
+      .not.toBe(overlayKey([mark({ picture: 'b', text: '' })], FRAME));
+    expect(overlayKey([mark({ picture: 'a', text: '' })], FRAME))
+      .not.toBe(overlayKey([mark()], FRAME));
+  });
+});

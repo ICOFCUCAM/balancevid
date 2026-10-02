@@ -135,7 +135,19 @@ export function twoLines(text: string): { lead: string; under?: string } {
  * this is one composite, which is cheaper on a box that has to stay
  * ahead of real time.
  */
-export function marksHtml(marks: readonly Mark[], frame: Frame): string {
+export function marksHtml(
+  marks: readonly Mark[], frame: Frame,
+  /**
+   * A LOGO'S BYTES, resolved by the caller.
+   *
+   * The mark names a library asset, because a stored reference has
+   * to mean the same thing on another machine (§3, D-18). Turning
+   * that name into bytes is the compositor's job and inlining them
+   * is the page's only way to see a picture — it is given no
+   * network and no disk. [D-06, C-26, C-44]
+   */
+  pictures: Readonly<Record<string, string>> = {},
+): string {
   /* The lower marks stack upward, so NEXT sits under the title —
      counted separately from a region, because a mark in a region and
      a mark in a corner are not in each other's way. [C-20] */
@@ -161,6 +173,26 @@ export function marksHtml(marks: readonly Mark[], frame: Frame): string {
       : '';
     const shadow = mark.plate ? '' : 'text-shadow:0 1px 3px rgba(0,0,0,0.55)';
 
+    /*
+     * A STATION'S LOGO, SIZED BY ITS HEIGHT AND NOT ITS WIDTH. A
+     * bug is a thing of a certain height in the corner of a frame,
+     * whatever shape the artwork is; sizing by width would make a
+     * wide wordmark tiny and a square emblem enormous.
+     */
+    const art = mark.picture ? pictures[mark.picture] : undefined;
+    if (art) {
+      return `<div class="m" style="${where};opacity:${
+        mark.opacity.toFixed(2)}"><img alt="" src="${art}" style="`
+        + `height:${Math.round(size * 2.1)}px;width:auto;display:block;`
+        + 'filter:drop-shadow(0 1px 3px rgba(0,0,0,0.55))"></div>';
+    }
+    /*
+     * AND A MARK WHOSE PICTURE IS MISSING DRAWS NOTHING RATHER THAN
+     * ITS OWN EMPTY STRING. A logo deleted from the library is a
+     * channel with no bug, which is what it was before anybody
+     * uploaded one; an empty plate in the corner looks deliberate.
+     */
+    if (mark.picture || !mark.text.trim()) return '';
     if (mark.kind === 'lower-third') {
       const { lead, under } = twoLines(mark.text);
       return `<div class="m" style="${where};${plate}">`

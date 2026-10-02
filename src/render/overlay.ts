@@ -60,6 +60,8 @@ const drawing = new Set<string>();
  */
 export function overlayNow(
   marks: readonly Mark[], frame: Frame, into: string,
+  /** Where a named logo's bytes are, resolved by the caller. [C-44] */
+  fileOf?: (assetId: string) => string | undefined,
 ): string | undefined {
   if (marks.length === 0) return undefined;
   const key = overlayKey(marks, frame);
@@ -67,7 +69,7 @@ export function overlayNow(
   if (have) return have;
   if (!drawing.has(key)) {
     drawing.add(key);
-    void draw(marks, frame, join(into, `${key}.png`))
+    void draw(marks, frame, join(into, `${key}.png`), fileOf)
       .then((path) => { if (path) drawn.set(key, path); })
       .catch(() => undefined)
       .finally(() => drawing.delete(key));
@@ -85,8 +87,31 @@ export function overlayNow(
  */
 export async function draw(
   marks: readonly Mark[], frame: Frame, outPath: string,
+  fileOf?: (assetId: string) => string | undefined,
 ): Promise<string | undefined> {
   await mkdir(join(outPath, '..'), { recursive: true });
+  /*
+   * A LOGO'S BYTES, INLINED.  [D-06, C-26, C-44]
+   *
+   * The page is forbidden the network and the disk, so a `file://`
+   * would be handing it the filesystem. The same bargain
+   * `renderSlide` makes with a slide's picture, for the same
+   * reason.
+   */
+  const pictures: Record<string, string> = {};
+  for (const mark of marks) {
+    if (!mark.picture || pictures[mark.picture]) continue;
+    const where = fileOf?.(mark.picture);
+    if (!where) continue;
+    try {
+      const { readFile } = await import('node:fs/promises');
+      const bytes = await readFile(where);
+      const type = where.toLowerCase().endsWith('.png')
+        ? 'image/png' : where.toLowerCase().endsWith('.svg')
+          ? 'image/svg+xml' : 'image/jpeg';
+      pictures[mark.picture] = `data:${type};base64,${bytes.toString('base64')}`;
+    } catch { /* A logo that has gone is a channel with no bug. */ }
+  }
   let browser;
   try {
     const { chromium } = await import('playwright');
@@ -101,7 +126,8 @@ export async function draw(
       deviceScaleFactor: 1,
     });
     await page.route('**/*', (route) => route.abort());
-    await page.setContent(marksHtml(marks, frame), { waitUntil: 'load' });
+    await page.setContent(marksHtml(marks, frame, pictures),
+      { waitUntil: 'load' });
     /*
      * `omitBackground` IS THE WHOLE THING. Without it the screenshot
      * carries an opaque white page and the overlay covers the

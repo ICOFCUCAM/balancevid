@@ -135,6 +135,20 @@ export interface Mark {
   opacity: number;
   /** Points, against a 720-line frame. The encoder scales with the picture. */
   size: number;
+  /**
+   * A LOGO INSTEAD OF A NAME.  [brief point 1, C-44]
+   *
+   * A library asset id, never a path, like every other reference in
+   * this product (§3, D-18) — the compositor turns it into bytes.
+   *
+   * `bug.assetId` has been in the model since the identity was
+   * written and was read by NOTHING: `marksFor` pushed a bug only
+   * where there was TEXT, so a channel that uploaded a logo and
+   * cleared the name got no bug at all. The fourth capability this
+   * product declared and did not reach, after `slideReady` (C-36),
+   * `ACTION_SAFE` (C-38) and `data-keys="own"` (C-39).
+   */
+  picture?: string;
   /** A filled plate behind the text, for the marks that need to be read. */
   plate?: boolean;
   ink: string;
@@ -183,10 +197,21 @@ export function marksFor(
    */
   const scene = setById(identity.setId);
 
-  if (identity.bug?.text) {
+  /*
+   * A LOGO BEATS A NAME, and either is a bug.  [brief point 1, C-44]
+   *
+   * The picture is what a station with one wants in the corner, and
+   * a channel that has uploaded a logo has said so. The text stays
+   * the fallback it always was, because a channel that has just
+   * been created has a name and does not have a logo — and a bug
+   * that appeared only once somebody made a PNG is a feature most
+   * channels never get.
+   */
+  if (identity.bug?.assetId || identity.bug?.text) {
     marks.push({
       kind: 'bug',
-      text: identity.bug.text,
+      text: identity.bug.assetId ? '' : identity.bug.text ?? '',
+      ...(identity.bug.assetId ? { picture: identity.bug.assetId } : {}),
       corner: identity.bug.corner,
       opacity: identity.bug.opacity,
       size: 22,

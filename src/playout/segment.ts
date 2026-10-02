@@ -45,6 +45,7 @@ import {
 } from '../domain/transition.js';
 import { paths } from '../store/paths.js';
 import { pathFor } from '../store/playoutSources.js';
+import { libraryFile } from '../store/libraryMedia.js';
 
 /**
  * What the stream looks like. Constant across every programme.
@@ -133,7 +134,9 @@ export async function produceSegment(
    * paused for a browser to start would stutter every time its
    * caption changed.
    */
-  const overlay = overlayNow(marks, STREAM, paths.overlays());
+  const overlay = overlayNow(marks, STREAM, paths.overlays(),
+    /* A logo names a library asset; the store turns it into a file. */
+    (assetId) => libraryFile(assetId, { moving: false })?.path);
 
   const reads = playoutWindow(channel, fromAt, toAt, (source) => {
     const path = pathFor(channel, source);
