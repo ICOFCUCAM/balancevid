@@ -33,6 +33,7 @@
 import type { TakeAccess } from './availability.js';
 import type { Id } from './ids.js';
 import type { ChannelIdentity } from './identity.js';
+import type { Station } from './station.js';
 import type { Destination } from './distribution.js';
 import type { Room } from './document.js';
 import type { Participant } from './participants.js';
@@ -549,6 +550,20 @@ export interface Channel {
    * Changing it changes every future second and touches no stored file.
    */
   identity?: ChannelIdentity;
+  /**
+   * WHAT THE WORLD CALLS IT.  [§2, §3, TV-NETWORK N-1]
+   *
+   * Distinct from `identity`, which is what the channel DRAWS — the
+   * bug, the lamp, the lower third. This is what it is CALLED: the
+   * address, the callsign, the language, the shelf it sits on in a
+   * directory. One is for the picture and one is for the listing,
+   * and a single `identity` holding both would be a field whose
+   * meaning depends on who is reading it.
+   *
+   * Absent on every channel that has not been given one, which is
+   * every channel that exists today.
+   */
+  station?: Station;
   recordings: BroadcastRecording[];
   /**
    * What goes out when nothing is scheduled.  [§4]
