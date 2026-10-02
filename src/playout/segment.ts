@@ -37,6 +37,7 @@ import {
   FfmpegError, type RunOptions, canDrawText, ffmpeg,
 } from '../render/ffmpeg.js';
 import { noteFailure, reasonFrom } from '../store/playoutHealth.js';
+import type { Aired } from '../domain/asRun.js';
 import { paths } from '../store/paths.js';
 import { pathFor } from '../store/playoutSources.js';
 
@@ -77,7 +78,16 @@ export async function produceSegment(
   channel: Channel, index: number,
   factsOf: (path: string) => SourceFacts | undefined,
   opts: RunOptions = {},
-): Promise<void> {
+/**
+ * WHAT IT ACTUALLY PUT OUT, for the as-run.  [§5, C-32]
+ *
+ * Returned rather than looked up again afterwards, because this
+ * function is the only place that knows BOTH what the schedule
+ * asked for and whether the encoder managed it. An as-run derived
+ * from the document would report a failed render as a perfect
+ * programme, which is the one thing it exists not to do.
+ */
+): Promise<Aired> {
   const fromAt = segmentStart(index);
   const toAt = fromAt + SEGMENT_MS;
   const target = paths.channelSegment(channel.id, index);
@@ -117,6 +127,7 @@ export async function produceSegment(
    * up with real time.
    */
   const pieces: string[] = [];
+  let fellBackHere = false;
   for (const [ordinal, read] of reads.entries()) {
     const piece = `${target}.${ordinal}.part.ts`;
     /*
@@ -124,8 +135,10 @@ export async function produceSegment(
      * inside the segment, so the pieces are one continuous timeline before
      * they are joined rather than two clips that each start at zero.
      */
-    await encodePiece(
-      channel, read, piece, factsOf, read.atMs - fromAt, marks, canText, opts);
+    if (await encodePiece(
+      channel, read, piece, factsOf, read.atMs - fromAt, marks, canText, opts)) {
+      fellBackHere = true;
+    }
     pieces.push(piece);
   }
 
@@ -166,8 +179,29 @@ export async function produceSegment(
   if (!made || made.size < 1024) {
     await rm(temp, { force: true });
     await black((SEGMENT_MS / 1000).toFixed(3), temp, 0, marks, opts);
+    /*
+     * AND THIS COUNTS. ffmpeg exiting successfully having written no
+     * packets is the commonest way a channel goes quietly black —
+     * the fallback above catches errors, and this catches silence.
+     * An as-run that recorded only the loud failures would miss the
+     * ones that matter most. [C-24, C-32]
+     */
+    fellBackHere = true;
   }
   await rename(temp, target);
+
+  /*
+   * WHAT WENT OUT, named as it was named at the time. Titles get
+   * edited; an as-run row says what the thing was called when it
+   * was broadcast, which is the question a rights holder asks.
+   */
+  const on = whatIsOn(channel, fromAt);
+  return {
+    index,
+    source: on.kind === 'off' ? null : on.source,
+    title: on.kind === 'off' ? 'Off air' : titleOf(channel, on),
+    fellBack: fellBackHere,
+  };
 }
 
 /** Byte-append, in order, through a stream so a long segment is not buffered. */
@@ -302,7 +336,16 @@ async function encodePiece(
   marks: Mark[],
   canText: boolean,
   opts: RunOptions,
-): Promise<void> {
+/**
+ * TRUE WHEN IT PUT BLACK OUT INSTEAD OF WHAT WAS ASKED FOR.
+ *
+ * Reported rather than merely survived, because the as-run has to
+ * say so: those four seconds were black on the wire and perfect in
+ * the document, which is exactly the gap a log derived from the
+ * schedule could not show. [C-24, C-32]
+ */
+): Promise<boolean> {
+  let broke = false;
   const seconds = (read.durationMs / 1000).toFixed(3);
   const path = read.offAir ? undefined : pathFor(channel, read.source);
   const facts = path ? factsOf(path) : undefined;
@@ -331,8 +374,9 @@ async function encodePiece(
     ], opts).catch(async (error: unknown) => {
       await fellBack(channel.id, error);
       await black(seconds, out, offsetMs, marks, opts);
+      broke = true;
     });
-    return;
+    return broke;
   }
 
   /*
@@ -357,8 +401,15 @@ async function encodePiece(
    */
   const following = read.source.kind === 'live' && !read.notYet;
   if (!path || (!facts && !following)) {
+    /*
+     * NOT A FALLBACK. A channel with nothing scheduled is black by
+     * design (`whyDark`, C-28's `expectsPicture`), and counting it
+     * as a render failure would fill the as-run's black column with
+     * every gap between two programmes. The other kind — a source
+     * that existed and could not be rendered — is below. [C-24]
+     */
     await black(seconds, out, offsetMs, marks, opts);
-    return;
+    return false;
   }
 
   /*
@@ -412,7 +463,9 @@ async function encodePiece(
      */
     await fellBack(channel.id, error);
     await black(seconds, out, offsetMs, marks, opts);
+    broke = true;
   });
+  return broke;
 }
 
 /**

@@ -43,6 +43,8 @@ import { ffprobe } from '../render/ffmpeg.js';
 import { beat } from '../store/playoutHealth.js';
 import { produceSegment, type SourceFacts } from './segment.js';
 import { reconcileSenders, settle, stopAllSenders } from './send.js';
+import { type Aired, type Ran, fold } from '../domain/asRun.js';
+import { recordRan } from '../store/asRun.js';
 
 /**
  * How far ahead of the playhead to keep the stream.
@@ -136,7 +138,8 @@ export async function advance(channel: Channel, nowMs = Date.now()): Promise<num
       await access(target);
       continue;
     } catch { /* not there yet, which is why we are here. */ }
-    await produceSegment(channel, index, (path) => facts.get(path));
+    const aired = await produceSegment(channel, index, (path) => facts.get(path));
+    await logAired(channel.id, aired);
     made += 1;
   }
 
@@ -153,6 +156,44 @@ export async function advance(channel: Channel, nowMs = Date.now()): Promise<num
  * forbids — the whole schedule, re-encoded, forever, with nobody having asked
  * for it. Somebody who wants that asks for a recording (§6).
  */
+/* ------------------------------------------------------------------------ *
+ *  The as-run.  [§5, §18, D-18, C-32]
+ * ------------------------------------------------------------------------ */
+
+/**
+ * The stretch each channel is in the middle of.
+ *
+ * HELD IN MEMORY AND WRITTEN ONCE. A stretch grows four seconds at
+ * a time for as long as a programme lasts, and appending a line per
+ * segment would turn a half-hour programme into 450 lines of a file
+ * somebody is meant to read. Only the finished shape is written.
+ *
+ * The cost is that an engine killed mid-programme loses the open
+ * stretch, which is why `main` closes them on the way out — and why
+ * losing one is survivable: the segments it describes are gone too,
+ * swept within the minute, so there is nothing it could be checked
+ * against anyway.
+ */
+const openRun = new Map<string, Ran>();
+
+async function logAired(channelId: string, aired: Aired): Promise<void> {
+  const open = openRun.get(channelId);
+  const folded = fold(open ? [open] : [], aired);
+  /* Two entries means the one that was open has ended. */
+  if (folded.length > 1) {
+    await recordRan(channelId, folded[0]!).catch(() => undefined);
+  }
+  openRun.set(channelId, folded[folded.length - 1]!);
+}
+
+/** Write down whatever was still running. Called on the way out. */
+async function closeRuns(): Promise<void> {
+  for (const [channelId, ran] of openRun) {
+    await recordRan(channelId, ran).catch(() => undefined);
+  }
+  openRun.clear();
+}
+
 /**
  * The playlist a sender reads.  [§15, D-21, C-29]
  *
@@ -297,6 +338,12 @@ async function main(): Promise<void> {
       await new Promise((resolve) => { setTimeout(resolve, 200); });
     }
   }
+  /*
+   * THE OPEN STRETCHES GO DOWN BEFORE THE PROCESS DOES. An as-run
+   * missing the programme that was on when the engine was stopped is
+   * an as-run missing the thing somebody is most likely to ask about.
+   */
+  await closeRuns();
   process.stdout.write('playout: off air\n');
 }
 

@@ -4068,3 +4068,109 @@ instant it was asked about. **Deleted rather than defended**, the
 tenth in this project, with the invariant it was guarding kept as the
 test that every stretch has width. An untested guard against a case
 the layer below forbids is a guard nobody can check.
+
+---
+
+## C-32 — Stage 32: a record of what actually went out
+
+The audit's last open row: *"As-run | None | A log of what actually
+transmitted, which broadcasters need."*
+
+### It is not the audit log, and that is the whole point
+
+This product already keeps `audit.log` per channel, append-only, and
+it records **what somebody did to the document** — created a channel,
+added a turn to the rotation. That is a record of *intentions*.
+
+An as-run records **what came out of the transmitter**, which is a
+record of *outcomes*, and the two disagree exactly when it matters: a
+programme that was scheduled and never played is in one and not the
+other. That gap is the whole reason broadcasters keep an as-run.
+
+**Nor is it the schedule walked.** `airtime` (C-31) answers *what
+will this channel show*, from the document. This answers *what did
+it show*, from the segments the engine actually wrote. A channel
+whose encoder failed for ten minutes has an untouched schedule and a
+very different as-run — and a log derived from the document would
+report the ten minutes as perfect. That is C-24's fault, recorded.
+
+### `produceSegment` is the only thing that knows
+
+It already computes what is on and whether ffmpeg managed it, so it
+returns an `Aired` rather than being asked again afterwards. The
+`fellBack` flag is threaded out of the three paths that put black on
+the wire, and the distinction C-28 drew is kept:
+
+* **a source that could not be rendered** counts as black in the log;
+* **a channel with nothing scheduled** does not — it is black by
+  design, and counting it would fill the black column with every gap
+  between two programmes.
+
+And the quiet one counts too: *ffmpeg exiting successfully having
+written no packets* is the commonest way a channel goes black, and an
+as-run that recorded only the loud failures would miss the ones that
+matter most.
+
+### Coalesced before it is written
+
+Four seconds at a time goes in; stretches come out. The engine holds
+the open stretch in memory and appends only its finished shape — a
+half-hour programme is one line, not 450.
+
+**A gap starts a new entry even when the thing is the same.** The
+engine can be stopped and restarted, and joining across the hole
+would be the log claiming continuous transmission across exactly the
+outage it exists to record. The open stretches are written down on
+the way out, because an as-run missing the programme that was on when
+the engine stopped is missing the thing somebody is most likely to
+ask about.
+
+### The one thing here that is an archive
+
+D-18 is careful that segments are transport and not an archive —
+written, served for half a minute, swept. The as-run is the opposite
+by design: it is what survives them, and nothing deletes it. One file
+per **UTC** day, because a log whose days turn in the channel's local
+zone has a day with twenty-five hours in it once a year.
+
+### What gets handed over
+
+CSV, because an as-run is evidence — for a regulator, a rights
+holder, an advertiser — and the people who ask for one ask for a file
+they can open, not an endpoint they can query. JSON from the same
+route for anybody building on it.
+
+    start,end,seconds,title,source,id,black_seconds
+
+**Owner's only.** An as-run names every asset a channel played and
+when: a schedule, an inventory and a set of viewing figures'
+denominators in one. None of it is a viewer's business. [§17]
+
+### Measured on a real engine run
+
+The engine was started against the author's own channel and left to
+run:
+
+| | |
+|---|---|
+| segments produced | 153 |
+| rows written | **1** |
+| the row | `08:26:24 → 08:36:36`, 612s, black 0 |
+| JSON | `day`, `days`, `ran` |
+| CSV | `content-type: text/csv`, named `as-run-<channel>-<day>.csv` |
+| without a cookie | **401** |
+| `?day=../../etc` | **400** |
+
+`playout: off air` printed on the way out, which is the shutdown path
+writing the open stretch — the row above ends at the moment the
+engine stopped.
+
+### The record
+
+Eighteen assertions, thirteen mutations, all thirteen caught.
+
+Two had to be re-run through a file because the shell ate their
+escaping — the CSV quoting and the header — and those two are worth
+the second attempt: a title with a comma in it is a title and not two
+columns, and a file whose first line is data is a file somebody will
+read one row short.
