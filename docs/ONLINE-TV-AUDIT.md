@@ -253,3 +253,27 @@ and both are reported rather than diagnosed.
 Each needs one reading of `/api/channels/{id}` while the state is live
 to settle. Neither should be guessed at from a screenshot, including by
 me.
+
+### Settled — see CHANNEL C-31
+
+Measured rather than guessed, and they turned out to be **one fault
+wearing two coats**: a surface showing the answer to one question
+beside the answer to another, with nothing saying they were different
+questions.
+
+* **ON AIR beside "Nothing currently on air".** `transmitting` asks
+  the TRANSMITTER; `showing` asks the SCHEDULE. An off-air channel
+  with the engine running satisfies the first and not the second,
+  because `segment.ts` keeps writing black so players do not treat
+  the gap as the end of the stream. Both halves were true. Reproduced
+  by construction, not inferred.
+* **A full timeline against "0 scheduled · no loop".** Only a
+  programme and a turn of the loop know when they end, so the walker
+  advanced by five minutes for everything else and pushed a block
+  each time. An empty channel drew a day of five-minute items, every
+  one of them nothing. **A step is not a structure.**
+
+Measured before and after on the same data: an empty channel with the
+engine running read `ON AIR` and drew ~72 blocks across six hours; it
+now reads `ON AIR · BLANK` and draws **one**. The author's real
+channel is unchanged at 26 stretches.

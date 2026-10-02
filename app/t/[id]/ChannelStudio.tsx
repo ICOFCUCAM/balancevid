@@ -18,6 +18,7 @@ import { LIVE_DELAY_MS } from '../../../src/domain/playout.js';
 import {
   FLASH_MS, type DeskTab, type RailTab, jumpFor,
 } from '../../../src/domain/fragments.js';
+import { airtime } from '../../../src/domain/airtime.js';
 import {
   type Bus, busFor, onProgramCount, roomOnProgram, saysFor,
 } from '../../../src/domain/multiView.js';
@@ -1010,19 +1011,18 @@ export default function ChannelStudio({
    * alone would be a lane that lies about every gap the loop fills — and the
    * gaps are most of a channel's day. [§4, §5]
    */
-  const segments: Segment[] = useMemo(() => {
-    const out: Segment[] = [];
-    let at = windowFrom;
-    for (let guard = 0; guard < 240 && at < windowTo; guard += 1) {
-      const state = whatIsOn(channel, at);
-      const ends = (state.kind === 'programme' || state.kind === 'rotation')
-        ? state.untilMs : at + 5 * MINUTE;
-      const toMs = Math.min(windowTo, Math.max(ends, at + MINUTE));
-      out.push({ fromMs: at, toMs, on: state, title: titleOf(state) });
-      at = toMs;
-    }
-    return out;
-  }, [channel, windowFrom, windowTo, titleOf]);
+  /*
+   * THE WALK MOVED TO THE DOMAIN, where the five-minute step could be
+   * seen for what it is: a sampling rate, not a structure. Inside
+   * this `useMemo` it drew an empty channel as a day of five-minute
+   * items — the author's *"full schedule timeline with 0 scheduled
+   * and no loop"*. [C-31]
+   */
+  const segments: Segment[] = useMemo(
+    () => airtime(channel, windowFrom, windowTo).map((stretch) => ({
+      ...stretch, title: titleOf(stretch.on),
+    })),
+    [channel, windowFrom, windowTo, titleOf]);
 
   const railRows = useMemo(() => {
     const needle = (filter ?? '').trim().toLowerCase();

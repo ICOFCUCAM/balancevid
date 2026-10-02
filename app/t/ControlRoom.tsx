@@ -1,6 +1,7 @@
 import Link from 'next/link';
 
 import Icon from '../Icon.js';
+import { type AirState, airMeans, airSays } from '../../src/domain/health.js';
 import { NewWork } from '../Room.js';
 import type { DestinationKind } from '../../src/domain/distribution.js';
 import { MARK } from '../platformMark.js';
@@ -12,6 +13,8 @@ export interface OnTheAir {
   timezone: string;
   /** What the SCHEDULE says should be playing, or nothing. */
   scheduled: string | null;
+  /** What the badge says, decided once in the domain. [C-31] */
+  air: AirState;
   showing: string | null;
   /** Whether segments are actually arriving. */
   transmitting: boolean;
@@ -82,7 +85,7 @@ export default function ControlRoom({
               </span>
               <strong className="tv-channel-name">{one.name}</strong>
               <span className="tv-channel-state">
-                <Lamp on={one.transmitting} scheduled={Boolean(one.scheduled)} />
+                <Lamp air={one.air} />
                 <span className="tv-channel-under">Continuous channel</span>
               </span>
               <span className="tv-channel-next">
@@ -138,7 +141,7 @@ function ChannelDesk({ channel }: { channel: OnTheAir }) {
         */}
       <div className="row" style={{ gap: 14, flexWrap: 'wrap' }}>
         <strong className="tv-desk-name">{channel.name}</strong>
-        <Lamp on={channel.transmitting} scheduled={Boolean(channel.scheduled)} />
+        <Lamp air={channel.air} />
       </div>
 
       {/*
@@ -171,9 +174,16 @@ function ChannelDesk({ channel }: { channel: OnTheAir }) {
             <Icon name="broadcast" size={18} />
           </span>
           <span className="tv-preview-name">{channel.name}</span>
-          <span className="tv-preview-state">
-            {channel.transmitting ? 'ON AIR'
-              : channel.scheduled ? 'DUE ON AIR' : 'OFF AIR'}
+          {/*
+            * ONE BADGE, FROM ONE DECISION. It used to read
+            * `transmitting ? 'ON AIR' : …`, which asks the
+            * transmitter, beside a NOW line that asks the schedule —
+            * so a channel putting black out with nothing on it said
+            * ON AIR above "Nothing currently on air". Both true, and
+            * the pair a lie. [C-31]
+            */}
+          <span className="tv-preview-state" data-air={channel.air}>
+            {airSays(channel.air)}
           </span>
           {/*
             * WHAT IS COMING, ON ONE LINE UNDER A RULE — the shape a
@@ -370,13 +380,20 @@ function Distribution({ channel }: { channel: OnTheAir }) {
  * playing and nothing is going out" is the condition a control room exists
  * to reveal, and a two-state lamp has nowhere to put it.
  */
-function Lamp({ on, scheduled }: { on: boolean; scheduled: boolean }) {
-  const said = on ? 'ON AIR' : scheduled ? 'DUE, NOT TRANSMITTING' : 'OFF AIR';
+function Lamp({ air }: { air: AirState }) {
+  const on = air === 'on';
+  const said = airMeans(air);
   return (
-    <span data-testid="channel-lamp" data-state={on ? 'on' : scheduled ? 'due' : 'off'}
-          className="tv-lamp">
+    /*
+     * BLANK TAKES THE DUE LAMP, not the on one: the transmitter is
+     * up, and the thing an operator should look at is the empty
+     * schedule. Three colours and four states, which is the trade
+     * `airSays` makes on purpose — a word is read faster than a
+     * fourth colour is learnt. [D-04]
+     */
+    <span data-testid="channel-lamp" data-state={air} className="tv-lamp">
       <span aria-hidden="true" className={on ? 'tv-dot is-on'
-        : scheduled ? 'tv-dot is-due' : 'tv-dot'} />
+        : air === 'off' ? 'tv-dot' : 'tv-dot is-due'} />
       {said}
     </span>
   );

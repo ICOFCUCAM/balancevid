@@ -269,3 +269,79 @@ export function stillFailing(
   const at = Date.parse(failure.at);
   return Number.isFinite(at) && now - at <= FAILURE_FRESH_MS;
 }
+
+/* ------------------------------------------------------------------------ *
+ *  What the badge says.  [§18, §5, D-04, C-31]
+ * ------------------------------------------------------------------------ */
+
+/**
+ * ON AIR, and what it has to mean.
+ *
+ * THE FAULT, which the author saw on a card before anybody measured
+ * it: *"'ON AIR' and 'Nothing currently on air' in the same card."*
+ *
+ * Both halves were true. `transmitting` asks THE TRANSMITTER whether
+ * segments are arriving; `showing` asks THE SCHEDULE what is on. An
+ * off-air channel with the engine running satisfies the first and not
+ * the second, because `segment.ts` keeps writing — *"A channel with a
+ * hole in its schedule must still put four seconds on the wire, or
+ * every player treats the gap as the end of the stream and stops.
+ * Black and silence, generated."*
+ *
+ * So the card put a badge answering one question beside a line
+ * answering another, with nothing saying they were different
+ * questions. That is the same shape `controlRoomNote` exists to
+ * prevent one level down, and the answer is the same: decide it in
+ * one place, where it can be tested.
+ *
+ * FOUR STATES AND NOT THREE. The missing one is the interesting one —
+ * a transmitter that is up and a schedule with nothing in it, which
+ * is a real and correct condition that neither ON AIR nor OFF AIR
+ * describes. A channel putting black out is not off the air; it is on
+ * the air with nothing on it, and an operator who cannot tell those
+ * apart from across a room cannot tell a quiet afternoon from a dead
+ * encoder. [D-04]
+ */
+export type AirState =
+  /** Segments arriving, and something on. */
+  | 'on'
+  /** Segments arriving, and nothing scheduled: black, correctly. */
+  | 'blank'
+  /** Something is due and nothing is arriving. The fault. */
+  | 'due'
+  /** Nothing due and nothing arriving. */
+  | 'off';
+
+export function airState(stream: StreamState, hasSomethingOn: boolean): AirState {
+  if (stream === 'transmitting') return hasSomethingOn ? 'on' : 'blank';
+  return hasSomethingOn ? 'due' : 'off';
+}
+
+/**
+ * The badge, in the fewest words that are still true.
+ *
+ * `ON AIR · BLANK` rather than a fourth colour: an operator reads
+ * three lamp colours and a word faster than four colours, and BLANK
+ * is the word a gallery already uses for a bus with nothing on it.
+ */
+export function airSays(state: AirState): string {
+  switch (state) {
+    case 'on': return 'ON AIR';
+    case 'blank': return 'ON AIR · BLANK';
+    case 'due': return 'DUE ON AIR';
+    default: return 'OFF AIR';
+  }
+}
+
+/**
+ * The same four, where there is room for a sentence — the lamp's
+ * title, and the row in the channel list.
+ */
+export function airMeans(state: AirState): string {
+  switch (state) {
+    case 'on': return 'ON AIR';
+    case 'blank': return 'ON AIR, NOTHING SCHEDULED';
+    case 'due': return 'DUE, NOT TRANSMITTING';
+    default: return 'OFF AIR';
+  }
+}

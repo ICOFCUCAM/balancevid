@@ -3959,3 +3959,112 @@ appears about 300ms after the page commits.
 
 `ONLINE-TV-AUDIT.md` §3 and §5 are updated: all three of the items
 that section ranked above the rest are now in.
+
+---
+
+## C-31 — Stage 31: two things the author saw, measured at last
+
+The audit listed both under *"Two inconsistencies worth verifying"*
+and refused to diagnose either:
+
+> *"Each needs one reading of `/api/channels/{id}` while the state is
+> live to settle. Neither should be guessed at from a screenshot,
+> including by me."*
+
+They are one fault wearing two coats: **a surface showing the answer
+to one question beside the answer to another, with nothing saying
+they were different questions.** That is the shape `controlRoomNote`
+exists to prevent one level down, and the remedy is the same — decide
+it in one place, where it can be tested.
+
+### "ON AIR" above "Nothing currently on air"
+
+`transmitting` asks THE TRANSMITTER whether segments are arriving.
+`showing` asks THE SCHEDULE what is on. An off-air channel with the
+engine running satisfies the first and not the second, because
+`segment.ts` keeps writing — *"A channel with a hole in its schedule
+must still put four seconds on the wire, or every player treats the
+gap as the end of the stream and stops. Black and silence,
+generated."*
+
+Both halves were true and the card was a lie. **Reproduced by
+construction**, not inferred: a channel with an empty rotation and no
+programmes, with segments a second old, produces exactly
+`badge: "ON AIR"` and `now: "Nothing currently on air"`.
+
+`airState` gives **four states where there were three**, and the
+missing one is the interesting one:
+
+| | transmitting | nothing arriving |
+|---|---|---|
+| **something on** | `on` — ON AIR | `due` — DUE, NOT TRANSMITTING |
+| **nothing on** | `blank` — **ON AIR · BLANK** | `off` — OFF AIR |
+
+A channel putting black out is not off the air; it is on the air with
+nothing on it. An operator who cannot tell those apart from across a
+room cannot tell a quiet afternoon from a dead encoder.
+
+**A word, not a fourth lamp colour.** Three colours and four states
+is the trade: BLANK takes the amber lamp, because the thing to look
+at is the empty schedule, and a word is read faster than a fourth
+colour is learnt. [D-04]
+
+### A full timeline against "0 scheduled · no loop"
+
+Only a programme and a turn of the loop know when they END. Off air,
+a live feed and the emergency cut-away run until somebody changes
+them — so the walk had to advance by *something*, and it advanced by
+five minutes and pushed a block each time.
+
+An empty channel therefore drew **a day of five-minute items, every
+one of them nothing**, beside a footer correctly reporting that
+nothing was scheduled.
+
+**A step is not a structure.** The five minutes is how often the
+walker asks, and asking twelve times an hour is not twelve things an
+hour. Stretches with no end of their own are joined back together, so
+a quiet afternoon is one quiet afternoon.
+
+**And two turns of the same loop are never joined**, which is the line
+that makes this a fix rather than a smoothing: a programme and a
+rotation entry each carry an `untilMs`, so where they end is a fact
+about the schedule and not about the walker. Joining those would hide
+the loop point, which is the one thing an operator looks at a rotation
+lane to find.
+
+The walk moved out of a `useMemo` and into `src/domain/airtime.ts`,
+where the five-minute step could be seen for what it was. *"What will
+this channel show this afternoon"* is a question about a document and
+a clock.
+
+### Measured, before and after, on the same data
+
+| | before | after |
+|---|---|---|
+| empty channel, engine writing | `ON AIR` beside "Nothing currently on air" | `ON AIR · BLANK` / lamp `ON AIR, NOTHING SCHEDULED` |
+| empty channel, six-hour window | ~72 five-minute blocks | **1 stretch** |
+| the author's real channel | `ON AIR`, 26 stretches | **unchanged** |
+
+The last row is the one that matters most: the fix changes the two
+broken cases and nothing else.
+
+### The record
+
+Seventeen assertions, fourteen mutations, thirteen caught.
+
+**Two survivors, and only one was a redundant guard.** The kind check
+in `joinable` looked redundant beside the source-key check — until
+the case that needs it was written down: the emergency cut-away and
+the backup can be the same file, and joining them would draw one
+stretch over the moment an operator pressed EMERGENCY, which is the
+moment a timeline exists to show. The guard stays and now has its
+test.
+
+The minimum step under the walk did not. It was there against a
+malformed turn whose end is not after its start, and it survived
+every mutation — including a document carrying a zero-length rotation
+entry — because `whatIsOn` never answers with an end at or before the
+instant it was asked about. **Deleted rather than defended**, the
+tenth in this project, with the invariant it was guarding kept as the
+test that every stretch has width. An untested guard against a case
+the layer below forbids is a guard nobody can check.
