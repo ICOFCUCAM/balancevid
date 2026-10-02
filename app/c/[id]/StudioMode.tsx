@@ -19,6 +19,7 @@ import Mark from './Mark.js';
 import Icon from '../../Icon.js';
 import { LAYOUTS, TYPE_PRESENTATION } from '../../../src/domain/presentation.js';
 import { HOUSE_FPS, formatTimecode } from '../../../src/domain/time.js';
+import { bodyOf } from '../../../src/domain/saidBy.js';
 
 interface Props {
   conversationId: string;
@@ -861,7 +862,7 @@ function ClipsPanel({ conversationId }: { conversationId: string }) {
   const load = useCallback(async () => {
     const response = await fetch(`/api/conversations/${conversationId}/clips`, { cache: 'no-store' });
     if (!response.ok) return;
-    const data = await response.json();
+    const data = bodyOf(await response.text());
     setCandidates(data.candidates ?? []);
     setJobs(data.jobs ?? []);
   }, [conversationId]);

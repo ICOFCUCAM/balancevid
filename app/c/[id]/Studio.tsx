@@ -38,6 +38,8 @@ import { TYPE_PRESENTATION } from '../../../src/domain/presentation.js';
 import { forDisplay, type Transcript } from '../../../src/transcribe/types.js';
 import { sentenceAtFrame } from '../../../src/transcribe/segmentation.js';
 import StudioMode from './StudioMode.js';
+import { answered, asked } from '../../answered.js';
+import { bodyOf } from '../../../src/domain/saidBy.js';
 
 /** Self-contained segments: the only rolling pre-roll a browser can actually
  *  replay, because MediaRecorder writes its header into the first blob. [U-04] */
@@ -186,7 +188,7 @@ export default function Studio({ conversationId }: { conversationId: string }) {
     void (async () => {
       const response = await fetch(`/api/conversations/${conversationId}/transcript`, { cache: 'no-store' });
       if (!response.ok || cancelled) return;
-      const data = await response.json();
+      const data = bodyOf(await response.text());
       if (!cancelled) setTranscript(data.transcript ?? null);
     })();
     return () => { cancelled = true; };
@@ -500,9 +502,8 @@ export default function Studio({ conversationId }: { conversationId: string }) {
           : {}),
       }),
     }).then(async (response) => {
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error ?? 'could not open the intervention');
-      return data as { interventionId: string; takeId: string };
+      return await answered<{ interventionId: string; takeId: string }>(
+        response, 'could not open the intervention');
     }));
   }, [beginTake, conversationId]);
 
@@ -524,9 +525,8 @@ export default function Studio({ conversationId }: { conversationId: string }) {
       `/api/conversations/${conversationId}/interventions/${interventionId}/takes`,
       { method: 'POST', headers: { 'content-type': 'application/json' } },
     ).then(async (response) => {
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error ?? 'could not open a new take');
-      return data as { interventionId: string; takeId: string };
+      return await answered<{ interventionId: string; takeId: string }>(
+        response, 'could not open a new take');
     }));
   }, [beginTake, conversationId]);
 
@@ -621,8 +621,9 @@ export default function Studio({ conversationId }: { conversationId: string }) {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ exportProfileId: 'youtube_16x9', burnInCaptions: true }),
     });
-    const data = await response.json();
-    if (!response.ok) { setError(data.error ?? 'render refused'); return; }
+    const { ok, data, says } = await asked<{ job: { id: string } }>(
+      response, 'render refused');
+    if (!ok) { setError(says); return; }
     setRenderJobId(data.job.id);
   }, [conversationId]);
 
@@ -632,7 +633,7 @@ export default function Studio({ conversationId }: { conversationId: string }) {
     const timer = setInterval(async () => {
       const response = await fetch(`/api/jobs/${renderJobId}`, { cache: 'no-store' });
       if (!response.ok) return;
-      const { job } = await response.json();
+      const { job } = bodyOf(await response.text());
       setRenderJob(job);
       if (job.state === 'done' || job.state === 'failed') {
         clearInterval(timer);

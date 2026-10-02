@@ -16,6 +16,7 @@ import { readFile, readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { ProgrammeDocument, ProgrammeSource } from '../domain/channel.js';
 import { listConversations } from './repository.js';
+import { listDecks } from './decks.js';
 import { listPerformances } from './performances.js';
 import { paths } from './paths.js';
 import { factsFor } from './mediaFacts.js';
@@ -60,6 +61,23 @@ export interface BroadcastItem {
    * for somebody to fill in twice. [U-21, D-19]
    */
   artist?: string;
+  /**
+   * WHICH DECK'S PAGE THIS IS, when it is one.  [§20, §3, C-48]
+   *
+   * A twelve-page deck put twelve rows in the broadcast rail, all
+   * carrying the same name, above the one video the operator was
+   * looking for. Each row was CORRECT — a page is a still and a
+   * still is schedulable, and the schedule is the only way to put
+   * a caption card out at a time — so the answer is not to hide
+   * them. It is to say that these twelve are one thing with
+   * twelve pages, which the deck document has always known and
+   * this listing never asked.
+   *
+   * The rail that already guards against listing the `decks/`
+   * DIRECTORY as a programme did not guard against listing
+   * everything inside it.
+   */
+  deck?: { id: string; title: string; page: number; of: number };
 }
 
 /**
@@ -94,13 +112,40 @@ export async function broadcastLibrary(): Promise<BroadcastItem[]> {
    * because a scheduler does not care which door a thing came through, only
    * that it can point at it. [§3]
    */
-  items.push(...await otherMedia());
+  items.push(...await otherMedia(await pagesOfDecks()));
 
   return items.sort((a, b) => b.madeAt.localeCompare(a.madeAt));
 }
 
+/**
+ * Which library assets are pages of a deck, and of which.
+ *
+ * ASKED OF THE DECKS, NOT OF THE FILES. A page on disk is a `.png`
+ * with a `{"label":"deck — 3/3"}` sidecar beside it and nothing
+ * saying which deck it belongs to; the deck document holds the
+ * list. Reading the label and parsing "3/3" out of somebody's
+ * words would be guessing at a fact that is written down. [D-18]
+ */
+async function pagesOfDecks(): Promise<Map<string, BroadcastItem['deck']>> {
+  const out = new Map<string, BroadcastItem['deck']>();
+  const decks = await listDecks().catch(() => []);
+  for (const deck of decks) {
+    deck.slides.forEach((slide, at) => {
+      out.set(slide.assetId, {
+        id: deck.id,
+        title: deck.title,
+        page: slide.page ?? at + 1,
+        of: deck.slides.length,
+      });
+    });
+  }
+  return out;
+}
+
 /** Everything in `var/library/`, which is where other media lives. */
-async function otherMedia(): Promise<BroadcastItem[]> {
+async function otherMedia(
+  pages: Map<string, BroadcastItem['deck']>,
+): Promise<BroadcastItem[]> {
   let names: string[];
   try {
     names = await readdir(paths.library());
@@ -163,6 +208,7 @@ async function otherMedia(): Promise<BroadcastItem[]> {
       ...(facts ? { durationMs: facts.durationMs } : {}),
       kind: still ? 'image' as const : kindOf(facts ?? {}),
       ...(artist ? { artist } : {}),
+      ...(pages.get(assetId) ? { deck: pages.get(assetId)! } : {}),
     });
   }
   return found;

@@ -5805,3 +5805,468 @@ control that skips a stop depending on where you happened to start
 is a control nobody can aim — so the property asserted is that a
 step never skips a stop, which is observable and is the reason the
 comparison is written the way it is.
+
+## C-47 — Stage 47: the lane that had never spoken to the compositor
+
+The author, over the refined strip:
+
+> *"this part of the Live TV control room is fundamentally good. I
+> would not redesign the timeline structure… But it needs a
+> professional refinement pass."*
+
+Six points and one more *"I would add later"*. Three were already
+answered by C-46's uncommitted work when the note arrived; this is
+the rest, plus the question that followed it: *"can we edit, add,
+remove files directly from this?"*
+
+### The finding, which is the same finding again
+
+> *"You shouldn't build Slide graphics / Lower thirds / Channel bug
+> / NEXT graphic / Programme title as five unrelated features."*
+
+**They never were five features.** `marksFor` has computed the bug,
+the LIVE lamp, the lower third and NEXT from one list since the
+identity was written, and the compositor draws that list.
+
+**The GRAPHICS lane drew one of them.** Not because the other three
+were missing — because `marksFor` takes three inputs that lived
+inside the playout worker as private functions at the bottom of the
+file that spawns encoders:
+
+| | |
+|---|---|
+| `onAirTitle` | what the VIEWER is told this is called |
+| `intoProgramme` | how far past the join, for the hold |
+| `nextUp` | what follows, and when |
+
+Pure arithmetic over the channel document — no filesystem, no
+clock, no ffmpeg — and unreachable from anywhere else. So *"what
+graphics are up at 21:02"* was answerable in exactly one process,
+and the surface whose entire job is to answer it could not ask.
+
+The lane did not disagree with the compositor. **It had never
+spoken to it.** It read the identity document and drew lower
+thirds from the settings.
+
+Moved, not copied. A second copy would be a second answer.
+
+### Sampled, not re-derived
+
+The lane does not know that a lower third holds for eight seconds,
+that a lamp follows `kind === 'live'`, or that NEXT rides with the
+caption. Encoding any of it here would be the second graphics
+system the brief forbids, and it would be wrong the first time
+somebody changed `marksFor` — which is the fault it already had.
+
+It asks `marksFor` at every instant where the answer can change —
+each join, and each join plus the hold — and reads the intervals
+off the answers. A mark the compositor stops emitting is a block
+that ends. Nothing about why.
+
+**And `onAirTitle` is not the control room's `titleOf`, which is
+why it has a different name.** The control room says "Off air" and
+"The live studio"; this says the channel's own name for both,
+because it is what goes under the bug and `captionFor` exists to
+stop it being printed there twice [C-42]. Two functions because
+there are two questions. Merging them would put the operator's
+word on the wire.
+
+**A slide is not on this lane and should not be.** A slide is a
+`media` source with `form: 'image'` — it IS the programme, full
+frame, and belongs in PROGRAM where every other source does.
+Drawing it here would claim it composites over a picture when it
+is the picture.
+
+### The other five
+
+**The video lane said nothing at all.** > *"The timeline should
+tell the operator what source is actually occupying that period."*
+`sourceLine` says exactly that, in exactly those words — "Studio
+Two · Performance", "Live from the studio", "Film" — written for
+the lower third in C-42 and read by one caller. The lane that
+needed it most could not have told you it existed. [D-19]
+
+**The block is two lines, which is what the brief drew.** Title and
+length on one, because they are one fact; the length sits right and
+never truncates, which is the whole reason the line exists. The
+second line is what this is — or, on the one block under the
+playhead, when it ends and how much is left.
+
+**● ON AIR leads that line**, which is the brief's *"one thing I
+would add later"*. And it says it only when it is TRUE: the
+playhead is drawn whenever now falls in the window, which it does
+at four in the morning on a channel that is off air. A marker
+claiming ON AIR over a hole is the fault U-20 already fixed once on
+the playhead's own flag.
+
+**The red says state instead of filling the event.** At a third
+opacity a two-hour live broadcast was the loudest object in the
+room for two hours, and the one block actually going out this
+second had nothing left to be louder than.
+
+**Audio has three states, not two.** Silence the schedule asked for
+and silence caused by a fault are the same `anullsrc` on the wire
+and opposite facts about the channel. **And there is no `muted`,
+because there is no mute** — nothing in the document can mute the
+master bus, so there is no state to report and nothing invents one.
+A lane with a colour that can never be reached is a lane claiming a
+control the product does not have. No meter either, and the brief
+says why.
+
+**"Today" alone is a word, not a date.**
+
+### And the question: can you edit from here?
+
+> *"can we edit, add, remove files directly from this?"*
+
+Not from the strip: a block's whole click handler was `onChoose` —
+it SELECTED. Every verb existed on the rails beside it, behind a
+menu built to be shared — *"every rail built its own markup and
+right-clicking a row was not possible without building it a second
+time"* — that the strip had never been given.
+
+Hoisted out of the two rails that had them inline and handed to
+both. One list, one set of confirmations, two surfaces.
+
+**And there is no drag, deliberately.** On a 24/7 channel the
+horizontal axis is wall clock: dragging a block changes when
+something transmits, by however far a hand slipped — at the day
+span one pixel is ninety-eight seconds. A rotation entry has no
+clock time of its own, so dragging it sideways would mean nothing.
+An edge-drag to trim would either lie about the media or silently
+re-encode somebody's master; a take has a timeline for that and
+this is not it. **A menu is reversible and names what it does.**
+
+### Three faults the screenshots found, all of them the same fault
+
+**A block laid out by rules it does not declare.**
+
+1. **`button` is `display: flex` in the room's stylesheet**, so two
+   spans written to stack were flex ITEMS splitting eighty pixels:
+   `Statio… 1…`, a duration cut to one digit, which reads worse
+   than no duration at all.
+2. **`.row` is `flex-wrap: wrap`**, which is right for a toolbar and
+   wrong inside a fifty-pixel block: the length dropped to a third
+   line and the block overflowed its lane by seven pixels, on
+   exactly the blocks wide enough to show a length at all.
+3. **`Lane` was declared inside `Timeline`'s body**, so every render
+   made a new component type and React unmounted and remounted all
+   four lanes and everything on them — sixty times a minute, because
+   the clock ticks. Not a tidiness point: it remounts a `<video>`
+   per filmstrip cell every second, which is most of why the browser
+   reached its media ceiling the moment the window widened, and it
+   is why a right-click had to race the clock to land on a block
+   that still existed long enough to receive it.
+
+Measured rather than argued: `scrollHeight` 56 against a 49-pixel
+block, on the one block in the lane wide enough to show its length.
+
+### The record
+
+**Twenty-one new assertions, fourteen mutations, all fourteen
+caught — and the sixteenth unobservable guard deleted.**
+
+A clause skipped a hold instant falling past the end of its own
+stretch, and survived everything. The reason is worth keeping:
+
+> **An extra sample cannot change the answer, only the resolution.**
+
+`marksFor` is asked afresh at each instant, so a redundant sample
+reports the same marks as its neighbour and the two blocks merge
+straight back. It was never a correctness guard; it was a guard
+against one cheap call, preventing nothing anybody could measure.
+
+Three more survived until the fixture that could see them existed.
+All three needed the same thing — **a channel with no presenter
+typed**, where the caption is the programme's own title and so
+differs either side of a join. With a presenter the caption is the
+same words all day, and three separate claims about what makes two
+samples one block were all trivially true.
+
+> **A fixture where every row holds the same value cannot test what
+> distinguishes rows.**
+
+Full suite: 162 files, 3016 tests.
+
+## C-48 — Stage 48: nowhere to put a file in
+
+The author, over the Library rail:
+
+> *"HOW COME I CANNOT UPLOAD MEDIA INTO PLAYLIST"*
+
+Because there was nowhere to. Three findings, and the first is the
+plainest this project has produced.
+
+### 1. The route was written and called by nothing
+
+`POST /api/library` has existed with its allow-list, its size cap,
+its sidecar and its 415 since the library learned to hold a song.
+**Every reference to `/api/library` in this product is a GET.** The
+upload endpoint was reachable from no surface at all.
+
+`+ Add to playlist` is not an uploader and never claimed to be —
+its whole handler is `setAdding(open => !open); setRailTab('library')`.
+It adds something *already in the library* to the loop. The control
+room could broadcast what existed and had no way to make something
+exist. The product has five file inputs; none of them was here.
+
+**The fifth capability this month that was built and not reached**,
+after `slideReady` (C-36), `ACTION_SAFE` (C-38), `bug.assetId`
+(C-44) and the entire marks system (C-40).
+
+### 2. The fourth list, and it renamed things
+
+C-14 found three places each knowing their own containers and made
+them one table, and wrote down why:
+
+> *"an `.mp3` stored as `.mp4` would be a file whose name lies to
+> every reader of it."*
+
+**`KINDS` was a fourth list, private to the upload route, and it
+did exactly that.** Every still mapped to `jpg`, because `jpg` was
+the only still `CONTAINERS` had room for — so a PNG went in as PNG
+bytes under a name claiming JPEG, two lines below a comment saying
+a deck's pages are PNG. WebM and QuickTime went in as `.mp4`. And
+*nothing is transcoded here*; the route says so in its own opening
+paragraph.
+
+| arriving | was stored as | now |
+|---|---|---|
+| `image/png` | `.jpg` | `.png` |
+| `image/webp` | `.jpg` | `.webp` |
+| `video/webm` | `.mp4` | `.webm` |
+| `video/quicktime` | `.mp4` | `.mov` |
+
+ffmpeg sniffs and never noticed. A `<video>` element is the one
+that does.
+
+**And the list had to be readable from both sides of the wire**,
+because the other thing that needs it is a file picker's `accept` —
+and an `accept` typed by hand beside a server allow-list is two
+lists again, failing the worst way available: a person chooses a
+file the dialog showed them, waits for it to go up, and is told
+415. It lives in the DOMAIN rather than the store, which the build
+decided: `libraryMedia.ts` imports `node:fs`, so a page importing
+it for this table dragged the filesystem into the browser bundle.
+[D-14]
+
+### 3. A deck is one thing with twelve pages
+
+The rail held twelve rows all called "Admission Package — Dorot…",
+above the one video the author wanted.
+
+**Every row was correct**, which is what makes it a listing fault
+rather than a data one. A page is a still, a still is schedulable,
+and the schedule is the only way to put a caption card out AT A
+TIME — the Slides panel says so itself: *"this panel adds no way of
+putting anything on air… the schedule can already hold one."* So
+the pages cannot be hidden.
+
+What was wrong is that nothing said they were one thing. The deck
+has a title and a page count and is the unit a person thinks in,
+and it was not in the list at all.
+
+Asked of the decks, not of the files: a page on disk is a `.png`
+with a `{"label":"deck — 3/3"}` sidecar and nothing saying which
+deck it belongs to, while the deck document holds the list.
+Parsing "3/3" out of somebody's words would be guessing at a fact
+that is written down. [D-18]
+
+**And the row is shut until it is asked for.** A deck of twelve is
+one line until somebody wants a page out of it, and then it is
+twelve — the bargain every file list has made since folders were
+invented, and the only one that keeps both facts: *this is one
+deck* and *this page is schedulable*. A deck keeps the place of
+its first page, because moving decks to the top would be the
+grouping having an opinion about what matters, which belongs to
+whoever sorted the list. [D-04]
+
+That rail already guards against listing the `decks/` DIRECTORY as
+a programme. It did not guard against listing everything inside
+it.
+
+### Measured, in the room
+
+```
+accept = image/jpeg,image/png,image/webp,video/mp4,video/webm,
+         video/quicktime,audio/mpeg,audio/mp4,audio/x-m4a,audio/aac,
+         audio/ogg,audio/wav,audio/x-wav,audio/flac,audio/x-flac
+
+shut        : 43 items, 2 decks,  0 pages
+deck open   : 43 items, 2 decks,  2 pages
+after upload: 44 items, 2 decks,  0 pages     error banner: (none)
+```
+
+The upload was a 179-byte PNG written into the author's own
+library and deleted afterwards; the directory listing was compared
+before and after and is identical.
+
+### The record
+
+**Twenty-one assertions, nineteen mutations, all nineteen caught —
+and the seventeenth unobservable thing deleted.**
+
+A `storable()` stood for one pass with exactly one caller: the
+assertion that used it. Breaking it broke nothing a person could
+see, and the mutation that made it always say yes survived
+everything.
+
+> **A query whose only reader is its own test is a question nobody
+> is asking.**
+
+The assertion asks `CONTAINERS` directly now, and is grounded
+outside the source: a `.pdf` and a `.docx` are not media, whatever
+the table says.
+
+Full suite: 163 files, 3032 tests.
+
+## C-49 — Stage 49: the parser was the messenger
+
+Four questions from the author over two screenshots. Three were
+faults; one was the product working and the word for it being
+wrong.
+
+### 1. "ANCIENT OF DAYS IS LIVE BUT THE TV HAS NOT GONE LIVE"
+
+> *"DOES THAT MEAN THAT PLAYLIST CAN GO LIVE EVEN WITHOUT WE GOING
+> LIVE?"*
+
+**Yes, and that is the whole of Online TV.** A channel transmits
+from its schedule and its loop whether or not anybody is in the
+room — the footer of the author's own screenshot says it:
+*"PROGRAM — the channel is running itself."* GO LIVE opens a
+camera into PREVIEW, and nothing reaches the wire until TAKE LIVE.
+
+**The architecture is right. The word was wrong, in two places.**
+The playlist rail and the multi-view both badged a transmitting
+RECORDING as `LIVE`.
+
+This product already holds that line where it costs something.
+`marksFor` pushes the LIVE lamp only when `on.kind === 'live'`,
+and says why:
+
+> *"a channel whose LIVE light is part of its logo is a channel
+> lying to its viewers."*
+
+It enforced that on the wire and broke it in its own control room
+— on the surface read by the one person who most needs to know
+whether a camera is open. Both now say ON AIR, which is what they
+meant.
+
+### 2. The parser was the messenger
+
+> `JSON.parse: unexpected end of data at line 1 column 1 of the JSON data`
+
+Shown under a thirteen-megabyte video on the first screen of
+Studio One. It is the browser's JSON parser complaining about a
+body, and the person reading it had not asked for any JSON.
+
+**Two faults, and the second is the one that matters.**
+
+```js
+const data = await response.json();              // ← throws here
+if (!response.ok) throw new Error(data.error);   // ← never runs
+```
+
+The first is an unguarded `.json()`. The second is that it was
+called **before** `response.ok` — so a server answering with a
+status and an empty body, which is what a refused upload, a
+gateway timeout and a crashed route all look like, could only ever
+produce the parser's complaint. **The status was sitting one line
+below, unread.**
+
+**Seventy-eight places ask a server something and fifty-one guard
+it.** The pattern was known and applied two times in three, which
+is C-14's finding in a third place: the answer was not wrong, it
+was written seventy-eight times.
+
+Six sites read the body before the status — the actual fault —
+and are now typed and routed through one function. Ten more check
+the status first and could still throw on a malformed 200; those
+read through `bodyOf`, which cannot.
+
+**And `bodyOf` gives back what `.json()` gave back, minus the
+throwing.** That default is deliberate rather than lazy: ten call
+sites read fields nobody has ever typed, and inventing shapes for
+responses in nine components without reading them, as a side
+effect of a safety fix, is a different and worse job. A caller
+that wants the check passes a type; the six that were broken now
+do.
+
+**A proxy's page is somebody else's markup.** The first guard
+listed `<!doctype`, `<html` and `<?xml`, and a bare
+`<h1>413 Request Entity Too Large</h1>` — which several proxies
+emit — walked past all three and became a person's error message.
+Anything starting with `<` is markup now: no sentence meant for a
+person begins with an angle bracket.
+
+**And the caller's context is kept.** Each site already had a
+sentence behind `data.error`, and trading it for a status would
+be swapping one half of the answer for the other. A bare 502 now
+reads *"could not start the conversation — the server is not
+answering"*. A server that explained itself needs no prefix.
+
+### 3. "IS IT POSSIBLE TO DELETE INFORMATION FROM THE LIBRARY?"
+
+It was not — and the route was there the whole time.
+
+`DELETE /api/library/<id>` has existed, careful and complete:
+owner-checked, refusing with a 409 and a sentence if the asset is
+the safe playlist on any channel, removing every container, the
+sidecar and the measurement. **Nothing in this product called it.**
+The sixth capability this month that was built and not reached.
+
+**And offering the verb made a gap reachable.** The route asked
+the channels and not the DECKS, which could not matter while
+nothing could reach it: a deck's page deleted from the library
+leaves the deck pointing at a file that is not there, and a deck
+transmits a page at a time. A page is not "on the air", so it does
+not borrow that sentence — it says which deck holds it and to
+delete the slide from the deck instead.
+
+**Measured, in the room**, with the asset scheduled:
+
+> *"it is on the air: BalanceVid TV (station-ident, station-ident).
+> Take it off the schedule first — unscheduling changes no files,
+> and the video stays where it is."*
+
+That is the server's own sentence, naming the channel and the
+slots, where a status code or a parser complaint used to be. The
+test uploaded a 179-byte PNG into the author's own library,
+scheduled it, was refused, and the library and the rotation were
+both restored to the listing taken before the run.
+
+### 4. "RECORD NOW and SCREEN CAPTURE seem contradictory"
+
+They are, and the code already knows it:
+
+> *"RECORD, AND SCREEN CAPTURE, WHICH ARE THE SAME CONTROL. One
+> asks a camera and one asks the browser for a display; after that
+> they are a picture, a clock and a stop button. Two panels would
+> be two places for the stop button to behave differently."*
+
+**The panel was unified and the doors were not.** One control
+behind two front doors, where every professional tool presents one
+Record door that asks what to record. Not built in this stage —
+it is a change to the first screen of Studio One and deserves its
+own, with the camera-and-screen-together case that neither door
+offers today.
+
+### The record
+
+**Thirty-one assertions, twenty-eight mutations, all twenty-eight
+caught.**
+
+One survivor is worth keeping. A guard against a proxy's HTML
+survived every mutation because the fixture that was meant to
+catch it had a NEWLINE in it — and a different rule, the one
+against relaying a stack trace, rejected it first. The guard was
+never exercised.
+
+> **A fixture that two rules both reject tests neither of them.**
+
+The one-line fixture written to fix that then failed against the
+real code, because the guard genuinely did not recognise a bare
+`<h1>`. The test found a fault rather than a gap in itself.
+
+Full suite: 164 files, 3050 tests.

@@ -129,3 +129,31 @@ export function channelOwns(channel: Channel): number {
     + (channel.recordings?.length ?? 0)
     + channel.ingests.filter((ingest) => ingest.keep).length;
 }
+
+/**
+ * And a deck still needs its pages.  [§20, §3, D-18, C-49]
+ *
+ * THE ASSET DELETION ASKED THE CHANNELS AND NOT THE DECKS, which
+ * was invisible for as long as nothing could delete a library
+ * asset at all — the route has existed, careful and complete,
+ * since before anything called it. Offer the verb and the gap
+ * becomes reachable: a deck's page removed from the library
+ * leaves the deck pointing at a file that is not there, and a
+ * deck is transmitted a page at a time.
+ *
+ * A PAGE IS NOT "ON THE AIR", so it does not borrow that
+ * sentence. It is part of something, and the thing to say is
+ * which something and what to do instead — delete the deck, or
+ * the slide from it, where both are one press away.
+ */
+export function deckRefusalFor(
+  decks: readonly { title: string; slides: readonly { assetId: string }[] }[],
+  assetId: string,
+): string | null {
+  const holding = decks.filter(
+    (deck) => deck.slides.some((slide) => slide.assetId === assetId));
+  if (holding.length === 0) return null;
+  const named = holding.map((deck) => deck.title || 'an untitled deck');
+  return `it is a page of ${named.join(' and ')}. Delete the slide from `
+    + 'the deck instead — the deck is where its pages are kept.';
+}

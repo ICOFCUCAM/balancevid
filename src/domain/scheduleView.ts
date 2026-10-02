@@ -236,6 +236,38 @@ export function carriesSound(tone: Tone): boolean {
   return tone !== 'hole' && tone !== 'missing';
 }
 
+/**
+ * THREE STATES, NOT TWO.  [brief point 3, §11, D-21, C-47]
+ *
+ * > *"I'd eventually add a very subtle indication of: active /
+ * > muted / fault / audio level."*
+ *
+ * Silence the schedule asked for and silence caused by a fault
+ * are the same four seconds of `anullsrc` on the wire and are
+ * opposite facts about the channel. A lane that painted them
+ * alike told an operator that the dead reference at 21:40 was a
+ * planned gap.
+ *
+ * AND THERE IS NO `muted`, BECAUSE THERE IS NO MUTE. Nothing in
+ * the channel document can mute the master bus, so there is no
+ * state to report and nothing here invents one: a lane with a
+ * `muted` colour that can never be reached is a lane claiming a
+ * control the product does not have. When a mute exists it gets
+ * a case here and the lane draws it.
+ *
+ * NO METER EITHER, and the brief says why — *"don't clutter the
+ * timeline with meters. The audio mixer belongs elsewhere."* A
+ * level is a measurement of decoded audio, and nothing on this
+ * page has decoded anything.
+ */
+export type Sound = 'programme' | 'silence' | 'fault';
+
+export function audioState(tone: Tone): Sound {
+  if (tone === 'missing') return 'fault';
+  if (tone === 'hole') return 'silence';
+  return 'programme';
+}
+
 /* ------------------------------------------------------------------------ *
  *  Is there room on screen for this?  [§2, D-04, C-46]
  * ------------------------------------------------------------------------ */
@@ -342,3 +374,14 @@ export function fitsText(
  * needs the wall-clock instant that follows from it.
  */
 export const COUNTDOWN_READINGS = 4;
+
+/**
+ * And how much a title needs before the length joins it.
+ *
+ * Three: the length is four characters and the title needs room
+ * to be a word rather than an ellipsis beside it. Gated on the
+ * countdown's four, the one number the brief draws on the right
+ * of the line vanished from every block in the lane — because a
+ * different, longer string shares the block.
+ */
+export const LENGTH_READINGS = 3;

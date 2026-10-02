@@ -66,15 +66,45 @@ import { useConfirm } from '../../Confirm.js';
 import { useShot } from './useShot.js';
 import {
   type Tone,
-  CAPTION_SHARE, COUNTDOWN_READINGS, DEFAULT_SPAN, FRAME_SHARE, blockTone,
-  canZoom, carriesSound, fitsText, labelNudge, leftOf, roomOnScreen, spanSays,
+  CAPTION_SHARE, COUNTDOWN_READINGS, DEFAULT_SPAN, FRAME_SHARE,
+  LENGTH_READINGS, blockTone,
+  audioState, canZoom, carriesSound, fitsText, labelNudge, leftOf,
+  roomOnScreen, spanSays,
   stepFor, windowFor, zoomed,
 } from '../../../src/domain/scheduleView.js';
+/*
+ * THE GRAPHICS LANE ASKS THE COMPOSITOR.  [D-19, C-47]
+ *
+ * It drew lower thirds from the identity document, which is one
+ * layer of a four-layer composite read off the settings rather
+ * than off the thing that draws. `marksFor` has computed all four
+ * since the identity was written.
+ */
+import {
+  type GraphicEvent, LAYERS, graphicsOver, layerSays,
+} from '../../../src/domain/graphicsLane.js';
+/*
+ * WHAT KIND OF THING IS ON, in the words a listing would use.
+ * Written for the lower third in C-42 and read by nothing else,
+ * while the VIDEO TRACKS lane — whose entire job is to say what
+ * source occupies a period — said nothing at all. [D-19, C-47]
+ */
+import { sourceLine, sourceOf, stateLine } from '../../../src/domain/caption.js';
+/* A deck is one thing with twelve pages, and the rail listed the
+   pages. [§20, D-04, C-48] */
+import { deckSays, libraryRows } from '../../../src/domain/libraryRows.js';
+/* One table of what an upload may be, read by the route that
+   enforces it and the picker that offers it. [D-19, C-14, C-48] */
+import {
+  MOST_UPLOAD_BYTES, acceptsAttribute,
+} from '../../../src/domain/libraryUpload.js';
 import type { StudioId } from '../../../src/domain/account.js';
 import {
   type Quality, type QualityId, QUALITIES, QUALITY_ORDER, aboveTransmission,
   qualityFor, rateSentence, rateVerdict, targetBytesPerSecond,
 } from '../../../src/domain/quality.js';
+import { bodyOf } from '../../../src/domain/saidBy.js';
+import { asked } from '../../answered.js';
 
 /**
  * The control room.  [Doctrine CHANNEL §1–§9, §15, D-18, D-19, INV-17]
@@ -142,6 +172,8 @@ interface LibraryItem {
   planHash: string;
   bytes: number;
   madeAt: string;
+  /** Which deck's page this is, when it is one. [§20, C-48] */
+  deck?: { id: string; title: string; page: number; of: number };
   /**
    * What a song is, and what everything else is too.  [§25]
    *
@@ -179,6 +211,10 @@ export default function ChannelStudio({
 }) {
   const [channel, setChannel] = useState(initial);
   const [library, setLibrary] = useState<LibraryItem[]>([]);
+  /** Which deck in the library rail is showing its pages. [C-48] */
+  const [openDeck, setOpenDeck] = useState<string | null>(null);
+  const upload = useRef<HTMLInputElement | null>(null);
+  const [putting, setPutting] = useState(false);
   const [chosen, setChosen] = useState<string | null>(null);
   const [picked, setPicked] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -497,7 +533,7 @@ export default function ChannelStudio({
   const refresh = useCallback(async () => {
     const response = await fetch(`/api/channels/${id}`, { cache: 'no-store' });
     if (!response.ok) return;
-    const data = await response.json();
+    const data = bodyOf(await response.text());
     setChannel(data.channel);
     setMissing(data.missing ?? []);
     setViolations(data.violations ?? []);
@@ -668,12 +704,75 @@ export default function ChannelStudio({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, mixer.stream]);
 
-  useEffect(() => {
-    void (async () => {
-      const response = await fetch('/api/channels/library', { cache: 'no-store' });
-      if (response.ok) setLibrary((await response.json()).items ?? []);
-    })();
+  const refreshLibrary = useCallback(async () => {
+    const response = await fetch('/api/channels/library', { cache: 'no-store' });
+    if (response.ok) setLibrary((await response.json()).items ?? []);
   }, []);
+
+  useEffect(() => { void refreshLibrary(); }, [refreshLibrary]);
+
+  /**
+   * PUT A FILE IN THE LIBRARY, from the room that broadcasts it.
+   *   [§3, §25, D-19, C-48]
+   *
+   * RAW BYTES WITH THE TYPE IN THE HEADER, because that is what the
+   * route has always taken: `Content-Type` is the allow-list key and
+   * `X-Label` is the name. Not multipart — there is one file and no
+   * fields, and a boundary-encoded body would be a second thing to
+   * parse for no second thing to carry.
+   *
+   * AND THE SIZE IS CHECKED HERE AS WELL AS THERE. The server's cap
+   * is the one that counts, but a cap a person meets by waiting out
+   * a long upload and then being refused is a cap nobody was told
+   * about. Refusing it before a byte leaves is the same answer,
+   * sooner.
+   *
+   * THE NAME IS THE FILENAME, MINUS ITS EXTENSION. Asking for one
+   * would be a dialog between choosing a file and seeing it arrive,
+   * and the file already has a name somebody chose. It can be
+   * renamed afterwards like anything else.
+   */
+  const putInLibrary = useCallback(async (file: File) => {
+    if (file.size === 0) { setError('that file is empty'); return; }
+    if (file.size > MOST_UPLOAD_BYTES) {
+      setError(`${file.name} is too big for the library — an ident, a `
+        + 'caption card or a song, up to '
+        + `${Math.round(MOST_UPLOAD_BYTES / (1024 * 1024))} MB. A film `
+        + 'comes from a studio as a render.');
+      return;
+    }
+    setPutting(true);
+    try {
+      const response = await fetch('/api/library', {
+        method: 'POST',
+        headers: {
+          'content-type': file.type,
+          'x-label': file.name.replace(/\.[^.]+$/, '').slice(0, 120),
+        },
+        body: file,
+      });
+      if (!response.ok) {
+        const said = await response.json().catch(() => ({}));
+        setError(said.error ?? 'that file was refused');
+        return;
+      }
+      setError(null);
+      /*
+       * AND THE RAIL IS ASKED AGAIN RATHER THAN TOLD. The response
+       * carries the item, but the broadcast listing is a different
+       * question from the upload listing — it measures duration,
+       * reads sidecars and knows which deck a page belongs to —
+       * and building a row from the POST's answer would be a
+       * second, thinner version of it. [D-19]
+       */
+      await refreshLibrary();
+      setRailTab('library');
+    } catch {
+      setError('that file did not reach the library');
+    } finally {
+      setPutting(false);
+    }
+  }, [refreshLibrary]);
 
   const patch = useCallback(async (body: Record<string, unknown>) => {
     const response = await fetch(`/api/channels/${id}`, {
@@ -1054,6 +1153,137 @@ export default function ChannelStudio({
     })),
     [channel, windowFrom, windowTo, titleOf]);
 
+  /**
+   * WHAT CAN BE DONE TO A THING ON AIR, in one place.
+   *   [D-19, C-47]
+   *
+   * > *"can we edit, add, remove files directly from this?"*
+   *
+   * Not from the strip, no: a block's whole click handler was
+   * `onChoose` — it SELECTED. Every verb existed, on the rails
+   * beside it, behind a menu that was built to be shared (*"every
+   * rail built its own markup and right-clicking a row was not
+   * possible without building it a second time"*) and that the
+   * strip had never been given.
+   *
+   * So these are hoisted out of the two rails that had them inline
+   * and handed to both. One list, one set of confirmations, two
+   * surfaces — rather than a second editing system on the
+   * timeline, which is the thing this product is told not to
+   * build.
+   *
+   * AND THERE IS NO DRAG, DELIBERATELY. On a 24/7 channel the
+   * horizontal axis is wall clock: dragging a block changes when
+   * something transmits, by however far a hand slipped — at the
+   * day span one pixel is ninety-eight seconds. A rotation entry
+   * has no clock time of its own at all, so dragging it sideways
+   * would mean nothing. And an edge-drag to trim would either lie
+   * about the media or silently re-encode somebody's master; a
+   * take has a timeline for that and this is not it. A menu is
+   * reversible and names what it does. [D-21, §3]
+   */
+  const moveInRotation = (entry: RotationEntry, position: number) =>
+    void patch({ action: 'move-in-rotation', entryId: entry.id, position });
+  const removeFromLoop = (entry: RotationEntry) =>
+    void patch({ action: 'unrotate', entryId: entry.id });
+  const unschedule = (entry: Programme) => {
+    confirm({
+      question: 'Take it off the schedule? The video itself is '
+        + 'untouched — it stays in the library.',
+      verb: 'Unschedule',
+      danger: true,
+      go: () => void patch({ action: 'unschedule', programmeId: entry.id }),
+    });
+  };
+
+  /**
+   * The same verbs, for a block on the strip.
+   *
+   * REACHED FROM THE BLOCK AN OPERATOR IS LOOKING AT, which is the
+   * whole of it: they can see the thing on the timeline, and the
+   * list of what to do about it was on the other side of the
+   * room. "Show in the rail" is last and is the one verb that is
+   * not an edit — it moves the selection to the row, so the two
+   * surfaces stop being separate places.
+   */
+  const blockMenu = useCallback((state: OnAir): MenuEntry[] => {
+    if (state.kind === 'rotation') {
+      const index = channel.rotation
+        .findIndex((entry) => entry.id === state.entry.id);
+      const entry = channel.rotation[index];
+      if (!entry) return [];
+      return [
+        {
+          label: 'Move earlier in the loop',
+          disabled: index === 0 ? 'It is already first' : false,
+          onSelect: () => moveInRotation(entry, index - 1),
+        },
+        {
+          label: 'Move later in the loop',
+          disabled: index === channel.rotation.length - 1
+            ? 'It is already last' : false,
+          onSelect: () => moveInRotation(entry, index + 1),
+        },
+        {
+          label: 'Remove from the loop',
+          danger: true,
+          hint: 'Takes it out of the rotation. The file is untouched.',
+          onSelect: () => confirm({
+            question: `Remove ${entry.title ?? 'it'} from the loop? `
+              + 'The video itself stays in the library.',
+            verb: 'Remove from the loop',
+            danger: true,
+            go: () => removeFromLoop(entry),
+          }),
+        },
+        {
+          label: 'Show in the playlist',
+          onSelect: () => { setRailTab('playlist'); setChosen(entry.id); },
+        },
+      ];
+    }
+    if (state.kind === 'programme') {
+      const programme = state.programme;
+      return [
+        {
+          label: 'Unschedule',
+          danger: true,
+          hint: 'Takes it out of the day. The file is untouched.',
+          onSelect: () => unschedule(programme),
+        },
+        {
+          label: 'Show in the schedule',
+          onSelect: () => { setRailTab('schedules'); setChosen(programme.id); },
+        },
+      ];
+    }
+    /*
+     * AND NOTHING FOR A HOLE OR A LIVE FEED. A gap is the absence
+     * of a thing, so there is nothing to act on; the live
+     * broadcast is ended from the one control that ends it, not
+     * from a right-click on a schedule strip. [D-21]
+     */
+    return [];
+  }, [channel.rotation, confirm, patch]);
+
+  /**
+   * DELETE A PIECE OF MEDIA FROM THE LIBRARY.  [§3, D-19, C-49]
+   *
+   * THE REFUSAL IS THE INTERESTING PATH and it is the server's to
+   * write: it knows which channels hold the asset and in which
+   * slots, and it answers with a sentence naming them. Showing
+   * that sentence rather than a status is the whole of `asked`.
+   */
+  const removeFromLibrary = useCallback(async (item: LibraryItem) => {
+    if (item.source.kind !== 'media') return;
+    const { ok, says } = await asked(
+      await fetch(`/api/library/${item.source.assetId}`, { method: 'DELETE' }),
+      'could not delete it');
+    if (!ok) { setError(says); return; }
+    setError(null);
+    await refreshLibrary();
+  }, [refreshLibrary]);
+
   const railRows = useMemo(() => {
     const needle = (filter ?? '').trim().toLowerCase();
     const keep = (text: string) =>
@@ -1175,6 +1405,49 @@ export default function ChannelStudio({
             >
               + Add to playlist
             </button>
+            {/*
+              * AND SOMEWHERE TO PUT A FILE IN.  [§3, §25, D-19, C-48]
+              *
+              * > *"HOW COME I CANNOT UPLOAD MEDIA INTO PLAYLIST"*
+              *
+              * Because there was nowhere to. `+ Add to playlist`
+              * is not an uploader and never claimed to be — its
+              * whole handler opens the Library tab — and the
+              * control room had no file input at all. The product
+              * has five; none of them was here.
+              *
+              * AND THE ROUTE WAS WRITTEN AND CALLED BY NOTHING.
+              * `POST /api/library` has existed with its allow-list,
+              * its size cap, its sidecar and its 415 since the
+              * library could hold a song, and every reference to
+              * `/api/library` in this product is a GET. The
+              * capability was built and no surface reached it,
+              * which is the fifth time this month.
+              *
+              * IT IS AN IDENT, NOT A FILM, and the control says so
+              * rather than letting somebody find out by waiting out
+              * a four-hundred-megabyte upload and being refused.
+              * Films arrive from the studios as renders and are
+              * referenced, never copied. [§3, D-18]
+              */}
+            <button
+              type="button" className="ctl" data-testid="library-upload"
+              disabled={putting}
+              title={'An ident, a caption card, a sting or a song \u2014 up to '
+                + `${Math.round(MOST_UPLOAD_BYTES / (1024 * 1024))} MB. `
+                + 'Films come from the studios as renders.'}
+              onClick={() => upload.current?.click()}
+              style={{ flex: '0 0 auto', padding: '7px 10px' }}
+            >{putting ? 'Adding\u2026' : '+ File'}</button>
+            <input
+              ref={upload} type="file" hidden data-testid="library-file"
+              accept={acceptsAttribute()}
+              onChange={(event) => {
+                const picked = event.target.files?.[0];
+                event.target.value = '';
+                if (picked) void putInLibrary(picked);
+              }}
+            />
             <button
               type="button" aria-label="Search" data-testid="rail-search"
               onClick={() => setFilter((value) => (value === null ? '' : null))}
@@ -1241,18 +1514,15 @@ export default function ChannelStudio({
               <PlaylistRail
                 channel={channel} offsets={offsets} on={on} nameOf={nameOf}
                 keep={railRows.keep}
-                onMove={(entry, position) => void patch({
-                  action: 'move-in-rotation', entryId: entry.id, position,
-                })}
-                onRemove={(entry) => void patch({
-                  action: 'unrotate', entryId: entry.id,
-                })}
+                onMove={moveInRotation}
+                onRemove={removeFromLoop}
               />
             )}
             {railTab === 'library' && (
               <LibraryRail
                 items={library} listing={listing} picked={picked}
                 keep={railRows.keep}
+                openDeck={openDeck} onOpenDeck={setOpenDeck}
                 onPick={(key) => setPicked(picked === key ? null : key)}
                 /*
                   * WHAT A FINISHED RENDER CAN BE DONE WITH, on the render.
@@ -1324,6 +1594,42 @@ export default function ChannelStudio({
                       });
                     },
                   },
+                  /*
+                   * AND IT CAN BE DELETED.  [§3, §20, D-18, D-19, C-49]
+                   *
+                   * > *"ALSO IT POSSIBLE TO DELETE INFORMATION FROM
+                   * > THE LIBRARY? BECAUSE I DONT THINK SO AND IT
+                   * > SHOULD BE A CONCERN."*
+                   *
+                   * It was not. `DELETE /api/library/<id>` has existed,
+                   * careful and complete — owner-checked, refusing with
+                   * a 409 and a sentence if the asset is the safe
+                   * playlist on any channel, removing every container,
+                   * the sidecar and the measurement — and **nothing in
+                   * this product called it.** The sixth capability this
+                   * month that was built and not reached.
+                   *
+                   * ONLY FOR MEDIA SOMEBODY PUT IN. A render belongs to
+                   * the conversation or performance that made it and is
+                   * deleted with that; offering a verb here that the
+                   * route would refuse is a menu item that exists to
+                   * fail. [§3]
+                   */
+                  ...(item.source.kind === 'media' ? [{
+                    label: 'Delete from the library…',
+                    danger: true,
+                    hint: 'Removes the file. Refused while anything is '
+                      + 'scheduled on it.',
+                    onSelect: () => confirm({
+                      question: `Delete “${item.title}” from the `
+                        + 'library? The file is removed and this cannot be '
+                        + 'undone. Anything scheduled on it will refuse the '
+                        + 'deletion rather than go to black.',
+                      verb: 'Delete it',
+                      danger: true,
+                      go: () => void removeFromLibrary(item),
+                    }),
+                  }] : []),
                 ]}
               />
             )}
@@ -1333,17 +1639,7 @@ export default function ChannelStudio({
                 missingKeys={missingKeys} liveId={live?.id} chosen={chosen}
                 keep={railRows.keep}
                 onChoose={setChosen}
-                onUnschedule={(entry) => {
-                  confirm({
-                    question: 'Take it off the schedule? The video itself is '
-                      + 'untouched — it stays in the library.',
-                    verb: 'Unschedule',
-                    danger: true,
-                    go: () => void patch({
-                      action: 'unschedule', programmeId: entry.id,
-                    }),
-                  });
-                }}
+                onUnschedule={unschedule}
                 onAddBlock={() => {
                   /*
                    * TWO PROMPTS IN A ROW WAS THE WORST OF THEM. A native
@@ -1846,12 +2142,21 @@ export default function ChannelStudio({
               <span className="module-sub" data-testid="schedule-day" style={{
                 display: 'inline-flex', alignItems: 'center', gap: 4,
               }}>
-                {sameDay(windowNow, now, channel.timezone)
-                  ? 'Today'
-                  : new Date(windowNow).toLocaleDateString('en-GB', {
-                    weekday: 'short', day: 'numeric', month: 'short',
-                    timeZone: channel.timezone,
-                  })}
+                {/*
+                  * "TODAY" ALONE IS A WORD, NOT A DATE.  [brief point 5]
+                  *
+                  * An as-run query, a rights window and a scheduling
+                  * mistake are all about a DATE, and the one surface
+                  * showing the day's transmission would not say which
+                  * day it was unless you had already paged away from
+                  * it. The word stays, because "today" is what an
+                  * operator is thinking; the date joins it.
+                  */}
+                {sameDay(windowNow, now, channel.timezone) ? 'Today · ' : ''}
+                {new Date(windowNow).toLocaleDateString('en-GB', {
+                  weekday: 'short', day: '2-digit', month: 'short',
+                  timeZone: channel.timezone,
+                })}
                 <Icon name="chevron" size={9} turn={90} />
               </span>
               <span className="grow" />
@@ -1914,6 +2219,7 @@ export default function ChannelStudio({
                         style={{ padding: '2px 8px', lineHeight: 1.6,
                           fontSize: 'var(--text-xs)' }}>+</button>
               </span>
+              <RightClickHint what="a block" />
               {pinned !== null && (
                 <span className="row" style={{ gap: 4 }}>
                   <button className="small" data-testid="window-back"
@@ -1937,7 +2243,7 @@ export default function ChannelStudio({
                   windowFrom={windowFrom} windowTo={windowTo} across={across}
                   stepMs={stepMs} stripRef={strip} stripWidth={stripWidth}
                   clock={clock} missingKeys={missingKeys} chosen={chosen}
-                  onChoose={setChosen}
+                  onChoose={setChosen} menuFor={blockMenu}
                 />
               )}
               {view === 'list' && (
@@ -3516,7 +3822,7 @@ function Meter({ value, label }: { value: number; label: string }) {
 /** A numbered row: index, thumbnail, title, subtitle, duration, menu. */
 function Row({
   index, source, title, subtitle, duration, badge, chosen, testid, dataset,
-  onClick, about, items,
+  onClick, about, items, inset,
 }: {
   index: number;
   source?: ProgrammeSource;
@@ -3528,6 +3834,8 @@ function Row({
   testid: string;
   dataset?: Record<string, string>;
   onClick?: () => void;
+  /** A page belonging to the row above it, stepped in. [§20, C-48] */
+  inset?: boolean;
   /*
    * WHAT CAN BE DONE TO THIS ROW, as a list rather than as a rendered
    * menu. It used to be a `<React.ReactNode>` holding a `<details>`, so
@@ -3572,6 +3880,17 @@ function Row({
       style={{
         display: 'flex', gap: 'var(--space-3)', alignItems: 'center',
         padding: 'var(--space-3)',
+        /*
+         * A PAGE BELONGS TO THE ROW ABOVE IT, and the step plus the
+         * rule on its leading edge is what says so. Without it a
+         * deck's twelve pages read as twelve more things in the
+         * list, which is the state this grouping exists to leave.
+         * [§20, C-48]
+         */
+        ...(inset ? {
+          paddingLeft: 'calc(var(--space-3) + 16px)',
+          boxShadow: 'inset 2px 0 0 var(--console-rule)',
+        } : {}),
         background: chosen ? 'var(--console-control)' : 'transparent',
         borderBottom: '1px solid var(--console-rule)',
         boxShadow: chosen
@@ -3701,12 +4020,30 @@ function PlaylistRail({
               'data-entry-id': entry.id,
               'data-playing': playing ? 'true' : 'false',
             } as Record<string, string>}
+            /*
+             * ON AIR, NOT LIVE.  [§13, D-21, U-20, C-49]
+             *
+             * > *"ANCIENT OF DAYS IS LIVE BUT THE TV HAS NOT GONE
+             * > LIVE."*
+             *
+             * The author read the badge correctly; the badge was
+             * wrong. This entry is a RECORDING being transmitted
+             * from the loop, and the channel has no camera open.
+             *
+             * The product already holds this line where it costs
+             * something — `marksFor` pushes the LIVE lamp only when
+             * `on.kind === 'live'`, because *"a channel whose LIVE
+             * light is part of its logo is a channel lying to its
+             * viewers"* — and broke it in its own control room,
+             * where the operator who most needs to know whether a
+             * camera is open reads it.
+             */
             badge={playing ? (
               <span style={{
                 flex: '0 0 auto', padding: '1px 5px', borderRadius: 3,
                 background: 'var(--state-live-dim)', color: 'var(--ink-000)', fontSize: 'var(--text-2xs)',
                 fontWeight: 800, letterSpacing: 0.5,
-              }}>LIVE</span>
+              }}>ON AIR</span>
             ) : entry.loop ? (
               <span className="muted" style={{ lineHeight: 0 }}
                     title="Plays round for ever"><Icon name="loop" size={11} /></span>
@@ -3745,7 +4082,7 @@ function PlaylistRail({
 
 /** THE LIBRARY — every finished render both other studios have made. [§3] */
 function LibraryRail({
-  items, listing, picked, keep, onPick, itemsFor,
+  items, listing, picked, keep, onPick, itemsFor, openDeck, onOpenDeck,
 }: {
   items: LibraryItem[];
   listing: Programme[];
@@ -3754,6 +4091,9 @@ function LibraryRail({
   onPick: (key: string) => void;
   /* What to do with a finished render. The rail does not know; §3. */
   itemsFor: (item: LibraryItem) => MenuEntry[];
+  /** Which deck is showing its pages, if any. [C-48] */
+  openDeck: string | null;
+  onOpenDeck: (id: string | null) => void;
 }) {
   if (items.length === 0) {
     return (
@@ -3763,10 +4103,53 @@ function LibraryRail({
       </p>
     );
   }
+  /*
+   * A DECK IS ONE THING WITH TWELVE PAGES.  [§20, D-04, C-48]
+   *
+   * > *"HOW COME I CANNOT UPLOAD MEDIA INTO PLAYLIST"*
+   *
+   * The rail that question was asked of held twelve rows all
+   * called "Admission Package — Dorot…", above the one video the
+   * author wanted. Every row was CORRECT — a page is a still, a
+   * still is schedulable, and the schedule is the only way to put
+   * a caption card out at a TIME, the Slides panel being the way
+   * to put one up NOW. Nothing said they were one thing.
+   */
+  const rows = libraryRows(
+    items.filter((item) => keep(item.title) || Boolean(item.deck)), openDeck);
   return (
     <>
-      {items.map((item, index) => {
-        if (!keep(item.title)) return null;
+      {rows.map((row, index) => {
+        if (row.kind === 'deck') {
+          /* A shut deck is one line; the pages are what it stands
+             for, and the line is what shuts them again. */
+          if (!keep(row.title)) return null;
+          return (
+            <Row
+              key={`deck:${row.id}`}
+              index={index + 1}
+              source={row.pages[0]!.source}
+              title={row.title}
+              subtitle={`Deck · ${deckSays(row.pages.length)}`}
+              duration=""
+              chosen={false}
+              testid="library-deck"
+              dataset={{
+                'data-deck': row.id,
+                'data-open': row.open ? 'true' : 'false',
+              } as Record<string, string>}
+              onClick={() => onOpenDeck(row.open ? null : row.id)}
+              about={row.title}
+              items={() => [{
+                label: row.open ? 'Close the deck' : 'Show its slides',
+                hint: 'Each page can be scheduled on its own.',
+                onSelect: () => onOpenDeck(row.open ? null : row.id),
+              }]}
+            />
+          );
+        }
+        const item = row.item;
+        if (row.kind === 'item' && !keep(item.title)) return null;
         const key = sourceKey(item.source);
         const times = listing.filter(
           (entry) => sourceKey(entry.source) === key).length;
@@ -3774,6 +4157,10 @@ function LibraryRail({
           <Row
             key={key}
             index={index + 1}
+            /* A page of an open deck is stepped in, so the list
+               reads as a deck with pages under it rather than as
+               thirteen things in a row. */
+            inset={row.kind === 'page'}
             source={item.source}
             title={item.title}
             /*
@@ -3793,7 +4180,7 @@ function LibraryRail({
             ].filter(Boolean).join(' · ')}
             duration={item.kind === 'image' ? '' : runsFor(item.durationMs)}
             chosen={picked === key}
-            testid="library-item"
+            testid={row.kind === 'page' ? 'library-page' : 'library-item'}
             dataset={{ 'data-source-key': key } as Record<string, string>}
             onClick={() => onPick(key)}
             about={item.title}
@@ -3858,10 +4245,12 @@ function SchedulesRail({
                 background: 'var(--state-live-dim)', color: 'var(--ink-000)', fontSize: 'var(--text-2xs)', fontWeight: 800,
               }}>NO FILE</span>
             ) : liveId === entry.id ? (
+              /* ON AIR, not LIVE: a scheduled programme transmitting
+                 is not a camera that is open. [§13, U-20, C-49] */
               <span style={{
                 flex: '0 0 auto', padding: '1px 5px', borderRadius: 3,
                 background: 'var(--state-live-dim)', color: 'var(--ink-000)', fontSize: 'var(--text-2xs)', fontWeight: 800,
-              }}>LIVE</span>
+              }}>ON AIR</span>
             ) : undefined}
             about={title}
             items={() => [{
@@ -4541,7 +4930,18 @@ const TONE: Record<Tone, {
   bed: string; edge: string; hatch?: string; dashed?: boolean; ink?: string;
 }> = {
   missing: { bed: 'rgba(200,60,50,0.28)', edge: 'var(--console-edge)' },
-  live: { bed: 'rgba(192,57,43,0.32)', edge: 'var(--console-edge)' },
+  /*
+   * > *"The red should communicate live/on-air state, not simply
+   * > fill the whole event."*  [brief point 1]
+   *
+   * It filled it, at a third opacity, so a two-hour live
+   * broadcast was the loudest object in the room for two hours
+   * and the ONE block actually going out at this second — which
+   * carries the dot and the countdown — had nothing left to be
+   * louder than. A quarter of the fill and a red edge: the state
+   * is still unmistakable and the tally can still beat it.
+   */
+  live: { bed: 'rgba(192,57,43,0.14)', edge: 'var(--state-live-dim)' },
   standby: { bed: 'rgba(201,154,46,0.26)', edge: 'var(--console-edge)' },
   programme: { bed: 'rgba(45,110,200,0.26)', edge: 'var(--console-edge)' },
   loop: { bed: 'rgba(45,110,200,0.12)', edge: 'var(--console-edge)' },
@@ -4553,34 +4953,28 @@ const TONE: Record<Tone, {
   },
 };
 
-function Timeline({
-  segments, channel, now, windowFrom, windowTo, across, stepMs, stripRef,
-  stripWidth, clock, missingKeys, chosen, onChoose,
-}: {
-  segments: Segment[];
-  channel: Channel;
-  now: number;
-  windowFrom: number;
-  windowTo: number;
-  across: (at: number) => string;
-  /** The ruler's interval, chosen for this span at this width. [C-46] */
-  stepMs: number;
-  stripRef: React.RefObject<HTMLDivElement | null>;
-  /** The lane's own width in pixels, so legibility is a measurement
-   *  rather than a guess about how long a programme is. [C-46] */
-  stripWidth: number;
-  clock: (at: number) => string;
-  missingKeys: Set<string>;
-  chosen: string | null;
-  onChoose: (id: string) => void;
+/**
+ * ONE LANE, AND IT LIVES OUT HERE FOR A REASON.  [C-47]
+ *
+ * It was declared inside `Timeline`'s body, so every render made a
+ * NEW COMPONENT TYPE and React unmounted and remounted all four
+ * lanes and everything on them. The clock ticks once a second,
+ * which means the whole strip was destroyed and rebuilt sixty
+ * times a minute.
+ *
+ * That is not a tidiness point. It remounts a `<video>` element
+ * per filmstrip cell every second — which is most of why the
+ * browser reached its media-element ceiling the moment the window
+ * widened — it drops focus out of anything on the strip, and it
+ * is why a right-click had to race the clock to land on a block
+ * that still existed long enough to receive it.
+ *
+ * It closes over nothing: four props and its children.
+ */
+function Lane({ name, note, height, children }: {
+  name: string; note?: string; height: number; children: React.ReactNode;
 }) {
-  const ticks = Math.round((windowTo - windowFrom) / stepMs);
-  const lowerThird = channel.identity?.lowerThird;
-  const holdMs = lowerThird?.holdMs ?? 8000;
-
-  const Lane = ({ name, note, height, children }: {
-    name: string; note?: string; height: number; children: React.ReactNode;
-  }) => (
+  return (
     <div className="row" data-testid="timeline-lane" data-lane={name}
          style={{ alignItems: 'stretch', gap: 0 }}>
       {/*
@@ -4622,6 +5016,43 @@ function Timeline({
       }}>{children}</div>
     </div>
   );
+}
+
+function Timeline({
+  segments, channel, now, windowFrom, windowTo, across, stepMs, stripRef,
+  stripWidth, clock, missingKeys, chosen, onChoose, menuFor,
+}: {
+  segments: Segment[];
+  channel: Channel;
+  now: number;
+  windowFrom: number;
+  windowTo: number;
+  across: (at: number) => string;
+  /** The ruler's interval, chosen for this span at this width. [C-46] */
+  stepMs: number;
+  stripRef: React.RefObject<HTMLDivElement | null>;
+  /** The lane's own width in pixels, so legibility is a measurement
+   *  rather than a guess about how long a programme is. [C-46] */
+  stripWidth: number;
+  clock: (at: number) => string;
+  missingKeys: Set<string>;
+  chosen: string | null;
+  onChoose: (id: string) => void;
+  /** What can be done to a block, from the same list the rails
+   *  show. The strip had none of it. [C-47] */
+  menuFor: (on: OnAir) => MenuEntry[];
+}) {
+  const { onRow } = useRowMenu();
+  const ticks = Math.round((windowTo - windowFrom) / stepMs);
+  /*
+   * WHAT THE COMPOSITOR WILL HAVE DRAWN, over this window. Asked
+   * of `marksFor` itself rather than derived from the identity
+   * document, so the lane cannot drift from the picture. [C-47]
+   */
+  const graphics: GraphicEvent[] = useMemo(
+    () => graphicsOver(channel, windowFrom, windowTo, segments),
+    [channel, windowFrom, windowTo, segments]);
+
 
   return (
     <div ref={stripRef} data-testid="schedule-strip" style={{ minWidth: 0 }}>
@@ -4710,6 +5141,16 @@ function Timeline({
                cannot wait and drops the one that follows from it. */
             const roomy = fitsText(segment.toMs - segment.fromMs,
               windowTo - windowFrom, stripWidth, COUNTDOWN_READINGS);
+            /*
+             * AND THE LENGTH HAS A THRESHOLD OF ITS OWN, because it
+             * is four characters beside a title and not a sentence.
+             * Gated on the countdown's four readings it vanished
+             * from every block in the lane — the one number the
+             * brief draws on the right of the line, absent because
+             * a different string that shares the block is long.
+             */
+            const wide = fitsText(segment.toMs - segment.fromMs,
+              windowTo - windowFrom, stripWidth, LENGTH_READINGS);
             const rule = `1px ${paint.dashed ? 'dashed' : 'solid'} ${edge}`;
             return (
               <button
@@ -4720,6 +5161,7 @@ function Timeline({
                 data-kind={segment.on.kind}
                 onClick={() => { if (id) onChoose(id); }}
                 data-tone={tone}
+                {...onRow(segment.title, () => menuFor(segment.on))}
                 title={`${segment.title} — ${clock(segment.fromMs)} to `
                   + `${clock(segment.toMs)}`
                   + (left === null ? '' : ` · ${offsetLabel(left)} left`)}
@@ -4789,31 +5231,94 @@ function Timeline({
                     ? 'inset 0 0 0 1px rgba(127,180,238,0.35)' : 'none',
                 }}
               >
-                <span style={{
-                  display: 'block', overflow: 'hidden', textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap', fontWeight: 600,
-                }}>{words ? segment.title : ''}</span>
                 {/*
-                  * THE BLOCK SAID ITS LENGTH AND NOT ITS END.  [C-46]
+                  * TWO LINES, AND THE BRIEF DREW THEM.
+                  *   [brief point 1, §13, U-20, C-47]
                   *
-                  * "2:30:00" is how long the programme is. At 21:02 the
-                  * two numbers a gallery actually needs are when it
-                  * finishes and how much of it is left, and neither was
-                  * anywhere on the one surface whose job is to say what
-                  * happens next. The length is still there for every
-                  * other block, because for a thing that has not started
-                  * its length is the useful number.
+                  * > *"LIVE STUDIO                    2:30:00*
+                  * >  *LIVE · Studio One"*
+                  *
+                  * The title and the length are one line because
+                  * they are one fact — WHAT, and HOW LONG — and the
+                  * length is the only thing on a block whose width
+                  * is fixed and known, so it is the thing that sits
+                  * right and never truncates. It was sharing the
+                  * line by accident, both halves shrinking, and
+                  * `Statio… 1…` was the result.
+                  *
+                  * ● ON AIR LEADS THE LINE, WHICH IS THE BRIEF'S
+                  * "one thing I would add later". The block under
+                  * the playhead was lit along its top edge and
+                  * nothing else — a tally an operator has to be
+                  * taught. And it says it only when it is TRUE: the
+                  * playhead is drawn whenever now falls in the
+                  * window, which it does at four in the morning on
+                  * a channel that is off air, and a marker claiming
+                  * ON AIR over a hole is the fault U-20 already
+                  * fixed once on the playhead's own flag.
                   */}
-                <span className="muted" data-testid="block-foot"
-                      style={{
-                        display: 'block', fontSize: 'var(--text-2xs)',
-                        whiteSpace: 'nowrap', overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                      }}>
+                <span className="row" style={{
+                  gap: 5, alignItems: 'baseline', minWidth: 0,
+                  lineHeight: 1.3, flex: '0 0 auto',
+                  /*
+                   * AND IT DOES NOT WRAP, SAID HERE.  [C-47]
+                   *
+                   * `.row` is `flex-wrap: wrap` in the room's own
+                   * stylesheet, which is right for a toolbar and
+                   * wrong for a line inside a fifty-pixel block: the
+                   * length dropped to a third line and the block
+                   * overflowed its lane by seven pixels, on exactly
+                   * the blocks wide enough to show a length at all.
+                   *
+                   * The second global rule this block was laid out
+                   * by without declaring, after `button`'s own
+                   * `display: flex`. A line that must be one line
+                   * says so where it is written.
+                   */
+                  flexWrap: 'nowrap',
+                }}>
+                  {holds && segment.on.kind !== 'off' && (
+                    <span aria-hidden="true" data-testid="block-on-air" style={{
+                      width: 5, height: 5, borderRadius: '50%', flex: '0 0 auto',
+                      background: 'var(--state-live)',
+                      boxShadow: '0 0 0 2px rgba(192,57,43,0.25)',
+                    }} />
+                  )}
+                  <span style={{
+                    flex: '1 1 auto', minWidth: 0, overflow: 'hidden',
+                    textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    fontWeight: 600,
+                  }}>{words ? segment.title : ''}</span>
+                  {/* The length never truncates: it is four
+                      characters and it is why the line exists. */}
+                  {wide && (
+                    <span className="mono" style={{
+                      flex: '0 0 auto', fontSize: 'var(--text-2xs)',
+                      color: 'var(--ink-300)',
+                    }}>{offsetLabel(segment.toMs - segment.fromMs)}</span>
+                  )}
+                </span>
+                {/*
+                  * AND THE SECOND LINE IS WHAT THIS IS — or, on the
+                  * one block under the playhead, when it ends and
+                  * how much is left, because that outranks it for
+                  * exactly one block in the lane. [D-04]
+                  */}
+                <span data-testid="block-foot" style={{
+                  display: 'block', fontSize: 'var(--text-2xs)',
+                  lineHeight: 1.3, flex: '0 0 auto',
+                  whiteSpace: 'nowrap', overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  color: left === null ? 'var(--ink-400)' : 'var(--state-live)',
+                  fontWeight: left === null ? 400 : 600,
+                }}>
                   {!words ? '' : left === null
-                    ? offsetLabel(segment.toMs - segment.fromMs)
+                    ? (segment.on.kind === 'off' ? 'Nothing scheduled'
+                      : (stateLine(segment.on)
+                        ?? sourceLine(sourceOf(segment.on)) ?? ''))
                     : roomy
-                      ? `ends ${clock(segment.toMs)} · ${offsetLabel(left)} left`
+                      ? `ON AIR · ends ${clock(segment.toMs)} · `
+                        + `${offsetLabel(left)} left`
                       : `${offsetLabel(left)} left`}
                   {words && broken ? ' · missing' : ''}
                 </span>
@@ -4865,55 +5370,130 @@ function Timeline({
                   windowTo - windowFrom, FRAME_SHARE) && (
                 <Thumb source={segment.on.source} />
               )}
+              {/*
+                * AND IT SAYS WHICH SOURCE THIS IS.  [brief point 4, C-47]
+                *
+                * > *"The timeline should tell the operator what source
+                * > is actually occupying that period."*
+                *
+                * It told them nothing. The lane was a filmstrip and a
+                * sprocket pattern, and on a build whose browser cannot
+                * decode the renders — or on any stretch too narrow for
+                * a poster — it was an empty black bar.
+                *
+                * `sourceLine` already says exactly this, in exactly
+                * these words: "Studio Two · Performance", "Live from
+                * the studio", "Film". It was written for the lower
+                * third in C-42 and read by one caller. The lane that
+                * needed it most could not have told you it existed.
+                */}
+              {segment.on.kind !== 'off' && (() => {
+                const says = stateLine(segment.on)
+                  ?? sourceLine(sourceOf(segment.on))
+                  /* A still is a still, and `sourceLine` says nothing
+                     about one because a viewer does not need telling.
+                     An operator does: a slide IS the programme here. */
+                  ?? (segment.on.source.kind === 'media'
+                    && segment.on.source.form === 'image' ? 'Slide' : null);
+                if (!says || !fitsText(segment.toMs - segment.fromMs,
+                  windowTo - windowFrom, stripWidth)) return null;
+                return (
+                  <span data-testid="source-line" style={{
+                    position: 'absolute', left: 0, right: 0, bottom: 0,
+                    padding: '1px 4px', fontSize: 'var(--text-2xs)',
+                    lineHeight: '13px', whiteSpace: 'nowrap',
+                    overflow: 'hidden', textOverflow: 'ellipsis',
+                    color: 'var(--ink-200)',
+                    background: 'linear-gradient(transparent, rgba(0,0,0,0.72))',
+                  }}>{says}</span>
+                );
+              })()}
             </div>
           ))}
         </Lane>
 
-        {/* ---- GRAPHICS: where the identity layer draws ----------------- */}
-        <Lane
-          name="Graphics" height={32}
-          note={lowerThird && lowerThird.show === 'at-start'
-            ? `${Math.round(holdMs / 1000)}s at each join`
-            : lowerThird?.show === 'always' ? 'always up' : 'off'}
-        >
-          {/*
-            * THE LANE'S GROUND says what the identity layer is doing; the
-            * blocks on it say WHEN. With `at-start` they are eight-second
-            * ticks at each join, which is the truth — a lane drawn as one
-            * long bar would be a lane claiming a lower third is up all day.
-            */}
-          <div aria-hidden="true" style={{
-            position: 'absolute', inset: '3px 0', borderRadius: 4,
-            background: 'rgba(125,86,196,0.08)', border: '1px dashed #4a3a70',
-          }} />
-          {lowerThird && lowerThird.show !== 'never' && segments.map((segment) => {
-            const toMs = lowerThird.show === 'always'
-              ? segment.toMs : Math.min(segment.toMs, segment.fromMs + holdMs);
+        {/* ---- GRAPHICS: every layer the compositor draws --------------- */}
+        {/*
+          * IT DREW ONE LAYER OF FOUR, AND READ IT OFF THE SETTINGS.
+          *   [brief point 7, D-19, C-40, C-44, C-47]
+          *
+          * > *"You shouldn't build Slide graphics / Lower thirds /
+          * > Channel bug / NEXT graphic / Programme title as five
+          * > unrelated features."*
+          *
+          * They never were five features. `marksFor` has computed the
+          * bug, the LIVE lamp, the lower third and NEXT from one list
+          * since the identity was written, and the compositor draws
+          * that list. This lane drew lower thirds, from the identity
+          * DOCUMENT — because `marksFor` needs three inputs that
+          * lived inside the playout worker as private functions, so
+          * the page could not call it at all.
+          *
+          * So the lane did not disagree with the compositor. It had
+          * never spoken to it. A row per layer now, from the same
+          * function, sampled at the instants its answer can change.
+          *
+          * A SLIDE IS NOT ON THIS LANE AND SHOULD NOT BE. A slide is
+          * a `media` source with `form: 'image'` — it IS the
+          * programme, full frame, and it appears in PROGRAM where
+          * every other source does. Drawing it here would claim it
+          * composites OVER a picture when it is the picture. [§3]
+          */}
+        <Lane name="Graphics" height={14 + LAYERS.length * 15}
+              note={`${graphics.length} event${graphics.length === 1 ? '' : 's'}`}>
+          {LAYERS.map((layer, row) => {
+            const on = graphics.filter((event) => event.kind === layer);
             return (
-              <div key={`g${segment.fromMs}`} data-testid="graphics-cell" style={{
-                position: 'absolute', top: 3, bottom: 3, left: across(segment.fromMs),
-                width: `calc(${across(toMs)} - ${across(segment.fromMs)})`,
-                minWidth: 3, borderRadius: 4, padding: '0 5px', fontSize: 'var(--text-2xs)',
-                lineHeight: '24px', overflow: 'hidden', whiteSpace: 'nowrap',
-                textOverflow: 'ellipsis',
-                background: 'rgba(125,86,196,0.45)', border: '1px solid #8a6fd0',
-              }}>
-                {/* A caption only where the block is wide enough to hold
-                    one, and "wide enough" is a share of what is on screen
-                    rather than a share of a window that no longer exists.
-                    At ten minutes the eight-second ticks finally say what
-                    they are. [C-46] */}
-                {roomOnScreen(toMs - segment.fromMs,
-                  windowTo - windowFrom, CAPTION_SHARE)
-                  ? `Lower Third: ${segment.title}` : ''}
+              <div key={layer} data-testid="graphics-row" data-layer={layer}
+                   style={{
+                     position: 'absolute', left: 0, right: 0,
+                     top: 3 + row * 15, height: 13,
+                   }}>
+                {/*
+                  * A ROW IS DRAWN EVEN WHEN IT IS EMPTY, which is the
+                  * lane saying "this layer exists and is not on"
+                  * rather than the layer not existing. An operator
+                  * looking for the LIVE lamp needs to find the row
+                  * and see it dark — a missing row reads as a
+                  * capability the channel does not have.
+                  */}
+                <div aria-hidden="true" style={{
+                  position: 'absolute', inset: 0, borderRadius: 2,
+                  background: 'rgba(125,86,196,0.06)',
+                  border: '1px dashed #3a2f55',
+                }} />
+                {on.map((event) => (
+                  <div key={`${layer}${event.fromMs}`} data-testid="graphics-cell"
+                       data-layer={layer}
+                       title={`${layerSays(layer)} — ${event.says}`}
+                       style={{
+                         position: 'absolute', top: 0, bottom: 0,
+                         left: across(event.fromMs),
+                         width: `calc(${across(event.toMs)} - `
+                           + `${across(event.fromMs)})`,
+                         minWidth: 3, borderRadius: 2, padding: '0 4px',
+                         fontSize: 'var(--text-2xs)', lineHeight: '11px',
+                         overflow: 'hidden', whiteSpace: 'nowrap',
+                         textOverflow: 'ellipsis',
+                         /* The lamp is a statement of fact about the
+                            transmission, not station branding, so it is
+                            the live red every other such mark uses. */
+                         background: layer === 'lamp'
+                           ? 'rgba(192,57,43,0.42)' : 'rgba(125,86,196,0.45)',
+                         border: `1px solid ${layer === 'lamp'
+                           ? 'var(--state-live-dim)' : '#8a6fd0'}`,
+                       }}>
+                    {fitsText(event.toMs - event.fromMs,
+                      windowTo - windowFrom, stripWidth, 2)
+                      ? `${layerSays(layer)}: ${event.says}`
+                      : fitsText(event.toMs - event.fromMs,
+                        windowTo - windowFrom, stripWidth)
+                        ? layerSays(layer) : ''}
+                  </div>
+                ))}
               </div>
             );
           })}
-          {(!lowerThird || lowerThird.show === 'never') && (
-            <span className="muted" style={{
-              position: 'absolute', left: 8, top: 5, fontSize: 'var(--text-2xs)',
-            }}>No lower thirds — set them in Graphics</span>
-          )}
         </Lane>
 
         {/* ---- AUDIO: the master bus, stretch by stretch ---------------- */}
@@ -4938,13 +5518,16 @@ function Timeline({
           {segments.map((segment) => {
             const broken = segment.on.kind !== 'off'
               && missingKeys.has(sourceKey(segment.on.source));
-            const sound = carriesSound(blockTone(segment.on, broken));
+            const sound = audioState(blockTone(segment.on, broken));
+            const heard = sound === 'programme';
             return (
               <div
                 key={`a${segment.fromMs}`} data-testid="audio-cell"
-                data-sound={sound ? 'programme' : 'silence'}
-                title={sound ? `Programme audio — ${segment.title}`
-                  : 'Silence — the engine generates it for this stretch'}
+                data-sound={sound}
+                title={heard ? `Programme audio — ${segment.title}`
+                  : sound === 'fault'
+                    ? 'Silence — this slot has no media behind it'
+                    : 'Silence — the engine generates it for this stretch'}
                 style={{
                   position: 'absolute', top: 3, bottom: 3,
                   left: across(segment.fromMs),
@@ -4953,13 +5536,16 @@ function Timeline({
                   fontSize: 'var(--text-2xs)', lineHeight: '22px',
                   overflow: 'hidden', whiteSpace: 'nowrap',
                   textOverflow: 'ellipsis',
-                  background: sound ? 'rgba(42,140,140,0.20)' : 'transparent',
-                  backgroundImage: sound ? 'none'
+                  background: heard ? 'rgba(42,140,140,0.20)'
+                    : sound === 'fault' ? 'rgba(200,60,50,0.18)' : 'transparent',
+                  backgroundImage: heard ? 'none'
                     : 'repeating-linear-gradient(135deg, '
                       + 'rgba(255,255,255,0.06) 0 5px, transparent 5px 11px)',
-                  border: sound ? '1px solid #2f7f7f'
-                    : '1px dashed var(--line)',
-                  color: sound ? '#8fd2d2' : 'var(--ink-400)',
+                  border: heard ? '1px solid #2f7f7f'
+                    : `1px dashed ${sound === 'fault'
+                      ? 'var(--state-live-dim)' : 'var(--line)'}`,
+                  color: heard ? '#8fd2d2'
+                    : sound === 'fault' ? 'var(--state-live)' : 'var(--ink-400)',
                 }}
               >
                 {/*
@@ -4973,7 +5559,8 @@ function Timeline({
                   */}
                 {fitsText(segment.toMs - segment.fromMs,
                   windowTo - windowFrom, stripWidth)
-                  ? (sound ? 'Programme' : 'Silence') : ''}
+                  ? (heard ? 'Programme'
+                    : sound === 'fault' ? 'Silence · no media' : 'Silence') : ''}
               </div>
             );
           })}

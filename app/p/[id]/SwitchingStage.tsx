@@ -60,6 +60,7 @@ import {
   HOUSE_SAMPLE_RATE, formatMasterPosition, parseMasterPosition,
 } from '../../../src/domain/time.js';
 import { usePerformancePlayer } from './usePerformancePlayer.js';
+import { bodyOf } from '../../../src/domain/saidBy.js';
 
 /**
  * Directing the music video.  [Doctrine STUDIO-TWO §2, §5, §6, §7, §8, §15]
@@ -833,7 +834,7 @@ export default function SwitchingStage({
       const response = await fetch(`/api/performances/${performance.id}`,
         { cache: 'no-store' });
       if (!response.ok) continue;
-      const data = await response.json();
+      const data = bodyOf(await response.text());
       const job = (data.jobs ?? [])
         .find((one: { id?: string }) => one.id === jobId);
       if (!job || job.state === 'pending' || job.state === 'running') continue;

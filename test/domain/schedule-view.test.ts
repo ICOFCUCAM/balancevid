@@ -18,7 +18,8 @@ import { describe, expect, it } from 'vitest';
 import type { OnAir, ProgrammeSource } from '../../src/domain/channel.js';
 import {
   BEHIND, CAPTION_SHARE, DEFAULT_SPAN, FRAME_SHARE, MIN_LABEL_PX, SPANS,
-  COUNTDOWN_READINGS, LEGIBLE_PX,
+  COUNTDOWN_READINGS, LEGIBLE_PX, LENGTH_READINGS,
+  audioState,
   blockTone, canZoom, carriesSound, fitsText, labelNudge, leftOf, mostOnScreen,
   roomOnScreen, spanSays, stepFor, windowFor, zoomed,
 } from '../../src/domain/scheduleView.js';
@@ -446,5 +447,78 @@ describe('a gate that passes the caption it cannot hold (C-46)', () => {
       expect(fitsText(edge, span, STRIP, COUNTDOWN_READINGS), `${span}`)
         .toBe(false);
     }
+  });
+});
+
+describe('silence asked for, and silence gone wrong (C-47)', () => {
+  /*
+   * THE SAME FOUR SECONDS OF `anullsrc`, AND OPPOSITE FACTS. A
+   * hole is the schedule being quiet on purpose; a dead reference
+   * is a slot with a title and nothing behind it. Painted alike,
+   * the lane told an operator the fault was a planned gap.
+   */
+  it('tells a planned gap from a dead reference', () => {
+    expect(audioState(blockTone(on('off'), false))).toBe('silence');
+    expect(audioState(blockTone(on('programme'), true))).toBe('fault');
+  });
+
+  /* Both are silence to a viewer, which is why the old lane could
+     conflate them and why `carriesSound` still says so. */
+  it('agrees with itself that neither is heard', () => {
+    for (const state of ['silence', 'fault'] as const) {
+      expect(state).not.toBe('programme');
+    }
+    expect(carriesSound(blockTone(on('off'), false))).toBe(false);
+    expect(carriesSound(blockTone(on('programme'), true))).toBe(false);
+  });
+
+  /* And everything the engine does not silence reads as programme. */
+  it('calls everything else programme audio', () => {
+    for (const kind of ['live', 'programme', 'rotation', 'emergency'] as const) {
+      expect(audioState(blockTone(on(kind), false)), kind).toBe('programme');
+    }
+  });
+
+  /*
+   * THERE IS NO `muted` AND NOTHING INVENTS ONE. A lane with a
+   * colour that can never be reached is a lane claiming a control
+   * the product does not have.
+   */
+  it('has no state the channel document cannot produce', () => {
+    const reachable = new Set((['off', 'live', 'emergency', 'backup',
+      'programme', 'rotation'] as const).flatMap((kind) =>
+      [audioState(blockTone(on(kind), false)),
+        audioState(blockTone(on(kind), true))]));
+    expect([...reachable].sort()).toEqual(['fault', 'programme', 'silence']);
+  });
+});
+
+describe('the length has a threshold of its own (C-47)', () => {
+  /*
+   * GATED ON THE COUNTDOWN'S FOUR READINGS, the length vanished
+   * from every block in the lane: the one number the brief draws
+   * on the right of the line, absent because a different and
+   * longer string shares the block. Three readings is a title
+   * that is still a word, beside four characters.
+   */
+  const STRIP = 880;
+  const MIN = 60_000;
+
+  it('sits between a bare title and a countdown', () => {
+    expect(LENGTH_READINGS).toBeGreaterThan(1);
+    expect(LENGTH_READINGS).toBeLessThan(COUNTDOWN_READINGS);
+  });
+
+  it('shows the length on a block the countdown would not fit', () => {
+    /* Eighteen minutes at the default span: about 106px. */
+    const block = 18 * MIN;
+    expect(fitsText(block, DEFAULT_SPAN, STRIP, LENGTH_READINGS)).toBe(true);
+    expect(fitsText(block, DEFAULT_SPAN, STRIP, COUNTDOWN_READINGS)).toBe(false);
+  });
+
+  /* And still hides it where the title alone is all there is room for. */
+  it('drops it before it crowds the title out', () => {
+    expect(fitsText(8 * MIN, DEFAULT_SPAN, STRIP)).toBe(true);
+    expect(fitsText(8 * MIN, DEFAULT_SPAN, STRIP, LENGTH_READINGS)).toBe(false);
   });
 });

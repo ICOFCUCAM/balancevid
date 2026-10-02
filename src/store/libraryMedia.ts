@@ -48,6 +48,14 @@ export interface Container {
 export const CONTAINERS: readonly Container[] = [
   { ext: 'png', type: 'image/png', still: true },
   { ext: 'jpg', type: 'image/jpeg', still: true },
+  /*
+   * AND WEBP, WHICH AN UPLOAD COULD ALREADY SEND AND NOTHING COULD
+   * STORE HONESTLY. The upload route accepted `image/webp` and wrote
+   * the bytes to a `.jpg`, because `.jpg` was the only still this
+   * table had room for — which is the fault this file's own opening
+   * paragraph is about, committed against it. [C-48]
+   */
+  { ext: 'webp', type: 'image/webp', still: true },
   { ext: 'mp4', type: 'video/mp4', still: false },
   /*
    * AND THE SOUNDS. An `.m4a` is an MP4 with no picture in it, which is
@@ -59,6 +67,20 @@ export const CONTAINERS: readonly Container[] = [
   { ext: 'ogg', type: 'audio/ogg', still: false },
   { ext: 'wav', type: 'audio/wav', still: false },
   { ext: 'flac', type: 'audio/flac', still: false },
+  /*
+   * AND THE TWO OTHER MOVING CONTAINERS AN UPLOAD COULD SEND.
+   *
+   * `video/webm` and `video/quicktime` were accepted and written to
+   * `.mp4`, and *nothing is transcoded here* — the route says so in
+   * its own opening paragraph. So the bytes were WebM and the name
+   * said MP4, and the serving route then told the browser
+   * `video/mp4` about them. ffmpeg sniffs and never noticed; a
+   * `<video>` element is the one that does. The same fault as the
+   * `.mp3` stored as `.mp4` this table was extracted to fix, in the
+   * two formats nobody checked. [C-14, C-48]
+   */
+  { ext: 'webm', type: 'video/webm', still: false },
+  { ext: 'mov', type: 'video/quicktime', still: false },
 ];
 
 /** The container a stored filename is, or nothing if it is not one. */
@@ -94,3 +116,5 @@ export function libraryFile(
   }
   return null;
 }
+
+

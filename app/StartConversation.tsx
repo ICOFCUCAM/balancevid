@@ -11,6 +11,7 @@ import { Door, NewWork } from './Room.js';
 import { useCamera } from './useCamera.js';
 import { useQuality } from './useQuality.js';
 import { useSourceRecorder } from './useSourceRecorder.js';
+import { answered } from './answered.js';
 
 /**
  * Bringing something into a conversation.
@@ -192,8 +193,13 @@ export default function StartConversation() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ url }),
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error ?? 'could not read that link');
+      /* Typed, where `.json()` returned `any` and every field below
+         was unchecked. [C-49] */
+      const data = await answered<{
+        title?: string; author?: string; thumbnailUrl?: string;
+        providerLabel?: string; canonicalUrl?: string;
+        durationSeconds?: number; unverified?: boolean;
+      }>(response, 'could not read that link');
       const found: Preview = {
         kind: 'link',
         title: data.title || 'Untitled video',
@@ -305,8 +311,8 @@ export default function StartConversation() {
           }),
         });
       }
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error ?? 'could not start the conversation');
+      const data = await answered<{ conversation: { id: string } }>(
+        response, 'could not start the conversation');
       router.push(`/c/${data.conversation.id}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));

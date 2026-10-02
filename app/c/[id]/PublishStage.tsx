@@ -10,6 +10,7 @@ import PublishPanel from './PublishPanel.js';
 import BundlePanel from './BundlePanel.js';
 import AudioPanel from './AudioPanel.js';
 import CardsPanel from './CardsPanel.js';
+import { bodyOf } from '../../../src/domain/saidBy.js';
 
 /**
  * How the conversation becomes public.  [Doctrine INV-00, U-22, U-30, D-16]
@@ -75,7 +76,7 @@ export default function PublishStage({
     const response = await fetch(`/api/conversations/${conversationId}/clips`,
       { cache: 'no-store' });
     if (!response.ok) return;
-    const data = await response.json();
+    const data = bodyOf(await response.text());
     setCandidates(data.candidates ?? []);
     setClipJobs(data.jobs ?? []);
   }, [conversationId]);

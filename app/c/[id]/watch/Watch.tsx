@@ -21,6 +21,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Icon from '../../../Icon.js';
 import Brand from '../../../Brand.js';
 import { HOUSE_FPS, formatTimecode } from '../../../../src/domain/time.js';
+import { answered } from '../../../answered.js';
 
 type Manifest = any;
 
@@ -463,8 +464,8 @@ function RespondButton({ conversationId }: { conversationId: string }) {
                 headers: { 'content-type': 'application/json' },
                 body: JSON.stringify({ respondToConversationId: conversationId }),
               });
-              const data = await response.json();
-              if (!response.ok) throw new Error(data.error ?? 'could not start a response');
+              const data = await answered<{ conversation: { id: string } }>(
+                response, 'could not start a response');
               window.location.href = `/c/${data.conversation.id}`;
             } catch (e) {
               setError(e instanceof Error ? e.message : String(e));
