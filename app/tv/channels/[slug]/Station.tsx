@@ -91,7 +91,16 @@ export default function Station(
         </span>
       </div>
 
+      {/*
+        * THE PICTURE IS CAPPED, so what is on stays on the screen.
+        * At full width a 16:9 player is 720 pixels tall on a
+        * laptop and pushes NOW and NEXT below the fold — on the
+        * one page whose job is to say what is on. A station page
+        * where you must scroll to learn that is a station page
+        * that has buried its own answer. [D-04]
+        */}
       <div style={{
+        maxWidth: 'min(100%, calc((100vh - 320px) * 16 / 9))',
         borderRadius: 'var(--radius-screen)', overflow: 'hidden',
         /* The bed is NAMED, never typed. compose.ts pads with
            color=black, so a player drawn on a hand-picked
