@@ -5598,3 +5598,210 @@ and "too bright" survived everything, because `TOO_DARK` is below
 `TOO_BRIGHT` and no number is both: the branch could never have
 fired twice and the keyword was doing nothing. What makes it true
 is the two constants, so the constants are what the test holds now.
+
+## C-46 — Stage 46: the schedule strip could not be looked at
+
+The author, over a screenshot of the 24/7 SCHEDULE timeline:
+
+> *"CHECK AND SEE IF THIS PART OF THE LIVE TV STUDIO IS
+> PROFESSIONAL IF NOT SUGGEST WHAT MUST BE ADDED"*
+
+The architecture was right and is untouched: four lanes, because
+four things leave the building, and a red playhead that is the one
+thing on the page that moves by itself. Five faults, in the order
+they were fixed — zoom first, because it unblocks inspecting
+everything else; then the off-air colour, because it was the only
+item actively misleading rather than merely absent.
+
+### 1. The window was a constant, and the comment above it was right
+
+> *"a whole day compressed into a strip makes a five-minute ident
+> two pixels wide, and the thing an operator actually needs to see
+> is the join between what is on now and what follows it."*
+
+Both halves are true, which is what makes a fixed window the wrong
+answer. A day is unreadable AND an eight-second lower third is
+**0.09% of two and a half hours** — a three-pixel sliver, in a lane
+whose whole purpose is to show where the identity draws. The
+GRAPHICS lane did not look empty because nothing was on it. It
+looked empty because everything on it was three pixels wide.
+
+**The answer to a trade you cannot win is not to pick a side. It is
+to let the operator move.** Seven stops, 10 min → 24 h, and at the
+tightest the same lower third is **1.3%** — a block with an edge.
+
+Zoom is a view and nothing else, which is Studio Two's rule for its
+own timeline and the same one here: it is not in the document, it
+changes no schedule, and the channel transmits identically whatever
+is on screen. [U-08]
+
+**And the arithmetic is different from Studio Two's for a reason.**
+A song has a length, so Studio Two zooms by a MULTIPLE of it. A
+channel runs for ever, so this zooms by a SPAN — how much wall
+clock is on screen — and the stops are durations a broadcaster
+already thinks in.
+
+**Nothing moves for somebody who never touches it.** `BEHIND` is a
+tenth of the window, which at the span it has always had is the
+fifteen minutes of history it has always kept. A fixed fifteen
+minutes would be impossible in a ten-minute window and invisible in
+a day.
+
+### 2. A hole in the schedule was painted as a programme
+
+`off` and `rotation` both fell through to the same faint blue at
+the end of a chain of ternaries. So a GAP — the single thing an
+operator most needs to find at a glance — looked like a quiet turn
+of the loop.
+
+The word "Off air" was on the block. **A schedule lane is SCANNED
+rather than read**: colour arrives first, and the colour said
+"something is on". C-31's fault in a third place: a surface showing
+the answer to one question in the shape of another.
+
+A hole is now the absence of a block rather than a block of a
+different colour — no fill, a dashed rule, a diagonal hatch. And
+the chain of ternaries is a table, so the next kind added to
+`OnAir` has to be given a tone instead of falling through into
+whatever the last `else` happened to be. **That fall-through is
+what this fixes.**
+
+### 3. The block said its length and never its end
+
+`2:30:00` is how long the programme is. At 21:02 the two numbers a
+gallery needs are when it finishes and how much is left, and
+neither was anywhere on the one surface whose job is to say what
+happens next.
+
+Only the block under the playhead counts down. A lane of forty
+blocks each counting down is a lane nobody reads. [D-04]
+
+### 4. The audio lane was a label pretending to be a track
+
+One bar the width of the window reading `Master Audio (Program)`,
+noted **"always on"**, drawn identically over a programme, over a
+hole and over a dead reference.
+
+The engine puts `anullsrc` on the wire for a hole and for a missing
+render alike (`black()`, §11). Those four seconds **are** silence,
+and this was the one lane on the page asserting the opposite — the
+lane somebody checks when a viewer says they heard nothing.
+
+It is drawn from the same walk as every other lane now, and says
+`Silence` exactly where the engine makes silence. **Only where it
+is certain**: a programme whose file happens to have no audio is
+also silent, and nothing on this page can know that without probing
+the media. A track that guesses is worse than a track that is
+quiet.
+
+No waveform is drawn and the lane does not pretend to one. Nothing
+here has decoded the media; a generated squiggle would be a picture
+of audio that was never measured.
+
+### 5. The ruler's last label was clipped
+
+`23:0` in the author's screenshot. Every label was centred on its
+tick except the first, so the last hung half its width past the
+right edge. A measuring instrument whose last number is shaved
+cannot be trusted at the end of the scale, which is exactly where a
+schedule is read. [C-38's argument, one surface along]
+
+### Measured
+
+| span | ruler step | labels | gap at 1100px |
+|---|---|---|---|
+| 10 min | 1 min | 10 | 110px |
+| 30 min | 5 min | 6 | 183px |
+| 1 hour | 5 min | 12 | 92px |
+| 2½ hours | 15 min | 10 | 110px |
+| 6 hours | 30 min | 12 | 92px |
+| 12 hours | 1 hour | 12 | 92px |
+| 24 hours | 2 hours | 12 | 92px |
+
+A clock reading in the readout face is five characters of 10px
+mono — about thirty-four pixels — so the floor is two readings'
+width and the worst case clears it by a quarter.
+
+### Four faults the screenshots found, three of them this stage's own
+
+**A window that stops being a constant breaks everything that was
+measuring against it without saying so**, and the only way to find
+those is to move it.
+
+**1. The filmstrip blinded the browser.** The video lane drew a
+frame for any stretch of eight minutes or more — five per cent of
+the window it was written against, half a per cent of a day. The
+first zoom out to twenty-four hours mounted a `<video>` per
+stretch and Chromium refused them in a block: *"too many
+WebMediaPlayers already in existence."* The lane went blank at
+exactly the span somebody zooms out to survey, and so did every
+other video on the page, for the rest of its life. Expressed as a
+share it is the same eight minutes at the old window to the pixel,
+and the count is bounded at eighteen whatever the span.
+
+**2. The strip read `2: 5: 4036 9:2: 5:`.** A hundred eight-pixel
+blocks, each drawing a title and a duration. That is not small
+text — it is noise with the shape of text, and the eye keeps
+trying to resolve it, which makes it harder to look past than an
+empty block. A block narrower than one clock reading now says
+nothing.
+
+**3. The countdown this stage added wrapped out of its own block.**
+`ends 20:51 · 06:40 left` is four clock readings long and the
+legibility gate asked whether the block could say ANYTHING. Both
+halves were right and nothing measured the one against the other —
+**the third instance of C-42's lesson**: *when a stage adds a field
+and a branch, the thing in between is where the test is missing.*
+Below four readings the block keeps the number that cannot wait and
+drops the one that follows from it.
+
+**4. The block was laid out by a rule it did not declare.** Its two
+spans are `display: block` and were written to stack, a title over
+a duration. They never did: the room's stylesheet makes every
+`<button>` a row flex with `align-items: center`, so they were
+flex ITEMS splitting eighty pixels — `Statio… 1…`, a title cut
+short and a duration cut to one digit, which reads worse than no
+duration at all. The direction is now declared where the block is
+drawn.
+
+### Measured, in the room
+
+| span | blocks | ruler | browser refusals |
+|---|---|---|---|
+| 10 min | 2 | 2 min | 0 |
+| 2½ hours | 13 | 30 min | 0 |
+| 24 hours | 99 | 3 hours | 0 |
+
+Before the share, twenty-four hours produced a flood of refusals
+and the run could not complete.
+
+**The video lane's picture is unverified here and said so.** This
+container's Chromium has no H.264, so the renders mount and decode
+to black. The lane's own requests succeed; what it shows is not
+something this machine can report.
+
+### The record
+
+**Forty assertions, twenty-three mutations, all twenty-three
+caught.**
+
+Two survived the first pass and both were the same kind of fault,
+which is worth writing down.
+
+**A test that compares a gap to `MIN_LABEL_PX` passes at every
+value of `MIN_LABEL_PX`.** Halve the constant and the assertion
+still agrees with itself. The fact it was meant to hold is about
+the glass, not about the source, so the number in the test is now
+the measured width of a clock reading.
+
+> **A test that imports the constant it is checking is a test of
+> arithmetic, not of a decision.**
+
+**And a tie-break nobody could reach was given a reason instead of
+a fixture.** Twenty minutes sits exactly between two stops;
+rounding it the other way makes one press of the minus button jump
+from twenty minutes to an hour, skipping the half hour entirely. A
+control that skips a stop depending on where you happened to start
+is a control nobody can aim — so the property asserted is that a
+step never skips a stop, which is observable and is the reason the
+comparison is written the way it is.

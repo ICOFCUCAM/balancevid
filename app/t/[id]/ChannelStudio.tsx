@@ -2,7 +2,7 @@
 
 import AvailabilityFields from '../../AvailabilityFields.js';
 import type { TakeAvailability } from '../../../src/domain/availability.js';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   Channel, ChannelBlock, OnAir, Programme, ProgrammeSource, RotationEntry,
 } from '../../../src/domain/channel.js';
@@ -64,6 +64,12 @@ import {
 import { useQuality } from '../../useQuality.js';
 import { useConfirm } from '../../Confirm.js';
 import { useShot } from './useShot.js';
+import {
+  type Tone,
+  CAPTION_SHARE, COUNTDOWN_READINGS, DEFAULT_SPAN, FRAME_SHARE, blockTone,
+  canZoom, carriesSound, fitsText, labelNudge, leftOf, roomOnScreen, spanSays,
+  stepFor, windowFor, zoomed,
+} from '../../../src/domain/scheduleView.js';
 import type { StudioId } from '../../../src/domain/account.js';
 import {
   type Quality, type QualityId, QUALITIES, QUALITY_ORDER, aboveTransmission,
@@ -118,19 +124,6 @@ const DAY = 24 * HOUR;
 
 /** The slot lengths a scheduler reaches for, in minutes. */
 const SLOTS = [5, 15, 30, 60, 90, 120];
-
-/**
- * How much of the day the timeline shows at once.
- *
- * Two and a half hours, the benchmark's window, and it is the right one: a
- * whole day compressed into a strip makes a five-minute ident two pixels
- * wide, and the thing an operator actually needs to see is the join between
- * what is on now and what follows it.
- */
-const WINDOW_MS = 2.5 * HOUR;
-const STEP_MS = 30 * MINUTE;
-/** How far back the window starts, so what is on now has visible history. */
-const BEHIND_MS = 15 * MINUTE;
 
 /*
  * THE TWO TAB TYPES ARE THE FRAGMENT TABLE'S, not this file's. They
@@ -998,10 +991,46 @@ export default function ChannelStudio({
 
   /* ---- the timeline's window ------------------------------------------ */
   const windowNow = pinned ?? now;
-  const windowFrom = Math.floor((windowNow - BEHIND_MS) / STEP_MS) * STEP_MS;
-  const windowTo = windowFrom + WINDOW_MS;
+  /*
+   * HOW MUCH CLOCK IS ON SCREEN.  [§2, U-08, C-46]
+   *
+   * It was `WINDOW_MS = 2.5 * HOUR`, and the comment above it was
+   * right about both halves of the trade: a day compressed into a
+   * strip makes a five-minute ident two pixels wide, AND an
+   * eight-second lower third is 0.09% of two and a half hours. The
+   * answer to a trade you cannot win is not to pick a side; it is
+   * to let the operator move.
+   *
+   * A VIEW AND NOTHING ELSE, which is Studio Two's rule for its own
+   * timeline: not in the document, changes no schedule, and the
+   * channel transmits identically whatever is on screen.
+   */
+  const [span, setSpan] = useState<number>(DEFAULT_SPAN);
+  /*
+   * THE PANEL'S OWN WIDTH, because the ruler's step depends on it:
+   * the same two and a half hours wants fewer labels on a narrow
+   * column than on a wide one, and a ruler that crowds is a ruler
+   * nobody reads. Measured rather than assumed. [C-46]
+   */
+  const strip = useRef<HTMLDivElement | null>(null);
+  const [stripWidth, setStripWidth] = useState(1100);
+  useEffect(() => {
+    const box = strip.current;
+    if (!box) return undefined;
+    const watch = new ResizeObserver(() => {
+      /* The lane column, not the frame: the 96px of lane names is
+         not part of the scale. */
+      setStripWidth(Math.max(240, box.clientWidth - 96));
+    });
+    watch.observe(box);
+    return () => watch.disconnect();
+  }, []);
+  /* The ruler's step follows the span, so the labels stay round and
+     never crowd. Width is the panel's, measured below. */
+  const stepMs = stepFor(span, stripWidth);
+  const { from: windowFrom, to: windowTo } = windowFor(span, windowNow, stepMs);
   const across = (at: number) =>
-    `${((Math.min(windowTo, Math.max(windowFrom, at)) - windowFrom) / WINDOW_MS) * 100}%`;
+    `${((Math.min(windowTo, Math.max(windowFrom, at)) - windowFrom) / span) * 100}%`;
 
   /**
    * WHAT THE CHANNEL WILL ACTUALLY SHOW, hour by hour.
@@ -1856,14 +1885,43 @@ export default function ChannelStudio({
                 />
                 Follow clock
               </label>
+              {/*
+                * HOW MUCH CLOCK IS ON SCREEN.  [§2, U-08, C-46]
+                *
+                * The span is a view and nothing else — it changes no
+                * schedule and the channel transmits identically
+                * whatever is on it. So the control is quiet, beside
+                * the other view controls, and says what it is
+                * showing rather than a multiplier nobody can picture.
+                */}
+              <span className="row" data-testid="schedule-zoom"
+                    style={{ gap: 4 }}>
+                <button className="small" data-testid="zoom-out"
+                        disabled={!canZoom(span, -1)}
+                        title="Show more of the day"
+                        onClick={() => setSpan((at) => zoomed(at, -1))}
+                        style={{ padding: '2px 8px', lineHeight: 1.6,
+                          fontSize: 'var(--text-xs)' }}>&minus;</button>
+                <span className="mono readout" data-testid="zoom-span"
+                      style={{ fontSize: 'var(--text-2xs)', minWidth: 54,
+                        textAlign: 'center', color: 'var(--ink-300)' }}>
+                  {spanSays(span)}
+                </span>
+                <button className="small" data-testid="zoom-in"
+                        disabled={!canZoom(span, 1)}
+                        title="Show less, in more detail"
+                        onClick={() => setSpan((at) => zoomed(at, 1))}
+                        style={{ padding: '2px 8px', lineHeight: 1.6,
+                          fontSize: 'var(--text-xs)' }}>+</button>
+              </span>
               {pinned !== null && (
                 <span className="row" style={{ gap: 4 }}>
                   <button className="small" data-testid="window-back"
-                          onClick={() => setPinned((at) => (at ?? now) - HOUR)}
+                          onClick={() => setPinned((at) => (at ?? now) - span / 2)}
                           style={{ padding: '2px 7px', lineHeight: 0 }}
                   ><Icon name="chevron" size={11} turn={180} /></button>
                   <button className="small" data-testid="window-forward"
-                          onClick={() => setPinned((at) => (at ?? now) + HOUR)}
+                          onClick={() => setPinned((at) => (at ?? now) + span / 2)}
                           style={{ padding: '2px 7px', lineHeight: 0 }}
                   ><Icon name="chevron" size={11} /></button>
                 </span>
@@ -1877,6 +1935,7 @@ export default function ChannelStudio({
                 <Timeline
                   segments={segments} channel={channel} now={now}
                   windowFrom={windowFrom} windowTo={windowTo} across={across}
+                  stepMs={stepMs} stripRef={strip} stripWidth={stripWidth}
                   clock={clock} missingKeys={missingKeys} chosen={chosen}
                   onChoose={setChosen}
                 />
@@ -4455,9 +4514,48 @@ function MultiView({
  *
  * The playhead is the one line on this page that moves by itself.
  */
+/**
+ * HOW EACH KIND OF BLOCK IS PAINTED.  [§2, §18, D-21, C-31, C-46]
+ *
+ * ONE ROW OF THIS TABLE IS THE WHOLE POINT. `off` and `rotation`
+ * both fell through to the same faint blue, so a HOLE IN THE
+ * SCHEDULE — the single thing an operator most needs to find at a
+ * glance — was painted exactly like a quiet turn of the loop. The
+ * word "Off air" was on the block, and a schedule lane is SCANNED
+ * rather than read: colour arrives first and the colour said
+ * "something is on".
+ *
+ * So a hole is now the absence of a block rather than a block of a
+ * different colour: no fill, a dashed rule, and a diagonal hatch —
+ * the mark every rundown and every edit system has used for empty
+ * track since they were drawn on paper. It cannot be mistaken for
+ * programming because it is not painted like programming.
+ *
+ * The other six rows are the colours this lane already had. The
+ * table exists so that the NEXT kind added to `OnAir` has to be
+ * given one, instead of falling through a chain of ternaries into
+ * whatever the last `else` happened to be. That fall-through is
+ * what this fixes.
+ */
+const TONE: Record<Tone, {
+  bed: string; edge: string; hatch?: string; dashed?: boolean; ink?: string;
+}> = {
+  missing: { bed: 'rgba(200,60,50,0.28)', edge: 'var(--console-edge)' },
+  live: { bed: 'rgba(192,57,43,0.32)', edge: 'var(--console-edge)' },
+  standby: { bed: 'rgba(201,154,46,0.26)', edge: 'var(--console-edge)' },
+  programme: { bed: 'rgba(45,110,200,0.26)', edge: 'var(--console-edge)' },
+  loop: { bed: 'rgba(45,110,200,0.12)', edge: 'var(--console-edge)' },
+  hole: {
+    bed: 'transparent', edge: 'var(--line)', dashed: true,
+    ink: 'var(--ink-400)',
+    hatch: 'repeating-linear-gradient(135deg, rgba(255,255,255,0.06) 0 5px, '
+      + 'transparent 5px 11px)',
+  },
+};
+
 function Timeline({
-  segments, channel, now, windowFrom, windowTo, across, clock, missingKeys,
-  chosen, onChoose,
+  segments, channel, now, windowFrom, windowTo, across, stepMs, stripRef,
+  stripWidth, clock, missingKeys, chosen, onChoose,
 }: {
   segments: Segment[];
   channel: Channel;
@@ -4465,12 +4563,18 @@ function Timeline({
   windowFrom: number;
   windowTo: number;
   across: (at: number) => string;
+  /** The ruler's interval, chosen for this span at this width. [C-46] */
+  stepMs: number;
+  stripRef: React.RefObject<HTMLDivElement | null>;
+  /** The lane's own width in pixels, so legibility is a measurement
+   *  rather than a guess about how long a programme is. [C-46] */
+  stripWidth: number;
   clock: (at: number) => string;
   missingKeys: Set<string>;
   chosen: string | null;
   onChoose: (id: string) => void;
 }) {
-  const ticks = Math.round((windowTo - windowFrom) / STEP_MS);
+  const ticks = Math.round((windowTo - windowFrom) / stepMs);
   const lowerThird = channel.identity?.lowerThird;
   const holdMs = lowerThird?.holdMs ?? 8000;
 
@@ -4520,7 +4624,7 @@ function Timeline({
   );
 
   return (
-    <div data-testid="schedule-strip" style={{ minWidth: 0 }}>
+    <div ref={stripRef} data-testid="schedule-strip" style={{ minWidth: 0 }}>
       {/* ---- the ruler ------------------------------------------------ */}
       <div className="row" style={{ alignItems: 'stretch' }}>
         <span style={{ flex: '0 0 auto', width: 96 }} />
@@ -4544,14 +4648,26 @@ function Timeline({
           borderBottom: 'var(--border) solid var(--console-edge)',
         }}>
           {Array.from({ length: ticks + 1 }, (_unused, index) => {
-            const at = windowFrom + index * STEP_MS;
+            const at = windowFrom + index * stepMs;
+            /*
+             * BOTH ENDS TUCKED IN.  [C-38's argument, one surface along]
+             *
+             * Every label was centred except the first, so the LAST
+             * hung half its width past the right edge and was
+             * clipped: `23:0`. A measuring instrument whose last
+             * number is shaved cannot be trusted at the end of the
+             * scale, which is where a schedule is read.
+             */
+            const nudge = labelNudge(index, ticks + 1);
             return (
               <span key={index}>
                 <span className="mono readout" style={{
                   position: 'absolute', top: 1, left: across(at),
                   fontSize: 'var(--text-2xs)', color: 'var(--ink-300)',
                   letterSpacing: '0.04em',
-                  transform: index === 0 ? 'none' : 'translateX(-50%)',
+                  transform: nudge === 'start' ? 'none'
+                    : nudge === 'end' ? 'translateX(-100%)'
+                      : 'translateX(-50%)',
                 }}>{clock(at)}</span>
                 <span aria-hidden="true" style={{
                   position: 'absolute', bottom: 0, left: across(at),
@@ -4573,6 +4689,28 @@ function Timeline({
               : segment.on.kind === 'rotation' ? segment.on.entry.id : undefined;
             const isChosen = Boolean(id && id === chosen);
             const holds = segment.fromMs <= now && now < segment.toMs;
+            const tone = blockTone(segment.on, broken);
+            const paint = TONE[tone];
+            /* The one block under the playhead counts itself down; forty
+               blocks each counting down is a lane nobody reads. [D-04] */
+            const left = leftOf(segment, now);
+            const edge = broken ? 'var(--state-live-dim)'
+              : isChosen ? 'var(--accent-soft)' : paint.edge;
+            /*
+             * A BLOCK NARROWER THAN ONE CLOCK READING SAYS NOTHING.
+             * At a day the strip read `2: 5: 4036 9:2: 5:` across a
+             * hundred eight-pixel blocks — not small text but noise
+             * with the shape of text, which is harder to look past
+             * than an empty block. [C-46]
+             */
+            const words = fitsText(segment.toMs - segment.fromMs,
+              windowTo - windowFrom, stripWidth);
+            /* And the countdown is four readings long, so it gets its
+               own threshold: below it the block keeps the number that
+               cannot wait and drops the one that follows from it. */
+            const roomy = fitsText(segment.toMs - segment.fromMs,
+              windowTo - windowFrom, stripWidth, COUNTDOWN_READINGS);
+            const rule = `1px ${paint.dashed ? 'dashed' : 'solid'} ${edge}`;
             return (
               <button
                 key={`p${segment.fromMs}`} type="button"
@@ -4581,8 +4719,10 @@ function Timeline({
                   ? { 'data-programme-id': segment.on.programme.id } : {})}
                 data-kind={segment.on.kind}
                 onClick={() => { if (id) onChoose(id); }}
+                data-tone={tone}
                 title={`${segment.title} — ${clock(segment.fromMs)} to `
-                  + `${clock(segment.toMs)}`}
+                  + `${clock(segment.toMs)}`
+                  + (left === null ? '' : ` · ${offsetLabel(left)} left`)}
                 style={{
                   position: 'absolute', top: 4, bottom: 4,
                   left: across(segment.fromMs),
@@ -4598,20 +4738,42 @@ function Timeline({
                    * than a pill. [brief §11]
                    */
                   minWidth: 3, padding: '3px 5px', borderRadius: 2,
+                  /*
+                   * TWO LINES, WHICH IS WHAT THE MARKUP ALWAYS SAID.
+                   * [C-46]
+                   *
+                   * The two spans inside are `display: block` and were
+                   * written to stack — a title over a duration. They
+                   * did not. The room's own stylesheet makes every
+                   * `<button>` a row flex with `align-items: center`,
+                   * so they became flex ITEMS side by side, splitting
+                   * eighty pixels between them: `Statio… 1…`, a title
+                   * cut short and a duration cut to one digit, which
+                   * is a worse reading than no duration at all.
+                   *
+                   * A block laid out by a rule it does not declare is
+                   * a block that changes when somebody edits a global,
+                   * so this declares it. The direction is the fix; the
+                   * spans are untouched.
+                   */
+                  display: 'flex', flexDirection: 'column',
+                  alignItems: 'stretch', justifyContent: 'flex-start',
                   textAlign: 'left', font: 'inherit', fontSize: 'var(--text-2xs)',
-                  color: 'inherit', cursor: id ? 'pointer' : 'default',
+                  color: paint.ink ?? 'inherit',
+                  cursor: id ? 'pointer' : 'default',
                   overflow: 'hidden',
                   /*
-                   * Red for a reference with nothing behind it. It is the one
-                   * fault a listing cannot show by looking right: the slot is
-                   * there, the title is there, and the hour goes out black.
+                   * WHAT KIND OF BLOCK THIS IS DECIDES HOW IT IS PAINTED,
+                   * and the judgement is `blockTone`'s rather than a chain
+                   * of ternaries here — see TONE above for why a hole is
+                   * hatched rather than tinted. Red for a reference with
+                   * nothing behind it stays at the top of the order: it is
+                   * the one fault a listing cannot show by looking right,
+                   * because the slot is there, the title is there, and the
+                   * hour goes out black.
                    */
-                  background: broken ? 'rgba(200,60,50,0.28)'
-                    : segment.on.kind === 'live' ? 'rgba(192,57,43,0.32)'
-                      : segment.on.kind === 'emergency'
-                        || segment.on.kind === 'backup' ? 'rgba(201,154,46,0.26)'
-                        : segment.on.kind === 'programme' ? 'rgba(45,110,200,0.26)'
-                          : 'rgba(45,110,200,0.12)',
+                  background: paint.bed,
+                  backgroundImage: paint.hatch ?? 'none',
                   /*
                    * THE ONE ON AIR IS LIT ALONG ITS TOP EDGE, the same
                    * tally the multi-view learned in 03. It was outlined
@@ -4619,16 +4781,10 @@ function Timeline({
                    * going out right now" and "what I clicked" were the
                    * same mark on a lane of forty blocks.
                    */
-                  borderTop: holds
-                    ? '2px solid var(--state-live)'
-                    : `1px solid ${broken ? 'var(--state-live-dim)'
-                      : isChosen ? 'var(--accent-soft)' : 'var(--console-edge)'}`,
-                  borderRight: `1px solid ${broken ? 'var(--state-live-dim)'
-                    : isChosen ? 'var(--accent-soft)' : 'var(--console-edge)'}`,
-                  borderBottom: `1px solid ${broken ? 'var(--state-live-dim)'
-                    : isChosen ? 'var(--accent-soft)' : 'var(--console-edge)'}`,
-                  borderLeft: `1px solid ${broken ? 'var(--state-live-dim)'
-                    : isChosen ? 'var(--accent-soft)' : 'var(--console-edge)'}`,
+                  borderTop: holds ? '2px solid var(--state-live)' : rule,
+                  borderRight: rule,
+                  borderBottom: rule,
+                  borderLeft: rule,
                   boxShadow: isChosen
                     ? 'inset 0 0 0 1px rgba(127,180,238,0.35)' : 'none',
                 }}
@@ -4636,10 +4792,30 @@ function Timeline({
                 <span style={{
                   display: 'block', overflow: 'hidden', textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap', fontWeight: 600,
-                }}>{segment.title}</span>
-                <span className="muted" style={{ fontSize: 'var(--text-2xs)' }}>
-                  {offsetLabel(segment.toMs - segment.fromMs)}
-                  {broken ? ' · missing' : ''}
+                }}>{words ? segment.title : ''}</span>
+                {/*
+                  * THE BLOCK SAID ITS LENGTH AND NOT ITS END.  [C-46]
+                  *
+                  * "2:30:00" is how long the programme is. At 21:02 the
+                  * two numbers a gallery actually needs are when it
+                  * finishes and how much of it is left, and neither was
+                  * anywhere on the one surface whose job is to say what
+                  * happens next. The length is still there for every
+                  * other block, because for a thing that has not started
+                  * its length is the useful number.
+                  */}
+                <span className="muted" data-testid="block-foot"
+                      style={{
+                        display: 'block', fontSize: 'var(--text-2xs)',
+                        whiteSpace: 'nowrap', overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}>
+                  {!words ? '' : left === null
+                    ? offsetLabel(segment.toMs - segment.fromMs)
+                    : roomy
+                      ? `ends ${clock(segment.toMs)} · ${offsetLabel(left)} left`
+                      : `${offsetLabel(left)} left`}
+                  {words && broken ? ' · missing' : ''}
                 </span>
               </button>
             );
@@ -4661,10 +4837,32 @@ function Timeline({
                 'repeating-linear-gradient(90deg, rgba(255,255,255,0.05) 0 1px, '
                 + 'transparent 1px 9px)',
             }}>
-              {/* A frame only where there is room for one: a poster in a
-                  three-pixel cell is a fetch nobody can see. */}
+              {/*
+                * A FRAME ONLY WHERE THERE IS ROOM FOR ONE: a poster in a
+                * three-pixel cell is a fetch nobody can see.
+                *
+                * AND "ROOM" IS A SHARE OF THE WINDOW, NOT A DURATION.
+                * [C-46]
+                *
+                * Eight minutes was five per cent of the fixed window and
+                * is half a per cent of a day — five pixels. Left as a
+                * duration, the first zoom out to twenty-four hours
+                * mounted a `<video>` element per stretch and Chromium
+                * refused them wholesale: *"Blocked attempt to create a
+                * WebMediaPlayer as there are too many WebMediaPlayers
+                * already in existence."* The filmstrip went blank at
+                * exactly the span somebody zoomed out to survey.
+                *
+                * A share keeps the old behaviour at the old window to
+                * the pixel — 8 min is 1/18.75 of two and a half hours —
+                * and caps the count at eighteen whatever the span. The
+                * lane is the same; it is the WINDOW that stopped being
+                * a constant, and this is the second thing in this file
+                * that was measuring against it without saying so.
+                */}
               {segment.on.kind !== 'off'
-                && segment.toMs - segment.fromMs >= 8 * MINUTE && (
+                && roomOnScreen(segment.toMs - segment.fromMs,
+                  windowTo - windowFrom, FRAME_SHARE) && (
                 <Thumb source={segment.on.source} />
               )}
             </div>
@@ -4700,7 +4898,13 @@ function Timeline({
                 textOverflow: 'ellipsis',
                 background: 'rgba(125,86,196,0.45)', border: '1px solid #8a6fd0',
               }}>
-                {toMs - segment.fromMs > WINDOW_MS / 8
+                {/* A caption only where the block is wide enough to hold
+                    one, and "wide enough" is a share of what is on screen
+                    rather than a share of a window that no longer exists.
+                    At ten minutes the eight-second ticks finally say what
+                    they are. [C-46] */}
+                {roomOnScreen(toMs - segment.fromMs,
+                  windowTo - windowFrom, CAPTION_SHARE)
                   ? `Lower Third: ${segment.title}` : ''}
               </div>
             );
@@ -4712,16 +4916,67 @@ function Timeline({
           )}
         </Lane>
 
-        {/* ---- AUDIO: continuous, by definition ------------------------- */}
-        <Lane name="Audio" note="always on" height={34}>
-          <div data-testid="audio-lane" style={{
-            position: 'absolute', inset: '3px 0', borderRadius: 4,
-            background: 'rgba(42,140,140,0.20)', border: '1px solid #2f7f7f',
-            padding: '0 6px', fontSize: 'var(--text-2xs)', lineHeight: '19px', color: '#8fd2d2',
-            overflow: 'hidden', whiteSpace: 'nowrap',
-          }}>
-            Master Audio (Program)
-          </div>
+        {/* ---- AUDIO: the master bus, stretch by stretch ---------------- */}
+        {/*
+          * IT WAS A LABEL PRETENDING TO BE A TRACK.  [§11, D-21, C-46]
+          *
+          * One bar the width of the window, reading "Master Audio
+          * (Program)", drawn identically over a programme, over a hole
+          * and over a dead reference — and noted "always on", which is
+          * the claim it had no business making. The engine puts
+          * `anullsrc` on the wire for a hole and for a missing render
+          * alike (`black()`, §11): those four seconds are silence, and
+          * this was the one lane on the page asserting the opposite.
+          *
+          * A track that is wrong about silence is worse than no track,
+          * because it is the lane somebody checks when a viewer says
+          * they heard nothing. So it is now drawn from the same walk
+          * as every other lane, and it says "Silence" exactly where
+          * the engine makes silence and nowhere else.
+          */}
+        <Lane name="Audio" note="master bus" height={34}>
+          {segments.map((segment) => {
+            const broken = segment.on.kind !== 'off'
+              && missingKeys.has(sourceKey(segment.on.source));
+            const sound = carriesSound(blockTone(segment.on, broken));
+            return (
+              <div
+                key={`a${segment.fromMs}`} data-testid="audio-cell"
+                data-sound={sound ? 'programme' : 'silence'}
+                title={sound ? `Programme audio — ${segment.title}`
+                  : 'Silence — the engine generates it for this stretch'}
+                style={{
+                  position: 'absolute', top: 3, bottom: 3,
+                  left: across(segment.fromMs),
+                  width: `calc(${across(segment.toMs)} - ${across(segment.fromMs)})`,
+                  minWidth: 3, borderRadius: 2, padding: '0 6px',
+                  fontSize: 'var(--text-2xs)', lineHeight: '22px',
+                  overflow: 'hidden', whiteSpace: 'nowrap',
+                  textOverflow: 'ellipsis',
+                  background: sound ? 'rgba(42,140,140,0.20)' : 'transparent',
+                  backgroundImage: sound ? 'none'
+                    : 'repeating-linear-gradient(135deg, '
+                      + 'rgba(255,255,255,0.06) 0 5px, transparent 5px 11px)',
+                  border: sound ? '1px solid #2f7f7f'
+                    : '1px dashed var(--line)',
+                  color: sound ? '#8fd2d2' : 'var(--ink-400)',
+                }}
+              >
+                {/*
+                  * A WAVEFORM IS NOT DRAWN HERE and the lane does not
+                  * pretend to one: nothing on this page has decoded the
+                  * media, and a generated squiggle would be a picture of
+                  * audio that was never measured. The lane says which
+                  * stretches carry programme sound and which are the
+                  * engine's own silence, which is the question a
+                  * schedule can answer honestly.
+                  */}
+                {fitsText(segment.toMs - segment.fromMs,
+                  windowTo - windowFrom, stripWidth)
+                  ? (sound ? 'Programme' : 'Silence') : ''}
+              </div>
+            );
+          })}
         </Lane>
 
         {/* ---- the playhead --------------------------------------------- */}
