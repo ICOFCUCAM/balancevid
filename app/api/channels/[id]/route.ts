@@ -7,6 +7,7 @@ import {
   removeFromBlock, removeFromRotation, removeProgramme, requestRecording,
   cite, retitleProgramme, rollIn, scheduleProgramme, setEmergency, setFiller,
   addDestination, removeDestination, setBackup, setDestination, setIdentity,
+  setStation,
   skipToNext, takeLive, publishChannel, unpublishChannel, attachRoom,
 } from '../../../../src/domain/channelEdit.js';
 import {
@@ -17,7 +18,8 @@ import {
   assertChannelOwnsNoScheduledMedia, assertScheduleResolves,
 } from '../../../../src/domain/invariants.js';
 import {
-  auditChannel, channelAssetIds, deleteChannel, loadChannel, mutateChannel,
+  auditChannel, channelAssetIds, deleteChannel, listChannels, loadChannel,
+  mutateChannel,
 } from '../../../../src/store/channels.js';
 import { channelOwns } from '../../../../src/domain/deletion.js';
 import { missingSources, resolves } from '../../../../src/store/playoutSources.js';
@@ -250,6 +252,15 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
     | { bufferId: string; keep: true; assetId: string; recordingId: string }
     | undefined;
 
+  /*
+   * THE REST OF THE LINEUP, for the one action that needs to know
+   * about the others. Read before the mutation rather than inside
+   * it, because `mutateChannel` holds the document and a read of
+   * every channel from inside that is a read under a lock.
+   */
+  const others = body['action'] === 'station'
+    ? await listChannels().catch(() => []) : [];
+
   let channel;
   try {
     channel = await mutateChannel(id, async (draft) => {
@@ -350,6 +361,17 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
         /* ---- how the channel looks (§13) ------------------------------ */
         case 'identity':
           setIdentity(draft, body['identity'] ?? {});
+          break;
+        /* ---- what the world calls it (TV-NETWORK N-1) ----------------- */
+        case 'station':
+          /*
+           * THE REST OF THE LINEUP IS READ HERE, not in the domain.
+           * A slug must be unique across the installation, which is
+           * a question about the filesystem, and `setStation` is
+           * pure by the same rule every other domain module keeps.
+           * The route is where I/O lives, so the route fetches.
+           */
+          setStation(draft, body['station'] ?? {}, others);
           break;
         /* ---- the red button (§5) -------------------------------------- */
         case 'go-live':
