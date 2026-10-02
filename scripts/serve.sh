@@ -34,7 +34,8 @@ ROLE="${ROLE:-all}"
 PORT="${PORT:-3000}"
 
 # ------------------------------------------------------------------ ffmpeg
-# WHICH BINARY DRAWS THE CHANNEL'S OWN NAME.  [CHANNEL C-24]
+# WHICH BINARY DRAWS THE CHANNEL'S OWN NAME, AND PUSHES IT ANYWHERE.
+# [CHANNEL C-24, C-35]
 #
 # The pinned `ffmpeg-static` is built without freetype and so has no
 # `drawtext`. A filtergraph naming a filter that is not there is rejected
@@ -47,6 +48,12 @@ PORT="${PORT:-3000}"
 # argument inside an ENV, and the obvious attempt pointed every render at a
 # binary that had not been installed. Looking for the file is correct in both
 # directions and needs nobody to keep two settings in step.
+#
+# THE SECOND REASON, FOUND TWO STAGES AFTER THE FIRST: that same pinned
+# binary segfaults READING mpegts, including a file it has just written. The
+# RTMP sender is a remux of the engine's own segments, so on the default
+# build every destination is unreachable. It is refused with the reason
+# rather than restarted for ever, and this line is what fixes it. [C-35]
 #
 # An operator who sets BALANCEVID_FFMPEG themselves is not overruled.
 if [ -z "${BALANCEVID_FFMPEG:-}" ] && [ -x /usr/bin/ffmpeg ]; then

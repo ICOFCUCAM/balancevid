@@ -2726,6 +2726,34 @@ export default function ChannelStudio({
                       }}
                     >&times;</button>
                   </div>
+                  {/*
+                    * THE REASON, PRINTED, NOT HOVERED.  [D-21, C-35]
+                    *
+                    * A tooltip is where a detail goes when the lamp
+                    * already says enough. BLOCKED says nothing: the
+                    * destination could want a key, want an approved
+                    * app, want a different composition, or be sitting
+                    * on a build of ffmpeg that cannot read what this
+                    * channel writes. One of those the operator fixes in
+                    * the box below; one of them nobody fixes without
+                    * being told. So the sentence is on the screen
+                    * whenever the state is the bad one.
+                    */}
+                  {state === 'BLOCKED' && sender?.says && (
+                    /* A WASH AND AN EDGE, NOT A WALL OF RED. The lamp
+                       and the word already carry the alarm; the
+                       sentence has to be READ, and five lines of
+                       warning colour is the one thing an operator
+                       skips. */
+                    <p data-testid="destination-reason"
+                       style={{
+                         margin: 0, padding: '6px 8px',
+                         borderRadius: 6, borderLeft: '2px solid var(--bad)',
+                         background: 'var(--state-bad-wash)',
+                         color: 'var(--muted)',
+                         fontSize: 'var(--text-2xs)', lineHeight: 1.5,
+                       }}>{sender.says}</p>
+                  )}
                   {destination.kind === 'rtmp' && (
                     <RtmpKey
                       destination={destination}

@@ -30,9 +30,10 @@ import { type ChildProcess, spawn } from 'node:child_process';
 
 import type { Channel } from '../domain/channel.js';
 import type { Destination } from '../domain/distribution.js';
-import { FFMPEG } from '../render/ffmpeg.js';
+import { FFMPEG, canReadSegments } from '../render/ffmpeg.js';
 import {
-  type Target, redact, refusalFor, retryAfter, senderArgs,
+  type Target, CANNOT_SEND_FROM_THIS_BUILD,
+  redact, refusalFor, retryAfter, senderArgs,
 } from '../domain/rtmp.js';
 import { getKey } from '../store/streamKeys.js';
 import { noteSender } from '../store/senderHealth.js';
@@ -162,7 +163,25 @@ export async function reconcileSenders(
   for (const destination of wanted) {
     const target = destination.settingsRef
       ? await getKey(destination.settingsRef) : null;
-    const refusal = refusalFor(destination, target);
+    let refusal = refusalFor(destination, target);
+    /*
+     * AND ONE REFUSAL THAT IS ASKED OF THE BINARY RATHER THAN READ
+     * OFF THE DOCUMENT.  [C-35]
+     *
+     * ASKED LAST, AND THAT ORDER IS DELIBERATE TWICE OVER. A
+     * destination with no key should be told it has no key — the
+     * machine's problem is not the one in front of the operator yet
+     * — and the probe spawns two ffmpegs, so it is only worth asking
+     * for a destination that would otherwise start sending this
+     * second. Everything already configured and still refused here
+     * is refused for a reason no amount of configuring will move.
+     *
+     * The answer is cached for the life of the process, so this
+     * costs one probe per engine, not one per pass.
+     */
+    if (!refusal && !(await canReadSegments())) {
+      refusal = CANNOT_SEND_FROM_THIS_BUILD;
+    }
     if (refusal || !target) {
       /* `own` is not a fault and does not need saying every pass. */
       if (destination.kind !== 'own') {

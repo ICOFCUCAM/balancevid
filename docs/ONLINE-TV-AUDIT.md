@@ -205,7 +205,7 @@ Not everything below is worth fixing. It is the honest distance.
 
 | | BalanceVid today | What a vMix / Wirecast / Restream operator expects |
 |---|---|---|
-| **Multistreaming** | ~~One output, its own HLS~~ **RTMP to any 16:9 ingest (C-29)** | Simultaneous RTMP to many platforms, per-destination bitrate |
+| **Multistreaming** | ~~One output, its own HLS~~ **RTMP to any 16:9 ingest (C-29), on an image whose ffmpeg can read a segment (C-35)** | Simultaneous RTMP to many platforms, per-destination bitrate |
 | **Confidence monitor** | ~~Operator's own canvas only~~ **The transmission, sampled, in the corner (C-28)** | A return feed of what is actually going out — the fault in §1 would have been seen in seconds |
 | **Fault reporting** | ~~Silent fallback to black~~ **Render failures counted (C-24), black picture alarmed (C-28)** | Alarms on encoder failure, dropped frames, bitrate floor |
 | **Latency** | ~12 s | 2–8 s typical, sub-second with WebRTC egress |
@@ -234,6 +234,23 @@ section guessed, is in its own record; the two worth knowing are that
 the confidence monitor found its own threshold written in the wrong
 colour space, and that RTMP out turned out to be mostly a question
 about where a credential lives rather than about ffmpeg.
+
+**And then it turned out to be about ffmpeg after all.** Each of
+those three stages ended with a caveat about what had not been
+verified in this container. Going back to collect them found that
+the pinned `ffmpeg-static` **segfaults reading MPEG-TS** — so the
+sender C-29 built, which is a remux of the engine's own segments,
+could never have reached an ingest on the shipped binary. It spawned,
+died by signal, and was restarted by its own backoff for ever.
+
+The channel itself was never affected: the engine only writes
+transport streams and the viewer's browser demuxes them in hls.js.
+**CHANNEL C-35** adds the probe that asks by doing it, refuses the
+destination with the reason and the remedy instead of retrying into
+the crash, and prints that reason in the control room rather than
+hiding it in a tooltip. This is §1's fault — *"a connector that
+cannot be tested is a connector that is wrong"* — found in a second
+place, in work done after §1 was fixed.
 
 ---
 
