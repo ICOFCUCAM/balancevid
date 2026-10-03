@@ -306,6 +306,18 @@ describe('a call that opens later', () => {
   });
 
   /*
+   * OPEN AT THE MINUTE IT SAYS, which is the mirror of the closing
+   * boundary below and was missing until a mutation walked through
+   * it: every fixture here was comfortably either side, so `<` and
+   * `<=` were the same function. A call that opens at ten o'clock
+   * takes a take stamped ten o'clock.
+   */
+  it('opens at the instant it names', () => {
+    expect(maySubmit(soon, 'anyone', '2026-06-01T09:59:59.999Z')).toBe(false);
+    expect(maySubmit(soon, 'anyone', '2026-06-01T10:00:00.000Z')).toBe(true);
+  });
+
+  /*
    * SCHEDULED IS NOT OPEN AND NOT CLOSED, and a surface that drew
    * it as open would invite people to press a button that refuses
    * them.
@@ -396,6 +408,48 @@ describe('a date nobody can read', () => {
     expect(isOpenAt({ respondable: true, closesAt: 'the end of June' }, DURING))
       .toBe(true);
     expect(isOpenAt({ respondable: true, opensAt: 'soon' }, DURING)).toBe(true);
+  });
+
+  /*
+   * NOR ON A CALLER WITH A BROKEN CLOCK. `now` is a string the
+   * caller supplies, and the one thing an unreadable one must not
+   * do is shut every windowed door in the installation at once.
+   * No clock to check against is no reason to refuse anybody.
+   *
+   * Found by a mutation that survived: every fixture passed a real
+   * instant, so flipping this answer changed nothing any test
+   * could see.
+   */
+  it('does not shut every door because the clock is unreadable', () => {
+    const both = window('2026-06-01T10:00:00.000Z', '2026-06-01T15:00:00.000Z');
+    expect(isOpenAt(both, 'not a time')).toBe(true);
+    expect(maySubmit(both, 'anyone', 'not a time')).toBe(true);
+  });
+
+  /*
+   * AND A NUMBER IS NOT A DATE, which is less obvious than it
+   * reads: `Date.parse(2026)` coerces to the string `"2026"` and
+   * answers with the first instant of the YEAR 2026. A client
+   * sending `opensAt: 2026` would have opened a call in January
+   * of that year, and nothing would have looked wrong.
+   */
+  it('refuses a number, which would otherwise be a year', () => {
+    expect(whenProblem({ opensAt: 2026 })).toBe('that is not a date to open at');
+    expect(whenProblem({ closesAt: 2027 })).toBe('that is not a date to close at');
+    expect(availabilityFrom({
+      respondable: true, access: 'anyone', opensAt: 2026,
+    }).opensAt).toBeUndefined();
+    expect(isOpenAt({ respondable: true, opensAt: 2026 as never }, DURING))
+      .toBe(true);
+  });
+
+  /* And an empty date is simply absent, at either end. */
+  it('reads an empty string as no date at all', () => {
+    expect(isOpenAt({ respondable: true, opensAt: '', closesAt: '   ' }, DURING))
+      .toBe(true);
+    expect(availabilityFrom({
+      respondable: true, access: 'anyone', opensAt: '', closesAt: '   ',
+    }).opensAt).toBeUndefined();
   });
 
   /*

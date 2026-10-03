@@ -2074,17 +2074,56 @@ clock is enforced inside `maySubmit`, so there is no second
 refusal to word differently, and a test asserts the route never
 reads the clock itself.
 
-## The record
+## The record, and a mistake in how it was taken
 
-**Twenty-four mutations across `availability.ts`,
+**Twenty-five mutations across `availability.ts`,
 `performance.ts`, `performanceEdit.ts` and the two participate
-routes, all killed.** No clause deleted: every line added here
-had a fixture that could reach it, which is what writing the
-fixtures from the brief's own table first buys.
+routes, all killed. One clause deleted, the thirty-second.**
 
-**And one thing found by reading rather than by measuring.** G7
-said a rule was uncalled; it was half right, and the half it had
-wrong was the half that mattered — the uncalled rule was not the
-one the document named. A ledger entry that is nearly true is
+### A mutation run with no baseline proves nothing
+
+The first run of this stage's mutations reported **24 for 24**,
+and the number was worthless. Four assertions in
+`participate.test.ts` were failing before a single mutation was
+applied — they read the source of a panel and a route for call
+shapes this stage had changed — so the suite was already red, and
+**every mutant was recorded as killed by a failure it had not
+caused.**
+
+A mutation is killed when the suite goes from green to red. A
+suite that starts red cannot say anything about any of them, and
+a clean sweep is exactly what that looks like. *The run that
+reports no survivors is the run to distrust.*
+
+**With a green baseline, three survived**, and all three were
+real:
+
+1. **`at === null` on the caller's clock.** Every fixture passed
+   a real instant, so shutting every windowed door when `now` is
+   unreadable looked the same as opening them. A caller with a
+   broken clock must not close the whole installation.
+2. **`at < opens` against `at <= opens`.** Every fixture was
+   comfortably either side of the opening time, so the two were
+   the same function. The closing boundary had been tested and
+   its mirror had not.
+3. **`typeof said !== 'string'`.** Less obvious than it reads:
+   `Date.parse(2026)` coerces to `"2026"` and answers with the
+   first instant of the **year** 2026. A client sending
+   `opensAt: 2026` would have opened a call in January of that
+   year and nothing would have looked wrong.
+
+Two fixtures and one more, and the fourth survivor was the
+genuine kind: `!said.trim()` beside the type check could not
+change an answer, because `Date.parse('')` and `Date.parse('   ')`
+are both `NaN`. **Deleted — the thirty-second.**
+
+**The baseline is now the first thing the runner does**, and it
+refuses to report anything if the suite is not green.
+
+## And one thing found by reading rather than by measuring
+
+G7 said a rule was uncalled; it was half right, and the half it
+had wrong was the half that mattered — the uncalled rule was not
+the one the document named. A ledger entry that is nearly true is
 worth correcting in place, because the next stage reads it as
 given.

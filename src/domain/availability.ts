@@ -147,7 +147,14 @@ export const DEFAULT_ACCESS: TakeAccess = 'anyone';
  * producer sets a closing time the door never reads.
  */
 function instant(said: unknown): number | null {
-  if (typeof said !== 'string' || !said.trim()) return null;
+  /*
+   * NO `!said.trim()` BESIDE THE TYPE CHECK. It was there and
+   * mutation could not kill it: `Date.parse('')` and
+   * `Date.parse('   ')` are both `NaN`, so the line below already
+   * answers for an empty string. A clause that cannot change an
+   * answer is a clause nobody can check. [C-49]
+   */
+  if (typeof said !== 'string') return null;
   const at = Date.parse(said);
   return Number.isFinite(at) ? at : null;
 }

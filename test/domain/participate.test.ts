@@ -181,7 +181,7 @@ describe('the control', () => {
    * state the model does not have.
    */
   it('describes the combination from the model, not its own words', () => {
-    expect(FIELDS).toMatch(/describeAvailability\(value\)/);
+    expect(FIELDS).toMatch(/describeAvailability\(value, new Date\(\)\.toISOString\(\)\)/);
     expect(FIELDS).not.toMatch(/'Nobody can find this/);
   });
 
@@ -197,7 +197,8 @@ describe('the control', () => {
     expect(FIELDS).not.toMatch(/<span[^>]*>\s*\{TAKE_ACCESS_MEANS/);
     expect(FIELDS).toMatch(/title=\{TAKE_ACCESS_MEANS\[value\.access \?\? 'anyone'\]\}/);
     /* One sentence of summary on screen, and it is the model's. */
-    const shown = FIELDS.match(/\{describeAvailability\(value\)\}/g);
+    const shown = FIELDS.match(
+      /\{describeAvailability\(value, new Date\(\)\.toISOString\(\)\)\}/g);
     expect(shown).toHaveLength(1);
   });
 
@@ -219,7 +220,7 @@ describe('the control', () => {
    */
   it('no longer claims a performance cannot be answered', () => {
     expect(STUDIO_TWO).not.toMatch(/not an argument/);
-    expect(STUDIO_TWO).toMatch(/describeAvailability\(performance\.publication\)/);
+    expect(STUDIO_TWO).toMatch(/describeAvailability\(performance\.publication,/);
   });
 });
 
@@ -261,7 +262,7 @@ describe('the listing', () => {
    * a button that will refuse is worse than no button. [U-19]
    */
   it('says whether a browser can act on it', () => {
-    expect(LIST).toMatch(/openToAnyone: maySubmit\(publication, 'anyone'\)/);
+    expect(LIST).toMatch(/openToAnyone: maySubmit\(publication, 'anyone', now\)/);
   });
 
   /* Same-origin, always: the origin is never written into a record. [T14] */
