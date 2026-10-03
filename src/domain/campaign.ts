@@ -48,6 +48,7 @@ import type { Id } from './ids.js';
 import type { ParticipationRequest, RequestHolder } from './participation.js';
 import { type TakeAvailability, isListed, isOpenAt } from './availability.js';
 import { type ConsentRecord, permits } from './consent.js';
+import type { Criterion, Judge, Judgement } from './judging.js';
 
 export type CampaignId = Id<'camp'>;
 
@@ -233,6 +234,48 @@ export interface Campaign {
    */
   terms?: CampaignTerms[];
   /**
+   * What the panel marks, and when it was fixed.  [GO-VIRAL V-5]
+   *
+   * FROZEN AT LIVE, which is the stage's own rule: *"publish the
+   * criteria before the campaign opens, not after it closes."* A
+   * criterion added during JUDGING would be applied to entries
+   * recorded against different rules, and a competition whose
+   * basis moved after the entries is not one.
+   *
+   * SEPARATE FROM `rules.criteria`, WHICH IS A PARAGRAPH. That
+   * one is what an entrant reads before deciding; this is what a
+   * judge fills in, and each row needs an id a judgement can name
+   * and a scale to be out of. The paragraph is already frozen
+   * because nothing can edit it — `newCampaign` writes `rules`
+   * and no verb changes them. [`judging.ts`]
+   *
+   * ABSENT IS A CALL JUDGED BY SOMEBODY'S EYE AND NOT BY A FORM,
+   * which is every call opened before this stage and a perfectly
+   * ordinary way to run one. `judgementProblem` refuses to record
+   * a score against nothing rather than inventing a criterion.
+   */
+  scorecard?: Criterion[];
+  /**
+   * Who may mark.  [GO-VIRAL V-5, §4]
+   *
+   * NAMES AND NOT ACCOUNTS. One account exists on an
+   * installation, and a second kind of login so three people can
+   * mark eleven videos would be a user system built for a panel.
+   * What this records is who a judgement is ATTRIBUTED to, which
+   * is honest about what it proves and is further than a score
+   * with nobody's name on it. [`judging.ts`]
+   */
+  panel?: Judge[];
+  /**
+   * What the panel said, and the only record of the result.
+   *
+   * THE STANDING IS NOT HERE AND IS NEVER WRITTEN. `resultsFor`
+   * derives it from these, so a corrected mark changes the
+   * result and nothing can hold a standing its own records do
+   * not produce. [GO-VIRAL V-5]
+   */
+  judgements?: Judgement[];
+  /**
    * How long before the close a call is in its last stretch.
    *
    * MINUTES, AND IT IS THE ORGANISER'S. *"CLOSING is the last
@@ -315,6 +358,31 @@ export function takingEntries(campaign: Campaign, now: string): boolean {
  * that starts while entries are still arriving is a panel judging
  * a different field from the one that entered.
  */
+export function beingJudged(campaign: Campaign): boolean {
+  return campaign.state === 'judging';
+}
+
+/**
+ * What this call publishes as the basis for marking.
+ *
+ * ONE READING, SO A FORM AND A RESULT CANNOT DISAGREE about how
+ * many criteria there are — which is the arithmetic every total
+ * in `resultsFor` is out of. [D-19]
+ */
+export function scorecardOf(campaign: Campaign): Criterion[] {
+  return campaign.scorecard ?? [];
+}
+
+/** The panel, as a list even where nobody has been named. */
+export function panelOf(campaign: Campaign): Judge[] {
+  return campaign.panel ?? [];
+}
+
+/** What has been said about this call's entries. */
+export function judgementsOf(campaign: Campaign): Judgement[] {
+  return campaign.judgements ?? [];
+}
+
 export function mayJudge(campaign: Campaign, now: string): boolean {
   if (campaign.state !== 'live' && campaign.state !== 'closing') return false;
   return !isOpenAt(campaign.window, now);

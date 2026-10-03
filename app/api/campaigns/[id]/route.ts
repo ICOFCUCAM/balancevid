@@ -1,10 +1,11 @@
 import {
   campaignSays, callListed, clockSays, entryProblem, needsConsent,
-  takenCallSlugs,
+  panelOf, scorecardOf, takenCallSlugs,
 } from '../../../../src/domain/campaign.js';
 import {
   CampaignError, announce, begin, beginJudging, complete, enterLastStretch,
-  moveDeadline, reopenToLive, setListed, setSlug, setTerms,
+  addCriterion, addJudge, moveDeadline, removeCriterion, reopenToLive,
+  setListed, setSlug, setTerms,
 } from '../../../../src/domain/campaignEdit.js';
 import {
   listCampaigns, loadCampaign, mutateCampaign,
@@ -62,6 +63,22 @@ export async function GET(_request: Request, { params }: Params): Promise<Respon
      * deciding; *took it back* is a decision, and the audit this
      * stage exists for is the one that can say how many.
      */
+    /*
+     * AND WHERE IT LIVES, WHICH THE LISTING ALREADY CARRIED AND
+     * THIS DID NOT.  [GO-VIRAL V-4]
+     *
+     * FOUND IN A SCREENSHOT. The desk reads this route and drew
+     * an empty link and the words *not listed* over a call that
+     * was listed — because `listed` and `at` were added to the
+     * listing and to the POST answer and not to the one route
+     * that answers about a single call. Three projections of one
+     * object is where a field goes missing. [D-19]
+     */
+    listed: callListed(campaign),
+    at: `/go/${campaign.slug ?? campaign.id}`,
+    /* What the panel marks and who they are. [GO-VIRAL V-5] */
+    scorecard: scorecardOf(campaign),
+    panel: panelOf(campaign),
     ...(needsConsent(campaign) ? {
       enterable: entries.filter(
         (one) => !entryProblem(campaign, one.consent)).length,
@@ -86,6 +103,7 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
   const body = await request.json().catch(() => ({})) as {
     action?: unknown; by?: unknown; closesAt?: unknown; terms?: unknown;
     slug?: unknown; listed?: unknown;
+    says?: unknown; outOf?: unknown; criterion?: unknown; name?: unknown;
   };
   const now = new Date().toISOString();
   const by = typeof body.by === 'string' ? body.by : undefined;
@@ -146,6 +164,34 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
           }
           setListed(draft, body.listed);
           break;
+        /*
+         * WHAT THE PANEL WILL MARK.  [GO-VIRAL V-5]
+         *
+         * The domain refuses this after the call has opened —
+         * *"publish the criteria before the campaign opens, not
+         * after it closes"* — and this route does not re-derive
+         * that rule, it reports it.
+         */
+        case 'criterion':
+          if (typeof body.says !== 'string') {
+            throw new CampaignError('say what is being marked');
+          }
+          addCriterion(draft, body.says,
+            typeof body.outOf === 'number' ? body.outOf : undefined);
+          break;
+        case 'uncriterion':
+          if (typeof body.criterion !== 'string') {
+            throw new CampaignError('say which criterion');
+          }
+          removeCriterion(draft, body.criterion);
+          break;
+        /* And who is marking. A name, not an account. [§4] */
+        case 'panel':
+          if (typeof body.name !== 'string') {
+            throw new CampaignError('a judge needs a name');
+          }
+          addJudge(draft, body.name);
+          break;
         case 'deadline':
           if (typeof body.closesAt !== 'string') {
             throw new CampaignError('say when it closes');
@@ -162,6 +208,8 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
       says: campaignSays(updated, now),
       listed: callListed(updated),
       at: `/go/${updated.slug ?? updated.id}`,
+      scorecard: scorecardOf(updated),
+      panel: panelOf(updated),
     });
   } catch (error) {
     if (error instanceof CampaignError) return fail(409, error.message);

@@ -1,7 +1,7 @@
 import {
   ParticipationError, newRequest,
 } from '../../../../../src/domain/participationEdit.js';
-import { viewFor } from '../../../../../src/domain/participation.js';
+import { rejectedBecause, viewFor } from '../../../../../src/domain/participation.js';
 import { loadPerformance } from '../../../../../src/store/performances.js';
 import {
   linkFor, listRequests, newSecret, saveRequest,
@@ -114,6 +114,15 @@ export async function GET(_request: Request, { params }: Params): Promise<Respon
        * instead of a hundred. [GO-VIRAL V-2]
        */
       ...(request.campaign ? { campaign: request.campaign } : {}),
+      /*
+       * AND WHY IT WAS PASSED OVER, WHERE SOMEBODY SAID.  [G8]
+       *
+       * Read on the server because the history lives here and the
+       * inbox does not need the whole audit to draw one sentence.
+       * Absent on every request this product has ever declined,
+       * which is what no reason means.
+       */
+      ...(rejectedBecause(request) ? { passedBecause: rejectedBecause(request) } : {}),
       submissions: (request.submissions ?? []).map((submission) => ({
         id: submission.id,
         /*

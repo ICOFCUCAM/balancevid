@@ -17,9 +17,10 @@
 import {
   type AllowedActions, type Assignment, type ParticipationRequest,
   type RequestHolder, type RequestId, type RequestState, type Submission,
-  isOpen, mayMove, takesLeft,
+  ROTATED, isOpen, mayMove, takesLeft,
 } from './participation.js';
 import { type Id, newId } from './ids.js';
+import { REASON_LONGEST } from './judging.js';
 
 export class ParticipationError extends Error {
   constructor(message: string) {
@@ -119,6 +120,18 @@ export function newRequest(spec: {
  */
 export function advance(
   request: ParticipationRequest, to: RequestState, now: string, by?: string,
+  /*
+   * AND WHY, WHERE THERE IS A WHY.  [GO-VIRAL G8]
+   *
+   * ON `advance` AND NOT ON `reject` ALONE, because the line it
+   * is written to is this function's and a second writer of
+   * history would be a second shape of history. What makes it
+   * the decline's field in practice is that `reject` is the only
+   * caller that passes one — and the alternative, a `says` on
+   * the request itself, would be one reason for a request that
+   * can be held, passed and reconsidered.
+   */
+  says?: string,
 ): void {
   if (request.state === to && to !== 'recording') {
     /* Re-announcing where you already are is not an error, it is a
@@ -129,7 +142,10 @@ export function advance(
     fail(`a ${request.state} request cannot become ${to}`);
   }
   request.state = to;
-  request.history.push({ state: to, at: now, ...(by ? { by } : {}) });
+  request.history.push({
+    state: to, at: now, ...(by ? { by } : {}),
+    ...(says?.trim() ? { says: says.trim().slice(0, REASON_LONGEST) } : {}),
+  });
 }
 
 /** Mark that the producer has sent the link. Their word for it. [T16a] */
@@ -289,11 +305,26 @@ export function accept(
   return found!;
 }
 
-/** Do not use it. Not an end: a producer may change their mind. [T10] */
-export function reject(request: ParticipationRequest, now: string, by: string): void {
+/**
+ * Do not use it. Not an end: a producer may change their mind. [T10]
+ *
+ * AND IT MAY SAY WHY.  [GO-VIRAL G8]
+ *
+ * Optional, because a producer passing on a take in their own
+ * studio owes nobody minutes. Written down when it is given,
+ * because a competition declining somebody's entry with no
+ * reason is a decision nobody can review or reverse on grounds —
+ * which is the one thing `takeRanking`'s own posture insists on,
+ * one actor over: *"a ranked list with no reasons is an
+ * oracle."*
+ */
+export function reject(
+  request: ParticipationRequest, now: string, by: string, says?: string,
+): void {
   deciding(request, now, by);
-  advance(request, 'rejected', now, by);
+  advance(request, 'rejected', now, by, says);
 }
+
 
 /**
  * It is in the programme now.  [T16a]
@@ -319,7 +350,7 @@ export function rotate(
 ): void {
   if (token.length < 16) fail('that token is too short to be a credential');
   request.token = token;
-  request.history.push({ state: request.state, at: now, by: 'rotated' });
+  request.history.push({ state: request.state, at: now, by: ROTATED });
 }
 
 /** A submission's id type, for callers that hold one. */

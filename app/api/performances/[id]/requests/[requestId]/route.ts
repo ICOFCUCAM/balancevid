@@ -59,6 +59,8 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
   const body = await request.json().catch(() => ({})) as {
     action?: string;
     submissionId?: string;
+    /* Why it was passed over, where whoever passed gave one. [G8] */
+    says?: string;
   };
 
   let performance;
@@ -86,8 +88,18 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
   try {
     switch (body.action) {
       case 'reject': {
+        /*
+         * AND WHY, WHERE WHOEVER PASSED GAVE A REASON. [GO-VIRAL G8]
+         *
+         * Optional, because a producer passing on a take in their
+         * own studio owes nobody minutes — which is what every
+         * reject written before this field was. A competition
+         * declining somebody's entry is the case that needs one,
+         * and it is the same verb.
+         */
         const updated = await mutateRequest(requestId, (draft) => {
-          reject(draft, now, by);
+          reject(draft, now, by,
+            typeof body.says === 'string' ? body.says : undefined);
         });
         await auditPerformance(id, {
           action: 'request.rejected', detail: { requestId },

@@ -18,8 +18,13 @@
 
 import {
   type Campaign, type CampaignId, type CampaignRules, type CampaignState,
-  type CampaignTerms, clockSays, currentTerms, mayJudge, mayMoveCampaign,
+  type CampaignTerms, beingJudged, clockSays, currentTerms, mayJudge,
+  mayMoveCampaign, panelOf, scorecardOf,
 } from './campaign.js';
+import {
+  CRITERION_LONGEST, type Criterion, type Judge, type Judgement,
+  type Mark, MARK_OUT_OF, REASON_LONGEST, judgementProblem,
+} from './judging.js';
 import { type TakeAvailability, whenProblem } from './availability.js';
 import type { RequestHolder } from './participation.js';
 import { newId, sha256 } from './ids.js';
@@ -370,4 +375,145 @@ export function setSlug(
  */
 export function setListed(campaign: Campaign, listed: boolean): void {
   campaign.window = { ...campaign.window, listed };
+}
+
+/* ------------------------------------------------------------------ *
+ *  What the panel marks, and who they are.  [GO-VIRAL V-5]
+ * ------------------------------------------------------------------ */
+
+/**
+ * Publish one more thing this call will be marked on.
+ *
+ * ONLY WHILE IT IS SCHEDULED, which is the whole of *"publish the
+ * criteria before the campaign opens, not after it closes."* A
+ * criterion added once entries exist is a criterion the people
+ * who already recorded were never told about — and every total
+ * in the result is out of the sum of these, so adding one
+ * silently re-scales every judgement already made.
+ *
+ * REFUSED RATHER THAN IGNORED. A verb that quietly did nothing
+ * after LIVE would leave an organiser believing the panel is
+ * marking something it cannot see.
+ *
+ * AND THE PARAGRAPH IS NOT TOUCHED. `rules.criteria` is what an
+ * entrant reads, and nothing in this product edits it.
+ */
+export function addCriterion(
+  campaign: Campaign, says: string, outOf: number = MARK_OUT_OF,
+): Criterion {
+  if (campaign.state !== 'scheduled') {
+    fail('the criteria are published before a call opens, not after '
+      + 'people have recorded against them');
+  }
+  const wording = says.trim().slice(0, CRITERION_LONGEST);
+  if (!wording) fail('a criterion has to say what is being marked');
+  if (!Number.isInteger(outOf) || outOf < 1) {
+    fail('a criterion is marked out of a whole number');
+  }
+  const made: Criterion = { id: newId('crit') as Criterion['id'], says: wording, outOf };
+  campaign.scorecard = [...scorecardOf(campaign), made];
+  return made;
+}
+
+/**
+ * Take one off again, while that is still allowed.
+ *
+ * THE SAME DOOR AS ADDING AND THE SAME MOMENT, because removing
+ * one after LIVE is the same act seen from the other side: every
+ * judgement already made would be measured out of a different
+ * total. An organiser drafting a call needs to be able to undo a
+ * typo; one running a call does not get to change the rules.
+ */
+export function removeCriterion(campaign: Campaign, id: string): void {
+  if (campaign.state !== 'scheduled') {
+    fail('the criteria are fixed once a call has opened');
+  }
+  const left = scorecardOf(campaign).filter((one) => one.id !== id);
+  if (left.length === scorecardOf(campaign).length) fail('no such criterion');
+  campaign.scorecard = left;
+}
+
+/**
+ * Name somebody who may mark.
+ *
+ * UNTIL THE RESULTS ARE OUT, not until LIVE. A panel is not the
+ * basis of the competition — the criteria are — and a judge who
+ * joins while the marking is going on simply marks what is left.
+ * What is refused is naming one after the result has been
+ * announced, because a judgement recorded then would change a
+ * standing people have already read.
+ *
+ * THERE IS NO VERB TO REMOVE ONE, and that is deliberate rather
+ * than missing: a judge who has marked eleven entries cannot be
+ * taken out without those judgements becoming attributed to
+ * nobody, and a result derived from judgements with no author is
+ * exactly what this stage exists to prevent. A panel is a record
+ * of who was asked.
+ */
+export function addJudge(campaign: Campaign, name: string): Judge {
+  if (campaign.state === 'results' || campaign.state === 'completed') {
+    fail('the result is out — the panel cannot change now');
+  }
+  const called = name.trim().slice(0, TITLE_LONGEST);
+  if (!called) fail('a judge needs a name');
+  const made: Judge = { id: newId('judge') as Judge['id'], name: called };
+  campaign.panel = [...panelOf(campaign), made];
+  return made;
+}
+
+/**
+ * Record what one judge said about one entry.
+ *
+ * > **Judged on:** *"No score exists without a reason."*
+ *
+ * EVERY RULE IS `judgementProblem`'S, asked here and asked again
+ * by the surface that draws the form, so a form that would be
+ * refused says so before somebody fills it in. One predicate,
+ * two callers. [D-19]
+ *
+ * ONLY WHILE THE CALL IS BEING JUDGED. Marking an entry while
+ * others are still arriving is marking a different competition
+ * from the one the last entrant is in; marking after the result
+ * is out would change a standing people have read. JUDGING is
+ * the one state where a panel is the thing happening.
+ *
+ * A JUDGE MAY CORRECT THEIR OWN MARK, AND THAT REPLACES IT. The
+ * alternative is two judgements by one judge on one entry, and a
+ * mean that counts their opinion twice. What is kept is the
+ * latest, with its own `at` — and because `resultsFor` is pure,
+ * the standing simply follows.
+ */
+export function recordJudgement(campaign: Campaign, spec: {
+  entry: string;
+  by: string;
+  marks: Mark[];
+  says: string;
+  now: string;
+}): Judgement {
+  if (!beingJudged(campaign)) {
+    fail('this call is not being judged');
+  }
+  const wrong = judgementProblem({
+    criteria: scorecardOf(campaign),
+    panel: panelOf(campaign),
+    by: spec.by,
+    marks: spec.marks,
+    says: spec.says,
+  });
+  if (wrong) fail(wrong);
+
+  const made: Judgement = {
+    id: newId('judg') as Judgement['id'],
+    entry: spec.entry,
+    by: spec.by as Judge['id'],
+    at: spec.now,
+    marks: spec.marks.map((one) => ({ criterion: one.criterion, score: one.score })),
+    says: spec.says.trim().slice(0, REASON_LONGEST),
+  };
+  campaign.judgements = [
+    ...(campaign.judgements ?? [])
+      .filter((one) => !(one.entry === spec.entry && one.by === spec.by)),
+    made,
+  ];
+  return made;
 }
