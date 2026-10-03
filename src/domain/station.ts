@@ -45,6 +45,34 @@ export const GENRES = [
 ] as const;
 export type Genre = (typeof GENRES)[number];
 
+/**
+ * One audio rendition of a channel.
+ *
+ * A TAG AND A LABEL, because they answer different questions. The
+ * tag is what HLS carries and what a player matches a viewer's
+ * preference against; the label is what a station calls it, which
+ * is not always the language's own name — *"Original"*, *"Audio
+ * description"*, *"Commentary"*. A product that derived the
+ * second from the first would be a product renaming a
+ * broadcaster's own tracks. [`languageSays`]
+ */
+export interface AudioTrack {
+  /** A language subtag: `en`, `fr`, `sw`. */
+  language: string;
+  /** What the station calls it. Absent falls back to the tag's name. */
+  label?: string;
+  /**
+   * The one a player starts on.
+   *
+   * EXACTLY ONE, ENFORCED WHERE THESE ARE WRITTEN rather than
+   * trusted here: a list with two defaults is a stream whose
+   * opening audio depends on which rendition the player read
+   * first, which is a bug that appears for some viewers and not
+   * others.
+   */
+  default?: boolean;
+}
+
 export interface Station {
   /**
    * THE URL IDENTITY: `/tv/channels/redemption-tv`.
@@ -66,6 +94,51 @@ export interface Station {
   genre?: Genre;
   /** A library asset, like every other picture reference. [§3, D-18] */
   logoAssetId?: string;
+  /**
+   * THE STATION'S OWN PICTURE, behind its name.  [N-4]
+   *
+   * A LOGO IS A MARK AND A BANNER IS A PHOTOGRAPH, and a station
+   * page built on the first alone reads as a database row with a
+   * sticker on it. This is the picture a broadcaster would put
+   * behind their own name: a congregation, a studio floor, a
+   * street — the thing that says what the channel IS before a
+   * word is read.
+   *
+   * OPTIONAL, AND ABSENT IS DESIGNED RATHER THAN HANDLED. A new
+   * station has no banner on the day it is published, which is
+   * the ordinary case; the page draws the identity gradient it
+   * already generates for a logo-less card, at the size of a
+   * band. Nothing is broken and nothing says *missing*.
+   *
+   * A LIBRARY ASSET, like the logo and like every other picture
+   * reference in this product, served by its own slug-keyed route
+   * so a stranger reading the page is never handed a library id.
+   * [§3, D-18, D-03]
+   */
+  bannerAssetId?: string;
+  /**
+   * THE LANGUAGES THIS CHANNEL IS HEARD IN.  [N-4]
+   *
+   * MODELLED BEFORE IT IS BUILT, DELIBERATELY. The chain is four
+   * links — this record, the ingest that supplies the extra
+   * audio, the encoder that muxes and publishes it as HLS
+   * `EXT-X-MEDIA` renditions, and a player that lists them — and
+   * only the first is cheap. Writing it now means nothing built
+   * between now and then has to be unpicked; writing a panel now
+   * would mean five flags over one audio track.
+   *
+   * ABSENT MEANS ONE TRACK, which is every channel today, and
+   * `language` above remains the answer for it. This list is for
+   * a channel that genuinely carries more than one, and a list of
+   * one is the same as no list. Nothing reads it yet.
+   *
+   * PRICED, AND THE GATE IS ON OFFERING RATHER THAN HEARING. The
+   * broadcaster's account needs the `multi-audio` extra to
+   * declare these; a viewer never needs anything, and must never
+   * be told that audio they want exists but is locked. They are
+   * not the customer. [account.ts `EXTRAS`]
+   */
+  audio?: AudioTrack[];
   /**
    * A HOST THIS STATION ALSO ANSWERS ON: `tv.redemption.example`.
    *

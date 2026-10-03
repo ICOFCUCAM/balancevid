@@ -294,6 +294,14 @@ const PUBLIC_PATTERNS: RegExp[] = [
    */
   /^\/api\/tv\/channels\/[a-z0-9-]+\/logo$/,
   /*
+   * AND THE BANNER, ON THE SAME TERMS AND FOR THE SAME REASON.
+   * The photograph behind a station's name is the same kind of
+   * thing as its mark: read out of the document by slug, never
+   * taken from the caller, and shown to exactly the people the
+   * station page is for. [N-4]
+   */
+  /^\/api\/tv\/channels\/[a-z0-9-]+\/banner$/,
+  /*
    * WHAT A TELEVISION READS. An M3U is the lineup and an XMLTV
    * file is the guide, and the brief names both as *"already
    * widely used for this kind of thing"*. Neither carries

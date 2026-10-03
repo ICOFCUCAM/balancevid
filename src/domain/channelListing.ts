@@ -94,6 +94,8 @@ export interface Listing {
   language?: string;
   country?: string;
   logoAssetId?: string;
+  /** The photograph behind the station's name. [N-4] */
+  bannerAssetId?: string;
 }
 
 /**
@@ -121,6 +123,7 @@ export function listingFor(
     ...(station.language ? { language: station.language } : {}),
     ...(station.country ? { country: station.country } : {}),
     ...(station.logoAssetId ? { logoAssetId: station.logoAssetId } : {}),
+    ...(station.bannerAssetId ? { bannerAssetId: station.bannerAssetId } : {}),
   };
 }
 

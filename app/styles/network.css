@@ -825,3 +825,286 @@
   .net-cards { grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 12px; }
   .net-pills { order: 2; flex-basis: 100%; }
 }
+
+/* ------------------------------------------------------------------ *
+ *  A station's own page.  [TV-NETWORK N-4, N-5]
+ *
+ *  THE IDENTITY IS A BAND AND NOT A HEADING. A station page that
+ *  opens with a line of text and a player is a page about a
+ *  stream; one that opens with the broadcaster's own picture,
+ *  their mark and their sentence is a page about a station. The
+ *  difference is what makes a directory feel like television.
+ * ------------------------------------------------------------------ */
+
+.stn-band {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-bottom: 1px solid var(--line);
+  min-height: 300px;
+  display: flex;
+  align-items: flex-end;
+}
+
+/*
+ * A STATION WITH NO PHOTOGRAPH GETS A SHORTER BAND.
+ *
+ * 300px is the right height for a picture and the wrong height
+ * for a colour: with nothing to look at it is a third of a screen
+ * of gradient above the name. Found in a screenshot. The identity
+ * still reads as a deliberate surface rather than a gap — it is
+ * just no longer pretending to be a photograph.
+ */
+.stn-band:not(:has(.stn-art)) { min-height: 0; }
+
+.stn-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: -2;
+}
+
+/*
+ * HEAVIEST AT THE FOOT, because that is where the name sits. The
+ * front page's scrim runs left to right because its words are in
+ * the left third; a station's identity sits along the bottom edge
+ * over whatever the broadcaster's photograph happens to be there.
+ */
+.stn-veil {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(
+    180deg,
+    rgba(8, 10, 14, 0.30) 0%,
+    rgba(8, 10, 14, 0.52) 42%,
+    rgba(8, 10, 14, 0.90) 82%,
+    rgba(8, 10, 14, 0.97) 100%);
+}
+
+.stn-said {
+  position: relative;
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: var(--space-5) var(--space-6);
+  display: flex;
+  align-items: flex-end;
+  gap: 18px;
+}
+
+/* The mark sits half on the picture and half on the page, the way
+   a broadcaster's own ident card does. */
+.stn-mark {
+  flex: 0 0 auto;
+  width: 92px;
+  height: 92px;
+  border-radius: 16px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: var(--screen-bed);
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
+}
+
+.stn-mark img { width: 100%; height: 100%; object-fit: contain; padding: 10px; }
+
+.stn-mark-letters {
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  font-size: var(--text-lg);
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.stn-who { min-width: 0; flex: 1 1 auto; }
+
+.stn-name {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: clamp(1.5rem, 3.4vw, 2.2rem);
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  color: var(--ink-000);
+}
+
+.stn-facts {
+  margin: 7px 0 0;
+  font-size: var(--text-sm);
+  color: var(--ink-200);
+}
+
+.stn-about {
+  margin: 6px 0 0;
+  font-size: var(--text-sm);
+  color: var(--ink-300);
+  max-width: 44rem;
+}
+
+.stn-doing {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+/*
+ * FOLLOW IS THE STAR, WEARING THE WORD A VIEWER EXPECTS.
+ *
+ * `useFavorites` has stored this on the device since N-9 and the
+ * only thing wrong with it was that a star in the corner of a card
+ * does not read as a thing you can do to a station. Same storage,
+ * same list, same `/tv/favorites` page.
+ */
+.stn-follow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 20px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: rgba(10, 11, 13, 0.5);
+  backdrop-filter: blur(4px);
+  color: var(--ink-000);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semi);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.stn-follow[data-on='true'] {
+  background: var(--ink-000);
+  border-color: var(--ink-000);
+  color: #0a0b0d;
+}
+
+.stn-icon-btn {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  background: rgba(10, 11, 13, 0.5);
+  backdrop-filter: blur(4px);
+  color: var(--ink-000);
+  cursor: pointer;
+}
+
+/* ------------------------------------------------------------------ *
+ *  What is on, and what is after it.
+ * ------------------------------------------------------------------ */
+
+.stn-body {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: var(--space-5) var(--space-6) var(--space-6);
+  display: grid;
+  gap: var(--space-5);
+  grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr);
+  align-items: start;
+}
+
+.stn-panel {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  overflow: hidden;
+}
+
+.stn-panel-said { padding: 14px 16px 16px; }
+
+.stn-kicker {
+  font-size: var(--text-2xs);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  margin: 0 0 6px;
+}
+
+.stn-prog {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semi);
+}
+
+.stn-when { font-size: var(--text-sm); color: var(--ink-300); margin: 3px 0 0; }
+
+/* A row in today's schedule: time, title, and a chevron that says
+   it opens. */
+.stn-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 16px;
+  border-top: 1px solid var(--line-soft);
+  text-decoration: none;
+  color: inherit;
+  font-size: var(--text-sm);
+}
+
+.stn-row:first-of-type { border-top: 0; }
+.stn-row[data-on='true'] { background: var(--console-control); }
+
+.stn-row-time {
+  flex: 0 0 auto;
+  color: var(--ink-300);
+  min-width: 68px;
+}
+
+.stn-row-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * THE SIDE COLUMN COLLAPSES WHEN IT HOLDS NOTHING. A channel
+ * running a rotation has no Today list, and a two-column grid
+ * with an empty right-hand column is a page that looks like it
+ * failed to load half of itself.
+ */
+.stn-body:not(:has(aside > *)) { grid-template-columns: minmax(0, 1fr); }
+.stn-body:not(:has(aside > *)) > aside { display: none; }
+
+/*
+ * THE WAY OUT OF A STATION, in the page's own column.
+ *
+ * The rocker and the two links were top-level siblings of the
+ * body, so they sat flush against the window edge while
+ * everything above them was centred in 1180px — found in a
+ * screenshot, where CH+ was at x=14 and the hint about page-up
+ * was pinned to the far right of a 1440px window.
+ */
+.stn-foot {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 var(--space-6) var(--space-6);
+}
+
+@media (max-width: 900px) {
+  .stn-body { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 760px) {
+  .stn-band { min-height: 230px; }
+  .stn-said {
+    padding: var(--space-4);
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .stn-mark { width: 62px; height: 62px; border-radius: 12px; }
+  /* The buttons take their own line rather than squeezing the
+     name into two characters. */
+  .stn-doing { flex-basis: 100%; }
+  .stn-follow { flex: 1 1 auto; justify-content: center; }
+  .stn-body { padding: var(--space-4); }
+  .stn-foot { padding: 0 var(--space-4) var(--space-4); }
+}

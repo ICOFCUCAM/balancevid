@@ -22,6 +22,8 @@ import { type ReactNode, useCallback, useEffect, useState } from 'react';
 import {
   FAVORITES_KEY, isFavorite, readFavorites, withFavorite, withoutFavorite,
 } from '../../src/domain/favorites.js';
+
+export { isFavorite };
 import { useInstallOffer } from '../useInstallOffer.js';
 import Icon, { type IconName } from '../Icon.js';
 import { NETWORK_ART } from './art.js';
@@ -37,6 +39,8 @@ export interface Listing {
   language?: string;
   country?: string;
   logoAssetId?: string;
+  /** The photograph behind the station's name. [N-4] */
+  bannerAssetId?: string;
 }
 
 const WAYS = [
@@ -641,7 +645,7 @@ export function NetworkHero(
  * competing with them, because the day the broadcaster uploads one
  * this disappears and nothing else on the card should move.
  */
-function identityFor(slug: string): React.CSSProperties {
+export function identityFor(slug: string): React.CSSProperties {
   let hash = 0;
   for (let i = 0; i < slug.length; i += 1) {
     hash = (hash * 31 + slug.charCodeAt(i)) % 360;
