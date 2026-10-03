@@ -871,7 +871,7 @@ definition.
 one and a local one with no code that distinguishes them, and shows
 the participation request it was invited to.
 
-### T-3 · Cameras, multiview and PREPARE — **ADD**
+### T-3 · Cameras, multiview and PREPARE — **ADD** · *built, see PART EIGHT*
 
 Device discovery, the N-up grid, per-source signal, per-microphone
 level, and the PREPARE checks: resolution, frame rate, free disk and
@@ -1412,3 +1412,223 @@ the at-sign and not the one a person reads first.
 
 **177 test files, 3355 tests**, green. `tsc --noEmit` clean on the
 installation and on `desktop/`.
+
+
+---
+
+# PART EIGHT — T-3, as built
+
+> *"Four cameras previewing at once, and a refusal with a
+> sentence when a disk cannot sustain four streams."*
+
+```
+ ┌──────────────────────────────────────────┐
+ │   CAMERAS ON THIS MACHINE                │
+ │   [ Front ]  [ Wide ]  [ Desk · capture ]│
+ │   ┌───────────────┬───────────────┐      │
+ │   │ 1 Front       │ 2 Wide        │▌     │
+ │   │ 1920×1080·30  │ NO PICTURE    │      │
+ │   └───────────────┴───────────────┘      │
+ │   BEFORE RECORDING                       │
+ │   ✓ 3 sources.                           │
+ │   ✕ 1 of 3 sources is open but           │
+ │     delivering nothing. A capture card    │
+ │     with no cable in it looks like this. │
+ │   ✓ 12 GB free — about 2.7 hours …       │
+ │          [ Not ready ]                   │
+ └──────────────────────────────────────────┘
+```
+
+## The two multiviews, read
+
+**`guestGrid.ts` is the right shape** — a pure reading that, given
+what the tracks are doing, says what each tile shows. Its words
+are taken whole: `Eye`, `Mic`, `Health`, and the rule that the
+label over a picture is ONE word and the WORST one, in the order
+an operator triages.
+
+**And a test asserts the two type unions are identical**, so this
+is the same vocabulary rather than one that resembles it. If one
+grid ever starts saying `black` where the other says `dark`, the
+product has two vocabularies for one question and the second
+person to read them has to learn both.
+
+**`SwitchingStage.tsx`** is where the numbered monitor with a
+label badge comes from, and the rule that a tile is a thing you
+press.
+
+**What could not be shared, and why.** `guestGrid` reads an
+`RTCPeerConnectionState` and asks the Room's thresholds about
+speech. **There is no peer here and no Room.** A camera is plugged
+in or it is not, and its failure is `getUserMedia` refusing.
+Forcing one function to serve both would mean a `link` that is
+always undefined and a speaking threshold borrowed from a
+conversation that is not happening.
+
+**And the grid is N, not four.** What carries from `guestGrid`'s
+fixed count is the *reason* for it — *"a grid that changed shape
+when a guest dropped would be a grid that moves under the
+operator's hand at the worst possible moment"* — so the grid is
+sized by the sources the operator chose, and a camera that stops
+delivering keeps its tile and says so.
+
+## One screen, two steps
+
+CAMERAS and PREPARE are drawn together. They are separate
+questions, and the answer to the second changes every time
+somebody changes the first; a PREPARE on its own page is a page
+the operator walks to, reads a refusal on, walks back from, and
+walks to again.
+
+## The refusal
+
+**A sentence and a number, always.** *"Not enough disk"* is a
+message somebody stares at; *"four streams need about 6.0 MB/s,
+which is 9.0 MB/s with headroom, and this disk sustained
+6.7 MB/s"* is a message somebody acts on — they unplug a camera,
+they drop to 720p, or they record to the other drive.
+
+**Advice, except where it is arithmetic.** A camera that gave
+640×480 when asked for 1080p will record perfectly well and is a
+warning; a disk that cannot keep up is not a matter of opinion.
+`blocking` says which is which.
+
+### Three faults found by running the numbers, not by a test
+
+**The bitrate constant was 0.12 bits per pixel-frame** — 7.5 Mbps
+for 1080p30, which is a static lectern and not a room with people
+moving in it. Four streams came out at 3.6 MB/s, and the
+consequence was worse than an inaccurate figure: **almost no disk
+could fail the write check, so the refusal this stage is judged
+on would never have fired.** `0.2` puts 1080p30 at 12.6 Mbps. An
+estimate that is high refuses a recording that would have worked,
+which costs an argument; one that is low passes a recording that
+fails at minute forty, which costs the recording.
+
+**The write refusal quoted a number it had not compared** — *"need
+about 6.0 MB/s … sustained 6.7 MB/s"* and then refused, because
+the comparison was against 6.0 × the margin. A refusal whose own
+numbers say it should have passed is worse than no numbers.
+
+**Three gigabytes free armed happily, reporting two minutes.** A
+check that announces two minutes and calls it ready is not
+protecting anybody. Nobody sets up four cameras for ten.
+
+## The disk, measured by writing to it
+
+There is no way to ask an operating system how fast a filesystem
+is. Sixty-four megabytes in four-megabyte chunks — **a recorder
+produces chunks, not a stream** — with `datasync` at the end, or
+the number is the page cache's and not the disk's. That is PART
+THREE's lesson in a different costume: *a measurement of the
+wrong thing looks wonderful.*
+
+`src/store/space.ts` already calls `statfs` and is **not reused**:
+it is bound to `VAR_ROOT`, walks a directory to total what the
+work occupies, and caches for a minute. None of that is this
+question, and the one line they share is the system call. What is
+taken from it is the rule it states — *"the only honest figures
+are what the work occupies and what the disk has left"* — one
+level sharper, because a recording also needs the disk to keep
+**up**.
+
+## The source abstraction
+
+```
+CameraSource
+├── LocalCamera      (here)
+├── CaptureDevice    (here, where the OS presents one as a camera)
+├── NDISource        (T-6)
+└── RTSPSource       (T-6)
+```
+
+**A capture card IS a camera to the operating system**, so
+`CaptureDevice` is not a different opener — Blackmagic, Elgato
+and an HDMI dongle all present as a video input. The distinction
+is kept because an operator reads it, and because T-6's sources
+genuinely are different. Telling them apart is a guess off the
+label, and it is labelled as one: guessing wrong costs a word in
+a badge.
+
+**Audio is asked for and not required**, and the two have to be
+separate requests for that to be true: one call for both fails
+entirely when a camera has no microphone, which is most capture
+cards. **What is asked for is `ideal`, not `exact`** — demanding
+1080p would turn a usable 720p camera into a refusal, and the
+format warning exists to carry that instead.
+
+## Four faults found by looking at the screen
+
+- **One camera took the full width** — 585 pixels tall at 16:9 —
+  and pushed the checks below the fold, on the one screen whose
+  whole argument is that you see both at once. N-4 learned this
+  on the station player: *"a station page where you must scroll to
+  learn what is on has buried its own answer."*
+- **Pressing PREPARE showed CONNECT.** The strip marks every step
+  below `BUILT_TO` as pressable and PREPARE fell through to the
+  else.
+- **The checks were sentences 1040 pixels wide.**
+- And the fake camera's green pac-man is what proved the preview
+  path end to end.
+
+## Measured in the real shell
+
+```
+four concurrent 1080p streams   opened in 12 ms, all four live
+the disk here                   12 GB free, 171–610 MB/s sustained
+one camera chosen               1920×1080 · 20 fps read off the
+                                live track; all five checks pass
+nothing chosen                  exactly one check objects; the
+                                button reads "Not ready", disabled
+pressing PREPARE                shows the camera screen, both
+                                names lit
+```
+
+Not headless: this is the Electron shell that ships, under a
+virtual display, inspected over the debugging protocol.
+
+## What this container cannot show
+
+**Chromium exposes ONE fake device**, so four physically distinct
+cameras is unverifiable here — the same limit PART THREE
+recorded, which is why that measurement says *"one fake device
+fanned out"*. Four concurrent streams were opened and all four
+reported live at 1920×1080; four different pieces of hardware is
+somebody's room, not this container.
+
+**And the disk sustains 400+ MB/s**, so the disk refusal cannot be
+driven through the UI. It cannot be stubbed either:
+`contextBridge` objects are immutable from the renderer, so
+reassigning `window.take.machine` silently does nothing — which
+is the isolation working, and worth knowing before T-4 tries to
+test a recording the same way.
+
+That refusal is proven by **forty-one killed mutations on a pure
+function**, including the exact case the stage is judged on, and
+not by a screenshot. Said here rather than left to be discovered.
+
+## The record
+
+Forty-one mutations across `sourceGrid.ts` and `prepare.ts`, all
+killed. **Three clauses deleted after measuring:**
+
+- `if (!present) return 'NO SOURCE'` — the empty slot returns its
+  own reading and never reaches that function. **The
+  twenty-fourth.**
+- `if (health === 'unstable') return 'UNSTABLE'` — unreachable
+  here, because `unstable` arises only from a source with no
+  picture and the clause above catches every eye that is not
+  live. `guestGrid` *can* reach its own, because a peer's link can
+  falter while the picture keeps arriving. **The twenty-fifth.**
+- `Math.max(0, slots)` — `Array.from({ length: -3 })` is `[]` in
+  JavaScript, not a throw. **The twenty-sixth.**
+
+**And one survivor was neither a dead guard nor a missing
+fixture.** With no cameras chosen the DISK check failed, blocking,
+saying *"Nothing to record yet"* — a refusal that is not one, two
+lines below the real one. `write` already got this right; the two
+disagreed, and the mutation could not be killed because another
+blocking check was failing anyway. A survivor can also mean two
+checks that do not agree with each other.
+
+**179 test files, 3394 tests**, green.
