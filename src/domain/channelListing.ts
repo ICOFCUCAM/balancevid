@@ -35,7 +35,7 @@
 
 import type { Channel } from './channel.js';
 import { isPublished } from './channel.js';
-import { type Station, stationSays } from './station.js';
+import { type Station, hostOf, stationSays } from './station.js';
 import { type Assignments, usableNumber } from './registry.js';
 
 /** What a channel is, to a stranger looking for something to watch. */
@@ -167,6 +167,45 @@ export function bySlug(
      * because *"a 403 would confirm that something is there to
      * guess at."* [D-03]
      */
+    const standing = standingOf(channel);
+    return standing === 'public' || standing === 'unlisted' ? channel : undefined;
+  }
+  return undefined;
+}
+
+/**
+ * The channel that answers on a host.  [§10, TV-NETWORK N-8]
+ *
+ * > *"The channel owner can eventually have a custom domain, but
+ * > BalanceVid provides the canonical public channel identity."*
+ *
+ * THE SAME GATE AS `bySlug`, AND DELIBERATELY SO. A custom domain
+ * is a second front door to one station, not a second set of
+ * rules about who may come in — so private and offline answer the
+ * way a host nobody holds answers, and an UNLISTED STATION
+ * ANSWERS, because the brief says in as many words what unlisted
+ * means:
+ *
+ * > *"works through direct link/domain but doesn't appear in the
+ * > directory."*
+ *
+ * A domain is that direct link with the station's own name on it.
+ *
+ * THE HOST IS NORMALISED BY `hostOf`, not here, because the
+ * middleware compares the same string against the installation's
+ * own name and the two must agree about ports and case. A custom
+ * domain that routes and then finds nothing is worse than one
+ * that never routed.
+ */
+export function byDomain(
+  channels: Iterable<Channel>, host: string | null | undefined,
+): Channel | undefined {
+  const wanted = hostOf(host);
+  if (!wanted) return undefined;
+  for (const channel of channels) {
+    /* Stored lower case by `setStation`, and lowered again here
+       because a document on disk is not a type. [N-3] */
+    if (channel.station?.domain?.toLowerCase() !== wanted) continue;
     const standing = standingOf(channel);
     return standing === 'public' || standing === 'unlisted' ? channel : undefined;
   }
