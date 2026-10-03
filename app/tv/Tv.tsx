@@ -116,7 +116,17 @@ export function ChannelCard({ channel }: { channel: Listing }) {
         }}>
           {channel.logoAssetId
             // eslint-disable-next-line @next/next/no-img-element
-            ? <img alt="" src={`/api/library/${channel.logoAssetId}`}
+            /*
+              * THE STATION'S OWN LOGO ROUTE, NOT THE LIBRARY'S.
+              * This drew `/api/library/<assetId>`, which is
+              * owner-only, so every logo on the public network
+              * was a 401 and a broken picture to the one
+              * audience these pages exist for. Keyed by the slug
+              * because the question a stranger's request has to
+              * answer is about the station, not about an asset.
+              * [N-7]
+              */
+            ? <img alt="" src={`/api/tv/channels/${channel.slug}/logo`}
                    style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             : mark}
         </div>
