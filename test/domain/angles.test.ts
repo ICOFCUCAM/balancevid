@@ -13,7 +13,8 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
-  angleNumber, angleSays, anglesOf, captureSpread, capturesIn, isAngle,
+  angleNumber, angleSays, anglesOf, arrivalsIn, captureSpread, capturesIn,
+  isAngle, spreadSays,
 } from '../../src/domain/angles.js';
 
 const take = (id: string, capture?: string, offset = 0, spread?: number) => ({
@@ -231,5 +232,101 @@ describe('the multiview says which are angles (B-1)', () => {
     ];
     expect(mixed.map((one) => angleSays(mixed, one)))
       .toEqual(['', '', 'Angle 1 of 2', 'Angle 2 of 2']);
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ *  B-3 — what the inbox is looking at.
+ * ------------------------------------------------------------------ */
+
+describe('what arrived, rather than what was uploaded', () => {
+  /*
+   * THE WHOLE OF B-3 IN ONE ASSERTION. Four cameras on one song
+   * is ONE thing a producer has to decide about, and the list has
+   * been handing them that decision four times.
+   */
+  it('shows four angles as one arrival', () => {
+    const sent = [
+      take('cam1', 'cap_x', 0, 29), take('cam2', 'cap_x', 19, 29),
+      take('cam3', 'cap_x', 24, 29), take('cam4', 'cap_x', 29, 29),
+    ];
+    const arrivals = arrivalsIn(sent);
+    expect(arrivals).toHaveLength(1);
+    expect(arrivals[0]!.map((one) => one.id)).toEqual(['cam1', 'cam2', 'cam3', 'cam4']);
+  });
+
+  /*
+   * AND AN ATTEMPT IS AN ARRIVAL OF ONE, not a special case —
+   * which is what makes this safe to put in front of every
+   * submission this product has ever taken.
+   */
+  it('leaves a recording that belongs to nothing exactly as it was', () => {
+    const sent = [take('one'), take('two'), take('three')];
+    expect(arrivalsIn(sent).map((group) => group.map((o) => o.id)))
+      .toEqual([['one'], ['two'], ['three']]);
+  });
+
+  /*
+   * ORDER IS THE ORDER THINGS CAME IN, with a capture standing
+   * where its FIRST angle stood. A producer who looked away must
+   * not find the list reshuffled because one camera's segments
+   * finished uploading before another's.
+   */
+  it('keeps a capture where its first angle was', () => {
+    const sent = [
+      take('early'), take('cam1', 'cap_x', 19), take('late'),
+      take('cam2', 'cap_x', 0),
+    ];
+    expect(arrivalsIn(sent).map((group) => group.map((o) => o.id)))
+      /* The capture sits third-from-nothing — where `cam1` arrived —
+         and inside it the angles are in start order, so `cam2`
+         (offset 0) leads although it landed last. */
+      .toEqual([['early'], ['cam2', 'cam1'], ['late']]);
+  });
+
+  /* Two captures in one request are two arrivals, not one. */
+  it('keeps two captures apart', () => {
+    const sent = [
+      take('a1', 'cap_a', 0), take('b1', 'cap_b', 0),
+      take('a2', 'cap_a', 7), take('b2', 'cap_b', 9),
+    ];
+    expect(arrivalsIn(sent).map((group) => group.map((o) => o.id)))
+      .toEqual([['a1', 'a2'], ['b1', 'b2']]);
+  });
+});
+
+describe('whether a capture held together', () => {
+  /*
+   * MILLISECONDS, BECAUSE SAMPLES ARE NOT A UNIT ANYBODY FEELS.
+   * The producer's question is whether these can be cut between,
+   * and a frame at 30fps is 33 ms — so T-4's own measured capture,
+   * at 0.6 ms, is comfortably inside one and the number says so
+   * without anybody doing the division.
+   */
+  it('says how far apart they started, in a unit a person has', () => {
+    const measured = [take('a', 'cap_x', 0, 29), take('b', 'cap_x', 29, 29)];
+    expect(spreadSays(measured, 48000)).toBe('0.6 ms apart');
+  });
+
+  /* A wide spread is rounded, because a tenth of 400 ms is noise. */
+  it('rounds a spread nobody needs a tenth of', () => {
+    expect(spreadSays([take('a', 'cap_x', 0, 19200)], 48000)).toBe('400 ms apart');
+  });
+
+  /*
+   * AND SAYS NOTHING WHERE THERE IS NOTHING TO SAY. An attempt has
+   * no spread; neither does a capture whose angles all started on
+   * the same sample, and printing "0.0 ms apart" would be furniture
+   * explaining an absence.
+   */
+  it('says nothing for an attempt, or for angles that started together', () => {
+    expect(spreadSays([take('solo')], 48000)).toBe('');
+    expect(spreadSays([take('a', 'cap_x', 0, 0), take('b', 'cap_x', 0, 0)], 48000))
+      .toBe('');
+  });
+
+  /* A rate of zero is a bad reading, not a division. */
+  it('says nothing rather than dividing by a rate it was not given', () => {
+    expect(spreadSays([take('a', 'cap_x', 0, 29)], 0)).toBe('');
   });
 });

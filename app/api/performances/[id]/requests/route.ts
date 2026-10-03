@@ -128,6 +128,17 @@ export async function GET(_request: Request, { params }: Params): Promise<Respon
         at: submission.at,
         acceptedAt: submission.acceptedAt,
         device: submission.device,
+        /*
+         * WHICH CAPTURE IT IS ONE ANGLE OF, so the inbox can show
+         * one arrival rather than four.  [B-3]
+         *
+         * Carried rather than counted here: the panel groups with
+         * `arrivalsIn`, which is the same function Studio Two's
+         * multiview badge reads, so the inbox and the rail cannot
+         * come to different conclusions about what belongs
+         * together. [D-19]
+         */
+        capturedIn: submission.capturedIn,
       })),
     })),
   });

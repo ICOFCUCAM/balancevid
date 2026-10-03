@@ -978,6 +978,10 @@ two-track submission joins correctly on the server.
 One arrival with four angles, rather than four arrivals somebody has
 to recognise as related.
 
+**And the capture has to survive being accepted**, which the plan
+did not say and PART ELEVEN found: a field B-2 writes and B-1 reads
+is worth nothing if the thing between them drops it.
+
 ---
 
 ## The order, end to end
@@ -2079,3 +2083,154 @@ person had to type. That is C-46's rule inverted rather than
 broken: a test that imports the constant it is checking is a test
 of arithmetic, so this one imports the *content* instead. When it
 fails, a shell file changed and the cache name did not.
+
+---
+
+# PART ELEVEN — B-3, as built, and the thing in between
+
+> *"One arrival with four angles, rather than four arrivals
+> somebody has to recognise as related."*
+
+That sentence is the whole stage and it turned out to have two
+halves, only one of which the plan had noticed.
+
+## The half the plan did not have
+
+B-2 writes `capturedIn` onto a submission. B-1 reads it off a take
+and draws a badge. **For one stage there was nothing between
+them.** `addTake` in the accept route did not carry the field, so
+four angles from a real capture station arrived in a performance
+as four attempts, and Studio Two's badge — built, measured,
+correct — could never fire for anything but a hand-edited
+document.
+
+> *"When a stage adds a field to the model and a branch to the
+> renderer, the thing in between is where the test is missing."*
+> — C-42, C-44, C-46
+
+So the accept carries it:
+
+```
+Submission.capturedIn   →   PerformanceTake.capturedIn
+```
+
+**Copied, not re-derived.** The offsets were measured against each
+other by the machine that did the recording, and this studio is
+not in a position to improve on them. `alignment` is still
+`unplaced` on the line below, because *where the capture sits on
+this song* is a different question from *how far apart its cameras
+started*, and the first is still the worker's. Collapsing the two
+would make a stranger's clock a fact about this performance.
+
+**And four angles are told apart in the rail.** They all carry the
+same participant, so four accepted angles would be four takes
+called the same thing — a list a producer cannot act on, which is
+the failure this stage exists to end one layer up. The device is
+appended where there is a capture and nowhere else:
+
+```
+Capture station · Camera A — wide
+Capture station · Camera B — close
+Capture station · Camera C — side
+Capture station · Camera D — overhead
+```
+
+## The half the plan did have
+
+`arrivalsIn` groups a request's submissions into arrivals: a loose
+submission is an arrival of one, a capture is its angles. Order is
+the order things came in, **with a capture standing where its
+FIRST angle stood** — a producer who looked away must not find the
+list reshuffled because the fourth camera's segments finished
+uploading before the second's — and within a capture the angles
+are in start order.
+
+`spreadSays` turns the spread into milliseconds, because samples
+are not a unit anybody feels and a frame at 30fps is 33 ms. The
+producer's question is *can I cut between these*, and `0.6 ms
+apart` answers it without anybody doing the division.
+
+**The inbox and the multiview call the same two functions.** Two
+surfaces that each decided for themselves what belonged together
+would be two surfaces that can disagree about it in front of a
+producer. [D-19]
+
+## One thing the screen said that the plan did not
+
+The first version of this stage drew four angles as one row —
+grouped, bordered, with the spread — **and still put four "Use it"
+buttons in it.** The producer was shown one thing and asked about
+it four times, which is most of the failure B-3 was written to
+end. Found by looking at the screenshot, not by reading the diff.
+
+```
+Capture station                       submitted
+Four cameras, one go
+   4 angles of one take     0.6 ms apart
+  [           Use all 4            ]
+   00:03.925 · Camera A — wide · Angle 1 of 4     Watch  Use it
+   00:03.925 · Camera B — close · Angle 2 of 4    Watch  Use it
+   00:03.925 · Camera C — side · Angle 3 of 4     Watch  Use it
+   00:03.925 · Camera D — overhead · Angle 4 of 4 Watch  Use it
+```
+
+**One at a time and in order**, not four at once: each accept
+moves the request and copies a file, and four of those racing is
+four writers on one document. An angle already in the rail is not
+offered again, so pressing it after one was taken by hand takes
+the other three. The per-angle buttons stay, because a producer
+who wants three of four should not have to take four.
+
+## Measured against the running product
+
+The whole chain, through the real server, with the worker running:
+
+```
+POST  …/submissions/<sub>?index=0&track=0..3     4 x 202
+PUT   …/submissions/<sub>  { tracks: [ … ] }         201
+                            4 submissions, one capture, spread 29
+
+the inbox          1 arrival, 4 angles, "0.6 ms apart"
+one press          4 accept POSTs, 4 x "In the rail", button gone
+
+the performance    4 takes, each carrying
+                     capturedIn { id, offsetSamples, spreadSamples: 29 }
+                   offsets 0, 19, 24, 29 — T-4's own measured capture
+                   alignment.method  unplaced, on all four
+
+Studio Two         1 · Capture station · Camera A — wide · Angle 1 of 4
+  ALL TAKES        2 · Capture station · Camera B — close · Angle 2 of 4
+                   3 · Capture station · Camera C — side · Angle 3 of 4
+                   4 · Capture station · Camera D — overhead · Angle 4 of 4
+```
+
+Four green test-pattern tiles, four waveforms in the rail, no page
+errors. **That is a capture station's recording reaching a
+director's multiview as four views of one moment** — which is the
+sentence Track B was written to make true, and it is now true from
+the camera to the cut.
+
+## The record
+
+**Seventeen mutations on `angles.ts`, the accept route, the
+listing and the panel, all killed.** One source-text assertion
+tightened after a mutant walked through it: `angleSays` appears
+twice in the panel, once deciding whether to draw and once
+drawing, and an assertion that it appears is satisfied by a
+version that has stopped deciding. Measured: it was.
+
+**And one fault caught by a test written years before this stage.**
+The capture's left border went in as
+`var(--line-soft, rgba(255,255,255,0.14))`, and
+`design-system.test.ts` refused it: *"A TOKEN WITH A FALLBACK IS
+TWO ANSWERS… the rule is: name the token, or write the value. Not
+both."* Thirteen of these were found and removed once, every one
+of them naming a colour the product had been corrected away from.
+It is now `var(--border) solid var(--line-soft)`. **A rule written
+down is a rule that catches the person who did not read it.**
+
+**And a note on what a source-text test can be.** The panel has no
+DOM harness in this repository, so its assertions read the file.
+That is weaker than running it, and the screenshots above are the
+part that actually checks it — which is how the two "Use it"
+findings in this stage were made, neither of them by a test.

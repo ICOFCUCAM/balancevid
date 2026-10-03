@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useConfirm } from '../../Confirm.js';
 import ShareLink from '../../ShareLink.js';
 import { HOUSE_SAMPLE_RATE, formatMasterPosition } from '../../../src/domain/time.js';
+import { angleSays, arrivalsIn, spreadSays } from '../../../src/domain/angles.js';
 
 /**
  * Inviting performers, and what comes back.
@@ -49,6 +50,8 @@ interface Submission {
   at: string;
   acceptedAt?: string;
   device?: string;
+  /** Which capture this is one angle of, where it is one. [B-3] */
+  capturedIn?: { id: string; offsetSamples: number; spreadSamples?: number };
 }
 
 interface RequestRow {
@@ -285,7 +288,88 @@ export default function PerformersPanel({
                   {row.assignment.asks}
                 </p>
 
-                {(row.submissions ?? []).map((one) => {
+                {/*
+                  * ONE ARRIVAL, NOT N FILES.  [B-3]
+                  *
+                  * A capture station pointing four cameras at one
+                  * song used to arrive here as four rows that look
+                  * exactly like four separate people — and the job
+                  * this list exists for, deciding what to use, is
+                  * the wrong job to be handed four times for one
+                  * performance. `arrivalsIn` groups them; every
+                  * submission made before captures existed is an
+                  * arrival of one and draws as it always did.
+                  */}
+                {arrivalsIn(row.submissions ?? []).map((arrival) => (
+                  <div key={arrival[0]!.id} data-testid="performers-arrival"
+                       data-angles={arrival.length}
+                       style={{
+                         display: 'flex', flexDirection: 'column', gap: 4,
+                         ...(arrival.length > 1 ? {
+                           paddingLeft: 8,
+                           borderLeft: 'var(--border) solid var(--line-soft)',
+                         } : {}),
+                       }}>
+                  {arrival.length > 1 && (
+                    /*
+                      * WHAT THE PRODUCER NEEDS BEFORE THEY LOOK AT
+                      * ANY OF IT: how many views there are, and
+                      * whether they held together. A frame at 30fps
+                      * is 33 ms, so a spread the producer can
+                      * compare to that is the difference between a
+                      * cut and a repair. [T-4]
+                      */
+                    <div className="row small" data-testid="performers-capture"
+                         style={{ gap: 6, color: 'var(--ink-300)' }}>
+                      <span className="grow">{arrival.length} angles of one take</span>
+                      {spreadSays(arrival, HOUSE_SAMPLE_RATE) && (
+                        <span className="mono muted" data-testid="performers-spread">
+                          {spreadSays(arrival, HOUSE_SAMPLE_RATE)}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {/*
+                    * ONE ARRIVAL IS ONE DECISION. [B-3]
+                    *
+                    * Found on a screen and not in the plan: grouping
+                    * four angles into one row still left four "Use
+                    * it" buttons, so the producer was shown one
+                    * thing and asked about it four times — which is
+                    * most of the failure this stage was written to
+                    * end. A capture is taken as a capture, because
+                    * three angles of four is a multiview with a
+                    * camera missing.
+                    *
+                    * ONE AT A TIME AND IN ORDER, not four at once:
+                    * each accept moves the request and copies a
+                    * file, and four of those racing is four writers
+                    * on one document. A failure part way leaves
+                    * what was accepted accepted, which the rows
+                    * below say for themselves.
+                    *
+                    * The angles that are already in the rail are
+                    * not offered again, so pressing this after one
+                    * was taken by hand takes the other three.
+                    */}
+                  {arrival.filter((one) => !one.acceptedAt).length > 1 && (
+                    <button className="ctl sm" data-testid="performers-accept-capture"
+                            disabled={busy}
+                            onClick={() => void (async () => {
+                              setBusy(true);
+                              try {
+                                for (const one of arrival) {
+                                  if (one.acceptedAt) continue;
+                                  await act(row.id, {
+                                    action: 'accept', submissionId: one.assetId,
+                                  });
+                                }
+                              } finally { setBusy(false); }
+                            })()}>
+                      {`Use all ${arrival.filter((one) => !one.acceptedAt).length}`}
+                    </button>
+                  )}
+                  {arrival.map((one) => {
                   const live = playing?.submissionId === one.assetId;
                   return (
                     <div key={one.id} data-testid="performers-submission"
@@ -296,6 +380,11 @@ export default function PerformersPanel({
                           {one.durationSamples
                             ? formatMasterPosition(one.durationSamples) : '—'}
                           {one.device ? ` · ${one.device.slice(0, 28)}` : ''}
+                          {angleSays(arrival, one) && (
+                            <span data-testid="performers-angle">
+                              {` · ${angleSays(arrival, one)}`}
+                            </span>
+                          )}
                         </span>
                         {one.acceptedAt ? (
                           <span className="small" data-testid="performers-accepted"
@@ -334,7 +423,9 @@ export default function PerformersPanel({
                       )}
                     </div>
                   );
-                })}
+                  })}
+                  </div>
+                ))}
 
                 <div className="row" style={{ gap: 6 }}>
                   <button className="ctl sm" data-testid="performers-hold"

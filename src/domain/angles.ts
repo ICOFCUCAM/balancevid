@@ -140,3 +140,57 @@ export function captureSpread(takes: readonly Angled[]): Samples | null {
     .filter((one): one is Samples => typeof one === 'number');
   return spreads.length === 0 ? null : Math.max(...spreads);
 }
+
+/**
+ * What ARRIVED, rather than what was uploaded.  [B-3]
+ *
+ * > *"One arrival with four angles, rather than four arrivals
+ * > somebody has to recognise as related."*
+ *
+ * THE INBOX HAS BEEN LISTING FILES. Four cameras on one song is
+ * four rows that look exactly like four separate people, and the
+ * producer's job in front of that list — decide what to use — is
+ * the wrong job to be given four times for one performance.
+ *
+ * ORDER IS THE ORDER THINGS CAME IN, with a capture taking the
+ * place of its FIRST angle. A producer who looked away and looked
+ * back must not find the list reshuffled because the fourth
+ * camera's segments finished uploading first; and within a
+ * capture the angles are in `anglesOf`'s order, which is by
+ * offset, which is the order they started.
+ *
+ * AN ATTEMPT IS AN ARRIVAL OF ONE, not a special case. Every
+ * submission this product has ever taken is one of those, which
+ * is what makes this safe to put in front of all of them.
+ */
+export function arrivalsIn<T extends Angled>(takes: readonly T[]): T[][] {
+  const out: T[][] = [];
+  const done = new Set<string>();
+  for (const take of takes) {
+    const capture = take.capturedIn?.id;
+    if (!capture) { out.push([take]); continue; }
+    if (done.has(capture)) continue;
+    done.add(capture);
+    out.push(anglesOf(takes, take));
+  }
+  return out;
+}
+
+/**
+ * How far apart a capture's angles started, for a person.
+ *
+ * MILLISECONDS, BECAUSE SAMPLES ARE NOT A UNIT ANYBODY FEELS.
+ * The producer's question is *did these hold together*, and the
+ * answer is a number they can compare to a frame — which at 30fps
+ * is 33 ms, and 0.6 ms is comfortably inside one.
+ *
+ * Nothing where there is nothing to say: an attempt has no
+ * spread, and neither does a capture whose angles all started on
+ * the same sample.
+ */
+export function spreadSays(takes: readonly Angled[], sampleRate: number): string {
+  const spread = captureSpread(takes);
+  if (spread === null || spread <= 0 || !(sampleRate > 0)) return '';
+  const ms = (spread / sampleRate) * 1000;
+  return `${ms < 10 ? ms.toFixed(1) : Math.round(ms)} ms apart`;
+}
