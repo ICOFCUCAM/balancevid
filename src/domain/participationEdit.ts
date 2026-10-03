@@ -48,10 +48,20 @@ export function newRequest(spec: {
   expiresAt?: string | undefined;
   /** True where a stranger claimed it rather than a producer issuing it. */
   claimed?: boolean | undefined;
+  /**
+   * The call this is one answer to, where there is one. [V-2]
+   *
+   * Stamped at the moment the request is made, because that is
+   * the only moment it is known: a request that learned later
+   * which call it belonged to would be a call that could gather
+   * entries it never opened for.
+   */
+  campaign?: Id<'camp'> | undefined;
   now: string;
 }): ParticipationRequest {
   const {
-    holder, assignment, allowed, token, participant, expiresAt, claimed, now,
+    holder, assignment, allowed, token, participant, expiresAt, claimed,
+    campaign, now,
   } = spec;
   if (!assignment.asks.trim()) {
     fail('a request has to say what is being asked for');
@@ -87,6 +97,7 @@ export function newRequest(spec: {
     token,
     ...(participant ? { participant } : {}),
     ...(claimed ? { claimed: true } : {}),
+    ...(campaign ? { campaign } : {}),
     state: 'created',
     createdAt: now,
     history: [{ state: 'created', at: now }],
