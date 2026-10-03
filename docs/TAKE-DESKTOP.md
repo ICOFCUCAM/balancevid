@@ -856,7 +856,7 @@ release.
 `align.ts` and `time.ts` from the shared library without a copy;
 it contains no BalanceVid web-tier code.
 
-### T-2 · Connect — **ADD** (desktop) / **UPGRADE** (model)
+### T-2 · Connect — **ADD** (desktop) / **UPGRADE** (model) · *built, see PART SEVEN*
 
 The brief's CONNECT screen: QR, typed invitation code, pasted link,
 typed address, recently connected.
@@ -1214,3 +1214,201 @@ can write. Comments are stripped first now, and the patterns name
 a reference rather than a word — which is what every other
 source-text test in this repository already did, and what this
 one should have done from the start.
+
+
+---
+
+# PART SEVEN — T-2, as built
+
+> *"it connects to a cloud installation, a self-hosted one and a
+> local one with no code that distinguishes them, and shows the
+> participation request it was invited to."*
+
+```
+ ┌──────────────────────────────────────────┐
+ │                  Take                    │
+ │     Connect to the studio that invited    │
+ │                   you.                   │
+ │   RECENTLY CONNECTED                     │
+ │   ┌────────────────────────┐ ┌────────┐  │
+ │   │ Owner                  │ │ Forget │  │
+ │   │ http://127.0.0.1:3100  │ └────────┘  │
+ │   └────────────────────────┘             │
+ │   ┌────────────────────┐ ┌───────────┐   │
+ │   │ …/take/abc.secret  │ │  Connect  │   │
+ │   └────────────────────┘ └───────────┘   │
+ │        An invitation at …:3100           │
+ │                  Owner                   │
+ │          Invited to one piece of work.   │
+ │        ┌──────────────────────┐          │
+ │        │  Open the invitation │          │
+ │        └──────────────────────┘          │
+ │  CONNECT  CAMERAS PREPARE RECORD …       │
+ └──────────────────────────────────────────┘
+```
+
+## One box, not four tabs
+
+The brief's CONNECT screen lists *QR, typed invitation code,
+pasted link, typed address, recently connected*. **Three of those
+are the same typing**, and the brief's own mechanism says why: *"a
+link is an origin plus a credential."* So the box takes whatever
+somebody has and `readTyped` says what it is. Asking a person to
+choose a tab first and then telling them they chose wrong is the
+shape of a form that does not know what it wants.
+
+**A link is recognised before an origin**, because every link is
+also an origin and answering "origin" would throw the credential
+away — the person connected to the right studio and shown none of
+the work they were invited to.
+
+**A path that is not a link is not an error.** Somebody pastes
+`https://studio.example/t/chan_abc/watch` because that is what was
+in their browser, and what they mean is *this studio*. The origin
+is the useful half; the rest is dropped rather than refused.
+
+**And the recently connected are above the box**, because on the
+second day that is the whole screen.
+
+## The model is shared; the storage is not
+
+The half with the scars on it moved to `shared/src/connections.ts`:
+what an origin is, what a stored list may contain, what an
+installation is allowed to say about itself. `app/take/connections.ts`
+keeps `localStorage` and a `fetch` from a page; the desktop
+application keeps a file beside its own settings.
+
+`asOrigin` above all. It carries two bugs found the hard way —
+`ftp://studio.example` becoming a reachable host called `ftp`, and
+`localhost:3101` refused as though a port were a scheme — and a
+second parser would make both again. **There is now a test that
+fails if that scheme regex appears anywhere outside the shared
+library.**
+
+`readConnectionList` is new rather than moved, and it is the
+file-on-disk lesson arriving on this side of the product: the
+browser's reader checked only that a row had an origin. Every
+origin now goes back through `asOrigin` on the way *out* of
+storage — which was measured, not assumed: a `javascript:alert(1)`
+row written into the stored file by hand is still on disk and has
+never been drawn.
+
+`instanceFrom` separates the judgement from the transport, which
+is what lets both sides share it. The browser asks with `fetch`
+from a page; the desktop application asks from its main process,
+because its window has no network at all. What they share is the
+rule — **the origin kept is the one the device actually reached,
+never the one in the answer.**
+
+## The window still has no network
+
+`connect-src 'none'` stays. The main process does the asking, over
+one named channel, **and only to an origin `asOrigin` approved** —
+nothing a person types reaches `fetch` as typed. A capture station
+that could be made to fetch from anywhere is a capture station in
+a room with cameras in it.
+
+The bridge is the door T-1 said this stage would open: **four
+named questions**, not `ipcRenderer.invoke`, which would expose
+every channel the main process will ever have — including the ones
+T-4 adds for writing video to disk.
+
+```
+connections()      what is remembered
+remember(list)     remember this, and say what was kept
+ask(typed)         what does the installation at `typed` offer
+openExternal(url)  show this link in the person's own browser
+```
+
+`openExternal` goes through `asOrigin` too. `shell.openExternal`
+hands a string to the operating system, which will happily open
+`file:///` or a registered application's own scheme.
+
+**The preload is CommonJS**, and that is not a style choice: a
+sandboxed renderer's preload is loaded outside the module system,
+where an ESM one silently fails to run and the window comes up
+with no bridge and no error worth reading.
+
+**The invitation opens in the person's own browser.** The Take App
+at `/take/<link>` is a working recorder with its own service
+worker and upload queue, and opening it inside this window would
+be this application pretending to be that one. Recording here is
+T-3 and T-4; until then the honest thing is to hand the invitation
+to the client that already works.
+
+## The scheme a bare host gets
+
+**`asOrigin` now reads loopback as plain HTTP.** `localhost:3101`
+became `https://localhost:3101`, which cannot reach a local studio
+— and *"a local one"* is a third of what T-2 is judged on.
+
+`originFrom` in `src/web/share.ts` has read loopback as plain HTTP
+since the share cards were written — *"the proxy wins; localhost
+is plain HTTP"* — and two places in one product disagreeing about
+whether a laptop speaks TLS is two answers. The browser loses
+nothing it had: a page served over https cannot fetch
+`http://localhost` whatever this returns.
+
+**And writing that rule found the weaker copy of it.** `originFrom`
+used `startsWith('localhost')`, so `localhost.evil.example` —
+somebody else's domain — was assumed plain HTTP. Not reachable
+there, because that host comes from the proxy rather than from a
+person typing; but a weaker copy of a rule stated twice is still
+two answers, and in the new use the downgrade would be a plaintext
+connection handed over by naming a subdomain. Both now match the
+whole label.
+
+## What T-2 does not build
+
+**The QR, and it is not forgotten.** Reading one needs a camera,
+and cameras are T-3 — the stage that reads `guestGrid.ts` and
+`SwitchingStage.tsx` before deciding anything about device
+discovery. A second camera path built in T-2 would be the *"no
+third multiview"* mistake one stage early. The screen says in one
+line what it needs rather than drawing a button that cannot act,
+because a control that cannot act looks like a fault. [U-19]
+
+**No listing of what a studio offers**, beyond the count and the
+one invitation named. Drawing the whole listing here would be the
+Take App's home screen built a second time in a window that has a
+different job. [D-19]
+
+## Measured, not claimed
+
+Against a running installation, in the packaged shell:
+
+```
+bridge                 connections, remember, ask, openExternal
+require / process      undefined / undefined
+"127.0.0.1:3100"       reached; name "Owner"; one thing open;
+                       remembered to ~/.config/Take/connections.json
+".../take/abc.def"     "Invited to one piece of work here",
+                       with the button that opens it
+"javascript:alert(1)"  refused, with a sentence
+"ftp://studio.example" refused, with a sentence
+"127.0.0.1:3999"       could not reach it (one message for
+                       refused, timed out and not-a-BalanceVid)
+a `javascript:` row    written into the stored file by hand,
+                       and never drawn after a reload
+```
+
+## The record
+
+Twenty-five mutations on the shared model, all killed — and one
+found a clause that had never been tested in either home.
+`|| url.password` survived, and measuring showed why it must not
+be deleted:
+
+```
+new URL('https://:pw@studio.example')
+  username = ''   password = 'pw'
+```
+
+A URL may carry a password and no username at all, which is
+exactly the shape of `https://:token@studio.example`. Reachable,
+needed, and now with the fixture that says so — along with
+`https://studio.example@evil.example`, whose host is the one after
+the at-sign and not the one a person reads first.
+
+**177 test files, 3355 tests**, green. `tsc --noEmit` clean on the
+installation and on `desktop/`.

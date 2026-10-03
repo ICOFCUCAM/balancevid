@@ -36,6 +36,25 @@ await build({
   sourcemap: true,
 });
 
+/*
+ * THE PRELOAD IS COMMONJS AND THAT IS NOT A STYLE CHOICE. A
+ * sandboxed renderer's preload is loaded by Electron outside the
+ * module system — `import` does not exist there — so an ESM
+ * preload silently fails to run and the window comes up with no
+ * bridge and no error worth reading. `.cjs` so the extension says
+ * so to anybody who opens `out/`.
+ */
+await build({
+  entryPoints: ['src/preload.ts'],
+  outfile: `${OUT}/preload.cjs`,
+  bundle: true,
+  platform: 'node',
+  format: 'cjs',
+  target: 'node22',
+  external: ['electron'],
+  sourcemap: true,
+});
+
 /* The renderer is a web page in a sandboxed window: no Node, and
    nothing external to leave out. */
 await build({

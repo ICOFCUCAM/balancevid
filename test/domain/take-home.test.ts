@@ -16,7 +16,7 @@
  * where the risk is.
  */
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -35,6 +35,15 @@ const PAGE = code('app/take/page.tsx');
 const CLAIM = code('app/api/participate/[kind]/[id]/route.ts');
 const FIELDS = code('app/AvailabilityFields.tsx');
 const CONN = code('app/take/connections.ts');
+/*
+ * THE RULES MOVED AND THE STORAGE DID NOT. Take Software for
+ * desktop keeps the same list in a file beside its own settings
+ * and must not have its own opinion about what an origin is — so
+ * `asOrigin`, the stored-list reader and the what-an-installation-
+ * may-say rule are shared, and this file keeps `localStorage` and
+ * a `fetch` from a page. [D-19, TAKE-DESKTOP T-2]
+ */
+const MODEL = code('shared/src/connections.ts');
 const LIST = code('app/api/participate/route.ts');
 
 describe('the home is reachable without an account', () => {
@@ -444,7 +453,10 @@ describe('many installations, one app', () => {
    * actually reached.
    */
   it('trusts an installation for its name and not for its address', () => {
-    expect(CONN).toMatch(/instance: \{ name: String\(data\.instance\.name\)[^}]*, origin \}/);
+    /* `reached` is the origin the device actually got an answer
+       from; nothing in the answer can replace it. */
+    expect(MODEL).toMatch(/return \{ name: said\.name\.slice\([^)]*\), origin: reached \}/);
+    expect(MODEL).not.toMatch(/origin:\s*said\./);
     expect(HOME).toMatch(/from\?: \{ name: string; origin: string \}/);
   });
 
@@ -479,16 +491,52 @@ describe('many installations, one app', () => {
    * them: a port is digits, and no scheme begins with one.
    */
   it('tells a port from a scheme', () => {
-    expect(asOrigin('localhost:3101')).toBe('https://localhost:3101');
+    expect(asOrigin('localhost:3101')).toBe('http://localhost:3101');
     expect(asOrigin('studio.example:8443')).toBe('https://studio.example:8443');
     expect(asOrigin('http://localhost:3101')).toBe('http://localhost:3101');
+  });
+
+  /*
+   * AND THE ASSUMED SCHEME IS HTTPS EXCEPT ON THIS MACHINE.
+   *
+   * Nobody runs TLS on their own laptop, so `localhost:3101`
+   * assumed into `https://` is a self-hosted installation that
+   * cannot be reached — which Take Software for desktop's T-2
+   * criterion names in as many words: "a cloud installation, a
+   * self-hosted one and A LOCAL ONE".
+   *
+   * `originFrom` in `src/web/share.ts` has read loopback as plain
+   * HTTP since the share cards were written, and two places in
+   * one product disagreeing about whether a laptop speaks TLS is
+   * two answers. The browser loses nothing: a page on https
+   * cannot fetch `http://localhost` whatever this returns, and
+   * `https://localhost:3101` was never going to answer either.
+   * [D-19, TAKE-DESKTOP T-2]
+   */
+  it('assumes plain http for this machine and https for everywhere else', () => {
+    expect(asOrigin('localhost')).toBe('http://localhost');
+    expect(asOrigin('127.0.0.1:3100')).toBe('http://127.0.0.1:3100');
+    expect(asOrigin('[::1]:3100')).toBe('http://[::1]:3100');
+    expect(asOrigin('studio.example')).toBe('https://studio.example');
+    /*
+     * AND A HOST THAT MERELY BEGINS `localhost` IS NOT THIS
+     * MACHINE. `localhost.evil.example` is somebody else's
+     * domain, and downgrading it to http would be this rule
+     * handing an attacker a plaintext connection by naming a
+     * subdomain.
+     */
+    expect(asOrigin('localhost.evil.example'))
+      .toBe('https://localhost.evil.example');
+    expect(asOrigin('127.0.0.1.evil.example'))
+      .toBe('https://127.0.0.1.evil.example');
   });
 
   it('keeps only the origin of something that is one', () => {
     expect(asOrigin('https://studio.example/take?x=1#y')).toBe('https://studio.example');
     expect(asOrigin('  https://studio.example/  ')).toBe('https://studio.example');
     expect(asOrigin('http://localhost:3100/anything')).toBe('http://localhost:3100');
-    /* A bare host is what somebody types; the safe scheme is assumed. */
+    /* A bare host is what somebody types; the safe scheme is
+       assumed, except on this machine — see below. */
     expect(asOrigin('studio.example')).toBe('https://studio.example');
   });
 
@@ -570,6 +618,28 @@ describe('a name somebody else chose', () => {
 
   /* The name is also capped where it arrives, so nothing stores a novel. */
   it('caps the name at the door as well', () => {
-    expect(CONN).toMatch(/\.slice\(0, 80\)/);
+    expect(MODEL).toMatch(/NAME_LONGEST = 80/);
+    expect(MODEL).toMatch(/said\.name\.slice\(0, NAME_LONGEST\)/);
+  });
+
+  /*
+   * AND THERE IS EXACTLY ONE ORIGIN PARSER. This is the point of
+   * having moved it: `asOrigin` carries two bugs found the hard
+   * way — `ftp://studio.example` becoming a reachable host called
+   * `ftp`, and `localhost:3101` refused as though a port were a
+   * scheme — and a desktop application with its own would make
+   * both again. The tell is the scheme regex; if it ever appears
+   * outside the shared library, there are two answers to what an
+   * origin is. [D-19]
+   */
+  it('parses an origin in one place', () => {
+    const everywhere = ['app', 'src', 'desktop/src', 'shared/src']
+      .flatMap((dir) => readdirSync(join(ROOT, dir),
+        { recursive: true, encoding: 'utf8' })
+        .filter((name) => /\.tsx?$/.test(name))
+        .map((name) => join(dir, name)));
+    const parsers = everywhere.filter((file) =>
+      /\[a-z0-9\+\.-\]\*\):\(\?!\\d\)/.test(code(file)));
+    expect(parsers).toEqual([join('shared/src', 'connections.ts')]);
   });
 });

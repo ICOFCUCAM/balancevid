@@ -396,6 +396,25 @@ describe('the origin, from headers alone (N-7)', () => {
     expect(of({ host: '127.0.0.1:3100' })).toBe('http://127.0.0.1:3100');
   });
 
+  /*
+   * AND A HOST THAT MERELY BEGINS `localhost` IS NOT THIS
+   * MACHINE. This read `startsWith`, so `localhost.evil.example`
+   * — somebody else's domain — was assumed plain HTTP. Found
+   * while writing the same rule into the shared connection
+   * parser for T-2, where the string comes from a person typing
+   * and the downgrade would be a plaintext connection handed
+   * over by naming a subdomain. Here the host comes from the
+   * proxy, so it was never reachable; a weaker copy of a rule
+   * stated twice is still two answers. [D-19]
+   */
+  it('does not mistake somebody else\'s domain for this machine', () => {
+    expect(of({ host: 'localhost.evil.example' }))
+      .toBe('https://localhost.evil.example');
+    expect(of({ host: '127.0.0.1.evil.example' }))
+      .toBe('https://127.0.0.1.evil.example');
+    expect(of({ host: 'notlocalhost' })).toBe('https://notlocalhost');
+  });
+
   /* A proxy that says `http` is believed, loopback or not. */
   it('still believes an explicit proto', () => {
     expect(of({ host: 'balancevid.com', 'x-forwarded-proto': 'http' }))

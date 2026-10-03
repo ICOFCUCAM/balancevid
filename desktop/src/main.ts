@@ -37,11 +37,48 @@
  * opens a socket belongs to T-2.
  */
 
-import { app, BrowserWindow, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, shell } from 'electron';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
+import { asOrigin } from '../../shared/src/connections.js';
+import { askInstance } from './ask.js';
+import { readStored, writeStored } from './store.js';
+
 const HERE = dirname(fileURLToPath(import.meta.url));
+
+/**
+ * The four questions the window may ask.  [T-2]
+ *
+ * REGISTERED ONCE, BEFORE ANY WINDOW OPENS, because a handler
+ * registered per window is a handler registered twice the second
+ * time somebody opens one.
+ *
+ * EVERY ARGUMENT IS TREATED AS UNTRUSTED even though the only
+ * caller is a page this application shipped. That is not
+ * ceremony: the renderer is where a camera's bytes and a
+ * studio's URL will meet, and the day something in it is
+ * confused the main process must not be.
+ */
+function listen(): void {
+  ipcMain.handle('take:connections', () => readStored());
+  ipcMain.handle('take:remember', (_event, list: unknown) => writeStored(list));
+  ipcMain.handle('take:ask', (_event, typed: unknown) =>
+    (typeof typed === 'string' ? askInstance(typed) : null));
+  /*
+   * A LINK OPENS IN THE PERSON'S OWN BROWSER, and only if it is
+   * somewhere this application would have gone anyway.
+   * `shell.openExternal` hands a string to the operating system,
+   * which will happily open `file:///` or a registered
+   * application's own scheme — so the string goes through
+   * `asOrigin` first, which answers only for http and https.
+   */
+  ipcMain.handle('take:open-external', async (_event, url: unknown) => {
+    if (typeof url !== 'string' || !asOrigin(url)) return false;
+    await shell.openExternal(url);
+    return true;
+  });
+}
 
 function open(): void {
   const window = new BrowserWindow({
@@ -55,13 +92,17 @@ function open(): void {
     title: 'Take',
     show: false,
     webPreferences: {
+      /* The four named questions, and nothing else. [T-2] */
+      preload: join(HERE, 'preload.cjs'),
       /*
        * THE RENDERER IS A WEB PAGE AND IS TREATED AS ONE. No Node
-       * in it, context isolation on, and nothing exposed through a
-       * preload bridge that T-1 does not need — which is nothing.
-       * A capture station will eventually want the filesystem; the
-       * stage that needs it is the stage that opens the door, and
-       * it opens one named function rather than `require`. [T-4]
+       * in it, context isolation on, sandbox on.
+       *
+       * T-1 SAID THE STAGE THAT NEEDED THE MACHINE WOULD OPEN
+       * NAMED FUNCTIONS RATHER THAN `require`, AND T-2 IS IT:
+       * four of them, in `preload.ts`. The window still has no
+       * filesystem and no socket — it has four questions it may
+       * ask of something that does.
        */
       nodeIntegration: false,
       contextIsolation: true,
@@ -93,6 +134,7 @@ function open(): void {
 }
 
 app.whenReady().then(() => {
+  listen();
   open();
   /* macOS keeps an application running with no windows. */
   app.on('activate', () => {

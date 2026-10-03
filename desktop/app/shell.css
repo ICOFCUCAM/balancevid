@@ -50,6 +50,14 @@ main {
   text-align: center;
 }
 
+/* The work, above the strip that says where the build is. */
+.screen {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  width: min(100%, 520px);
+}
+
 .mark {
   margin: 0;
   font-size: 30px;
@@ -109,3 +117,99 @@ main {
   color: #5c636b;
   letter-spacing: 0.05em;
 }
+
+/* ------------------------------------------------------------------ *
+ *  CONNECT.  [T-2]
+ * ------------------------------------------------------------------ */
+
+.field { display: flex; gap: 8px; width: 100%; }
+
+.typed {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 10px 13px;
+  font: inherit;
+  color: var(--ink);
+  background: #15171a;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  /* The one place in this application somebody types. */
+  user-select: text;
+  cursor: text;
+}
+
+.typed:focus { outline: none; border-color: var(--accent); }
+
+.go {
+  flex: 0 0 auto;
+  padding: 10px 18px;
+  font: inherit;
+  font-weight: 600;
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.go:hover { border-color: var(--accent); color: var(--accent); }
+
+.hint, .note {
+  margin: 0;
+  min-height: 1.6em;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.note { max-width: 44ch; font-size: 12px; color: #5c636b; }
+
+/* Recently connected: on the second day this is the whole screen. */
+.recent { display: grid; gap: 6px; width: 100%; }
+
+.label {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: #5c636b;
+  text-align: left;
+}
+
+.known { display: flex; gap: 8px; align-items: stretch; }
+
+.known-go {
+  flex: 1 1 auto;
+  display: grid;
+  gap: 2px;
+  padding: 9px 13px;
+  text-align: left;
+  font: inherit;
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.known-go:hover { border-color: var(--accent); }
+.known-name { font-weight: 600; }
+.known-origin { font-size: 12px; color: var(--muted); }
+
+.known-forget {
+  flex: 0 0 auto;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.result { display: grid; gap: 6px; width: 100%; min-height: 2em; }
+.result p { margin: 0; }
+.good { font-weight: 600; }
+.quiet { font-size: 13px; color: var(--muted); }
+.asking { font-size: 13px; color: var(--muted); }
+.bad { font-size: 13px; color: #d98a6a; max-width: 44ch; }
