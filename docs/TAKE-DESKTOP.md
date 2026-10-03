@@ -886,7 +886,7 @@ exist and a third should not be invented.
 **Judged on:** four cameras previewing at once, and a refusal with a
 sentence when a disk cannot sustain four streams.
 
-### T-4 · Record, with one start and every start recorded — **ADD**
+### T-4 · Record, with one start and every start recorded — **ADD** · *built, see PART NINE*
 
 All recorders start from one call, to local disk. Each source's
 measured start is written into the session.
@@ -1632,3 +1632,179 @@ blocking check was failing anyway. A survivor can also mean two
 checks that do not agree with each other.
 
 **179 test files, 3394 tests**, green.
+
+
+---
+
+# PART NINE — T-4, as built
+
+> *"Four files on disk, each with a measured start, with the
+> machine offline for the whole recording."*
+
+```
+~/.config/Take/captures/cap_20261003T095216_sl0q/
+  01-camera1.webm   553,766 bytes   offset  0 samples
+  02-camera2.webm   553,766 bytes   offset 19 samples
+  03-camera3.webm   553,766 bytes   offset 24 samples
+  04-camera4.webm   553,766 bytes   offset 29 samples
+  capture.json      spreadMs 0.6 · startedTogether true
+```
+
+**PART THREE's sub-frame prediction is now a recorded number.**
+
+## The one call
+
+A tight loop and nothing else. The recorders are **constructed
+first** — building a `MediaRecorder` allocates an encoder — and
+the loop that starts them does one thing, because awaiting
+anything between two of them would put a task boundary, and
+whatever the browser decided to do in it, between two cameras
+that are supposed to be one capture.
+
+## This is not a second `useMasterRecording`
+
+> *"No second recorder. `useMasterRecording`'s offset and latency
+> arithmetic is the one copy for every client."*
+
+That hook answers **where was the song when the recorder
+opened**, corrected by the device latency the author calibrated
+— and it already says what it does with no song:
+`masterUrl ? placeTakeOnSong(…) : 0`.
+
+**There is no song here.** A capture station records a room, not
+a performance against a backing track, so the question is not
+*where in the master* but *how far apart from each other*. That
+arithmetic is `shared/src/capture.ts`, shared because the
+installation reads these offsets to place angles on one clock
+(B-1) and two definitions of *how far into the capture did this
+angle begin* is two placements of the same footage. The master
+arithmetic stays exactly where it is, used by the clients that
+have a master.
+
+## Two instants per source
+
+`MediaRecorder.start()` does not begin capturing at the moment it
+is called — the first line of that hook's own list of errors in
+play. So the **call** is when it was asked and the **first
+chunk** closing is when capture demonstrably existed. Both are
+written down; the offsets are computed from the second.
+
+### The clock, measured rather than assumed
+
+The audio clock is the right clock for anything relating to
+audio playback, and `useMasterRecording` is right to use it. It
+is the wrong clock for this:
+
+```
+4000 reads in a tight loop
+  AudioContext.currentTime     1 distinct value
+  performance.now()           17 distinct values
+```
+
+A clock that cannot tell two events in the same task apart
+cannot measure a sub-millisecond spread.
+
+## Segments, appended
+
+Four seconds, the same as every other recording in this product,
+and each one appended to its angle's file as it arrives — so the
+file on disk is always as long as the recording is. A crash at
+minute forty leaves forty minutes.
+
+**Appended rather than numbered-then-joined**, which is where
+this differs from the browser's sink, and the reason is the
+destination. The Take App numbers its chunks because they travel
+over a network that drops them and arrive out of order; a local
+disk does neither. What a join would buy here is a second copy
+of every file at the end of a recording, on the disk whose free
+space PREPARE just finished worrying about.
+
+## The correlation check
+
+> *"correlation is offered as a check on the measured start,
+> stored beside it, never silently replacing it."*
+
+`measureAlignment` is reused, not rewritten: same onset envelope,
+same centred search, same hard-won fix about searching **either
+side** of the hint rather than before it.
+
+**And its gate is `align.ts`'s own question, which was the
+fault.** A lower threshold was written here first — and
+`measureAlignment` returns `offsetSamples: masterAudible ? fine :
+hintSamples`, so **below `MASTER_AUDIBLE_THRESHOLD` it hands the
+HINT STRAIGHT BACK.** A check gated beneath it would have
+recorded, between 0.3 and 0.6, an agreement between the clock and
+an echo of itself: a tick beside every angle, meaning nothing.
+
+A check is not a correction, and `align.ts` says why in its own
+words: a blind search *"is both slow and a good way to land
+confidently on the second chorus."* The measured start came from
+the machine that did the recording; the correlation came from a
+search over a few seconds of room noise read on a frame timer.
+Where they disagree, that is worth telling somebody. It is not
+worth silently preferring the search.
+
+**And a fixture that modelled the wrong thing.** The
+disagreement case padded the probe with silence — which models a
+camera that started EARLY, and `align.ts` clamps that to zero
+because *"where the take's first sample sits on the master
+clock"* cannot be negative. A camera that starts late records
+the room **from** 120 ms in. The test failed for the right reason
+on the wrong signal.
+
+## Measured, not claimed
+
+```
+four angles from one call
+  spread                  0.6 ms
+  offsets                 0, 19, 24, 29 samples at 48 kHz
+  startedTogether         true
+  files                   4 x 553,766 bytes + capture.json
+  each angle carries      calledAtMs and firstChunkAtMs — what
+                          the offset was derived from
+network during a take     none, watched at the window
+```
+
+**Offline is structural, not observed.** The renderer's policy is
+`connect-src 'none'` and the only `fetch` in the application is
+in the main process behind `take:ask`. Nothing the window could
+do during a recording would reach a network; the request count
+confirms what the policy already guarantees.
+
+## A container limit found by hitting it
+
+**Four concurrent recorders at 1280×720 stay in `recording` and
+deliver nothing here.** At 640×480 all four deliver; one at 720p
+is fine; two at 720p are fine.
+
+```
+1 x 1280x720   546 KB
+2 x 1280x720   337 KB, 334 KB
+4 x 1280x720   nothing at all
+4 x  640x480   421 KB each
+4 x  320x240   271 KB each
+```
+
+That is this machine's CPU and not the code — PART THREE
+measured eight recorders at 640×480 and the boundary is
+consistent with it. The four-angle capture above was taken at
+640×480 for that reason, and the spread it measured is the
+number that mattered.
+
+## The record
+
+Twenty-four mutations on `capture.ts` and eight on `check.ts`,
+all killed. **Two clauses deleted**: an empty reference and an
+empty probe both correlate at zero and are already refused by
+`masterAudible`. **The twenty-seventh and twenty-eighth.**
+
+**And one guard kept that mutation cannot kill.**
+`rooms.length < 2` changes nothing observable, because
+`rooms.slice(1)` is already empty — but it is what makes
+`rooms[0]!` *true* rather than an assertion about an array that
+might be empty. `registry.ts` kept its `usableNumber` filter for
+the same reason: *"it is what makes the return type true."* A
+guard that only narrows a type cannot be judged by mutation
+alone.
+
+**181 test files, 3420 tests**, green.
