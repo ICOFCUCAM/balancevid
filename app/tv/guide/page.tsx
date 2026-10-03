@@ -1,6 +1,8 @@
 import { inDirectory, listingFor } from '../../../src/domain/channelListing.js';
 import { columnsFor, guideWindow, placeOf, rowFor } from '../../../src/domain/tvGuide.js';
 import { listChannels } from '../../../src/store/channels.js';
+import type { Assignments } from '../../../src/domain/registry.js';
+import { lineupFor } from '../../../src/store/lineup.js';
 import { TvFrame } from '../Tv.js';
 import Grid from './Grid.js';
 
@@ -27,15 +29,26 @@ export const metadata = {
  */
 export default async function GuidePage() {
   const channels = (await listChannels().catch(() => []));
+  const lineup: Assignments = await lineupFor(channels.map((one) => one.id))
+    .catch(() => ({}));
   const { from, to } = guideWindow(Date.now());
   const rows = channels
     .filter(inDirectory)
     .map((channel) => {
-      const listing = listingFor(channel);
+      const listing = listingFor(channel, lineup[channel.id]);
       return listing ? rowFor(channel, listing, from, to) : null;
     })
     .filter((row): row is NonNullable<typeof row> => row !== null)
-    .sort((a, b) => a.channel.name.localeCompare(b.channel.name))
+    /*
+     * BY NUMBER, UNLIKE THE DIRECTORY. A guide IS a lineup — it is
+     * read down the channels in the order a remote steps through
+     * them — where the directory is browsed by name. Two
+     * orderings for two questions. A channel with no number goes
+     * last rather than first, so an unnumbered one never sits at
+     * the top of the grid. [D-04, N-6]
+     */
+    .sort((a, b) => (a.channel.number ?? Infinity) - (b.channel.number ?? Infinity)
+      || a.channel.name.localeCompare(b.channel.name))
     .map((row) => ({
       channel: row.channel,
       slots: row.slots.map((slot) => ({

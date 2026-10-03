@@ -2,6 +2,7 @@ import { directory } from '../../../src/domain/channelListing.js';
 import { matching } from '../../../src/domain/channelSearch.js';
 import { listChannels } from '../../../src/store/channels.js';
 import { ChannelGrid, TvFrame } from '../Tv.js';
+import { lineupFor } from '../../../src/store/lineup.js';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,7 +29,8 @@ export default async function SearchPage(
 ) {
   const { q } = await searchParams;
   const asked = (q ?? '').trim();
-  const all = directory(await listChannels().catch(() => []));
+  const held = await listChannels().catch(() => []);
+  const all = directory(held, await lineupFor(held.map((one) => one.id)).catch(() => ({})));
   const found = asked ? matching(all, asked) : [];
 
   return (

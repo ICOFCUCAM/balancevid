@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 
+import { numberSays } from '../../../../src/domain/registry.js';
 import ChannelPlayer from '../../../t/[id]/watch/ChannelPlayer.js';
 import type { Listing } from '../../Tv.js';
 
@@ -69,6 +70,12 @@ export default function Station(
         {listing.callsign && (
           <span className="mono readout" data-testid="station-callsign"
                 style={{ color: 'var(--ink-300)' }}>{listing.callsign}</span>
+        )}
+        {listing.number !== undefined && (
+          <span className="mono readout" data-testid="station-number"
+                style={{ color: 'var(--ink-400)' }}>
+            {numberSays(listing.number)}
+          </span>
         )}
         <span className="grow" />
         {/*

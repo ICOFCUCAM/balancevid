@@ -62,7 +62,15 @@ export default function Grid(
               textDecoration: 'none', color: 'inherit', overflow: 'hidden',
               textOverflow: 'ellipsis', whiteSpace: 'nowrap',
               fontSize: 'var(--text-sm)', fontWeight: 600,
-            }}>{row.channel.name}</Link>
+            }}>
+              {row.channel.number !== undefined && (
+                <span className="mono readout" style={{
+                  marginRight: 7, fontSize: 'var(--text-2xs)',
+                  color: 'var(--ink-400)', fontWeight: 400,
+                }}>{row.channel.number}</span>
+              )}
+              {row.channel.name}
+            </Link>
             <div style={{
               position: 'relative', flex: 1, minHeight: 38,
               borderTop: '1px solid var(--console-rule)',

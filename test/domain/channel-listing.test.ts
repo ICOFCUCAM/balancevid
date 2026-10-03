@@ -208,3 +208,48 @@ describe('a document on disk is not a type (N-3)', () => {
     expect(bySlug([fromDisk('Broken')], '   ')).toBeUndefined();
   });
 });
+
+describe('numbers on a listing (N-6)', () => {
+  /*
+   * OPTIONAL, AND THAT IS NOT LAZINESS. A channel published
+   * before the lineup existed, or one on an installation whose
+   * numbers file cannot be read, has no number and must still
+   * appear. A row that vanished for want of one would make an
+   * unreadable file into a blank television network. [D-21]
+   */
+  it('lists a channel that has no number', () => {
+    const channel = made('Unnumbered', { slug: 'un-tv' });
+    expect(listingFor(channel)!.number).toBeUndefined();
+    expect(directory([channel], {})).toHaveLength(1);
+  });
+
+  it('carries the number the network allocated', () => {
+    const channel = made('Numbered', { slug: 'num-tv' });
+    const rows = directory([channel], { [channel.id]: 102 });
+    expect(rows[0]!.number).toBe(102);
+  });
+
+  /* A number nothing could use is no number at all. */
+  it('ignores an unusable number from a numbers file', () => {
+    const channel = made('Odd', { slug: 'odd-tv' });
+    for (const bad of [7, 0, 100.5, 'x' as never]) {
+      expect(directory([channel], { [channel.id]: bad })[0]!.number)
+        .toBeUndefined();
+    }
+  });
+
+  /*
+   * AND THE DIRECTORY IS STILL BY NAME. A directory is browsed —
+   * somebody is reading names — where a LINEUP is tuned and is
+   * ordered by number. Making this numeric would turn browsing
+   * into looking up. [D-04]
+   */
+  it('is ordered by name even once numbers exist', () => {
+    const zulu = made('Zulu TV', { slug: 'zulu' });
+    const alpha = made('Alpha TV', { slug: 'alpha' });
+    const rows = directory([zulu, alpha],
+      { [zulu.id]: 100, [alpha.id]: 101 });
+    expect(rows.map((r) => r.name)).toEqual(['Alpha TV', 'Zulu TV']);
+    expect(rows.map((r) => r.number)).toEqual([101, 100]);
+  });
+});

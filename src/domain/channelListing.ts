@@ -36,6 +36,7 @@
 import type { Channel } from './channel.js';
 import { isPublished } from './channel.js';
 import { type Station, stationSays } from './station.js';
+import { type Assignments, usableNumber } from './registry.js';
 
 /** What a channel is, to a stranger looking for something to watch. */
 export type Standing = 'public' | 'unlisted' | 'private' | 'offline';
@@ -71,6 +72,18 @@ export interface Listing {
   /** The address, which is how a viewer reaches it. */
   slug: string;
   name: string;
+  /**
+   * THE TUNING NUMBER, where the network has allocated one.
+   * [N-6]
+   *
+   * Optional, and that is not laziness: a channel published
+   * before the lineup existed, or one on an installation whose
+   * numbers file cannot be read, has no number and must still
+   * appear in the directory. A row that vanished for want of a
+   * number would make an unreadable file into a blank
+   * television network. [D-21]
+   */
+  number?: number;
   callsign?: string;
   /** `Faith · English · CM`, or nothing. */
   says: string;
@@ -90,12 +103,15 @@ export interface Listing {
  * entry pointing at `/t/chan_c3bf…` is the machine-chosen address
  * this stage exists to replace.
  */
-export function listingFor(channel: Channel): Listing | null {
+export function listingFor(
+  channel: Channel, number?: number,
+): Listing | null {
   const station: Station | undefined = channel.station;
   if (!station?.slug) return null;
   return {
     slug: station.slug,
     name: channel.name,
+    ...(usableNumber(number) ? { number } : {}),
     says: stationSays(station),
     ...(station.callsign ? { callsign: station.callsign } : {}),
     ...(station.description ? { description: station.description } : {}),
@@ -115,13 +131,23 @@ export function listingFor(channel: Channel): Listing | null {
  * ordering a viewer can predict, which is what a directory is for
  * until a lineup exists to impose an order of its own. [D-04]
  */
-export function directory(channels: Iterable<Channel>): Listing[] {
+export function directory(
+  channels: Iterable<Channel>, assigned: Assignments = {},
+): Listing[] {
   const out: Listing[] = [];
   for (const channel of channels) {
     if (!inDirectory(channel)) continue;
-    const row = listingFor(channel);
+    const row = listingFor(channel, assigned[channel.id]);
     if (row) out.push(row);
   }
+  /*
+   * STILL BY NAME, AND DELIBERATELY SO NOW THAT NUMBERS EXIST. A
+   * directory is browsed — somebody is reading names — and a
+   * LINEUP is tuned, which is `lineupOf` in the registry and is
+   * ordered by number. Two orderings because they answer two
+   * questions, and making the directory numeric would turn
+   * browsing into looking up. [D-04]
+   */
   return out.sort((a, b) => a.name.localeCompare(b.name));
 }
 

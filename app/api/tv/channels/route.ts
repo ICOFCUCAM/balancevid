@@ -1,6 +1,7 @@
 import { directory } from '../../../../src/domain/channelListing.js';
 import { listChannels } from '../../../../src/store/channels.js';
 import { json } from '../../../../src/web/http.js';
+import { lineupFor } from '../../../../src/store/lineup.js';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,5 +24,6 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(): Promise<Response> {
   const channels = await listChannels().catch(() => []);
-  return json({ channels: directory(channels) });
+  const lineup = await lineupFor(channels.map((one) => one.id)).catch(() => ({}));
+  return json({ channels: directory(channels, lineup) });
 }

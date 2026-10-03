@@ -3,6 +3,7 @@ import { directory } from '../../../src/domain/channelListing.js';
 import { listConversations } from '../../../src/store/repository.js';
 import { listChannels } from '../../../src/store/channels.js';
 import { json } from '../../../src/web/http.js';
+import { lineupFor } from '../../../src/store/lineup.js';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,6 +42,7 @@ export async function GET(): Promise<Response> {
    * half added later cannot read a directory.
    */
   const channels = await listChannels().catch(() => []);
+  const lineup = await lineupFor(channels.map((one) => one.id)).catch(() => ({}));
   return json({
     published: conversations.map((conversation) => ({
       id: conversation.id,
@@ -53,6 +55,6 @@ export async function GET(): Promise<Response> {
       depth: lineageDepth(conversation),
       sourceTitle: conversation.source.title,
     })),
-    channels: directory(channels),
+    channels: directory(channels, lineup),
   });
 }

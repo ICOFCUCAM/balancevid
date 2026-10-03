@@ -1,7 +1,9 @@
 import { bySlug, listingFor } from '../../../../../src/domain/channelListing.js';
+import type { Assignments } from '../../../../../src/domain/registry.js';
 import { nowAndNext } from '../../../../../src/domain/onAir.js';
 import { listChannels } from '../../../../../src/store/channels.js';
 import { fail, json } from '../../../../../src/web/http.js';
+import { lineupFor } from '../../../../../src/store/lineup.js';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,9 +31,12 @@ type Params = { params: Promise<{ slug: string }> };
  */
 export async function GET(_request: Request, { params }: Params): Promise<Response> {
   const { slug } = await params;
-  const channel = bySlug(await listChannels().catch(() => []), slug);
+  const channels = await listChannels().catch(() => []);
+  const channel = bySlug(channels, slug);
   if (!channel) return fail(404, 'no channel at that address');
-  const listing = listingFor(channel);
+  const lineup: Assignments = await lineupFor(channels.map((one) => one.id))
+    .catch(() => ({}));
+  const listing = listingFor(channel, lineup[channel.id]);
   if (!listing) return fail(404, 'no channel at that address');
   return json({
     id: channel.id,

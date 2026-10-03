@@ -1,6 +1,7 @@
 import { directory } from '../../src/domain/channelListing.js';
 import { listChannels } from '../../src/store/channels.js';
 import { ChannelGrid, TvFrame } from './Tv.js';
+import { lineupFor } from '../../src/store/lineup.js';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,7 +32,8 @@ export const metadata = {
  * buys nothing.
  */
 export default async function TvPage() {
-  const channels = directory(await listChannels().catch(() => []));
+  const all = await listChannels().catch(() => []);
+  const channels = directory(all, await lineupFor(all.map((one) => one.id)).catch(() => ({})));
   return (
     <TvFrame here="/tv">
       <h1 style={{ margin: '0 0 6px', fontSize: 'var(--text-xl)' }}>

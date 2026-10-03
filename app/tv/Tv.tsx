@@ -22,6 +22,7 @@ import type { ReactNode } from 'react';
 export interface Listing {
   slug: string;
   name: string;
+  number?: number;
   callsign?: string;
   says: string;
   description?: string;
@@ -120,8 +121,24 @@ export function ChannelCard({ channel }: { channel: Listing }) {
             : mark}
         </div>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontWeight: 600, overflow: 'hidden',
-            textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{channel.name}</div>
+          {/*
+            * THE NUMBER LEADS, because that is what a channel
+            * number is for: a lineup is scanned down the numbers
+            * and read across the names. It is quiet — a number is
+            * furniture, like the ordinal in the control room's
+            * rails — and absent entirely on a channel that has
+            * none rather than drawn as a gap. [D-04, N-6]
+            */}
+          <div className="row" style={{ gap: 7, alignItems: 'baseline',
+            minWidth: 0 }}>
+            {channel.number !== undefined && (
+              <span className="mono readout" data-testid="card-number"
+                    style={{ flex: '0 0 auto', fontSize: 'var(--text-2xs)',
+                      color: 'var(--ink-400)' }}>{channel.number}</span>
+            )}
+            <span style={{ fontWeight: 600, overflow: 'hidden',
+              textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{channel.name}</span>
+          </div>
           {channel.says && (
             <div className="small muted" data-testid="tv-card-says"
                  style={{ marginTop: 2 }}>{channel.says}</div>

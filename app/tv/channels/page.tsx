@@ -2,6 +2,7 @@ import { directory } from '../../../src/domain/channelListing.js';
 import { listChannels } from '../../../src/store/channels.js';
 import { GENRES } from '../../../src/domain/station.js';
 import { ChannelGrid, TvFrame } from '../Tv.js';
+import { lineupFor } from '../../../src/store/lineup.js';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,7 +27,8 @@ export default async function ChannelsPage(
   { searchParams }: { searchParams: Promise<{ genre?: string }> },
 ) {
   const { genre } = await searchParams;
-  const all = directory(await listChannels().catch(() => []));
+  const held = await listChannels().catch(() => []);
+  const all = directory(held, await lineupFor(held.map((one) => one.id)).catch(() => ({})));
   const wanted = GENRES.find((one) => one === genre);
   const shown = wanted ? all.filter((one) => one.genre === wanted) : all;
   const shelves = GENRES.filter((one) => all.some((c) => c.genre === one));
