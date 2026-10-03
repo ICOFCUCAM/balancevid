@@ -1,0 +1,206 @@
+import type { Metadata } from 'next';
+import { notFound } from 'next/navigation';
+
+import {
+  type Campaign, bySlugOrId, callRow, loopNumbers, wallOf,
+} from '../../../src/domain/campaign.js';
+import { listCampaigns } from '../../../src/store/campaigns.js';
+import { listRequests } from '../../../src/store/requests.js';
+import { GoFrame, Standing } from '../Go.js';
+import { Deadline, EnterButton, Loop, Wall } from './Call.js';
+
+export const dynamic = 'force-dynamic';
+
+/**
+ * The call at this address, with what has answered it.
+ *
+ * READ FROM THE STORE AND NOT FROM `/api/go/<handle>`, which is
+ * the shape `/tv/channels/<slug>` has and for its stated reason:
+ * *"the page must render on the server without a round trip to
+ * itself."* The DECIDING is shared — `bySlugOrId`, `wallOf` and
+ * `loopNumbers` are the same functions the route calls — so the
+ * two cannot come to different conclusions about what may be
+ * shown. That duplication was a real bug on the station page,
+ * where the route knew the channel number and the page did not,
+ * and the fix was to share the function rather than the fetch.
+ * [D-19]
+ */
+async function found(handle: string) {
+  const campaigns = await listCampaigns().catch(() => [] as Campaign[]);
+  const call = bySlugOrId(campaigns, handle);
+  if (!call) return null;
+  const now = new Date().toISOString();
+  const requests = await listRequests().catch(() => []);
+  return {
+    call,
+    row: callRow(call, now),
+    wall: wallOf(call, requests),
+    numbers: loopNumbers(call, requests),
+  };
+}
+
+/**
+ * WHAT A SHARED LINK SAYS ABOUT ITSELF.  [TV-NETWORK N-4; V-4]
+ *
+ * This is the half of the loop that happens off BalanceVid
+ * entirely. A call pasted into a message, a post or a group chat
+ * is represented by these two strings, and a competition whose
+ * link carried the site-wide description — *"A conversation editor
+ * for recorded media"* — is a competition nobody clicks.
+ *
+ * NO IMAGE IS NAMED, and that is deliberate rather than missing. A
+ * card would have to be a frame of somebody's entry, and whose
+ * entry a link preview shows is not a thing to decide on their
+ * behalf — not even among the ones who agreed to be displayed,
+ * because agreeing to appear on a results page is not agreeing to
+ * be the thumbnail of a share. Recorded here and in **Not built**.
+ */
+export async function generateMetadata(
+  { params }: { params: Promise<{ handle: string }> },
+): Promise<Metadata> {
+  const { handle } = await params;
+  const it = await found(handle);
+  if (!it) return { title: 'Call not found — BalanceVid Go' };
+  return {
+    title: `${it.call.title} — BalanceVid Go`,
+    description: it.call.rules.asks,
+    /*
+     * AN UNLISTED CALL IS NOT INDEXED, which is the other half of
+     * what unlisted means. It is reachable by its address — that
+     * is the whole point — and a crawler putting it in a search
+     * result would hand the address to everybody the organiser
+     * did not give it to. [D-03]
+     */
+    ...(it.row.listed ? {} : { robots: { index: false, follow: false } }),
+  };
+}
+
+/**
+ * The campaign page.  [GO-VIRAL V-4, §10, §20]
+ *
+ * > **Judged on:** *"A stranger with no account reaches a
+ * > campaign, reads the rules, watches entries and enters, on a
+ * > phone; and a campaign that is `listed: false` is reachable by
+ * > its link and absent from every index."*
+ *
+ * BOTH HALVES ARE HERE. The page renders for anybody with the
+ * address, listed or not; `publicCalls` is what keeps an unlisted
+ * one out of `/go` and out of `/api/participate`, and
+ * `generateMetadata` is what keeps it out of a search engine.
+ *
+ * THE RULES ARE SERVER-RENDERED AND THE REST IS NOT. What a
+ * crawler and a slow phone must have is the title, the ask and
+ * the criteria; the countdown ticks and the wall plays, and both
+ * need a browser. Same split as the station page. [N-4]
+ */
+export default async function CallPage(
+  { params }: { params: Promise<{ handle: string }> },
+) {
+  const { handle } = await params;
+  const it = await found(handle);
+  if (!it) notFound();
+  const { call, row, wall, numbers } = it;
+
+  return (
+    <GoFrame>
+      <article style={{
+        display: 'flex', flexDirection: 'column', gap: 'var(--space-5)',
+      }}>
+        <header style={{
+          display: 'flex', flexDirection: 'column', gap: 'var(--space-2)',
+        }}>
+          <div className="row" style={{ gap: 'var(--space-3)', alignItems: 'baseline' }}>
+            <h1 data-testid="go-title" style={{
+              margin: 0, fontSize: 'var(--text-xl)',
+            }}>{call.title}</h1>
+            <span className="grow" />
+            <Standing call={row} />
+          </div>
+          <p data-testid="go-says" className="small muted" style={{ margin: 0 }}>
+            {row.says}
+          </p>
+          <Deadline call={row} />
+        </header>
+
+        {/* WHAT TO DO, in the organiser's own words. [V-2] */}
+        <section>
+          <h2 className="small muted" style={{
+            margin: '0 0 6px', textTransform: 'uppercase',
+            letterSpacing: '0.08em',
+          }}>What to do</h2>
+          <p data-testid="go-asks" style={{ margin: 0, whiteSpace: 'pre-wrap' }}>
+            {call.rules.asks}
+          </p>
+        </section>
+
+        {/*
+          * AND WHAT IT WILL BE JUDGED ON, BEFORE ANYBODY ENTERS.
+          * *"A competition whose basis is announced after the
+          * entries is not one."* [V-2, V-5]
+          */}
+        {call.rules.criteria && (
+          <section>
+            <h2 className="small muted" style={{
+              margin: '0 0 6px', textTransform: 'uppercase',
+              letterSpacing: '0.08em',
+            }}>Judged on</h2>
+            <p data-testid="go-criteria" style={{ margin: 0, whiteSpace: 'pre-wrap' }}>
+              {call.rules.criteria}
+            </p>
+          </section>
+        )}
+
+        {/*
+          * THE PRIZE AS TEXT, AND THIS PRODUCT DOES NOT PAY IT.
+          * `docs/GO-VIRAL.md`'s **Not built** says why: a system
+          * that sat between two people and a sum of money would
+          * acquire obligations that have nothing to do with
+          * recorded speech. [V-2, §17]
+          */}
+        {call.rules.prize && (
+          <section>
+            <h2 className="small muted" style={{
+              margin: '0 0 6px', textTransform: 'uppercase',
+              letterSpacing: '0.08em',
+            }}>Prize</h2>
+            <p data-testid="go-prize" style={{ margin: 0, whiteSpace: 'pre-wrap' }}>
+              {call.rules.prize}
+            </p>
+          </section>
+        )}
+
+        {/* The way in, where there still is one. */}
+        {row.clock !== 'over' && row.state !== 'completed'
+          && row.state !== 'judging' && row.state !== 'results' && (
+          <EnterButton handle={handle}
+                       asksConsent={(call.terms?.length ?? 0) > 0} />
+        )}
+
+        <section>
+          <h2 className="small muted" style={{
+            margin: '0 0 6px', textTransform: 'uppercase',
+            letterSpacing: '0.08em',
+          }}>Entries</h2>
+          <Wall entries={wall.map((one) => ({
+            submissionId: one.submissionId,
+            kind: one.kind,
+            at: one.at,
+            ...(one.participant ? { participant: one.participant } : {}),
+            ...(one.durationSamples !== undefined
+              ? { durationSamples: one.durationSamples } : {}),
+            media: `/api/go/${encodeURIComponent(handle)}/entries/`
+              + `${encodeURIComponent(one.submissionId)}/media`,
+          }))} />
+        </section>
+
+        <section>
+          <h2 className="small muted" style={{
+            margin: '0 0 6px', textTransform: 'uppercase',
+            letterSpacing: '0.08em',
+          }}>How it is going</h2>
+          <Loop numbers={numbers} />
+        </section>
+      </article>
+    </GoFrame>
+  );
+}

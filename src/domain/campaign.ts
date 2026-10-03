@@ -45,8 +45,8 @@
  */
 
 import type { Id } from './ids.js';
-import type { RequestHolder } from './participation.js';
-import { type TakeAvailability, isOpenAt } from './availability.js';
+import type { ParticipationRequest, RequestHolder } from './participation.js';
+import { type TakeAvailability, isListed, isOpenAt } from './availability.js';
 import { type ConsentRecord, permits } from './consent.js';
 
 export type CampaignId = Id<'camp'>;
@@ -201,6 +201,21 @@ export interface Campaign {
   createdAt: string;
   /** Every move, and who made it. The same shape a request keeps. */
   history: { state: CampaignState; at: string; by?: string }[];
+  /**
+   * The address this call is shared at.  [GO-VIRAL V-4]
+   *
+   * `/go/<slug>`, AND IT IS THE SAME MACHINERY A STATION'S IS.
+   * `slugFor` suggests it from the title and `slugProblem` decides
+   * whether what the organiser left is allowed — the two functions
+   * `src/domain/station.ts` already has, used unchanged, because a
+   * second idea of what a web address may contain is a second set
+   * of addresses that print differently. [D-19]
+   *
+   * ABSENT IS REACHABLE BY ID, which is what every campaign opened
+   * before this field existed is. `bySlugOrId` answers both, so an
+   * organiser who never names one still has a link to send.
+   */
+  slug?: string;
   /**
    * Every wording this call has asked entrants to agree to.
    *   [GO-VIRAL V-3]
@@ -462,4 +477,302 @@ export function entriesIn<T extends { campaign?: CampaignId }>(
     out.push(group);
   }
   return out;
+}
+
+/* ------------------------------------------------------------------ *
+ *  The public face of a call.  [GO-VIRAL V-4, §10, §20]
+ * ------------------------------------------------------------------ */
+
+/**
+ * Whether this call appears in an index at all.
+ *
+ * `isListed` AND NOT A FIELD OF ITS OWN, because V-2 made the
+ * window a `TakeAvailability` precisely so that a call and the
+ * item it is about could not come to different conclusions. An
+ * organiser who unticks *listed* has said the same thing here they
+ * say about a song: it works through its link and does not appear
+ * in the directory. [TV-NETWORK's `bySlug`, one noun over]
+ */
+export function callListed(campaign: Campaign): boolean {
+  return isListed(campaign.window);
+}
+
+/**
+ * Every address in use, except this call's own.
+ *
+ * THE SAME SHAPE `channelEdit`'S `takenSlugs` TAKES, and for the
+ * same reason: the uniqueness check has to exclude the call being
+ * edited, or saving a call without touching its address would
+ * refuse on the address it already has.
+ */
+export function takenCallSlugs(
+  campaigns: readonly Campaign[], except?: string,
+): Set<string> {
+  const out = new Set<string>();
+  for (const one of campaigns) {
+    if (one.id === except) continue;
+    if (one.slug) out.add(one.slug);
+  }
+  return out;
+}
+
+/**
+ * The call at this address, by slug or by id.
+ *
+ * UNLISTED IS REACHABLE BY ADDRESS, which is the whole of what
+ * unlisted means — the station directory's own words, *"works
+ * through direct link/domain but doesn't appear in the
+ * directory"*. What this refuses is nothing: a caller that has the
+ * address has the call, and the INDEX is where listing is decided.
+ *
+ * SLUG FIRST, THEN ID, and a slug that looks like an id cannot
+ * exist because `slugProblem` refuses an underscore. So the two
+ * namespaces cannot collide and the order is a convenience rather
+ * than a rule somebody has to remember.
+ */
+export function bySlugOrId(
+  campaigns: readonly Campaign[], handle: string,
+): Campaign | null {
+  /*
+   * AN EMPTY HANDLE NEEDS NO GUARD OF ITS OWN, and one was
+   * written and deleted. `slugProblem` refuses anything shorter
+   * than the minimum, so no call carries an empty slug, and no id
+   * is empty either — so the two lookups below already answer
+   * nothing. A branch that cannot change an answer is a branch
+   * nobody can check. [the thirty-third]
+   */
+  const wanted = handle.trim().toLowerCase();
+  return campaigns.find((one) => one.slug === wanted)
+    ?? campaigns.find((one) => one.id === handle.trim())
+    ?? null;
+}
+
+/**
+ * What a stranger browsing sees, in the order they want it.
+ *
+ * WHAT IS OPEN, SOONEST DEADLINE FIRST, THEN EVERYTHING ELSE
+ * NEWEST FIRST. Two orderings in one list, and the reason is that
+ * they answer two different questions. A person looking at an open
+ * call is deciding whether they have time to enter, so the one
+ * closing on Friday belongs above the one closing in March. A
+ * person looking at a call that has closed is reading a result,
+ * and the newest result is the interesting one.
+ *
+ * A COMPLETED CALL IS NOT IN THE INDEX. It is still at its own
+ * address — V-7's creator keeps a link that works — but a
+ * directory of finished competitions is a directory nobody is
+ * browsing. [§10]
+ */
+export function publicCalls(
+  campaigns: readonly Campaign[], now: string,
+): Campaign[] {
+  const shown = campaigns.filter(
+    (one) => callListed(one) && one.state !== 'completed');
+  const open = shown.filter((one) => takingEntries(one, now));
+  const rest = shown.filter((one) => !takingEntries(one, now));
+  open.sort((a, b) => (a.window.closesAt ?? '').localeCompare(b.window.closesAt ?? ''));
+  rest.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return [...open, ...rest];
+}
+
+/**
+ * How long is left, in milliseconds, or nothing.
+ *
+ * THE INSTANT AND NOT THE WORD, which is V-1's own argument for
+ * putting `closesAt` on the listing: *"a countdown needs the
+ * instant, not the word."* `clockSays` answers *closing*; this
+ * answers *four hours and eleven minutes*, and a page drawing the
+ * second from the first would be a page inventing it.
+ *
+ * NEVER NEGATIVE. A deadline that has passed is nothing left, not
+ * minus a day — a countdown that ran backwards past zero would be
+ * drawn as a number nobody can read.
+ */
+export function msLeft(campaign: Campaign, now: string): number | null {
+  const closes = Date.parse(campaign.window.closesAt ?? '');
+  const at = Date.parse(now);
+  if (!Number.isFinite(closes) || !Number.isFinite(at)) return null;
+  return Math.max(0, closes - at);
+}
+
+/**
+ * What a stranger may be told about a call, and no more.
+ *
+ * `viewFor`'S JOB, ONE NOUN OVER, and it is here rather than in a
+ * route for the same reason that one is in a domain module: what
+ * crosses to somebody with no account is a decision, and a
+ * decision made in two routes is two decisions.
+ *
+ * WHAT IS WITHHELD IS THE TRACK. A call names a performance, a
+ * conversation or a channel by id, and an index that carried that
+ * id would let a directory of competitions be read as a directory
+ * of this installation's unpublished work — a document's existence
+ * is itself private. The way in is `/go/<slug>/enter`, which
+ * resolves the track on the server. [D-03]
+ *
+ * AND THE TERMS. They are long, they belong where somebody is
+ * about to agree to them, and the Take surface already carries
+ * them on the one fetch it makes. [V-3]
+ */
+export interface CallRow {
+  id: CampaignId;
+  slug?: string;
+  title: string;
+  asks: string;
+  state: CampaignState;
+  clock: ReturnType<typeof clockSays>;
+  says: string;
+  listed: boolean;
+  opensAt?: string;
+  closesAt?: string;
+  /** The instant, so a countdown is drawn rather than guessed. [V-1] */
+  msLeft: number | null;
+  /** Where it lives, which is the thing a person shares. */
+  at: string;
+}
+
+export function callRow(campaign: Campaign, now: string): CallRow {
+  return {
+    id: campaign.id,
+    ...(campaign.slug ? { slug: campaign.slug } : {}),
+    title: campaign.title,
+    asks: campaign.rules.asks,
+    state: campaign.state,
+    clock: clockSays(campaign, now),
+    says: campaignSays(campaign, now),
+    listed: callListed(campaign),
+    ...(campaign.window.opensAt ? { opensAt: campaign.window.opensAt } : {}),
+    ...(campaign.window.closesAt ? { closesAt: campaign.window.closesAt } : {}),
+    msLeft: msLeft(campaign, now),
+    at: `/go/${campaign.slug ?? campaign.id}`,
+  };
+}
+
+/* ------------------------------------------------------------------ *
+ *  What answered it.  [GO-VIRAL V-4, §20]
+ * ------------------------------------------------------------------ */
+
+/** One thing on the wall: a capture somebody agreed may be shown. */
+export interface CallEntry {
+  requestId: string;
+  /** The submission's own id, which the media route takes. */
+  submissionId: string;
+  assetId: string;
+  kind: 'video' | 'audio' | 'text';
+  at: string;
+  /** As the producer wrote it, where they wrote one. */
+  participant?: string;
+  durationSamples?: number;
+}
+
+/**
+ * The entries this call may show, and only those.
+ *
+ * THE PARTICIPANT'S OWN PERMISSION IS THE AUTHORITY, and it is a
+ * stronger one than anything else in this product has for putting
+ * a face on a public page. `permits(consent, 'display')` is the
+ * answer to a question that was asked in plain words, before the
+ * camera opened, with nothing pre-ticked, naming this call's exact
+ * terms by their hash. An entry whose maker did not tick that box
+ * is not here; one who ticked it and took it back is not here
+ * either, from the moment they did. [V-3]
+ *
+ * WHICH IS A DIFFERENT LINE FROM THE ONE `policy.ts` DRAWS ABOUT
+ * RAW MATERIAL, and the difference is worth stating rather than
+ * stepping over. That rule withholds *"the song, the takes' own
+ * media and the document"* from a published performance, because
+ * nobody consented to those being handed out — they are the
+ * material a finished thing was made from. A competition entry is
+ * not material; it is the thing itself, made to be entered, by
+ * somebody who said it could be shown here.
+ *
+ * ONE ROW PER CAPTURE, HOWEVER MANY CAMERAS SAW IT. Four angles of
+ * one performance arrive as four submissions sharing a
+ * `capturedIn.id` — B-3's own finding one layer down, where four
+ * angles landed in the inbox as four strangers. A wall that drew
+ * them as four entries would be a competition somebody appeared in
+ * four times for singing once.
+ *
+ * ORDER IS ARRIVAL ORDER. Newest first would make the wall reshuffle
+ * under somebody reading it, and a competition has no ranking until
+ * V-5 produces one.
+ */
+export function wallOf(
+  campaign: Campaign, requests: readonly ParticipationRequest[],
+): CallEntry[] {
+  const out: CallEntry[] = [];
+  for (const request of requests) {
+    if (request.campaign !== campaign.id) continue;
+    if (!permits(request.consent, 'display')) continue;
+    const seen = new Set<string>();
+    for (const one of request.submissions ?? []) {
+      const capture = one.capturedIn?.id;
+      if (capture) {
+        if (seen.has(capture)) continue;
+        seen.add(capture);
+      }
+      out.push({
+        requestId: request.id,
+        submissionId: one.id,
+        assetId: one.assetId,
+        kind: one.kind,
+        at: one.at,
+        ...(request.participant ? { participant: request.participant } : {}),
+        ...(one.durationSamples !== undefined
+          ? { durationSamples: one.durationSamples } : {}),
+      });
+    }
+  }
+  return out.sort((a, b) => a.at.localeCompare(b.at));
+}
+
+/**
+ * The loop, measured.  [GO-VIRAL §20]
+ *
+ * > *"Measure the loop, not the vanity. Entries, finishers,
+ * > shares, arrivals from a share, and how many of those entered.
+ * > Five numbers. If entries go up and arrivals-who-entered goes
+ * > down, the loop is leaking and the big number is lying to you."*
+ *
+ * FOUR OF THE FIVE, AND THE MISSING ONE IS NAMED RATHER THAN
+ * GUESSED. Shares cannot be counted without something that watches
+ * where a visitor came from, and *"nothing should start watching
+ * viewers to do it"* — `favorites.ts` is per device and says so,
+ * and that is this product's posture. So there is no shares
+ * number here and no third-party analytics anywhere. A count this
+ * product cannot honestly take is a count it does not print.
+ *
+ * EVERY ONE OF THESE IS A RECORD THE INSTALLATION ALREADY WRITES
+ * ABOUT ITSELF. A request is an entry. A request with a submission
+ * finished. `claimed` marks somebody who arrived and took the call
+ * themselves rather than being invited by name — which is the
+ * arrival signal that already existed. [§20]
+ *
+ * AND THE LEAK IS THE POINT. `arrivals` beside `arrivalsWhoEntered`
+ * is the one pair that can disagree, and a page that printed only
+ * the first would be the big number the brief is warning about.
+ */
+export interface LoopNumbers {
+  /** Requests under this call, however they came to exist. */
+  entries: number;
+  /** Of those, the ones that sent something. */
+  finishers: number;
+  /** Strangers who took the call themselves. */
+  arrivals: number;
+  /** And of those, the ones who finished. */
+  arrivalsWhoEntered: number;
+}
+
+export function loopNumbers(
+  campaign: Campaign, requests: readonly ParticipationRequest[],
+): LoopNumbers {
+  const mine = requests.filter((one) => one.campaign === campaign.id);
+  const sent = (one: ParticipationRequest) => (one.submissions ?? []).length > 0;
+  const arrived = mine.filter((one) => one.claimed === true);
+  return {
+    entries: mine.length,
+    finishers: mine.filter(sent).length,
+    arrivals: arrived.length,
+    arrivalsWhoEntered: arrived.filter(sent).length,
+  };
 }

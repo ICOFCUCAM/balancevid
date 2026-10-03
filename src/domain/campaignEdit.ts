@@ -23,6 +23,7 @@ import {
 import { type TakeAvailability, whenProblem } from './availability.js';
 import type { RequestHolder } from './participation.js';
 import { newId, sha256 } from './ids.js';
+import { slugFor, slugProblem } from './station.js';
 
 export class CampaignError extends Error {
   constructor(message: string) {
@@ -72,6 +73,16 @@ export function newCampaign(spec: {
   rules: CampaignRules;
   window: TakeAvailability;
   closingMinutes?: number;
+  /**
+   * The slugs other calls already answer on.  [GO-VIRAL V-4]
+   *
+   * PASSED IN, BECAUSE THIS MODULE READS NOTHING. The rules live
+   * here and the store is somewhere else, which is the
+   * arrangement the head of this file states; a `newCampaign`
+   * that listed the campaigns to pick an address would be the
+   * domain reaching for a disk. The route has the list already.
+   */
+  taken?: Iterable<string>;
   now: string;
 }): Campaign {
   const title = spec.title.trim();
@@ -115,6 +126,16 @@ export function newCampaign(spec: {
         ? { prize: spec.rules.prize.trim().slice(0, RULE_LONGEST) } : {}),
     },
     window: spec.window,
+    /*
+     * AN ADDRESS FROM THE TITLE, SUGGESTED AND NOT IMPOSED, which
+     * is `slugFor`'s own rule: this is what the field is filled
+     * with before anybody edits it, and `setSlug` is where the
+     * organiser's own answer is judged. A call with no address at
+     * all would be a call whose only link is a `camp_` id — true
+     * of every one opened before V-4, and not a thing to make
+     * somebody fix before they can open one.
+     */
+    slug: slugFor(title, spec.taken ?? []),
     state: 'scheduled',
     createdAt: spec.now,
     history: [{ state: 'scheduled', at: spec.now }],
@@ -300,4 +321,53 @@ export function setTerms(
   const next: CampaignTerms = { hash, text: words, from: at };
   campaign.terms = [...(campaign.terms ?? []), next];
   return next;
+}
+
+/**
+ * Change the address a call answers on.  [GO-VIRAL V-4]
+ *
+ * REFUSED RATHER THAN REPAIRED, which is `slugProblem`'s own rule
+ * and the reason this calls it instead of a second one: *"a slug
+ * is an address somebody will print, and quietly turning what they
+ * typed into something else is how a station ends up advertising a
+ * URL that is not theirs."*
+ *
+ * AND UNIQUE, for the reason a station's is: two calls on one
+ * address is one of them unreachable, and which one depends on the
+ * order a directory happens to be read in.
+ *
+ * CHANGING IT BREAKS THE OLD LINK, and that is said here rather
+ * than worked around. A call whose address moved after a thousand
+ * people shared it is a thousand dead links; the honest answer is
+ * that the organiser decides, and the id still works.
+ */
+export function setSlug(
+  campaign: Campaign, slug: string, taken: Iterable<string>,
+): void {
+  const wanted = slug.trim().toLowerCase();
+  const wrong = slugProblem(wanted);
+  if (wrong) fail(wrong);
+  for (const one of taken) {
+    if (one === wanted) fail('another call already answers on that address');
+  }
+  campaign.slug = wanted;
+}
+
+/**
+ * Put it in the directory, or take it out.  [GO-VIRAL V-4]
+ *
+ * ON THE WINDOW, BECAUSE THAT IS WHERE `listed` LIVES. V-2 made a
+ * call's window a `TakeAvailability` so that a call and the item
+ * it is about could not come to different conclusions about being
+ * open; the same field answers *does this appear in an index*, and
+ * a second flag on the campaign would be a second answer.
+ *
+ * UNLISTED IS NOT PRIVATE AND THE DIFFERENCE IS THE POINT. The
+ * call stays at its own address for whoever holds it — the
+ * station directory's own words, *"works through direct
+ * link/domain but doesn't appear in the directory"*. An organiser
+ * who wants nobody in it has `complete` for that.
+ */
+export function setListed(campaign: Campaign, listed: boolean): void {
+  campaign.window = { ...campaign.window, listed };
 }

@@ -211,13 +211,25 @@ describe('what the holder of a Take link may reach', () => {
    * dead pattern and not a hole, and the one direction that can let
    * somebody in is the one worth a test.
    */
-  it('allows every verb the take routes actually export', () => {
-    const under = join(
-      import.meta.dirname, '..', '..', 'app', 'api', 'take', '[link]');
+  it.each([
+    ['the take link', ['api', 'take', '[link]'], `/api/take/${LINK}`],
+    /*
+     * AND THE COMPETITION LAYER, WHICH IS THE SAME CLASS OF
+     * SURFACE AND SO THE SAME CHECK.  [GO-VIRAL V-4]
+     *
+     * Five routes a stranger reaches and one of them serves
+     * another stranger's recording. Written as a second row of
+     * this table rather than a second test, because the next
+     * public directory added to this product should be a third
+     * row and nothing else.
+     */
+    ['the competition layer', ['api', 'go'], '/api/go'],
+  ])('allows every verb %s actually exports', (_name, under, at) => {
+    const dir = join(import.meta.dirname, '..', '..', 'app', ...under);
     const refused: string[] = [];
-    const walk = (dir: string, path: string) => {
-      for (const entry of readdirSync(dir, { withFileTypes: true })) {
-        const full = join(dir, entry.name);
+    const walk = (here: string, path: string) => {
+      for (const entry of readdirSync(here, { withFileTypes: true })) {
+        const full = join(here, entry.name);
         if (entry.isDirectory()) {
           /* `[submissionId]` and the like stand for one id segment. */
           walk(full, `${path}/${entry.name.startsWith('[') ? 'sub_1' : entry.name}`);
@@ -229,9 +241,9 @@ describe('what the holder of a Take link may reach', () => {
         }
       }
     };
-    walk(under, `/api/take/${LINK}`);
+    walk(dir, at);
     expect(refused,
-      'that take route is behind the session gate — add it to '
+      'that route is behind the session gate — add it to '
       + 'GUEST_WRITABLE or to the readable list in src/auth/policy.ts')
       .toEqual([]);
   });
@@ -242,10 +254,57 @@ describe('what the holder of a Take link may reach', () => {
    * route in the product. [V-1]
    */
   it('and that walk reaches the routes it is about', () => {
-    const under = join(
-      import.meta.dirname, '..', '..', 'app', 'api', 'take', '[link]');
-    expect(readdirSync(under).length).toBeGreaterThanOrEqual(4);
-    expect(readdirSync(under)).toContain('consent');
+    const app = join(import.meta.dirname, '..', '..', 'app', 'api');
+    expect(readdirSync(join(app, 'take', '[link]')).length)
+      .toBeGreaterThanOrEqual(4);
+    expect(readdirSync(join(app, 'take', '[link]'))).toContain('consent');
+    expect(readdirSync(join(app, 'go'))).toContain('[handle]');
+    expect(readdirSync(join(app, 'go', '[handle]'))).toContain('enter');
+  });
+
+  /*
+   * THE COMPETITION LAYER'S OWN PATHS, NAMED.  [GO-VIRAL V-4]
+   *
+   * The derived check above says every handler is reachable; this
+   * says what is NOT, which no derivation can: the entry media is
+   * a GET and nothing else, and `enter` is a POST and nothing
+   * else. A path-only allowance on either would answer DELETE —
+   * the hole this file already remembers.
+   */
+  it('opens the competition layer for reading and for entering only', () => {
+    expect(mayBePublic('/go', 'GET')).toBe(true);
+    expect(mayBePublic('/go/summer-song', 'GET')).toBe(true);
+    expect(mayBePublic('/api/go', 'GET')).toBe(true);
+    expect(mayBePublic('/api/go/summer-song', 'GET')).toBe(true);
+    expect(mayBePublic('/api/go/summer-song/entries/sub_1/media', 'GET'))
+      .toBe(true);
+    expect(mayBePublic('/api/go/summer-song/enter', 'POST')).toBe(true);
+
+    for (const method of ['POST', 'PUT', 'DELETE', 'PATCH']) {
+      expect(mayBePublic('/api/go', method), method).toBe(false);
+      expect(mayBePublic('/api/go/summer-song', method), method).toBe(false);
+      expect(
+        mayBePublic('/api/go/summer-song/entries/sub_1/media', method), method,
+      ).toBe(false);
+    }
+    for (const method of ['GET', 'PUT', 'DELETE']) {
+      expect(mayBePublic('/api/go/summer-song/enter', method), method)
+        .toBe(false);
+    }
+  });
+
+  /*
+   * AND THE ORGANISER'S SIDE STAYS BEHIND THE SESSION. `/api/go`
+   * is what a stranger reads; `/api/campaigns` is where a call is
+   * opened, moved, renamed and given its terms, and it is nobody
+   * else's. The two names are close enough that this is worth an
+   * assertion rather than a reading.
+   */
+  it('and leaves the organiser\'s own routes shut', () => {
+    for (const method of ['GET', 'POST', 'PUT', 'DELETE']) {
+      expect(mayBePublic('/api/campaigns', method), method).toBe(false);
+      expect(mayBePublic('/api/campaigns/camp_1', method), method).toBe(false);
+    }
   });
 
   /*

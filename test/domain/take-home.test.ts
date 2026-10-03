@@ -38,6 +38,22 @@ const code = (file: string) => readFileSync(join(ROOT, file), 'utf8')
 const HOME = code('app/take/TakeHome.tsx');
 const PAGE = code('app/take/page.tsx');
 const CLAIM = code('app/api/participate/[kind]/[id]/route.ts');
+/*
+ * AND THE MINTING, WHICH IS NO LONGER IN THE ROUTE.
+ *   [GO-VIRAL V-4]
+ *
+ * V-4 built a second door — `/go/<slug>/enter`, the campaign page
+ * naming the call the discovery listing can only guess at — and
+ * three branches of document-loading, four of the author's
+ * conditions and a ceiling written out twice is where a condition
+ * gets forgotten. So `src/web/claim.ts` is the one function both
+ * doors mint through, and the assertions below follow it there.
+ *
+ * WHAT STAYED ON THE ROUTE IS WHAT IS THE ROUTE'S OWN: `isListed`,
+ * which the call page deliberately does not ask, and the single
+ * refusal. Those are still read out of `CLAIM`. [D-19]
+ */
+const MINT = code('src/web/claim.ts');
 const FIELDS = code('app/AvailabilityFields.tsx');
 const CONN = code('app/take/connections.ts');
 /*
@@ -104,15 +120,23 @@ describe('taking part without an invitation', () => {
    * policy being `anyone`.
    */
   it('requires the author to have opened it to anyone, and listed it', () => {
-    const conditions = CLAIM.match(
-      /if \(!isListed\(publication\) \|\| !maySubmit\(publication, 'anyone', now\)\) return no\(\);/g);
-    expect(conditions).toHaveLength(3);
+    /*
+     * `anyone` IS ASKED FOR ALL THREE KINDS, WHERE THE MINTING IS.
+     * `listed` IS ASKED HERE, BECAUSE IT IS THIS DOOR'S ALONE: an
+     * unlisted item a stranger reached by guessing an id is not a
+     * thing to let them write to, and a campaign page IS a
+     * listing in its own right. [GO-VIRAL V-4]
+     */
+    const opened = MINT.match(
+      /if \(!maySubmit\(publication, 'anyone', now\)\) return \{ refused: 'closed' \};/g);
+    expect(opened).toHaveLength(3);
+    expect(CLAIM).toMatch(/also: \(publication\) => isListed\(publication as never\)/);
   });
 
   /* Unpublished or withdrawn is refused before anything else. */
   it('refuses anything unpublished or withdrawn', () => {
-    const guards = CLAIM.match(
-      /if \(!publication \|\| publication\.unpublishedAt\) return no\(\);/g);
+    const guards = MINT.match(
+      /if \(!publication \|\| publication\.unpublishedAt\) return \{ refused: 'missing' \};/g);
     expect(guards).toHaveLength(3);
   });
 
@@ -138,17 +162,24 @@ describe('taking part without an invitation', () => {
    * invited one and everything downstream works unchanged. [P35, D-19]
    */
   it('creates an ordinary participation request', () => {
-    expect(CLAIM).toMatch(/newRequest\(\{/);
-    expect(CLAIM).toMatch(/holder: \{ kind: 'performance'/);
-    expect(CLAIM).toMatch(/holder: \{ kind: 'conversation'/);
-    expect(CLAIM).toMatch(/holder: \{ kind: 'channel'/);
-    /* And nothing else: no parallel store, no second object. */
-    expect(CLAIM).not.toMatch(/interface [A-Z]/);
+    expect(MINT).toMatch(/newRequest\(\{/);
+    expect(MINT).toMatch(/holder: \{ kind: 'performance'/);
+    expect(MINT).toMatch(/holder: \{ kind: 'conversation'/);
+    expect(MINT).toMatch(/holder: \{ kind: 'channel'/);
+    /*
+     * AND NOTHING ELSE: no parallel store, no second object. The
+     * types this module does declare are its own answer shape —
+     * which kind of path it took and whether it minted — and not
+     * a second kind of request. [D-19]
+     */
+    expect(MINT).not.toMatch(/interface [A-Z]/);
+    expect(MINT).not.toMatch(/saveCampaign|savePerformance|saveConversation/);
   });
 
   /* A conversation is judged by the predicate that already exists. */
   it('uses isRespondable for a conversation', () => {
-    expect(CLAIM).toMatch(/if \(!isRespondable\(conversation\)\) return no\(\);/);
+    expect(MINT).toMatch(
+      /if \(!isRespondable\(conversation\)\) return \{ refused: 'closed' \};/);
   });
 });
 
@@ -340,20 +371,24 @@ describe('the ceiling on claims', () => {
    * the whole reason `claimed` exists on the request.
    */
   it('counts only what strangers claimed', () => {
-    expect(CLAIM).toMatch(/\.filter\(\(one\) => one\.claimed/);
-    expect(CLAIM).toMatch(/claimed: true,/);
-    const marks = CLAIM.match(/claimed: true,/g);
+    expect(MINT).toMatch(/\.filter\(\(one\) => one\.claimed/);
+    const marks = MINT.match(/claimed: true,/g);
     expect(marks).toHaveLength(3);
   });
 
-  /* One per holder, each counting its own. */
+  /*
+   * ONE PER HOLDER, EACH COUNTING ITS OWN, and the holder is now
+   * built once from the kind rather than written out three times
+   * — which is what made it possible to count the same way at
+   * both doors. [GO-VIRAL V-4]
+   */
   it('bounds every kind, against its own holder', () => {
-    expect(CLAIM).toMatch(
-      /mayClaim\(publication, await claimsSoFar\('performance', performance\.id\), now\)/);
-    expect(CLAIM).toMatch(
-      /mayClaim\(publication, await claimsSoFar\('conversation', conversation\.id\), now\)/);
-    expect(CLAIM).toMatch(
-      /mayClaim\(publication, await claimsSoFar\('channel', channel\.id\), now\)/);
+    const bounds = MINT.match(
+      /if \(!mayClaim\(publication, await claimsSoFar\(holder\), now\)\) \{/g);
+    expect(bounds).toHaveLength(3);
+    expect(MINT).toMatch(
+      /const holder: RequestHolder = \{ kind: holderKind\(kind\), id \};/);
+    expect(MINT).toMatch(/one\.holder\.kind === holder\.kind && one\.holder\.id === holder\.id/);
   });
 
   /*

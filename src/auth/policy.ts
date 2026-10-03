@@ -56,6 +56,17 @@ const PUBLIC_EXACT = new Set([
    * discover anything on.
    */
   '/api/participate',
+  /*
+   * What this installation is running a call for.
+   *   [GO-VIRAL V-4, §10]
+   *
+   * Public for the reason `/api/participate` is, and narrower:
+   * it answers only with calls whose organiser set `listed` and
+   * which have not finished. An unlisted call is not in it, and
+   * a call nobody opened is not in it — so the existence of a
+   * competition somebody is still drafting stays private. [D-03]
+   */
+  '/api/go',
   '/signin',
   '/api/auth/signin',
   '/api/auth/signout',
@@ -210,6 +221,40 @@ const PUBLIC_PATTERNS: RegExp[] = [
   /^\/api\/channels\/[A-Za-z0-9_-]+\/playlist$/,
   /^\/api\/channels\/[A-Za-z0-9_-]+\/stream\/[0-9]{1,15}$/,
   /^\/api\/channels\/[A-Za-z0-9_-]+\/now$/,
+
+  /*
+   * THE COMPETITION LAYER.  [GO-VIRAL V-4, §10]
+   *
+   * A DESTINATION ON THIS GATEWAY, NOT A SECOND SITE, which is
+   * the argument `/tv` made first: the public layer is this file
+   * and `middleware.ts` default-closed, and a second deployment
+   * with its own auth would be a second place to get the default
+   * wrong.
+   *
+   * THEY ADD NO ACCESS BEYOND WHAT THE ORGANISER AND THE
+   * ENTRANTS ALREADY GAVE, which is the same sentence the
+   * television directory below carries. `/api/go` answers only
+   * with calls whose organiser set `listed`; `/api/go/<handle>`
+   * answers to whoever holds the address, which is what unlisted
+   * has meant since the station directory; and the entry media
+   * is served only for an entry whose maker ticked *my video may
+   * be shown on a public page for this call* and has not taken
+   * it back. [V-3]
+   *
+   * WRITTEN OUT ONE PATH AT A TIME rather than merged into
+   * `/api/go/.*`, for the reason the room's three are: a pattern
+   * with a wildcard tail quietly admits whatever is added under
+   * it later, and this list is the security boundary.
+   *
+   * THE HANDLE IS A SLUG OR AN ID, so the character class is the
+   * union of both — lower-case letters, digits, hyphens, and the
+   * underscore a `camp_` id carries. `bySlugOrId` then decides,
+   * and a call that is not there answers 404.
+   */
+  /^\/go\/?$/,
+  /^\/go\/[A-Za-z0-9_-]+\/?$/,
+  /^\/api\/go\/[A-Za-z0-9_-]+$/,
+  /^\/api\/go\/[A-Za-z0-9_-]+\/entries\/[A-Za-z0-9_-]+\/media$/,
 
   /*
    * AND THE TELEVISION NETWORK ITSELF.  [TV-NETWORK N-4]
@@ -392,6 +437,24 @@ const GUEST_WRITABLE: { method: string; path: RegExp }[] = [
    * producer-facing setting, and it does not exist yet.
    */
   { method: 'POST', path: /^\/api\/participate\/[a-z]{1,16}\/[A-Za-z0-9_-]{1,64}$/ },
+  /*
+   * AND THE SAME ACT FROM THE CALL'S OWN PAGE.  [GO-VIRAL V-4, §3]
+   *
+   * THE SECOND DOOR AND NOT A SECOND PERMISSION. It mints the
+   * same object, through the same `claim`, bounded by the same
+   * ceiling and the same four conditions of the author's —
+   * `src/web/claim.ts` is one function so that the two cannot
+   * drift. What differs is that this one KNOWS which call is
+   * being answered, which is the thing the door above cannot
+   * know when a track has two.
+   *
+   * ITS OWN PATH, ANCHORED, with no verb but POST: the page, the
+   * call and the entry media beside it are GETs declared
+   * separately, and a path-only allowance on this one would
+   * answer DELETE as well — the hole this file already
+   * remembers.
+   */
+  { method: 'POST', path: /^\/api\/go\/[A-Za-z0-9_-]{1,64}\/enter$/ },
   { method: 'POST', path: /^\/api\/conversations\/[A-Za-z0-9_-]+\/room\/join$/ },
   { method: 'POST', path: /^\/api\/conversations\/[A-Za-z0-9_-]+\/room\/presence$/ },
   // A reading about the sender's own microphone. [ROOM §2]
