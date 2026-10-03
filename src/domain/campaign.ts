@@ -924,10 +924,34 @@ const MONTHS = [
  * *"closed"* are already English; a localised month beside them
  * would be half a translation. [D-19]
  */
-function inWords(instant: number): string {
+export function inWords(instant: number): string {
   const [year, month, day] = new Date(instant).toISOString()
     .slice(0, 10).split('-');
   return `${Number(day)} ${MONTHS[Number(month) - 1]} ${year}`;
+}
+
+/**
+ * A deadline, as a person reads one.
+ *
+ * `2026-10-05 09:02 UTC` WAS ON THE PUBLIC CALL PAGE, which is
+ * the page a stranger lands on from a posted link. A machine
+ * timestamp is the right thing in a log and the wrong thing in
+ * the one sentence telling somebody how long they have.
+ * Found in a screenshot. [GO-VIRAL V-8]
+ *
+ * BUILT ON `inWords` RATHER THAN BESIDE IT, so this product has
+ * one answer to *how is a date written here* — and so the
+ * timezone lesson above is learned once rather than twice.
+ *
+ * THE ZONE IS SAID BECAUSE THE TIME IS SAID. A date alone can
+ * be off by a day and nobody is harmed; *09:02* without a zone
+ * is a deadline somebody in Lagos will miss by an hour.
+ */
+export function timeInWords(iso: string): string | null {
+  const at = Date.parse(iso);
+  if (!Number.isFinite(at)) return null;
+  const clock = new Date(at).toISOString().slice(11, 16);
+  return `${inWords(at)} at ${clock} UTC`;
 }
 
 /* ------------------------------------------------------------------ *

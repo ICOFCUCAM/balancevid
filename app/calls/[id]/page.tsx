@@ -2,6 +2,8 @@ import { notFound } from 'next/navigation';
 
 import { loadCampaign } from '../../../src/store/campaigns.js';
 import Desk from '../Desk.js';
+import { Building } from '../../Room.js';
+import { theBuilding } from '../../building.js';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,16 +30,33 @@ export default async function CallPage(
 ) {
   const { id } = await params;
   if (!/^camp_[A-Za-z0-9_-]{1,64}$/.test(id)) notFound();
+  let call;
   try {
-    await loadCampaign(id);
+    call = await loadCampaign(id);
   } catch {
     notFound();
   }
+  const building = await theBuilding();
+  /*
+   * INSIDE THE BUILDING, LIKE EVERY OTHER PLACE AN OWNER WORKS.
+   *   [GO-VIRAL V-8; D-24]
+   *
+   * This page was a bare `<main>` on a black field for eight stages:
+   * no rail, no breadcrumb, and no way back to the room the call is
+   * about. The frame already existed — `Room.tsx` was written because
+   * exactly this was said about Studio One — and the desk simply never
+   * used it.
+   *
+   * THE BREADCRUMB NAMES THE CALL, not the word "Call": an organiser
+   * running four of them needs the bar to say which one they are
+   * standing in.
+   */
   return (
-    <main className="shell" style={{
-      padding: 'var(--space-6)', maxWidth: 900, margin: '0 auto',
-    }}>
+    <Building owned={building.owned} space={building.space}
+              libraryCount={building.libraryCount} current="calls"
+              where={call.title}
+              {...(building.heroHref ? { heroHref: building.heroHref } : {})}>
       <Desk id={id} />
-    </main>
+    </Building>
   );
 }

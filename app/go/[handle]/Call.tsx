@@ -11,7 +11,7 @@
 
 import { useCallback, useState } from 'react';
 
-import type { CallRow } from '../../../src/domain/campaign.js';
+import { type CallRow, timeInWords } from '../../../src/domain/campaign.js';
 import { Countdown } from '../Go.js';
 
 export interface WallEntry {
@@ -230,7 +230,12 @@ export function Deadline({ call }: { call: CallRow }) {
         * the results are in. Found in a screenshot.
         */}
       <span className="muted">{running ? 'Closes ' : 'Closed '}</span>
-      <time dateTime={call.closesAt}>{call.closesAt.replace('T', ' ').slice(0, 16)} UTC</time>
+      {/*
+        * A SENTENCE, NOT A TIMESTAMP. `2026-10-05 09:02 UTC` was
+        * here, on the page a stranger lands on from a posted
+        * link. Found in a screenshot. [GO-VIRAL V-8]
+        */}
+      <time dateTime={call.closesAt}>{timeInWords(call.closesAt)}</time>
       {running && <> · <Countdown msLeft={call.msLeft!} /> left</>}
     </p>
   );

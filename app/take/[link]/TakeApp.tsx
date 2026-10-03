@@ -467,7 +467,7 @@ export default function TakeApp({ link }: { link: string }) {
 
   if (closed) {
     return (
-      <main className="shell" data-testid="take-closed" style={page}>
+      <main data-testid="take-closed" style={page}>
         <div style={card}>
           <h1 style={brand}>BalanceVid</h1>
           <p className="small muted" style={{ maxWidth: 320, textAlign: 'center' }}>
@@ -503,7 +503,7 @@ export default function TakeApp({ link }: { link: string }) {
     const sent = view?.submitted ?? 0;
     if (withdrawn && sent > 0) {
       return (
-        <main className="shell" data-testid="take-withdrawn" style={page}>
+        <main data-testid="take-withdrawn" style={page}>
           <div style={card}>
             <h1 style={brand}>BalanceVid</h1>
             {/*
@@ -540,7 +540,7 @@ export default function TakeApp({ link }: { link: string }) {
       );
     }
     return (
-      <main className="shell" data-testid="take-consent" style={page}>
+      <main data-testid="take-consent" style={page}>
         <div style={card}>
           <h1 style={brand}>BalanceVid</h1>
           <p style={{
@@ -650,7 +650,7 @@ export default function TakeApp({ link }: { link: string }) {
   }
 
   return (
-    <main className="shell" data-testid="take-app" style={page}>
+    <main data-testid="take-app" style={page}>
       <div style={card}>
         <h1 style={brand}>BalanceVid</h1>
 
@@ -1120,6 +1120,24 @@ export default function TakeApp({ link }: { link: string }) {
  * A PHONE PAGE, NOT A DESK. One column, generous targets, and nothing
  * that assumes a pointer — this is opened standing up, in a room,
  * holding the thing it is recording with.
+ */
+/*
+ * NOT `className="shell"`, WHICH IS THE EDITOR'S FRAME.
+ *   [GO-VIRAL V-8; U-19]
+ *
+ * `.shell` is `height: 100dvh; overflow: hidden` with a three-row
+ * grid, because *"a workspace is not a document… the page itself
+ * never scrolls."* That is right for the studio and wrong for
+ * every page here: a take page on a 390x844 phone measured 892
+ * pixels of content inside an 844-pixel box that could not
+ * scroll, so forty-eight pixels were simply unreachable — and on
+ * a shorter phone, or once recording adds controls, the primary
+ * button goes with them. Found by measuring a screenshot that
+ * looked merely cropped.
+ *
+ * NOTHING WAS GAINED BY IT EITHER. The only other thing `.shell`
+ * carries is the console treatment for `.panel`, and no page in
+ * the Take App draws one.
  */
 const page: React.CSSProperties = {
   minHeight: '100dvh', display: 'grid', placeItems: 'center',
