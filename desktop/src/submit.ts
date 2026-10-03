@@ -271,3 +271,55 @@ export function sendingSays(
   return `${sizeSays(seen.bytes)} of ${sizeSays(seen.total)} sent to `
     + `${to.name} · ${seen.anglesDone} of ${seen.angles} angles complete`;
 }
+
+/* ------------------------------------------------------------------ *
+ *  What an answer from the installation means.
+ * ------------------------------------------------------------------ */
+
+/** What a request came back as. */
+export type Verdict = 'ok' | 'again' | 'dead';
+
+/**
+ * THREE OUTCOMES AND NOT TWO, which is the browser queue's own
+ * conclusion reached again out here.
+ *
+ * > *"'Sent' and 'try again' are the obvious pair; the third is
+ * > a refusal that trying again cannot fix — an empty chunk, a
+ * > link that is no longer open, an id the server will not
+ * > accept. Retrying those forever is a counter that never
+ * > reaches zero."*
+ *
+ * THE TWO CLIENTS CANNOT SHARE THE CODE. One is a classic script
+ * in a service worker and the other is Node inside Electron, so
+ * what they share is a test that says they agree. [D-19, U-19]
+ *
+ * IT LIVES HERE AND NOT IN `sending.ts` FOR A REASON CI FOUND.
+ * `sending.ts` reaches the disk, so it imports `recordings.ts`,
+ * which imports `electron` — and a test that imported this
+ * function from there dragged Electron into the web tier's own
+ * typecheck, which installs no such thing. Deciding what an
+ * answer means is not I/O; it belongs with the rest of the
+ * reasoning, where anything may read it. [T-5]
+ */
+export function verdictOf(status: number): Verdict {
+  if (status >= 200 && status < 300) return 'ok';
+  /* Busy, rate-limited, or broken at their end: all worth repeating. */
+  if (status === 408 || status === 429 || status >= 500) return 'again';
+  return 'dead';
+}
+
+/**
+ * What to tell an operator about a status code.
+ *
+ * THE INSTALLATION'S OWN WORDS WHERE IT GAVE ANY, and this only
+ * where it did not. A refusal rewritten into a generic failure
+ * is a refusal nobody can act on: *"this request accepts 1
+ * recording(s) and has them"* is something an operator can do
+ * something about, and "upload failed" is not. [U-19]
+ */
+export function troubleFrom(status: number, plain: string): string {
+  if (status === 404) return 'that link is not open';
+  if (status === 409) return plain;
+  if (status >= 500) return 'that studio had a problem — try again';
+  return plain;
+}

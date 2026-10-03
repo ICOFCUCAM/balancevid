@@ -24,9 +24,8 @@ import { describe, expect, it } from 'vitest';
 import { MOST_ANGLES, type Capture } from '../../shared/src/capture.js';
 import {
   type Sending, NOTHING_SENT, nextStep, progressOf, readSending, remaining,
-  sendingSays,
+  sendingSays, troubleFrom, verdictOf,
 } from '../../desktop/src/submit.js';
-import { troubleFrom, verdictOf } from '../../desktop/src/sending.js';
 
 const PIECE = 1000;
 

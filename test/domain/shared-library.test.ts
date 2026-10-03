@@ -250,6 +250,71 @@ describe('the desktop application reaches nowhere into the web tier (T-1)', () =
   });
 
   /*
+   * THE WEB TIER'S TYPECHECK NEVER REACHES ELECTRON.  [T-5]
+   *
+   * FOUND BY CI, WHICH IS THE ONLY PLACE IT COULD BE. The root
+   * `tsconfig.json` includes `test/**`, the repository root
+   * installs no Electron — it is `desktop/`'s dependency — and a
+   * developer's machine has `desktop/node_modules` sitting right
+   * there for Node to resolve. So the one import that crossed
+   * typechecked locally and failed the moment a clean checkout
+   * tried it:
+   *
+   *     desktop/src/recordings.ts(33,21): error TS2307:
+   *     Cannot find module 'electron'
+   *
+   * A TEST MAY IMPORT A DESKTOP FILE — `check.ts` and `submit.ts`
+   * are pure and two suites depend on them, which is the point of
+   * their being pure. What it may not import is a file that
+   * reaches the machine. The rule is not "do not import from
+   * `desktop/`"; it is that the half of the desktop application
+   * which touches Electron is the main process's, and the main
+   * process is not something the web tier compiles.
+   */
+  it('keeps Electron out of what the web tier compiles', () => {
+    const bound = DESKTOP
+      .filter((file) => file.endsWith('.ts'))
+      .filter((file) => /from 'electron'/.test(code(file)))
+      .map((file) => file.replace(/\\/g, '/'));
+    /* The main process, the preload and the two stores. */
+    expect(bound.sort()).toEqual([
+      'desktop/src/main.ts',
+      'desktop/src/preload.ts',
+      'desktop/src/recordings.ts',
+      'desktop/src/store.ts',
+    ]);
+
+    /*
+     * Nothing the root tsconfig compiles may reach one, directly
+     * or through a desktop file it does import.
+     */
+    const reaches = new Map<string, string[]>();
+    for (const file of DESKTOP.filter((one) => one.endsWith('.ts'))) {
+      reaches.set(file.replace(/\\/g, '/'),
+        [...code(file).matchAll(/from '(\.\/[^']+)'/g)]
+          .map((hit) => `desktop/src/${hit[1]!.slice(2).replace(/\.js$/, '.ts')}`));
+    }
+    const taints = (file: string, seen = new Set<string>()): boolean => {
+      if (seen.has(file)) return false;
+      seen.add(file);
+      if (bound.includes(file)) return true;
+      return (reaches.get(file) ?? []).some((next) => taints(next, seen));
+    };
+
+    const compiled = [...under('test', '.ts'), ...under('src', '.ts')];
+    const crossings: string[] = [];
+    for (const file of compiled) {
+      for (const hit of code(file).matchAll(/from '[^']*desktop\/src\/([^']+)'/g)) {
+        const target = `desktop/src/${hit[1]!.replace(/\.js$/, '.ts')}`;
+        if (taints(target)) crossings.push(`${file} → ${target}`);
+      }
+    }
+    expect(crossings,
+      `the web tier compiles a file that needs Electron: ${crossings.join(', ')}`)
+      .toEqual([]);
+  });
+
+  /*
    * THE CREDENTIAL NEVER CROSSES THE BRIDGE.  [T-5, D-21]
    *
    * A capture station holds a participation link — an origin

@@ -39,7 +39,8 @@ import {
   PIECE_BYTES, callPath, declarePath, piecePath, sendPath,
 } from '../../shared/src/submit.js';
 import {
-  type Destination, type Sending, nextStep,
+  type Destination, type Sending, type Verdict, nextStep, troubleFrom,
+  verdictOf,
 } from './submit.js';
 import {
   captureDir, oneCapture, readSendingOf, writeSendingOf,
@@ -55,16 +56,6 @@ import {
  */
 export const PIECE_TIMEOUT_MS = 120_000;
 export const CALL_TIMEOUT_MS = 15_000;
-
-/** What a request came back as. */
-export type Verdict = 'ok' | 'again' | 'dead';
-
-export function verdictOf(status: number): Verdict {
-  if (status >= 200 && status < 300) return 'ok';
-  /* Busy, rate-limited, or broken at their end: all worth repeating. */
-  if (status === 408 || status === 429 || status >= 500) return 'again';
-  return 'dead';
-}
 
 /** The captures this process is in the middle of sending. */
 const inFlight = new Set<string>();
@@ -300,20 +291,4 @@ async function run(id: string): Promise<Sent> {
     await keep({ ...record, sentAt: new Date().toISOString() });
     return { sending: record, more: false };
   }
-}
-
-/**
- * What to tell an operator about a status code.
- *
- * THE INSTALLATION'S OWN WORDS WHERE IT GAVE ANY, and this only
- * where it did not. A refusal rewritten into a generic failure
- * is a refusal nobody can act on: *"this request accepts 1
- * recording(s) and has them"* is something an operator can do
- * something about, and "upload failed" is not. [U-19]
- */
-export function troubleFrom(status: number, plain: string): string {
-  if (status === 404) return 'that link is not open';
-  if (status === 409) return plain;
-  if (status >= 500) return 'that studio had a problem — try again';
-  return plain;
 }

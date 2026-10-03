@@ -2492,6 +2492,44 @@ Nothing had noticed because no client does it on purpose.
    maximum as well as a minimum; a review grid that chose
    differently would be two answers to one question.
 
+## A boundary only CI could find
+
+The first push failed `Typecheck and build`:
+
+```
+desktop/src/recordings.ts(33,21): error TS2307:
+Cannot find module 'electron'
+```
+
+Both typechecks pass on a developer's machine and this one
+cannot pass on a clean checkout, which is the whole shape of
+it. The root `tsconfig.json` compiles `test/**`; the repository
+root installs no Electron, because Electron is `desktop/`'s
+dependency; and a machine that has built the desktop
+application has `desktop/node_modules` sitting right there for
+Node to resolve. A test imported `verdictOf` from
+`sending.ts`, `sending.ts` reaches the disk so it imports
+`recordings.ts`, and `recordings.ts` imports `electron`.
+
+**A test may import a desktop file.** `check.ts` and `submit.ts`
+are pure and two suites depend on them, which is the point of
+their being pure. What it may not import is a file that reaches
+the machine — and the fix is not an exception, it is that
+`verdictOf` and `troubleFrom` were in the wrong file. Deciding
+what an HTTP answer means is not I/O. They live in
+`desktop/src/submit.ts` with the rest of the reasoning, and
+`sending.ts` is the I/O that calls them.
+
+**And the rule is now a test**, which reproduces CI's failure by
+name: it reads which desktop files import `electron`, follows
+the imports of every desktop file reachable from `test/` and
+`src/`, and names the crossing.
+
+```
+the web tier compiles a file that needs Electron:
+test/domain/capture-send.test.ts → desktop/src/sending.ts
+```
+
 ## A refusal whose reason had expired
 
 CONNECT's note said a QR scanner *"needs the camera, which this
@@ -2537,3 +2575,10 @@ that could not fire became `Number.isFinite`, which can.
 any one- or two-digit key as a track number — 99, which no
 capture can have, kept as a key meaning nothing. The bound is
 the protocol's own now.
+
+**And one boundary learned from a clean checkout.** See *A
+boundary only CI could find* above: a local typecheck cannot
+see a dependency the repository root does not install, because
+the directory it does not install is sitting on the disk. The
+guard that replaced the accident is the one assertion in this
+stage that no amount of running it here would have produced.
