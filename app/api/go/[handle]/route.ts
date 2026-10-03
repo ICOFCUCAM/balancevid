@@ -1,6 +1,8 @@
 import {
-  type Campaign, bySlugOrId, callRow, loopNumbers, wallOf,
+  type Campaign, bySlugOrId, callRow, judgementsOf, loopNumbers, panelOf,
+  scorecardOf, wallOf,
 } from '../../../../src/domain/campaign.js';
+import { resultsFor, saidAbout } from '../../../../src/domain/judging.js';
 import { listCampaigns } from '../../../../src/store/campaigns.js';
 import { listRequests } from '../../../../src/store/requests.js';
 import { fail, json } from '../../../../src/web/http.js';
@@ -44,6 +46,13 @@ export async function GET(_request: Request, { params }: Params): Promise<Respon
   if (!call) return fail(404, 'no such call');
 
   const requests = await listRequests().catch(() => []);
+  /*
+   * ONE READING OF WHAT MAY BE SHOWN, used by the wall and by
+   * the result. Two would be two answers, and the one that was
+   * wrong would be the one nobody was looking at. [D-19]
+   */
+  const shownEntries = wallOf(call, requests);
+  const shown = new Set(shownEntries.map((one) => one.submissionId));
 
   return json({
     call: {
@@ -74,7 +83,7 @@ export async function GET(_request: Request, { params }: Params): Promise<Respon
      * array and an entry that was taken back leaves it the moment
      * it is. [V-3]
      */
-    wall: wallOf(call, requests).map((one) => ({
+    wall: shownEntries.map((one) => ({
       submissionId: one.submissionId,
       kind: one.kind,
       at: one.at,
@@ -85,6 +94,42 @@ export async function GET(_request: Request, { params }: Params): Promise<Respon
       media: `/api/go/${encodeURIComponent(handle)}/entries/`
         + `${encodeURIComponent(one.submissionId)}/media`,
     })),
+    /*
+     * AND THE RESULT, ONCE IT HAS BEEN ANNOUNCED.
+     *   [GO-VIRAL V-6, V-5]
+     *
+     * NOT BEFORE. A panel marking in the open is a panel being
+     * argued with while it marks, and a standing that moved
+     * under a reader every time a mark was corrected would be a
+     * result nobody could cite. `announce` is the organiser
+     * saying it is done; until then this field is absent and the
+     * page says the call is being judged.
+     *
+     * WITH THE WORDS AND THE NAMES, which is the whole of *"every
+     * score carries its reason"* seen from outside. A public
+     * result that was scores alone would be the oracle this
+     * layer exists not to be. [V-5]
+     *
+     * AND ONLY FOR ENTRIES ON THE WALL. An entry whose maker did
+     * not agree to it being shown — or who took that back — is
+     * not named in a public standing either. One predicate,
+     * every surface. [V-3, V-4]
+     */
+    ...(call.state === 'results' || call.state === 'completed'
+      ? {
+        results: resultsFor(scorecardOf(call), judgementsOf(call))
+          .filter((verdict) => shown.has(verdict.entry))
+          .map((verdict, place) => ({
+            place: place + 1,
+            entry: verdict.entry,
+            score: verdict.score,
+            outOf: verdict.outOf,
+            judges: verdict.judges,
+            byCriterion: verdict.byCriterion,
+            said: saidAbout(verdict.entry, judgementsOf(call), panelOf(call)),
+          })),
+        panel: panelOf(call).map((one) => one.name),
+      } : {}),
     /*
      * THE LOOP, MEASURED, AND THE FIFTH NUMBER DELIBERATELY
      * ABSENT. Shares cannot be counted without watching where a

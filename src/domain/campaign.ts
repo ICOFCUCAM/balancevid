@@ -716,6 +716,67 @@ export function callRow(campaign: Campaign, now: string): CallRow {
   };
 }
 
+/**
+ * The line a clip of a winning entry carries.  [GO-VIRAL V-6, §1]
+ *
+ * > *"The clip carries the campaign: name, end date, and the
+ * > address back."*
+ *
+ * THE LAST ARROW OF THE LOOP, and it is one line of typography
+ * rather than a feature. Section 1's loop ends with a video
+ * somebody posts, and a posted video that does not say where it
+ * came from is where the loop stops: whoever sees it has no way
+ * back to the call.
+ *
+ * `at` IS PASSED IN, BECAUSE THE TWO CALLERS CAN HONESTLY GIVE
+ * DIFFERENT THINGS. A share card built for an HTTP response knows
+ * the origin the browser reached and gives a whole URL; the
+ * worker drawing the picture has no request and gives the path.
+ * A module that invented an origin would put the wrong hostname
+ * on a thousand posted cards. [`originOf`]
+ *
+ * THE END DATE AND NOT THE STATE, because a card is read months
+ * later: *closed 4 October 2026* is a fact that stays true, and
+ * *judging* is not.
+ */
+export function callCredit(campaign: Campaign, at: string): string {
+  const closes = Date.parse(campaign.window.closesAt ?? '');
+  const when = Number.isFinite(closes)
+    ? ` · closed ${inWords(closes)}` : '';
+  return `An entry in \u201C${campaign.title}\u201D${when} · ${at}`;
+}
+
+const MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
+/**
+ * A date, in UTC, without asking the machine what zone it is in.
+ *
+ * `toLocaleDateString` WAS HERE AND IS NOT, AND A MUTATION RUN IS
+ * WHY. With `timeZone: 'UTC'` removed, every test still passed —
+ * because this container runs in UTC, and so does every machine a
+ * test has ever run on. The fault it hides is real and silent: an
+ * installation in Lagos drawing a card for a call that closed at
+ * 23:30 UTC would print the next day, on a picture people keep.
+ *
+ * SO THERE IS NO ZONE TO GET WRONG. The instant is normalised
+ * through `toISOString`, which is UTC by definition, and the
+ * month is a word from a list. Nothing here reads the process's
+ * clock settings, so nothing here can be configured into
+ * disagreeing with the deadline it is printing.
+ *
+ * ENGLISH, LIKE EVERY OTHER WORD ON THE CARD. *"An entry in"* and
+ * *"closed"* are already English; a localised month beside them
+ * would be half a translation. [D-19]
+ */
+function inWords(instant: number): string {
+  const [year, month, day] = new Date(instant).toISOString()
+    .slice(0, 10).split('-');
+  return `${Number(day)} ${MONTHS[Number(month) - 1]} ${year}`;
+}
+
 /* ------------------------------------------------------------------ *
  *  What answered it.  [GO-VIRAL V-4, §20]
  * ------------------------------------------------------------------ */

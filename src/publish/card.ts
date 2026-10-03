@@ -77,6 +77,20 @@ export interface ShareCard {
   eyebrow: string;
   /** Under it: the generated attribution, never omitted. [U-21, INV-07] */
   attribution: string;
+  /**
+   * Where this came from, where it came from a call.
+   *   [GO-VIRAL V-6, §1]
+   *
+   * THE LOOP'S LAST ARROW, as one line. A clip posted into a
+   * group chat that does not say which competition it answers is
+   * where the loop stops — whoever sees it has no way back. It
+   * carries the call's name, the date it closed, and the address.
+   *
+   * ABSENT IS EVERY CARD THIS PRODUCT HAS EVER DRAWN, and a
+   * conversation's card never sets it: a conversation is not
+   * entered in anything. [`buildShareCard`]
+   */
+  call?: string;
   /** How much there is, in the two numbers a reader weighs a link by. */
   scale: string;
   image: { width: number; height: number; alt: string };

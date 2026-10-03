@@ -22,6 +22,8 @@
 import { mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises';
 
 import type { Campaign } from '../domain/campaign.js';
+import { callsIn } from '../domain/performance.js';
+import type { Performance } from '../domain/performance.js';
 import { paths } from './paths.js';
 
 export async function saveCampaign(campaign: Campaign): Promise<void> {
@@ -96,4 +98,27 @@ export async function callOf(
 ): Promise<Campaign | null> {
   if (!request.campaign) return null;
   return loadCampaign(request.campaign).catch(() => null);
+}
+
+/**
+ * The call a performance answered, or none.  [GO-VIRAL V-6]
+ *
+ * THE FIRST ONE ITS TAKES CAME THROUGH. `callsIn` is pure and
+ * returns them in the order the takes were added; a card has one
+ * line and the first is the call the performance was built
+ * around. A performance with takes from two calls is a real
+ * thing and naming both on a link preview would be a line nobody
+ * reads.
+ *
+ * A MISSING CALL IS NO CALL, as `callOf` has it one noun over: a
+ * take naming a campaign whose file has gone draws the card it
+ * would have drawn before campaigns existed, rather than failing
+ * to draw one.
+ */
+export async function callInPerformance(
+  performance: Performance,
+): Promise<Campaign | null> {
+  const [first] = callsIn(performance);
+  if (!first) return null;
+  return loadCampaign(first).catch(() => null);
 }

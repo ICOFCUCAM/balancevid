@@ -1,7 +1,6 @@
-import {
-  PerformanceCardError, buildPerformanceCard,
-} from '../../../../../src/publish/performanceCard.js';
-import { performanceAttribution } from '../../../../../src/domain/performancePlan.js';
+import { PerformanceCardError } from '../../../../../src/publish/performanceCard.js';
+import { performanceCardFor } from '../../../../../src/web/performanceShare.js';
+import { originOf } from '../../../../../src/web/share.js';
 import { accessTo } from '../../../../../src/auth/request.js';
 import { paths } from '../../../../../src/store/paths.js';
 import { enqueue, listJobs } from '../../../../../src/store/queue.js';
@@ -42,10 +41,18 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
 
   try {
     return json({
-      card: buildPerformanceCard({
-        performance,
-        attribution: performanceAttribution(performance, performance.createdAt).text,
-      }),
+      /*
+       * AND THE CALL IT ANSWERED, WHERE IT ANSWERED ONE.
+       *   [GO-VIRAL V-6]
+       *
+       * THROUGH THE ONE LOOKUP, because this route was the
+       * caller V-6's first draft missed: the share metadata and
+       * the worker were taught about the call and this was not,
+       * so the preview a chat app actually reads said nothing
+       * about the competition the video won. Found in a browser
+       * run. [D-19]
+       */
+      card: await performanceCardFor(performance, originOf(request)),
       /*
        * The card is public by definition — it exists to be read by whatever
        * the link was pasted into. The QUEUE is not: what the worker is doing
@@ -74,10 +81,7 @@ export async function POST(_request: Request, { params }: Params): Promise<Respo
   try {
     // Built here as well as in the worker, so an impossible card is refused
     // rather than queued and failed. [INV-15]
-    buildPerformanceCard({
-      performance,
-      attribution: performanceAttribution(performance, performance.createdAt).text,
-    });
+    await performanceCardFor(performance);
   } catch (error) {
     if (error instanceof PerformanceCardError) return fail(409, error.message);
     throw error;

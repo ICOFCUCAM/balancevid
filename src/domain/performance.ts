@@ -863,6 +863,28 @@ export interface PerformanceTake {
   rights?: MasterClass;
   /** For `licensed` and `open` footage: what permits this use. [INV-15] */
   rightsNote?: string;
+  /**
+   * The call this take came in through, where it came in through one.
+   *   [GO-VIRAL V-6]
+   *
+   * PROVENANCE AND NOT A SECOND PATH. A winning entry travels the
+   * ordinary accept path into the rail and becomes an ordinary
+   * take — *"winning does not attach anything; a producer still
+   * does, deliberately"* — and this is the one fact that would
+   * otherwise be lost at the boundary: that the person singing
+   * answered a call rather than an invitation.
+   *
+   * ON THE TAKE AND NOT ON THE PERFORMANCE, because a performance
+   * may take entries from more than one call and from none. The
+   * take is the thing that came from somewhere.
+   *
+   * WHAT READS IT IS THE CARD. A clip of this performance says
+   * which call it came from, when that call closed, and the
+   * address back — which is the whole of the loop's last arrow.
+   * Nothing in the renderer, the timeline or the playout path
+   * asks about it. [§20, D-19]
+   */
+  fromCall?: Id<'camp'>;
   /** What the author calls it: "Living room", "Beach". [§1] */
   label: string;
   environment: Environment;
@@ -2291,3 +2313,25 @@ export function covered(performance: Performance): number {
 
 /** House rate, exported so callers need not reach into `time` for it. */
 export { HOUSE_SAMPLE_RATE };
+
+/**
+ * The calls this performance took entries from.
+ *   [GO-VIRAL V-6]
+ *
+ * IN THE ORDER THE TAKES WERE ADDED, deduplicated, which for
+ * every performance in this product today is an empty list. A
+ * performance may answer more than one call — a producer running
+ * two and using a take from each — and the card names the first,
+ * because a preview has one line and the first is the one the
+ * performance was built around.
+ *
+ * PURE, AND IT LOADS NOTHING. What a call is CALLED lives in the
+ * campaign store; this says which ones to go and read.
+ */
+export function callsIn(performance: Performance): Id<'camp'>[] {
+  const out: Id<'camp'>[] = [];
+  for (const take of performance.takes) {
+    if (take.fromCall && !out.includes(take.fromCall)) out.push(take.fromCall);
+  }
+  return out;
+}

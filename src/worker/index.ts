@@ -59,6 +59,7 @@ import {
 import {
   auditPerformance, loadPerformance, mutatePerformance,
 } from '../store/performances.js';
+import { performanceCardFor } from '../web/performanceShare.js';
 import { buildPerformancePlan, performanceAttribution } from '../domain/performancePlan.js';
 import { clipWindow } from '../domain/performanceClips.js';
 import { buildPerformanceCard } from '../publish/performanceCard.js';
@@ -870,10 +871,16 @@ async function renderPerformanceClip(job: Job): Promise<Job> {
 async function renderPerformanceCard(job: Job): Promise<Job> {
   const id = job.conversationId;
   const performance = await loadPerformance(id);
-  const card = buildPerformanceCard({
-    performance,
-    attribution: performanceAttribution(performance, performance.createdAt).text,
-  });
+  /*
+   * AND WHICH CALL IT ANSWERED, AS A PATH.  [GO-VIRAL V-6]
+   *
+   * A path and not a URL, because a worker has no request and no
+   * origin to take one from — and a hostname invented here would
+   * be printed on every card this installation ever posts. The
+   * HTTP side of the same card gives the whole address, from the
+   * origin the browser reached. [`performanceShareFor`]
+   */
+  const card = await performanceCardFor(performance);
 
   const outPath = paths.performanceCard(id);
   await renderShareCard(card, outPath, join(paths.performance(id), 'scratch'));
