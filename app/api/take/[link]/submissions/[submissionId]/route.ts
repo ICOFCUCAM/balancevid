@@ -3,6 +3,7 @@ import { mkdir, readdir, rm, writeFile } from 'node:fs/promises';
 import { pipeline } from 'node:stream/promises';
 import { join } from 'node:path';
 
+import { MOST_ANGLES } from '../../../../../../shared/src/capture.js';
 import { ParticipationError, submit } from '../../../../../../src/domain/participationEdit.js';
 import { paths } from '../../../../../../src/store/paths.js';
 import { mutateRequest, requestForLink } from '../../../../../../src/store/requests.js';
@@ -39,13 +40,28 @@ const ID = /^sub_[A-Za-z0-9_-]{1,120}$/;
 export async function POST(request: Request, { params }: Params): Promise<Response> {
   const { link, submissionId } = await params;
   if (!ID.test(submissionId)) return fail(400, 'that is not a recording id');
-  const index = Number(new URL(request.url).searchParams.get('index') ?? NaN);
+  const asked = new URL(request.url).searchParams;
+  const index = Number(asked.get('index') ?? NaN);
   if (!Number.isInteger(index) || index < 0) return fail(400, 'a chunk index is required');
+  /*
+   * WHICH CAMERA THIS SEGMENT IS FROM, and absent means the only
+   * one.  [B-2]
+   *
+   * A phone never sends this and lands exactly where it always did.
+   * Refused rather than clamped, like every other id this file
+   * takes: a station that asks for track 9 has a bug, and writing
+   * its ninth camera into track 8 beside the eighth would join two
+   * performances into one file.
+   */
+  const track = Number(asked.get('track') ?? 0);
+  if (!Number.isInteger(track) || track < 0 || track >= MOST_ANGLES) {
+    return fail(400, `a track is 0 to ${MOST_ANGLES - 1}`);
+  }
 
   const found = await requestForLink(link, new Date().toISOString());
   if (!found) return fail(404, 'that link is not open');
 
-  const dir = paths.requestChunks(found.id, submissionId);
+  const dir = paths.requestChunks(found.id, submissionId, track);
   await mkdir(dir, { recursive: true });
   const bytes = Buffer.from(await request.arrayBuffer());
   if (bytes.byteLength === 0) return fail(400, 'an empty chunk is not a recording');
@@ -92,52 +108,190 @@ export async function PUT(request: Request, { params }: Params): Promise<Respons
     elapsedSamples?: number;
     latencySamples?: number;
     device?: string;
+    tracks?: unknown;
   };
 
-  const dir = paths.requestChunks(found.id, submissionId);
-  let parts: string[];
-  try {
-    parts = (await readdir(dir)).filter((name) => name.endsWith('.part')).sort();
-  } catch {
-    parts = [];
-  }
-  if (parts.length === 0) return fail(400, 'nothing was recorded');
+  /*
+   * ONE RECORDING OR N ANGLES OF ONE, and the single case is not a
+   * special case of the plural one — it is the plural one with a
+   * list of length one, which is why absent becomes exactly that.
+   * [B-2; D-19]
+   */
+  const read = readTracks(body);
+  if ('refused' in read) return fail(400, read.refused);
+  const asked = read.tracks;
 
   await mkdir(paths.requestAssets(found.id), { recursive: true });
-  const assetId = submissionId;
-  const target = paths.requestAsset(found.id, assetId, 'webm');
-  const out = createWriteStream(target);
-  for (const part of parts) {
-    await pipeline(createReadStream(join(dir, part)), out, { end: false });
+
+  const joined: { track: Track; assetId: string }[] = [];
+  for (const one of asked) {
+    const dir = paths.requestChunks(found.id, submissionId, one.track);
+    let parts: string[];
+    try {
+      parts = (await readdir(dir)).filter((name) => name.endsWith('.part')).sort();
+    } catch {
+      parts = [];
+    }
+    /*
+     * A CAPTURE IS NOT PART OF A CAPTURE. With one angle this is the
+     * message it has always been. With four, a missing one is said
+     * by number rather than joined around: three angles submitted as
+     * though they were the capture is a producer cutting to a camera
+     * that is not there.
+     */
+    if (parts.length === 0) {
+      return fail(400, asked.length === 1
+        ? 'nothing was recorded' : `nothing was recorded on track ${one.track}`);
+    }
+    const assetId = assetFor(submissionId, one.track);
+    const out = createWriteStream(paths.requestAsset(found.id, assetId, 'webm'));
+    for (const part of parts) {
+      await pipeline(createReadStream(join(dir, part)), out, { end: false });
+    }
+    await new Promise<void>((resolve, reject) => {
+      out.end((error?: Error | null) => (error ? reject(error) : resolve()));
+    });
+    joined.push({ track: one, assetId });
   }
-  await new Promise<void>((resolve, reject) => {
-    out.end((error?: Error | null) => (error ? reject(error) : resolve()));
-  });
+
+  /*
+   * HOW FAR APART THE ANGLES STARTED, WORKED OUT RATHER THAN TAKEN.
+   * It is the widest gap between the offsets already in hand, so
+   * there is nothing for a client to get wrong and nothing extra to
+   * trust. [shared/src/capture.ts `spreadMs`]
+   */
+  const offsets = joined.map((one) => one.track.offsetSamples);
+  const spreadSamples = Math.max(...offsets) - Math.min(...offsets);
 
   try {
     const updated = await mutateRequest(found.id, (draft) => {
-      submit(draft, {
-        assetId,
-        kind: draft.allowed.video ? 'video' : 'audio',
-        ...(Number.isFinite(body.elapsedSamples)
-          ? { durationSamples: Math.max(0, Math.round(body.elapsedSamples!)) } : {}),
-        ...(Number.isFinite(body.hintSamples)
-          ? { offsetSamples: Math.round(body.hintSamples!) } : {}),
-        /*
-         * WHAT RECORDED IT, as the client reports it and nothing more.
-         * A producer with twenty submissions and one that is out of
-         * sync needs to know which device; nothing decides anything
-         * from this string. Bounded, because it arrives from a phone.
-         */
-        ...(body.device ? { device: String(body.device).slice(0, 120) } : {}),
-        at: now,
-      }, now);
+      for (const one of joined) {
+        submit(draft, {
+          assetId: one.assetId,
+          kind: draft.allowed.video ? 'video' : 'audio',
+          ...(Number.isFinite(one.track.elapsedSamples)
+            ? { durationSamples: Math.max(0, Math.round(one.track.elapsedSamples!)) } : {}),
+          ...(Number.isFinite(one.track.hintSamples)
+            ? { offsetSamples: Math.round(one.track.hintSamples!) } : {}),
+          /*
+           * WHAT RECORDED IT, as the client reports it and nothing more.
+           * A producer with twenty submissions and one that is out of
+           * sync needs to know which device; nothing decides anything
+           * from this string. Bounded, because it arrives from a phone.
+           *
+           * PER ANGLE WHERE THERE ARE ANGLES, because on a capture
+           * station the four are four cameras on one machine and the
+           * camera is the answer to "which one is out".
+           */
+          ...(one.track.device ?? body.device
+            ? { device: String(one.track.device ?? body.device).slice(0, 120) } : {}),
+          /*
+           * ONLY WHEN THERE IS SOMETHING TO BELONG TO. A single
+           * recording carries no membership — not an empty one — so
+           * what a phone writes is byte for byte what it wrote before
+           * captures existed.
+           */
+          ...(joined.length > 1
+            ? {
+              capturedIn: {
+                id: submissionId,
+                offsetSamples: one.track.offsetSamples,
+                ...(spreadSamples > 0 ? { spreadSamples } : {}),
+              },
+            } : {}),
+          at: now,
+        }, now);
+      }
     });
     return json({ request: viewFor(updated) }, { status: 201 });
   } catch (error) {
     if (error instanceof ParticipationError) return fail(409, error.message);
     throw error;
   }
+}
+
+/** One angle as the client describes it, once it has been believed. */
+interface Track {
+  track: number;
+  offsetSamples: number;
+  hintSamples?: number;
+  elapsedSamples?: number;
+  device?: string;
+}
+
+/**
+ * What the client said its tracks were, or why not.
+ *
+ * REFUSED RATHER THAN REPAIRED, the same as every other id here. A
+ * repeated track number would join one camera's bytes into two
+ * submissions and call them two angles; a missing `tracks` is a
+ * phone, and a phone means one recording with no membership at all.
+ *
+ * THERE IS NO SEPARATE BOUND ON HOW MANY. One was written and then
+ * deleted, because it could not fire: the track numbers of a capture
+ * are distinct and each is below `MOST_ANGLES`, so a list longer than
+ * that always contains a number already seen or a number out of
+ * range, and the loop below refuses it by the ninth element at the
+ * latest. A guard nobody can reach is a guard nobody can check. [C-49]
+ */
+function readTracks(body: {
+  hintSamples?: number; elapsedSamples?: number; device?: string; tracks?: unknown;
+}): { tracks: Track[] } | { refused: string } {
+  const said = body.tracks;
+  /*
+   * NO LIST IS THE PHONE, and the phone's numbers are where they
+   * have always been — at the top of the body, not inside a track.
+   * Reading them here is what makes the single case the plural one
+   * rather than a branch further down.
+   */
+  if (said === undefined) {
+    return {
+      tracks: [{
+        track: 0,
+        offsetSamples: 0,
+        ...(typeof body.hintSamples === 'number' ? { hintSamples: body.hintSamples } : {}),
+        ...(typeof body.elapsedSamples === 'number'
+          ? { elapsedSamples: body.elapsedSamples } : {}),
+        ...(typeof body.device === 'string' ? { device: body.device } : {}),
+      }],
+    };
+  }
+  /* An empty list is not a phone: a phone sends no list at all. */
+  if (!Array.isArray(said) || said.length === 0) {
+    return { refused: 'a capture has at least one angle' };
+  }
+  const wrong = { refused: `each angle is a different track, 0 to ${MOST_ANGLES - 1}` };
+  const out: Track[] = [];
+  const seen = new Set<number>();
+  for (const row of said as Record<string, unknown>[]) {
+    if (!row || typeof row !== 'object') return wrong;
+    const track = Number(row.track ?? 0);
+    if (!Number.isInteger(track) || track < 0 || track >= MOST_ANGLES) return wrong;
+    if (seen.has(track)) return wrong;
+    seen.add(track);
+    const offset = Number(row.offsetSamples ?? 0);
+    out.push({
+      track,
+      offsetSamples: Number.isFinite(offset) ? Math.round(offset) : 0,
+      ...(typeof row.hintSamples === 'number' ? { hintSamples: row.hintSamples } : {}),
+      ...(typeof row.elapsedSamples === 'number'
+        ? { elapsedSamples: row.elapsedSamples } : {}),
+      ...(typeof row.device === 'string' ? { device: row.device } : {}),
+    });
+  }
+  return { tracks: out };
+}
+
+/**
+ * Where one angle's joined media lives.
+ *
+ * TRACK 0 KEEPS THE SUBMISSION'S OWN ID, which is what every surface
+ * that already reads a submission's asset expects, and what the
+ * DELETE below compares against to decide whether a recording has
+ * been sent.
+ */
+function assetFor(submissionId: string, track: number): string {
+  return track === 0 ? submissionId : `${submissionId}-t${track}`;
 }
 
 /**

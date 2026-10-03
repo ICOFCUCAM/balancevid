@@ -158,8 +158,24 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
       addTake(draft, {
         id: takeId,
         assetId,
-        label: found.participant?.trim()
-          || `From ${submission.kind === 'audio' ? 'a microphone' : 'a phone'}`,
+        /*
+         * AND WHICH CAMERA, WHERE THERE WAS MORE THAN ONE. [B-3]
+         *
+         * Four angles of one capture all carry the same
+         * participant, so four accepted angles would be four takes
+         * called the same thing in the rail — a list the producer
+         * cannot act on, which is the exact failure B-3 exists to
+         * stop one layer up. The device is the only thing that
+         * differs and it is what a person would say: "the one on
+         * Camera B". Nothing is appended for a lone recording,
+         * because there is nothing to tell it apart from.
+         */
+        label: [
+          found.participant?.trim()
+            || `From ${submission.kind === 'audio' ? 'a microphone' : 'a phone'}`,
+          ...(submission.capturedIn?.id && submission.device
+            ? [submission.device.slice(0, 40)] : []),
+        ].join(' · '),
         environment: { kind: 'original' },
         /*
          * UNPLACED, NOT MEASURED. The phone's own number is passed to
@@ -172,6 +188,26 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
           rateRatio: 1,
           method: 'unplaced',
         },
+        /*
+         * THE CAPTURE COMES WITH IT.  [B-1, B-2, B-3]
+         *
+         * B-2 writes `capturedIn` on a submission and B-1 reads it
+         * off a take, and for one stage there was nothing in
+         * between: four angles accepted into a performance arrived
+         * as four attempts, and Studio Two's badge — built,
+         * tested, correct — could never fire for a real capture
+         * station. *When a stage adds a field to the model and a
+         * branch to the renderer, the thing in between is where
+         * the test is missing.* [C-42, C-44, C-46]
+         *
+         * COPIED, NOT RE-DERIVED. The offsets were measured by the
+         * machine that did the recording, against each other, and
+         * nothing in this studio is in a position to improve on
+         * them. `alignment` is still `unplaced` directly below,
+         * because where the capture sits on THIS song is a
+         * different question and still the worker's. [S-3, INV-06]
+         */
+        ...(submission.capturedIn ? { capturedIn: submission.capturedIn } : {}),
         durationSamples: 0,
         hasAudio: true,
         createdAt: now,

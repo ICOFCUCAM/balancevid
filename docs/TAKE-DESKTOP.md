@@ -978,6 +978,10 @@ two-track submission joins correctly on the server.
 One arrival with four angles, rather than four arrivals somebody has
 to recognise as related.
 
+**And the capture has to survive being accepted**, which the plan
+did not say and PART ELEVEN found: a field B-2 writes and B-1 reads
+is worth nothing if the thing between them drops it.
+
 ---
 
 ## The order, end to end
@@ -1808,3 +1812,425 @@ guard that only narrows a type cannot be judged by mutation
 alone.
 
 **181 test files, 3420 tests**, green.
+
+---
+
+# PART TEN — B-1 and B-2, as built
+
+Track B is *"what BalanceVid must learn"*, and the two stages
+built here are the two halves of one sentence: a take knows which
+capture it came from, and a submission may be several at once.
+Neither needed the desktop application to exist, which is what the
+order diagram claimed and is now a fact rather than a claim.
+
+## B-1 — the correction the plan made to itself
+
+The plan's first draft of this stage wanted to give a take **N
+tracks**. Reading `SwitchingStage.tsx` before writing anything
+showed that Studio Two **already holds N takes on one clock** and
+already multiviews them; what it could not do was say whether the
+four it was showing were four views of one moment or four goes at
+one thing.
+
+> *"Takes sharing a capture are **angles**; takes not sharing one
+> are **attempts**, exactly as today."*
+
+So four cameras do not need a new model. They need four takes that
+know they belong together, and `src/domain/angles.ts` is the
+knowing:
+
+```
+isAngle(take)            is this one view of something, or one go at it
+anglesOf(takes, take)    the ones sharing its capture, itself included
+angleNumber(takes, take) 1-based within the capture, 0 for an attempt
+angleSays(takes, take)   '2 of 4', and '' below two
+capturesIn(takes)        every capture represented
+captureSpread(takes)     the widest spread any angle recorded
+```
+
+`PerformanceTake.capturedIn` is the one field added, beside
+`alignment` and deliberately not inside it, because the two
+`offsetSamples` in this product now mean two different things and
+the comment on the type says which:
+
+```
+alignment.offsetSamples    against the master clock
+capturedIn.offsetSamples   against the other angles
+```
+
+`Take.assetId` is untouched, there is no migration, and every
+performance that exists is a set of attempts with no capture —
+which is what they are. Studio Two gained **one badge**,
+`monitor-angle`, beside the `nudgeSays` one it already had.
+
+## B-2 — one recording, or N angles of one
+
+The route is the whole of this stage, and the hard part was not
+the plural case.
+
+### Track 0 is where it always was
+
+```
+chunks/<sub>/000000.part        a phone, and every build before this
+chunks/<sub>/t1/000000.part     the second camera
+chunks/<sub>/t2/000000.part     the third
+```
+
+Beneath, not beside, and that single decision is why nothing above
+had to learn that tracks exist:
+
+- reading track 0 is still `readdir` filtered on `.part`, because
+  a directory is not a part;
+- `DELETE` is still one `rm -r` of one directory, and never
+  learned there were tracks to delete;
+- a recording **already in flight** when the server was upgraded
+  still joins.
+
+### A submission stays singular, and a capture is N of them
+
+`Submission.assetId` is one file. The alternative was to make it
+plural, and that would have been a second shape for a question
+`anglesOf` already answers about takes. So a multi-track send
+becomes **N submissions carrying the same `capturedIn.id`** — B-1's
+own field, on a different document, read by B-1's own functions
+because a submission carrying it is the same shape. [D-19]
+
+```
+PUT …/submissions/sub_x   { tracks: [ {track: 0, offsetSamples: 0},
+                                      {track: 1, offsetSamples: 19}, … ] }
+
+  →  sub_x.webm      capturedIn { id: sub_x, offsetSamples: 0,  spread 29 }
+     sub_x-t1.webm   capturedIn { id: sub_x, offsetSamples: 19, spread 29 }
+     sub_x-t2.webm   capturedIn { id: sub_x, offsetSamples: 24, spread 29 }
+     sub_x-t3.webm   capturedIn { id: sub_x, offsetSamples: 29, spread 29 }
+```
+
+Track 0 keeps the submission's own id, which is what every surface
+that already resolves a submission's media expects and what
+`DELETE` compares against to decide whether a recording has been
+sent.
+
+**The spread is worked out, not taken.** It is the widest gap
+between the offsets already in hand, so there is nothing for a
+client to get wrong and nothing extra to trust.
+
+**A capture of one is not a capture.** One angle carries no
+membership at all — not an empty one — so what a phone writes is
+byte for byte what it wrote before captures existed.
+
+### A capture is one take, however many cameras saw it
+
+`takesLeft` counted submissions, and a submission was a recording,
+so the two were the same number. They stop being the same number
+the moment a station sends four angles of one performance: a
+request allowing three takes would be full after the first, and
+the performer would be told they had used three when they had sung
+once. `takesMade` counts distinct captures plus loose submissions,
+which for a phone is exactly the old number.
+
+### One sink per camera, not one sink told which camera
+
+B-1's correction, applied a second time. The stage's own brief said
+*"`RecordingSink` gains a track dimension"*, and the dimension it
+gained is on the **sink**, not on `chunk`:
+
+```ts
+takeSink(link, keep)        the phone, and every build before this
+takeSink(link, keep, 2)     the third camera of a capture station
+```
+
+Which means **`useMasterRecording` was not touched at all** — not
+the offset arithmetic, not the latency arithmetic, not a line. The
+stage was told not to touch it; the shape that made that free
+rather than careful is the one worth recording.
+
+### The key is the whole of the defence
+
+```
+sub_x#000004        track 0, and every row written before tracks existed
+sub_x#t1#000004     the second camera
+```
+
+Without the track in the key, segment 4 of camera 2 overwrites
+segment 4 of camera 1 — a take with another camera's bytes spliced
+into the middle of it, of a plausible length, that nobody can tell
+from a good one until they watch it. `pending`, `broken` and
+`forget` still filter on the submission, which is what makes
+`settle` hold the Send button until **every** angle has arrived
+without the page knowing there are tracks at all.
+
+`public/take-sw.js` caches `queue.js` in its shell, so a phone with
+the Take App installed holds a copy of it. `SHELL` is bumped to
+`v2`: changing a shell file without changing the cache name is
+changing a file nobody receives.
+
+## The queue is now run, not read
+
+Every previous test of `public/take-app/queue.js` read its source
+text, which was enough while the question was *does it check the
+response* — a question a reader can answer. B-2 asks one a reader
+cannot: **does a second camera's fourth segment overwrite the
+first's?** That is a fact about a store, so `test/helpers/littleStore.ts`
+is a store: ~100 lines of in-memory IndexedDB with the behaviours
+the queue actually uses and none it does not. The real file is
+loaded unedited, the way the page and the worker load it.
+
+## Measured, not claimed
+
+```
+one camera, no track anywhere
+  asset                   sub_x.webm, under the submission's own id
+  capturedIn              absent
+  chunk directory         chunks/sub_x/000000.part  — unmoved
+  queue key               sub_x#000004              — unmoved
+  queue URL               ?index=4                  — unmoved
+
+four cameras, one send
+  assets                  sub_x, sub_x-t1, sub_x-t2, sub_x-t3
+  offsets                 0, 19, 24, 29   (T-4's own measured capture)
+  spread                  29, computed from the offsets
+  takes spent             1 of 4
+  bytes crossed           none — each camera's bytes in its own file
+```
+
+## Measured against the running product
+
+Not against the model. A request was opened on a real performance,
+eight segments were posted from four cameras, and the capture was
+sent:
+
+```
+POST ?index=0&track=0 … ?index=1&track=3        8 x 202
+
+chunks/sub_7e97…/000000.part   000001.part      track 0, where it always was
+chunks/sub_7e97…/t1/000000.part  t1/000001.part
+chunks/sub_7e97…/t2/000000.part  t2/000001.part
+chunks/sub_7e97…/t3/000000.part  t3/000001.part
+
+PUT  { tracks: [ … ] }                          201
+
+assets/sub_7e97….webm      "cam0-seg0cam0-seg1"   Camera A  offset 0
+assets/sub_7e97…-t1.webm   "cam1-seg0cam1-seg1"   Camera B  offset 19
+assets/sub_7e97…-t2.webm   "cam2-seg0cam2-seg1"   Camera C  offset 24
+assets/sub_7e97…-t3.webm   "cam3-seg0cam3-seg1"   Camera D  offset 29
+                                         all four spreadSamples 29
+```
+
+**No camera's bytes are in another camera's file**, which is the one
+thing a reader of the code cannot confirm.
+
+And B-1, in Studio Two's own multiview, with four angles and one
+attempt in the same performance:
+
+```
+1 · Wide      · Angle 1 of 4
+2 · Close     · Angle 2 of 4
+3 · Side      · Angle 3 of 4
+4 · Overhead  · Angle 4 of 4
+5 · Second go
+```
+
+The fifth take carries no badge, because it is not an angle of
+anything. That is the whole of B-1 on a screen.
+
+## Five faults, four from mutation and one from the live run
+
+1. **The phone's measurements were dropped.** The first draft read
+   the `tracks` list correctly and then lost `hintSamples` and
+   `elapsedSamples`, which live at the **top** of the body and not
+   inside a track. A source-text test would not have seen it; the
+   route is called instead, and the assertion is on the request
+   document that came out.
+2. **A length bound that could not fire.** `tracks.length >
+   MOST_ANGLES` was written, measured, and **deleted**: the track
+   numbers of a capture are distinct and each is below the
+   ceiling, so a longer list always contains a number already seen
+   or a number out of range. *A fixture that two rules both reject
+   tests neither of them* — C-49, for the second time. **The
+   twenty-ninth deletion.**
+3. **The spread was the largest offset.** Every fixture measured
+   its angles from the earliest of them, so the smallest offset was
+   zero and `max` and `max - min` were the same number. The fixture
+   that breaks the coincidence puts the capture's zero somewhere
+   else — 100, 119, 129 — which is legitimate, because the offsets
+   are against each other and an origin is not a measurement.
+4. **The device bound was unreached.** `.slice(0, 120)` had never
+   been fired by anything. It is pre-existing and it is correct;
+   it now has a fixture, because the line moved.
+5. **Two numbers from one function disagreed**, and only the live
+   run showed it. The request document said *three takes left* and
+   the answer on the wire said *four submitted*, because
+   `viewFor.submitted` counted files while `takesLeft` had learned
+   to count captures. Neither is wrong alone; together they tell a
+   performer who sang once that they have used four of their four
+   goes and have three left. `submitted` is `takesMade` now. **The
+   worst of the three kinds of survivor, and T-3's own lesson
+   arriving a second time: a survivor can mean two checks that do
+   not agree with each other.**
+
+## The record
+
+**Thirty-five mutations across the route, `paths.ts`,
+`participation.ts`, `takeSink.ts`, `queue.js` and `take-sw.js`,
+all killed.** One clause deleted, the twenty-ninth. Four missing
+fixtures found and written.
+
+**And one guard kept that mutation alone cannot judge.** The
+service worker's `SHELL` version is a string; nothing observable
+changes when it is wrong, because the test that catches it is the
+one that **hashes the shell** and compares against a number a
+person had to type. That is C-46's rule inverted rather than
+broken: a test that imports the constant it is checking is a test
+of arithmetic, so this one imports the *content* instead. When it
+fails, a shell file changed and the cache name did not.
+
+---
+
+# PART ELEVEN — B-3, as built, and the thing in between
+
+> *"One arrival with four angles, rather than four arrivals
+> somebody has to recognise as related."*
+
+That sentence is the whole stage and it turned out to have two
+halves, only one of which the plan had noticed.
+
+## The half the plan did not have
+
+B-2 writes `capturedIn` onto a submission. B-1 reads it off a take
+and draws a badge. **For one stage there was nothing between
+them.** `addTake` in the accept route did not carry the field, so
+four angles from a real capture station arrived in a performance
+as four attempts, and Studio Two's badge — built, measured,
+correct — could never fire for anything but a hand-edited
+document.
+
+> *"When a stage adds a field to the model and a branch to the
+> renderer, the thing in between is where the test is missing."*
+> — C-42, C-44, C-46
+
+So the accept carries it:
+
+```
+Submission.capturedIn   →   PerformanceTake.capturedIn
+```
+
+**Copied, not re-derived.** The offsets were measured against each
+other by the machine that did the recording, and this studio is
+not in a position to improve on them. `alignment` is still
+`unplaced` on the line below, because *where the capture sits on
+this song* is a different question from *how far apart its cameras
+started*, and the first is still the worker's. Collapsing the two
+would make a stranger's clock a fact about this performance.
+
+**And four angles are told apart in the rail.** They all carry the
+same participant, so four accepted angles would be four takes
+called the same thing — a list a producer cannot act on, which is
+the failure this stage exists to end one layer up. The device is
+appended where there is a capture and nowhere else:
+
+```
+Capture station · Camera A — wide
+Capture station · Camera B — close
+Capture station · Camera C — side
+Capture station · Camera D — overhead
+```
+
+## The half the plan did have
+
+`arrivalsIn` groups a request's submissions into arrivals: a loose
+submission is an arrival of one, a capture is its angles. Order is
+the order things came in, **with a capture standing where its
+FIRST angle stood** — a producer who looked away must not find the
+list reshuffled because the fourth camera's segments finished
+uploading before the second's — and within a capture the angles
+are in start order.
+
+`spreadSays` turns the spread into milliseconds, because samples
+are not a unit anybody feels and a frame at 30fps is 33 ms. The
+producer's question is *can I cut between these*, and `0.6 ms
+apart` answers it without anybody doing the division.
+
+**The inbox and the multiview call the same two functions.** Two
+surfaces that each decided for themselves what belonged together
+would be two surfaces that can disagree about it in front of a
+producer. [D-19]
+
+## One thing the screen said that the plan did not
+
+The first version of this stage drew four angles as one row —
+grouped, bordered, with the spread — **and still put four "Use it"
+buttons in it.** The producer was shown one thing and asked about
+it four times, which is most of the failure B-3 was written to
+end. Found by looking at the screenshot, not by reading the diff.
+
+```
+Capture station                       submitted
+Four cameras, one go
+   4 angles of one take     0.6 ms apart
+  [           Use all 4            ]
+   00:03.925 · Camera A — wide · Angle 1 of 4     Watch  Use it
+   00:03.925 · Camera B — close · Angle 2 of 4    Watch  Use it
+   00:03.925 · Camera C — side · Angle 3 of 4     Watch  Use it
+   00:03.925 · Camera D — overhead · Angle 4 of 4 Watch  Use it
+```
+
+**One at a time and in order**, not four at once: each accept
+moves the request and copies a file, and four of those racing is
+four writers on one document. An angle already in the rail is not
+offered again, so pressing it after one was taken by hand takes
+the other three. The per-angle buttons stay, because a producer
+who wants three of four should not have to take four.
+
+## Measured against the running product
+
+The whole chain, through the real server, with the worker running:
+
+```
+POST  …/submissions/<sub>?index=0&track=0..3     4 x 202
+PUT   …/submissions/<sub>  { tracks: [ … ] }         201
+                            4 submissions, one capture, spread 29
+
+the inbox          1 arrival, 4 angles, "0.6 ms apart"
+one press          4 accept POSTs, 4 x "In the rail", button gone
+
+the performance    4 takes, each carrying
+                     capturedIn { id, offsetSamples, spreadSamples: 29 }
+                   offsets 0, 19, 24, 29 — T-4's own measured capture
+                   alignment.method  unplaced, on all four
+
+Studio Two         1 · Capture station · Camera A — wide · Angle 1 of 4
+  ALL TAKES        2 · Capture station · Camera B — close · Angle 2 of 4
+                   3 · Capture station · Camera C — side · Angle 3 of 4
+                   4 · Capture station · Camera D — overhead · Angle 4 of 4
+```
+
+Four green test-pattern tiles, four waveforms in the rail, no page
+errors. **That is a capture station's recording reaching a
+director's multiview as four views of one moment** — which is the
+sentence Track B was written to make true, and it is now true from
+the camera to the cut.
+
+## The record
+
+**Seventeen mutations on `angles.ts`, the accept route, the
+listing and the panel, all killed.** One source-text assertion
+tightened after a mutant walked through it: `angleSays` appears
+twice in the panel, once deciding whether to draw and once
+drawing, and an assertion that it appears is satisfied by a
+version that has stopped deciding. Measured: it was.
+
+**And one fault caught by a test written years before this stage.**
+The capture's left border went in as
+`var(--line-soft, rgba(255,255,255,0.14))`, and
+`design-system.test.ts` refused it: *"A TOKEN WITH A FALLBACK IS
+TWO ANSWERS… the rule is: name the token, or write the value. Not
+both."* Thirteen of these were found and removed once, every one
+of them naming a colour the product had been corrected away from.
+It is now `var(--border) solid var(--line-soft)`. **A rule written
+down is a rule that catches the person who did not read it.**
+
+**And a note on what a source-text test can be.** The panel has no
+DOM harness in this repository, so its assertions read the file.
+That is weaker than running it, and the screenshots above are the
+part that actually checks it — which is how the two "Use it"
+findings in this stage were made, neither of them by a test.

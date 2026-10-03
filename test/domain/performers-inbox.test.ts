@@ -266,3 +266,106 @@ describe('watching one before deciding', () => {
       /!\(found\.submissions \?\? \[\]\)\.some\(\(one\) => one\.assetId === submissionId\)/);
   });
 });
+
+/* ------------------------------------------------------------------ *
+ *  B-3 — the thing in between.
+ * ------------------------------------------------------------------ */
+
+/**
+ * THE MIDDLE OF A THREE-STAGE CHAIN IS WHERE NOTHING LOOKS.
+ *
+ * B-2 writes `capturedIn` on a submission. B-1 reads it off a take
+ * and draws a badge. Both were built, both were tested, and for one
+ * stage there was nothing between them: `addTake` in the accept
+ * route did not carry the field, so four angles from a real capture
+ * station arrived in a performance as four attempts and the badge
+ * could never fire for anything but a hand-edited document.
+ *
+ * *"When a stage adds a field to the model and a branch to the
+ * renderer, the thing in between is where the test is missing."*
+ * [C-42, C-44, C-46]
+ */
+describe('a capture survives being accepted', () => {
+  const ACCEPT = code(
+    'app/api/performances/[id]/requests/[requestId]/route.ts');
+
+  /*
+   * COPIED, NOT RE-DERIVED. The offsets were measured against each
+   * other by the machine that recorded them, and this studio is not
+   * in a position to improve on them.
+   */
+  it('carries the capture from the submission onto the take', () => {
+    expect(ACCEPT).toMatch(
+      /capturedIn\s*\?\s*\{\s*capturedIn:\s*submission\.capturedIn\s*\}/);
+  });
+
+  /*
+   * AND STILL DOES NOT PLACE IT ON THE SONG. Where a capture sits
+   * against THIS master is a different question from how far apart
+   * its cameras started, and it is still the worker's. Collapsing
+   * them would make a stranger's clock a fact about this
+   * performance. [S-3, INV-06]
+   */
+  it('leaves the take unplaced on the master clock', () => {
+    expect(ACCEPT).toMatch(/method: 'unplaced'/);
+    expect(ACCEPT).not.toMatch(/method: 'measured'/);
+  });
+
+  /*
+   * FOUR ANGLES ALL CARRY THE SAME PARTICIPANT, so four accepted
+   * angles would be four takes called the same thing in the rail —
+   * a list a producer cannot act on, which is the failure B-3
+   * exists to stop one layer up.
+   */
+  it('tells four angles of one capture apart in the rail', () => {
+    expect(ACCEPT).toMatch(/submission\.capturedIn\?\.id && submission\.device/);
+    expect(ACCEPT).toMatch(/submission\.device\.slice\(0, 40\)/);
+  });
+
+  /* And the listing hands the panel what it needs to group. */
+  it('carries the capture to the producer’s listing', () => {
+    expect(code('app/api/performances/[id]/requests/route.ts'))
+      .toMatch(/capturedIn: submission\.capturedIn,/);
+  });
+
+  /*
+   * ONE ARRIVAL IS ONE DECISION, which grouping alone did not
+   * give: the first version of this stage drew four angles as one
+   * row and still put four "Use it" buttons in it, so the producer
+   * was shown one thing and asked about it four times. Found on a
+   * screen, not in the plan.
+   */
+  it('takes a capture in one press, and only what is not taken', () => {
+    expect(PANEL).toMatch(/data-testid="performers-accept-capture"/);
+    expect(PANEL).toMatch(/arrival\.filter\(\(one\) => !one\.acceptedAt\)\.length > 1/);
+    /* Already in the rail is not offered again. */
+    expect(PANEL).toMatch(/if \(one\.acceptedAt\) continue;/);
+    /*
+     * ONE AT A TIME. Each accept moves the request and copies a
+     * file; four of those racing is four writers on one document.
+     */
+    expect(PANEL).toMatch(/for \(const one of arrival\) \{/);
+    expect(PANEL).not.toMatch(/Promise\.all\(arrival/);
+  });
+
+  /*
+   * THE INBOX AND THE MULTIVIEW USE THE SAME FUNCTIONS. Two
+   * surfaces that each decided for themselves what belonged
+   * together is two surfaces that can disagree about it in front of
+   * a producer. [D-19]
+   */
+  it('groups with the functions Studio Two draws with', () => {
+    expect(PANEL).toMatch(/arrivalsIn\(row\.submissions \?\? \[\]\)/);
+    /*
+     * THE GUARD, not merely the call. `angleSays` appears twice —
+     * once deciding whether to draw and once drawing — and an
+     * assertion that it appears is satisfied by a version that has
+     * stopped deciding. Measured: it was.
+     */
+    expect(PANEL).toMatch(/\{angleSays\(arrival, one\) && \(/);
+    expect(PANEL).toMatch(/\{` · \$\{angleSays\(arrival, one\)\}`\}/);
+    expect(PANEL).toMatch(/from '\.\.\/\.\.\/\.\.\/src\/domain\/angles\.js'/);
+    expect(code('app/p/[id]/SwitchingStage.tsx'))
+      .toMatch(/from '\.\.\/\.\.\/\.\.\/src\/domain\/angles\.js'/);
+  });
+});

@@ -143,6 +143,24 @@ export function spreadSays(starts: readonly SourceStart[]): string {
  * ------------------------------------------------------------------ */
 
 /**
+ * HOW MANY ANGLES ONE CAPTURE MAY HAVE.
+ *
+ * Not a hardware limit — a bound on what arrives from somewhere
+ * else. [B-2] The server joins a capture's angles into that many
+ * files on somebody's disk, so the number has to be refused
+ * rather than trusted, and a number refused has to be stated.
+ *
+ * EIGHT BECAUSE OF WHAT THE MACHINE CAN DO, not because of what
+ * anybody asked for. Four concurrent 720p encoders is what a
+ * capture station of ordinary size runs, and the measurement
+ * behind T-3's PREPARE check is the honest ceiling: twice that
+ * leaves room for a machine better than the one that was
+ * measured, and stops well short of a number nobody could
+ * record.
+ */
+export const MOST_ANGLES = 8;
+
+/**
  * One angle of a capture, as it is recorded.
  *
  * `offsetSamples` IS THE ONE THE INSTALLATION READS. Everything

@@ -35,8 +35,28 @@ export function takeSink(
    * whenever the performer presses Send.
    */
   keep: (submissionId: string, spec: KeptSpec) => void,
+  /**
+   * WHICH CAMERA THIS SINK IS.  [TAKE-DESKTOP B-2]
+   *
+   * A phone has one and passes nothing, which is what no track
+   * meant. A capture station recording four sources at once makes
+   * FOUR SINKS SHARING ONE SUBMISSION ID, one per recorder, rather
+   * than one sink that is told which track on every segment.
+   *
+   * THAT IS B-1'S OWN CORRECTION APPLIED AGAIN. The first draft of
+   * B-1 wanted to give a take N tracks, and reading Studio Two
+   * showed that four cameras do not need a new model, they need
+   * four takes that know they belong together. Four cameras do not
+   * need a new recorder argument either: `useMasterRecording` is
+   * one camera and stays one camera, untouched, including every
+   * line of the latency arithmetic this stage was told not to
+   * touch. What knows about the capture is the thing outside it.
+   */
+  track = 0,
 ): RecordingSink {
   const at = `/api/take/${encodeURIComponent(link)}`;
+  /* Track 0 sends the URL it has always sent, down to the query. */
+  const on = track > 0 ? `&track=${track}` : '';
   return {
     begin: async () => {
       const response = await fetch(`${at}/submissions`, { method: 'POST' });
@@ -75,11 +95,11 @@ export function takeSink(
     chunk: async (id, index, body) => {
       const queue = await takeQueue();
       if (queue) {
-        await queue.put({ link, submissionId: id, index, blob: body });
+        await queue.put({ link, submissionId: id, index, track, blob: body });
         void askToDrain();
         return;
       }
-      const response = await fetch(`${at}/submissions/${id}?index=${index}`, {
+      const response = await fetch(`${at}/submissions/${id}?index=${index}${on}`, {
         method: 'POST', body,
         headers: { 'content-type': 'application/octet-stream' },
       });
@@ -105,6 +125,7 @@ export function takeSink(
       keep(id, {
         ...spec,
         device: typeof navigator === 'undefined' ? undefined : navigator.userAgent,
+        ...(track > 0 ? { track } : {}),
       });
       return {};
     },
@@ -117,6 +138,29 @@ export interface KeptSpec {
   elapsedSamples: number;
   latencySamples: number;
   device?: string | undefined;
+  /** Which angle reported this, where a capture has more than one. [B-2] */
+  track?: number;
+  /**
+   * EVERY ANGLE OF ONE CAPTURE, SENT TOGETHER, or absent for a
+   * recording with one.  [B-2]
+   *
+   * The send is one PUT however many cameras there were, because
+   * what is being sent is one performance: four PUTs would be four
+   * submissions that happened to arrive together and nothing on the
+   * server could say they were one take. Absent is byte for byte
+   * what a phone sends.
+   */
+  tracks?: TrackSpec[];
+}
+
+/** One angle, as the client describes it when it sends a capture. [B-2] */
+export interface TrackSpec {
+  track: number;
+  /** From the earliest angle, in samples. Not against the reference. */
+  offsetSamples: number;
+  hintSamples?: number;
+  elapsedSamples?: number;
+  device?: string;
 }
 
 /**

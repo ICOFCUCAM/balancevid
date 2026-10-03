@@ -428,6 +428,37 @@ export function mayShowMasterPicture(master: MasterTrack): boolean {
  *                   minutes the error grows. An offset alone cannot fix it,
  *                   which is why `rateRatio` exists.
  */
+/**
+ * Which capture a take is an angle of.  [TAKE-DESKTOP B-1, T-4]
+ *
+ * WRITTEN BY WHATEVER RECORDED IT and read by everything that
+ * shows takes together. The desktop capture station writes a
+ * `capture.json` with exactly these two numbers per angle; a
+ * take that arrives from it carries them here.
+ */
+export interface CaptureMembership {
+  /** Shared by every angle of one capture. */
+  id: string;
+  /**
+   * How far into the capture this angle began, in samples at the
+   * house rate.
+   *
+   * Zero for the angle that started first, which is what every
+   * offset in the capture is measured from.
+   */
+  offsetSamples: Samples;
+  /**
+   * How far apart the capture's angles started, in samples.
+   *
+   * CARRIED ON EVERY ANGLE rather than held once, because a take
+   * is the unit that travels: one angle submitted on its own
+   * still knows what it was part of and how well that capture
+   * held together. Redundant across four takes and correct on
+   * any one of them.
+   */
+  spreadSamples?: Samples;
+}
+
 export interface Alignment {
   /** Where this take's first sample sits on the master clock. */
   offsetSamples: Samples;
@@ -962,6 +993,35 @@ export interface PerformanceTake {
    */
   eyeline?: number;
   alignment: Alignment;
+  /**
+   * The capture this take is one angle of.  [TAKE-DESKTOP B-1]
+   *
+   * > *"Takes sharing a capture are **angles**; takes not sharing
+   * > one are **attempts**, exactly as today."*
+   *
+   * ABSENT MEANS AN ATTEMPT, and absent is what every take ever
+   * recorded by this product is. A singer doing the chorus four
+   * times has made four attempts at one thing; a capture station
+   * pointing four cameras at one room has made four views of one
+   * thing. The difference matters at every surface that shows
+   * more than one take at a time, and nothing in the model said
+   * it.
+   *
+   * NO MIGRATION, AND NOT BECAUSE IT WOULD BE AWKWARD. Every
+   * existing take IS an attempt with no capture, which is what
+   * this field says about it. A migration would be writing down
+   * a fact that is already true.
+   *
+   * AND `offsetSamples` HERE IS NOT `alignment.offsetSamples`.
+   * That one is where the take sits on the MASTER CLOCK — the
+   * song. This is how far into the CAPTURE this angle began,
+   * measured against the other angles by the machine that
+   * recorded them, and a capture of a room has no song at all.
+   * Two offsets because there are two questions, and collapsing
+   * them would place every angle of a songless capture at the
+   * top of a song that does not exist. [T-4, U-08]
+   */
+  capturedIn?: CaptureMembership;
   /** Measured by decoding. [U-02] */
   durationSamples: Samples;
   /**
