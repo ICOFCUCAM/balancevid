@@ -1,7 +1,9 @@
-import { campaignSays, clockSays } from '../../../../src/domain/campaign.js';
+import {
+  campaignSays, clockSays, entryProblem, needsConsent,
+} from '../../../../src/domain/campaign.js';
 import {
   CampaignError, announce, begin, beginJudging, complete, enterLastStretch,
-  moveDeadline, reopenToLive,
+  moveDeadline, reopenToLive, setTerms,
 } from '../../../../src/domain/campaignEdit.js';
 import { loadCampaign, mutateCampaign } from '../../../../src/store/campaigns.js';
 import { listRequests } from '../../../../src/store/requests.js';
@@ -37,6 +39,31 @@ export async function GET(_request: Request, { params }: Params): Promise<Respon
      */
     entries: entries.length,
     submitted: entries.filter((one) => (one.submissions ?? []).length > 0).length,
+    /*
+     * AND HOW MANY OF THEM MAY ACTUALLY BE USED.  [GO-VIRAL V-3]
+     *
+     * NOT THE SAME NUMBER AS `entries`, AND AN ORGANISER HAS TO
+     * SEE THAT IT IS NOT. A call asking people to agree to
+     * something has entries that agreed, entries that have not
+     * yet, and entries that took it back — and a page showing
+     * only the total would let somebody announce a hundred
+     * finalists and then find that four of them had withdrawn.
+     *
+     * `entryProblem` IS THE ONE THAT ANSWERS IT, the same
+     * predicate the two doors ask, so the count cannot drift
+     * from what the doors will do. A call with no terms counts
+     * every entry, which is the number this line used to be.
+     *
+     * WITHDRAWALS ARE COUNTED SEPARATELY BECAUSE THEY ARE A
+     * DIFFERENT FACT. *Has not agreed yet* is somebody still
+     * deciding; *took it back* is a decision, and the audit this
+     * stage exists for is the one that can say how many.
+     */
+    ...(needsConsent(campaign) ? {
+      enterable: entries.filter(
+        (one) => !entryProblem(campaign, one.consent)).length,
+      withdrawn: entries.filter((one) => one.consent?.withdrawnAt).length,
+    } : {}),
   });
 }
 
@@ -54,7 +81,7 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
   const { id } = await params;
   if (!ID.test(id)) return fail(404, 'no such call');
   const body = await request.json().catch(() => ({})) as {
-    action?: unknown; by?: unknown; closesAt?: unknown;
+    action?: unknown; by?: unknown; closesAt?: unknown; terms?: unknown;
   };
   const now = new Date().toISOString();
   const by = typeof body.by === 'string' ? body.by : undefined;
@@ -68,6 +95,23 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
         case 'judge': beginJudging(draft, now, by); break;
         case 'announce': announce(draft, now, by); break;
         case 'complete': complete(draft, now, by); break;
+        /*
+         * WHAT ENTRANTS HAVE TO AGREE TO.  [GO-VIRAL V-3]
+         *
+         * A VERB AND NOT A FIELD ON THE CALL, like every other
+         * move here, because it is not a setting: it APPENDS.
+         * An organiser improving their wording leaves the old
+         * wording on record, so Monday's entries still verify —
+         * and a PATCH that overwrote a string could not do
+         * that without silently invalidating every signature
+         * already given.
+         */
+        case 'terms':
+          if (typeof body.terms !== 'string') {
+            throw new CampaignError('say what entrants have to agree to');
+          }
+          setTerms(draft, body.terms, now);
+          break;
         case 'deadline':
           if (typeof body.closesAt !== 'string') {
             throw new CampaignError('say when it closes');

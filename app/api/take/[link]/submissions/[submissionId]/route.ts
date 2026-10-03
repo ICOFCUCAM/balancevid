@@ -5,6 +5,8 @@ import { join } from 'node:path';
 
 import { MOST_ANGLES } from '../../../../../../shared/src/capture.js';
 import { ParticipationError, submit } from '../../../../../../src/domain/participationEdit.js';
+import { currentTerms, entryProblem } from '../../../../../../src/domain/campaign.js';
+import { callOf } from '../../../../../../src/store/campaigns.js';
 import { paths } from '../../../../../../src/store/paths.js';
 import { mutateRequest, requestForLink } from '../../../../../../src/store/requests.js';
 import { viewFor } from '../../../../../../src/domain/participation.js';
@@ -102,6 +104,31 @@ export async function PUT(request: Request, { params }: Params): Promise<Respons
   const now = new Date().toISOString();
   const found = await requestForLink(link, now);
   if (!found) return fail(404, 'that link is not open');
+
+  /*
+   * NOTHING ENTERS A CALL THAT ASKS SOMETHING WITHOUT AN ANSWER
+   * TO IT.  [GO-VIRAL V-3]
+   *
+   * THIS IS THE GATE AND THE ONE AT `POST /submissions` IS THE
+   * COURTESY. That one refuses before the song, so nobody records
+   * four minutes for nothing; this one is the rule, because it is
+   * the moment bytes become a submission and it is the moment
+   * that cannot be skipped by a client that invents a recording
+   * id. A guard only on the polite path is a guard on the polite.
+   *
+   * AND IT REFUSES BEFORE THE SEGMENTS ARE JOINED, so a refusal
+   * costs a disk write of nothing. The chunks stay where they
+   * are: the performer may agree and send, or `DELETE` them.
+   *
+   * AN ORDINARY REQUEST IS UNTOUCHED. No call, or a call with no
+   * terms, and `entryProblem` is the empty string — which is
+   * every submission this product has ever taken.
+   */
+  const call = await callOf(found);
+  if (call) {
+    const refused = entryProblem(call, found.consent);
+    if (refused) return fail(409, refused);
+  }
 
   const body = await request.json().catch(() => ({})) as {
     hintSamples?: number;
@@ -203,7 +230,9 @@ export async function PUT(request: Request, { params }: Params): Promise<Respons
         }, now);
       }
     });
-    return json({ request: viewFor(updated) }, { status: 201 });
+    return json(
+      { request: viewFor(updated, call && currentTerms(call)) },
+      { status: 201 });
   } catch (error) {
     if (error instanceof ParticipationError) return fail(409, error.message);
     throw error;

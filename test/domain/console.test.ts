@@ -1594,26 +1594,114 @@ describe('one question, one answer', () => {
 });
 
 describe('what the browser is allowed to import', () => {
-  /* Server-side by construction: these reach `newId`, the
-     filesystem, or both. */
-  const SERVER_ONLY = [
-    'performanceEdit', 'channelEdit', 'roomEdit', 'edit', 'ids',
-  ];
+  /*
+   * THE LIST USED TO BE WRITTEN BY HAND, AND IT WAS ONE LEVEL DEEP.
+   *   [GO-VIRAL V-3]
+   *
+   * Five names — `performanceEdit`, `channelEdit`, `roomEdit`,
+   * `edit`, `ids` — and a check that no component imported one of
+   * them. Both halves were too small. Fourteen domain modules reach
+   * `node:crypto`, not five; and the reach that matters is
+   * TRANSITIVE, which no list of direct importers can see. A
+   * component importing `campaign` for `entriesIn` is importing
+   * `node:crypto` if `campaign` imports anything that does, and the
+   * old test said nothing about it.
+   *
+   * THIS STAGE WALKED INTO EXACTLY THAT. `consent.ts` is drawn on
+   * the Take surface — the scopes and their sentences are a phone's
+   * checkboxes — and its first draft imported `sha256` from
+   * `ids.ts` for a hash only a server ever computes. Nothing in the
+   * suite would have said so. The hash moved to `campaignEdit.ts`
+   * and this test was rewritten to be the thing that notices next
+   * time.
+   *
+   * SO THE SET IS DERIVED AND NOT LISTED. Whatever reaches `node:`
+   * through any number of modules is server-only, by construction,
+   * and a module that stops reaching it stops being on the list
+   * without anybody remembering to take it off.
+   *
+   * `import type` IS NOT A REACH, and this is the distinction that
+   * makes the rule usable: a type is erased, so a component may name
+   * `ParticipationRequest` from a module whose runtime it must never
+   * load. A check that could not tell the two apart would have to be
+   * switched off everywhere it mattered.
+   */
+  const DOMAIN = join(ROOT, 'src', 'domain');
 
-  it('never pulls a server-only domain module into a component', () => {
+  /** Runtime imports only, and whether this module itself reaches `node:`. */
+  function readsOf(module: string): { deps: string[]; node: boolean } {
+    let body: string;
+    try {
+      body = readFileSync(join(DOMAIN, `${module}.ts`), 'utf8');
+    } catch {
+      return { deps: [], node: false };
+    }
+    const deps: string[] = [];
+    let node = false;
+    for (const hit of body.matchAll(
+      /import\s+(type\s+)?(\{[^}]*\}|[\w*]+)?\s*from\s+'([^']+)'/g)) {
+      const asType = Boolean(hit[1]);
+      const named_ = (hit[2] ?? '').replace(/[{}]/g, '');
+      /* `import { type A, type B }` is erased exactly as `import type` is. */
+      const members = named_.split(',').map((one) => one.trim()).filter(Boolean);
+      const erased = asType
+        || (members.length > 0 && members.every((one) => one.startsWith('type ')));
+      if (erased) continue;
+      const from = hit[3]!;
+      if (from.startsWith('node:')) { node = true; continue; }
+      if (from.startsWith('./') && from.endsWith('.js')) {
+        deps.push(from.slice(2, -3));
+      }
+    }
+    return { deps, node };
+  }
+
+  function reachesNode(module: string, seen = new Set<string>()): boolean {
+    if (seen.has(module)) return false;
+    seen.add(module);
+    const { deps, node } = readsOf(module);
+    return node || deps.some((one) => reachesNode(one, seen));
+  }
+
+  /** The components that actually run in a browser. */
+  const clientComponents = () => components()
+    .filter((file) => /^\s*(['"])use client\1/.test(readFileSync(file, 'utf8')));
+
+  it('never pulls a module that reaches node: into a client component', () => {
     const offenders: string[] = [];
-    for (const file of components()) {
-      for (const hit of code(file).matchAll(
-        /from '[^']*\/src\/domain\/([a-zA-Z]+)\.js'/g)) {
-        if (SERVER_ONLY.includes(hit[1]!)) {
-          offenders.push(`${named(file)} → ${hit[1]}`);
-        }
+    for (const file of clientComponents()) {
+      const body = code(file);
+      for (const hit of body.matchAll(
+        /import\s+(type\s+)?(\{[^}]*\}|[\w*]+)?\s*from\s+'[^']*\/src\/domain\/([a-zA-Z]+)\.js'/g)) {
+        const named_ = (hit[2] ?? '').replace(/[{}]/g, '');
+        const members = named_.split(',').map((one) => one.trim()).filter(Boolean);
+        if (hit[1] || (members.length > 0
+          && members.every((one) => one.startsWith('type ')))) continue;
+        if (reachesNode(hit[3]!)) offenders.push(`${named(file)} → ${hit[3]}`);
       }
     }
     expect(offenders,
-      'that module reaches node:crypto — put the constant in a '
-      + 'browser-safe module and import it from there')
+      'that module reaches node:crypto or another node: builtin — put '
+      + 'the constant in a browser-safe module and import it from there')
       .toEqual([]);
+  });
+
+  /*
+   * AND THE DERIVATION FINDS SOMETHING, which is the half a green
+   * run cannot tell you. A `readsOf` that silently returned nothing
+   * — a renamed directory, a regex that stopped matching — would
+   * make the test above pass for every component in the product and
+   * mean nothing at all. `ids` is the module every other one reaches
+   * `node:crypto` through, and `consent` is the one this stage put
+   * on a phone. [V-1: the run that reports no survivors is the run
+   * to distrust.]
+   */
+  it('knows which modules those are', () => {
+    expect(reachesNode('ids')).toBe(true);
+    expect(reachesNode('campaignEdit'), 'through ids').toBe(true);
+    expect(reachesNode('participationEdit'), 'through ids').toBe(true);
+    expect(reachesNode('consent'), 'the Take surface draws it').toBe(false);
+    expect(reachesNode('campaign'), 'and it imports consent').toBe(false);
   });
 
   /*

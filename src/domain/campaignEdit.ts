@@ -18,11 +18,11 @@
 
 import {
   type Campaign, type CampaignId, type CampaignRules, type CampaignState,
-  clockSays, mayJudge, mayMoveCampaign,
+  type CampaignTerms, clockSays, currentTerms, mayJudge, mayMoveCampaign,
 } from './campaign.js';
 import { type TakeAvailability, whenProblem } from './availability.js';
 import type { RequestHolder } from './participation.js';
-import { newId } from './ids.js';
+import { newId, sha256 } from './ids.js';
 
 export class CampaignError extends Error {
   constructor(message: string) {
@@ -37,6 +37,17 @@ const fail = (message: string): never => { throw new CampaignError(message); };
 export const TITLE_LONGEST = 120;
 /** And the longest any of the organiser's three paragraphs may be. */
 export const RULE_LONGEST = 2000;
+/**
+ * And the longest a set of terms may be.
+ *
+ * LONGER THAN A RULE, BECAUSE IT IS A DIFFERENT KIND OF TEXT. A
+ * prize is a sentence; what somebody is agreeing to about their
+ * own face is allowed to be several paragraphs. Still bounded,
+ * because it arrives from a form and is stored forever: the list
+ * is append-only, so an unbounded field would be an unbounded
+ * field once per edit.
+ */
+export const TERMS_LONGEST = 8000;
 
 /**
  * Open a call.
@@ -240,4 +251,53 @@ export function moveDeadline(
   if (says === 'live' && campaign.state === 'closing') {
     advanceCampaign(campaign, 'live', now, by);
   }
+}
+
+/**
+ * The hash of a set of terms, as everything here spells it.
+ *
+ * THE EXACT BYTES, AND `quoteHash`'S NORMALISATION IS DELIBERATELY
+ * NOT APPLIED. That one folds whitespace and quotation marks so
+ * re-transcribing a quotation does not invalidate an anchor —
+ * right for a quotation and wrong here. A clause reflowed is a
+ * clause somebody may read differently, and the question this hash
+ * answers is *are these the words they saw*, to which "nearly" is
+ * not an answer.
+ */
+export function termsHashOf(text: string): string {
+  return sha256(text);
+}
+
+/**
+ * Say what entrants have to agree to.  [GO-VIRAL V-3]
+ *
+ * THIS IS THE ONLY WAY A CALL COMES TO REQUIRE CONSENT, and
+ * calling it is the organiser deciding to ask. A call with no
+ * terms asks nobody anything and every request under it behaves
+ * exactly as every request has always behaved.
+ *
+ * IT APPENDS AND NEVER REPLACES. An organiser improving their
+ * wording on Tuesday must not reach back and change what Monday's
+ * entrants agreed to — and must not invalidate Monday's entries
+ * either, which is what replacing a single string would do. Both
+ * are avoided by the same decision: the old wording stays on
+ * record, `currentTerms` is what the next entrant sees, and
+ * `termsSigned` still finds Monday's.
+ *
+ * THE SAME WORDS TWICE ARE THE SAME WORDS. Pressing save on an
+ * unchanged form must not write a second entry with an identical
+ * hash and a later date — the wording came into use when it came
+ * into use, and `from` is that moment.
+ */
+export function setTerms(
+  campaign: Campaign, text: string, at: string,
+): CampaignTerms {
+  const words = text.trim().slice(0, TERMS_LONGEST);
+  if (!words) fail('terms nobody can read are not terms');
+  const already = currentTerms(campaign);
+  const hash = termsHashOf(words);
+  if (already?.hash === hash) return already;
+  const next: CampaignTerms = { hash, text: words, from: at };
+  campaign.terms = [...(campaign.terms ?? []), next];
+  return next;
 }

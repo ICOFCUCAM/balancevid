@@ -1,5 +1,7 @@
 import { advance } from '../../../../../src/domain/participationEdit.js';
 import { takesLeft } from '../../../../../src/domain/participation.js';
+import { entryProblem } from '../../../../../src/domain/campaign.js';
+import { callOf } from '../../../../../src/store/campaigns.js';
 import { newId } from '../../../../../src/domain/ids.js';
 import { mutateRequest, requestForLink } from '../../../../../src/store/requests.js';
 import { fail, json } from '../../../../../src/web/http.js';
@@ -36,6 +38,33 @@ export async function POST(_request: Request, { params }: Params): Promise<Respo
   if (takesLeft(found) <= 0) {
     const allowed = found.allowed.takes ?? 1;
     return fail(409, `this request accepts ${allowed} recording(s) and has them`);
+  }
+
+  /*
+   * AND SO IS THE AGREEMENT, FOR THE SAME REASON THE CAP IS.
+   *   [GO-VIRAL V-3]
+   *
+   * The paragraph above says it: *"a request that allows three
+   * takes should not accept a fourth recording's chunks for four
+   * minutes and then refuse the submission — the refusal belongs
+   * at the start, where it costs nobody a performance."* A call
+   * that asks people to agree to something and lets them sing
+   * first is worse than that, not better: it has taken the
+   * recording before asking the question.
+   *
+   * THE REAL GATE IS STILL THE PUT, because this route can be
+   * skipped by anything that knows how to name a recording id.
+   * This one exists so that a performer never reaches the end of
+   * a song and is then told no.
+   *
+   * A REQUEST UNDER NO CALL ANSWERS NOTHING HERE. `entryProblem`
+   * is the empty string for every request this product has ever
+   * issued. [D-19]
+   */
+  const call = await callOf(found);
+  if (call) {
+    const refused = entryProblem(call, found.consent);
+    if (refused) return fail(409, refused);
   }
 
   const id = newId('sub');

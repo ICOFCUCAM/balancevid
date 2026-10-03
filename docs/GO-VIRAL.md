@@ -1400,7 +1400,7 @@ listed as one call in the inbox; every request made before this
 stage reads and behaves exactly as it did; and a campaign cannot be
 moved to JUDGING while its window is open.
 
-## V-3 · Taking part is consented to, and the consent is a record — **ADD**
+## V-3 · Taking part is consented to, and the consent is a record — **ADD**  ·  *built, PART SEVEN*
 
 **What exists today.** The publisher's consent in
 `src/domain/publish.ts`, with the rule that matters already stated:
@@ -1431,6 +1431,66 @@ behaves exactly as today; a withdrawal removes the entry from every
 public surface and leaves the audit intact; and the terms hash of a
 given entry still verifies after the terms text is changed for new
 entrants.
+
+**What was built, and the four places it is not what this section
+said.** Each one is a decision the section did not anticipate and
+which building it forced; they are written here rather than
+smoothed over, because the next stage reads this page and not the
+diff.
+
+**One.** *"Written at submission time"* — it is not. Consent has
+its own door, `POST /api/take/{link}/consent`, and the submission
+routes refuse without it. The reason is the sentence two
+paragraphs above it: *"shown on the Take surface before the camera
+opens"*. A consent object folded into the request that carries four
+minutes of video was not shown to anybody before they recorded, and
+the order is the whole substance of the thing. The record is
+written at the moment the words were read, which is strictly
+earlier than submission and is what the section meant. There is
+exactly one way to write one, so the sign cannot be walked past.
+
+**Two.** A campaign's terms are an **append-only list**, not a
+string. `CampaignTerms { hash, text, from }`, newest last, with
+`currentTerms` for a new entrant and `termsSigned(hash)` for an old
+one. This is forced by the last judging clause: a single mutable
+string can satisfy *new entrants see the new words* or *an old
+entry still verifies*, never both. It also keeps the TEXT and not
+only the hash, because a record saying *they agreed to something
+with hash a3f…* is a record nobody can read back. A call requires
+consent **exactly when it has terms** — there is no second flag,
+because a flag and a list could disagree.
+
+**Three.** `termsHashOf` is `sha256` of the exact trimmed bytes and
+deliberately does **not** use `quoteHash`'s normalisation, although
+this section cites `quoteHash` as the precedent. That one folds
+whitespace and quotation marks so re-transcribing a quotation does
+not invalidate an anchor — right for a quotation, wrong here. A
+clause reflowed is a clause somebody may read differently, and the
+question this hash answers is *are these the words they saw*, to
+which *nearly* is not an answer.
+
+**Four.** *"A withdrawal removes the entry from every public
+surface"* — there is no public surface yet; it arrives at V-4.
+What shipped is the predicate every surface will ask (`permits`,
+`entryProblem`), asked at the two doors that exist — the
+participant's send and the producer's accept — and the organiser's
+own counts, which now report `enterable` and `withdrawn` beside
+`entries` rather than one total. V-4 filters its page on
+`permits(record, 'display')` and V-6 on `'clip'`; neither is a new
+rule.
+
+**And one thing found on the way.** `consent.ts` is drawn on a
+phone — the four scopes and their sentences are the Take surface's
+checkboxes — and its first draft imported `sha256` from `ids.ts`,
+which would have pulled `node:crypto` into the browser bundle
+through `campaign.ts` as well. The suite's own guard against this
+was a hand-written list of five module names checked one level
+deep; fourteen domain modules reach `node:crypto` and the reach
+that matters is transitive. The hash moved to `campaignEdit.ts`
+and the guard now derives the set by walking the import graph,
+counting `import type` as no reach at all. It is the same class of
+boundary T-5 hit with `electron`, and the same lesson: a local
+typecheck cannot see a bundle.
 
 ## V-4 · The campaign has a public page, on the gateway that already exists — **ADD**
 
@@ -1667,7 +1727,7 @@ the brief does not ask for.
 | 4 | the ten-state lifecycle | V-2 (six), V-8 (four) | argued in §4 |
 | 5 | the track, and rights | V-1 | `MasterClass`, INV-15 shipped |
 | 6 | the participant with no account | — | shipped; must not change |
-| 7 | consent as a record | V-3 | the author's consent exists, not theirs |
+| 7 | consent as a record | V-3 | **shipped**: terms, scopes, withdrawal, both doors |
 | 8 | MediaAsset / MediaVariant | — | shipped as derived paths; **not built** as a record |
 | 9 | the media pipeline | — | shipped; queue order measured if it bites |
 | 10 | discovery | V-4 | the public layer is shipped |

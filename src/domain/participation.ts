@@ -31,6 +31,7 @@
  */
 
 import type { Id } from './ids.js';
+import type { ConsentRecord } from './consent.js';
 
 export type RequestId = Id<'req'>;
 
@@ -242,6 +243,30 @@ export interface ParticipationRequest {
    * request issued before this field existed would have.
    */
   expiresAt?: string;
+  /**
+   * What this participant was told, and what they agreed to.
+   *   [GO-VIRAL V-3]
+   *
+   * ONE RECORD PER REQUEST AND NOT ONE PER SUBMISSION, because
+   * the thing agreed to is taking part — a performer who sang
+   * three takes under one set of terms agreed once, and three
+   * records would be three chances for them to disagree with
+   * each other.
+   *
+   * ABSENT IS EVERY REQUEST THIS PRODUCT HAS EVER ISSUED, and a
+   * request under no campaign stays that way forever: a producer
+   * inviting four people by name is not running a competition
+   * and this field is not a thing to make them fill in. It is
+   * REQUIRED exactly where the call has terms, which is
+   * `entryProblem`'s question and nothing this type decides.
+   *
+   * IT IS NOT THE PUBLISHER'S CONSENT. `publish.ts` records an
+   * AUTHOR agreeing to be answered; this records a PARTICIPANT
+   * agreeing to be used. Two people, two decisions, and one
+   * field for both would make a producer's publish look like a
+   * performer's release. [D-25]
+   */
+  consent?: ConsentRecord;
   /** What came back. Empty until they submit. */
   submissions?: Submission[];
 }
@@ -334,6 +359,27 @@ export interface RequestView {
    * disagreeing is worse than either of them being wrong.
    */
   submitted: number;
+  /**
+   * The words this participant must agree to before recording.
+   *   [GO-VIRAL V-3]
+   *
+   * SENT BECAUSE THEY HAVE TO BE READ, which is the one thing
+   * that makes a consent record worth having. A hash the client
+   * echoes back without ever having shown anybody the text would
+   * be a signature on a sealed envelope.
+   *
+   * ABSENT MEANS NOTHING IS ASKED. A request under no call, or
+   * under a call with no terms, carries no terms and the surface
+   * is byte for byte the surface it was.
+   *
+   * AND IT NAMES NO CAMPAIGN. A participant learns what they are
+   * agreeing to; they do not learn which call it is, who else
+   * entered, or what the prize is — that is V-4's public page,
+   * which somebody arrives at on purpose. [D-25]
+   */
+  terms?: { hash: string; text: string };
+  /** What they have already agreed, if they have. */
+  consent?: ConsentRecord;
 }
 
 /**
@@ -348,7 +394,24 @@ export interface RequestView {
  * The token is not returned either. They already have it; echoing a
  * credential into a response body is how credentials end up in logs.
  */
-export function viewFor(request: ParticipationRequest): RequestView {
+export function viewFor(
+  request: ParticipationRequest,
+  /*
+   * THE CALL'S TERMS, WHERE THE CALLER HAS THEM.  [GO-VIRAL V-3]
+   *
+   * PASSED IN RATHER THAN LOOKED UP, because this module decides
+   * what a participant may be told and does not read campaigns,
+   * requests or anything else off a disk. The route that already
+   * loaded the call hands over the two fields a participant
+   * needs; everything else about the call stays where it was.
+   *
+   * OPTIONAL, SO EVERY EXISTING CALLER IS UNCHANGED — and a
+   * caller that forgets is not a caller that leaks, it is a
+   * caller that shows nothing, which is this function's own
+   * direction of failure everywhere else.
+   */
+  terms?: { hash: string; text: string } | null,
+): RequestView {
   return {
     id: request.id,
     assignment: request.assignment,
@@ -356,6 +419,8 @@ export function viewFor(request: ParticipationRequest): RequestView {
     state: request.state,
     ...(request.participant ? { participant: request.participant } : {}),
     submitted: takesMade(request),
+    ...(terms ? { terms: { hash: terms.hash, text: terms.text } } : {}),
+    ...(request.consent ? { consent: request.consent } : {}),
   };
 }
 

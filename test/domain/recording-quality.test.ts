@@ -197,10 +197,22 @@ describe('the recorder stops hard-coding the picture', () => {
     expect(source).toMatch(/grade\.quality\.fps/);
   });
 
-  /* A sound-only recording has no camera to choose. [T12, B6i] */
+  /*
+   * A sound-only recording has no camera to choose. [T12, B6i]
+   *
+   * `!soundOnly` AND NOT THE WHOLE EXPRESSION. This read
+   * `useCamera(!soundOnly)` exactly, and V-3 added a second reason
+   * not to open a camera — a call whose terms have not been agreed
+   * to yet — which broke a test that was right about the product
+   * and wrong about the line. What matters is that the flag is
+   * driven BY `soundOnly`, not that `soundOnly` is the only thing
+   * in it; the alternative is a test that has to be edited every
+   * time another honest reason to leave the camera shut is found.
+   * [T-1]
+   */
   it('asks for no camera where there is no picture', () => {
     expect(TAKE).toMatch(/video: soundOnly \? undefined : cameraConstraints\(/);
-    expect(TAKE).toMatch(/useCamera\(!soundOnly\)/);
+    expect(TAKE).toMatch(/useCamera\(!soundOnly\b/);
   });
 });
 

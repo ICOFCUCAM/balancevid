@@ -5,6 +5,8 @@ import {
   ParticipationError, accept, hold, reject, rotate,
 } from '../../../../../../src/domain/participationEdit.js';
 import { viewFor } from '../../../../../../src/domain/participation.js';
+import { entryProblem } from '../../../../../../src/domain/campaign.js';
+import { callOf } from '../../../../../../src/store/campaigns.js';
 import { PerformanceEditError, addTake } from '../../../../../../src/domain/performanceEdit.js';
 import type { AssetId, TakeId } from '../../../../../../src/domain/document.js';
 import { newId } from '../../../../../../src/domain/ids.js';
@@ -129,6 +131,33 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
     const submission = (found.submissions ?? [])
       .find((one) => one.assetId === submissionId);
     if (!submission) return fail(404, 'no such submission');
+
+    /*
+     * AND THE AGREEMENT IS ASKED AGAIN HERE.  [GO-VIRAL V-3]
+     *
+     * THE SAME PREDICATE AT THE OTHER DOOR, which is the point of
+     * it being a predicate. A rule enforced where a participant
+     * pushes and forgotten where a producer pulls is a rule that
+     * holds until somebody uses the inbox — and the two doors are
+     * minutes or weeks apart, which is all the time a withdrawal
+     * needs to arrive in.
+     *
+     * A WITHDRAWAL BETWEEN SENDING AND ACCEPTING IS THE CASE THIS
+     * CATCHES, and it is not a rare one: taking it back is a thing
+     * somebody does after they have sent it. Accepting turns a
+     * submission into production material — the one act D-25 says
+     * is irreversible — so it is the last moment the question can
+     * be asked and the one that matters most.
+     *
+     * NOTHING HAS MOVED YET. This sits above the mutation for the
+     * reason the paragraph below gives about order: a refusal must
+     * not leave a take in the rail.
+     */
+    const call = await callOf(found);
+    if (call) {
+      const refused = entryProblem(call, found.consent);
+      if (refused) return fail(409, refused);
+    }
 
     /*
      * THE REQUEST MOVES FIRST, AND THE TAKE SECOND.
