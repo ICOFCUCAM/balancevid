@@ -921,7 +921,7 @@ N-4 drew it.
 The station's own public identity, per the brief, and explicitly
 **not** the discovery mechanism.
 
-## N-9 · The TV applications — **ADD**
+## N-9 · The TV applications — **ADD** · *built, see PART NINE*
 
 Web first, since N-4 is already the web client. Mobile and CTV
 consume the same registry and guide, which is the point of building
@@ -1570,7 +1570,217 @@ tv.nobody.example/                    404
 canonical = https://balancevid.example/tv/channels/balancevid-tv
 ```
 
+---
+
+# PART NINE · N-9, as built
+
+> *"Yes — I think BalanceVid should eventually have a dedicated
+> Online TV application. Not just the existing web Watch page."*
+
+```
+BALANCEVID TV
+HOME · LIVE · GUIDE · CHANNELS · SEARCH · FAVORITES
+```
+
+### The measurement first, because N-7 moved the goalposts
+
+N-7 made the whole lineup readable by any IPTV player on any
+platform the brief names. **A viewer with VLC, Kodi, Tivimate or a
+set-top box needs no BalanceVid application at all**, which takes
+most of the reason for one away before this stage starts. So N-9
+is scoped by what is still missing after that, and three things
+were:
+
+| the brief | what `/tv` had |
+|---|---|
+| `… CHANNELS · SEARCH · FAVORITES` | no Favorites |
+| *"CH + / CH −"* | `tuneFrom` built in N-6, **nothing drew it** |
+| *"a dedicated Online TV application"* | a web page, not an app |
+
+### The remote control, built in N-6 and never pressed
+
+`tuneFrom` has been tested since N-6 — wrapping both ends,
+landing on the nearest channel in the direction asked — and was
+recorded in this document's own *not built* list as arithmetic
+nobody could reach. **This is the finding the whole network stage
+keeps making, and this closes it.**
+
+`tuning` lives in `channelListing.ts` because it is the one place
+holding both halves: the registry knows numbers and must not
+learn about stations, and a page needs a slug to link to.
+
+**Real links, not buttons**, which is what makes it work on the
+device it is for. A D-pad moves focus between links and presses
+OK; a television browser with no JavaScript still tunes; and the
+number beside each arrow shows where the press lands before it is
+made.
+
+**Deliberately not the arrow keys.** A D-pad sends arrows and
+arrows are how a viewer moves focus on the page — hijacking them
+would break the one input device a TV app can count on.
+`PageUp`/`PageDown` and the literal `ChannelUp`/`ChannelDown`, and
+nothing else.
+
+**Absent for a lineup of one** rather than disabled: a greyed-out
+CH+ on a one-channel network is furniture explaining an absence
+nobody asked about.
+
+### Favorites, per device, and it says so
+
+**`/tv` is served before any sign-in** and most of the people who
+will ever see it have no account, so a favourites list that
+needed one would be a nav item asking a viewer to register before
+it does anything. The list lives in the browser that made it, and
+the page says *"kept on this device"* rather than letting
+somebody discover it by opening their phone.
+
+**The filtering is the browser's.** The whole directory is served
+and the matching happens client-side, because the alternative is
+a round trip carrying a viewer's slugs to a server that has no
+business holding them — a per-device preference turned into
+something this installation knows about every visitor. A
+directory is tens of rows; when an installation has enough
+channels for that to be the wrong trade, the fix is paging the
+directory, not posting the viewer's list. [D-03]
+
+**Slugs, not ids.** A list of `chan_c3bf…` is a list nobody can
+check in their own browser's storage inspector.
+
+**The spelling is the brief's and the reservation's.** This
+product writes `colour`, and `RESERVED_SLUGS` has held
+`favorites` since N-1 — the word was chosen when the directory's
+reserved list was written, and a second spelling now would be a
+route and a reservation that disagree.
+
+**Read in an effect, never during render**, because these pages
+are server-rendered and storage does not exist on the server. The
+first paint has no stars; the channels are the page and the stars
+are the viewer's marks on it. Every read and write is guarded —
+storage throws outright in a private window on some browsers, and
+a television network that will not render because a star could
+not be saved is the worse outcome.
+
+**A starred channel that leaves the directory** is dropped from
+the page rather than shown as a gap, and kept in storage rather
+than forgotten, so a channel that comes back comes back starred.
+One line explains the arithmetic when the two counts differ.
+
+### The thing that installs
+
+A manifest on the **`/tv` layout** rather than on five pages, so
+every page under it carries one and a sixth page added tomorrow
+does too.
+
+**Not per channel**, which is the opposite of the Take App's
+decision and right for the opposite reason. That manifest is
+composed per link because *"a single manifest at `/take/` would
+install an icon that opens a page saying 'paste your link'"*. Here
+what a viewer wants on a home screen is the NETWORK; an icon per
+station is a home screen full of one company's channels.
+
+**The worker caches nothing but the apology**, and that is the
+design rather than an unfinished version of one. You cannot watch
+television offline, and a channel grid served out of last week's
+cache is a page that lies about what is on — the single thing
+this network exists to tell the truth about. What it adds is one
+thing: an installed app that opens to a browser error page looks
+broken, and one that opens to its own name saying *no connection*
+looks like an app.
+
+### What a store listing would add, stated rather than implied
+
+The Take App's own worker wrote this split first and it holds
+here unchanged:
+
+> *"A signed binary in two stores needs accounts, certificates and
+> a release pipeline, and none of that is a change to this
+> product."*
+
+What is built: the network installs to a home screen or a
+television, opens without browser chrome, and says something
+sensible with no network. What is not: a listing in any store.
+
+And what the brief asked for is answered **twice over**, which is
+worth saying plainly:
+
+| target | how a viewer gets there |
+|---|---|
+| Web | `/tv`, since N-4 |
+| Android, desktop | install from the browser |
+| iOS | Add to Home Screen |
+| Android TV, Fire TV | the browser, or **any IPTV client** — N-7 |
+| Apple TV, Samsung, LG | **any IPTV client** — N-7 |
+
+A packaged binary per platform would add store placement and
+nothing a viewer cannot already do. That is a distribution
+decision, not a product one.
+
+### `useInstallOffer`, extracted rather than copied
+
+The Take App has been installable since T13a and has a chooser
+with the standalone check, the Chromium event, the Safari
+exception and the spent prompt in it. The television network
+needed every one of those lines and not one word of the wording,
+so the machinery moved into a hook and the bar kept its words.
+[D-19]
+
+**The Take App's behaviour is unchanged, with one fix taken in
+passing:** `appinstalled` was added and never removed, so a bar
+that unmounted left a listener holding a dead `setState`. Its
+three source-text tests now read the hook, and **a new one fails
+if either line ever appears in a component again** — the claim
+that there is one copy is now checked rather than asserted in a
+comment.
+
+### Two faults found by looking
+
+**The star wrapped below the card.** It sat beside the card in a
+`.row`, which wraps: in a 260px grid cell a card whose name does
+not shrink pushed the star onto a line of its own — and only on
+channels with longer names, so one of two cards had it and the
+other did not. Found in a screenshot, not a test. It sits over
+the card's corner now; both cards measure 281px with their stars
+at the same height.
+
+**And two glyphs**, caught by the console tests. They are right,
+and especially here: a glyph is whatever font the reader has, and
+the reader is a television — the one device whose font set nobody
+can predict.
+
+### The record
+
+**174 test files, 3307 tests**, green. `tsc --noEmit` clean.
+`next build` clean.
+
+`dialOrder` was extracted from `tvExport.ts` rather than copied
+into the favourites: a favourites list is a personal lineup and
+the M3U is the other one, and two comparators would be two
+answers to what order a dial is in.
+
+**Driven in a browser**, signed out, against two channels:
+
+```
+star on the grid           toggles, data-on="true"
+localStorage               ["balancevid-tv"], under the one key
+/tv/favorites              1 row, then 2; empty state after unstarring
+CH − / CH +                CH 101 both ways, wrapping as a ring
+PageUp                     -> /tv/channels/second-channel
+PageDown                   -> /tv/channels/balancevid-tv
+clicking CH +              -> /tv/channels/second-channel
+rocker with one channel    absent
+service worker             registered, scope http://…/tv
+failed requests            none
+```
+
+The second channel was made through the API to measure the
+rocker, and removed afterwards; the author's own channel is
+restored — `station` None, rotation 8, programmes 1, ingests 11,
+identity present, no `lineup.json`.
+
 ## Not built
+
+**N-1 to N-9 are built.** What follows is what was deliberately
+left, each with the reason rather than as a list of absences.
 
 - **The federated registry.** What N-6 built is allocation within
   one installation. The brief's registry spans installations —
@@ -1579,12 +1789,12 @@ canonical = https://balancevid.example/tv/channels/balancevid-tv
   `connections.ts`'s standing rule about not indexing
   installations. It needs its own decision, not an extension of
   this one.
-- **N-9 · the mobile and CTV applications.** `/tv` is the web
-  client, and the API they would consume is built. N-7 makes a
-  third option real that was not on the list: **a viewer with any
-  existing IPTV player needs no BalanceVid application at all.**
-- **A remote control.** `tuneFrom` is built and tested — CH+ / CH−
-  wrapping both ends — and no page draws it.
+- **A packaged binary in anybody's store.** `/tv` installs from a
+  browser on Android, desktop and iOS, and N-7 means any IPTV
+  client reaches the lineup on every CTV platform the brief
+  names. A store listing adds placement and nothing a viewer
+  cannot already do: a distribution decision, not a product one.
+  See PART NINE.
 - **A single channel's own M3U.** The station page could offer one
   address for one channel, the way the network offers one for all
   of them. Not built because nothing asked, and a second export
