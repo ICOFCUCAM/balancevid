@@ -1,7 +1,10 @@
+import { headers } from 'next/headers';
+
 import { directory } from '../../src/domain/channelListing.js';
 import { listChannels } from '../../src/store/channels.js';
-import { ChannelGrid, TvFrame } from './Tv.js';
+import { ChannelGrid, TvApps, TvFrame } from './Tv.js';
 import { lineupFor } from '../../src/store/lineup.js';
+import { originFrom } from '../../src/web/share.js';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,6 +48,14 @@ export default async function TvPage() {
           : `${channels.length} channels on the network.`}
       </p>
       <ChannelGrid channels={channels} />
+      {/*
+        * AND HOW TO TAKE IT OFF THIS PAGE. The addresses are
+        * absolute because a television has no page to resolve a
+        * relative one against, and they are on the front page
+        * because the fault this stage keeps finding is a
+        * capability nothing points at. [N-7]
+        */}
+      <TvApps origin={originFrom(await headers()) ?? ''} />
     </TvFrame>
   );
 }

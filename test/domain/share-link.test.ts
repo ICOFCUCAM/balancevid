@@ -18,6 +18,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
+import { originFrom, originOf } from '../../src/web/share.js';
+
 const ROOT = join(import.meta.dirname, '..', '..');
 const read = (file: string) => readFileSync(join(ROOT, file), 'utf8');
 /**
@@ -353,5 +355,75 @@ describe('the square itself', () => {
       expect(route).toMatch(/const origin = originOf\(request\)/);
       expect(route).not.toMatch(/new URL\(request\.url\)\.origin/);
     }
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ *  Where this installation answers, which a television has to be told.
+ * ------------------------------------------------------------------ */
+
+describe('the origin, from headers alone (N-7)', () => {
+  const of = (headers: Record<string, string>) => originFrom(new Headers(headers));
+
+  /*
+   * THIS RULE HAD NO BEHAVIOURAL TEST AT ALL — only a grep over
+   * the routes that call it. It was fine while its output went
+   * into a preview card nobody checks; `/tv` now prints it as an
+   * address a viewer pastes into a set-top box, and an origin
+   * that is wrong there is a television that tunes to nothing.
+   */
+  it('believes the proxy over the socket', () => {
+    expect(of({
+      host: 'internal:3000',
+      'x-forwarded-host': 'balancevid.com',
+      'x-forwarded-proto': 'https',
+    })).toBe('https://balancevid.com');
+  });
+
+  /*
+   * AND ASSUMES HTTPS WHERE THE PROXY DID NOT SAY. Everything
+   * this product is deployed behind terminates TLS; a card or an
+   * M3U that said `http://balancevid.com` would be a mixed-content
+   * block on one and a redirect on the other.
+   */
+  it('assumes https for a real host that did not say', () => {
+    expect(of({ host: 'balancevid.com' })).toBe('https://balancevid.com');
+  });
+
+  /* Except where it cannot be true. Development is plain HTTP. */
+  it('keeps development on http', () => {
+    expect(of({ host: 'localhost:3000' })).toBe('http://localhost:3000');
+    expect(of({ host: '127.0.0.1:3100' })).toBe('http://127.0.0.1:3100');
+  });
+
+  /* A proxy that says `http` is believed, loopback or not. */
+  it('still believes an explicit proto', () => {
+    expect(of({ host: 'balancevid.com', 'x-forwarded-proto': 'http' }))
+      .toBe('http://balancevid.com');
+  });
+
+  /*
+   * AND NOTHING WHERE THERE IS NO HOST, because an invented
+   * origin is worse than an absent one: the panel prints a bare
+   * path, which a reader can see is incomplete, rather than a
+   * confident address pointing at the wrong machine.
+   */
+  it('answers nothing when there is no host to build one from', () => {
+    expect(of({})).toBe(null);
+  });
+
+  /*
+   * THE `Request` FORM IS THE SAME ANSWER. Two copies of this
+   * rule would be two behaviours, and the subtle half — the
+   * loopback exception — is exactly the half that would drift.
+   */
+  it('gives a request the same answer, and falls back to its URL', () => {
+    expect(originOf(new Request('http://internal/x', {
+      headers: { 'x-forwarded-host': 'balancevid.com' },
+    }))).toBe('https://balancevid.com');
+    /* `Request` always carries a host header, so the fallback is
+       reached by a caller that builds its own headers. */
+    expect(originFrom(new Headers({})) ?? new URL('http://fallback/x').origin)
+      .toBe('http://fallback');
   });
 });

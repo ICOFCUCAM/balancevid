@@ -39,9 +39,25 @@ export interface Share {
  * development still produces a URL that works there.
  */
 export function originOf(request: Request): string {
-  const headers = request.headers;
+  return originFrom(request.headers) ?? new URL(request.url).origin;
+}
+
+/**
+ * The same answer, from headers alone.
+ *
+ * A SERVER COMPONENT HAS NO `Request`. `next/headers` gives it the
+ * headers and nothing else, and `/tv` has to print an absolute
+ * address for a television to be pointed at — so the choice was a
+ * second copy of the forwarded-header rule or this. The rule is
+ * subtle enough (the proxy wins; localhost is plain HTTP) that two
+ * copies would be two behaviours. [D-19]
+ *
+ * Nothing when there is no host to build one from, because an
+ * invented origin is worse than an absent one.
+ */
+export function originFrom(headers: Headers): string | null {
   const host = headers.get('x-forwarded-host') ?? headers.get('host');
-  if (!host) return new URL(request.url).origin;
+  if (!host) return null;
   const proto = headers.get('x-forwarded-proto')
     ?? (host.startsWith('localhost') || host.startsWith('127.0.0.1') ? 'http' : 'https');
   return `${proto}://${host}`;
