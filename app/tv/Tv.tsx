@@ -24,28 +24,7 @@ import {
 } from '../../src/domain/favorites.js';
 import { useInstallOffer } from '../useInstallOffer.js';
 import Icon, { type IconName } from '../Icon.js';
-
-/**
- * THE ONE PLACE THE NETWORK'S PICTURES ARE NAMED.
- *
- * Every image on the front page is listed here and nowhere else,
- * so swapping the artwork is editing this block rather than
- * hunting through markup. Drop a file into `public/network/` and
- * change the string; nothing else moves.
- *
- * THE DEFAULTS ARE PICTURES THIS PRODUCT ALREADY OWNS, which is
- * the right placeholder rather than a stock photograph bought for
- * one page: `online-tv.webp` is how the studio introduces the
- * Online TV room, so the network's front door and the room behind
- * it are recognisably the same place until something better
- * arrives. [D-19]
- */
-export const NETWORK_ART = {
-  /** The band under the header. Wants a wide, dark-ish photograph. */
-  hero: '/rooms/online-tv.webp',
-  /** Where in the frame to hold when the band is cropped. */
-  heroFocus: '72% 42%',
-} as const;
+import { NETWORK_ART } from './art.js';
 
 export interface Listing {
   slug: string;
@@ -565,8 +544,8 @@ export function TvApps({ origin }: { origin: string }) {
 /**
  * The network, said at the size a network says itself.
  *
- * THE PHOTOGRAPH IS NAMED IN ONE PLACE, `NETWORK_ART` at the head
- * of this file, so replacing it is one string and not a search
+ * THE PHOTOGRAPH IS NAMED IN ONE PLACE, `NETWORK_ART` in
+ * `app/tv/art.ts`, so replacing it is one string and not a search
  * through markup. It defaults to the picture this product already
  * owns — the one the studio introduces the Online TV room with —
  * so the front door and the room behind it are recognisably the
@@ -909,5 +888,43 @@ export function Reach(
         Open to any station, anywhere.
       </span>
     </p>
+  );
+}
+
+/**
+ * The directory's sort, which submits itself.
+ *
+ * A FORM AND NOT A FETCH. Choosing an order reloads the page with
+ * `?order=` on it, so the chosen order is in the URL — shareable,
+ * bookmarkable, and the same answer to a crawler as to a person.
+ * A dropdown that re-sorted an array in the browser would be an
+ * order nobody could link to.
+ *
+ * AND IT WORKS WITH NO JAVASCRIPT. The `onChange` is a
+ * convenience; without it the form still has a submit button,
+ * which is what a set-top browser and a text browser get. The one
+ * thing this component adds is not having to press it. [U-19]
+ */
+export function SortBy(
+  { order, genre, orders }: {
+    order: string; genre?: string; orders: Record<string, string>;
+  },
+) {
+  return (
+    <form className="net-sort" action="/tv/channels" method="get"
+          data-testid="tv-sort">
+      {genre && <input type="hidden" name="genre" value={genre} />}
+      <label htmlFor="tv-order" className="small muted">Sort</label>
+      <select id="tv-order" name="order" defaultValue={order}
+              data-testid="tv-order"
+              onChange={(event) => { event.currentTarget.form?.requestSubmit(); }}>
+        {Object.entries(orders).map(([key, says]) => (
+          <option key={key} value={key}>{says}</option>
+        ))}
+      </select>
+      <noscript>
+        <button type="submit" className="ctl sm">Sort</button>
+      </noscript>
+    </form>
   );
 }
