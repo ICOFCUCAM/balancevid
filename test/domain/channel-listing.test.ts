@@ -11,7 +11,7 @@ import { describe, expect, it } from 'vitest';
 import type { Channel } from '../../src/domain/channel.js';
 import { newChannel, setStation } from '../../src/domain/channelEdit.js';
 import {
-  bySlug, directory, inDirectory, listingFor, standingOf,
+  bySlug, directory, inDirectory, listingFor, standingOf, tuning,
 } from '../../src/domain/channelListing.js';
 
 const AT = '2026-10-02T20:00:00.000Z';
@@ -251,5 +251,90 @@ describe('numbers on a listing (N-6)', () => {
       { [zulu.id]: 100, [alpha.id]: 101 });
     expect(rows.map((r) => r.name)).toEqual(['Alpha TV', 'Zulu TV']);
     expect(rows.map((r) => r.number)).toEqual([101, 100]);
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ *  The remote control.  [N-9]
+ * ------------------------------------------------------------------ */
+
+describe('CH+ and CH− (N-9)', () => {
+  const lineup = () => {
+    const a = made('Apple', { slug: 'apple' });
+    const b = made('Mango', { slug: 'mango' });
+    const c = made('Zebra', { slug: 'zebra' });
+    return {
+      all: [c, a, b],
+      numbers: { [a.id]: 100, [b.id]: 101, [c.id]: 102 },
+      a, b, c,
+    };
+  };
+
+  it('goes up and down the numbers, not the names', () => {
+    const { all, numbers } = lineup();
+    const from101 = tuning(all, numbers, 101);
+    expect(from101.up?.number).toBe(102);
+    expect(from101.down?.number).toBe(100);
+    expect(from101.up?.slug).toBe('zebra');
+    expect(from101.down?.slug).toBe('apple');
+  });
+
+  /*
+   * IT WRAPS, because a lineup is a ring on every television ever
+   * made. A viewer holding CH− on the first channel and stopping
+   * is a viewer who thinks the set is broken.
+   */
+  it('wraps at both ends', () => {
+    const { all, numbers } = lineup();
+    expect(tuning(all, numbers, 102).up?.number).toBe(100);
+    expect(tuning(all, numbers, 100).down?.number).toBe(102);
+  });
+
+  /*
+   * NOTHING EITHER WAY FOR A LINEUP OF ONE. A CH+ button that
+   * reloads the same channel is a button that looks broken.
+   */
+  it('offers nothing when there is nowhere to go', () => {
+    const only = made('Only', { slug: 'only' });
+    const alone = tuning([only], { [only.id]: 100 }, 100);
+    expect(alone.up).toBe(null);
+    expect(alone.down).toBe(null);
+  });
+
+  /*
+   * TUNING FROM OUTSIDE THE LINEUP IS NOT AN EDGE CASE. An
+   * unlisted station is reached by its slug or its own domain and
+   * is not in the directory, so `from` is a number the ring does
+   * not contain. [N-8]
+   */
+  it('lands on the nearest in the direction asked, from off the dial', () => {
+    const { all, numbers } = lineup();
+    expect(tuning(all, numbers, 0).up?.number).toBe(100);
+    expect(tuning(all, numbers, 0).down?.number).toBe(102);
+    expect(tuning(all, numbers, 500).up?.number).toBe(100);
+    expect(tuning(all, numbers, 500).down?.number).toBe(102);
+  });
+
+  /*
+   * AND ONLY THE DIRECTORY IS ON THE DIAL. A remote tunes what a
+   * viewer can browse; an unlisted or offline channel is reachable
+   * by address and is not a number anybody presses.
+   */
+  it('never tunes to something the directory does not show', () => {
+    const open = made('Open', { slug: 'open' });
+    const quiet = made('Quiet', { slug: 'quiet', listed: false });
+    const dark = made('Dark', { slug: 'dark', published: false });
+    const numbers = { [open.id]: 100, [quiet.id]: 101, [dark.id]: 102 };
+    /* One channel on the dial, so there is nowhere to go. */
+    expect(tuning([open, quiet, dark], numbers, 100).up).toBe(null);
+    expect(tuning([open, quiet, dark], numbers, 101).up?.slug).toBe('open');
+  });
+
+  /* A channel the lineup never numbered is not on the dial either. */
+  it('skips a channel with no number', () => {
+    const { all, numbers, b } = lineup();
+    const without = { ...numbers };
+    delete without[b.id];
+    expect(tuning(all, without, 100).up?.number).toBe(102);
   });
 });
