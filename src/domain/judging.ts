@@ -288,3 +288,39 @@ export function verdictSays(verdict: Verdict): string {
   const marked = verdict.judges === 1 ? '1 judge' : `${verdict.judges} judges`;
   return `${verdict.score} out of ${verdict.outOf}, from ${marked}.`;
 }
+
+/* ------------------------------------------------------------------ *
+ *  What a result says in public.  [GO-VIRAL V-6]
+ * ------------------------------------------------------------------ */
+
+/** One judge's words about one entry, with their name on them. */
+export interface Said {
+  judge: string;
+  says: string;
+}
+
+/**
+ * What the panel said about one entry, attributed.
+ *
+ * THE NAME IS ON IT, WHICH IS WHAT A PANEL IS FOR. A results page
+ * carrying scores and anonymous sentences is the oracle again
+ * with better prose: the whole claim of this layer is that people
+ * judged, and people have names. The organiser named them on the
+ * call before anybody entered. [V-5, §4]
+ *
+ * A JUDGEMENT BY SOMEBODY NO LONGER ON THE PANEL STILL SHOWS, as
+ * *somebody*. There is no verb that removes a judge — a panel is
+ * a record of who was asked — so this only fires on a hand-edited
+ * file, and dropping the words would be quieter than saying the
+ * name is missing.
+ */
+export function saidAbout(
+  entry: string, judgements: readonly Judgement[], panel: readonly Judge[],
+): Said[] {
+  return judgements
+    .filter((one) => one.entry === entry)
+    .map((one) => ({
+      judge: panel.find((who) => who.id === one.by)?.name ?? 'somebody',
+      says: one.says,
+    }));
+}

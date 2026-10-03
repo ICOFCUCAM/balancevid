@@ -1679,7 +1679,7 @@ failed on `judging.ts`'s own paragraph explaining why it does not
 use it — a test that reads prose is a test of the prose, so it
 reads imports. [T-1]
 
-## V-6 · Results, and the winning entry re-enters the system it came from — **UPGRADE**
+## V-6 · Results, and the winning entry re-enters the system it came from — **UPGRADE**  ·  *built, PART TEN*
 
 **What exists today.** `accept()` in `participationEdit.ts`, which
 *"returns what was accepted and lets the studio that owns the
@@ -1702,6 +1702,61 @@ D-25 requires.
 the ordinary route with no campaign-specific code in the playout
 path; and a clip pasted into a messaging app shows the campaign and
 links back to it.
+
+**What was built, and the three places it is not what this section
+said.**
+
+**One. The provenance is on the TAKE, not on the performance.**
+This section says the winning entry travels the existing accept
+path, and it does — `accept()` and the acceptance boundary are
+untouched, and a producer still presses the button. What the route
+adds is one field on the take spec it was already building:
+`fromCall`. On the take and not the performance, because a
+performance may take entries from more than one call and from
+none; the take is the thing that came from somewhere. `callsIn`
+reads them back, in the order they were added.
+
+**Two. The address on the card is whatever the caller can
+honestly give.** `callCredit(campaign, at)` takes the address
+rather than composing one, because its two callers differ: the
+HTTP side has a request and gives the whole URL from the origin
+the browser reached, and the worker drawing the picture has no
+request and gives the path. A module that invented an origin
+would print the wrong hostname on every card this installation
+ever posts. The DATE and not the state, because a card is read
+months later: *closed 4 October 2026* stays true and *judging*
+does not.
+
+**Three. The call line is at the top of the card, not in the
+foot.** `thumbnails.ts` calls the attribution *"the one line that
+is never dropped however long the other two run"*, and a call's
+name crowding it would be the thing that drops it. Where the line
+belongs is under the eyebrow, because it is context and the
+eyebrow is where context goes. A test asserts all four lines
+survive together.
+
+**And the result is published only once it is announced.** A
+panel marking in the open is a panel being argued with while it
+marks, and a standing that moved under a reader every time a mark
+was corrected would be a result nobody could cite. `announce` is
+the organiser saying it is done. It carries the scores, the
+per-criterion breakdown, and **every judge's words with their
+name** — which is *"every score carries its reason"* seen from
+outside, and the reason a public result is not the oracle this
+layer exists not to be. Only entries on the wall are named: one
+predicate, every surface. [V-3, V-4, V-5]
+
+**The first judging clause is a claim about what is NOT there**,
+which is the kind that rots quietly. The test derives the
+transmission chain from the directories — everything under
+`src/playout/` and `src/render/`, the broadcast library, and the
+channel modules — and asserts that none of it imports a campaign
+module or names `fromCall`, `callsIn` or `callCredit`. A file
+added to that chain tomorrow is covered without anybody
+remembering to list it. It reads imports and nouns rather than the
+word, because a paragraph explaining why the playout path knows
+nothing about campaigns would otherwise be a violation of its own
+test. [T-1]
 
 ## V-7 · The loop closes on the participant's own device — **UPGRADE**
 
@@ -1851,7 +1906,7 @@ the brief does not ask for.
 
 | § | the brief asks for | answered by | state |
 |---|---|---|---|
-| 1 | the viral loop | V-1 … V-7 | five of seven arrows shipped |
+| 1 | the viral loop | V-1 … V-7 | six of seven arrows shipped |
 | 2 | track / campaign / take, and the ids | PART ZERO, V-2 | two of three objects shipped |
 | 3 | the campaign as the unit | V-2 | the rules exist, per request |
 | 4 | the ten-state lifecycle | V-2 (six), V-8 (four) | argued in §4 |

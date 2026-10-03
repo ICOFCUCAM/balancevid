@@ -223,9 +223,121 @@ export function Deadline({ call }: { call: CallRow }) {
     && (call.clock === 'live' || call.clock === 'closing');
   return (
     <p className="small" data-testid="go-deadline" style={{ margin: 0 }}>
-      <span className="muted">Closes </span>
+      {/*
+        * PAST TENSE ONCE IT HAS. A results page reading *Closes
+        * 3 October* about a deadline that passed is a page
+        * arguing with the paragraph above it, which already says
+        * the results are in. Found in a screenshot.
+        */}
+      <span className="muted">{running ? 'Closes ' : 'Closed '}</span>
       <time dateTime={call.closesAt}>{call.closesAt.replace('T', ' ').slice(0, 16)} UTC</time>
       {running && <> · <Countdown msLeft={call.msLeft!} /> left</>}
     </p>
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ *  The result, in public.  [GO-VIRAL V-6, V-5]
+ * ------------------------------------------------------------------ */
+
+export interface Standing {
+  place: number;
+  entry: string;
+  score: number;
+  outOf: number;
+  judges: number;
+  byCriterion: { criterion: string; says: string; score: number }[];
+  said: { judge: string; says: string }[];
+}
+
+/**
+ * What the panel decided, with the words it decided in.
+ *
+ * > *"Every score carries its reason."*
+ *
+ * SO THE REASONS ARE THE PAGE AND THE NUMBER IS WHAT ORDERS IT,
+ * which is `takeRanking`'s own sentence one actor over: *"the
+ * reasons are what the interface shows; the number is only what
+ * sorts them."* A public result that was scores alone would be
+ * the oracle this layer exists not to be, with people in it.
+ *
+ * AND EACH REASON CARRIES A NAME, because the organiser named the
+ * panel on the call before anybody entered. A competition judged
+ * by nobody in particular is not one. [§4]
+ */
+export function Results(
+  { standings, entries, panel }: {
+    standings: Standing[]; entries: WallEntry[]; panel: string[];
+  },
+) {
+  /*
+   * `go-place` AND NOT `go-standing`, WHICH WAS TAKEN. `Go.tsx`
+   * already marks the state chip — *Open*, *Ending soon*,
+   * *Results* — with `go-standing`, and a run counting the result
+   * rows found three where there were two. Two things on one page
+   * answering to one name is a page nobody can measure.
+   */
+  const nameOf = (submissionId: string) => {
+    const found = entries.findIndex((one) => one.submissionId === submissionId);
+    return entries[found]?.participant ?? `Entry ${found + 1}`;
+  };
+  return (
+    <section>
+      <h2 className="small muted" style={{
+        margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.08em',
+      }}>The result</h2>
+      {panel.length > 0 && (
+        <p className="small muted" data-testid="go-panel" style={{ margin: '0 0 10px' }}>
+          Judged by {panel.join(', ')}.
+        </p>
+      )}
+      <ol data-testid="go-results" style={{
+        listStyle: 'none', margin: 0, padding: 0,
+        display: 'flex', flexDirection: 'column', gap: 'var(--space-3)',
+      }}>
+        {standings.map((one) => (
+          <li key={one.entry} data-testid="go-place" data-place={one.place}
+              style={{
+                display: 'flex', flexDirection: 'column', gap: 6,
+                padding: 'var(--space-3)', border: '1px solid var(--line)',
+                borderRadius: 'var(--radius-md)',
+                background: 'var(--console-control)',
+              }}>
+            <div className="row" style={{ gap: 10, alignItems: 'baseline' }}>
+              <span className="mono muted" style={{ minWidth: '1.5em' }}>
+                {one.place}
+              </span>
+              <span className="grow" style={{ fontWeight: 'var(--weight-semi)' }}>
+                {nameOf(one.entry)}
+              </span>
+              <span className="small muted" data-testid="go-score">
+                {one.score} out of {one.outOf}
+                {one.judges === 1 ? ' · 1 judge' : ` · ${one.judges} judges`}
+              </span>
+            </div>
+            {/* What it was marked on, in the published order. */}
+            {one.byCriterion.length > 0 && (
+              <p className="small muted" style={{ margin: 0 }}>
+                {one.byCriterion
+                  .map((mark) => `${mark.says} ${mark.score}`).join(' · ')}
+              </p>
+            )}
+            <ul style={{
+              listStyle: 'none', margin: 0, padding: 0,
+              display: 'flex', flexDirection: 'column', gap: 4,
+            }}>
+              {one.said.map((said, index) => (
+                <li key={`${said.judge}-${index}`} className="small"
+                    data-testid="go-said">
+                  <strong>{said.judge}</strong>
+                  {': '}
+                  <span className="muted">{said.says}</span>
+                </li>
+              ))}
+            </ul>
+          </li>
+        ))}
+      </ol>
+    </section>
   );
 }

@@ -217,6 +217,32 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
           ...(submission.capturedIn?.id && submission.device
             ? [submission.device.slice(0, 40)] : []),
         ].join(' · '),
+        /*
+         * AND WHICH CALL IT CAME IN THROUGH.  [GO-VIRAL V-6]
+         *
+         * THE ORDINARY ACCEPT PATH, WITH ONE MORE FACT ON IT.
+         * `accept()` is untouched and the acceptance boundary is
+         * where it was: winning attaches nothing, and a producer
+         * still presses this deliberately. What travels with the
+         * take is the one thing that would otherwise be lost —
+         * that the person singing answered a call rather than an
+         * invitation — and the card is what reads it. [D-25]
+         *
+         * ABSENT FOR AN INVITED TAKE, which is every take this
+         * product has ever made.
+         *
+         * THE CONDITIONAL SPREAD SURVIVES MUTATION AND STAYS.
+         * Writing `fromCall: found.campaign` unconditionally
+         * puts `undefined` on the draft, and `JSON.stringify`
+         * drops it on the way to disk — so no test can tell the
+         * two apart. What would then be true is that the
+         * document is clean because of how JSON treats
+         * `undefined`, rather than because this product does not
+         * write fields it has no value for. That is the house
+         * pattern in a hundred places and it is the rule, not
+         * the coincidence. [B-1]
+         */
+        ...(found.campaign ? { fromCall: found.campaign } : {}),
         environment: { kind: 'original' },
         /*
          * UNPLACED, NOT MEASURED. The phone's own number is passed to

@@ -11,6 +11,8 @@
 import { stat } from 'node:fs/promises';
 
 import type { Performance } from '../domain/performance.js';
+import { callCredit } from '../domain/campaign.js';
+import { callInPerformance } from '../store/campaigns.js';
 import { performanceAttribution } from '../domain/performancePlan.js';
 import { buildPerformanceCard, PerformanceCardError } from '../publish/performanceCard.js';
 import type { ShareCard } from '../publish/card.js';
@@ -21,6 +23,41 @@ export interface PerformanceShare {
   card: ShareCard;
   pageUrl: string;
   imageUrl?: string;
+}
+
+/**
+ * The card for a performance, with the call it answered on it.
+ *   [GO-VIRAL V-6; D-19]
+ *
+ * FOUR CALLERS AND ONE OF THEM WAS MISSED, which is why this
+ * function exists. `buildPerformanceCard` is pure and takes the
+ * call as a string; three places called it — the share metadata,
+ * the worker that draws the picture, and the route that serves
+ * both the card and the image — and the first version of V-6
+ * taught two of them to look the call up. A browser run found
+ * the third: the preview a chat app actually reads said nothing
+ * about the competition the video won.
+ *
+ * SO THE LOOKUP IS HERE, ONCE. Pure card-building stays in
+ * `src/publish/`; the one line about where to find the call is
+ * in one place that every caller goes through.
+ *
+ * `at` IS THE ORIGIN OR NOTHING. A caller with a request gives
+ * the origin the browser reached, so a posted card links back to
+ * the installation the reader is on; the worker drawing the
+ * picture has none and gives an empty string, which leaves the
+ * path. A hostname invented here would be printed on every card
+ * this installation ever posts. [`originOf`]
+ */
+export async function performanceCardFor(
+  performance: Performance, at = '',
+): Promise<ShareCard> {
+  const call = await callInPerformance(performance);
+  return buildPerformanceCard({
+    performance,
+    attribution: performanceAttribution(performance, performance.createdAt).text,
+    ...(call ? { call: callCredit(call, `${at}/go/${call.slug ?? call.id}`) } : {}),
+  });
 }
 
 /** Published, and not withdrawn. */
@@ -42,12 +79,11 @@ export async function performanceShareFor(
 ): Promise<PerformanceShare | undefined> {
   if (!isPerformancePublic(performance)) return undefined;
 
+  const origin = originOf(request);
+
   let card: ShareCard;
   try {
-    card = buildPerformanceCard({
-      performance,
-      attribution: performanceAttribution(performance, performance.createdAt).text,
-    });
+    card = await performanceCardFor(performance, origin);
   } catch (error) {
     // A published performance whose music was reclassified afterwards. The
     // page still refuses to describe it rather than describing it wrongly.
@@ -57,7 +93,6 @@ export async function performanceShareFor(
 
   const drawn = await stat(paths.performanceCard(performance.id))
     .then((file) => file.size > 0).catch(() => false);
-  const origin = originOf(request);
 
   return {
     card,

@@ -34,6 +34,18 @@ export interface PerformanceCardInputs {
   performance: Performance;
   /** Generated from the record, never typed. [U-21, INV-07] */
   attribution: string;
+  /**
+   * The call this performance answered, where it answered one.
+   *   [GO-VIRAL V-6]
+   *
+   * PASSED IN RATHER THAN LOOKED UP, which is this module's own
+   * arrangement: it is pure, and the call lives in a store. The
+   * caller resolves it from `callsIn(performance)` and hands over
+   * the one line, with whatever address it can honestly give —
+   * a whole URL where there is a request to take an origin from,
+   * and a path where there is not. [`callCredit`]
+   */
+  call?: string;
 }
 
 export function buildPerformanceCard(inputs: PerformanceCardInputs): ShareCard {
@@ -58,9 +70,22 @@ export function buildPerformanceCard(inputs: PerformanceCardInputs): ShareCard {
 
   return {
     title: performance.title,
-    // The same facts in the same order as the picture, for the places that
-    // show text and no image.
-    description: `${eyebrow}. ${scale}.`,
+    /*
+     * The same facts in the same order as the picture, for the places that
+     * show text and no image.
+     *
+     * WHICH IS WHY THE CALL IS HERE TOO.  [GO-VIRAL V-6]
+     *
+     * A browser run read the `og:description` a chat app actually
+     * quotes and found the competition missing from it: the line
+     * was drawn on the picture and left out of the words. Plenty
+     * of places show one and not the other, and in those the
+     * description IS the card — so the rule this comment already
+     * stated has to include the newest fact. [D-19]
+     */
+    description: inputs.call
+      ? `${eyebrow}. ${scale}. ${inputs.call}`
+      : `${eyebrow}. ${scale}.`,
     hero: {
       text: performance.title,
       /*
@@ -74,6 +99,7 @@ export function buildPerformanceCard(inputs: PerformanceCardInputs): ShareCard {
     },
     eyebrow,
     attribution,
+    ...(inputs.call ? { call: inputs.call } : {}),
     scale,
     image: {
       width: CARD_WIDTH,

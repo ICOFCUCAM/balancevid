@@ -2,12 +2,14 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 
 import {
-  type Campaign, bySlugOrId, callRow, loopNumbers, wallOf,
+  type Campaign, bySlugOrId, callRow, judgementsOf, loopNumbers, panelOf,
+  scorecardOf, wallOf,
 } from '../../../src/domain/campaign.js';
+import { resultsFor, saidAbout } from '../../../src/domain/judging.js';
 import { listCampaigns } from '../../../src/store/campaigns.js';
 import { listRequests } from '../../../src/store/requests.js';
 import { GoFrame, Standing } from '../Go.js';
-import { Deadline, EnterButton, Loop, Wall } from './Call.js';
+import { Deadline, EnterButton, Loop, Results, Wall } from './Call.js';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,11 +33,38 @@ async function found(handle: string) {
   if (!call) return null;
   const now = new Date().toISOString();
   const requests = await listRequests().catch(() => []);
+  const wall = wallOf(call, requests);
+  const shown = new Set(wall.map((one) => one.submissionId));
+  /*
+   * THE RESULT, ONCE IT HAS BEEN ANNOUNCED, AND NOT BEFORE.
+   *   [GO-VIRAL V-6]
+   *
+   * The same two conditions the route applies, through the same
+   * functions: `announce` is the organiser saying the marking is
+   * done, and only entries on the wall are named in a public
+   * standing. A page that decided either for itself would be a
+   * second answer to a question about somebody's face. [D-19]
+   */
+  const announced = call.state === 'results' || call.state === 'completed';
   return {
     call,
     row: callRow(call, now),
-    wall: wallOf(call, requests),
+    wall,
     numbers: loopNumbers(call, requests),
+    panel: panelOf(call).map((one) => one.name),
+    standings: announced
+      ? resultsFor(scorecardOf(call), judgementsOf(call))
+        .filter((verdict) => shown.has(verdict.entry))
+        .map((verdict, place) => ({
+          place: place + 1,
+          entry: verdict.entry,
+          score: verdict.score,
+          outOf: verdict.outOf,
+          judges: verdict.judges,
+          byCriterion: verdict.byCriterion,
+          said: saidAbout(verdict.entry, judgementsOf(call), panelOf(call)),
+        }))
+      : [],
   };
 }
 
@@ -99,7 +128,17 @@ export default async function CallPage(
   const { handle } = await params;
   const it = await found(handle);
   if (!it) notFound();
-  const { call, row, wall, numbers } = it;
+  const { call, row, wall, numbers, panel, standings } = it;
+  const shownWall = wall.map((one) => ({
+    submissionId: one.submissionId,
+    kind: one.kind,
+    at: one.at,
+    ...(one.participant ? { participant: one.participant } : {}),
+    ...(one.durationSamples !== undefined
+      ? { durationSamples: one.durationSamples } : {}),
+    media: `/api/go/${encodeURIComponent(handle)}/entries/`
+      + `${encodeURIComponent(one.submissionId)}/media`,
+  }));
 
   return (
     <GoFrame>
@@ -176,21 +215,22 @@ export default async function CallPage(
                        asksConsent={(call.terms?.length ?? 0) > 0} />
         )}
 
+        {/*
+          * THE RESULT ABOVE THE ENTRIES, because once it is out
+          * it is what the page is for. Before it, there is no
+          * section at all rather than an empty heading saying
+          * the competition has not finished. [D-04]
+          */}
+        {standings.length > 0 && (
+          <Results standings={standings} entries={shownWall} panel={panel} />
+        )}
+
         <section>
           <h2 className="small muted" style={{
             margin: '0 0 6px', textTransform: 'uppercase',
             letterSpacing: '0.08em',
           }}>Entries</h2>
-          <Wall entries={wall.map((one) => ({
-            submissionId: one.submissionId,
-            kind: one.kind,
-            at: one.at,
-            ...(one.participant ? { participant: one.participant } : {}),
-            ...(one.durationSamples !== undefined
-              ? { durationSamples: one.durationSamples } : {}),
-            media: `/api/go/${encodeURIComponent(handle)}/entries/`
-              + `${encodeURIComponent(one.submissionId)}/media`,
-          }))} />
+          <Wall entries={shownWall} />
         </section>
 
         <section>

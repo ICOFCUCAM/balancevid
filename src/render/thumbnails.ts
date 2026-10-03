@@ -260,6 +260,20 @@ export function shareCardAss(card: ShareCard): string {
     style('Eyebrow', 26, '#B8BEC6', 7, Math.round(height * 0.11), 0),
     style('Hero', heroSize, CARD_INK, 4, 0, 1),
     style('Foot', 24, '#8F97A1', 1, Math.round(height * 0.085), 0),
+    /*
+     * WHERE IT CAME FROM, UNDER THE EYEBROW.  [GO-VIRAL V-6]
+     *
+     * AT THE TOP AND NOT IN THE FOOT, because it is context and
+     * the eyebrow is where context goes — and because the foot
+     * carries the attribution, which this file already calls
+     * *"the one line that is never dropped however long the
+     * other two run."* A call's name crowding it would be the
+     * thing that drops it.
+     *
+     * SMALLER THAN THE EYEBROW, because it is the second thing a
+     * reader needs: what this is, then where it came from.
+     */
+    style('Call', 22, '#8F97A1', 7, Math.round(height * 0.185), 0),
     '',
     '[Events]',
     'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
@@ -268,6 +282,9 @@ export function shareCardAss(card: ShareCard): string {
     `Dialogue: 0,0:00:00.00,0:00:10.00,Eyebrow,,0,0,0,,{\\pos(${side},${Math.round(height * 0.085)})\\c${assColor(CARD_RULE).slice(2)}\\p1}m 0 0 l 96 0 l 96 5 l 0 5{\\p0}`,
     `Dialogue: 0,0:00:00.00,0:00:10.00,Eyebrow,,0,0,0,,${escapeAss(card.eyebrow)}`,
     `Dialogue: 0,0:00:00.00,0:00:10.00,Hero,,0,0,0,,${escapeAss(text)}`,
+    ...(card.call
+      ? [`Dialogue: 0,0:00:00.00,0:00:10.00,Call,,0,0,0,,${escapeAss(card.call)}`]
+      : []),
     `Dialogue: 0,0:00:00.00,0:00:10.00,Foot,,0,0,0,,${escapeAss(`${card.scale}  ·  ${card.attribution}`)}`,
   ].join('\n')}\n`;
 }
