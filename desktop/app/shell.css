@@ -1,0 +1,111 @@
+/*
+ * The shell's own ground.  [TAKE-DESKTOP T-1]
+ *
+ * NOT THE INSTALLATION'S STYLESHEET. `app/globals.css` and
+ * `app/styles/tokens.css` are the web tier, and T-1 is judged on
+ * containing none of it. The two programs will come to look
+ * alike — the same ink, the same accent — and the right way to
+ * get there is a token file in `shared/` the day something other
+ * than a colour needs sharing. Six words and a sentence do not
+ * justify it.
+ *
+ * The values here are the Take App manifest's, which are the
+ * product's: `#0e0f11` ground, `#3f8ee8` accent.
+ */
+
+/* The padding below is inside the height, not added to it: a
+   32px gutter on a `min-height: 100vh` element is a scrollbar on
+   a window with nothing to scroll. */
+*, *::before, *::after { box-sizing: border-box; }
+
+:root {
+  color-scheme: dark;
+  --bg: #0e0f11;
+  --ink: #e6e8ea;
+  --muted: #9aa1a8;
+  --line: #2a2e33;
+  --accent: #3f8ee8;
+}
+
+html, body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  font: 400 15px/1.6 ui-sans-serif, system-ui, 'DejaVu Sans', sans-serif;
+  /* A capture station is not a document: nothing here is text to
+     select, and a stray drag-selection over a preview looks like
+     a fault. */
+  user-select: none;
+  cursor: default;
+}
+
+main {
+  min-height: 100vh;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 18px;
+  padding: 32px;
+  text-align: center;
+}
+
+.mark {
+  margin: 0;
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.sub { margin: 0; color: var(--muted); }
+
+/*
+ * THE FLOW, WITH FIVE OF SIX GREY. The steps are frozen and
+ * showing them says where the application is; a window saying
+ * "coming soon" says nothing a person can plan around.
+ */
+.flow {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step {
+  padding: 7px 13px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: #5c636b;
+}
+
+.step.on { color: var(--ink); }
+
+/* The one it is about to learn, named rather than lit. */
+.step[data-next='true'] {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.standing {
+  margin: 4px 0 0;
+  max-width: 44ch;
+  color: var(--muted);
+}
+
+/*
+ * The two numbers both programs have to agree about. Quiet,
+ * because a person does not need them — but they are read out of
+ * the shared library, so seeing them is seeing the door is open.
+ */
+.house {
+  margin: 0;
+  font: 400 12px/1 ui-monospace, 'DejaVu Sans Mono', monospace;
+  color: #5c636b;
+  letter-spacing: 0.05em;
+}

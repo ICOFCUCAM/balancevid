@@ -34,6 +34,7 @@
     }
   },
   "include": [
+    "shared/src/**/*.ts",
     "src/**/*.ts",
     "test/**/*.ts",
     "app/**/*.ts",

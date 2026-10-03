@@ -842,7 +842,7 @@ internet."*
 
 ## Track T — the installed application
 
-### T-1 · The shell, and where it lives — **ADD**
+### T-1 · The shell, and where it lives — **ADD** · *built, see PART SIX*
 
 The decision the rest of the track needs and nothing else does:
 the packaging (shell technology, repository layout, build, signing,
@@ -1023,3 +1023,194 @@ them as angles.
   on one clock; angles are takes.
 - **No BalanceVid web-tier code in the desktop application**, and no
   desktop code in `app/`.
+
+
+---
+
+# PART SIX — T-1, as built
+
+> *"It ships as an application that installs, opens a window, and
+> says it is not connected to anything. That is a complete, honest
+> first release."*
+
+```
+ ┌──────────────────────────────────────────┐
+ │                  Take                    │
+ │   Multi-camera capture, recorded on      │
+ │            this machine.                 │
+ │                                          │
+ │  CONNECT  CAMERAS PREPARE RECORD REVIEW  │
+ │  ───────                          SUBMIT │
+ │                                          │
+ │  This build records nothing yet.         │
+ │  Connecting to a BalanceVid installation │
+ │  is the next thing it learns.            │
+ │                                          │
+ │             48000 Hz · 30 fps            │
+ └──────────────────────────────────────────┘
+```
+
+**Five of six steps grey, and that is the point.** The flow is
+frozen, so drawing it with one step named says exactly where the
+application is. A window saying *coming soon* says nothing a
+person can plan around. `BUILT_TO` in `src/shell.ts` is the one
+constant, and the stage that builds a step moves it; a release
+that lights a step it has not built lies to the person who
+installed it.
+
+## Why Electron, and what it costs
+
+This application's whole job is **four cameras starting
+together**, and `useMasterRecording` already does that against
+Chromium's `MediaRecorder` in four clients. Electron ships **one
+Chromium on every platform it builds for**.
+
+A webview shell — Tauri and everything like it — uses the
+operating system's own engine: WebKitGTK on Linux, WebView2 on
+Windows. That is a different `MediaRecorder`, different codec
+support and different device enumeration per platform. The single
+claim a capture makes is that its angles agree about when they
+started, and **a capture station whose measurement depends on
+which operating system it is on is not one.** [T-4]
+
+The cost is stated rather than hidden: a Chromium per install,
+which is a large download for a program that will spend its life
+writing video files. T-4 is the stage that cashes it.
+
+## The shared library
+
+`shared/src/` holds `time.ts` and `align.ts`. They were ready for
+this: `time.ts` imports nothing at all and `align.ts` imports
+`time.ts`, which is the whole dependency graph.
+
+`src/domain/time.ts` and `src/domain/align.ts` are **one line
+each** — a door onto the files that moved. A door rather than a
+sweep because **a hundred and twenty-one files** import
+`src/domain/time.js`; rewriting them all would be a hundred and
+twenty-one chances to fumble an import in a commit whose subject
+is a directory move, and it would put the desktop application's
+layout into every file in the product.
+
+**Not an npm workspace**, deliberately: a root workspace would
+make the web application's `npm install` — and its CI — pull three
+hundred megabytes of Chromium for a build that does not use it.
+**Not published to a registry** either; that is the right answer
+the day `desktop/` becomes its own repository and the wrong one
+while a single `git mv` keeps them in step.
+
+**And the rule is now checked rather than listed.** *"`align.ts`
+and `time.ts` are depended on, not pasted"* was in *what must not
+happen*, and a rule in a list is a rule nobody checks.
+`test/domain/shared-library.test.ts` asserts the library imports
+nothing outside itself, assumes neither host, declares
+`HOUSE_SAMPLE_RATE` and `HOUSE_FPS` in exactly one place across
+`shared/`, `src/` and `app/`, and that the doors are exactly one
+line of code each. **That last one is the one that matters:** the
+risk of a door is that somebody fills it back in.
+
+The window prints `48000 Hz · 30 fps` for the same reason. If the
+door were filled in with a copy the window would still read
+48000 and only a test would know — so the number is on screen,
+and the test asserts it is nowhere in the file that prints it.
+
+## The boundary T-1 is judged on
+
+> *"No BalanceVid web-tier code in the desktop application."*
+
+They are two programs: a Next server with a filesystem full of
+somebody's media, and a capture station on a laptop in a room.
+The way that stops being true is one import that looked
+convenient, so the test names the allowed shapes and refuses
+`/src/domain/` and `/app/` outright — including from the
+stylesheet, because a capture station that `@import`ed
+`tokens.css` is one that breaks when somebody renames a token in
+a Next application.
+
+**The renderer is a web page and is treated as one.** Node off,
+context isolation on, sandbox on, no navigation, no window-open,
+and a CSP with `connect-src 'none'`. T-4 will want the disk and
+will open **one named function** for it; this is the assertion
+that notices if something opens it earlier and wider.
+
+**No socket anywhere.** Everything through T-4 records to this
+machine's own disk, which is the brief's own premise, and the
+first line of code that opens one belongs to T-2.
+
+## Measured, not claimed
+
+```
+desktop/ typecheck          clean
+esbuild                     main.js, renderer.js, index.html, shell.css
+electron . (xvfb)           window opens; title "Take"
+  steps                     CONNECT CAMERAS PREPARE RECORD REVIEW SUBMIT
+  named next                CONNECT
+  house rates               48000 Hz · 30 fps   (read from shared/)
+  require / process         undefined / undefined
+electron-builder --linux    Take-0.1.0.AppImage       117 MB
+                            …_0.1.0_amd64.deb          81 MB
+app.asar contents           /out, /package.json — and nothing else
+the AppImage, run           opens, draws, reads the same rates
+```
+
+The packaged artefact was run under a virtual display and
+inspected over the debugging protocol, not assumed from the fact
+that it built.
+
+## What T-1 does not deliver, and cannot
+
+**Windows is configured and not verified here.** The cross-build
+reaches `rcedit` — which electron-builder runs to put the icon and
+version into the `.exe` — and stops, because that needs **wine**
+and there is none in this container (`command -v wine`: absent).
+It is not a configuration fault; the same file produces the
+installer on a machine with wine, or on Windows. **The first of
+T-1's three judged-on criteria is therefore half measured**, and
+that is said here rather than left to be discovered.
+
+**Nothing is signed.** A certificate from a certificate authority
+— Authenticode on Windows, a Developer ID on macOS — is a
+purchase and an identity, not a build setting. Until there is
+one, Windows SmartScreen will warn about this installer **and
+that warning will be accurate.**
+
+**macOS is deliberately absent** from `electron-builder.yml`:
+building for it needs a Mac and shipping for it needs
+notarisation, which needs the Developer ID above. Half a target
+is a target that fails and teaches everybody to ignore a red
+build.
+
+**There is no release workflow**, for two reasons and the second
+decided it: a release needs the signing identity that does not
+exist, and this repository's CI does not grow jobs that fight the
+deployment. `publish: null` says the same to the tool — no
+auto-update server, because an application that phones home for a
+new version is an application that phones home, and the premise
+here is that recording does not depend on the internet.
+
+**No framework in the renderer**, and that is a T-1 decision
+rather than a permanent one. The shell draws six words and a
+sentence. T-3 draws a live multiview of N cameras and is the
+stage that will have an opinion — it reads `guestGrid.ts` and
+`SwitchingStage.tsx` first, per PART FIVE, and whatever it
+concludes it will conclude with a reason.
+
+## The lesson this stage added
+
+**A source-text test that reads comments is a test of the prose.**
+
+Three assertions in `shared-library.test.ts` failed on their own
+explanations before they passed:
+
+- `\bwindow\b` caught `align.ts`'s own `const window` — the
+  **correlation search window**, the domain's word for the span it
+  looks across, which has nothing to do with a browser. A test
+  that cannot tell a variable from a global would have cost that
+  file its clearest name.
+- `48000` and `/app/` caught the comments in the desktop shell
+  that **explain why neither should be there.**
+
+Prose that must not name the thing it is about is prose nobody
+can write. Comments are stripped first now, and the patterns name
+a reference rather than a word — which is what every other
+source-text test in this repository already did, and what this
+one should have done from the start.
