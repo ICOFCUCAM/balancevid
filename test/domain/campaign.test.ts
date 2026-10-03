@@ -19,10 +19,22 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
-  type Campaign, CAMPAIGN_NEXT, CAMPAIGN_STATES, CLOSING_BY_DEFAULT,
-  callFor, campaignSays, clockSays, closingMinutesOf, entriesIn, mayJudge,
-  mayMoveCampaign, takingEntries,
+  BEFORE_RUNNING, type Campaign, CAMPAIGN_NEXT, CAMPAIGN_STATES,
+  CLOSING_BY_DEFAULT, beforeRunning, callFor, campaignSays, clockSays,
+  closingMinutesOf, entriesIn, mayJudge, mayMoveCampaign, stillBeingWritten,
+  takingEntries,
 } from '../../src/domain/campaign.js';
+
+/**
+ * The words the two machines genuinely share.
+ *
+ * A TAKE IS SUBMITTED AND SO IS A CALL. Two machines using one
+ * English word for two different things is not a leak; a
+ * campaign STATE appearing in `REQUEST_NEXT` would be. And it is
+ * only this one: `review` is a campaign state and `reviewed` is
+ * a request state, which are different words. [GO-VIRAL §4]
+ */
+const REQUEST_WORDS = ['submitted'] as const;
 import {
   CampaignError, advanceCampaign, announce, begin, beginJudging, complete,
   enterLastStretch, moveDeadline, newCampaign, reopenToLive,
@@ -64,21 +76,61 @@ function at(state: Campaign['state']): Campaign {
 
 describe('the six states, and the four in front of them', () => {
   /*
-   * DRAFT → SUBMITTED → REVIEW → APPROVED ONLY MEAN SOMETHING
-   * WHEN THERE ARE TWO PARTIES, and on one installation there is
-   * one account, one password and one owner. An owner submitting
-   * a campaign to themselves and approving it is ceremony with
-   * the same person on both sides — and a guard nobody enforces
-   * teaches people to click through. They arrive with the public
-   * network at V-8.
+   * THE FOUR ARRIVED WITH THE PUBLIC NETWORK AT V-8, and the
+   * argument for keeping them out until then is unchanged: DRAFT
+   * → SUBMITTED → REVIEW → APPROVED only mean something when
+   * there are two parties, and an owner submitting a campaign to
+   * themselves and approving it is ceremony with the same person
+   * on both sides.
+   *
+   * WHAT CHANGED IS NOT A GUARD. An ordinary installation's calls
+   * are created at SCHEDULED and no edge leads back, which the
+   * test below proves of the graph itself. [GO-VIRAL V-8]
    */
-  it('builds what one installation can honestly operate', () => {
+  it('puts the two-party states in front of the rest', () => {
     expect([...CAMPAIGN_STATES]).toEqual([
+      'draft', 'submitted', 'review', 'approved',
       'scheduled', 'live', 'closing', 'judging', 'results', 'completed',
     ]);
-    for (const absent of ['draft', 'submitted', 'review', 'approved']) {
-      expect(CAMPAIGN_STATES as readonly string[]).not.toContain(absent);
+  });
+
+  /*
+   * THE CLAIM THAT REPLACES THE GUARD, AND THE ONE V-8 IS JUDGED
+   * ON: an installation that is not the network cannot reach any
+   * of the four, because its calls begin at SCHEDULED and the
+   * table has no way back. Walked rather than asserted edge by
+   * edge, so an edge added anywhere fails it.
+   */
+  it('cannot be walked back into the two-party states', () => {
+    const reached = new Set<string>(['scheduled']);
+    for (const state of reached) {
+      for (const next of CAMPAIGN_NEXT[state as Campaign['state']]) {
+        reached.add(next);
+      }
     }
+    for (const two of BEFORE_RUNNING) {
+      expect(reached.has(two), two).toBe(false);
+    }
+    /* And everything after SCHEDULED is still reached. */
+    expect(reached.has('completed')).toBe(true);
+  });
+
+  /* The corridor itself, including the one door back. */
+  it('runs the four as a corridor with one way back to the draft', () => {
+    expect(mayMoveCampaign('draft', 'submitted')).toBe(true);
+    expect(mayMoveCampaign('submitted', 'review')).toBe(true);
+    expect(mayMoveCampaign('review', 'approved')).toBe(true);
+    expect(mayMoveCampaign('approved', 'scheduled')).toBe(true);
+    /* Back, from either side, and to the same place. */
+    expect(mayMoveCampaign('submitted', 'draft')).toBe(true);
+    expect(mayMoveCampaign('review', 'draft')).toBe(true);
+    /* But never past the person holding it. */
+    expect(mayMoveCampaign('draft', 'review')).toBe(false);
+    expect(mayMoveCampaign('draft', 'approved')).toBe(false);
+    expect(mayMoveCampaign('submitted', 'approved')).toBe(false);
+    expect(mayMoveCampaign('review', 'scheduled')).toBe(false);
+    /* And approval is not the calendar. */
+    expect(mayMoveCampaign('approved', 'live')).toBe(false);
   });
 
   /*
@@ -92,14 +144,18 @@ describe('the six states, and the four in front of them', () => {
       'utf8');
     expect(participation).toMatch(
       /REQUEST_STATES = \[\s*'created', 'sent', 'opened', 'recording', 'submitted',\s*'received', 'reviewed', 'accepted', 'rejected', 'attached',\s*\] as const;/);
-    /* And no campaign state has leaked into its table. */
+    /*
+     * And no campaign state has leaked into its table — except
+     * the four words the two machines genuinely share. `draft`
+     * is not in `REQUEST_STATES` either, but `submitted` and
+     * `review` are ordinary English about a take and about a
+     * call both, which is why this looks for the campaign's own.
+     */
     for (const state of CAMPAIGN_STATES) {
-      if (state === 'scheduled' || state === 'live' || state === 'closing'
-        || state === 'judging' || state === 'results' || state === 'completed') {
-        expect(participation.match(
-          new RegExp(`REQUEST_NEXT[\\s\\S]*?'${state}'[\\s\\S]*?\\n\\};`)))
-          .toBeNull();
-      }
+      if ((REQUEST_WORDS as readonly string[]).includes(state)) continue;
+      expect(participation.match(
+        new RegExp(`REQUEST_NEXT[\\s\\S]*?'${state}'[\\s\\S]*?\\n\\};`)))
+        .toBeNull();
     }
     /* The one thing it gained is one optional field. */
     expect(participation).toMatch(/campaign\?: Id<'camp'>;/);
@@ -132,7 +188,9 @@ describe('the six states, and the four in front of them', () => {
     expect(Object.keys(CAMPAIGN_NEXT).sort()).toEqual([...CAMPAIGN_STATES].sort());
     const reachable = new Set(Object.values(CAMPAIGN_NEXT).flat());
     for (const state of CAMPAIGN_STATES) {
-      if (state === 'scheduled') continue; /* where every call starts */
+      /* The two places a call can be created, on the two kinds
+         of installation there are. [GO-VIRAL V-8] */
+      if (state === 'scheduled' || state === 'draft') continue;
       expect(reachable.has(state), state).toBe(true);
     }
   });

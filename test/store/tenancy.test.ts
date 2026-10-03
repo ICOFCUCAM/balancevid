@@ -157,3 +157,139 @@ describe('moving an instance that already has work', () => {
     expect(await readdir(paths.conversations())).toContain('marker');
   });
 });
+
+/**
+ * AND NOTHING NAMES ANOTHER INSTALLATION'S RECORD.
+ *   [GO-VIRAL V-8, separation two; D-06]
+ *
+ * > *"A customer's installation has no path function that names a
+ * > network record, which is the same kind of enforcement
+ * > `owned()` already is — a missed path join cannot reach
+ * > outside the tree."*
+ *
+ * THE BALANCEVID PUBLIC COMPETITION NETWORK IS AN INSTALLATION,
+ * not a tier above one, and the whole weight of that claim rests
+ * on there being no way to write its records from here. On a
+ * filesystem store the way to name somebody else's record is to
+ * have their ORIGIN in a path — so what is checked is that no
+ * path function will take one, and that every path this module
+ * can produce lands under one of four roots on this volume.
+ *
+ * DERIVED FROM THE MODULE AND NOT FROM A LIST SOMEBODY KEEPS UP
+ * TO DATE. A `network/` root added tomorrow fails this without
+ * anybody remembering to come back, which is the only form of
+ * this assertion worth writing. [D-19]
+ */
+describe('and nothing reaches another installation', () => {
+  /**
+   * The arguments that are not identifiers, and why each is not.
+   *
+   * NAMED RATHER THAN QUIETLY SKIPPED, because an exemption
+   * nobody can see is an exemption nobody can argue with — and
+   * because the reason is the same argument the test is making.
+   * None of these three can carry an origin: a number has no
+   * separator to carry it with, and a type of four words is
+   * chosen at the call site rather than arriving from HTTP.
+   */
+  const NOT_AN_ID: Record<string, number[]> = {
+    /* One of four words, fixed by its type. */
+    queueState: [0],
+    /* A version number and a segment number. Arithmetic, not names. */
+    performanceVersion: [1],
+    channelSegment: [1],
+  };
+
+  /** What may sit directly under the volume. */
+  const ROOTS = ['accounts', 'overlays', 'queue', 'senders'];
+
+  function every(): [string, (...args: string[]) => string][] {
+    return Object.entries(paths)
+      .filter(([, value]) => typeof value === 'function') as
+      [string, (...args: string[]) => string][];
+  }
+
+  it('has every path on this installation\'s own volume', () => {
+    for (const [name, fn] of every()) {
+      const made = fn(...Array.from({ length: fn.length }, () => 'thing_1'));
+      expect(made.startsWith(`${root}/`), `${name} -> ${made}`).toBe(true);
+    }
+  });
+
+  /*
+   * FOUR ROOTS AND NO FIFTH. This is the assertion a network
+   * record would have to break: it has to live somewhere, and
+   * everywhere it could live is named here.
+   */
+  it('puts everything under one of four roots and invents no other', () => {
+    const seen = new Set<string>();
+    for (const [, fn] of every()) {
+      const made = fn(...Array.from({ length: fn.length }, () => 'thing_1'));
+      seen.add(made.slice(root.length + 1).split('/')[0]!);
+    }
+    expect([...seen].sort()).toEqual(ROOTS);
+  });
+
+  /*
+   * AND AN ORIGIN CANNOT GET INTO A PATH, BY EITHER OF THE TWO
+   * MECHANISMS THIS MODULE HAS.
+   *
+   * `safe()` REFUSES ONE, because `https://network.example` holds
+   * a colon and two separators and the alphabet it issues has
+   * neither — so a route trying to file a record under the
+   * installation it came from could not express the path.
+   *
+   * AND THE EXTENSIONS SCRUB ONE, which is the other half and the
+   * reason this is not written as *throws*. `asset(id, assetId,
+   * ext)` strips everything but letters and digits from its last
+   * argument, so an origin passed there becomes a meaningless
+   * suffix on a file inside this account's own tree. Writing the
+   * assertion as *throws* would have said the module was wrong
+   * where it is merely strict in a different way.
+   *
+   * WHAT IS ACTUALLY CLAIMED IS THE OUTCOME: whatever is handed
+   * in, the path is still on this volume and the argument has
+   * introduced no separator, no parent and no scheme.
+   */
+  it('cannot be handed an origin wherever it takes an id', () => {
+    const origins = [
+      'https://network.example', 'network.example', '//network.example',
+      'https:/network.example', '../../network.example',
+    ];
+    for (const [name, fn] of every()) {
+      if (fn.length === 0) continue;
+      const exempt = NOT_AN_ID[name] ?? [];
+      for (const origin of origins) {
+        /* In every position, not only the first: a path function
+           that filed `assets/<id>/<origin>` would be as wrong. */
+        for (let slot = 0; slot < fn.length; slot += 1) {
+          if (exempt.includes(slot)) continue;
+          const args = Array.from(
+            { length: fn.length }, (_, i) => (i === slot ? origin : 'thing_1'));
+          const where = `${name}(${slot}) ${origin}`;
+          let made: string | null = null;
+          try {
+            made = fn(...args);
+          } catch (error) {
+            expect(String(error), where).toMatch(/unsafe/);
+            continue;
+          }
+          expect(made.startsWith(`${root}/`), where).toBe(true);
+          for (const forbidden of [':', '//', '..']) {
+            expect(made.includes(forbidden), `${where} -> ${made}`).toBe(false);
+          }
+        }
+      }
+    }
+  });
+
+  /*
+   * A CUSTOMER'S OWN CALLS ARE THEIR OWN, which is the first
+   * separation and the half of it that lives on disk. A campaign
+   * is a record like any other and is filed like one. [V-8]
+   */
+  it('files a call under the account that opened it', () => {
+    const under = `accounts/${OWNER_ACCOUNT_ID}`;
+    expect(paths.campaigns()).toContain(under);
+    expect(paths.campaignDocument('camp_1')).toContain(under);
+  });
+});

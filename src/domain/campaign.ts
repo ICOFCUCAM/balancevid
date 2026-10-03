@@ -55,24 +55,89 @@ export type CampaignId = Id<'camp'>;
 /**
  * Where a call has got to.
  *
- * SIX, AND THE FOUR IN FRONT OF THEM ARE DELIBERATELY ABSENT.
- * DRAFT → SUBMITTED → REVIEW → APPROVED only mean something when
- * there are two parties, and on one installation there is one
- * account, one password and one owner. An owner submitting a
- * campaign to themselves for review and approving it is ceremony
- * with the same person on both sides — and a state machine whose
- * guard nobody enforces teaches people to click through.
+ * TEN, AND THE FIRST FOUR ONLY MEAN SOMETHING WHERE THERE ARE TWO
+ * PARTIES. DRAFT → SUBMITTED → REVIEW → APPROVED is a call written
+ * by one person and passed by another, and on an ordinary
+ * installation there is one account, one password and one owner.
+ * An owner submitting a campaign to themselves for review and
+ * approving it is ceremony with the same person on both sides —
+ * and a state machine whose guard nobody enforces teaches people
+ * to click through.
  *
- * Those four are the public network's and arrive with it at V-8.
- * This is the whole of what one installation can honestly operate,
- * and it leaves room at the front of the list rather than
- * inventing an authority. [GO-VIRAL §4, V-8]
+ * SO AN ORDINARY INSTALLATION NEVER ENTERS THEM, AND NOT BECAUSE
+ * ANYTHING CHECKS. Its calls are created at SCHEDULED, and no
+ * edge in the table below leads from SCHEDULED — or from
+ * anywhere after it — back to any of the four. They are
+ * unreachable from where its calls start, which is a property of
+ * the graph rather than a guard somebody could forget to write.
+ * It is the same kind of enforcement `owned()` is: *"a missed
+ * path join cannot reach outside the tree."* [GO-VIRAL V-8]
+ *
+ * AND THE CAPABILITY IS THE INSTALLATION'S, NOT AN ACCOUNT'S.
+ * *"Operating the network must not become an entitlement, because
+ * an entitlement is something an account can be granted and this
+ * is the one capability that cannot be."* Which installation
+ * reviews calls is read from the process it is running in —
+ * `reviewsCalls` in `src/web/deployment.ts` — and there is
+ * nothing to grant anybody. [GO-VIRAL V-8]
  */
 export const CAMPAIGN_STATES = [
+  'draft', 'submitted', 'review', 'approved',
   'scheduled', 'live', 'closing', 'judging', 'results', 'completed',
 ] as const;
 
 export type CampaignState = (typeof CAMPAIGN_STATES)[number];
+
+/**
+ * The four that happen before a call is a call.
+ *
+ * NAMED ONCE AND READ EVERYWHERE, because three surfaces need the
+ * same answer — the public directory must not list one, the
+ * organiser's desk must offer different verbs for one, and the
+ * Take App must not show one as something to enter. Three
+ * separate lists of four words is three places for the fifth to
+ * be forgotten. [D-19]
+ *
+ * AND THE TWO PREDICATES BELOW TAKE A STATE AND NOT A CAMPAIGN,
+ * because the organiser's desk asks them of a wire row rather
+ * than of a document. A page that had to assemble a `Campaign`
+ * to ask *is this public yet* would be a page that reimplemented
+ * the answer instead.
+ */
+export const BEFORE_RUNNING = [
+  'draft', 'submitted', 'review', 'approved',
+] as const satisfies readonly CampaignState[];
+
+/**
+ * Whether this call has not yet been passed for running.
+ *
+ * THE QUESTION EVERY PUBLIC SURFACE ASKS, and it is asked of the
+ * state rather than of the clock: a call under review may have a
+ * window that opened yesterday, because the window is when it
+ * would run and the review is whether it will. [D-03]
+ */
+export function beforeRunning(campaign: { state: CampaignState }): boolean {
+  return (BEFORE_RUNNING as readonly string[]).includes(campaign.state);
+}
+
+/**
+ * Whether the call may still be edited.
+ *
+ * TWO STATES AND NOT FIVE, AND THE THREE THAT ARE MISSING ARE THE
+ * POINT. A call its author can still change while a reviewer has
+ * it open is the hole in every review process there has ever
+ * been: what was passed is not what runs. So SUBMITTED, REVIEW
+ * and APPROVED are frozen, and the way to change one is to send
+ * it back to DRAFT, which leaves a line in the history saying so.
+ *
+ * DRAFT AND SCHEDULED ARE THE SAME MOMENT SEEN FROM TWO KINDS OF
+ * INSTALLATION — *written, not yet open* — which is why one
+ * predicate answers for both and why the rules that used to read
+ * `state === 'scheduled'` now read this. [GO-VIRAL V-8, D-19]
+ */
+export function stillBeingWritten(campaign: { state: CampaignState }): boolean {
+  return campaign.state === 'draft' || campaign.state === 'scheduled';
+}
 
 /**
  * The states a campaign may move to from each one.
@@ -98,6 +163,36 @@ export type CampaignState = (typeof CAMPAIGN_STATES)[number];
  * machine, applied to the thing that contains them.
  */
 export const CAMPAIGN_NEXT: Record<CampaignState, readonly CampaignState[]> = {
+  /*
+   * THE FOUR IN FRONT ARE A ONE-WAY CORRIDOR WITH ONE DOOR BACK.
+   *   [GO-VIRAL V-8]
+   *
+   * A call is written (DRAFT), handed in (SUBMITTED), looked at
+   * (REVIEW) and passed (APPROVED). The door back is to DRAFT and
+   * only to DRAFT, from either of the two states where somebody
+   * still has it open: the person who submitted it may take it
+   * back before anybody has started, and a reviewer may send it
+   * back with it unchanged. Both land in the same place, because
+   * *returned to its author* is one fact however it happened.
+   *
+   * AND THERE IS NO EDGE BACK FROM `scheduled`. Once a call is in
+   * the calendar it is not withdrawn into a draft; it is run, or
+   * it is left to close. That is what makes the four unreachable
+   * from where an ordinary installation's calls begin — and the
+   * reason this product needs no flag to keep them out of one.
+   *
+   * APPROVED IS NOT SCHEDULED, AND THE SECOND PRESS IS NOT
+   * CEREMONY. Approval is editorial — *this call may run*; the
+   * move to SCHEDULED is operational — *this call is in the
+   * calendar*. A network that passed a call in March and put it
+   * out in June did two things, on two days, and a record with
+   * one date in it could not say which was which.
+   */
+  draft: ['submitted'],
+  submitted: ['review', 'draft'],
+  review: ['approved', 'draft'],
+  approved: ['scheduled'],
+
   scheduled: ['live'],
   live: ['closing', 'judging'],
   closing: ['live', 'judging'],
@@ -391,6 +486,20 @@ export function mayJudge(campaign: Campaign, now: string): boolean {
 /** What to tell somebody looking at a call. One line, no jargon. */
 export function campaignSays(campaign: Campaign, now: string): string {
   switch (campaign.state) {
+    /*
+     * THE FOUR BEFORE IT RUNS SAY WHOSE MOVE IT IS, because that
+     * is the only thing anybody looking at one wants to know.
+     * *Under review* with no indication of who is holding it is
+     * the sentence that makes a person email and ask.
+     */
+    case 'draft':
+      return 'A draft. Not handed in yet.';
+    case 'submitted':
+      return 'Handed in. Waiting to be looked at.';
+    case 'review':
+      return 'Being looked at.';
+    case 'approved':
+      return 'Approved. Not in the calendar yet.';
     case 'scheduled':
       return 'Not open yet.';
     case 'live':
@@ -590,8 +699,26 @@ export function takenCallSlugs(
  * UNLISTED IS REACHABLE BY ADDRESS, which is the whole of what
  * unlisted means — the station directory's own words, *"works
  * through direct link/domain but doesn't appear in the
- * directory"*. What this refuses is nothing: a caller that has the
- * address has the call, and the INDEX is where listing is decided.
+ * directory"*. Listing is decided by the INDEX, not here.
+ *
+ * BUT A CALL THAT HAS NOT BEEN PASSED YET HAS NO ADDRESS AT ALL,
+ * and that is a different rule from listing.  [GO-VIRAL V-8]
+ *
+ * FOUND IN A SCREENSHOT, AND IT WOULD HAVE EMPTIED THE REVIEW OF
+ * ITS MEANING. V-8 kept the four pre-running states out of
+ * `publicCalls`, so a draft was absent from the directory — and
+ * a stranger who typed its address was served the whole call,
+ * because a slug is set while the call is being written and this
+ * function answered about it from that moment. A review a
+ * guessed URL walks around is not a review, and *"the existence
+ * of a draft is private."* [D-03]
+ *
+ * THE RULE IS HERE AND NOT AT THE FOUR PUBLIC DOORS, because
+ * four copies of one condition is where the fifth door forgets
+ * it — which is exactly how `listed` and `at` went missing from
+ * one of three projections at V-4. Every caller of this function
+ * is a public door; none of them wants a call nobody has
+ * passed. [D-19]
  *
  * SLUG FIRST, THEN ID, and a slug that looks like an id cannot
  * exist because `slugProblem` refuses an underscore. So the two
@@ -610,9 +737,10 @@ export function bySlugOrId(
    * nobody can check. [the thirty-third]
    */
   const wanted = handle.trim().toLowerCase();
-  return campaigns.find((one) => one.slug === wanted)
+  const found = campaigns.find((one) => one.slug === wanted)
     ?? campaigns.find((one) => one.id === handle.trim())
     ?? null;
+  return found && beforeRunning(found) ? null : found;
 }
 
 /**
@@ -635,7 +763,19 @@ export function publicCalls(
   campaigns: readonly Campaign[], now: string,
 ): Campaign[] {
   const shown = campaigns.filter(
-    (one) => callListed(one) && one.state !== 'completed');
+    (one) => callListed(one) && one.state !== 'completed'
+      /*
+       * AND NOT ONE THAT HAS NOT BEEN PASSED YET.  [GO-VIRAL V-8]
+       *
+       * `listed` IS THE AUTHOR'S ANSWER TO A DIFFERENT QUESTION.
+       * It says *put this in the directory when it runs* — it is
+       * set while the call is being written, because that is when
+       * somebody fills the form in, and a call written with it on
+       * and then submitted for review would otherwise appear in
+       * the public directory while a reviewer still had it open.
+       * *"The existence of a draft is private."* [D-03]
+       */
+      && !beforeRunning(one));
   const open = shown.filter((one) => takingEntries(one, now));
   const rest = shown.filter((one) => !takingEntries(one, now));
   open.sort((a, b) => (a.window.closesAt ?? '').localeCompare(b.window.closesAt ?? ''));
@@ -695,6 +835,18 @@ export interface CallRow {
   closesAt?: string;
   /** The instant, so a countdown is drawn rather than guessed. [V-1] */
   msLeft: number | null;
+  /**
+   * Whether a take may be sent to it right now.  [GO-VIRAL V-8]
+   *
+   * ANSWERED HERE BECAUSE IT IS TWO FACTS AND A CLIENT HOLDS
+   * NEITHER OF THEM WHOLE. `takingEntries` asks the state and the
+   * window together, and a Take App merging calls from three
+   * installations would otherwise re-derive it from `state` and
+   * `clock` — three clients, three readings, and the first one
+   * to get it wrong offers somebody a call that will refuse
+   * them. [D-19]
+   */
+  open: boolean;
   /** Where it lives, which is the thing a person shares. */
   at: string;
 }
@@ -712,6 +864,7 @@ export function callRow(campaign: Campaign, now: string): CallRow {
     ...(campaign.window.opensAt ? { opensAt: campaign.window.opensAt } : {}),
     ...(campaign.window.closesAt ? { closesAt: campaign.window.closesAt } : {}),
     msLeft: msLeft(campaign, now),
+    open: takingEntries(campaign, now),
     at: `/go/${campaign.slug ?? campaign.id}`,
   };
 }

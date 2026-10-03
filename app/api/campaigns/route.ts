@@ -5,6 +5,7 @@ import { CampaignError, newCampaign } from '../../../src/domain/campaignEdit.js'
 import { whenProblem } from '../../../src/domain/availability.js';
 import { listCampaigns, saveCampaign } from '../../../src/store/campaigns.js';
 import { listRequests } from '../../../src/store/requests.js';
+import { reviewsCalls } from '../../../src/web/deployment.js';
 import { fail, json } from '../../../src/web/http.js';
 
 export const dynamic = 'force-dynamic';
@@ -71,6 +72,9 @@ export async function GET(): Promise<Response> {
  * clock and the state answer two questions: *when does this open*
  * and *has anybody opened it*. A call that put itself live on
  * creation would be a call nobody decided to run.
+ *
+ * — OR `draft`, ON THE ONE INSTALLATION THAT REVIEWS CALLS.
+ * [GO-VIRAL V-8]
  */
 export async function POST(request: Request): Promise<Response> {
   const body = await request.json().catch(() => ({})) as {
@@ -120,6 +124,22 @@ export async function POST(request: Request): Promise<Response> {
        * organiser's own answer is judged.
        */
       taken: takenCallSlugs(await listCampaigns().catch(() => [])),
+      /*
+       * AND WHERE IT STARTS, WHICH THIS INSTALLATION KNOWS AND
+       * THE DOMAIN DOES NOT.  [GO-VIRAL V-8]
+       *
+       * On the installation BalanceVid operates a call is
+       * written by one person and passed by another, so a new
+       * one is a DRAFT. On every other installation there is one
+       * owner, and it starts SCHEDULED exactly as it always has.
+       *
+       * READ HERE AND NOWHERE ELSE, because this is the only
+       * moment the answer matters: from SCHEDULED no edge leads
+       * back into the four, so an installation that is not the
+       * network cannot reach them however many times anybody
+       * asks. There is no second check to keep in step. [D-19]
+       */
+      ...(reviewsCalls() ? { review: true } : {}),
       now: new Date().toISOString(),
     });
     await saveCampaign(campaign);

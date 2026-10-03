@@ -500,7 +500,13 @@ describe('many installations, one app', () => {
        from; nothing in the answer can replace it. */
     expect(MODEL).toMatch(/return \{ name: said\.name\.slice\([^)]*\), origin: reached \}/);
     expect(MODEL).not.toMatch(/origin:\s*said\./);
-    expect(HOME).toMatch(/from\?: \{ name: string; origin: string \}/);
+    /*
+     * AND WHAT THE MERGE DOES WITH IT IS ASSERTED WHERE THE
+     * MERGE IS, not by reading this component for a type. The
+     * merge moved to `app/take/home.ts` at V-8 so the question
+     * could be put to a function instead of to a `useEffect`.
+     * [test/domain/take-network.test.ts]
+     */
   });
 
   /*
@@ -591,7 +597,9 @@ describe('many installations, one app', () => {
    */
   it('says when an installation is not answering', () => {
     expect(HOME).toMatch(/not answering just now/);
-    expect(HOME).toMatch(/setAsleep\(quiet\)/);
+    /* The list it draws comes from the merge, which answers for
+       itself in `take-network.test.ts`. [GO-VIRAL V-8] */
+    expect(HOME).toMatch(/setAsleep\(all\.asleep\)/);
   });
 
   /*

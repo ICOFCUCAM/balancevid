@@ -161,6 +161,16 @@ export function Standing({ call }: { call: CallRow }) {
             padding: '2px 8px', borderRadius: 'var(--radius-sm)',
             border: '1px solid var(--line)',
             color: closing ? 'var(--warn)' : 'var(--ink-300)',
+            /*
+             * ONE LINE, WHICH A PHONE DECIDES AND THIS DOES NOT.
+             * Found in a screenshot of the Take App home at 420px:
+             * *Open · 6d 23h* broke after the dot and the chip
+             * became a two-line box half the width of the row. A
+             * standing is four words at most; it wraps or it is
+             * shortened, and shortening it would lose the
+             * countdown. [GO-VIRAL V-8]
+             */
+            whiteSpace: 'nowrap', flexShrink: 0,
           }}>
       {says}
       {call.msLeft !== null && call.msLeft > 0

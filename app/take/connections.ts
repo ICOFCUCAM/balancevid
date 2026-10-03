@@ -33,6 +33,9 @@ import {
   instanceFrom, readConnectionList, withConnection, withoutConnection,
 } from '../../shared/src/connections.js';
 
+import type { CallRow } from '../../src/domain/campaign.js';
+import type { Answer, Row } from './home.js';
+
 export { asOrigin };
 export type { Connection, Instance };
 
@@ -76,17 +79,35 @@ export function removeConnection(origin: string): Connection[] {
  */
 export async function askInstance(
   origin: string, send: typeof fetch = fetch,
-): Promise<{ instance: Instance; rows: unknown[] } | null> {
+): Promise<Answer | null> {
   try {
     const response = await send(`${origin}/api/participate`, {
       credentials: 'omit',
       cache: 'no-store',
     });
     if (!response.ok) return null;
-    const data = await response.json() as { participate?: unknown[] };
+    const data = await response.json() as {
+      participate?: Row[]; calls?: CallRow[];
+    };
     const instance = instanceFrom(origin, data);
     if (!instance) return null;
-    return { instance, rows: data.participate ?? [] };
+    /*
+     * AND THE CALLS IN THE SAME ANSWER, BECAUSE THEY ARE IN THE
+     * SAME ANSWER.  [GO-VIRAL V-4, V-8]
+     *
+     * `/api/participate` has carried `calls` since V-4 and this
+     * function dropped them on the floor — so the Take App home
+     * showed none, on any installation, including the one that
+     * served it. A capability built and never reached.
+     *
+     * THIS IS THE WHOLE OF THE WIRE FOR V-8's THIRD CLAIM. One
+     * public GET, no credentials, against an origin this device
+     * was told to remember. There is no network protocol, because
+     * the network is an installation. [P24]
+     */
+    return {
+      instance, rows: data.participate ?? [], calls: data.calls ?? [],
+    };
   } catch {
     /* Unreachable, refused by CORS, or not a BalanceVid. A connection
        that cannot be read is shown as such rather than dropped: a

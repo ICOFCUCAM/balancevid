@@ -66,3 +66,43 @@ export function deployment(
     startedAt: STARTED,
   };
 }
+
+/* ------------------------------------------------------------------ *
+ *  Whether this installation reviews calls.  [GO-VIRAL V-8]
+ * ------------------------------------------------------------------ */
+
+/**
+ * The one installation on which a call is written by one person
+ * and passed by another.
+ *
+ * READ FROM THE PROCESS, FOR THE SAME REASON THE COMMIT IS, AND
+ * FOR A SECOND ONE THAT MATTERS MORE. *"Operating the network
+ * must not become an entitlement, because an entitlement is
+ * something an account can be granted and this is the one
+ * capability that cannot be."* An entitlement is a field on a
+ * record; a record can be edited, copied into a backup, restored
+ * onto somebody else's machine and granted by whoever holds the
+ * password. What a container was started with is none of those
+ * things. [GO-VIRAL V-8]
+ *
+ * AND IT IS NOT A SECRET, WHICH IS WHY IT IS SAFE TO READ THIS
+ * WAY. A self-hoster who sets it has an installation that reviews
+ * its own calls — two people in one organisation, which is a
+ * reasonable thing to want and costs nobody anything. What it
+ * does NOT give them is any reach into another installation's
+ * records: there is no path function on any installation that
+ * names a record belonging to another one, which is the
+ * enforcement, and this flag cannot create one. [paths.ts]
+ *
+ * OFF IS THE ANSWER FOR ANYTHING BUT A PLAIN YES. An installation
+ * started with `BALANCEVID_REVIEW=maybe` is not half-reviewing;
+ * it is an installation whose operator mistyped, and the safe
+ * reading of a mistyped flag is the behaviour every installation
+ * had before the flag existed.
+ */
+export function reviewsCalls(
+  env: Record<string, string | undefined> = process.env,
+): boolean {
+  const said = (env['BALANCEVID_REVIEW'] ?? '').trim().toLowerCase();
+  return said === '1' || said === 'true' || said === 'yes';
+}

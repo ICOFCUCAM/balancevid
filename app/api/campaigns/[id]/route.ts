@@ -3,9 +3,10 @@ import {
   panelOf, scorecardOf, takenCallSlugs,
 } from '../../../../src/domain/campaign.js';
 import {
-  CampaignError, announce, begin, beginJudging, complete, enterLastStretch,
-  addCriterion, addJudge, moveDeadline, removeCriterion, reopenToLive,
-  setListed, setSlug, setTerms,
+  CampaignError, announce, approveCall, begin, beginJudging, beginReview,
+  complete, enterLastStretch, addCriterion, addJudge, moveDeadline,
+  removeCriterion, reopenToLive, schedule, sendBack, setListed, setSlug,
+  setTerms, submitForReview,
 } from '../../../../src/domain/campaignEdit.js';
 import {
   listCampaigns, loadCampaign, mutateCampaign,
@@ -119,6 +120,26 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
   try {
     const updated = await mutateCampaign(id, (draft) => {
       switch (body.action) {
+        /*
+         * HANDING IT IN, AND PASSING IT.  [GO-VIRAL V-8]
+         *
+         * FIVE MORE VERBS AND NO NEW GUARD IN THIS ROUTE. What
+         * an installation that is not the network may do with
+         * them is nothing: its calls are created at SCHEDULED
+         * and `CAMPAIGN_NEXT` has no edge from there into any of
+         * the four, so `advanceCampaign` refuses every one of
+         * these with the words it already uses. A check here
+         * would be a second answer to a question the state
+         * machine has already answered — and an unobservable
+         * one, which this product deletes rather than keeps.
+         * [D-19, GO-VIRAL V-8]
+         */
+        case 'submit': submitForReview(draft, now, by); break;
+        case 'review': beginReview(draft, now, by); break;
+        case 'approve': approveCall(draft, now, by); break;
+        case 'back': sendBack(draft, now, by); break;
+        case 'schedule': schedule(draft, now, by); break;
+
         case 'begin': begin(draft, now, by); break;
         case 'closing': enterLastStretch(draft, now, by); break;
         case 'reopen': reopenToLive(draft, now, by); break;

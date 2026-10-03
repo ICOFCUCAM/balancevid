@@ -1523,8 +1523,8 @@ the rules, watches entries and enters, on a phone; and a campaign
 that is `listed: false` is reachable by its link and absent from
 every index.
 
-**What was built, and the five places it is not what this section
-said.**
+**What was built, and the seven places it is not what this
+section said.**
 
 **One. The entries wall is opened by the participant's consent and
 by nothing else.** This section says *watches entries* and does not
@@ -1865,7 +1865,7 @@ one map and an ignored store name was exactly right while `chunks`
 was the only store there was, and a fake that mixed the two would
 have had the worker reading a performer's segments as links.
 
-## V-8 · The BalanceVid Public Competition Network — **ADD**
+## V-8 · The BalanceVid Public Competition Network — **ADD**  ·  *built, PART TWELVE*
 
 **What exists today.** Everything a participant needs, and nothing
 of the operator. `shared/src/connections.ts` already models another
@@ -1904,6 +1904,175 @@ unreachable loses nothing of its own; and no route or path function
 on a customer's installation can write a network record, asserted
 by a test over `paths.ts` in the way `tenancy.test.ts` already
 asserts isolation.
+
+**What was built, and the five places it is not what this section
+said.**
+
+**One. There is no network code, and that is the deliverable.**
+This section reads as though an installation BalanceVid operates
+were a thing to build. It is not. It is this product, started with
+`BALANCEVID_REVIEW=1`, and the whole of the difference is that a
+new call begins as a DRAFT instead of as a SCHEDULED one. There is
+no network tier, no federation layer, no second API, and no code
+path anywhere that knows the string `balancevid.com`. A customer's
+Take App reaches it through `askInstance`, the same function that
+reaches a friend's laptop, and the network's calls arrive in the
+same `calls` array `/api/participate` has carried since V-4.
+
+The temptation here was large and is worth naming: the obvious
+reading of "a public competition network" is a service that
+installations register with, and that service is a registry, which
+is *"the universal library §12 rejects wearing a different hat."*
+It was not built, is not needed, and the three claims below are
+what take its place.
+
+**Two. The capability is read from the process, and the four
+states are kept out of an ordinary installation by the GRAPH
+rather than by a check.** `reviewsCalls` in `src/web/deployment.ts`
+reads `BALANCEVID_REVIEW` at the moment somebody asks, beside the
+commit, because *"an entitlement is something an account can be
+granted and this is the one capability that cannot be"* — and an
+entitlement is a field on a record, which can be edited, backed
+up, restored elsewhere and granted by whoever holds the password.
+
+It is read in exactly one place: `app/api/campaigns/route.ts`,
+at creation. Nowhere else needs it, and that is the part worth
+being careful about. An ordinary installation's calls start at
+SCHEDULED, and `CAMPAIGN_NEXT` has no edge from SCHEDULED — or
+from anywhere after it — back into DRAFT, SUBMITTED, REVIEW or
+APPROVED. **The four are unreachable from where its calls begin.**
+A guard in the route refusing those five verbs would have been
+unobservable, because the state machine refuses them first, in the
+words it already uses: *a scheduled call cannot become submitted*.
+This product deletes unobservable guards rather than keeping them,
+and `test/domain/network-route.test.ts` drives all five through
+the route to prove the refusal is real rather than asserted.
+
+The reachability itself is walked, not listed:
+`test/domain/campaign.test.ts` closes over `CAMPAIGN_NEXT` from
+SCHEDULED and asserts none of the four is in the set. An edge
+added anywhere, by anybody, fails it.
+
+**Three. The second claim is asserted over every path function
+there is, and it found two things the claim as written would have
+missed.** *"No path function that names a network record"* is
+checked in `test/store/tenancy.test.ts` by enumerating `paths`
+with reflection — every one of them, found rather than listed —
+and asserting that
+every path lands under one of **four roots** on this installation's
+own volume (`accounts`, `overlays`, `queue`, `senders`) and no
+fifth. A `network/` root added tomorrow fails that without
+anybody remembering to come back, which is the only form of the
+assertion worth writing.
+
+The origin half was written first as *every path function throws
+on an origin*, and that was wrong twice. `asset(id, assetId, ext)`
+does not throw on its third argument — it **scrubs** it, stripping
+everything but letters and digits — and `performanceVersion`,
+`channelSegment` and `queueState` take a number or a fixed word
+rather than an identifier at all. So the assertion states the
+outcome instead of the mechanism: whatever is handed in, the path
+is still on this volume and the argument has introduced no
+separator, no parent and no scheme. The three non-identifier
+arguments are named in the test with the reason each is one,
+because *an exemption nobody can see is an exemption nobody can
+argue with*.
+
+**Four. The third claim was already half-built and entirely
+unreachable.** *"Entering a network campaign is the ordinary Take
+protocol, outbound"* needed no protocol work, because
+`/api/participate` has carried `calls` since V-4 — and
+`askInstance` **threw them away**, on every installation, including
+the one serving the page. The Take App home has never shown a
+single call since the day calls were built. Another capability
+built and never reached, which remains the most common finding in
+this document.
+
+So `askInstance` carries them, and the merge that assembles the
+home moved out of a `useEffect` into `app/take/home.ts`, where the
+question *what does this device see when the network is down* can
+be asked of a function instead of a rendered page. A remote call's
+link is a **whole URL** against the origin this device actually
+reached, never a path: `/go/spring-song` drawn on this
+installation's page resolves against *this* installation and sends
+somebody to the wrong call of that name, or to a 404 that looks
+like a deletion.
+
+One thing moved to the server in the process. `CallRow` gained
+`open`, answered by `takingEntries` where the campaign is, because
+a Take App merging three installations' calls would otherwise
+re-derive *is this enterable* from `state` and `clock` — three
+clients, three readings, and the first one to get it wrong offers
+somebody a call that will refuse them.
+
+**Five. The four states made two existing rules wrong, and both
+were about editing.** `addCriterion` and `removeCriterion` asked
+`state === 'scheduled'`, which would have frozen the scorecard of
+every draft on the reviewing installation — a call cannot be
+written if the one moment it may be written in is the one state it
+is never in. They now ask `stillBeingWritten`, which is DRAFT **or**
+SCHEDULED: the same moment seen from the two kinds of installation
+there are.
+
+And it is deliberately **not** all five. SUBMITTED, REVIEW and
+APPROVED are frozen, because a call its author can still change
+while a reviewer holds it is the hole in every review process
+there has ever been: what was passed is not what runs. The way to
+change one is `back`, which returns it to DRAFT and leaves a line
+in the history saying who sent it back.
+
+The second rule was `publicCalls`, and this one would have been a
+leak. `listed` is set while a call is being written, because that
+is when somebody fills the form in — so a listed call handed in
+for review would have appeared in the public directory and in
+`/api/participate` while a reviewer still had it open. *"The
+existence of a draft is private."* `publicCalls` now excludes all
+four, and the route test checks **both** public doors, because
+V-4's own lesson was that a field added to one listing is a field
+missing from the other.
+
+**Six. And the directory was only half of it — the screenshots
+found the other half.** With a draft correctly absent from
+`/go`, a stranger who typed its address was served the whole
+call: `bySlugOrId` answers by slug, a slug is set while the call
+is being written, and *"unlisted is reachable by address"* was
+the rule it was following. Correct for an unlisted call that
+runs; wrong for a call nobody has passed. **A review a guessed
+URL walks around is not a review**, and `/go/<slug>` is not a
+hard address to guess from a title.
+
+The refusal is in `bySlugOrId` and not at the four public doors
+that call it, which is the same decision `publicCalls` made one
+paragraph up: four copies of one condition is where the fifth
+door forgets it. Every caller of that function is a public door
+and none of them wants a call nobody has passed.
+
+**Seven. Three things only a screenshot could have found, and
+all three were sentences rather than logic.**
+
+- The organiser's desk said **"in the directory"** over a draft,
+  under a link that 404s — because `listed` answers *put this in
+  the directory when it runs* and the page read it as *it is in
+  the directory*. Two different sentences, and the one on the
+  screen was the false one. It now reads *in the directory once
+  it runs*, and the address is plain text until the call is
+  passed: a link an organiser can press and be 404'd by reads as
+  though their call were broken rather than not yet public.
+
+- A call waiting to be looked at said the criteria **"cannot
+  change while people are recording against them"** — over a
+  call nobody has recorded against, that has not opened, and that
+  nobody outside the installation can see. The rule was right and
+  the sentence was about a different call. There are genuinely
+  two reasons a scorecard is frozen, so there are now two
+  sentences, and the one for a call under review says what to do
+  about it: *send it back to change the criteria*.
+
+- The standing chip broke after the dot on a 420px phone —
+  *Open · 6d 23h* became a two-line box half the width of the
+  row — the first time that component had ever been drawn at
+  phone width, because until this stage the Take App home showed
+  no calls at all.
 
 ---
 
@@ -2552,6 +2721,18 @@ with the same person on both sides, and a guard nobody enforces
 teaches people to click through. They arrive with the network at
 V-8, and the list has room at the front rather than an invented
 authority.
+
+**They arrived at V-8, and what kept them out of an ordinary
+installation was not the guard this paragraph expected.** A call
+is created at SCHEDULED unless the process it was created in says
+otherwise, and `CAMPAIGN_NEXT` has no edge from SCHEDULED — or
+from anywhere after it — back into any of the four. So they are
+**unreachable from where an ordinary installation's calls begin**,
+and a check in the route refusing those verbs would have been a
+guard nothing could observe: the state machine refuses them first,
+in the words it already uses. The paragraph above was right that a
+guard nobody enforces teaches people to click through; the answer
+turned out to be a graph nobody has to enforce. [GO-VIRAL V-8]
 
 ## Two answers, and they disagree on purpose
 

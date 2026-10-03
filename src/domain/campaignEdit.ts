@@ -19,7 +19,7 @@
 import {
   type Campaign, type CampaignId, type CampaignRules, type CampaignState,
   type CampaignTerms, beingJudged, clockSays, currentTerms, mayJudge,
-  mayMoveCampaign, panelOf, scorecardOf,
+  mayMoveCampaign, panelOf, scorecardOf, stillBeingWritten,
 } from './campaign.js';
 import {
   CRITERION_LONGEST, type Criterion, type Judge, type Judgement,
@@ -88,6 +88,21 @@ export function newCampaign(spec: {
    * domain reaching for a disk. The route has the list already.
    */
   taken?: Iterable<string>;
+  /**
+   * Whether this installation has somebody to hand it to.
+   *   [GO-VIRAL V-8]
+   *
+   * PASSED IN FOR THE SAME REASON `taken` IS: this module reads
+   * nothing. Which installation reviews calls is a fact about
+   * the process it is running in, read by `reviewsCalls` in the
+   * web layer, and a domain that read an environment variable
+   * would be a domain with a deployment in it.
+   *
+   * ABSENT IS AN INSTALLATION WITH ONE OWNER, which is every one
+   * built before this stage, and its calls start exactly where
+   * they always did.
+   */
+  review?: boolean;
   now: string;
 }): Campaign {
   const title = spec.title.trim();
@@ -141,9 +156,20 @@ export function newCampaign(spec: {
      * somebody fix before they can open one.
      */
     slug: slugFor(title, spec.taken ?? []),
-    state: 'scheduled',
+    /*
+     * AND WHERE IT STARTS IS THE WHOLE OF WHAT V-8 CHANGES HERE.
+     *
+     * On an installation that reviews calls it starts as a DRAFT,
+     * because somebody else has to pass it. On every other one it
+     * starts SCHEDULED, which is where every call has started
+     * since V-2 — and from SCHEDULED no edge in `CAMPAIGN_NEXT`
+     * leads back to any of the four, so an ordinary installation
+     * cannot reach them at all. The decision is made once, at
+     * creation, and the graph keeps it afterwards. [GO-VIRAL V-8]
+     */
+    state: spec.review ? 'draft' : 'scheduled',
     createdAt: spec.now,
-    history: [{ state: 'scheduled', at: spec.now }],
+    history: [{ state: spec.review ? 'draft' : 'scheduled', at: spec.now }],
     ...(spec.closingMinutes !== undefined
       ? { closingMinutes: spec.closingMinutes } : {}),
   };
@@ -171,6 +197,84 @@ export function advanceCampaign(
     ...campaign.history,
     { state: to, at: now, ...(by?.trim() ? { by: by.trim() } : {}) },
   ];
+}
+
+/* ------------------------------------------------------------------ *
+ *  Handing a call in, and passing it.  [GO-VIRAL V-8]
+ *
+ *  FIVE VERBS AND NOT A `state` FIELD, which is the arrangement
+ *  every move on this machine already uses: the route decodes and
+ *  the domain decides. None of these has a guard of its own —
+ *  what they are allowed to do is in `CAMPAIGN_NEXT`, and a
+ *  second copy of it here would be a second answer. [D-19]
+ * ------------------------------------------------------------------ */
+
+/**
+ * Hand it in.
+ *
+ * NOT WHILE IT STILL SAYS NOTHING. `newCampaign` already refuses
+ * a call with no title and no instruction, so what is left to
+ * check here is the thing a draft is allowed to be missing and a
+ * submission is not: an address. A call reviewed and approved
+ * without one would be passed and then have to be edited to be
+ * reachable, and an edit after approval is the hole in every
+ * review process there has ever been.
+ */
+export function submitForReview(
+  campaign: Campaign, now: string, by?: string,
+): void {
+  if (!campaign.slug) {
+    fail('this call has no address yet — give it one before handing it in');
+  }
+  advanceCampaign(campaign, 'submitted', now, by);
+}
+
+/** Start looking at it. */
+export function beginReview(
+  campaign: Campaign, now: string, by?: string,
+): void {
+  advanceCampaign(campaign, 'review', now, by);
+}
+
+/**
+ * Pass it.
+ *
+ * EDITORIAL AND NOT OPERATIONAL. This says the call may run; it
+ * does not put it in the calendar, which is `schedule` below and
+ * a separate day's decision.
+ */
+export function approveCall(
+  campaign: Campaign, now: string, by?: string,
+): void {
+  advanceCampaign(campaign, 'approved', now, by);
+}
+
+/**
+ * Give it back.
+ *
+ * FROM EITHER SIDE AND TO THE SAME PLACE. Whoever submitted it may
+ * take it back while nobody has started, and a reviewer may return
+ * it — and *with its author* is one fact however it got there, so
+ * there is one state for it and one verb.
+ */
+export function sendBack(
+  campaign: Campaign, now: string, by?: string,
+): void {
+  advanceCampaign(campaign, 'draft', now, by);
+}
+
+/**
+ * Put it in the calendar.
+ *
+ * THE LAST OF THE FOUR AND THE JOIN BACK ONTO THE MACHINE every
+ * installation already runs. After this a call is in exactly the
+ * state a call on a one-owner installation is created in, and
+ * every verb from here on is the one that was always there.
+ */
+export function schedule(
+  campaign: Campaign, now: string, by?: string,
+): void {
+  advanceCampaign(campaign, 'scheduled', now, by);
 }
 
 /**
@@ -384,8 +488,9 @@ export function setListed(campaign: Campaign, listed: boolean): void {
 /**
  * Publish one more thing this call will be marked on.
  *
- * ONLY WHILE IT IS SCHEDULED, which is the whole of *"publish the
- * criteria before the campaign opens, not after it closes."* A
+ * ONLY WHILE IT IS STILL BEING WRITTEN, which is the whole of
+ * *"publish the criteria before the campaign opens, not after it
+ * closes."* A
  * criterion added once entries exist is a criterion the people
  * who already recorded were never told about — and every total
  * in the result is out of the sum of these, so adding one
@@ -401,7 +506,7 @@ export function setListed(campaign: Campaign, listed: boolean): void {
 export function addCriterion(
   campaign: Campaign, says: string, outOf: number = MARK_OUT_OF,
 ): Criterion {
-  if (campaign.state !== 'scheduled') {
+  if (!stillBeingWritten(campaign)) {
     fail('the criteria are published before a call opens, not after '
       + 'people have recorded against them');
   }
@@ -419,13 +524,14 @@ export function addCriterion(
  * Take one off again, while that is still allowed.
  *
  * THE SAME DOOR AS ADDING AND THE SAME MOMENT, because removing
- * one after LIVE is the same act seen from the other side: every
+ * one once it has opened is the same act seen from the other
+ * side: every
  * judgement already made would be measured out of a different
  * total. An organiser drafting a call needs to be able to undo a
  * typo; one running a call does not get to change the rules.
  */
 export function removeCriterion(campaign: Campaign, id: string): void {
-  if (campaign.state !== 'scheduled') {
+  if (!stillBeingWritten(campaign)) {
     fail('the criteria are fixed once a call has opened');
   }
   const left = scorecardOf(campaign).filter((one) => one.id !== id);
