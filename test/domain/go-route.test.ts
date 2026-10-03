@@ -389,6 +389,49 @@ describe('entering from the call page', () => {
     expect(request!.claimed).toBe(true);
   });
 
+  /*
+   * AND THE PERSON IS TOLD WHAT THE CALL ASKED FOR, NOT WHAT THE
+   * SONG ASKS FOR.  [GO-VIRAL V-4, V-5; D-19]
+   *
+   * THE MOST FUNDAMENTAL JOIN IN THE FEATURE, AND IT WAS BROKEN.
+   * An organiser writes an instruction, V-4 prints it on the
+   * public page under WHAT TO DO, V-5 publishes the criteria a
+   * panel will mark it against — and entering replaced it with
+   * `claim`'s hardcoded `Sing along to "<title>"`. The entrant
+   * recorded against a brief they were never given and was
+   * judged on the one they were.
+   *
+   * ASSERTED ON WHAT REACHES THE RECORDER, which is
+   * `assignment.asks` on the stored request: that is the string
+   * the Take surface prints above the camera, so it is the only
+   * place this claim can honestly be made.
+   */
+  it('gives the recorder the call\'s instruction, not the song\'s', async () => {
+    const call = await openCall({ title: 'Outdoors, one take' });
+    expect((await enter(call.slug!)).status).toBe(201);
+
+    const [request] = await listRequests();
+    expect(request!.assignment.asks).toBe('Sing the second verse, outdoors');
+    expect(request!.assignment.asks).not.toMatch(/Sing along to/);
+  });
+
+  /*
+   * AND A CALL IS THE ONLY THING THAT OVERRIDES IT. Somebody
+   * arriving at the published song itself has no call and no
+   * instruction, so the track's own sentence is the right thing
+   * to say to them — and the fallback has to still be there.
+   */
+  it('leaves the song\'s own sentence where there is no call', async () => {
+    expect((await TAKE_THIS(
+      new Request(`https://studio.example/api/participate/music/${SONG}`,
+        { method: 'POST' }),
+      { params: Promise.resolve({ kind: 'music', id: SONG }) },
+    )).status).toBe(201);
+    const [request] = await listRequests();
+    expect(request!.assignment.asks).toMatch(/^Sing along to /);
+    expect(request!.campaign).toBeUndefined();
+  });
+
   /* And it hands over the words, so the Take surface can show them. [V-3] */
   it('carries the terms into the Take surface', async () => {
     const call = await openCall({ terms: 'What you are agreeing to' });

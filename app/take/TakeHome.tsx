@@ -230,7 +230,7 @@ export default function TakeHome() {
   }, []);
 
   return (
-    <main className="shell" data-testid="take-home" style={page}>
+    <main data-testid="take-home" style={page}>
       <div style={column}>
         <header style={{ textAlign: 'center' }}>
           <h1 style={brand}>BalanceVid</h1>
@@ -293,28 +293,47 @@ export default function TakeHome() {
             <h2 style={heading}>Open calls</h2>
             <ul style={list}>
               {calls.map((one) => (
+                /*
+                  * STACKED, BECAUSE A PHONE IS 390 PIXELS WIDE.
+                  *   [GO-VIRAL V-8; U-19]
+                  *
+                  * One row held the title, the ask, the standing chip
+                  * and the button, so the ask was cut to *"Sing the
+                  * second verse of “The L…"* and the chip took a
+                  * third of the screen. Found in a screenshot.
+                  *
+                  * THE ASK IS THE REASON SOMEBODY PRESSES IT, so it gets
+                  * two whole lines of its own rather than whatever is
+                  * left beside a chip. The chip and the button go
+                  * underneath, where a thumb is.
+                  */
                 <li key={`${one.from?.origin ?? ''}${one.id}`}
                     data-testid="call-row" data-open={one.open ? 'yes' : 'no'}
-                    style={card}>
-                  <div className="grow" style={{ minWidth: 0 }}>
+                    style={{ ...card, flexDirection: 'column',
+                      alignItems: 'stretch', gap: 10 }}>
+                  <div style={{ minWidth: 0 }}>
                     <div style={{
-                      fontSize: 'var(--text-sm)', overflow: 'hidden',
-                      textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      fontSize: 'var(--text-sm)',
+                      fontWeight: 'var(--weight-semi)',
                     }}>{one.title}</div>
                     <div className="small muted"
                          style={{
-                           fontSize: 'var(--text-2xs)', overflow: 'hidden',
-                           textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                           fontSize: 'var(--text-2xs)', marginTop: 2,
+                           display: '-webkit-box', WebkitLineClamp: 2,
+                           WebkitBoxOrient: 'vertical', overflow: 'hidden',
                          }}>
                       {connections.length > 0 && one.from
                         ? `${one.from.name} · ${one.asks}` : one.asks}
                     </div>
                   </div>
-                  <Standing call={one} />
-                  <a className="btn ctl sm" data-testid="call-open"
-                     data-at={one.at} href={one.at}>
-                    Look
-                  </a>
+                  <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+                    <Standing call={one} />
+                    <span className="grow" />
+                    <a className="btn ctl sm" data-testid="call-open"
+                       data-at={one.at} href={one.at}>
+                      Look
+                    </a>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -559,6 +578,24 @@ function takeVerb(kind: Row['kind']): string {
   return 'Send something in';
 }
 
+/*
+ * NOT `className="shell"`, WHICH IS THE EDITOR'S FRAME.
+ *   [GO-VIRAL V-8; U-19]
+ *
+ * `.shell` is `height: 100dvh; overflow: hidden` with a three-row
+ * grid, because *"a workspace is not a document… the page itself
+ * never scrolls."* That is right for the studio and wrong for
+ * every page here: a take page on a 390x844 phone measured 892
+ * pixels of content inside an 844-pixel box that could not
+ * scroll, so forty-eight pixels were simply unreachable — and on
+ * a shorter phone, or once recording adds controls, the primary
+ * button goes with them. Found by measuring a screenshot that
+ * looked merely cropped.
+ *
+ * NOTHING WAS GAINED BY IT EITHER. The only other thing `.shell`
+ * carries is the console treatment for `.panel`, and no page in
+ * the Take App draws one.
+ */
 const page: React.CSSProperties = {
   minHeight: '100dvh', display: 'grid', placeItems: 'start center',
   padding: 'var(--space-5)',

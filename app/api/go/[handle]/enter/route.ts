@@ -76,6 +76,19 @@ export async function POST(_request: Request, { params }: Params): Promise<Respo
   try {
     const made = await claim({
       kind, id: call.track.id, now, campaign: call.id,
+      /*
+       * THE CALL'S OWN INSTRUCTION, WHICH THIS DOOR DROPPED.
+       *   [GO-VIRAL V-4, V-5]
+       *
+       * `rules.asks` is the sentence the organiser wrote, printed
+       * on the page the person has just read under WHAT TO DO and
+       * marked against by the panel at V-5. Entering used to
+       * replace it with the track's own hardcoded line, so a
+       * competition entrant recorded against *Sing along to
+       * "…"* and was judged on the brief they were never shown
+       * at the one moment it mattered. [D-19]
+       */
+      asks: call.rules.asks,
     });
     if ('refused' in made) {
       /*

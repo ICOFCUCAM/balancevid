@@ -29,6 +29,70 @@ import type { Room as TheRoom } from '../src/domain/rooms.js';
  * page now, over the room's own photograph, because it is what the room
  * IS. The author's note: *"the most important concept is too small."*
  */
+/**
+ * The building, with anything at all inside it.
+ *   [D-19, D-24; DESIGN "the rooms"]
+ *
+ * EXTRACTED FROM `Room` BECAUSE A SECOND KIND OF PAGE NEEDED IT AND
+ * DID NOT HAVE IT. `/calls` and the call desk were built over eight
+ * stages as bare `<main>` elements on a black page: no rail, no
+ * breadcrumb, no way to the rooms. Which is the diagnosis this file's
+ * own header already records, made a second time — *"it does not look
+ * professional… it looks more like an internal prototype"* — against
+ * the surfaces that were written after it was fixed.
+ *
+ * SO THE FRAME IS A COMPONENT RATHER THAN A SHAPE `Room` HAPPENS TO
+ * DRAW. `Room` is the building with a PRODUCTION ROOM in it, which is a
+ * frame plus a photograph plus an intake; a desk is the building with a
+ * desk in it. One frame, two insides. [D-19]
+ *
+ * AND THE BREADCRUMB TAKES A WORD RATHER THAN A ROOM, because a desk is
+ * not in `rooms.ts` and must not be put there to borrow a layout: that
+ * file says what the three production rooms ARE, and a fourth entry
+ * nobody can enter would be a lie told to make a page look right.
+ */
+export function Building({
+  owned, space, libraryCount, heroHref, current, where, ready, children,
+}: {
+  owned: import('../src/domain/account.js').StudioId[];
+  space: SpaceReading;
+  libraryCount: number;
+  heroHref?: string;
+  current: Parameters<typeof BuildingRail>[0]['current'];
+  /** The second half of `Home / …`. */
+  where: string;
+  /** The chip, where this page has something to say about itself. */
+  ready?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="building" style={{ background: 'var(--ink-900)' }}>
+      <BuildingRail owned={owned} libraryCount={libraryCount} space={space}
+                    current={current}
+                    {...(heroHref ? { heroHref } : {})} />
+      <div className="building-shell">
+        <div className="room-bar">
+          <span className="row" style={{ gap: 6, minWidth: 0 }}>
+            <Link href="/" data-testid="back-home" style={{
+              textDecoration: 'none', color: 'var(--ink-400)',
+            }}>Home</Link>
+            <span aria-hidden="true" style={{ color: 'var(--ink-450)' }}>/</span>
+            <span style={{ color: 'var(--ink-100)' }}>{where}</span>
+          </span>
+          <span className="grow" />
+          {ready && (
+            <span data-testid="room-ready" className="room-ready">
+              <span aria-hidden="true" className="room-ready-dot" />
+              {ready}
+            </span>
+          )}
+        </div>
+        <div className="building-body" id="top">{children}</div>
+      </div>
+    </div>
+  );
+}
+
 export default function Room({
   room, owned, space, libraryCount, heroHref, start, children, head = 'photo',
 }: {

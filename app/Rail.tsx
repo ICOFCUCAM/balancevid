@@ -158,8 +158,8 @@ export function BuildingRail({
   owned: StudioId[];
   libraryCount: number;
   space: SpaceReading;
-  /** Which row to mark, by studio, or the home page itself. */
-  current: StudioId | 'home';
+  /** Which row to mark, by studio, the home page, or the call desk. */
+  current: StudioId | 'home' | 'calls';
   /**
    * True on the home page, where `#library` scrolls.
    *
@@ -206,6 +206,22 @@ export function BuildingRail({
         ))}
         <RailRow href={at('#library')} icon="library" label="Library"
                  under="Media & Recordings" count={libraryCount} />
+
+        {/*
+          * CALLS, WHICH HAD NO ROW AT ALL.  [GO-VIRAL V-2…V-8]
+          *
+          * Eight stages built an organiser's desk and no way to reach
+          * it: `/calls` was a path you typed. A capability built and
+          * never reached, which is this product's most common finding,
+          * and the rail is where it stops being one.
+          *
+          * UNDER THE ROOMS AND ABOVE THE RULE, because a call is not a
+          * fourth room — it is a thing a room's work is offered up to,
+          * and it belongs with the Library in the group of what this
+          * installation HOLDS rather than with what it IS.
+          */}
+        <RailRow href="/calls" icon="list" label="Calls"
+                 under="Open for takes" current={current === 'calls'} />
 
         <hr style={{
           border: 0, borderTop: '1px solid var(--ink-750)',

@@ -40,6 +40,15 @@ import { loadChannel } from '../store/channels.js';
 import { listRequests, newSecret, saveRequest } from '../store/requests.js';
 
 /** The three things a call can be about, as the paths spell them. */
+/**
+ * The longest instruction a recording screen is handed.
+ *
+ * `RULE_LONGEST` is two thousand characters, which is the right
+ * bound on a page a person reads before deciding to enter. The
+ * line above a camera is not that page.
+ */
+export const ASKS_LONGEST = 400;
+
 export type ClaimKind = 'music' | 'video' | 'programme';
 
 /**
@@ -113,12 +122,47 @@ export async function claim(spec: {
   now: string;
   /** The call this request answers, where the caller knows one. */
   campaign?: Id<'camp'>;
+  /**
+   * WHAT THE CALL ASKED FOR, IN THE ORGANISER'S OWN WORDS.
+   *   [GO-VIRAL V-4, V-5; D-19]
+   *
+   * THE DOOR USED TO THROW THIS AWAY, which broke the competition
+   * at its most fundamental join. An organiser writes *what to
+   * do*; V-4 prints it on the public page; V-5 publishes the
+   * criteria the panel will mark it against — and then the person
+   * pressed ENTER and the recorder told them `Sing along to
+   * "<title>"`, because this function hardcoded one sentence per
+   * kind. They recorded against the wrong brief and were judged
+   * on the right one.
+   *
+   * AND THE OTHER DOOR ALWAYS CARRIED IT. A producer inviting
+   * somebody passes `asks` through `/api/performances/<id>/
+   * requests` and it reaches the recording screen intact. Two
+   * doors with two answers to *what am I being asked to do* is
+   * the thing D-19 exists to prevent, and the one that was wrong
+   * was the one a stranger uses.
+   *
+   * ABSENT FALLS BACK TO THE TRACK'S OWN SENTENCE, because the
+   * discovery door has no call and no instruction — somebody
+   * arriving at a published song is answering the song, and
+   * *"Sing along to…"* is the right thing to say to them.
+   */
+  asks?: string;
   /** Asked before minting, so a door may add its own condition. */
   also?: (publication: unknown) => boolean;
 }): Promise<Claimed> {
   const { kind, id, now } = spec;
   const holder: RequestHolder = { kind: holderKind(kind), id };
   const stamp = spec.campaign ? { campaign: spec.campaign } : {};
+  /*
+   * TRIMMED AND BOUNDED HERE, because what arrives is a
+   * organiser's free text that already passed `newCampaign`'s
+   * limit — and a request's assignment is read by a recorder on
+   * a phone, not by a page with room to run. An empty one is no
+   * instruction at all and falls back rather than printing a
+   * blank line where the brief should be.
+   */
+  const said = (spec.asks ?? '').trim().slice(0, ASKS_LONGEST);
 
   try {
     if (kind === 'music') {
@@ -135,7 +179,7 @@ export async function claim(spec: {
         holder: { kind: 'performance', id: performance.id },
         assignment: {
           kind: 'performance',
-          asks: `Sing along to "${performance.master.title}"`,
+          asks: said || `Sing along to "${performance.master.title}"`,
           watch: performance.master.assetId,
           reference: {
             title: performance.master.title,
@@ -170,7 +214,7 @@ export async function claim(spec: {
         holder: { kind: 'conversation', id: conversation.id },
         assignment: {
           kind: 'response',
-          asks: `Respond to "${conversation.title}"`,
+          asks: said || `Respond to "${conversation.title}"`,
           ...(conversation.source?.mezzanineAssetId
             ? { watch: conversation.source.mezzanineAssetId } : {}),
         },
@@ -215,7 +259,7 @@ export async function claim(spec: {
       holder: { kind: 'channel', id: channel.id },
       assignment: {
         kind: 'question',
-        asks: `Send something in to "${channel.name}"`,
+        asks: said || `Send something in to "${channel.name}"`,
         /* Nothing to watch first: a channel is a running programme
            rather than a file. [T14] */
       },

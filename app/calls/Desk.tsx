@@ -180,6 +180,53 @@ export default function Desk({ id }: { id: string }) {
       )}
 
       {/*
+        * WHAT THIS CALL ACTUALLY ASKS FOR.  [GO-VIRAL V-8]
+        *
+        * FOUND IN A SCREENSHOT, AND IT IS THE PLAINEST OMISSION IN
+        * THE WHOLE OF GO-VIRAL. The organiser's own words — the
+        * instruction, the basis, the prize — were on the public
+        * page from V-4 and never once on the page where the
+        * organiser manages the call. A desk that shows the state
+        * machine and the scorecard but not the sentence the whole
+        * call is about is a control panel for something you cannot
+        * see.
+        *
+        * THE SAME THREE LABELS THE PUBLIC PAGE USES, in the same
+        * order, because the value of them here is to be exactly
+        * what a stranger is reading. Different wording in the two
+        * places would make an organiser check the public page to
+        * be sure — which is the page they would have had to open
+        * anyway, which is the bug.
+        */}
+      <section className="panel" data-testid="desk-rules" style={{
+        padding: 'var(--space-4)', display: 'flex',
+        flexDirection: 'column', gap: 'var(--space-3)',
+      }}>
+        <div>
+          <h2 className="small muted" style={HEAD}>What to do</h2>
+          <p data-testid="desk-asks" style={{ margin: 0, whiteSpace: 'pre-wrap' }}>
+            {call.rules.asks}
+          </p>
+        </div>
+        {call.rules.criteria && (
+          <div>
+            <h2 className="small muted" style={HEAD}>Judged on</h2>
+            <p data-testid="desk-criteria" style={{ margin: 0, whiteSpace: 'pre-wrap' }}>
+              {call.rules.criteria}
+            </p>
+          </div>
+        )}
+        {call.rules.prize && (
+          <div>
+            <h2 className="small muted" style={HEAD}>Prize</h2>
+            <p data-testid="desk-prize" style={{ margin: 0, whiteSpace: 'pre-wrap' }}>
+              {call.rules.prize}
+            </p>
+          </div>
+        )}
+      </section>
+
+      {/*
         * WHERE IT GOES NEXT, AND ONLY WHERE IT CAN GO.  [V-2]
         *
         * `CAMPAIGN_NEXT` is a table the domain owns and this draws
