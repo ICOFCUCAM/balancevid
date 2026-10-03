@@ -79,7 +79,22 @@ export default function SignIn({ configured, next }: { configured: boolean; next
         marginTop: 0, textAlign: 'center', fontSize: 'var(--text-base)',
         color: 'var(--text-faint)',
       }}>
-        A conversation editor for recorded media.
+        {/*
+          * FOUR STUDIOS, NOT ONE.  [TV-NETWORK N-4]
+          *
+          * This read "A conversation editor for recorded media",
+          * which describes Studio One and is the only sentence a
+          * stranger ever saw — the root is denied without a
+          * session, so this page IS the product's front door. A
+          * television network was running behind it and nothing
+          * said so.
+          */}
+        Conversations, performances and television.
+      </p>
+      <p className="small" style={{
+        marginTop: 6, textAlign: 'center',
+      }}>
+        <a href="/tv" data-testid="signin-to-tv">Watch BalanceVid TV →</a>
       </p>
 
       {configured ? (
@@ -113,9 +128,21 @@ export default function SignIn({ configured, next }: { configured: boolean; next
                   data-testid="signin-submit" style={{ width: '100%' }}>
             {busy ? 'Checking…' : 'Sign in'}
           </button>
+          {/*
+            * AND THIS WAS A FALSE STATEMENT ABOUT THE POLICY IT
+            * EXISTS TO EXPLAIN.  [TV-NETWORK N-4]
+            *
+            * It named conversations alone. `PUBLIC_PATTERNS` has
+            * admitted published performances and published
+            * channels for a long time — `/p/<id>/watch`,
+            * `/t/<id>/watch`, the playlist and the segments — so
+            * the page understated its own product to the only
+            * people who read it.
+            */}
           <p className="small muted" style={{ marginBottom: 0, marginTop: 12 }}>
-            Published conversations are readable without signing in. Everything
-            else — drafts, recordings, anything not published — is not.
+            Published conversations, performances and channels are readable
+            without signing in. Everything else — drafts, recordings, anything
+            not published — is not.
           </p>
         </form>
       ) : (

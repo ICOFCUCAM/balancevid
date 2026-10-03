@@ -26,6 +26,9 @@ import {
 } from './distribution.js';
 import { LAYOUTS } from './presentation.js';
 import { newId } from './ids.js';
+import {
+  GENRES, type Station, callsignProblem, slugFor, slugProblem,
+} from './station.js';
 import { setById } from './virtualSet.js';
 import { roomHostKind } from './document.js';
 
@@ -1148,4 +1151,84 @@ export function unpublishChannel(channel: Channel, at: string): void {
   const publication = channel.publication
     ?? fail('this channel is not published') as never;
   publication.unpublishedAt = at;
+}
+
+/**
+ * What the world calls this channel.  [§2, §3, TV-NETWORK N-1]
+ *
+ * THE SLUG IS THE ONLY FIELD THAT CAN COLLIDE, and it is checked
+ * against the other channels rather than against itself: an address
+ * two channels answer to is an address neither of them owns. The
+ * caller passes the rest of the lineup because this module does not
+ * read the filesystem (§D-14) — the same shape `slugFor` takes.
+ *
+ * EVERY FIELD IS OPTIONAL AND EVERY EMPTY ONE IS REMOVED rather than
+ * stored blank, for the reason `setIdentity` gives about a set id:
+ * a record holding `country: ''` is a record claiming a country
+ * nobody can look up, and `stationSays` would draw a separator with
+ * nothing either side of it.
+ */
+export function setStation(
+  channel: Channel, patch: Partial<Station>, others: Iterable<Channel> = [],
+): void {
+  const now: Station = channel.station
+    ?? { slug: slugFor(channel.name, takenSlugs(others, channel.id)) };
+  const next: Station = { ...now, ...patch };
+
+  next.slug = (next.slug ?? '').trim().toLowerCase();
+  const wrong = slugProblem(next.slug);
+  if (wrong) fail(`that web address will not do: ${wrong}`);
+  if (takenSlugs(others, channel.id).has(next.slug)) {
+    fail('another channel already answers to that address');
+  }
+
+  if (next.callsign !== undefined) {
+    const callsign = next.callsign.trim().toUpperCase();
+    if (!callsign) delete next.callsign;
+    else {
+      const bad = callsignProblem(callsign);
+      if (bad) fail(`that callsign will not do: ${bad}`);
+      next.callsign = callsign;
+    }
+  }
+  if (next.genre !== undefined && !GENRES.includes(next.genre)) {
+    fail('that is not one of the kinds of channel this directory has');
+  }
+  /*
+   * A COUNTRY IS TWO LETTERS AND A LANGUAGE IS A TAG, and both are
+   * refused rather than repaired. "Cameroun" is a country somebody
+   * typed and not a code anything can match, and storing it would
+   * put a channel on a shelf no filter reaches.
+   */
+  if (next.country !== undefined) {
+    const country = next.country.trim().toUpperCase();
+    if (!country) delete next.country;
+    else if (!/^[A-Z]{2}$/.test(country)) fail('a country is its two-letter code');
+    else next.country = country;
+  }
+  if (next.language !== undefined) {
+    const language = next.language.trim().toLowerCase();
+    if (!language) delete next.language;
+    else if (!/^[a-z]{2,3}(-[a-z0-9]{2,8})*$/.test(language)) {
+      fail('a language is a tag like en, fr or sw');
+    } else next.language = language;
+  }
+  for (const field of ['description', 'logoAssetId'] as const) {
+    const value = next[field]?.trim();
+    if (!value) delete next[field];
+    else next[field] = value.slice(0, field === 'description' ? 400 : 128);
+  }
+  channel.station = next;
+}
+
+/** Every slug in use, except this channel's own. */
+export function takenSlugs(
+  channels: Iterable<Channel>, exceptId?: string,
+): Set<string> {
+  const out = new Set<string>();
+  for (const channel of channels) {
+    if (channel.id === exceptId) continue;
+    if (channel.station?.slug) out.add(channel.station.slug);
+  }
+  return out;
 }

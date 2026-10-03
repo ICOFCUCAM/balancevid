@@ -210,6 +210,33 @@ const PUBLIC_PATTERNS: RegExp[] = [
   /^\/api\/channels\/[A-Za-z0-9_-]+\/playlist$/,
   /^\/api\/channels\/[A-Za-z0-9_-]+\/stream\/[0-9]{1,15}$/,
   /^\/api\/channels\/[A-Za-z0-9_-]+\/now$/,
+
+  /*
+   * AND THE TELEVISION NETWORK ITSELF.  [TV-NETWORK N-4]
+   *
+   * A channel has been watchable by a stranger since the line
+   * above was drawn, and unfindable for exactly as long: the four
+   * patterns above all need an id somebody already has. These are
+   * the surfaces that answer *which channels exist* and *what is
+   * on them*, which is the whole of the author's question —
+   * *"how would people access the channel?"*
+   *
+   * THEY ADD NO ACCESS, ONLY DISCOVERY. Everything they can reach
+   * was already reachable: `directory()` returns only channels
+   * whose owner set `publication.listed`, and the station route
+   * answers 404 for anything private or offline. A viewer who
+   * follows one of these links lands on the watch page that has
+   * been public all along.
+   *
+   * `/tv` IS A PREFIX AND THAT IS DELIBERATE. The directory, the
+   * guide, the search and the station pages are one product
+   * surface, and listing them one at a time is how the fifth page
+   * ships behind a password by accident. Nothing authenticated
+   * lives under `/tv` and nothing ever should.
+   */
+  /^\/tv(\/.*)?$/,
+  /^\/api\/tv\/channels$/,
+  /^\/api\/tv\/channels\/[a-z0-9-]+$/,
 ];
 
 /** Next's own assets, and the favicon. Never application data. */

@@ -234,6 +234,17 @@ export const paths = {
 
   channels: () => join(owned(), 'channels'),
   channel: (id: string) => join(paths.channels(), safe(id)),
+  /**
+   * WHERE CHANNEL NUMBERS LIVE, and why not in the channel.
+   * [TV-NETWORK N-6]
+   *
+   * Beside the channels rather than inside one, because an
+   * assignment is the NETWORK's and a channel document is its
+   * owner's. A number kept in a file the owner edits is a number
+   * the owner can change, and the one rule about channel numbers
+   * is that they are allocated.
+   */
+  lineup: () => join(paths.channels(), 'lineup.json'),
   channelDocument: (id: string) => join(paths.channel(id), 'channel.json'),
   channelAudit: (id: string) => join(paths.channel(id), 'audit.log'),
   /** Live feeds and recordings somebody asked for. Nothing scheduled. */

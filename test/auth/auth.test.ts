@@ -532,3 +532,57 @@ async function signPayload(hash: string, payload: string): Promise<string> {
   for (const byte of bytes) binary += String.fromCharCode(byte);
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
+
+describe('the television network is public, and adds no access (N-4)', () => {
+  /*
+   * A CHANNEL HAS BEEN WATCHABLE BY A STRANGER FOR A LONG TIME and
+   * unfindable for exactly as long: every public channel path
+   * needs an id somebody already has. These are the surfaces that
+   * answer *which channels exist*.
+   */
+  it('lets a stranger reach the directory and a station page', () => {
+    for (const path of ['/tv', '/tv/channels', '/tv/guide', '/tv/search',
+      '/tv/channels/redemption-tv', '/api/tv/channels',
+      '/api/tv/channels/redemption-tv']) {
+      expect(mayBePublic(path, 'GET'), path).toBe(true);
+    }
+  });
+
+  /*
+   * `/tv` IS A PREFIX ON PURPOSE: a page added later must not ship
+   * behind a password by accident. Nothing authenticated lives
+   * under it and nothing ever should.
+   */
+  it('covers a page under /tv that does not exist yet', () => {
+    expect(mayBePublic('/tv/countries/cm', 'GET')).toBe(true);
+    expect(mayBePublic('/tv/anything/at/all', 'GET')).toBe(true);
+  });
+
+  /* It is a read-only surface. Nothing under it is writable. */
+  it('is readable and never writable by a stranger', () => {
+    for (const method of ['POST', 'PUT', 'PATCH', 'DELETE']) {
+      expect(mayBePublic('/tv/channels', method), method).toBe(false);
+      expect(mayBePublic('/api/tv/channels', method), method).toBe(false);
+    }
+  });
+
+  /*
+   * AND IT OPENS NOTHING ELSE. A prefix is a blunt instrument and
+   * this is the assertion that keeps it from being the wrong one:
+   * the production application, the library, the channel document
+   * and every other channel route stay shut.
+   */
+  it('opens nothing a broadcaster works with', () => {
+    for (const shut of ['/', '/t/chan_abc', '/api/channels',
+      '/api/channels/chan_abc', '/api/library', '/settings',
+      '/television', '/tvx', '/api/tvx/channels']) {
+      expect(mayBePublic(shut, 'GET'), shut).toBe(false);
+    }
+  });
+
+  /* An address is lower case, which is what the slug rules say. */
+  it('does not open a station route for something that is not a slug', () => {
+    expect(mayBePublic('/api/tv/channels/UPPER', 'GET')).toBe(false);
+    expect(mayBePublic('/api/tv/channels/a/b', 'GET')).toBe(false);
+  });
+});
