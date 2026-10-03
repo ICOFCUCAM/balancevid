@@ -36,7 +36,9 @@
 import type { Channel } from './channel.js';
 import { isPublished } from './channel.js';
 import { type Station, hostOf, stationSays } from './station.js';
-import { type Assignments, usableNumber } from './registry.js';
+import {
+  type Assignments, lineupOf, tuneFrom, usableNumber,
+} from './registry.js';
 
 /** What a channel is, to a stranger looking for something to watch. */
 export type Standing = 'public' | 'unlisted' | 'private' | 'offline';
@@ -210,4 +212,58 @@ export function byDomain(
     return standing === 'public' || standing === 'unlisted' ? channel : undefined;
   }
   return undefined;
+}
+
+/* ------------------------------------------------------------------ *
+ *  The remote control.  [TV-NETWORK N-9]
+ * ------------------------------------------------------------------ */
+
+/** Where CH+ and CH− go from here. */
+export interface Tuning {
+  up: Listing | null;
+  down: Listing | null;
+}
+
+/**
+ * The channel one press away in each direction.
+ *
+ * > *"A remote control could eventually have: CH + / CH −"*
+ *
+ * `tuneFrom` HAS BEEN BUILT AND TESTED SINCE N-6 AND NOTHING DREW
+ * IT. It wraps both ends and lands on the nearest channel in the
+ * direction asked when the one you were on has gone, and all of
+ * that was arithmetic nobody could reach — the finding this whole
+ * network stage keeps making, recorded in the document under *not
+ * built* and now closed.
+ *
+ * NUMBERS ARE THE RING AND LISTINGS ARE THE ANSWER. The registry
+ * knows about numbers and must not learn about stations; the page
+ * needs a slug to link to and a name to show. This is the one
+ * place that holds both, which is why it is here and not there.
+ *
+ * NOTHING EITHER WAY FOR A LINEUP OF ONE, because there is
+ * nowhere to go, and a CH+ button that reloads the same channel is
+ * a button that looks broken.
+ *
+ * TUNING FROM OUTSIDE THE LINEUP WORKS, and that is not an edge
+ * case: an unlisted station is reached by its slug or its own
+ * domain and is not in the directory, so `from` is a number the
+ * ring does not contain. `tuneFrom` lands on the nearest in the
+ * direction asked, which is what a set does when you tune away
+ * from a channel that is not on the dial. [N-8]
+ */
+export function tuning(
+  channels: Iterable<Channel>, assigned: Assignments, from: number,
+): Tuning {
+  const lineup = lineupOf([...channels].filter(inDirectory), assigned);
+  const numbers = lineup.map((row) => row.number);
+  const at = (number: number | null) => {
+    if (number === null) return null;
+    const found = lineup.find((row) => row.number === number);
+    return found ? listingFor(found.channel, found.number) : null;
+  };
+  return {
+    up: at(tuneFrom(numbers, from, 1)),
+    down: at(tuneFrom(numbers, from, -1)),
+  };
 }

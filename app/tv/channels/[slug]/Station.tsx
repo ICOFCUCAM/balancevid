@@ -4,8 +4,18 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 
 import { numberSays } from '../../../../src/domain/registry.js';
+import type { Tuning } from '../../../../src/domain/channelListing.js';
 import ChannelPlayer from '../../../t/[id]/watch/ChannelPlayer.js';
+import Icon from '../../../Icon.js';
 import type { Listing } from '../../Tv.js';
+
+/* A focusable target big enough for a thumb and a D-pad. */
+const rocker = {
+  display: 'inline-flex', alignItems: 'center', gap: 8,
+  padding: '8px 14px', textDecoration: 'none',
+  border: '1px solid var(--line)', borderRadius: 'var(--radius-control)',
+  color: 'var(--text)', fontWeight: 600,
+} as const;
 
 interface On {
   title: string | null;
@@ -30,8 +40,8 @@ interface On {
  * on a phone is not a request every second for an hour.
  */
 export default function Station(
-  { channelId, listing, first }: {
-    channelId: string; listing: Listing; first: On;
+  { channelId, listing, first, tune }: {
+    channelId: string; listing: Listing; first: On; tune?: Tuning;
   },
 ) {
   const [on, setOn] = useState<On>(first);
@@ -55,6 +65,41 @@ export default function Station(
     const every = setInterval(() => { void ask(); }, 20_000);
     return () => { stopped = true; clearInterval(every); };
   }, [listing.slug]);
+
+  /*
+   * CHANNEL UP AND CHANNEL DOWN, FROM A KEYBOARD.  [N-9]
+   *
+   * `ChannelUp`/`ChannelDown` are what a television remote sends
+   * where a browser reports them at all; `PageUp`/`PageDown` are
+   * what a desktop keyboard has and what most TV browsers map the
+   * channel rocker to.
+   *
+   * AND DELIBERATELY NOT THE ARROW KEYS. A D-pad sends arrows, and
+   * arrows are how the viewer moves focus between the links on
+   * this page. Hijacking them to change channel would break the
+   * remote this exists for — the one input device a TV app can
+   * count on. [D-04]
+   */
+  const upTo = tune?.up?.slug;
+  const downTo = tune?.down?.slug;
+  useEffect(() => {
+    if (!upTo && !downTo) return undefined;
+    const press = (event: KeyboardEvent) => {
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      /* Not while somebody is typing into something. */
+      const inside = event.target as HTMLElement | null;
+      if (inside && /^(INPUT|TEXTAREA|SELECT)$/.test(inside.tagName)) return;
+      const go = (event.key === 'ChannelUp' || event.key === 'PageUp')
+        ? upTo
+        : (event.key === 'ChannelDown' || event.key === 'PageDown')
+          ? downTo : undefined;
+      if (!go) return;
+      event.preventDefault();
+      window.location.href = `/tv/channels/${encodeURIComponent(go)}`;
+    };
+    window.addEventListener('keydown', press);
+    return () => { window.removeEventListener('keydown', press); };
+  }, [upTo, downTo]);
 
   const clock = (at: number | null) => (at === null ? null
     : new Date(at).toLocaleTimeString(undefined,
@@ -117,6 +162,56 @@ export default function Station(
       }}>
         <ChannelPlayer channelId={channelId} onAir={on.live} />
       </div>
+
+      {/*
+        * THE CHANNEL ROCKER.  [N-9]
+        *
+        * > *"A remote control could eventually have: CH + / CH −"*
+        *
+        * REAL LINKS, NOT BUTTONS, which is what makes this work on
+        * the device it is for. A D-pad moves focus between links
+        * and presses OK; a television browser with no JavaScript
+        * still tunes; and a viewer can see where each press goes
+        * before making it, which is what the number beside the
+        * arrow is for.
+        *
+        * ABSENT FOR A LINEUP OF ONE rather than disabled, because
+        * a greyed-out CH+ on a one-channel network is furniture
+        * explaining an absence nobody asked about.
+        */}
+      {(tune?.down ?? tune?.up) && (
+        <div className="row" data-testid="station-rocker" style={{
+          gap: 'var(--space-3)', marginTop: 'var(--space-3)',
+          alignItems: 'center', flexWrap: 'wrap',
+        }}>
+          {tune?.down && (
+            <Link href={`/tv/channels/${tune.down.slug}`}
+                  data-testid="station-ch-down" className="small"
+                  style={rocker}>
+              {/* A GLYPH IS WHATEVER FONT THE READER HAS, and the
+                  reader here is most likely a television — the one
+                  device whose font set nobody can predict. */}
+              <Icon name="chevron" turn={90} size={13} /> CH −
+              <span className="mono" style={{ color: 'var(--ink-400)' }}>
+                {numberSays(tune.down.number)}
+              </span>
+            </Link>
+          )}
+          {tune?.up && (
+            <Link href={`/tv/channels/${tune.up.slug}`}
+                  data-testid="station-ch-up" className="small" style={rocker}>
+              <Icon name="chevron" turn={270} size={13} /> CH +
+              <span className="mono" style={{ color: 'var(--ink-400)' }}>
+                {numberSays(tune.up.number)}
+              </span>
+            </Link>
+          )}
+          <span className="grow" />
+          <span className="small muted" style={{ fontSize: 'var(--text-2xs)' }}>
+            Page up and page down change channel.
+          </span>
+        </div>
+      )}
 
       <div style={{
         display: 'grid', gap: 'var(--space-5)', marginTop: 'var(--space-5)',

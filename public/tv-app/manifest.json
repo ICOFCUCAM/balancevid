@@ -1,0 +1,27 @@
+{
+  "name": "BalanceVid TV",
+  "short_name": "BalanceVid TV",
+  "description": "Live channels from the BalanceVid network. A directory, a guide and a station page for every channel.",
+  "start_url": "/tv",
+  "scope": "/tv",
+  "display": "standalone",
+  "background_color": "#0e0f11",
+  "theme_color": "#0e0f11",
+  "orientation": "any",
+  "categories": ["entertainment", "news"],
+  "icons": [
+    { "src": "/tv-app/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/tv-app/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    {
+      "src": "/tv-app/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    { "name": "TV guide", "url": "/tv/guide" },
+    { "name": "All channels", "url": "/tv/channels" },
+    { "name": "Favorites", "url": "/tv/favorites" }
+  ]
+}

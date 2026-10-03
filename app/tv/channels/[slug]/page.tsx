@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 
-import { bySlug, listingFor } from '../../../../src/domain/channelListing.js';
+import { bySlug, listingFor, tuning } from '../../../../src/domain/channelListing.js';
 import type { Assignments } from '../../../../src/domain/registry.js';
 import { nowAndNext } from '../../../../src/domain/onAir.js';
 import { lineupFor } from '../../../../src/store/lineup.js';
@@ -33,7 +33,13 @@ async function found(slug: string) {
   const lineup: Assignments = await lineupFor(channels.map((one) => one.id))
     .catch(() => ({}));
   const listing = listingFor(channel, lineup[channel.id]);
-  return listing ? { channel, listing } : null;
+  if (!listing) return null;
+  /*
+   * AND WHERE CH+ AND CH− GO FROM HERE. Computed on the server
+   * with the channel, because the ring is the whole directory and
+   * the page would otherwise fetch it to find two slugs. [N-9]
+   */
+  return { channel, listing, tune: tuning(channels, lineup, lineup[channel.id] ?? 0) };
 }
 
 /**
@@ -83,13 +89,14 @@ export default async function StationPage(
   const { slug } = await params;
   const it = await found(slug);
   if (!it) notFound();
-  const { channel, listing } = it;
+  const { channel, listing, tune } = it;
   return (
     <TvFrame here="/tv/channels">
       <Station
         channelId={channel.id}
         listing={listing}
         first={nowAndNext(channel, Date.now())}
+        tune={tune}
       />
     </TvFrame>
   );

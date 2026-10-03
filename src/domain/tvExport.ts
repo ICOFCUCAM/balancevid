@@ -53,7 +53,7 @@ import type { Channel } from './channel.js';
 import { airtime } from './airtime.js';
 import { inDirectory } from './channelListing.js';
 import { genreSays } from './station.js';
-import { usableNumber } from './registry.js';
+import { dialOrder, usableNumber } from './registry.js';
 import { viewerTitle } from './onAir.js';
 
 /**
@@ -182,15 +182,12 @@ export function carried(
       const held = assigned[channel.id];
       return { channel, number: usableNumber(held) ? held : 0 };
     });
-  return rows.sort((a, b) => {
-    if (a.number !== b.number) {
-      /* Unnumbered last, whichever way round the pair comes. */
-      if (a.number === 0) return 1;
-      if (b.number === 0) return -1;
-      return a.number - b.number;
-    }
-    return a.channel.name.localeCompare(b.channel.name);
-  });
+  /* `dialOrder` rather than a comparator of its own: a viewer's
+     favourites are the other lineup, and two copies of this
+     would be two answers to what order a dial is in. [D-19] */
+  return rows.sort((a, b) => dialOrder(
+    { number: a.number, name: a.channel.name },
+    { number: b.number, name: b.channel.name }));
 }
 
 /* ------------------------------------------------------------------------ *

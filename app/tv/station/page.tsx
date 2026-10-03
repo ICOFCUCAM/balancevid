@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 
-import { byDomain, listingFor } from '../../../src/domain/channelListing.js';
+import { byDomain, listingFor, tuning } from '../../../src/domain/channelListing.js';
 import type { Assignments } from '../../../src/domain/registry.js';
 import { nowAndNext } from '../../../src/domain/onAir.js';
 import { lineupFor } from '../../../src/store/lineup.js';
@@ -37,7 +37,19 @@ async function answering() {
   const lineup: Assignments = await lineupFor(channels.map((one) => one.id))
     .catch(() => ({}));
   const listing = listingFor(channel, lineup[channel.id]);
-  return listing ? { channel, listing } : null;
+  if (!listing) return null;
+  /*
+   * THE ROCKER WORKS HERE TOO, AND TUNES INTO THE NETWORK. A
+   * station on its own domain may be unlisted and therefore not
+   * on the dial at all; `tuning` lands on the nearest number in
+   * the direction asked, and the link is to `/tv/channels/<slug>`
+   * on this host, which the gate sends to the canonical one.
+   * Pressing CH+ on a station's own domain takes a viewer into
+   * the network, which is the brief's own ordering: the domain is
+   * one station's identity and the directory is the discovery
+   * layer. [N-8, N-9]
+   */
+  return { channel, listing, tune: tuning(channels, lineup, lineup[channel.id] ?? 0) };
 }
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -78,7 +90,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function StationByDomain() {
   const it = await answering();
   if (!it) notFound();
-  const { channel, listing } = it;
+  const { channel, listing, tune } = it;
   return (
     /*
      * THE SAME PAGE, NOT A SECOND ONE. `Station` is what
@@ -93,6 +105,7 @@ export default async function StationByDomain() {
         channelId={channel.id}
         listing={listing}
         first={nowAndNext(channel, Date.now())}
+        tune={tune}
       />
     </TvFrame>
   );
