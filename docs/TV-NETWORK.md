@@ -1132,13 +1132,74 @@ streaming path, no change to how a channel broadcasts. The player
 on the station page is `ChannelPlayer`, which has served
 `/t/<id>/watch` since before any of this.
 
+## N-6 · channel numbers, built
+
+The allocator exists, so the field no longer has to be absent.
+
+> *"I would not allow every user to choose any number they want."*
+
+**The assignment lives where the owner does not reach** — one small
+file beside the channels, keyed by the id that never changes, not
+a field on a document its owner edits. A rule about who may write
+can only be held by writing somewhere else.
+
+**The brief's ranges are deliberately not built**, on the brief's
+own advice: *"I would be careful about making these permanent
+categories too early."* A channel changing genre would change
+number, which is the one thing a number must not do. One pool from
+100 — the `000–099` reservation is kept, because that is the
+network reserving room for itself rather than a category — and a
+lineup that later wants ranges can impose them precisely **because**
+the number is an assignment and not an identity.
+
+**Lowest free, and the trade is stated rather than hidden.** A
+number released by a deleted channel is handed out again, so a
+viewer who memorised CH 104 may find a different station. Never
+reusing makes a five-channel installation read 100, 103, 107, 112 —
+holes on every page with no explanation. The gaps are visible
+always; the collision needs somebody who memorised a number for a
+channel since deleted.
+
+**Verified end to end:** no numbers file existed, the first request
+to `/api/tv/channels` created it and allocated `100`, and three
+further requests returned `100` with the file untouched.
+
+**The directory stays alphabetical and the guide moved to number
+order**, which is the distinction a channel number is for: a
+directory is browsed by somebody reading names, a lineup is tuned.
+
+`tuneFrom` is built and tested — CH+ / CH− wrapping both ends, and
+landing on the nearest channel in the direction asked when the one
+you were on has gone. **No remote draws it yet**; that is a page,
+not a judgement, and it waits for a lineup with more than one
+channel in it to be worth drawing.
+
+### Two faults found, as usual, by the tests and by looking
+
+**`numberFor` passed its own channel id to `takenNumbers`**, which
+looked careful and was unreachable: a channel holding a usable
+number has already returned, and one holding anything else is
+dropped by the filter. Deleted. The filter itself stays and is
+asserted on its contract instead — this reads a record off disk,
+and a `Set<number>` that can contain `'rubbish'` is a lie told in
+the type system's own words.
+
+**And the station page drew no number while its own API answered
+100.** The route and the page each resolve the channel; only one
+was taught about the lineup. Found by reading the endpoint and then
+looking at the page.
+
 ## Not built
 
-- **N-6 · the registry**, and with it channel numbers. The field
-  is deliberately absent from `Station`: a number is allocated by
-  the network, and a field before an allocator is an invitation to
-  pick one.
-- **N-7 · M3U and XMLTV.** Small, once a registry exists.
+- **The federated registry.** What N-6 built is allocation within
+  one installation. The brief's registry spans installations —
+  cloud and self-hosted — and that is a central service, which is
+  a far larger commitment than a numbers file and sits against
+  `connections.ts`'s standing rule about not indexing
+  installations. It needs its own decision, not an extension of
+  this one.
+- **N-7 · M3U and XMLTV.** Small, and now unblocked: a lineup with
+  numbers is most of what an M3U carries.
 - **N-8 · custom domains.**
 - **N-9 · the mobile and CTV applications.** `/tv` is the web
   client, and the API they would consume is built.
