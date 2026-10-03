@@ -11,6 +11,11 @@
  *   remember(list)         remember this, and say what was kept
  *   ask(typed)             what does the installation at `typed` offer
  *   openExternal(url)      show this link in the person's own browser
+ *   machine()              what the recording disk has left, and
+ *                          what it just sustained — measured by
+ *                          writing, because there is no way to ask
+ *                          an operating system how fast a
+ *                          filesystem is [T-3]
  *
  * THE WINDOW STILL HAS NO NODE, NO FILESYSTEM AND NO SOCKET. It
  * has four questions it may ask of something that does. A preload
@@ -27,6 +32,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
 import type { Connection } from '../../shared/src/connections.js';
+import type { Machine } from './machine.js';
 
 export interface TakeBridge {
   connections(): Promise<Connection[]>;
@@ -36,6 +42,7 @@ export interface TakeBridge {
     rows: unknown[];
   } | null>;
   openExternal(url: string): Promise<boolean>;
+  machine(): Promise<Machine>;
 }
 
 const bridge: TakeBridge = {
@@ -43,6 +50,7 @@ const bridge: TakeBridge = {
   remember: (list) => ipcRenderer.invoke('take:remember', list),
   ask: (typed) => ipcRenderer.invoke('take:ask', typed),
   openExternal: (url) => ipcRenderer.invoke('take:open-external', url),
+  machine: () => ipcRenderer.invoke('take:machine'),
 };
 
 contextBridge.exposeInMainWorld('take', bridge);
