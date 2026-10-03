@@ -24,8 +24,14 @@ importScripts('/take-app/queue.js');
 /*
  * BUMPED WHEN THE SHELL CHANGES, and used as the cache name so an old
  * shell is deleted rather than left to be served to somebody forever.
+ *
+ * v2 IS THE TRACK DIMENSION. [TAKE-DESKTOP B-2] `queue.js` is in the
+ * shell list below, so a phone that has installed the app holds a
+ * COPY of it and would go on keying every camera's segments the same
+ * way no matter what the server learned to accept. Changing the file
+ * without changing this line is changing a file nobody receives.
  */
-const SHELL = 'balancevid-take-shell-v1';
+const SHELL = 'balancevid-take-shell-v2';
 
 /*
  * WHAT IS WORTH HOLDING OFFLINE, AND NOTHING MORE.

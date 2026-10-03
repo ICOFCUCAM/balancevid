@@ -92,18 +92,35 @@
    * same decision the route makes about the files it writes, for the
    * same reason.
    */
-  function keyOf(submissionId, index) {
-    return submissionId + '#' + String(index).padStart(6, '0');
+  function keyOf(submissionId, index, track) {
+    /*
+     * TRACK 0 KEEPS THE KEY IT ALWAYS HAD. [TAKE-DESKTOP B-2]
+     *
+     * A phone that was mid-recording when this file was replaced
+     * has rows in IndexedDB under the old key, and those rows must
+     * still drain and still be found by `pending` and `forget`.
+     * They are, because nothing about track 0 moved.
+     *
+     * AND A SECOND CAMERA MUST NOT LAND ON THE FIRST. Without the
+     * track in the key, segment 4 of camera 2 overwrites segment 4
+     * of camera 1 — a take with another camera's bytes spliced into
+     * the middle, of a plausible length, that nobody can tell from
+     * a good one until they watch it. The key is the whole of the
+     * defence.
+     */
+    return submissionId + (track > 0 ? '#t' + track : '')
+      + '#' + String(index).padStart(6, '0');
   }
 
   /** Write a segment down. Nothing is sent until `drain` runs. */
   function put(record) {
     return tx('readwrite', function (store) {
       store.put({
-        key: keyOf(record.submissionId, record.index),
+        key: keyOf(record.submissionId, record.index, record.track),
         link: record.link,
         submissionId: record.submissionId,
         index: record.index,
+        track: record.track || 0,
         blob: record.blob,
         tries: 0,
         dead: false,
@@ -177,7 +194,10 @@
   function send(row) {
     var at = '/api/take/' + encodeURIComponent(row.link)
       + '/submissions/' + encodeURIComponent(row.submissionId)
-      + '?index=' + row.index;
+      + '?index=' + row.index
+      /* Absent for track 0, including every row written before
+         tracks existed, which is the same URL as before. [B-2] */
+      + (row.track > 0 ? '&track=' + row.track : '');
     return scope.fetch(at, {
       method: 'POST',
       body: row.blob,
@@ -194,7 +214,15 @@
     });
   }
 
-  /** How many segments of this recording have not arrived. */
+  /**
+   * How many segments of this recording have not arrived.
+   *
+   * ACROSS EVERY ANGLE OF IT, because `settle` holds the Send
+   * button on this number and a capture is not sent until all of it
+   * is there. Filtering on the submission id rather than the track
+   * is what makes that true without the caller knowing there are
+   * tracks. [B-2]
+   */
   function pending(submissionId) {
     return all().then(function (rows) {
       return rows.filter(function (row) {

@@ -228,9 +228,25 @@ export const paths = {
   requestAssets: (id: string) => join(paths.request(id), 'assets'),
   requestAsset: (id: string, assetId: string, ext: string) =>
     join(paths.requestAssets(id), `${safe(assetId)}.${ext.replace(/[^a-z0-9]/gi, '')}`),
-  /** Chunks a phone uploads while recording, the same shape takes use. */
-  requestChunks: (id: string, submissionId: string) =>
-    join(paths.request(id), 'chunks', safe(submissionId)),
+  /**
+   * Chunks a phone uploads while recording, the same shape takes use.
+   *
+   * TRACK 0 IS WHERE IT ALWAYS WAS, and that is the whole of the
+   * compatibility story. [TAKE-DESKTOP B-2]
+   *
+   * A phone sends one camera, passes no track, and writes
+   * `chunks/<sub>/000000.part` exactly as it did before tracks
+   * existed — including a recording already in flight when the
+   * server was upgraded, which must still join. A capture station's
+   * second camera goes in `t1/` BENEATH it, so that reading track 0
+   * is still `readdir` filtered on `.part` (a directory is not a
+   * part) and deleting the recording is still one `rm -r` of one
+   * directory. Nothing above has to learn that tracks exist in order
+   * to keep working.
+   */
+  requestChunks: (id: string, submissionId: string, track = 0) =>
+    join(paths.request(id), 'chunks', safe(submissionId),
+      ...(track > 0 ? [`t${Math.floor(track)}`] : [])),
 
   channels: () => join(owned(), 'channels'),
   channel: (id: string) => join(paths.channels(), safe(id)),

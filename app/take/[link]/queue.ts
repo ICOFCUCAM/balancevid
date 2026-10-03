@@ -19,6 +19,8 @@
 export interface TakeQueueApi {
   put(record: {
     link: string; submissionId: string; index: number; blob: Blob;
+    /** Which angle this segment is from; absent is the only one. [B-2] */
+    track?: number;
   }): Promise<void>;
   drain(): Promise<{ sent: number; held: number; dead: number }>;
   pending(submissionId?: string): Promise<number>;

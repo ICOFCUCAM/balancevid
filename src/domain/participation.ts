@@ -259,6 +259,23 @@ export interface Submission {
    * — nothing decides anything from it.
    */
   device?: string;
+  /**
+   * WHICH CAPTURE THIS IS ONE ANGLE OF.  [TAKE-DESKTOP B-1, B-2]
+   *
+   * A phone sends one camera and this is absent, which is what no
+   * field meant before it existed. A capture station sends four, and
+   * they arrive as four submissions carrying the same `id` — because
+   * `assetId` is one file and a second camera is a second file, and
+   * giving a submission N assets would be a second shape for the one
+   * thing `anglesOf` already answers about takes. [D-19]
+   *
+   * `offsetSamples` HERE IS NOT THE ONE ABOVE. That one is where the
+   * recording sits against the reference the request named; this one
+   * is where it sits against the OTHER ANGLES, which is a number no
+   * reference is involved in and which exists even when there is no
+   * song to be against.
+   */
+  capturedIn?: { id: string; offsetSamples: number; spreadSamples?: number };
   at: string;
   /** Set when a producer accepts THIS submission, not the request. */
   acceptedAt?: string;
@@ -289,7 +306,16 @@ export interface RequestView {
   allowed: AllowedActions;
   state: RequestState;
   participant?: string;
-  /** How many they have already sent, so the client can count takes. */
+  /**
+   * How many they have already sent, so the client can count takes.
+   *
+   * TAKES, AND A CAPTURE IS ONE. [B-2] This counted submissions, and
+   * the two were the same number until a station could send four
+   * angles of one performance — at which point a performer who had
+   * sung once was told they had sent four while the same document
+   * said three of four remained. Two numbers from one function
+   * disagreeing is worse than either of them being wrong.
+   */
   submitted: number;
 }
 
@@ -312,12 +338,40 @@ export function viewFor(request: ParticipationRequest): RequestView {
     allowed: request.allowed,
     state: request.state,
     ...(request.participant ? { participant: request.participant } : {}),
-    submitted: (request.submissions ?? []).length,
+    submitted: takesMade(request),
   };
 }
 
-/** How many more takes this request will accept. */
+/**
+ * How many more takes this request will accept.
+ *
+ * A CAPTURE IS ONE TAKE, HOWEVER MANY CAMERAS SAW IT. [B-2]
+ *
+ * This counted submissions, and a submission was a recording, so the
+ * two were the same number. They stop being the same number the
+ * moment a capture station sends four angles of one performance: a
+ * request that allows three takes would be full after the first, and
+ * the performer would be told they had used three when they had sung
+ * once. What the producer allowed was three GOES, not three files.
+ */
 export function takesLeft(request: ParticipationRequest): number {
   const allowed = request.allowed.takes ?? 1;
-  return Math.max(0, allowed - (request.submissions ?? []).length);
+  return Math.max(0, allowed - takesMade(request));
+}
+
+/**
+ * How many distinct performances have been sent.
+ *
+ * Angles of one capture count once; everything else counts itself,
+ * which for a submission with no capture is exactly the old
+ * behaviour.
+ */
+export function takesMade(request: ParticipationRequest): number {
+  const captures = new Set<string>();
+  let loose = 0;
+  for (const one of request.submissions ?? []) {
+    if (one.capturedIn?.id) captures.add(one.capturedIn.id);
+    else loose += 1;
+  }
+  return captures.size + loose;
 }
