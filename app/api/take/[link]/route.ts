@@ -1,9 +1,13 @@
 import {
   ParticipationError, advance, open,
 } from '../../../../src/domain/participationEdit.js';
-import { viewFor } from '../../../../src/domain/participation.js';
-import { currentTerms } from '../../../../src/domain/campaign.js';
+import { outcomeFor, viewFor } from '../../../../src/domain/participation.js';
+import {
+  currentTerms, judgementsOf, scorecardOf, wallOf,
+} from '../../../../src/domain/campaign.js';
+import { resultsFor } from '../../../../src/domain/judging.js';
 import { callOf } from '../../../../src/store/campaigns.js';
+import { listRequests } from '../../../../src/store/requests.js';
 import { mutateRequest, requestForLink } from '../../../../src/store/requests.js';
 import { fail, json } from '../../../../src/web/http.js';
 
@@ -78,7 +82,60 @@ export async function GET(_request: Request, { params }: Params): Promise<Respon
    * stay on the server. [D-25]
    */
   const call = await callOf(request);
-  return json({ request: viewFor(request, call && currentTerms(call)) });
+
+  /*
+   * AND WHAT HAPPENED TO IT, WHICH IS WHY A DEVICE COMES BACK.
+   *   [GO-VIRAL V-7]
+   *
+   * THERE IS NOWHERE TO SEND NEWS TO, AND THAT IS THE DESIGN.
+   * `/take` asks for no account and the request holds no address
+   * — no email, no phone number, no push identity — so the only
+   * way a phone learns that its entry was used, passed over, or
+   * placed in a result is by asking with the link it already
+   * holds. This is the answer. Nothing about the asking device
+   * is written down anywhere on this installation.
+   *
+   * THE STANDING IS WORKED OUT HERE AND NOT IN THE DOMAIN,
+   * because it takes a campaign, every request under it and the
+   * judgements — three reads — and `outcomeFor` is a pure
+   * function of two numbers. [D-19]
+   *
+   * AND ONLY ONCE THE ORGANISER HAS ANNOUNCED, through the same
+   * two states the public page uses. A participant learning
+   * their place while the panel is still marking would be
+   * learning it before anybody else and before it was true.
+   * [V-5, V-6]
+   */
+  const standing = await placeOf(request, call);
+  return json({
+    request: viewFor(
+      request, call && currentTerms(call), outcomeFor(request, standing)),
+  });
+}
+
+/**
+ * Where this entry came, once there is a result to come in.
+ *
+ * ONLY FOR AN ENTRY IN THE PUBLIC STANDING. `wallOf` is what
+ * decides which entries a result names, and somebody who did not
+ * agree to be shown — or took it back — is not in it. Telling
+ * them a place in a standing they are not in would be telling
+ * them about somebody else's. [V-3, V-4, V-6]
+ */
+async function placeOf(
+  request: Awaited<ReturnType<typeof requestForLink>>,
+  call: Awaited<ReturnType<typeof callOf>>,
+): Promise<{ place: number; of: number } | null> {
+  if (!request || !call) return null;
+  if (call.state !== 'results' && call.state !== 'completed') return null;
+
+  const requests = await listRequests().catch(() => []);
+  const shown = new Set(wallOf(call, requests).map((one) => one.submissionId));
+  const standings = resultsFor(scorecardOf(call), judgementsOf(call))
+    .filter((verdict) => shown.has(verdict.entry));
+  const mine = new Set((request.submissions ?? []).map((one) => one.id));
+  const place = standings.findIndex((verdict) => mine.has(verdict.entry as never));
+  return place < 0 ? null : { place: place + 1, of: standings.length };
 }
 
 /**

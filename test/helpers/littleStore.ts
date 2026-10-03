@@ -32,6 +32,13 @@ export interface LittleScope {
   fetch: (url: string, init: { method: string; body: unknown }) => Promise<{
     ok: boolean; status: number;
   }>;
+  /** The device's own list of links it is waiting on. [GO-VIRAL V-7] */
+  TakeWatch?: {
+    watch(link: string, saw?: string): Promise<void>;
+    unwatch(link: string): Promise<void>;
+    watching(): Promise<{ link: string; saw: string }[]>;
+    saw(link: string): Promise<string | null>;
+  };
   TakeQueue?: {
     put(record: Record<string, unknown>): Promise<void>;
     drain(): Promise<{ sent: number; held: number; dead: number }>;
@@ -49,31 +56,66 @@ function later(settle: () => void): void {
 
 export function littleStore(): {
   indexedDB: unknown;
-  rows: () => Row[];
+  rows: (store?: string) => Row[];
 } {
-  const held = new Map<string, Row>();
-  let built = false;
+  /*
+   * ONE MAP PER STORE, WHICH IT DID NOT HAVE.  [GO-VIRAL V-7]
+   *
+   * The first version held one map and ignored the store name,
+   * which was exactly right while `chunks` was the only store
+   * there was. V-7 added `watch` to the same database — for the
+   * reason the file itself gives, that two scripts opening one
+   * IndexedDB at different versions is a database that refuses
+   * whichever is behind — and a fake that mixed the two would
+   * have the worker reading segments as links.
+   *
+   * AND THE KEY PATH IS THE STORE'S OWN. `chunks` is keyed on
+   * `key` and `watch` on `link`; a fake that assumed one would
+   * file every row of the other under `undefined`.
+   */
+  const held = new Map<string, Map<string, Row>>();
+  const keys = new Map<string, string>();
 
-  const objectStore = () => ({
-    put(row: Row) { held.set(row.key, row); },
-    delete(key: string) { held.delete(key); },
+  const rowsOf = (name: string) => {
+    const already = held.get(name);
+    if (already) return already;
+    const made = new Map<string, Row>();
+    held.set(name, made);
+    return made;
+  };
+
+  const objectStore = (name: string) => ({
+    put(row: Row) {
+      rowsOf(name).set(String(row[keys.get(name) ?? 'key']), row);
+    },
+    delete(key: string) { rowsOf(name).delete(key); },
     getAll() {
-      const request: { onsuccess?: (event: { target: { result: Row[] } }) => void } = {};
-      later(() => request.onsuccess?.({ target: { result: [...held.values()] } }));
+      const request: {
+        onsuccess?: (event: { target: { result: Row[] } }) => void;
+        result?: Row[];
+      } = {};
+      later(() => {
+        request.result = [...rowsOf(name).values()];
+        request.onsuccess?.({ target: { result: request.result } });
+      });
       return request;
     },
     createIndex() { /* declared by the queue, never read by it. */ },
   });
 
   const db = {
-    objectStoreNames: { contains: () => built },
-    createObjectStore() { built = true; return objectStore(); },
-    transaction() {
+    objectStoreNames: { contains: (name: string) => held.has(name) },
+    createObjectStore(name: string, options?: { keyPath?: string }) {
+      rowsOf(name);
+      keys.set(name, options?.keyPath ?? 'key');
+      return objectStore(name);
+    },
+    transaction(name: string) {
       const transaction: {
         oncomplete?: () => void; onerror?: () => void; onabort?: () => void;
         objectStore: () => ReturnType<typeof objectStore>;
         error: null;
-      } = { objectStore, error: null };
+      } = { objectStore: () => objectStore(name), error: null };
       /*
        * COMPLETE AFTER THE WORK, not with it. The queue reads its
        * result out of a box the request's own callback fills, so a
@@ -88,7 +130,7 @@ export function littleStore(): {
   };
 
   return {
-    rows: () => [...held.values()],
+    rows: (store = 'chunks') => [...rowsOf(store).values()],
     indexedDB: {
       open() {
         const request: {
@@ -96,7 +138,8 @@ export function littleStore(): {
           result: typeof db; error: null;
         } = { result: db, error: null };
         later(() => {
-          if (!built) request.onupgradeneeded?.();
+          /* The upgrade runs until every store the file wants exists. */
+          request.onupgradeneeded?.();
           request.onsuccess?.();
         });
         return request;

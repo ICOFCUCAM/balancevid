@@ -11,7 +11,10 @@ import {
   CONSENT_MEANS, CONSENT_SCOPES, type ConsentScope, consentSays,
 } from '../../../src/domain/consent.js';
 import { dropTake, sendTake, takeSink, type KeptSpec } from './takeSink.js';
-import { askToDrain, installWorker, settle, takeQueue } from './queue.js';
+import {
+  askToBeTold, askToDrain, installWorker, isWatching, settle, startWatching,
+  stopWatching, takeQueue,
+} from './queue.js';
 import InstallBar from './InstallBar.js';
 import { useCamera } from '../../useCamera.js';
 import { useQuality } from '../../useQuality.js';
@@ -92,6 +95,9 @@ export default function TakeApp({ link }: { link: string }) {
    */
   const [agreed, setAgreed] = useState<ConsentScope[]>([]);
   const [signing, setSigning] = useState(false);
+  /** Whether this device is waiting to hear about this link. [V-7] */
+  const [waiting, setWaiting] = useState(false);
+  const [told, setTold] = useState<string | null>(null);
 
   /*
    * A FINISHED RECORDING IS KEPT, NOT SENT.  [TAKE-APP T4]
@@ -244,6 +250,31 @@ export default function TakeApp({ link }: { link: string }) {
     return () => { alive = false; window.clearInterval(timer); };
   }, [kept, undecided]);
 
+  /*
+   * WHAT THIS DEVICE WAS LAST TOLD, AND WHAT IT IS TOLD NOW.
+   *   [GO-VIRAL V-7]
+   *
+   * THE PAGE IS THE ONE SURFACE THAT ALWAYS WORKS. A worker that
+   * the browser never wakes, a permission that was refused, a
+   * phone with neither — all of them come down to this: the
+   * person opens the link and reads what happened. So opening it
+   * is also what records that they have been told, which is what
+   * stops a notification arriving about the sentence they are
+   * looking at.
+   */
+  const outcome = view?.outcome;
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      const already = await isWatching(link);
+      if (alive) setWaiting(already);
+      if (already && outcome?.state) {
+        await startWatching(link, outcome.state);
+      }
+    })();
+    return () => { alive = false; };
+  }, [link, outcome?.state]);
+
   /* What is being asked, fetched against the same link that opened it. */
   useEffect(() => {
     let alive = true;
@@ -333,6 +364,21 @@ export default function TakeApp({ link }: { link: string }) {
       await sendTake(link, one.id, one.spec);
       setSaid(null);
       mark(one.id, 'sent');
+      /*
+       * AND ASK THE SERVER WHAT IT NOW HOLDS.  [GO-VIRAL V-7]
+       *
+       * FOUND IN A SCREENSHOT. The take counter read `kept.length
+       * + 1`, which is right within one visit and forgets
+       * everything across a reload: a performer who sent one take
+       * and opened the link again a week later was told *Take 1
+       * of 3* about their second. `submitted` is the server's own
+       * count and has been in the view since B-2 — it was simply
+       * never read here, and nothing refreshed it after a send.
+       */
+      const fresh = await fetch(`/api/take/${encodeURIComponent(link)}`, {
+        cache: 'no-store',
+      }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+      if (fresh?.request) setView(fresh.request);
     } catch (error) {
       mark(one.id, 'kept');
       setSaid(error instanceof Error ? error.message : 'that did not send');
@@ -608,6 +654,28 @@ export default function TakeApp({ link }: { link: string }) {
       <div style={card}>
         <h1 style={brand}>BalanceVid</h1>
 
+        {/*
+          * WHAT HAPPENED, WHERE ANYTHING HAS.  [GO-VIRAL V-7]
+          *
+          * ABOVE THE CAMERA AND BEFORE THE ASK, because somebody
+          * reopening a link after a week is coming back for this
+          * and not to record again. Absent until there is
+          * something to say, which is every open request.
+          */}
+        {outcome && (
+          <div data-testid="take-outcome" data-state={outcome.state}
+               style={{
+                 width: '100%', padding: 'var(--space-3)',
+                 border: '1px solid var(--line)',
+                 borderRadius: 'var(--radius-sm)',
+                 background: 'var(--console-control)', textAlign: 'center',
+               }}>
+            <p style={{ margin: 0, fontWeight: 'var(--weight-semi)' }}>
+              {outcome.says}
+            </p>
+          </div>
+        )}
+
         {/* WHAT IS BEING ASKED, in the producer's own words. [T3] */}
         <p data-testid="take-title" style={{
           margin: 0, fontSize: 'var(--text-lg)', fontWeight: 'var(--weight-bold)',
@@ -617,8 +685,21 @@ export default function TakeApp({ link }: { link: string }) {
           margin: 0, textAlign: 'center', color: 'var(--ink-100)', maxWidth: 340,
         }}>{view?.assignment.asks ?? ''}</p>
 
+        {/*
+          * WHICH TAKE THIS IS, COUNTING THE ONES ALREADY SENT.
+          *   [TAKE-APP T4; GO-VIRAL V-7]
+          *
+          * `submitted` is the server's count and `kept` is this
+          * visit's — and the two must not overlap, so only the
+          * recordings that have NOT been sent are added. A take
+          * sent a moment ago moves from one to the other when
+          * the view is refreshed above.
+          */}
         <p data-testid="take-number" className="small muted" style={{ margin: 0 }}>
-          {reference ? 'Take' : 'Answer'} {kept.length + 1}
+          {reference ? 'Take' : 'Answer'}{' '}
+          {(view?.submitted ?? 0)
+            + kept.filter((one) => one.state === 'kept' || one.state === 'sending').length
+            + 1}
           {view?.allowed.takes ? ` of ${view.allowed.takes}` : ''}
         </p>
 
@@ -956,6 +1037,63 @@ export default function TakeApp({ link }: { link: string }) {
           * what they came for, and it is present because it is
           * theirs.
           */}
+        {/*
+          * AND A WAY TO BE TOLD WITHOUT BEING KNOWN.
+          *   [GO-VIRAL V-7; D-03]
+          *
+          * NO ACCOUNT, NO ADDRESS, NO IDENTITY. The link is
+          * already on this device; pressing this writes it into
+          * the device's own store beside the upload queue and
+          * asks the browser for permission to show a
+          * notification. Nothing is sent to the installation and
+          * the installation holds nothing about this phone.
+          *
+          * A REFUSAL COSTS THE NOTIFICATION AND NOTHING ELSE.
+          * The device goes on watching either way, and the
+          * sentence above appears the next time the link is
+          * opened — which is what happens today and remains
+          * correct.
+          *
+          * OFFERED ONLY WHERE THERE IS SOMETHING TO WAIT FOR. A
+          * request nobody has sent anything to has no news
+          * coming; `submitted` is the moment this becomes a
+          * sensible thing to press.
+          */}
+        {(view?.submitted ?? 0) > 0 && (
+          waiting ? (
+            <div style={{ width: '100%', textAlign: 'center' }}>
+              <p className="small muted" data-testid="take-waiting"
+                 style={{ margin: 0 }}>
+                {told ?? 'You will be told here when there is news.'}
+              </p>
+              <button className="ctl sm" data-testid="take-unwatch"
+                      style={{ marginTop: 6 }}
+                      onClick={() => void (async () => {
+                        await stopWatching(link);
+                        setWaiting(false);
+                        setTold(null);
+                      })()}>
+                Stop waiting
+              </button>
+            </div>
+          ) : (
+            <button className="ctl" data-testid="take-tell-me"
+                    style={{ ...wide, minHeight: 40 }}
+                    title="Nothing is sent anywhere — this phone asks, using the link it already has"
+                    onClick={() => void (async () => {
+                      const answer = await askToBeTold(
+                        link, view?.outcome?.state ?? 'waiting');
+                      setWaiting(true);
+                      setTold(answer === 'granted'
+                        ? 'This phone will tell you when there is news.'
+                        : 'No notifications — you will see it here when you '
+                          + 'open this link.');
+                    })()}>
+              Tell me when there is news
+            </button>
+          )
+        )}
+
         {view?.consent && !view.consent.withdrawnAt && (
           <>
             {/* What is on record, in the record's own sentence. */}

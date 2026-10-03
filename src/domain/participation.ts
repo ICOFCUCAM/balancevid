@@ -353,6 +353,155 @@ export interface Submission {
 export const ROTATED = 'rotated';
 
 /**
+ * What recorded it, said shortly.  [T5; GO-VIRAL V-7; D-03]
+ *
+ * THE FIELD WAS STORING A WHOLE USER AGENT, and a browser run
+ * found it while checking V-7's own claim. `Submission.device`
+ * exists for one sentence of reasoning — *"a producer with twenty
+ * submissions and one that is out of sync needs to know which
+ * device"* — and the Take App filled it with
+ * `navigator.userAgent`, which on the run that found this was
+ * eighty characters of build numbers written into a document that
+ * is kept forever and may be exported.
+ *
+ * V-7 IS THE STAGE THAT CANNOT LEAVE IT THERE. Its own criterion
+ * is that a participant is told the result *"without the
+ * installation ever holding anything that identifies its owner"*,
+ * and a full user agent is the oldest fingerprinting surface
+ * there is. It is not an address and nothing can be sent to it;
+ * it is also not what the field is for.
+ *
+ * SO IT IS REDUCED TO WHAT THE SENTENCE NEEDS: the browser and
+ * the platform. *"Chrome on Android"* answers *which one is out*
+ * exactly as well as the build string does, and answers nothing
+ * else.
+ *
+ * AND ANYTHING THAT IS NOT A USER AGENT IS LEFT ALONE. A capture
+ * station sends a CAMERA'S NAME here, per angle — *"the camera is
+ * the answer to which one is out"* — and reducing *Camera 2* to
+ * a browser would be this function deciding it knew better than
+ * the thing that measured. Only a string shaped like a user agent
+ * is touched. [B-2]
+ */
+export function deviceSays(said: string): string {
+  const text = said.trim();
+  if (!/^Mozilla\/\d/.test(text)) return text.slice(0, 120);
+
+  /* Order matters: every one of these also claims to be Safari or
+     Chrome somewhere in the string, so the specific come first. */
+  const browser = /\bEdg\//.test(text) ? 'Edge'
+    : /\bOPR\/|\bOpera\b/.test(text) ? 'Opera'
+      : /\bSamsungBrowser\//.test(text) ? 'Samsung Internet'
+        : /\bFirefox\/|\bFxiOS\//.test(text) ? 'Firefox'
+          : /\bCriOS\/|\bChrome\//.test(text) ? 'Chrome'
+            : /\bSafari\//.test(text) ? 'Safari' : 'a browser';
+
+  const platform = /\bAndroid\b/.test(text) ? 'Android'
+    : /\b(iPhone|iPad|iPod)\b/.test(text) ? 'iOS'
+      : /\bMac OS X\b|\bMacintosh\b/.test(text) ? 'a Mac'
+        : /\bWindows\b/.test(text) ? 'Windows'
+          : /\bCrOS\b/.test(text) ? 'ChromeOS'
+            : /\bLinux\b/.test(text) ? 'Linux' : null;
+
+  return platform ? `${browser} on ${platform}` : browser;
+}
+
+/* ------------------------------------------------------------------ *
+ *  What happened to it, in one line.  [GO-VIRAL V-7]
+ * ------------------------------------------------------------------ */
+
+/**
+ * What the holder of a link is waiting to hear.
+ *
+ * FOUR ANSWERS AND A SENTENCE. The word is what a device COMPARES —
+ * it holds the last one it saw and says nothing until that changes
+ * — and the sentence is what a person READS. A notification built
+ * by diffing prose would fire every time a reason was reworded.
+ *
+ * NOTHING ABOUT ANYBODY ELSE. A participant learns what happened to
+ * their own entry and, where a call has announced, where they came
+ * in a standing that is already public. They do not learn who else
+ * entered or what the panel said about them — `viewFor` is still
+ * the one gate, and this is still inside it. [D-25]
+ */
+export type OutcomeState = 'waiting' | 'result' | 'accepted' | 'passed';
+
+export interface RequestOutcome {
+  state: OutcomeState;
+  /** One line, in words, for a notification and for the page. */
+  says: string;
+  /** Where they came, when a call has announced one. */
+  place?: number;
+  of?: number;
+}
+
+/**
+ * What happened to this request, as its holder may be told.
+ *
+ * THE RESULT OUTRANKS THE ACCEPTANCE, and the order is the claim.
+ * Somebody who entered a competition and whose take was also used
+ * in the production has had two pieces of news; the one they
+ * entered for is where they came. A device holds one word and a
+ * notification carries one line, so there is an order and it is
+ * written here rather than decided by whichever branch came first.
+ *
+ * `standing` IS PASSED IN, so this module reads no campaign and no
+ * judgement. The route that already loaded the call works out
+ * whether it has announced and where this entry came; what arrives
+ * here is two numbers. A participation module that went looking
+ * for a competition would be the participant's view depending on
+ * the organiser's object. [D-19, D-25]
+ *
+ * AND `waiting` IS NOT SILENCE. *"Nothing yet"* is the honest
+ * answer for a request that has been sent and not decided, and it
+ * is what every request this product has ever issued answers —
+ * which is why no device is ever notified about one.
+ */
+export function outcomeFor(
+  request: ParticipationRequest,
+  standing?: { place: number; of: number } | null,
+): RequestOutcome {
+  if (standing) {
+    return {
+      state: 'result',
+      says: `The results are in — you came ${ordinal(standing.place)}`
+        + ` of ${standing.of}.`,
+      place: standing.place,
+      of: standing.of,
+    };
+  }
+  if (request.state === 'accepted' || request.state === 'attached') {
+    return { state: 'accepted', says: 'Your take was used.' };
+  }
+  if (request.state === 'rejected') {
+    const why = rejectedBecause(request);
+    return {
+      state: 'passed',
+      says: why ? `Not this time — ${why}` : 'Not this time.',
+    };
+  }
+  return { state: 'waiting', says: 'Nothing yet.' };
+}
+
+/**
+ * 1st, 2nd, 3rd, 4th.
+ *
+ * WRITTEN OUT BECAUSE IT IS READ BY A PERSON ON A PHONE. *"You came
+ * 2 of 11"* is a score; *"you came 2nd of 11"* is a result. The
+ * teens are the exception every implementation of this gets wrong,
+ * so they are the first branch.
+ */
+function ordinal(place: number): string {
+  const tens = place % 100;
+  if (tens >= 11 && tens <= 13) return `${place}th`;
+  const last = place % 10;
+  if (last === 1) return `${place}st`;
+  if (last === 2) return `${place}nd`;
+  if (last === 3) return `${place}rd`;
+  return `${place}th`;
+}
+
+/**
  * The reason the last decline gave, where it gave one.
  *   [GO-VIRAL G8, V-5]
  *
@@ -453,6 +602,20 @@ export interface RequestView {
   terms?: { hash: string; text: string };
   /** What they have already agreed, if they have. */
   consent?: ConsentRecord;
+  /**
+   * What happened to it, where anything has.  [GO-VIRAL V-7]
+   *
+   * THE ONE THING THE DEVICE COMES BACK FOR. A phone that entered
+   * a call and went home has no account here by construction, so
+   * there is nowhere to send news TO — what it has is the link,
+   * and this is what the link answers with. Nothing is stored
+   * about the device anywhere on this installation.
+   *
+   * ABSENT IS A REQUEST NOBODY HAS DECIDED ABOUT, which is what
+   * every open request is, so a surface that draws this draws
+   * nothing until there is something to say.
+   */
+  outcome?: RequestOutcome;
 }
 
 /**
@@ -484,6 +647,14 @@ export function viewFor(
    * direction of failure everywhere else.
    */
   terms?: { hash: string; text: string } | null,
+  /*
+   * AND WHAT HAPPENED TO IT.  [GO-VIRAL V-7]
+   *
+   * Passed in for `terms`' own reason: this module decides what a
+   * participant may be told and reads nothing off a disk. The
+   * route that loaded the call hands over the one line.
+   */
+  outcome?: RequestOutcome | null,
 ): RequestView {
   return {
     id: request.id,
@@ -494,6 +665,7 @@ export function viewFor(
     submitted: takesMade(request),
     ...(terms ? { terms: { hash: terms.hash, text: terms.text } } : {}),
     ...(request.consent ? { consent: request.consent } : {}),
+    ...(outcome && outcome.state !== 'waiting' ? { outcome } : {}),
   };
 }
 

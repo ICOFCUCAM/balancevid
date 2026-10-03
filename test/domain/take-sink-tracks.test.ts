@@ -170,5 +170,5 @@ describe('the installed app receives the queue it is tested with', () => {
 });
 
 /** The shell as it stands, and the cache name serving it. */
-const SHELL_HASH = '55d16beb9d20';
-const SHELL_VERSION = 'balancevid-take-shell-v2';
+const SHELL_HASH = 'dfe2004808f8';
+const SHELL_VERSION = 'balancevid-take-shell-v3';
