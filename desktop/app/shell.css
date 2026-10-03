@@ -332,3 +332,29 @@ main {
 }
 
 .step[data-here='true'] { border-color: var(--accent); color: var(--ink); }
+
+/* ------------------------------------------------------------------ *
+ *  RECORD.  [T-4]
+ * ------------------------------------------------------------------ */
+
+/* The one control in this application that must be unmistakable. */
+.arm[data-recording='true'] {
+  color: #e8e9ea; border-color: #c4473f; background: #6e2520;
+}
+
+.arm[data-recording='true']:hover { background: #823029; }
+
+.running {
+  margin: 4px 0 0; justify-self: center;
+  font: 400 13px/1 ui-monospace, 'DejaVu Sans Mono', monospace;
+  color: #d98a6a; letter-spacing: 0.04em;
+}
+
+.done {
+  margin: 4px 0 0; justify-self: center;
+  font-size: 12px; color: #5c636b;
+}
+
+/* A tile that is being recorded says so, because the picture
+   looks exactly the same either way. */
+.grid[data-recording='true'] .tile { border-color: #c4473f; }

@@ -45,6 +45,7 @@ describe('what is in the shared library (T-1)', () => {
   it('is what two programs actually have to agree about', () => {
     expect(SHARED.sort()).toEqual([
       join('shared/src', 'align.ts'),
+      join('shared/src', 'capture.ts'),
       join('shared/src', 'connections.ts'),
       join('shared/src', 'prepare.ts'),
       join('shared/src', 'sourceGrid.ts'),
@@ -222,7 +223,7 @@ describe('the desktop application reaches nowhere into the web tier (T-1)', () =
     /* T-1 shipped with CONNECT named next; T-2 built CONNECT and
        T-3 built CAMERAS and PREPARE together. One constant, and
        the stage that earns a step moves it. */
-    expect(shell).toMatch(/BUILT_TO: Step = 'RECORD'/);
+    expect(shell).toMatch(/BUILT_TO: Step = 'REVIEW'/);
   });
 
   /*
@@ -248,7 +249,8 @@ describe('the desktop application reaches nowhere into the web tier (T-1)', () =
     const renderers = ['desktop/src/renderer.ts', 'desktop/src/shell.ts',
       'desktop/src/connect.ts', 'desktop/src/connectScreen.ts',
       'desktop/src/cameras.ts', 'desktop/src/camerasScreen.ts',
-      'desktop/src/levels.ts'];
+      'desktop/src/levels.ts', 'desktop/src/record.ts',
+      'desktop/src/check.ts'];
     for (const file of renderers) {
       const body = code(file);
       for (const network of [/\bfetch\(/, /XMLHttpRequest/, /WebSocket/,
@@ -290,7 +292,8 @@ describe('the desktop application reaches nowhere into the web tier (T-1)', () =
    */
   it('opens named questions rather than a channel', () => {
     const preload = code('desktop/src/preload.ts');
-    for (const named of ['connections', 'remember', 'ask', 'openExternal']) {
+    for (const named of ['connections', 'remember', 'ask', 'openExternal',
+      'machine', 'beginCapture', 'writeChunk', 'endCapture', 'captures']) {
       expect(preload, named).toMatch(new RegExp(`${named}:`));
     }
     expect(preload).toMatch(/contextBridge\.exposeInMainWorld\('take', bridge\)/);

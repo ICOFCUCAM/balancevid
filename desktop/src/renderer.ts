@@ -48,12 +48,12 @@ function draw(): void {
   let leave: (() => void) | null = null;
 
   /*
-   * CAMERAS AND PREPARE ARE ONE SCREEN AND TWO STEPS, which is
-   * the decision `camerasScreen` states: the answer to *can this
-   * machine record them* changes every time somebody changes
-   * *which cameras*, so a PREPARE on its own page would be a page
-   * the operator walks to, reads a refusal on, and walks back
-   * from.
+   * CAMERAS, PREPARE AND RECORD ARE ONE SCREEN AND THREE STEPS.
+   * The answer to *can this machine record them* changes every
+   * time somebody changes *which cameras*, and the thing you
+   * press to start is the thing that just told you whether you
+   * could. A RECORD page of its own would be a page you walk to
+   * having left the pictures behind.
    *
    * PRESSING PREPARE WENT TO CONNECT. The strip marks every step
    * below `BUILT_TO` as pressable, PREPARE is one of them, and
@@ -61,7 +61,8 @@ function draw(): void {
    * screenshot, where PREPARE was lit and led somewhere else.
    */
   const screenFor = (step: Step) =>
-    (step === 'CAMERAS' || step === 'PREPARE' ? camerasScreen : connectScreen);
+    (step === 'CAMERAS' || step === 'PREPARE' || step === 'RECORD'
+      ? camerasScreen : connectScreen);
 
   const show = (step: Step): void => {
     leave?.();

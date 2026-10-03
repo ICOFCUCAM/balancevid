@@ -32,6 +32,9 @@ import {
   settingsOf,
 } from './cameras.js';
 import { Levels } from './levels.js';
+import { type Recording, recordingSays, startCapture } from './record.js';
+import { checkAgainstRoom } from './check.js';
+import { offsetSamples } from '../../shared/src/capture.js';
 
 /** What is asked of every camera, until somebody asks for otherwise. */
 const WANT = { width: 1920, height: 1080, frameRate: 30 };
@@ -52,6 +55,11 @@ export function camerasScreen(root: HTMLElement): () => void {
   const open = new Map<string, Open>();
   let machine: Machine | null = null;
   let frame = 0;
+  /* What is being recorded, and how to stop it. [T-4] */
+  let running: {
+    recording: Recording; stop: () => Promise<Recording>; since: number;
+  } | null = null;
+  let last: Recording | null = null;
 
   const picker = el('div', 'picker');
   const grid = el('div', 'grid');
@@ -196,6 +204,8 @@ export function camerasScreen(root: HTMLElement): () => void {
       tile.meter.dataset['mic'] = reading.mic;
     }
     grid.dataset['live'] = String(livePictures(readings));
+    /* The picture looks exactly the same recording or not. */
+    grid.dataset['recording'] = running ? 'true' : 'false';
   }
 
   /* ---------------------------------------------------------------- *
@@ -239,25 +249,118 @@ export function camerasScreen(root: HTMLElement): () => void {
     }
     const arm = document.createElement('button');
     arm.type = 'button';
-    arm.className = 'go arm';
+    arm.className = running ? 'go arm recording' : 'go arm';
     arm.dataset['testid'] = 'arm';
-    arm.disabled = !ready.armable;
+    arm.dataset['recording'] = running ? 'true' : 'false';
     /*
-     * AND THE BUTTON SAYS WHAT HAPPENS NEXT, not "Arm". T-4 is
-     * the stage that records; until then this is honest about
-     * being a door that is not there yet.
+     * A RUNNING RECORDING IS ALWAYS STOPPABLE, whatever the
+     * checks now say. A disk that filled while recording makes
+     * `armable` false, and disabling the stop button at that
+     * moment would be the application holding somebody's
+     * recording open because it had decided they should not have
+     * started it. [U-19]
      */
-    arm.textContent = ready.armable
-      ? 'Ready to record' : 'Not ready';
-    arm.title = ready.armable
-      ? 'Recording is T-4. This build gets you to the edge of it.'
-      : 'Fix what is marked above.';
+    arm.disabled = !running && !ready.armable;
+    arm.textContent = running
+      ? 'Stop' : ready.armable ? 'Record' : 'Not ready';
+    arm.title = running
+      ? 'Stop, and write what was measured.'
+      : ready.armable
+        ? 'Start every camera at once, to this machine.'
+        : 'Fix what is marked above.';
+    arm.addEventListener('click', () => { void press(); });
     checks.appendChild(arm);
+
+    if (running) {
+      const clock = el('p', 'running', recordingSays(
+        running.recording, (performance.now() - running.since) / 1000));
+      clock.dataset['testid'] = 'running';
+      checks.appendChild(clock);
+    } else if (last) {
+      /*
+       * AND WHAT THE LAST ONE MEASURED STAYS ON THE SCREEN. An
+       * operator who looks away during a take should not have to
+       * open a file manager to learn whether the angles agreed.
+       */
+      const said = el('p', 'done');
+      said.dataset['testid'] = 'last-capture';
+      said.textContent = `${last.angles.length} angles written · `
+        + `${recordingSays(last, 0).split(' · ').slice(1).join(' · ')
+          || 'one source'} · ${last.id}`;
+      checks.appendChild(said);
+    }
     if (machine) {
       checks.appendChild(el('p', 'note',
         `Measured on this machine: ${sizeSays(machine.freeBytes)} free, `
         + `${rateSays(machine.writeBytesPerSecond)} sustained.`));
     }
+  }
+
+  /**
+   * The one call.  [T-4]
+   *
+   * EVERY SOURCE THE OPERATOR CHOSE, IN THE ORDER THEY CHOSE
+   * THEM, so the files are numbered the way the tiles are. A
+   * capture whose `01-` is the second camera is a capture
+   * somebody has to decode by watching it.
+   */
+  async function press(): Promise<void> {
+    if (!bridge) return;
+    if (running) {
+      const was = running;
+      running = null;
+      drawChecks();
+      last = await was.stop();
+      /*
+       * AND THE ROOM IS ASKED WHETHER THE CLOCK WAS RIGHT.
+       * Stored beside the measured offsets, never instead of
+       * them: `endCapture` has already written those, and this
+       * writes the manifest again with the checks alongside.
+       * [T-4]
+       */
+      const rooms = last.angles
+        .map((angle) => {
+          const heard = levels.room(angle.sourceId);
+          return heard && {
+            sourceId: angle.sourceId,
+            samples: heard.samples,
+            rate: heard.rate,
+            measuredSamples: offsetSamples(last!.starts, angle.sourceId),
+          };
+        })
+        .filter((one): one is NonNullable<typeof one> => Boolean(one));
+      const agreed = checkAgainstRoom(rooms);
+      if (agreed.length > 0) {
+        await bridge.endCapture({
+          id: last.id, label: last.label, beganAt: last.beganAt,
+          endedAt: new Date().toISOString(),
+          starts: last.starts,
+          angles: last.angles.map((angle) => {
+            const start = last!.starts.find((one) => one.id === angle.sourceId);
+            return {
+              ...angle,
+              calledAtMs: start?.calledAtMs ?? 0,
+              ...(start?.firstChunkAtMs === undefined
+                ? {} : { firstChunkAtMs: start.firstChunkAtMs }),
+            };
+          }),
+          checks: agreed,
+        });
+      }
+      drawChecks();
+      return;
+    }
+    const sources = chosen
+      .map((id, index) => ({ open: open.get(id), slot: index + 1 }))
+      .filter((one): one is { open: NonNullable<typeof one.open>; slot: number } =>
+        Boolean(one.open));
+    const began = await startCapture(bridge, sources,
+      new Date().toLocaleString());
+    if (!began) return;
+    /* Keep the room sound from the start, for the check. [T-4] */
+    levels.keep(sources.map((one) => one.open.device.id));
+    running = { ...began, since: performance.now() };
+    drawChecks();
   }
 
   async function remeasure(): Promise<void> {
@@ -290,6 +393,11 @@ export function camerasScreen(root: HTMLElement): () => void {
    * not and must not be.
    */
   const slow = setInterval(drawChecks, 2_000);
+  /* The clock ticks every second while recording and not at all
+     otherwise: a screen that redrew its checks every second when
+     nothing was happening would be measuring the disk sixty times
+     a minute. */
+  const clock = setInterval(() => { if (running) drawChecks(); }, 1_000);
 
   void (async () => {
     devices = await listDevices();
@@ -300,6 +408,11 @@ export function camerasScreen(root: HTMLElement): () => void {
   return () => {
     cancelAnimationFrame(frame);
     clearInterval(slow);
+    clearInterval(clock);
+    /* A recording left running when the screen goes is a
+       recording nobody closed. Stopped, and its manifest
+       written. */
+    void running?.stop();
     for (const one of open.values()) closeOpen(one);
     open.clear();
     levels.close();

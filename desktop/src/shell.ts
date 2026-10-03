@@ -36,11 +36,14 @@ export type Step = (typeof STEPS)[number];
  * ONE CONSTANT, BUMPED BY THE STAGE THAT EARNS IT. T-2 built
  * CONNECT; T-3 built CAMERAS and PREPARE together, because the
  * answer to "can this machine record them" changes every time
- * somebody changes which cameras. Nothing else in the shell
- * changed either time. A release that lights a step it has not
- * built is a release that lies to the person who installed it.
+ * somebody changes which cameras; T-4 built RECORD on the same
+ * screen, because the thing you press to start is the thing that
+ * just told you whether you could. Nothing else in the shell
+ * changed any of the three times. A release that lights a step
+ * it has not built is a release that lies to the person who
+ * installed it.
  */
-export const BUILT_TO: Step = 'RECORD';
+export const BUILT_TO: Step = 'REVIEW';
 
 /** Whether a step is something this build can actually do. */
 export function reached(step: Step): boolean {
@@ -55,8 +58,9 @@ export function reached(step: Step): boolean {
  * the difference between a first release and a broken one.
  */
 export function standing(): string {
-  return 'This build finds your cameras and says whether this machine '
-    + 'can record them. Writing the files is the next thing it learns.';
+  return 'This build records every camera at once to this machine, and '
+    + 'writes down how far apart they started. Reviewing what it made '
+    + 'is the next thing it learns.';
 }
 
 /**
