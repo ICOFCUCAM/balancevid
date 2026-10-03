@@ -1492,7 +1492,7 @@ counting `import type` as no reach at all. It is the same class of
 boundary T-5 hit with `electron`, and the same lesson: a local
 typecheck cannot see a bundle.
 
-## V-4 · The campaign has a public page, on the gateway that already exists — **ADD**
+## V-4 · The campaign has a public page, on the gateway that already exists — **ADD**  ·  *built, PART EIGHT*
 
 **What exists today.** The public layer: `middleware.ts`
 default-closed, `src/auth/policy.ts` as the single place a surface
@@ -1522,6 +1522,77 @@ product on the same layer.
 the rules, watches entries and enters, on a phone; and a campaign
 that is `listed: false` is reachable by its link and absent from
 every index.
+
+**What was built, and the five places it is not what this section
+said.**
+
+**One. The entries wall is opened by the participant's consent and
+by nothing else.** This section says *watches entries* and does not
+say on whose authority. `policy.ts` draws a hard line about a
+published performance — *"what is NOT here is the raw material: the
+song, the takes' own media and the document"* — and an entries wall
+walks straight at it. The line is not crossed, it is a different
+line: that rule withholds material nobody consented to handing out,
+and a competition entry is not material. It is the thing itself,
+made to be entered, by somebody who ticked *my video may be shown
+on a public page for this call* in plain words, before the camera
+opened, against terms named by hash, revocably. `wallOf` asks
+`permits(consent, 'display')` per entry and the media route asks
+`wallOf` rather than asking again — so an entry leaves the wall and
+stops being served the instant it is taken back. The song it was
+sung over is still not served anywhere. [V-3]
+
+**Two. There is a second door and therefore one `claim`.** This
+section did not mention `/go/<slug>/enter`, but V-2's own comment
+did: *"V-4's campaign page is the door that names one."* Building
+it meant three branches of document loading, four of the author's
+conditions and a ceiling written out twice, which is where a
+condition gets forgotten — and a forgotten condition on a public
+write is the one that matters. `src/web/claim.ts` is now the one
+function both doors mint through. **Exactly one condition differs**,
+and it is driven by a test rather than argued: the discovery
+listing requires `isListed` on the track and the call page does
+not, because an unlisted item a stranger reached by guessing an id
+is not a thing to let them write to, while a campaign page IS a
+listing whose organiser published it.
+
+**Three. A call has a slug, and it is the station's machinery.**
+`/go/<slug>` needed an address, and `slugFor` and `slugProblem`
+already decide what a web address may contain. They are used
+unchanged — reserved words and all — because a second idea of what
+an address may contain is a second set of addresses that print
+differently. `bySlugOrId` answers both, so every call opened before
+V-4 still has a link.
+
+**Four. Four numbers, and the fifth is named rather than guessed.**
+Section 20 asks for five. Shares cannot be counted without watching
+where a visitor came from, and *"nothing should start watching
+viewers to do it"* — so `loopNumbers` returns entries, finishers,
+arrivals and arrivals-who-entered, and a test asserts those four
+keys and no others, because the field that appeared there later
+would be the one that started it. The pair the brief warns about
+is drawn side by side.
+
+**Five. No link-preview image.** `generateMetadata` gives a title
+and the organiser's own ask, and names no image. A card would have
+to be a frame of somebody's entry, and whose entry a link preview
+shows is not a thing to decide on their behalf — not even among
+the ones who agreed to be displayed, because agreeing to appear on
+a results page is not agreeing to be the thumbnail of a share.
+Recorded in **Not built**. An unlisted call also carries
+`robots: noindex`, which is the other half of what unlisted means:
+reachable by address, and not handed to everybody by a crawler.
+
+**And two things found on the way.** A guard in `bySlugOrId` for an
+empty handle was deleted — no call can carry an empty slug and no
+id is empty, so the two lookups already answered nothing; the
+thirty-third. And a mutation run found that `claim`'s third branch
+was written as *everything that is not music or video*, which made
+the channel the fall-through: with the route's type guard weakened,
+`/api/participate/banana/<channelId>` minted a channel request. The
+third kind is named now. Each guard alone survives mutation because
+the other covers it; removing both mints the request, which is the
+test that holds the pair up. [T-3]
 
 ## V-5 · Judging is people, and every score carries its reason — **ADD**
 
@@ -1730,7 +1801,7 @@ the brief does not ask for.
 | 7 | consent as a record | V-3 | **shipped**: terms, scopes, withdrawal, both doors |
 | 8 | MediaAsset / MediaVariant | — | shipped as derived paths; **not built** as a record |
 | 9 | the media pipeline | — | shipped; queue order measured if it bites |
-| 10 | discovery | V-4 | the public layer is shipped |
+| 10 | discovery | V-4 | **shipped**: `/go`, the call page, the wall |
 | 11 | judging | V-5 | ranking exists and must not be used for it |
 | 12 | public voting | — | **not built**, with the reason |
 | 13 | moderation | V-5 (reasons), — (automation) | the queue is shipped; automation **not built** |
@@ -1740,7 +1811,7 @@ the brief does not ask for.
 | 17 | prizes and payment | V-2 (text) | payment handling **not built** |
 | 18 | territory and rights | — | rights shipped; territory **not built** |
 | 19 | telling the participant | V-7 | the service worker is shipped |
-| 20 | what viral means as a number | V-4 | the facts are shipped, uncounted |
+| 20 | what viral means as a number | V-4 | **shipped**: four of five, no tracking |
 
 ---
 
@@ -1847,6 +1918,29 @@ with the reason rather than as a list of absences — the practice
 `docs/TV-NETWORK.md` ends with, and part of the house style
 because a plan that only lists what it will do cannot be argued
 with.
+
+- **A link-preview image for a campaign page.**  [V-4]
+  `generateMetadata` gives a title and the organiser's own ask, and
+  names no image, which is the one thing a share card is. The card
+  would have to be a frame of somebody's entry, and whose entry a
+  link preview shows is not a thing to decide on their behalf — not
+  even among the entries whose makers ticked *display*, because
+  agreeing to appear on a results page is not agreeing to be the
+  thumbnail of every share of it. Two things would make this
+  buildable and neither exists: a scope narrower than `display`
+  that means *and as the picture on the link*, or an image the
+  ORGANISER supplies, which is theirs to consent to. The second is
+  the smaller one and is a later stage, not a missing one.
+
+- **Any count of where a visitor came from.**  [V-4, §20]
+  Section 20 asks for five numbers and four are shipped. *Shares*
+  and *arrivals from a share* cannot be separated from *arrivals*
+  without a referrer kept, a visitor marked, or a parameter on a
+  link that is read back — and *"nothing should start watching
+  viewers to do it."* `favorites.ts` is per device and says so, and
+  that is this product's posture. `loopNumbers` returns four keys
+  and a test asserts it returns no others, because the fifth field
+  appearing there later is how this gets lost.
 
 - **Payment handling, and prize disbursement.** The account record
   already states that billing is *"what an account eventually

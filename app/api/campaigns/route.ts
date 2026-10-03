@@ -1,4 +1,6 @@
-import { campaignSays, clockSays } from '../../../src/domain/campaign.js';
+import {
+  callListed, campaignSays, clockSays, takenCallSlugs,
+} from '../../../src/domain/campaign.js';
 import { CampaignError, newCampaign } from '../../../src/domain/campaignEdit.js';
 import { whenProblem } from '../../../src/domain/availability.js';
 import { listCampaigns, saveCampaign } from '../../../src/store/campaigns.js';
@@ -45,6 +47,19 @@ export async function GET(): Promise<Response> {
       clock: clockSays(campaign, now),
       says: campaignSays(campaign, now),
       entries: requests.filter((one) => one.campaign === campaign.id).length,
+      /*
+       * AND WHERE IT LIVES, WHICH IS THE THING AN ORGANISER
+       * SHARES.  [GO-VIRAL V-4]
+       *
+       * A list of calls with no addresses in it is a list whose
+       * every row needs opening before it can be posted
+       * anywhere. `listed` beside it, because an organiser has
+       * to be able to see which of their calls is in the public
+       * directory without reading a window object.
+       */
+      ...(campaign.slug ? { slug: campaign.slug } : {}),
+      listed: callListed(campaign),
+      at: `/go/${campaign.slug ?? campaign.id}`,
     })),
   });
 }
@@ -95,10 +110,24 @@ export async function POST(request: Request): Promise<Response> {
       },
       ...(Number.isInteger(body.closingMinutes)
         ? { closingMinutes: body.closingMinutes as number } : {}),
+      /*
+       * AN ADDRESS SUGGESTED FROM THE TITLE, AVOIDING THE ONES
+       * IN USE.  [GO-VIRAL V-4]
+       *
+       * Read here and not in the domain, because it is a disk
+       * read: `newCampaign` decides and this route decodes.
+       * `slugFor` only suggests — `setSlug` is where an
+       * organiser's own answer is judged.
+       */
+      taken: takenCallSlugs(await listCampaigns().catch(() => [])),
       now: new Date().toISOString(),
     });
     await saveCampaign(campaign);
-    return json({ campaign }, { status: 201 });
+    return json({
+      campaign,
+      listed: callListed(campaign),
+      at: `/go/${campaign.slug ?? campaign.id}`,
+    }, { status: 201 });
   } catch (error) {
     if (error instanceof CampaignError) return fail(409, error.message);
     throw error;

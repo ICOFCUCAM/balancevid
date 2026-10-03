@@ -2,6 +2,8 @@ import {
   availabilityState, isListed, maySubmit,
 } from '../../../src/domain/availability.js';
 import { isRespondable } from '../../../src/domain/document.js';
+import { type Campaign, callRow, publicCalls } from '../../../src/domain/campaign.js';
+import { listCampaigns } from '../../../src/store/campaigns.js';
 import { listConversations } from '../../../src/store/repository.js';
 import { listPerformances } from '../../../src/store/performances.js';
 import { listChannels } from '../../../src/store/channels.js';
@@ -185,9 +187,36 @@ export async function GET(request: Request): Promise<Response> {
     /* An installation that cannot read its own account still lists. */
   }
 
+  /*
+   * AND THE CALLS, IN THE SAME ANSWER.  [GO-VIRAL V-4, §10]
+   *
+   * NOT A SECOND FEED, which is the document's own instruction:
+   * *"campaign rows join `/api/participate`'s answer rather than
+   * becoming a second feed."* A Take App with three installations
+   * in its home already merges three of these; making it merge
+   * six would be the three-sections mistake this route's own
+   * header rejects, one layer up. [D-19]
+   *
+   * A SEPARATE ARRAY AND NOT A FOURTH `kind`, because a call is
+   * not a fourth thing to take part in — it is a thing several
+   * rows above may belong to, with a deadline of its own and a
+   * page of its own. Folding it into `participate` would make
+   * `kind` mean two things and break every client that groups by
+   * it.
+   *
+   * THE SAME THREE CONDITIONS, read by the same function the
+   * public index reads: published, listed, not finished. A call
+   * nobody listed is absent from here exactly as it is absent
+   * from `/api/go`. [D-03]
+   */
+  const calls = publicCalls(
+    await listCampaigns().catch(() => [] as Campaign[]), now)
+    .map((one) => callRow(one, now));
+
   return json({
     instance: { name, origin: originOf(request) },
     participate: rows,
+    calls,
   }, {
     headers: {
       /*

@@ -1,11 +1,14 @@
 import {
-  campaignSays, clockSays, entryProblem, needsConsent,
+  campaignSays, callListed, clockSays, entryProblem, needsConsent,
+  takenCallSlugs,
 } from '../../../../src/domain/campaign.js';
 import {
   CampaignError, announce, begin, beginJudging, complete, enterLastStretch,
-  moveDeadline, reopenToLive, setTerms,
+  moveDeadline, reopenToLive, setListed, setSlug, setTerms,
 } from '../../../../src/domain/campaignEdit.js';
-import { loadCampaign, mutateCampaign } from '../../../../src/store/campaigns.js';
+import {
+  listCampaigns, loadCampaign, mutateCampaign,
+} from '../../../../src/store/campaigns.js';
 import { listRequests } from '../../../../src/store/requests.js';
 import { fail, json } from '../../../../src/web/http.js';
 
@@ -82,9 +85,18 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
   if (!ID.test(id)) return fail(404, 'no such call');
   const body = await request.json().catch(() => ({})) as {
     action?: unknown; by?: unknown; closesAt?: unknown; terms?: unknown;
+    slug?: unknown; listed?: unknown;
   };
   const now = new Date().toISOString();
   const by = typeof body.by === 'string' ? body.by : undefined;
+
+  /*
+   * EVERY OTHER CALL'S ADDRESS, READ ONCE, BEFORE THE MUTATION.
+   * `mutateCampaign` takes a synchronous change and a disk read
+   * inside it would be a read holding a document open.
+   */
+  const others = takenCallSlugs(
+    await listCampaigns().catch(() => []), id);
 
   try {
     const updated = await mutateCampaign(id, (draft) => {
@@ -112,6 +124,28 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
           }
           setTerms(draft, body.terms, now);
           break;
+        /*
+         * THE ADDRESS IT IS SHARED AT.  [GO-VIRAL V-4]
+         *
+         * The uniqueness check needs every other call's address,
+         * which is a disk read and so belongs here rather than
+         * in the domain — the arrangement `campaignEdit.ts`
+         * states at its head. `setSlug` refuses rather than
+         * repairs.
+         */
+        case 'slug':
+          if (typeof body.slug !== 'string') {
+            throw new CampaignError('say what address it should answer on');
+          }
+          setSlug(draft, body.slug, others);
+          break;
+        /* In the directory, or at its address and nowhere else. */
+        case 'listed':
+          if (typeof body.listed !== 'boolean') {
+            throw new CampaignError('say whether it should be listed');
+          }
+          setListed(draft, body.listed);
+          break;
         case 'deadline':
           if (typeof body.closesAt !== 'string') {
             throw new CampaignError('say when it closes');
@@ -126,6 +160,8 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
       campaign: updated,
       clock: clockSays(updated, now),
       says: campaignSays(updated, now),
+      listed: callListed(updated),
+      at: `/go/${updated.slug ?? updated.id}`,
     });
   } catch (error) {
     if (error instanceof CampaignError) return fail(409, error.message);
