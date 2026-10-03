@@ -204,14 +204,24 @@ export function callsignProblem(callsign: string): string | null {
 export function stationSays(station: Station | undefined): string {
   if (!station) return '';
   return [
-    station.genre ? titleCase(station.genre) : null,
+    station.genre ? genreSays(station.genre) : null,
     station.language ? languageSays(station.language) : null,
     station.country ? station.country.toUpperCase() : null,
   ].filter(Boolean).join(' · ');
 }
 
-function titleCase(word: string): string {
-  return word.slice(0, 1).toUpperCase() + word.slice(1);
+/**
+ * A genre as a reader sees it: `faith` becomes `Faith`.
+ *
+ * EXPORTED BECAUSE A SECOND READER ARRIVED. The genre is stored
+ * lower case because it is an enum and a key — `/tv/channels?genre=faith`
+ * — and every surface that shows it to a person has to undo that.
+ * The directory line did it privately; the M3U's `group-title` is
+ * a folder name on somebody's television and needs the same word.
+ * A second copy is how one of them comes to say `faith`. [D-19]
+ */
+export function genreSays(genre: string): string {
+  return genre.slice(0, 1).toUpperCase() + genre.slice(1);
 }
 
 /**
