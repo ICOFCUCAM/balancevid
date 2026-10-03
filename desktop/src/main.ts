@@ -43,6 +43,7 @@ import { dirname, join } from 'node:path';
 
 import { asOrigin } from '../../shared/src/connections.js';
 import { askInstance } from './ask.js';
+import { measure } from './machine.js';
 import { readStored, writeStored } from './store.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -73,11 +74,42 @@ function listen(): void {
    * application's own scheme — so the string goes through
    * `asOrigin` first, which answers only for http and https.
    */
+  /*
+   * WHAT THE RECORDING DISK CAN DO, MEASURED BY WRITING TO IT.
+   * The window cannot: `statfs` is Node's, and timing a real
+   * write needs a real file. `userData` for now, because T-3 has
+   * no recording directory yet — T-4 is the stage that lets the
+   * operator choose one, and this measures whatever that turns
+   * out to be. [T-3, T-4]
+   */
+  ipcMain.handle('take:machine', () => measure(app.getPath('userData')));
   ipcMain.handle('take:open-external', async (_event, url: unknown) => {
     if (typeof url !== 'string' || !asOrigin(url)) return false;
     await shell.openExternal(url);
     return true;
   });
+}
+
+/**
+ * The camera and the microphone, asked for once.  [T-3]
+ *
+ * ELECTRON DENIES `getUserMedia` BY DEFAULT and a window that
+ * silently gets nothing is a window the operator thinks is
+ * broken. Only `media` is granted, and only to the page this
+ * application shipped: a capture station needs a camera, and it
+ * needs nothing else on that list — not the clipboard, not
+ * notifications, not location.
+ *
+ * THE OPERATING SYSTEM STILL ASKS ITS OWN QUESTION. This answers
+ * Electron's, not macOS's or Windows's; a person who has refused
+ * the camera to this application in their system settings is
+ * refusing it, and `getUserMedia` says so to the tile.
+ */
+function allowCameras(window: BrowserWindow): void {
+  window.webContents.session.setPermissionRequestHandler(
+    (_contents, permission, decide) => decide(permission === 'media'));
+  window.webContents.session.setPermissionCheckHandler(
+    (_contents, permission) => permission === 'media');
 }
 
 function open(): void {
@@ -129,6 +161,7 @@ function open(): void {
     return { action: 'deny' };
   });
   window.webContents.on('will-navigate', (event) => event.preventDefault());
+  allowCameras(window);
 
   void window.loadFile(join(HERE, 'index.html'));
 }

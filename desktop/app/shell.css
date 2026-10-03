@@ -213,3 +213,122 @@ main {
 .quiet { font-size: 13px; color: var(--muted); }
 .asking { font-size: 13px; color: var(--muted); }
 .bad { font-size: 13px; color: #d98a6a; max-width: 44ch; }
+
+/* ------------------------------------------------------------------ *
+ *  CAMERAS and PREPARE.  [T-3]
+ * ------------------------------------------------------------------ */
+
+/* The screen is wider here: four pictures need room. */
+.screen:has(.grid) { width: min(100%, 1040px); }
+
+.devices { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+
+.device {
+  display: inline-flex; align-items: baseline; gap: 8px;
+  padding: 8px 13px; font: inherit; cursor: pointer;
+  color: var(--muted); background: transparent;
+  border: 1px solid var(--line); border-radius: 8px;
+}
+
+.device:hover { border-color: var(--accent); }
+.device[data-on='true'] { color: var(--ink); border-color: var(--accent); }
+.device-name { font-weight: 600; }
+.device-kind { font-size: 11px; color: #5c636b; letter-spacing: 0.06em; }
+
+/*
+ * THE GRID IS N WIDE, NOT FOUR. Four in the UI is what the brief
+ * asks for and what two columns give; one source does not get a
+ * quarter of the width with three holes beside it.
+ *
+ * AND A TILE IS CAPPED, SO PREPARE STAYS ON THE SCREEN. With
+ * `1fr` one camera took the full width — 585 pixels tall at 16:9
+ * — and pushed the checks below the fold on the one screen whose
+ * whole argument is that you can see both at once. N-4 learned
+ * this on the station player: *"a station page where you must
+ * scroll to learn what is on has buried its own answer."* Same
+ * fault, same fix.
+ */
+.grid {
+  display: grid; gap: 8px; width: 100%; justify-content: center;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 340px));
+}
+
+.grid[data-count='0'] { display: none; }
+
+.tile {
+  position: relative; aspect-ratio: 16 / 9; overflow: hidden;
+  /* The bed a picture sits on, which is the screen's own black
+     and not a hand-picked near-black. */
+  background: #000;
+  border: 1px solid var(--line); border-radius: 8px;
+}
+
+/* The one word over the picture is the health, in the health's colour. */
+.tile[data-health='lost'] { border-color: #8a3f3f; }
+.tile[data-health='unstable'] { border-color: #8a7a3f; }
+.tile[data-health='live'] { border-color: var(--line); }
+
+.tile video {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+}
+
+.tile-says {
+  position: absolute; inset: 0; display: none;
+  align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700; letter-spacing: 0.12em;
+  color: var(--muted); background: rgba(0, 0, 0, 0.55);
+}
+
+.tile-says[data-on='true'] { display: flex; }
+
+/* The slot number leads, the way a monitor in the switching
+   stage does: a tile is a thing an operator presses by number. */
+.tile-badge {
+  position: absolute; left: 6px; bottom: 6px; max-width: calc(100% - 12px);
+  padding: 3px 7px; border-radius: 6px;
+  font-size: 11px; font-weight: 600;
+  color: rgba(255, 255, 255, 0.94);
+  background: rgba(0, 0, 0, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.tile-meter {
+  position: absolute; right: 6px; top: 6px; bottom: 6px; width: 4px;
+  border-radius: 2px; background: rgba(255, 255, 255, 0.12);
+  display: flex; align-items: flex-end;
+}
+
+/* Vertical, so it reads as a level rather than a progress bar:
+   the well is laid out bottom-up and the fill grows in height. */
+.tile-meter-fill {
+  width: 100%; height: 0;
+  border-radius: 2px; background: var(--accent);
+}
+
+/* A reading width, centred: the checks are sentences, and a
+   sentence 1040 pixels wide is a sentence nobody finishes. */
+.checks { display: grid; gap: 5px; width: min(100%, 560px); }
+
+.check {
+  display: flex; gap: 9px; align-items: baseline;
+  text-align: left; font-size: 13px; color: var(--muted);
+}
+
+.check-mark { flex: 0 0 auto; width: 1em; font-weight: 700; }
+.check[data-ok='true'] .check-mark { color: #5f9e6b; }
+.check[data-ok='false'][data-blocking='true'] .check-mark { color: #d98a6a; }
+.check[data-ok='false'][data-blocking='false'] .check-mark { color: #c9a33f; }
+.check[data-ok='false'] .check-says { color: var(--ink); }
+
+.arm { margin-top: 8px; justify-self: center; }
+.arm:disabled { color: #5c636b; cursor: not-allowed; border-color: var(--line); }
+
+/* A step that is built is a step you can press. */
+.step-go {
+  font: inherit; font-size: 12px; font-weight: 700; letter-spacing: 0.1em;
+  color: inherit; background: transparent; border: none; padding: 0;
+  cursor: pointer;
+}
+
+.step[data-here='true'] { border-color: var(--accent); color: var(--ink); }

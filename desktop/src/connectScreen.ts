@@ -38,7 +38,7 @@ type Doing =
   | { kind: 'reached'; connection: Connection; rows: number; link?: string }
   | { kind: 'unreachable'; origin: string };
 
-export function connectScreen(root: HTMLElement): void {
+export function connectScreen(root: HTMLElement): (() => void) | null {
   const bridge = window.take;
   let known: Connection[] = [];
   let doing: Doing = { kind: 'idle' };
@@ -217,4 +217,8 @@ export function connectScreen(root: HTMLElement): void {
     known = (await bridge?.connections()) ?? [];
     draw();
   })();
+
+  /* Nothing to let go of: this screen holds no device and no
+     timer. The shape matches `camerasScreen`, which does. */
+  return null;
 }

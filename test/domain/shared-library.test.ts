@@ -46,6 +46,8 @@ describe('what is in the shared library (T-1)', () => {
     expect(SHARED.sort()).toEqual([
       join('shared/src', 'align.ts'),
       join('shared/src', 'connections.ts'),
+      join('shared/src', 'prepare.ts'),
+      join('shared/src', 'sourceGrid.ts'),
       join('shared/src', 'time.ts'),
     ]);
   });
@@ -217,10 +219,10 @@ describe('the desktop application reaches nowhere into the web tier (T-1)', () =
       'REVIEW', 'SUBMIT']) {
       expect(shell, step).toContain(`'${step}'`);
     }
-    /* T-1 shipped with CONNECT named next; T-2 built it and
-       moved this to CAMERAS. One constant, and the stage that
-       earns a step moves it. */
-    expect(shell).toMatch(/BUILT_TO: Step = 'CAMERAS'/);
+    /* T-1 shipped with CONNECT named next; T-2 built CONNECT and
+       T-3 built CAMERAS and PREPARE together. One constant, and
+       the stage that earns a step moves it. */
+    expect(shell).toMatch(/BUILT_TO: Step = 'RECORD'/);
   });
 
   /*
@@ -237,8 +239,16 @@ describe('the desktop application reaches nowhere into the web tier (T-1)', () =
    * is a capture station in a room with cameras in it.
    */
   it('keeps the network in the main process and out of the window', () => {
+    /*
+     * EVERY FILE THE WINDOW LOADS, named rather than globbed:
+     * adding one to this list is the moment somebody decides it
+     * belongs in the renderer, and a glob would let the next one
+     * in without that.
+     */
     const renderers = ['desktop/src/renderer.ts', 'desktop/src/shell.ts',
-      'desktop/src/connect.ts', 'desktop/src/connectScreen.ts'];
+      'desktop/src/connect.ts', 'desktop/src/connectScreen.ts',
+      'desktop/src/cameras.ts', 'desktop/src/camerasScreen.ts',
+      'desktop/src/levels.ts'];
     for (const file of renderers) {
       const body = code(file);
       for (const network of [/\bfetch\(/, /XMLHttpRequest/, /WebSocket/,
