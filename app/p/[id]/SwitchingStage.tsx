@@ -22,6 +22,7 @@ import { pageTakes, typingIn } from '../../../src/domain/keys.js';
 import { useMenu, type MenuEntry } from '../../Menu.js';
 import type { TakeId } from '../../../src/domain/document.js';
 import { nudgeSays } from './takeNudge.js';
+import { angleSays } from '../../../src/domain/angles.js';
 import { takeMenuItems } from './takeMenu.js';
 import { songMenuItems } from './songMenu.js';
 import { SOUND_TRACKS, soundMenuItems } from './soundMenu.js';
@@ -1520,6 +1521,24 @@ export default function SwitchingStage({
                   textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                 }}>
                   {allTakes && key > 0 ? `${key} · ` : ''}{take.label}
+                  {/*
+                    * AND WHETHER IT IS A VIEW OR A GO.  [B-1]
+                    *
+                    * This multiview has shown attempts and angles the
+                    * same way since it was written, and they are
+                    * different jobs: four attempts at the chorus are a
+                    * choice, four angles of one room are a cut. The
+                    * producer could only tell by watching them.
+                    *
+                    * `angleSays` answers nothing for an attempt and
+                    * nothing for a capture of one, so every performance
+                    * made before this existed draws exactly as it did.
+                    */}
+                  {angleSays(performance.takes, take) && (
+                    <span data-testid="monitor-angle" style={{ opacity: 0.8 }}>
+                      {` · ${angleSays(performance.takes, take)}`}
+                    </span>
+                  )}
                   {/*
                     * AND WHETHER IT IS BEING HELD. A take pushed against
                     * the song is playing at a different moment from the
