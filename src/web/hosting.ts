@@ -97,9 +97,36 @@ export function landingFor(request: {
    * guard with a false reason attached teaches the next reader
    * something untrue. [the twenty-third]
    */
-  const proto = request.proto === 'http' ? 'http' : 'https';
-  return {
-    kind: 'canonical',
-    to: `${proto}://${own}${request.pathname}${request.search ?? ''}`,
-  };
+  const to = canonicalFor(
+    `${request.pathname}${request.search ?? ''}`, request.ownHost, request.proto);
+  /* Unreachable: `own` was checked above and `canonicalFor` asks
+     the same question of the same value. Typed away rather than
+     guarded, so there is nothing here a test cannot reach. */
+  return to ? { kind: 'canonical', to } : { kind: 'own' };
+}
+
+/**
+ * The one address this installation wants to be linked to.
+ *
+ * > *"BalanceVid provides the canonical public channel identity."*
+ *
+ * THE SAME RULE AS THE REDIRECT, BECAUSE IT IS THE SAME CLAIM.
+ * The 308 says *the real address is over there* and the canonical
+ * tag says it to a search engine; built twice they would
+ * eventually disagree, and a station whose redirect and whose
+ * canonical point at different hosts is one Google picks between.
+ *
+ * NOTHING WHERE THE INSTALLATION HAS NO NAME, and that absence
+ * matters more than it looks. Next resolves a RELATIVE canonical
+ * against `metadataBase`, which this product does not set — so a
+ * relative one would have been emitted as
+ * `http://localhost:3000/tv/channels/…` on a live station page,
+ * which is worse than no canonical at all. No name, no tag.
+ */
+export function canonicalFor(
+  path: string, ownHost: string | null | undefined, proto?: string | null,
+): string | null {
+  const own = hostOf(ownHost);
+  if (!own) return null;
+  return `${proto === 'http' ? 'http' : 'https'}://${own}${path}`;
 }

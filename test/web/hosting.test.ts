@@ -9,7 +9,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { STATION_PATH, landingFor } from '../../src/web/hosting.js';
+import { STATION_PATH, canonicalFor, landingFor } from '../../src/web/hosting.js';
 
 const OWN = 'balancevid.com';
 const THEIRS = 'tv.redemption.example';
@@ -162,6 +162,46 @@ describe('the redirect cannot be aimed somewhere else (N-8)', () => {
       const to = landed.kind === 'canonical' ? landed.to : '';
       expect(new URL(to).host, to).toBe(OWN);
       expect(new URL(to).protocol, to).toBe('https:');
+    }
+  });
+});
+
+describe('the one address this installation wants to be linked to (N-8)', () => {
+  /*
+   * THE SAME RULE AS THE REDIRECT, BECAUSE IT IS THE SAME CLAIM.
+   * The 308 says "the real address is over there" and the tag
+   * says it to a search engine; built twice they would
+   * eventually disagree, and a station whose redirect and whose
+   * canonical point at different hosts is one Google picks
+   * between.
+   */
+  it('agrees with the redirect, host for host', () => {
+    const landed = at(THEIRS, '/tv/channels/redemption-tv');
+    const tag = canonicalFor('/tv/channels/redemption-tv', OWN);
+    expect(landed.kind === 'canonical' && landed.to).toBe(tag);
+  });
+
+  it('normalises the name it was given, like everything else does', () => {
+    expect(canonicalFor('/tv/channels/rtv', 'BalanceVid.COM:443'))
+      .toBe(`https://${OWN}/tv/channels/rtv`);
+  });
+
+  it('follows the proxy about the scheme', () => {
+    expect(canonicalFor('/x', OWN, 'http')).toBe(`http://${OWN}/x`);
+    expect(canonicalFor('/x', OWN, null)).toBe(`https://${OWN}/x`);
+  });
+
+  /*
+   * AND NOTHING WHERE THE INSTALLATION HAS NO NAME. Next resolves
+   * a RELATIVE canonical against `metadataBase`, which this
+   * product does not set — so the relative form this was written
+   * with first would have gone out on a live station page as
+   * `http://localhost:3000/tv/channels/...`, a tag pointing at a
+   * machine nobody can reach. No name, no tag.
+   */
+  it('answers nothing rather than a guess when nothing names us', () => {
+    for (const unset of [undefined, null, '', '  ']) {
+      expect(canonicalFor('/tv/channels/rtv', unset), String(unset)).toBe(null);
     }
   });
 });

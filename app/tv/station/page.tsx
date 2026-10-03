@@ -8,6 +8,7 @@ import { nowAndNext } from '../../../src/domain/onAir.js';
 import { lineupFor } from '../../../src/store/lineup.js';
 import { listChannels } from '../../../src/store/channels.js';
 import { TvFrame } from '../Tv.js';
+import { canonicalFor } from '../../../src/web/hosting.js';
 import Station from '../channels/[slug]/Station.js';
 
 export const dynamic = 'force-dynamic';
@@ -43,6 +44,10 @@ export async function generateMetadata(): Promise<Metadata> {
   const it = await answering();
   if (!it) return { title: 'No channel at this address — BalanceVid TV' };
   const { listing } = it;
+  const head = await headers();
+  const canonical = canonicalFor(
+    `/tv/channels/${listing.slug}`,
+    process.env['BALANCEVID_HOST'], head.get('x-forwarded-proto'));
   return {
     title: `${listing.name} — BalanceVid TV`,
     description: listing.description
@@ -56,11 +61,17 @@ export async function generateMetadata(): Promise<Metadata> {
      * addresses, and a search engine either picks one at random
      * or splits the station's standing between them.
      *
-     * Relative, resolved against `metadataBase` where one is set,
-     * so this does not need to know the network's own hostname —
-     * which the middleware knows and a page should not have to.
+     * ABSOLUTE, AND THAT IS NOT A STYLE CHOICE. This was written
+     * relative first. Next resolves a relative canonical against
+     * `metadataBase`, which this product does not set, so what
+     * would have gone out on a live station page was
+     * `http://localhost:3000/tv/channels/…` — a canonical tag
+     * pointing at a machine nobody can reach, which is worse than
+     * none. Built from the same function the 308 uses, because
+     * the redirect and the tag make the same claim and two
+     * builders eventually disagree.
      */
-    alternates: { canonical: `/tv/channels/${listing.slug}` },
+    ...(canonical ? { alternates: { canonical } } : {}),
   };
 }
 
