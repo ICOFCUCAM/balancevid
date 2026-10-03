@@ -2,6 +2,8 @@ import {
   ParticipationError, advance, open,
 } from '../../../../src/domain/participationEdit.js';
 import { viewFor } from '../../../../src/domain/participation.js';
+import { currentTerms } from '../../../../src/domain/campaign.js';
+import { callOf } from '../../../../src/store/campaigns.js';
 import { mutateRequest, requestForLink } from '../../../../src/store/requests.js';
 import { fail, json } from '../../../../src/web/http.js';
 
@@ -59,7 +61,24 @@ export async function GET(_request: Request, { params }: Params): Promise<Respon
     }
   }).catch(() => found);
 
-  return json({ request: viewFor(request) });
+  /*
+   * AND WHAT THIS CALL ASKS THEM TO AGREE TO, BEFORE THE CAMERA
+   * OPENS.  [GO-VIRAL V-3]
+   *
+   * THE WORDS, NOT A FLAG. A surface told only that consent is
+   * required would have to invent the terms or link away to them,
+   * and a person who agreed to words they never saw has agreed to
+   * nothing. So the text travels with the assignment, on the one
+   * fetch the Take App already makes, and the recorder is not
+   * reachable until they have answered it.
+   *
+   * `viewFor` STILL DECIDES WHAT CROSSES. The call is loaded here
+   * and two of its fields are handed over; its title, its prize,
+   * its deadline and the ninety-nine other people answering it
+   * stay on the server. [D-25]
+   */
+  const call = await callOf(request);
+  return json({ request: viewFor(request, call && currentTerms(call)) });
 }
 
 /**

@@ -7,6 +7,8 @@
  * when someone forgets something, which is the only interesting question an
  * auth system answers.
  */
+import { readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { hashPassword, isLocked, loadAuthConfig, verifyPassword } from '../../src/auth/config.js';
@@ -170,6 +172,80 @@ describe('what the holder of a Take link may reach', () => {
       expect(mayBePublic(`/api/take/${LINK}/submissions/sub_1`, method), method)
         .toBe(false);
     }
+  });
+
+  /*
+   * AND SAYING WHAT THEY AGREE TO.  [GO-VIRAL V-3; D-03]
+   *
+   * POST writes the record, DELETE takes it back, and DELETE is
+   * named rather than inherited — the hole this file already
+   * remembers was a path-only allowance that answered DELETE
+   * because nobody said it should not.
+   */
+  it('lets them agree, and take it back', () => {
+    expect(mayBePublic(`/api/take/${LINK}/consent`, 'POST')).toBe(true);
+    expect(mayBePublic(`/api/take/${LINK}/consent`, 'DELETE')).toBe(true);
+    expect(mayBePublic(`/api/take/${LINK}/consent`, 'GET')).toBe(false);
+    expect(mayBePublic(`/api/take/${LINK}/consent`, 'PUT')).toBe(false);
+    expect(mayBePublic('/api/take/req_3f2a9c/consent', 'POST')).toBe(false);
+  });
+
+  /*
+   * AND NO DOOR IS BUILT THAT NOBODY OPENED.  [GO-VIRAL V-3]
+   *
+   * FOUND BY A BROWSER RUN AND BY NOTHING ELSE. The consent route
+   * was written, unit-tested against its own handler, driven
+   * through seventeen route tests and shipped behind a 401 — because
+   * every one of those tests imports the handler and calls it, and
+   * the gate is in `middleware.ts`, one layer above. The phone got
+   * *Unauthorized* at the moment it pressed *I agree*.
+   *
+   * A HANDLER THAT EXISTS AND IS NOT ALLOWED IS NOT A ROUTE, it is a
+   * 401 with a file behind it. So this derives the question from the
+   * directory rather than from a list somebody remembers to extend:
+   * every verb every take route exports must be a verb `mayBePublic`
+   * admits. The next person to add one is told at the moment they
+   * add it. [D-19]
+   *
+   * THE REVERSE IS NOT ASSERTED. An allowance with no handler is a
+   * dead pattern and not a hole, and the one direction that can let
+   * somebody in is the one worth a test.
+   */
+  it('allows every verb the take routes actually export', () => {
+    const under = join(
+      import.meta.dirname, '..', '..', 'app', 'api', 'take', '[link]');
+    const refused: string[] = [];
+    const walk = (dir: string, path: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const full = join(dir, entry.name);
+        if (entry.isDirectory()) {
+          /* `[submissionId]` and the like stand for one id segment. */
+          walk(full, `${path}/${entry.name.startsWith('[') ? 'sub_1' : entry.name}`);
+        } else if (entry.name === 'route.ts') {
+          for (const hit of readFileSync(full, 'utf8')
+            .matchAll(/export async function (GET|POST|PUT|DELETE|PATCH)\b/g)) {
+            if (!mayBePublic(path, hit[1]!)) refused.push(`${hit[1]} ${path}`);
+          }
+        }
+      }
+    };
+    walk(under, `/api/take/${LINK}`);
+    expect(refused,
+      'that take route is behind the session gate — add it to '
+      + 'GUEST_WRITABLE or to the readable list in src/auth/policy.ts')
+      .toEqual([]);
+  });
+
+  /*
+   * AND THE WALK FINDS SOMETHING, because a `readdirSync` on a
+   * renamed directory would make the test above pass for every
+   * route in the product. [V-1]
+   */
+  it('and that walk reaches the routes it is about', () => {
+    const under = join(
+      import.meta.dirname, '..', '..', 'app', 'api', 'take', '[link]');
+    expect(readdirSync(under).length).toBeGreaterThanOrEqual(4);
+    expect(readdirSync(under)).toContain('consent');
   });
 
   /*

@@ -346,6 +346,27 @@ const GUEST_WRITABLE: { method: string; path: RegExp }[] = [
   { method: 'POST', path: /^\/api\/take\/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\/submissions\/[A-Za-z0-9_-]+$/ },
   { method: 'DELETE', path: /^\/api\/take\/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\/submissions\/[A-Za-z0-9_-]+$/ },
   /*
+   * AND SAYING WHAT THEY AGREE TO, AND TAKING IT BACK.
+   *   [GO-VIRAL V-3; D-03]
+   *
+   * TWO VERBS AND ONE PATH, listed the same way the four above are
+   * and for the same reason: a path-only allowance once answered
+   * DELETE as well, and that was a real hole. Here DELETE is wanted
+   * — it is the withdrawal — so it is named, which is not the same
+   * thing as being inherited.
+   *
+   * THE PARTICIPANT'S OWN CONSENT IS THE PARTICIPANT'S TO WRITE.
+   * Nobody else can: the route refuses anything whose hash the call
+   * has not published, it refuses a rewrite once a recording has
+   * been sent, and the link is the credential. What this allowance
+   * reaches is one record on one request, which is the record OF
+   * the person holding the link. D-03's word is *revocable*, and a
+   * consent the person could give and not take back would be a
+   * release collected at a door.
+   */
+  { method: 'POST', path: /^\/api\/take\/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\/consent$/ },
+  { method: 'DELETE', path: /^\/api\/take\/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\/consent$/ },
+  /*
    * TAKING PART IN SOMETHING THE AUTHOR OPENED TO ANYONE.
    *   [TAKE-PLATFORM P2, P3, P4, PART FIVE; D-25, U-31]
    *

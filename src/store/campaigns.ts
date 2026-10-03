@@ -74,3 +74,26 @@ export async function mutateCampaign(
   await saveCampaign(campaign);
   return campaign;
 }
+
+/**
+ * The call a request is an answer to, or none.  [GO-VIRAL V-3]
+ *
+ * ONE LOOKUP, SHARED BY THE FOUR DOORS THAT NEED IT — the take
+ * link, the consent door, the submission and the producer's
+ * accept. Each of them has to know whether this request belongs
+ * to a call with terms, and four copies of *load it and shrug if
+ * it is not there* would be four chances to shrug differently.
+ *
+ * A MISSING CALL IS NO CALL, NOT AN ERROR. A request naming a
+ * campaign whose file has gone is a request that behaves like
+ * every request issued before campaigns existed — which is the
+ * right failure, because the alternative is a performer standing
+ * in front of a camera being told the server cannot read a
+ * directory.
+ */
+export async function callOf(
+  request: { campaign?: string },
+): Promise<Campaign | null> {
+  if (!request.campaign) return null;
+  return loadCampaign(request.campaign).catch(() => null);
+}

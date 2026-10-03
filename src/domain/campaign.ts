@@ -47,6 +47,7 @@
 import type { Id } from './ids.js';
 import type { RequestHolder } from './participation.js';
 import { type TakeAvailability, isOpenAt } from './availability.js';
+import { type ConsentRecord, permits } from './consent.js';
 
 export type CampaignId = Id<'camp'>;
 
@@ -142,6 +143,35 @@ export interface CampaignRules {
 }
 
 /**
+ * The words a campaign asks its entrants to agree to.
+ *   [GO-VIRAL V-3]
+ *
+ * > *"It is a record: what they were told, in what words, on what
+ * > date."*
+ *
+ * APPEND-ONLY, AND THAT IS THE WHOLE REASON THIS IS A LIST RATHER
+ * THAN A STRING. A consent record points at its terms by hash, so
+ * the words cannot be edited underneath a signature — but a hash
+ * on its own is a record nobody can read back. *"They agreed to
+ * something with hash a3f…"* answers no question anybody would
+ * ask. So the text is kept beside the hash, every wording that was
+ * ever shown is kept, and an organiser who improves their terms on
+ * Tuesday leaves Monday's entrants pointing at Monday's words.
+ *
+ * WHICH IS THE ONLY WAY BOTH HALVES CAN BE TRUE AT ONCE: new
+ * entrants see the new terms, and an old entry still verifies.
+ * One mutable field could do one or the other and not both.
+ */
+export interface CampaignTerms {
+  /** `sha256` of `text`, which is what a consent record names. */
+  hash: string;
+  /** The exact words that were shown. */
+  text: string;
+  /** When this wording came into use. */
+  from: string;
+}
+
+/**
  * A call for takes.
  *
  * `track` IS A `RequestHolder`, NOT A NEW REFERENCE SHAPE. The
@@ -171,6 +201,22 @@ export interface Campaign {
   createdAt: string;
   /** Every move, and who made it. The same shape a request keeps. */
   history: { state: CampaignState; at: string; by?: string }[];
+  /**
+   * Every wording this call has asked entrants to agree to.
+   *   [GO-VIRAL V-3]
+   *
+   * ABSENT MEANS THIS CALL ASKS NOBODY ANYTHING, which is what
+   * every campaign written before this field existed is, and
+   * what an ordinary producer-issued request still is. A call
+   * REQUIRES CONSENT EXACTLY WHEN IT HAS TERMS — there is no
+   * second flag, because a flag and a list could disagree, and
+   * a call that required consent and had no words to show would
+   * be a door with no sign on it.
+   *
+   * NEWEST LAST. `currentTerms` is what a new entrant sees;
+   * every entry already made still names the wording it saw.
+   */
+  terms?: CampaignTerms[];
   /**
    * How long before the close a call is in its last stretch.
    *
@@ -284,6 +330,69 @@ export function campaignSays(campaign: Campaign, now: string): string {
 /* ------------------------------------------------------------------ *
  *  Which call a request belongs to.
  * ------------------------------------------------------------------ */
+
+/* ------------------------------------------------------------------ *
+ *  What this call asks of the people entering it.  [GO-VIRAL V-3]
+ * ------------------------------------------------------------------ */
+
+/** The wording a new entrant is shown, or none because there is none. */
+export function currentTerms(campaign: Campaign): CampaignTerms | null {
+  return campaign.terms?.at(-1) ?? null;
+}
+
+/**
+ * The wording somebody actually agreed to, found by its hash.
+ *
+ * NOT `currentTerms`, AND THE DIFFERENCE IS THE POINT. An entry
+ * made on Monday names Monday's words; asking whether it matches
+ * TODAY's terms would invalidate every entry the moment an
+ * organiser fixed a typo, which is the opposite of what a signed
+ * record is for. The question is *are these words still on
+ * record*, and the list is append-only so the answer stays yes.
+ */
+export function termsSigned(
+  campaign: Campaign, hash: string,
+): CampaignTerms | null {
+  return (campaign.terms ?? []).find((one) => one.hash === hash) ?? null;
+}
+
+/** Whether entering this call means agreeing to something first. */
+export function needsConsent(campaign: Campaign): boolean {
+  return currentTerms(campaign) !== null;
+}
+
+/**
+ * Why this entry may not go into this call, or nothing.
+ *
+ * ONE PREDICATE, ASKED AT BOTH DOORS — the one a participant
+ * sends through and the one a producer accepts through — because
+ * a rule enforced at submission and forgotten at acceptance is a
+ * rule that holds until somebody uses the inbox. [D-19]
+ *
+ * A CALL WITH NO TERMS REFUSES NOTHING, which is the whole of
+ * *"an ordinary submission with no consent record behaves exactly
+ * as today"*. Every request this product has ever issued answers
+ * this with the empty string.
+ *
+ * `permits` RATHER THAN A WITHDRAWAL CHECK OF ITS OWN, so a
+ * withdrawal is honoured by whatever asks. A record that reaches
+ * here and does not permit entry has been taken back: `entry` is
+ * the one scope `consentFrom` will not write a record without, so
+ * it is present on every record that was ever made.
+ */
+export function entryProblem(
+  campaign: Campaign, consent: ConsentRecord | undefined,
+): string {
+  if (!needsConsent(campaign)) return '';
+  if (!consent) {
+    return 'this call asks everybody entering it to agree to its terms first';
+  }
+  if (!permits(consent, 'entry')) return 'that agreement was taken back';
+  if (!termsSigned(campaign, consent.termsHash)) {
+    return 'those are not the terms of this call';
+  }
+  return '';
+}
 
 /**
  * The one call taking entries for this document, or nothing.

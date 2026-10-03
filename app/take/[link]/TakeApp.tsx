@@ -7,6 +7,9 @@ import Icon from '../../Icon.js';
 import { useMasterRecording } from '../../p/[id]/useMasterRecording.js';
 import { HOUSE_SAMPLE_RATE, formatMasterPosition } from '../../../src/domain/time.js';
 import type { RequestView } from '../../../src/domain/participation.js';
+import {
+  CONSENT_MEANS, CONSENT_SCOPES, type ConsentScope, consentSays,
+} from '../../../src/domain/consent.js';
 import { dropTake, sendTake, takeSink, type KeptSpec } from './takeSink.js';
 import { askToDrain, installWorker, settle, takeQueue } from './queue.js';
 import InstallBar from './InstallBar.js';
@@ -79,6 +82,16 @@ export default function TakeApp({ link }: { link: string }) {
   /** Per recording: segments still on their way, and ones that cannot be. */
   const [outstanding, setOutstanding] = useState<
     Record<string, { left: number; dead: number }>>({});
+  /**
+   * WHAT THEY HAVE TICKED, AND IT STARTS EMPTY.  [GO-VIRAL V-3]
+   *
+   * *"with nothing pre-ticked"*, which is not a style note: a box
+   * somebody did not untick is not a thing they agreed to, and a
+   * product that pre-ticked *broadcast* would be collecting
+   * permission by default from people who came to sing.
+   */
+  const [agreed, setAgreed] = useState<ConsentScope[]>([]);
+  const [signing, setSigning] = useState(false);
 
   /*
    * A FINISHED RECORDING IS KEPT, NOT SENT.  [TAKE-APP T4]
@@ -128,7 +141,29 @@ export default function TakeApp({ link }: { link: string }) {
    * resolution-agnostic, so that was the ceiling on the master too.
    * The preset is remembered per device, so a performer sets it once.
    */
-  const camera = useCamera(!soundOnly);
+  /*
+   * WHAT THIS CALL ASKS THEM TO AGREE TO, AND WHETHER THEY HAVE.
+   *   [GO-VIRAL V-3]
+   *
+   * `terms` ARRIVES WITH THE ASSIGNMENT and is absent for every
+   * request that is not part of a call that asks something — which
+   * is every request this product has issued, so the page below is
+   * byte for byte the page it was for all of them.
+   */
+  const terms = view?.terms ?? null;
+  const withdrawn = Boolean(view?.consent?.withdrawnAt);
+  const mustAgree = Boolean(terms) && !(view?.consent && !withdrawn);
+
+  /*
+   * AND THE CAMERA IS NOT TOUCHED UNTIL THEY HAVE.
+   *
+   * *"Shown on the Take surface before the camera opens."* The gate
+   * below returns before the recorder is drawn, so there is no Arm
+   * button to press — and this flag is the second half of the same
+   * sentence: the device list is not even enumerated, so a phone
+   * does not light anything up behind a page asking a question.
+   */
+  const camera = useCamera(!soundOnly && !mustAgree);
   const grade = useQuality('recording');
 
   const recording = useMasterRecording({
@@ -329,6 +364,61 @@ export default function TakeApp({ link }: { link: string }) {
     }
   }, [link, mark]);
 
+  /*
+   * AGREEING.  [GO-VIRAL V-3]
+   *
+   * ITS OWN REQUEST, SENT BEFORE ANYTHING IS RECORDED, which is
+   * the whole substance of this stage. The hash goes back exactly
+   * as it arrived — the client never computes one, because a hash
+   * the client made up would be a signature on words nobody chose.
+   */
+  const sign = useCallback(async () => {
+    if (!terms) return;
+    setSigning(true);
+    setSaid(null);
+    try {
+      const response = await fetch(
+        `/api/take/${encodeURIComponent(link)}/consent`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ termsHash: terms.hash, permits: agreed }),
+        });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setSaid(typeof data.error === 'string' ? data.error : 'that did not work');
+        return;
+      }
+      setView(data.request ?? null);
+    } catch {
+      setSaid('that did not reach the server');
+    } finally {
+      setSigning(false);
+    }
+  }, [agreed, link, terms]);
+
+  /*
+   * AND TAKING IT BACK, WHICH IS THE HALF THAT MAKES IT CONSENT.
+   *
+   * D-03: *"separate, specific, revocable, opt-in"*. Revocable is
+   * the word, and a product that recorded an agreement and offered
+   * no way out of it would have collected a release, not consent.
+   * It stops future use and unmakes nothing already done, which is
+   * what the screen says in those words.
+   */
+  const withdraw = useCallback(async () => {
+    setSaid(null);
+    const response = await fetch(
+      `/api/take/${encodeURIComponent(link)}/consent`, { method: 'DELETE' },
+    ).catch(() => null);
+    const data = await response?.json().catch(() => ({}));
+    if (!response?.ok) {
+      setSaid(typeof data?.error === 'string' ? data.error : 'that did not work');
+      return;
+    }
+    setAgreed([]);
+    setView(data.request ?? null);
+  }, [link]);
+
   if (closed) {
     return (
       <main className="shell" data-testid="take-closed" style={page}>
@@ -338,6 +428,176 @@ export default function TakeApp({ link }: { link: string }) {
             This link is not open. It may have been used, withdrawn, or run
             out — the person who sent it can send another.
           </p>
+        </div>
+      </main>
+    );
+  }
+
+  /*
+   * THE WORDS, BEFORE THE CAMERA.  [GO-VIRAL V-3; Doctrine D-03]
+   *
+   * > *"Shown on the Take surface before the camera opens, in plain
+   * > words, with nothing pre-ticked."*
+   *
+   * AN EARLY RETURN AND NOT A DIALOGUE OVER THE RECORDER, because
+   * a modal is a thing people dismiss. There is no camera behind
+   * this, no Arm button to find, and no way past it except by
+   * answering it — which is the only arrangement in which the
+   * record afterwards means anything.
+   *
+   * FOUR SEPARATE QUESTIONS, NOT ONE. A person willing to be judged
+   * has not thereby agreed to be on television, and the three after
+   * the first can each be left alone without stopping them taking
+   * part. `entry` is the one that is the act itself.
+   *
+   * AND IT RENDERS FOR NOBODY ELSE. A request under no call, or a
+   * call that asks nothing, has no `terms` and never reaches here.
+   */
+  if (mustAgree && terms) {
+    const sent = view?.submitted ?? 0;
+    if (withdrawn && sent > 0) {
+      return (
+        <main className="shell" data-testid="take-withdrawn" style={page}>
+          <div style={card}>
+            <h1 style={brand}>BalanceVid</h1>
+            {/*
+              * THE RECORD'S OWN WORDS, AND NOT A SECOND COPY OF
+              * THEM. `consentSays` is the one sentence this
+              * product has for what a record means, and the first
+              * draft of this screen wrote its own — which is two
+              * places to keep a promise in step and one of them
+              * out of sight of the model. [D-19]
+              */}
+            <p className="small" data-testid="take-consent-says"
+               style={{ maxWidth: 340, textAlign: 'center' }}>
+              {consentSays(view?.consent)}
+            </p>
+            {/*
+              * AND WHAT WAS AGREED, WHICH THE SENTENCE ABOVE NO
+              * LONGER SAYS once it has been taken back. Somebody
+              * reading this screen is entitled to the record, not
+              * only to its conclusion: these were the permissions,
+              * this is the day they were given.
+              */}
+            {view?.consent && (
+              <p className="small muted" style={{
+                maxWidth: 340, textAlign: 'center', margin: 0,
+              }}>
+                Agreed on {view.consent.at.slice(0, 10)}
+                {': '}
+                {view.consent.permits.join(', ')}. Taken back
+                on {view.consent.withdrawnAt?.slice(0, 10)}.
+              </p>
+            )}
+          </div>
+        </main>
+      );
+    }
+    return (
+      <main className="shell" data-testid="take-consent" style={page}>
+        <div style={card}>
+          <h1 style={brand}>BalanceVid</h1>
+          <p style={{
+            margin: 0, fontSize: 'var(--text-lg)',
+            fontWeight: 'var(--weight-bold)', textAlign: 'center',
+          }}>Before you record</p>
+          {withdrawn && (
+            <p className="small muted" data-testid="take-consent-again"
+               style={{ margin: 0, textAlign: 'center', maxWidth: 340 }}>
+              You took this back. You can agree again if you want to.
+            </p>
+          )}
+          {/*
+            * THE WORDS THEMSELVES, WHOLE AND SCROLLABLE. Not a
+            * summary and not a link: the hash that is about to be
+            * recorded is the hash of exactly this text, and a
+            * person who agreed to a summary agreed to a summary.
+            */}
+          {/*
+            * NO HEIGHT CAP, AND THE FIRST DRAFT HAD ONE.
+            *
+            * A SCREENSHOT DECIDED IT. The box was 260px with
+            * `overflow-y: auto`, and on a Pixel the terms ended
+            * mid-word — *"nothing further will be done with your
+            * vide"* — with no scrollbar drawn and no edge to
+            * suggest one. A phone draws no scrollbar until you
+            * touch it, so what a person saw was a sentence that
+            * stopped. The words are the thing this screen is for;
+            * they get the page, and the ticks and the button are
+            * below them, which is the order somebody reads in.
+            */}
+          <div data-testid="take-terms" style={{
+            width: '100%',
+            padding: 'var(--space-3)', border: '1px solid var(--line)',
+            borderRadius: 'var(--radius-sm)',
+            background: 'var(--console-control)',
+            fontSize: 'var(--text-sm)', whiteSpace: 'pre-wrap',
+            lineHeight: 1.5, color: 'var(--ink-100)',
+          }}>{terms.text}</div>
+
+          <ul style={{
+            listStyle: 'none', margin: 0, padding: 0, width: '100%',
+            display: 'flex', flexDirection: 'column', gap: 8,
+          }}>
+            {CONSENT_SCOPES.map((scope) => (
+              <li key={scope}>
+                <label className="row" data-testid={`take-scope-${scope}`}
+                       style={{
+                         gap: 10, alignItems: 'center', padding: '9px 10px',
+                         border: '1px solid var(--line)',
+                         borderRadius: 'var(--radius-sm)',
+                         background: 'var(--console-control)', cursor: 'pointer',
+                       }}>
+                  <input
+                    type="checkbox" checked={agreed.includes(scope)}
+                    onChange={(event) => setAgreed((was) => (event.target.checked
+                      ? [...was, scope] : was.filter((one) => one !== scope)))}
+                    style={{ width: 20, height: 20, flex: 'none' }}
+                  />
+                  {/*
+                    * `flex: 1` AND `minWidth: 0`, BECAUSE `.row`
+                    * WRAPS. Without them the longest of the four
+                    * sentences kept its intrinsic width, took the
+                    * whole flex line and dropped BELOW its own
+                    * checkbox — one row in four drawn differently
+                    * from the other three, which on a list of
+                    * permissions reads as a different kind of
+                    * question. Found in the screenshot.
+                    */}
+                  <span style={{
+                    flex: 1, minWidth: 0, fontSize: 'var(--text-sm)',
+                  }}>
+                    {CONSENT_MEANS[scope]}
+                  </span>
+                </label>
+              </li>
+            ))}
+          </ul>
+
+          {/*
+            * THE BUTTON IS DEAD UNTIL THE FIRST ONE IS TICKED, and
+            * it says why rather than simply refusing. Entering is
+            * the act; the other three are about what happens to the
+            * work afterwards and may all be left alone.
+            */}
+          <button className="ctl lg primary" data-testid="take-agree"
+                  style={wide}
+                  disabled={signing || !agreed.includes('entry')}
+                  onClick={() => void sign()}>
+            {signing ? 'Saving…' : 'I agree'}
+          </button>
+          {!agreed.includes('entry') && (
+            <p className="small muted" style={{ margin: 0, textAlign: 'center' }}>
+              The first one is what entering means. Without it there is
+              nothing to take part in.
+            </p>
+          )}
+          {said && (
+            <p className="small" data-testid="take-consent-said"
+               style={{ margin: 0, textAlign: 'center', color: 'var(--ink-on-bad)' }}>
+              {said}
+            </p>
+          )}
         </div>
       </main>
     );
@@ -685,6 +945,33 @@ export default function TakeApp({ link }: { link: string }) {
           * to install or where they have already installed it — which
           * is most of the time, on most machines.
           */}
+        {/*
+          * AND THE WAY BACK OUT.  [GO-VIRAL V-3; D-03]
+          *
+          * LAST, UNDER EVERYTHING, AND NOT HIDDEN. *"Revocable"* is
+          * a property of the consent, not of the paperwork: a
+          * performer who changes their mind halfway through the
+          * week has to be able to say so from the same page they
+          * said yes on. It is a quiet control because it is not
+          * what they came for, and it is present because it is
+          * theirs.
+          */}
+        {view?.consent && !view.consent.withdrawnAt && (
+          <>
+            {/* What is on record, in the record's own sentence. */}
+            <p className="small muted" data-testid="take-consent-says"
+               style={{ margin: 0, textAlign: 'center', maxWidth: 340 }}>
+              {consentSays(view.consent)}
+            </p>
+            <button className="ctl" data-testid="take-withdraw"
+                    style={{ ...wide, minHeight: 40 }}
+                    title="Stops anything further being done with what you sent"
+                    onClick={() => void withdraw()}>
+              Take back my agreement
+            </button>
+          </>
+        )}
+
         <InstallBar />
       </div>
     </main>
