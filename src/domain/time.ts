@@ -1,219 +1,30 @@
 /**
- * The clocks.  [Doctrine U-08, STUDIO-TWO S-2]
+ * The clocks — moved, not copied.  [Doctrine U-08, TAKE-DESKTOP T-1]
  *
- * Every time value in this system belongs to exactly one clock, and its name
- * says which. A bare `time`, `start`, or `timestamp` is a defect.
+ * THIS FILE IS A DOOR, AND ITS CONTENTS ARE IN `shared/src/time.ts`.
  *
- *   t_source  — position within the original video          (frames)
- *   t_output  — position within the final rendered video     (frames)
- *   t_master  — position within a Performance's music        (SAMPLES)
+ * Take Software for desktop records to its own disk and aligns
+ * what it records, and the brief's own rule about that is the one
+ * thing this move exists to hold:
  *
- * The authoritative unit for the first two is the FRAME, not the second.
- * [Doctrine U-07] Seconds are derived from frames for display. Never the
- * reverse: seconds round-trip lossily and the product's central promise is
- * frame-exactness.
+ * > *"`align.ts` and `time.ts` are depended on, not pasted. Two
+ * > copies of alignment arithmetic is two answers."*
  *
- * The third clock is finer, and deliberately. A frame is the unit a viewer
- * perceives in VISION; in music the unit a listener perceives is far smaller.
- * One frame at 30fps is 33 milliseconds, and 33 milliseconds of misalignment
- * on a snare is not a subtle artefact — it is the difference between a
- * performance and an amateur one. So a Performance aligns its takes in
- * samples and cuts its pictures on frames, and the two are never confused.
+ * A desktop application that carried its own `HOUSE_SAMPLE_RATE`
+ * would be a capture station that disagrees with the installation
+ * it submits to, and the disagreement would be measured in
+ * samples by somebody looking at a waveform six months later.
+ *
+ * THE DOOR RATHER THAN A SWEEP, because a hundred and twenty-one
+ * files import this path. Rewriting all of them would be a
+ * hundred and twenty-one chances to fumble an import in a commit
+ * whose subject is a directory move, and it would put the desktop
+ * application's layout into every file in the product. The path
+ * stays; what is behind it moved one directory.
+ *
+ * THERE IS EXACTLY ONE COPY and that is asserted rather than
+ * promised — see `test/domain/shared-library.test.ts`, which
+ * fails if the arithmetic ever reappears under `src/`.
  */
 
-/** Frames at house rate. The unit all cuts are expressed in. [U-02, U-07] */
-export type Frames = number;
-
-/** House format frame rate. Every asset is normalised to this on ingest. [U-02] */
-export const HOUSE_FPS = 30;
-
-/** Rolling capture buffer retained ahead of an interrupt. [U-04, Part 0 §5] */
-export const PREROLL_FRAMES: Frames = 8 * HOUSE_FPS;
-
-/** Clean air placed before and after every response. [U-17 step 6] */
-export const RESPONSE_PAD_FRAMES: Frames = Math.round(0.2 * HOUSE_FPS);
-
-export function secondsToFrames(seconds: number, fps: number = HOUSE_FPS): Frames {
-  if (!Number.isFinite(seconds)) throw new RangeError(`seconds must be finite, got ${seconds}`);
-  if (seconds < 0) throw new RangeError(`seconds must be >= 0, got ${seconds}`);
-  return Math.round(seconds * fps);
-}
-
-export function framesToSeconds(frames: Frames, fps: number = HOUSE_FPS): number {
-  assertFrames(frames);
-  return frames / fps;
-}
-
-export function assertFrames(frames: Frames): asserts frames is Frames {
-  if (!Number.isInteger(frames)) {
-    throw new RangeError(`frame values must be integers, got ${frames}`);
-  }
-  if (frames < 0) throw new RangeError(`frame values must be >= 0, got ${frames}`);
-}
-
-/**
- * Timecode for display and for chapter markers. Always derived from frames.
- * Format: HH:MM:SS.mmm — the precision the doctrine uses throughout (§7).
- */
-export function formatTimecode(frames: Frames, fps: number = HOUSE_FPS): string {
-  assertFrames(frames);
-  const totalMs = Math.round((frames / fps) * 1000);
-  const ms = totalMs % 1000;
-  const totalSec = Math.floor(totalMs / 1000);
-  const s = totalSec % 60;
-  const m = Math.floor(totalSec / 60) % 60;
-  const h = Math.floor(totalSec / 3600);
-  const p = (n: number, w = 2) => String(n).padStart(w, '0');
-  return `${p(h)}:${p(m)}:${p(s)}.${p(ms, 3)}`;
-}
-
-
-/* ------------------------------------------------------------------------ *
- *  t_master — the music clock.  [STUDIO-TWO S-2, INV-14]
- * ------------------------------------------------------------------------ */
-
-/** Position on the master clock, in samples at HOUSE_SAMPLE_RATE. */
-export type Samples = number;
-
-/**
- * House sample rate. Every master track is normalised to this on ingest, for
- * the same reason every video is normalised to HOUSE_FPS: two clocks that
- * disagree about what a second is cannot be aligned, only approximated.
- */
-export const HOUSE_SAMPLE_RATE = 48_000;
-
-/**
- * The tolerance a listener does not notice.
- *
- * Roughly the point at which a sound and a picture stop being one event. It
- * is here as a number the tests can assert against rather than as a claim in
- * a comment: alignment that lands inside this is correct, and alignment that
- * does not is a defect however plausible its arithmetic.
- */
-export const SYNC_TOLERANCE_SAMPLES: Samples = Math.round(0.020 * HOUSE_SAMPLE_RATE);
-
-export function assertSamples(samples: Samples): asserts samples is Samples {
-  if (!Number.isInteger(samples)) {
-    throw new RangeError(`sample values must be integers, got ${samples}`);
-  }
-  if (samples < 0) throw new RangeError(`sample values must be >= 0, got ${samples}`);
-}
-
-export function secondsToSamples(
-  seconds: number, rate: number = HOUSE_SAMPLE_RATE,
-): Samples {
-  if (!Number.isFinite(seconds)) throw new RangeError(`seconds must be finite, got ${seconds}`);
-  if (seconds < 0) throw new RangeError(`seconds must be >= 0, got ${seconds}`);
-  return Math.round(seconds * rate);
-}
-
-export function samplesToSeconds(
-  samples: Samples, rate: number = HOUSE_SAMPLE_RATE,
-): number {
-  assertSamples(samples);
-  return samples / rate;
-}
-
-/**
- * A moment on the music clock, as the frame that shows it.
- *
- * ROUNDED DOWN, not to nearest, and this is the whole of the rule that keeps
- * the two clocks honest. A cut belongs to the frame that is on screen when the
- * moment arrives; rounding to nearest would let a cut land on a frame that is
- * still showing the previous scene for up to half a frame, which is visible
- * against a beat. [INV-02 applied to t_master]
- */
-export function samplesToFrames(
-  samples: Samples, fps: number = HOUSE_FPS, rate: number = HOUSE_SAMPLE_RATE,
-): Frames {
-  assertSamples(samples);
-  return Math.floor((samples / rate) * fps);
-}
-
-export function framesToSamples(
-  frames: Frames, fps: number = HOUSE_FPS, rate: number = HOUSE_SAMPLE_RATE,
-): Samples {
-  assertFrames(frames);
-  return Math.round((frames / fps) * rate);
-}
-
-/** Bars and beats, for a count-in and for snapping. [STUDIO-TWO §11, S-10] */
-export function beatsToSamples(
-  beats: number, bpm: number, rate: number = HOUSE_SAMPLE_RATE,
-): Samples {
-  if (!Number.isFinite(bpm) || bpm <= 0) throw new RangeError(`bpm must be > 0, got ${bpm}`);
-  if (!Number.isFinite(beats) || beats < 0) {
-    throw new RangeError(`beats must be >= 0, got ${beats}`);
-  }
-  return Math.round((beats / bpm) * 60 * rate);
-}
-
-/**
- * A position somebody typed, as samples — or nothing.  [TIMELINE B3b]
- *
- * "Jump to an exact moment." A scrub is one guess per press and the
- * clock is right there on the transport, so the fastest way to reach
- * 02:41 is to say so.
- *
- * IT READS WHAT PEOPLE ACTUALLY TYPE, which is the whole of the
- * problem. `formatMasterPosition` writes `02:41.500` and somebody
- * copying that back in should be understood, but so should `2:41`,
- * `161`, `161.5` and `02:41,500` — a comma is the decimal separator
- * in most of the world and refusing it would be refusing most of the
- * world. What it will not do is guess at something it cannot read:
- * `null` rather than zero, because seeking to the start of the song
- * when somebody typed a word is a jump they did not ask for and
- * cannot undo.
- *
- * THE INVERSE OF `formatMasterPosition` AND TESTED AS ONE. Whatever
- * that function writes, this reads back to the same sample.
- */
-export function parseMasterPosition(
-  typed: string, rate: number = HOUSE_SAMPLE_RATE,
-): Samples | null {
-  const text = typed.trim().replace(',', '.');
-  if (text === '') return null;
-  /* [mm:]ss[.mmm], or a plain number of seconds. */
-  const shape = /^(?:(\d{1,4}):)?(\d{1,4})(?:\.(\d{1,3}))?$/.exec(text);
-  if (!shape) return null;
-  const minutes = shape[1] ? Number(shape[1]) : 0;
-  const seconds = Number(shape[2]);
-  /* `.5` is five hundred milliseconds, not five. The same trap LRC
-     timing has, and the same answer: pad on the right. [INV-02] */
-  const millis = shape[3] ? Number(shape[3].padEnd(3, '0')) : 0;
-  /*
-   * SIXTY SECONDS IS A MINUTE, and `1:75` is somebody who does not
-   * mean 2:15. Refused rather than normalised: a control that
-   * silently rewrites what was typed is one nobody can trust with a
-   * number they care about.
-   */
-  if (shape[1] !== undefined && seconds >= 60) return null;
-  const total = ((minutes * 60) + seconds) * 1000 + millis;
-  return Math.round((total / 1000) * rate);
-}
-
-/**
- * Position on the music clock, for people.
- *
- * MM:SS.mmm rather than the video timecode's HH:MM:SS.mmm — a song is minutes
- * long and an hour field is a column of zeroes nobody reads.
- */
-export function formatMasterPosition(
-  samples: Samples, rate: number = HOUSE_SAMPLE_RATE,
-): string {
-  /*
-   * Negative is a real answer here, and only here: a take whose device delay
-   * was measured begins slightly BEFORE the song does, because the performer
-   * heard the first beat late and their reply landed later still. Positions on
-   * the song are never negative; a take's offset onto it can be. [§10, S-3]
-   */
-  if (!Number.isInteger(samples)) {
-    throw new RangeError(`sample values must be integers, got ${samples}`);
-  }
-  if (samples < 0) return `-${formatMasterPosition(-samples, rate)}`;
-  const totalMs = Math.round((samples / rate) * 1000);
-  const ms = totalMs % 1000;
-  const totalSec = Math.floor(totalMs / 1000);
-  const p = (n: number, w = 2) => String(n).padStart(w, '0');
-  return `${p(Math.floor(totalSec / 60))}:${p(totalSec % 60)}.${p(ms, 3)}`;
-}
+export * from '../../shared/src/time.js';
