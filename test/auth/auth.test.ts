@@ -586,3 +586,77 @@ describe('the television network is public, and adds no access (N-4)', () => {
     expect(mayBePublic('/api/tv/channels/a/b', 'GET')).toBe(false);
   });
 });
+
+describe('what a television reads, and the logo it could not (N-7)', () => {
+  /*
+   * THE FAULT THIS BLOCK EXISTS FOR. Every card, search result
+   * and station page on the public network drew its logo from
+   * `/api/library/<assetId>`, which is the broadcaster's own
+   * monitor and answers 401 to a stranger. Measured against a
+   * running server: `/tv` 200, `/api/tv/channels` 200,
+   * `/api/library/<assetId>` 401 — a broken picture on every row.
+   */
+  it('still refuses the owner-only library an asset at a time', () => {
+    expect(mayBePublic('/api/library/asset_abc', 'GET')).toBe(false);
+    expect(mayBePublic('/api/library/asset_abc', 'DELETE')).toBe(false);
+  });
+
+  it('opens a station logo by the address the station answers to', () => {
+    expect(mayBePublic('/api/tv/channels/redemption-tv/logo', 'GET')).toBe(true);
+  });
+
+  /*
+   * AND NOTHING ELSE UNDER A STATION. The pattern names one word
+   * because a prefix here would open whatever a later stage hangs
+   * off a station route — the opposite of the judgement `/tv`
+   * makes, and right for the opposite reason: `/tv` is pages a
+   * viewer reads, this is the API a broadcaster also uses.
+   */
+  it('opens no other route under a station', () => {
+    for (const shut of ['/api/tv/channels/redemption-tv/library',
+      '/api/tv/channels/redemption-tv/logo/raw',
+      '/api/tv/channels/redemption-tv/schedule']) {
+      expect(mayBePublic(shut, 'GET'), shut).toBe(false);
+    }
+  });
+
+  /* A logo is read, never written, by a stranger. */
+  it('never lets a stranger write a logo', () => {
+    for (const method of ['POST', 'PUT', 'PATCH', 'DELETE']) {
+      expect(mayBePublic('/api/tv/channels/redemption-tv/logo', method), method)
+        .toBe(false);
+    }
+  });
+
+  /*
+   * THE TWO DOCUMENTS A SET-TOP BOX ASKS FOR. The brief:
+   * *"M3U + XMLTV is already widely used for this kind of
+   * thing."* They are the directory and the guide in a format
+   * that is not a web page, and they are public for the same
+   * reason those pages are.
+   */
+  it('opens the lineup and the guide a television can read', () => {
+    expect(mayBePublic('/api/tv/playlist.m3u', 'GET')).toBe(true);
+    expect(mayBePublic('/api/tv/guide.xml', 'GET')).toBe(true);
+  });
+
+  /*
+   * EXACT PATHS, EXTENSION AND ALL. A dot is a literal here and
+   * not "any character", which is the mistake an unescaped regex
+   * makes: `/api/tv/playlistXm3u` must not be the lineup.
+   */
+  it('matches the extension literally', () => {
+    for (const shut of ['/api/tv/playlistXm3u', '/api/tv/guideXxml',
+      '/api/tv/playlist.m3u8', '/api/tv/playlist', '/api/tv/guide',
+      '/api/tv/guide.xml/anything']) {
+      expect(mayBePublic(shut, 'GET'), shut).toBe(false);
+    }
+  });
+
+  it('never lets a stranger write either document', () => {
+    for (const method of ['POST', 'PUT', 'PATCH', 'DELETE']) {
+      expect(mayBePublic('/api/tv/playlist.m3u', method), method).toBe(false);
+      expect(mayBePublic('/api/tv/guide.xml', method), method).toBe(false);
+    }
+  });
+});

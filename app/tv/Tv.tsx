@@ -17,7 +17,7 @@
  */
 
 import Link from 'next/link';
-import type { ReactNode } from 'react';
+import { type ReactNode, useState } from 'react';
 
 export interface Listing {
   slug: string;
@@ -85,11 +85,14 @@ export function TvFrame(
 /**
  * A channel, as a card.
  *
- * THE LOGO IS A LIBRARY ASSET, served by the route that already
- * serves every other picture — a channel that has not uploaded one
- * gets its callsign, and a channel with neither gets the first
- * letter of its name. Three fallbacks because a directory of a
- * thousand channels will contain all three. [§3, D-18]
+ * THE LOGO COMES FROM THE STATION'S OWN ROUTE. It used to come
+ * from `/api/library/<assetId>`, which is the broadcaster's own
+ * monitor and answered 401 to every signed-out viewer — a broken
+ * picture on every card of the public network. A channel that has
+ * not uploaded one gets its callsign, and a channel with neither
+ * gets the first letter of its name. Three fallbacks because a
+ * directory of a thousand channels will contain all three.
+ * [§3, D-18, N-7]
  */
 export function ChannelCard({ channel }: { channel: Listing }) {
   const mark = channel.callsign ?? channel.name.slice(0, 2).toUpperCase();
@@ -116,7 +119,17 @@ export function ChannelCard({ channel }: { channel: Listing }) {
         }}>
           {channel.logoAssetId
             // eslint-disable-next-line @next/next/no-img-element
-            ? <img alt="" src={`/api/library/${channel.logoAssetId}`}
+            /*
+              * THE STATION'S OWN LOGO ROUTE, NOT THE LIBRARY'S.
+              * This drew `/api/library/<assetId>`, which is
+              * owner-only, so every logo on the public network
+              * was a 401 and a broken picture to the one
+              * audience these pages exist for. Keyed by the slug
+              * because the question a stranger's request has to
+              * answer is about the station, not about an asset.
+              * [N-7]
+              */
+            ? <img alt="" src={`/api/tv/channels/${channel.slug}/logo`}
                    style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             : mark}
         </div>
@@ -168,5 +181,87 @@ export function ChannelGrid({ channels }: { channels: Listing[] }) {
         <ChannelCard key={channel.slug} channel={channel} />
       ))}
     </div>
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ *  Taking the network off the web page.
+ * ------------------------------------------------------------------ */
+
+function Address({ label, url }: { label: string; url: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="row" style={{
+      gap: 'var(--space-3)', alignItems: 'center', flexWrap: 'wrap',
+      padding: '8px 0',
+    }}>
+      <span className="small muted" style={{ minWidth: 68 }}>{label}</span>
+      <code data-testid="tv-export-url" style={{
+        flex: '1 1 260px', minWidth: 0, overflowX: 'auto',
+        fontSize: 'var(--text-sm)', whiteSpace: 'nowrap',
+        /* `--surface-sunk`, not `--screen-bed`. The bed is what a
+           picture sits on, and the console tests read a sunk
+           colour under a radius as a monitor — correctly: this is
+           a code chip, and reaching for the screen's token to get
+           a darker rectangle is how a page ends up with two kinds
+           of black that mean different things. */
+        background: 'var(--surface-sunk)', border: '1px solid var(--line)',
+        borderRadius: 'var(--radius-control)', padding: '6px 10px',
+        /* One click selects the whole address, because a half-copied
+           URL is the commonest way this goes wrong. */
+        userSelect: 'all',
+      }}>{url}</code>
+      <button type="button" className="small"
+              onClick={() => {
+                /* Absent outside a secure context, which is most of
+                   what this product is served over in development.
+                   The address is selectable either way. */
+                void navigator.clipboard?.writeText(url)
+                  .then(() => { setCopied(true); })
+                  .catch(() => undefined);
+              }}
+              style={{
+                border: '1px solid var(--line)', background: 'transparent',
+                color: copied ? 'var(--accent)' : 'var(--muted)',
+                borderRadius: 'var(--radius-control)', padding: '6px 10px',
+                cursor: 'pointer',
+              }}>{copied ? 'Copied' : 'Copy'}</button>
+    </div>
+  );
+}
+
+/**
+ * How to watch the network on something that is not a browser.
+ *   [TV-NETWORK N-7]
+ *
+ * > *"EPG data can also be exported to standard TV/IPTV clients
+ * > alongside channel streams."*
+ *
+ * TWO ADDRESSES ON THE FRONT PAGE, because the finding this whole
+ * network stage keeps making is that the capability was built and
+ * nothing pointed at it. An M3U nobody can discover is the
+ * channel that was publicly watchable for a year and unfindable
+ * for exactly as long.
+ *
+ * AND ONE IS USUALLY ENOUGH: the lineup names the guide on its
+ * own header, so a client that accepts a playlist URL gets both.
+ * The guide is listed second for the clients that ask separately.
+ */
+export function TvApps({ origin }: { origin: string }) {
+  return (
+    <section data-testid="tv-apps" style={{
+      marginTop: 'var(--space-7)', paddingTop: 'var(--space-5)',
+      borderTop: '1px solid var(--line)',
+    }}>
+      <h2 style={{ margin: '0 0 4px', fontSize: 'var(--text-md)' }}>
+        Watch on your television
+      </h2>
+      <p className="muted small" style={{ margin: '0 0 var(--space-3)' }}>
+        The whole lineup, for any IPTV player or set-top box. Paste the
+        playlist address — it carries the guide with it.
+      </p>
+      <Address label="Playlist" url={`${origin}/api/tv/playlist.m3u`} />
+      <Address label="Guide" url={`${origin}/api/tv/guide.xml`} />
+    </section>
   );
 }

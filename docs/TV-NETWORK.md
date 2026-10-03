@@ -726,7 +726,7 @@ the same door and nothing says so.
 | a directory | **absent** |
 | a guide | **absent** |
 | `/tv` | **absent** |
-| M3U / XMLTV export | **absent** |
+| M3U / XMLTV export | **built — N-7** |
 
 ---
 
@@ -794,10 +794,11 @@ channel registry is a different object with the opposite consent —
 channels that asked to be listed — and must not become an index of
 installations by accident.
 
-### N7 · No export to TV clients
+### N7 · No export to TV clients — **closed by N-7**
 
 M3U and XMLTV are named in the brief as the way standard IPTV
-clients consume a lineup. Neither exists.
+clients consume a lineup. Neither existed. Both are built: see
+PART SEVEN.
 
 ### N8 · A third "what is on" function, in the route the network
 would be built on
@@ -906,10 +907,14 @@ This is where **channel numbers are allocated**, because allocation
 is a registry function and a channel number means nothing outside
 one.
 
-## N-7 · Export to TV clients — **ADD**
+## N-7 · Export to TV clients — **ADD** · *built, see PART SEVEN*
 
 M3U for the lineup, XMLTV for the guide, from the registry and the
 guide that already exist by now. Small, once N-5 and N-6 are built.
+
+It was small, and it was not only small: building it was what
+found that every logo on the public network had been a 401 since
+N-4 drew it.
 
 ## N-8 · Custom domains — **ADD**
 
@@ -1189,6 +1194,190 @@ the type system's own words.
 was taught about the lineup. Found by reading the endpoint and then
 looking at the page.
 
+---
+
+# PART SEVEN · N-7, as built
+
+> *"EPG data can also be exported to standard TV/IPTV clients
+> alongside channel streams; M3U + XMLTV is already widely used
+> for this kind of thing."*
+
+**Two documents, and neither is a new capability.** The M3U is the
+directory and the XMLTV is the guide, written for a reader that is
+not a browser. Everything they name was already public:
+
+| what | where it already was |
+|---|---|
+| the lineup | `directory()` and the registry — N-3, N-6 |
+| the guide | `airtime` and `viewerTitle` — N-5, N-2 |
+| the stream | `/api/channels/<id>/playlist` — CHANNEL §7 |
+
+`/api/tv/playlist.m3u` and `/api/tv/guide.xml`, both public, both
+uncached. `url-tvg` on the M3U header, so **one address pasted into
+a set-top box brings both**.
+
+**No second broadcast engine**, which is the first line of *what
+must not happen* above. The M3U points a television at the same HLS
+playlist the watch page's player asks for — the same four-second
+segments, the same function of the clock. A television and a browser
+watch the identical channel, which is the only arrangement in which
+they can agree about what is on.
+
+### The identity a client keys on
+
+**The immutable channel id.** This is the brief's own instruction
+rather than a convenience:
+
+> *"Channel ID: immutable. Channel Number: assigned/display
+> identity… That prevents the whole system from breaking if you
+> later reorganize channel numbers."*
+
+Not the number, which N-6 hands out lowest-free and therefore
+reuses. Not the slug, which the owner edits. A client that recorded
+tonight's film against `tvg-id` must still find the channel
+tomorrow, and the id is the one name that never moves.
+
+### What the exports decide, and why
+
+**An unnumbered channel is carried, at the end, with no
+`tvg-chno`.** `lineupOf` would drop it; `channelListing.ts` had
+already written the reason not to, for exactly this case — *"a row
+that vanished for want of a number would make an unreadable file
+into a blank television network."* On the web that is cosmetic.
+Here it is a channel missing from somebody's television.
+
+**A channel with no slug is still carried.** The web directory
+drops one because a row there is a link and there is nowhere to
+link to; a television needs no address, only the stream, which is
+keyed by id. The only thing a missing slug costs is the logo.
+
+**Only what the directory shows.** `inDirectory` is the test, so an
+unlisted channel is absent from both documents exactly as it is
+absent from `/tv`. Verified: made unlisted, the channel left the
+M3U and the XMLTV and kept answering on its own address, logo and
+all.
+
+**Twelve hours, and the ceiling is `airtime`'s rather than a
+preference.** The walk stops after 240 stretches per channel, so a
+channel of two-minute clips runs the walker out before a longer
+window ends. A guide that claimed twenty-four hours and delivered
+eight for the busiest channels would be a document that lies about
+its own extent. Twelve is what a channel changing every three
+minutes can fill exactly, and a client refreshes.
+
+**No `<desc>`.** The station has a description and the programme
+does not. Printing the channel's blurb under every item would be a
+guide where each row says the same paragraph twelve times.
+
+**No configuration.** No export settings page, no per-channel
+opt-in beyond the `listed` flag that already decides the directory,
+no span a caller can ask for.
+
+### The escaping is the part that earns its tests
+
+One channel with an ampersand in its name makes an XMLTV file
+unparseable, **and that takes every other channel's guide down with
+it**. The ampersand is escaped first or the escapes escape each
+other — `&amp;amp;`, the classic ordering bug — and control
+characters are removed outright, because XML 1.0 forbids them and
+an M3U is line-oriented, where a newline inside a name is a line a
+parser reads as a URL.
+
+The callsign and the genre are both constrained by the editor and
+can never carry an ampersand through `setStation`. They are escaped
+anyway, and the fixture sets them the way a file would, because
+**a channel document is JSON on disk** — N-3's lesson — and a
+hand-edited file can say anything.
+
+### The fault N-7 found before it wrote a line
+
+**Every logo on the public network was a broken picture.**
+
+The directory, the search results and the station page all drew
+`<img src="/api/library/<assetId>">`. That route is the
+broadcaster's own monitor — *"Owner-only, like everything else that
+is not published"* — so the one audience `/tv` exists for got 401
+and an empty box, on every row of every page. N-1 added the logo,
+N-4 drew it, and nothing in between asked whether a stranger could
+fetch it.
+
+Measured rather than reasoned about:
+
+```
+/tv                      200
+/api/tv/channels         200
+/api/library/<assetId>   401
+```
+
+`/api/tv/channels/<slug>/logo` is the station's own door. **The
+authority is the channel, not the asset**: `bySlug` first — the
+same gate the station page uses, so private and offline answer 404
+— and only then the asset id, read out of the document and never
+taken from the caller. Opening the library instead would have
+opened everything a broadcaster ever uploaded in order to show one
+picture.
+
+### And the exports are on the front page
+
+The finding this whole stage keeps making is that the capability
+was built and nothing pointed at it. Two public URLs nobody knows
+exist would be that again, so `/tv` carries **Watch on your
+television**: the playlist, the guide, and one line saying the
+playlist brings the guide with it.
+
+Absolute, because a television has no page to resolve a relative
+path against. A server component has no `Request`, so the
+forwarded-header rule was lifted out of `originOf` into
+`originFrom(headers)` rather than written a second time — and that
+rule turned out to have **no behavioural test at all**, only a grep
+over the routes that call it. Tolerable while its output went into
+a preview card; it is an address a viewer pastes into a set-top box
+now, and a wrong origin there is a television that tunes to
+nothing.
+
+### The record
+
+Thirty-nine mutations across `tvExport.ts` and `genreSays`, all
+killed; seven more on the origin rule, all killed. Two needed
+fixtures rather than code, and both are worth writing down:
+
+- **`getUTCHours` for `getHours` survives on a box that runs in
+  UTC.** The mutant and the code agree there. A server does not
+  have to: an installation in Lagos would have stamped every
+  programme an hour late and written `+0000` underneath it, which
+  is worse than no offset at all because it looks right. The
+  fixture sets `TZ` and asserts the zone took effect first.
+- **An icon for a station with no address** needed a document
+  holding an empty slug, which is N-3's lesson again.
+
+**And `padStart(4, '0')` on the year was deleted.** `padStart`
+cannot truncate, so it did nothing for any year the clock can
+produce; the only fixture that reaches it is a document claiming a
+programme in the year 500, which is one malformed line rather than
+the unparseable file the escaping exists to prevent. **The
+twenty-second.**
+
+`genreSays` was exported from `station.ts` rather than copied.
+`stationSays` already turned `faith` into `Faith` privately, and a
+group folder on somebody's television needs the same word; a second
+copy is how one of them comes to say `faith`.
+
+**Verified against a running server with no session cookie:**
+
+```
+/api/tv/playlist.m3u                  200
+/api/tv/guide.xml                     200   parses; 12.0 hours
+                                            across 50 slots, every
+                                            programme's channel declared
+/api/tv/channels/<slug>/logo          200   image/png, public max-age=300
+/api/library/<assetId>                401   still shut
+/api/channels/<id>/playlist           200   the URL the M3U names,
+                                            answering
+```
+
+And in the browser: the card's logo draws at 1600×900 where it was
+a broken image before.
+
 ## Not built
 
 - **The federated registry.** What N-6 built is allocation within
@@ -1198,8 +1387,18 @@ looking at the page.
   `connections.ts`'s standing rule about not indexing
   installations. It needs its own decision, not an extension of
   this one.
-- **N-7 · M3U and XMLTV.** Small, and now unblocked: a lineup with
-  numbers is most of what an M3U carries.
-- **N-8 · custom domains.**
+- **N-8 · custom domains.** The station's own public identity, and
+  explicitly not the discovery mechanism. Unblocked by N-7 in one
+  respect: `originFrom` is now the single place that decides where
+  this installation answers, which is where a custom domain would
+  be read.
 - **N-9 · the mobile and CTV applications.** `/tv` is the web
-  client, and the API they would consume is built.
+  client, and the API they would consume is built. N-7 makes a
+  third option real that was not on the list: **a viewer with any
+  existing IPTV player needs no BalanceVid application at all.**
+- **A remote control.** `tuneFrom` is built and tested — CH+ / CH−
+  wrapping both ends — and no page draws it.
+- **A single channel's own M3U.** The station page could offer one
+  address for one channel, the way the network offers one for all
+  of them. Not built because nothing asked, and a second export
+  surface should answer a request rather than anticipate one.

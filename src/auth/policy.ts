@@ -237,6 +237,29 @@ const PUBLIC_PATTERNS: RegExp[] = [
   /^\/tv(\/.*)?$/,
   /^\/api\/tv\/channels$/,
   /^\/api\/tv\/channels\/[a-z0-9-]+$/,
+  /*
+   * THE LOGO, WHICH THE PAGES ABOVE HAVE BEEN DRAWING FROM A
+   * ROUTE NO VIEWER COULD READ. Every card, every search result
+   * and every station page rendered `/api/library/<assetId>`,
+   * which is owner-only and answered 401 to the one audience
+   * `/tv` exists for. A separate route rather than an opening in
+   * that one: the question is *"may a stranger see this
+   * station?"*, and the asset id is read out of the document, not
+   * taken from the caller. [N-7]
+   */
+  /^\/api\/tv\/channels\/[a-z0-9-]+\/logo$/,
+  /*
+   * WHAT A TELEVISION READS. An M3U is the lineup and an XMLTV
+   * file is the guide, and the brief names both as *"already
+   * widely used for this kind of thing"*. Neither carries
+   * anything the pages above do not already show a stranger: the
+   * M3U names the playlist route that has been public since the
+   * line *"a viewer gets the transmission"* was written, and the
+   * guide is the grid at `/tv/guide` in a format a set-top box
+   * can parse. [N-7]
+   */
+  /^\/api\/tv\/playlist\.m3u$/,
+  /^\/api\/tv\/guide\.xml$/,
 ];
 
 /** Next's own assets, and the favicon. Never application data. */
