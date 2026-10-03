@@ -34,7 +34,21 @@ export class Levels {
        `ArrayBufferLike`: `getFloatTimeDomainData` will not take a
        view that might be over a `SharedArrayBuffer`. */
     buffer: Float32Array<ArrayBuffer>;
+    /** The room, kept for the correlation check. [T-4] */
+    kept: Float32Array<ArrayBuffer> | null;
+    keptAt: number;
   }>();
+
+  /**
+   * How much room sound is kept per source, for the check.
+   *
+   * THE FIRST FEW SECONDS AND NO MORE. `align.ts` searches
+   * ±0.75 s around a hint, so a few seconds either side of the
+   * start is everything the correlation can use — and keeping
+   * the whole recording in memory is how a capture station runs
+   * out of it at minute forty.
+   */
+  static readonly KEEP_SECONDS = 4;
 
   /** Start metering this source's audio, if it has any. */
   listen(id: string, stream: MediaStream | null): void {
@@ -54,6 +68,7 @@ export class Levels {
        */
       this.taps.set(id, {
         source, analyser, buffer: new Float32Array(new ArrayBuffer(WINDOW * 4)),
+        kept: null, keptAt: 0,
       });
     } catch {
       /* No audio context here. The tile meters zero and says
@@ -73,6 +88,12 @@ export class Levels {
     const tap = this.taps.get(id);
     if (!tap) return 0;
     tap.analyser.getFloatTimeDomainData(tap.buffer);
+    /* And into the kept room sound, while there is space. */
+    if (tap.kept && tap.keptAt < tap.kept.length) {
+      const room = Math.min(tap.buffer.length, tap.kept.length - tap.keptAt);
+      tap.kept.set(tap.buffer.subarray(0, room), tap.keptAt);
+      tap.keptAt += room;
+    }
     let sum = 0;
     for (const sample of tap.buffer) sum += sample * sample;
     const rms = Math.sqrt(sum / tap.buffer.length);
@@ -84,6 +105,42 @@ export class Levels {
      * thing it is for.
      */
     return Math.min(1, rms * 6);
+  }
+
+  /**
+   * Start keeping the room sound, from now.
+   *
+   * SAMPLED ON THE SAME FRAME THE METER IS, which is not ideal
+   * and is honest about what it is: the analyser hands back the
+   * last `WINDOW` samples whenever it is asked, so a frame-rate
+   * read leaves gaps where a frame was slow. That is why the
+   * result is a CHECK and not a correction — a gappy envelope
+   * can agree with the clock or fail to, and it is never the
+   * better answer. [T-4]
+   *
+   * The alternative is an `AudioWorklet` per source, which is a
+   * real-time thread per camera on a machine already running N
+   * encoders. Not for a check.
+   */
+  keep(ids: readonly string[]): void {
+    const rate = this.context?.sampleRate ?? 48_000;
+    const room = Math.ceil(rate * Levels.KEEP_SECONDS);
+    for (const id of ids) {
+      const tap = this.taps.get(id);
+      if (!tap) continue;
+      tap.kept = new Float32Array(new ArrayBuffer(room * 4));
+      tap.keptAt = 0;
+    }
+  }
+
+  /** What was kept, and at what rate. */
+  room(id: string): { samples: Float32Array; rate: number } | null {
+    const tap = this.taps.get(id);
+    if (!tap?.kept || tap.keptAt === 0) return null;
+    return {
+      samples: tap.kept.subarray(0, tap.keptAt),
+      rate: this.context?.sampleRate ?? 48_000,
+    };
   }
 
   /** Let go of everything. A context left open is a device held. */

@@ -44,6 +44,9 @@ import { dirname, join } from 'node:path';
 import { asOrigin } from '../../shared/src/connections.js';
 import { askInstance } from './ask.js';
 import { measure } from './machine.js';
+import {
+  beginCapture, endCapture, listCaptures, writeChunk,
+} from './recordings.js';
 import { readStored, writeStored } from './store.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -83,6 +86,37 @@ function listen(): void {
    * out to be. [T-3, T-4]
    */
   ipcMain.handle('take:machine', () => measure(app.getPath('userData')));
+  /*
+   * RECORDING, WHICH IS THE ONLY THING THE WINDOW CANNOT DO FOR
+   * ITSELF. `MediaRecorder` lives in the renderer and the disk
+   * lives out here, so the bytes cross once, as a typed array,
+   * and are appended to a file whose name the main process
+   * checks. [T-4]
+   *
+   * EVERY ARGUMENT IS A STRING FROM A WEB PAGE until it has been
+   * checked. `captureDir` refuses an id that is not one, which
+   * is what stops `../../` being a path.
+   */
+  ipcMain.handle('take:begin-capture', async (
+    _event, id: unknown, label: unknown, beganAt: unknown,
+  ) => {
+    if (typeof id !== 'string' || typeof label !== 'string'
+      || typeof beganAt !== 'string') return null;
+    return beginCapture(id, label.slice(0, 120), beganAt).catch(() => null);
+  });
+  ipcMain.handle('take:write-chunk', async (
+    _event, id: unknown, file: unknown, bytes: unknown,
+  ) => {
+    if (typeof id !== 'string' || typeof file !== 'string') return 0;
+    if (!(bytes instanceof Uint8Array)) return 0;
+    return writeChunk(id, file, bytes).catch(() => 0);
+  });
+  ipcMain.handle('take:end-capture', async (_event, spec: unknown) => {
+    if (!spec || typeof spec !== 'object') return null;
+    return endCapture(spec as Parameters<typeof endCapture>[0])
+      .catch(() => null);
+  });
+  ipcMain.handle('take:captures', () => listCaptures().catch(() => []));
   ipcMain.handle('take:open-external', async (_event, url: unknown) => {
     if (typeof url !== 'string' || !asOrigin(url)) return false;
     await shell.openExternal(url);
