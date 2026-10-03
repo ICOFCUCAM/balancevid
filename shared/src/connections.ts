@@ -93,7 +93,28 @@ export function asOrigin(text: string): string | null {
    */
   const scheme = /^([a-z][a-z0-9+.-]*):(?!\d)/i.exec(trimmed);
   if (scheme && !/^https?$/i.test(scheme[1]!)) return null;
-  const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  /*
+   * AND THE ASSUMED SCHEME IS HTTPS EXCEPT ON THIS MACHINE.
+   *
+   * Nobody runs TLS on their own laptop, so `localhost:3101`
+   * assumed into `https://` is a self-hosted installation that
+   * cannot be reached — which Take Software for desktop's own
+   * acceptance criterion names: *"it connects to a cloud
+   * installation, a self-hosted one and A LOCAL ONE."*
+   *
+   * THE PRODUCT ALREADY DECIDED THIS ELSEWHERE. `originFrom` in
+   * `src/web/share.ts` has read loopback as plain HTTP since the
+   * share cards were written — *"the proxy wins; localhost is
+   * plain HTTP"* — and two places in one product disagreeing
+   * about whether a laptop speaks TLS is two answers. [D-19]
+   *
+   * The browser loses nothing it had: a page served over https
+   * cannot fetch `http://localhost` whatever this returns, and
+   * `https://localhost:3101` was never going to answer either.
+   */
+  const loopback = /^(localhost|127\.0\.0\.1|\[::1\])(:|$|\/)/i.test(trimmed);
+  const withScheme = /^https?:\/\//i.test(trimmed)
+    ? trimmed : `${loopback ? 'http' : 'https'}://${trimmed}`;
 
   let url: URL;
   try {

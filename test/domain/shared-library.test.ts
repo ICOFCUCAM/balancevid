@@ -35,9 +35,17 @@ const under = (dir: string, ext: string) =>
 const SHARED = under('shared/src', '.ts');
 
 describe('what is in the shared library (T-1)', () => {
-  it('is the pair the desktop application was promised', () => {
+  /*
+   * NAMED, RATHER THAN COUNTED. The list grows — T-1 moved the
+   * clocks and the alignment, T-2 added the connection model —
+   * and a test that only counted would let the fourth file in
+   * without anybody deciding it belonged. Adding a name here is
+   * the decision.
+   */
+  it('is what two programs actually have to agree about', () => {
     expect(SHARED.sort()).toEqual([
       join('shared/src', 'align.ts'),
+      join('shared/src', 'connections.ts'),
       join('shared/src', 'time.ts'),
     ]);
   });
@@ -209,18 +217,84 @@ describe('the desktop application reaches nowhere into the web tier (T-1)', () =
       'REVIEW', 'SUBMIT']) {
       expect(shell, step).toContain(`'${step}'`);
     }
-    expect(shell).toMatch(/BUILT_TO: Step = 'CONNECT'/);
+    /* T-1 shipped with CONNECT named next; T-2 built it and
+       moved this to CAMERAS. One constant, and the stage that
+       earns a step moves it. */
+    expect(shell).toMatch(/BUILT_TO: Step = 'CAMERAS'/);
   });
 
-  /* Nothing in T-1 opens a socket: everything through T-4 records
-     to this machine's own disk. [brief] */
-  it('opens no socket, because nothing before T-5 needs one', () => {
-    for (const file of DESKTOP.filter((name) => name.endsWith('.ts'))) {
+  /*
+   * THE WINDOW HAS NO NETWORK, AND T-2 DID NOT GIVE IT ONE.
+   *
+   * T-1 asserted that nothing anywhere in the application opened
+   * a socket, which was true and is no longer: CONNECT has to
+   * ask an installation what it offers. What replaced it is the
+   * assertion that actually matters — the RENDERER still cannot
+   * reach the network, and the main process can, to one address
+   * that `asOrigin` approved.
+   *
+   * A capture station that could be made to fetch from anywhere
+   * is a capture station in a room with cameras in it.
+   */
+  it('keeps the network in the main process and out of the window', () => {
+    const renderers = ['desktop/src/renderer.ts', 'desktop/src/shell.ts',
+      'desktop/src/connect.ts', 'desktop/src/connectScreen.ts'];
+    for (const file of renderers) {
       const body = code(file);
       for (const network of [/\bfetch\(/, /XMLHttpRequest/, /WebSocket/,
-        /node:http/, /node:net/]) {
+        /node:/, /\brequire\(/]) {
         expect(network.test(body), `${file} uses ${network}`).toBe(false);
       }
     }
+    /* And the page says so for itself. */
+    expect(code('desktop/app/index.html')).toMatch(/connect-src 'none'/);
+  });
+
+  /*
+   * AND THE ONE PLACE THAT DOES FETCH PARSES FIRST. Nothing a
+   * person types reaches `fetch` as typed: it becomes an origin
+   * by the same parser the browser Take App uses, and a string
+   * that is not one never becomes a request.
+   */
+  it('fetches only an origin the shared parser approved', () => {
+    const ask = code('desktop/src/ask.ts');
+    expect(ask).toMatch(/const origin = asOrigin\(typed\);/);
+    expect(ask).toMatch(/if \(!origin\) return null;/);
+    /* The template is built from the parsed origin, never the
+       string that came in. */
+    expect(ask).toMatch(/fetch\(`\$\{origin\}\/api\/participate`/);
+    expect(ask).not.toMatch(/fetch\(`?\$?\{?typed/);
+    expect(ask).toMatch(/credentials: 'omit'/);
+    /* An application that hangs on a fetch is broken; a page that
+       does is merely closed. A self-hosted studio is often
+       asleep. */
+    expect(ask).toMatch(/AbortController/);
+  });
+
+  /*
+   * THE BRIDGE IS FOUR NAMED QUESTIONS, which is what T-1 said
+   * the stage needing the machine would open. A preload exposing
+   * `ipcRenderer.invoke` would expose every channel the main
+   * process will ever have, including the ones T-4 adds for
+   * writing video to disk.
+   */
+  it('opens named questions rather than a channel', () => {
+    const preload = code('desktop/src/preload.ts');
+    for (const named of ['connections', 'remember', 'ask', 'openExternal']) {
+      expect(preload, named).toMatch(new RegExp(`${named}:`));
+    }
+    expect(preload).toMatch(/contextBridge\.exposeInMainWorld\('take', bridge\)/);
+    expect(preload).not.toMatch(/exposeInMainWorld\([^)]*ipcRenderer\s*\)/);
+  });
+
+  /*
+   * AND A LINK OPENS ONLY SOMEWHERE THIS APPLICATION WOULD HAVE
+   * GONE ANYWAY. `shell.openExternal` hands a string to the
+   * operating system, which will happily open `file:///` or a
+   * registered application's own scheme.
+   */
+  it('refuses to open a link that is not http', () => {
+    expect(code('desktop/src/main.ts'))
+      .toMatch(/if \(typeof url !== 'string' \|\| !asOrigin\(url\)\) return false;/);
   });
 });

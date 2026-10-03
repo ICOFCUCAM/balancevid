@@ -17,6 +17,7 @@
  */
 
 import { STEPS, BUILT_TO, houseSays, reached, standing } from './shell.js';
+import { connectScreen } from './connectScreen.js';
 
 function el(tag: string, className?: string, text?: string): HTMLElement {
   const node = document.createElement(tag);
@@ -29,9 +30,16 @@ function draw(): void {
   const root = document.getElementById('app');
   if (!root) return;
 
-  root.appendChild(el('h1', 'mark', 'Take'));
-  root.appendChild(el('p', 'sub',
-    'Multi-camera capture, recorded on this machine.'));
+  /*
+   * THE SCREEN IS CONNECT NOW, AND THE FLOW IS UNDER IT. T-1 drew
+   * the flow because there was nothing else to draw; T-2 has a
+   * screen, so the flow becomes what it was always going to be —
+   * a strip saying where the application is, below the work.
+   * `BUILT_TO` still decides, and still in one place. [T-1]
+   */
+  const screen = el('div', 'screen');
+  connectScreen(screen);
+  root.appendChild(screen);
 
   const flow = el('ol', 'flow');
   for (const step of STEPS) {

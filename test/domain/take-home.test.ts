@@ -491,16 +491,52 @@ describe('many installations, one app', () => {
    * them: a port is digits, and no scheme begins with one.
    */
   it('tells a port from a scheme', () => {
-    expect(asOrigin('localhost:3101')).toBe('https://localhost:3101');
+    expect(asOrigin('localhost:3101')).toBe('http://localhost:3101');
     expect(asOrigin('studio.example:8443')).toBe('https://studio.example:8443');
     expect(asOrigin('http://localhost:3101')).toBe('http://localhost:3101');
+  });
+
+  /*
+   * AND THE ASSUMED SCHEME IS HTTPS EXCEPT ON THIS MACHINE.
+   *
+   * Nobody runs TLS on their own laptop, so `localhost:3101`
+   * assumed into `https://` is a self-hosted installation that
+   * cannot be reached — which Take Software for desktop's T-2
+   * criterion names in as many words: "a cloud installation, a
+   * self-hosted one and A LOCAL ONE".
+   *
+   * `originFrom` in `src/web/share.ts` has read loopback as plain
+   * HTTP since the share cards were written, and two places in
+   * one product disagreeing about whether a laptop speaks TLS is
+   * two answers. The browser loses nothing: a page on https
+   * cannot fetch `http://localhost` whatever this returns, and
+   * `https://localhost:3101` was never going to answer either.
+   * [D-19, TAKE-DESKTOP T-2]
+   */
+  it('assumes plain http for this machine and https for everywhere else', () => {
+    expect(asOrigin('localhost')).toBe('http://localhost');
+    expect(asOrigin('127.0.0.1:3100')).toBe('http://127.0.0.1:3100');
+    expect(asOrigin('[::1]:3100')).toBe('http://[::1]:3100');
+    expect(asOrigin('studio.example')).toBe('https://studio.example');
+    /*
+     * AND A HOST THAT MERELY BEGINS `localhost` IS NOT THIS
+     * MACHINE. `localhost.evil.example` is somebody else's
+     * domain, and downgrading it to http would be this rule
+     * handing an attacker a plaintext connection by naming a
+     * subdomain.
+     */
+    expect(asOrigin('localhost.evil.example'))
+      .toBe('https://localhost.evil.example');
+    expect(asOrigin('127.0.0.1.evil.example'))
+      .toBe('https://127.0.0.1.evil.example');
   });
 
   it('keeps only the origin of something that is one', () => {
     expect(asOrigin('https://studio.example/take?x=1#y')).toBe('https://studio.example');
     expect(asOrigin('  https://studio.example/  ')).toBe('https://studio.example');
     expect(asOrigin('http://localhost:3100/anything')).toBe('http://localhost:3100');
-    /* A bare host is what somebody types; the safe scheme is assumed. */
+    /* A bare host is what somebody types; the safe scheme is
+       assumed, except on this machine — see below. */
     expect(asOrigin('studio.example')).toBe('https://studio.example');
   });
 

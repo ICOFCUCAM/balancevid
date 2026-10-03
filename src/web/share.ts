@@ -58,8 +58,21 @@ export function originOf(request: Request): string {
 export function originFrom(headers: Headers): string | null {
   const host = headers.get('x-forwarded-host') ?? headers.get('host');
   if (!host) return null;
-  const proto = headers.get('x-forwarded-proto')
-    ?? (host.startsWith('localhost') || host.startsWith('127.0.0.1') ? 'http' : 'https');
+  /*
+   * A HOST THAT MERELY BEGINS `localhost` IS NOT THIS MACHINE.
+   * This read `startsWith`, so `localhost.evil.example` — somebody
+   * else's domain — was assumed to be plain HTTP. Found while
+   * writing the same rule into the shared connection parser for
+   * T-2, which is the use that made it matter: there the string
+   * comes from a person typing, and a downgrade to http is a
+   * plaintext connection handed over by naming a subdomain.
+   * Here the host comes from the proxy, so it was never reachable
+   * — and a weaker copy of a rule stated twice is still two
+   * answers. [D-19, TAKE-DESKTOP T-2]
+   */
+  const bare = host.split(':')[0]!.toLowerCase();
+  const here = bare === 'localhost' || bare === '127.0.0.1' || bare === '[::1]';
+  const proto = headers.get('x-forwarded-proto') ?? (here ? 'http' : 'https');
   return `${proto}://${host}`;
 }
 
