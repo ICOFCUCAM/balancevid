@@ -161,6 +161,32 @@ export function lineupOf<T extends { id: string }>(
 }
 
 /**
+ * The order a lineup is read in: down the numbers, then by name.
+ *
+ * ONE COMPARATOR BECAUSE THERE ARE TWO LINEUPS. The M3U carries
+ * every listed channel and a viewer's favourites carry a few, and
+ * both are lineups rather than directories — *"a directory is
+ * browsed by somebody reading names, a lineup is tuned"*. Two
+ * copies of this would be two answers to what order a dial is in.
+ * [D-19]
+ *
+ * UNNUMBERED LAST, never first. Zero is outside the usable band,
+ * so a plain numeric sort would put a channel the lineup never
+ * reached in front of CH 100 — at the head of a dial it is not
+ * on.
+ */
+export function dialOrder(
+  a: { number: number; name: string }, b: { number: number; name: string },
+): number {
+  if (a.number !== b.number) {
+    if (a.number === 0) return 1;
+    if (b.number === 0) return -1;
+    return a.number - b.number;
+  }
+  return a.name.localeCompare(b.name);
+}
+
+/**
  * What the next channel up or down from here is, for a remote.
  *
  * > *"A remote control could eventually have: CH + / CH −"*

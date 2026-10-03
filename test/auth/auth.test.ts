@@ -556,6 +556,10 @@ describe('the television network is public, and adds no access (N-4)', () => {
   it('covers a page under /tv that does not exist yet', () => {
     expect(mayBePublic('/tv/countries/cm', 'GET')).toBe(true);
     expect(mayBePublic('/tv/anything/at/all', 'GET')).toBe(true);
+    /* Which is how `/tv/favorites` and `/tv/station` shipped
+       public without this list being touched. [N-8, N-9] */
+    expect(mayBePublic('/tv/favorites', 'GET')).toBe(true);
+    expect(mayBePublic('/tv/station', 'GET')).toBe(true);
   });
 
   /* It is a read-only surface. Nothing under it is writable. */

@@ -17,7 +17,11 @@
  */
 
 import Link from 'next/link';
-import { type ReactNode, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useState } from 'react';
+
+import {
+  FAVORITES_KEY, isFavorite, readFavorites, withFavorite, withoutFavorite,
+} from '../../src/domain/favorites.js';
 
 export interface Listing {
   slug: string;
@@ -37,7 +41,113 @@ const WAYS = [
   { at: '/tv/channels', says: 'Channels' },
   { at: '/tv/guide', says: 'Guide' },
   { at: '/tv/search', says: 'Search' },
+  /*
+   * THE ONE ENTRY IN THE BRIEF'S OWN NAVIGATION THAT WAS MISSING:
+   * "HOME · LIVE · GUIDE · CHANNELS · SEARCH · FAVORITES". [N-9]
+   */
+  { at: '/tv/favorites', says: 'Favorites' },
 ];
+
+/* ------------------------------------------------------------------ *
+ *  The channels this viewer keeps.  [N-9]
+ * ------------------------------------------------------------------ */
+
+/**
+ * The list, read once and written back on every change.
+ *
+ * READ IN AN EFFECT AND NOT AT FIRST RENDER, which is not a
+ * React detail: these pages are SERVER-RENDERED, and storage
+ * does not exist on the server. Reading it during render would
+ * make the first client paint disagree with the HTML that
+ * arrived, which React discards the whole tree over.
+ *
+ * SO THE FIRST PAINT HAS NO STARS, and that is the honest
+ * ordering: the channels are the page and the stars are the
+ * viewer's marks on it. A grid that waited for storage would be
+ * a grid a crawler reads as empty. [D-04]
+ *
+ * EVERY READ AND WRITE IS GUARDED. Storage throws outright in a
+ * private window on some browsers, and a television network that
+ * will not render because a star could not be saved is a worse
+ * outcome than a star that does not save.
+ */
+export function useFavorites() {
+  const [list, setList] = useState<string[]>([]);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    try {
+      setList(readFavorites(window.localStorage.getItem(FAVORITES_KEY)));
+    } catch {
+      /* No storage here. The pages all still work. */
+    }
+    setReady(true);
+  }, []);
+
+  const toggle = useCallback((slug: string) => {
+    setList((was) => {
+      const next = isFavorite(was, slug)
+        ? withoutFavorite(was, slug) : withFavorite(was, slug);
+      try {
+        window.localStorage.setItem(FAVORITES_KEY, JSON.stringify(next));
+      } catch {
+        /* Kept for this visit and not beyond it. */
+      }
+      return next;
+    });
+  }, []);
+
+  return { list, ready, toggle };
+}
+
+/**
+ * The star.
+ *
+ * A BUTTON INSIDE A LINK IS A CARD YOU CANNOT CLICK, so this sits
+ * beside the card rather than within it and the click is stopped
+ * from reaching anything behind it.
+ *
+ * LABELLED, NOT JUST DRAWN. A star with no accessible name is a
+ * control a screen reader announces as "button", and the label
+ * says which channel as well as which way it goes — there are as
+ * many of these on the page as there are channels.
+ */
+export function Star(
+  { slug, name, on, onToggle }: {
+    slug: string; name: string; on: boolean; onToggle: (slug: string) => void;
+  },
+) {
+  return (
+    <button type="button" data-testid="tv-star" data-slug={slug}
+            data-on={on ? 'true' : 'false'}
+            aria-pressed={on}
+            aria-label={on ? `Remove ${name} from favorites`
+              : `Keep ${name} in favorites`}
+            title={on ? 'In your favorites' : 'Keep this channel'}
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              onToggle(slug);
+            }}
+            style={{
+              flex: '0 0 auto', width: 34, height: 34, padding: 0,
+              display: 'grid', placeItems: 'center', cursor: 'pointer',
+              background: 'transparent', borderRadius: 'var(--radius-control)',
+              border: '1px solid var(--line)',
+              color: on ? 'var(--accent)' : 'var(--ink-400)',
+            }}>
+      {/* A GLYPH IS WHATEVER FONT THE READER HAS, and the reader
+          may be a television. Drawn, not typed. */}
+      <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"
+           focusable="false"
+           fill={on ? 'currentColor' : 'none'} stroke="currentColor"
+           strokeWidth={1.6} strokeLinejoin="round"
+           style={{ display: 'block' }}>
+        <path d="M12 3.6l2.6 5.3 5.8.8-4.2 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8L3.6 9.7l5.8-.8z" />
+      </svg>
+    </button>
+  );
+}
 
 export function TvFrame(
   { here, children }: { here: string; children: ReactNode },
@@ -163,9 +273,19 @@ export function ChannelCard({ channel }: { channel: Listing }) {
 }
 
 /** A grid of cards, which three pages draw. */
-export function ChannelGrid({ channels }: { channels: Listing[] }) {
+export function ChannelGrid(
+  { channels, empty }: { channels: Listing[]; empty?: ReactNode },
+) {
+  /*
+   * THE STARS LIVE ON THE GRID AND NOT ON THE CARD, because a
+   * card is a link and a button inside a link is a card you
+   * cannot click. One read of storage per grid rather than one
+   * per card, which also means the whole page turns its stars on
+   * at the same instant. [N-9]
+   */
+  const { list, ready, toggle } = useFavorites();
   if (channels.length === 0) {
-    return (
+    return empty ?? (
       <p className="muted" data-testid="tv-empty">
         No channels are listed yet. A channel appears here when its owner
         publishes it and asks to be listed.
@@ -178,7 +298,18 @@ export function ChannelGrid({ channels }: { channels: Listing[] }) {
       gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
     }}>
       {channels.map((channel) => (
-        <ChannelCard key={channel.slug} channel={channel} />
+        <div key={channel.slug} className="row"
+             style={{ gap: 'var(--space-3)', alignItems: 'center' }}>
+          <span className="grow" style={{ minWidth: 0 }}>
+            <ChannelCard channel={channel} />
+          </span>
+          {/* Nothing until storage has been read, so the first
+              paint matches the HTML that arrived. */}
+          {ready && (
+            <Star slug={channel.slug} name={channel.name}
+                  on={isFavorite(list, channel.slug)} onToggle={toggle} />
+          )}
+        </div>
       ))}
     </div>
   );
