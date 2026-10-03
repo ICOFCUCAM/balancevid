@@ -1,0 +1,594 @@
+/*
+ * THE TELEVISION NETWORK'S OWN FRONT PAGE.  [TV-NETWORK N-4]
+ *
+ * *"A normal person can arrive at BalanceVid and immediately
+ *  understand: BalanceVid isn't only software for broadcasters. It
+ *  also has a television network."*
+ *
+ * THE STUDIO'S SURFACES WILL NOT DO HERE, AND THAT IS THE BRIEF'S
+ * OWN POINT. `Room.tsx` is a production room: a rail down the side,
+ * a working area, a panel of controls. A television network's front
+ * door is the opposite kind of page — it is a shop window, read by
+ * somebody who has never heard of the software, and the first thing
+ * on it should be a picture and a channel rather than a form.
+ *
+ * SO THE HERO IS A BAND AND NOT A CARD. It runs the full width of
+ * the viewport, under the header, with the type sitting on the
+ * photograph rather than beside it. The same three layers the
+ * studio hero uses — art, a coloured veil, a shade from the left —
+ * because type over a photograph has to clear 4.5:1 and a picture
+ * is not a contrast guarantee. [surfaces.css `.room-hero`]
+ */
+
+.net-hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  min-height: 460px;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+}
+
+.net-hero-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: -2;
+}
+
+/*
+ * TWO VEILS AND NOT ONE. A single flat scrim over a photograph
+ * either kills the picture or fails the text; the pair does the two
+ * jobs separately — a wash that ties the image to the product's
+ * colour, and a gradient from the left that is darkest exactly
+ * where the words are.
+ */
+.net-hero-veil {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(
+    100deg,
+    rgba(8, 10, 14, 0.94) 0%,
+    rgba(8, 10, 14, 0.82) 34%,
+    rgba(8, 10, 14, 0.42) 62%,
+    rgba(8, 10, 14, 0.28) 100%);
+}
+
+.net-hero-said {
+  position: relative;
+  padding: clamp(32px, 5vw, 64px) var(--space-6);
+  max-width: 1180px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.net-eyebrow {
+  margin: 0 0 10px;
+  font-size: var(--text-2xs);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-300);
+}
+
+/*
+ * THE NAME AT THE SIZE THE NAME DESERVES, which is the lesson
+ * `Room.tsx` already records: *"the most important concept is too
+ * small."* On a front page read by a stranger, the name of the
+ * network is the page.
+ */
+.net-title {
+  margin: 0;
+  font-size: clamp(2.6rem, 6.4vw, 4.6rem);
+  line-height: 1.02;
+  letter-spacing: -0.03em;
+  font-weight: var(--weight-bold);
+  color: var(--ink-000);
+}
+
+.net-lede {
+  margin: 14px 0 0;
+  font-size: var(--text-md);
+  color: var(--ink-200);
+  max-width: 34rem;
+}
+
+.net-genres {
+  margin: 8px 0 0;
+  font-size: var(--text-sm);
+  color: var(--ink-350);
+}
+
+.net-hero-doors {
+  display: flex;
+  gap: 12px;
+  margin-top: 26px;
+  flex-wrap: wrap;
+}
+
+/*
+ * THE FIRST DOOR IS LIGHT ON A DARK PICTURE, which is the one place
+ * in this product where a button is white: everywhere else the page
+ * is the dark surface and the accent is the loud thing, but over a
+ * photograph the accent is just another colour in the picture.
+ */
+.net-door {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 13px 26px;
+  border-radius: 999px;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semi);
+  text-decoration: none;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.net-door-lit {
+  background: var(--ink-000);
+  color: #0a0b0d;
+}
+
+.net-door-outline {
+  background: rgba(10, 11, 13, 0.42);
+  border-color: rgba(255, 255, 255, 0.46);
+  color: var(--ink-000);
+  backdrop-filter: blur(3px);
+}
+
+/* ------------------------------------------------------------------ *
+ *  Live now.
+ * ------------------------------------------------------------------ */
+
+.net-band {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: var(--space-6);
+}
+
+.net-band-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin: 0 0 16px;
+}
+
+.net-band-title {
+  margin: 0;
+  font-size: var(--text-lg);
+  letter-spacing: var(--tracking-tight);
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+
+/* The lamp every live state in this product carries. [status.css] */
+.net-lamp {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--state-live);
+  flex: 0 0 auto;
+}
+
+/*
+ * A ROW THAT SCROLLS SIDEWAYS RATHER THAN A GRID THAT WRAPS.
+ *
+ * *Live now* is a shelf: six channels on air at this moment, read
+ * left to right and continuing off the edge. A grid that wrapped to
+ * a second line would say the list is complete, which on a network
+ * it never is — and on a phone a wrapping grid of 16:9 tiles is one
+ * channel per screen.
+ */
+.net-shelf {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(214px, 1fr);
+  gap: 14px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  padding-bottom: 6px;
+  scrollbar-width: thin;
+}
+
+.net-shelf > * { scroll-snap-align: start; }
+
+/* A wrapping grid, where a page lists everything rather than
+   showing the front of a shelf. */
+.net-cards {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(214px, 1fr));
+}
+
+.net-card {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  text-decoration: none;
+  color: inherit;
+  min-width: 0;
+}
+
+/*
+ * THE LOGO SITS IN A 16:9 WELL, which is the shape a television
+ * channel's identity is drawn in and the shape the card below it
+ * will one day hold a still of what is on. `contain` and not
+ * `cover`: a station's logo cropped at the edges is a station that
+ * has been misrepresented, which is the one thing a directory
+ * cannot do to an independent broadcaster.
+ */
+.net-card-art {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  display: grid;
+  place-items: center;
+  background: var(--screen-bed);
+  border-bottom: 1px solid var(--line);
+  overflow: hidden;
+}
+
+.net-card-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 14px;
+}
+
+.net-card-mark {
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  color: rgba(255, 255, 255, 0.9);
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+}
+
+/* A generated identity carries a sheen, so it reads as a made
+   surface rather than as a flat colour that failed to load. */
+.net-card-art[data-made='true']::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(170deg,
+    rgba(255, 255, 255, 0.1) 0%,
+    rgba(255, 255, 255, 0) 46%);
+  pointer-events: none;
+}
+
+/* A shelf is read by moving along it, so the tile under the
+   pointer has to lift — the one affordance a row of equal
+   rectangles otherwise has none of. */
+.net-card {
+  transition: transform 140ms ease, border-color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.net-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--ink-650, rgba(255, 255, 255, 0.18));
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .net-card { transition: none; }
+  .net-card:hover { transform: none; }
+}
+
+.net-card-said {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px 12px;
+}
+
+.net-card-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.net-card-number {
+  font-size: var(--text-2xs);
+  color: var(--ink-400);
+  flex: 0 0 auto;
+}
+
+.net-card-name {
+  font-weight: var(--weight-semi);
+  font-size: var(--text-sm);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * LIVE IS A BADGE AND ON AIR IS NOT.
+ *
+ * The station page already makes this distinction and it is not a
+ * quibble: *"transmitting a recording is ON AIR, not LIVE."* A
+ * network whose every card said LIVE would be a network whose badge
+ * meant nothing.
+ */
+.net-live {
+  flex: 0 0 auto;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: var(--state-live);
+  color: var(--text-on-accent, #fff);
+}
+
+/* The badge over the picture, where a listing puts it. */
+.net-live-over {
+  position: absolute;
+  left: 9px;
+  bottom: 9px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+/* What is on this minute, which the station page has always shown
+   and the directory never did. */
+.net-card-now {
+  font-size: var(--text-2xs);
+  color: var(--ink-200);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.net-card-meta {
+  font-size: var(--text-2xs);
+  color: var(--ink-400);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------------ *
+ *  What the network is made of.
+ * ------------------------------------------------------------------ */
+
+.net-strip {
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: var(--ink-900);
+}
+
+.net-strip-row {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 18px var(--space-6);
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.net-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 16px 9px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--console-control);
+  text-decoration: none;
+  color: var(--ink-100);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+.net-chip-mark {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--accent-deep);
+  color: var(--text-on-accent);
+  flex: 0 0 auto;
+}
+
+.net-reach {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 16px var(--space-6);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--text-sm);
+  color: var(--ink-350);
+}
+
+/* ------------------------------------------------------------------ *
+ *  The header, which is a station ident rather than an app bar.
+ * ------------------------------------------------------------------ */
+
+.net-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: var(--space-5);
+  padding: 12px var(--space-6);
+  border-bottom: 1px solid var(--line);
+  background: rgba(10, 11, 13, 0.88);
+  backdrop-filter: blur(8px);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.net-ident {
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+  text-decoration: none;
+  color: var(--text);
+  flex: 0 0 auto;
+}
+
+.net-ident-mark {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(140deg, var(--accent-soft), var(--accent-deep));
+  color: var(--text-on-accent);
+  box-shadow: 0 4px 12px rgba(47, 111, 208, 0.3);
+  flex: 0 0 auto;
+}
+
+.net-ident-name {
+  font-weight: 700;
+  font-size: var(--text-md);
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+}
+
+/*
+ * THE TAGLINE IS PART OF THE IDENT AND NOT A SENTENCE ON THE PAGE.
+ * It says what KIND of network this is in five words, under the
+ * name, at the size a station's strapline is actually printed.
+ */
+.net-ident-says {
+  display: block;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  font-weight: var(--weight-semi);
+}
+
+.net-nav {
+  display: flex;
+  gap: var(--space-4);
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.net-nav::-webkit-scrollbar { display: none; }
+
+.net-way {
+  font-size: var(--text-sm);
+  text-decoration: none;
+  color: var(--muted);
+  border-bottom: 2px solid transparent;
+  padding-bottom: 3px;
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+}
+
+.net-way[data-here='true'] {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+
+/*
+ * WHO YOU ARE, as a mark in the corner.
+ *
+ * Round, bordered and the size of a touch target, which is what
+ * the corner of a television service's header holds — and what
+ * stops the words "Sign in" wrapping onto two lines on a phone,
+ * which is what they did.
+ */
+.net-account {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--console-control);
+  color: var(--ink-200);
+  text-decoration: none;
+}
+
+.net-account:hover { color: var(--ink-000); border-color: var(--ink-650); }
+
+/* ------------------------------------------------------------------ *
+ *  A phone is where most of a television network is watched.
+ * ------------------------------------------------------------------ */
+
+/*
+ * THE ADDRESSES A TELEVISION IS GIVEN.  [N-7]
+ *
+ * `TvApps` lays its two rows out with `.row`, which wraps — so on
+ * a phone the Copy button dropped onto a line of its own under a
+ * field it no longer looked attached to. Found in a screenshot.
+ * The field shrinks and the button does not: a URL is scrollable
+ * and a button is not.
+ */
+.net-address > code { flex: 1 1 auto; min-width: 0; }
+.net-address > button { flex: 0 0 auto; }
+
+/* The globe belongs to the sentence, not to a line of its own. */
+.net-reach-said {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+@media (max-width: 760px) {
+  .net-hero { min-height: 380px; }
+  /*
+   * THE HEADER STOPS BEING A ROW OF WORDS AND BECOMES AN IDENT
+   * WITH A SCROLLING MENU UNDER IT. At 390px the nav, the install
+   * offer and the account mark cannot share one line with the
+   * station's name — they wrapped, and *Sign in* broke across two
+   * lines in the corner. Found in a screenshot.
+   */
+  .net-bar {
+    flex-wrap: wrap;
+    row-gap: 8px;
+    padding-bottom: 0;
+  }
+  .net-nav {
+    order: 3;
+    flex-basis: 100%;
+    gap: var(--space-4);
+    padding-bottom: 8px;
+    margin: 0 calc(var(--space-4) * -1);
+    padding-left: var(--space-4);
+    padding-right: var(--space-4);
+  }
+  /*
+   * ON A PHONE THE WORDS SIT IN THE MIDDLE OF THE PICTURE, not to
+   * one side of it, so the scrim has to be heaviest there rather
+   * than at the bottom. The first version faded downwards and left
+   * the eyebrow and the title over the brightest part of the
+   * frame — found in a screenshot.
+   */
+  .net-hero-veil {
+    background: linear-gradient(
+      180deg,
+      rgba(8, 10, 14, 0.80) 0%,
+      rgba(8, 10, 14, 0.88) 40%,
+      rgba(8, 10, 14, 0.78) 74%,
+      rgba(8, 10, 14, 0.92) 100%);
+  }
+  .net-address-label { min-width: 0 !important; }
+  .net-ident-says { display: none; }
+  .net-bar { gap: var(--space-4); padding: 10px var(--space-4); }
+  .net-band, .net-strip-row, .net-reach { padding-left: var(--space-4); padding-right: var(--space-4); }
+  .net-hero-said { padding-left: var(--space-4); padding-right: var(--space-4); }
+  .net-shelf { grid-auto-columns: minmax(176px, 1fr); }
+  .net-door { flex: 1 1 auto; justify-content: center; }
+  /* The count and the clause stack rather than fight for one line. */
+  .net-reach { flex-wrap: wrap; row-gap: 4px; }
+}

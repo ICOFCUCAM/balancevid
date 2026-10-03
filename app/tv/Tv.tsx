@@ -23,6 +23,29 @@ import {
   FAVORITES_KEY, isFavorite, readFavorites, withFavorite, withoutFavorite,
 } from '../../src/domain/favorites.js';
 import { useInstallOffer } from '../useInstallOffer.js';
+import Icon, { type IconName } from '../Icon.js';
+
+/**
+ * THE ONE PLACE THE NETWORK'S PICTURES ARE NAMED.
+ *
+ * Every image on the front page is listed here and nowhere else,
+ * so swapping the artwork is editing this block rather than
+ * hunting through markup. Drop a file into `public/network/` and
+ * change the string; nothing else moves.
+ *
+ * THE DEFAULTS ARE PICTURES THIS PRODUCT ALREADY OWNS, which is
+ * the right placeholder rather than a stock photograph bought for
+ * one page: `online-tv.webp` is how the studio introduces the
+ * Online TV room, so the network's front door and the room behind
+ * it are recognisably the same place until something better
+ * arrives. [D-19]
+ */
+export const NETWORK_ART = {
+  /** The band under the header. Wants a wide, dark-ish photograph. */
+  hero: '/rooms/online-tv.webp',
+  /** Where in the frame to hold when the band is cropped. */
+  heroFocus: '72% 42%',
+} as const;
 
 export interface Listing {
   slug: string;
@@ -38,9 +61,16 @@ export interface Listing {
 }
 
 const WAYS = [
-  { at: '/tv', says: 'Live' },
-  { at: '/tv/channels', says: 'Channels' },
+  /*
+   * HOME AND *LIVE TV* ARE ONE PAGE HERE, so there is one entry.
+   * The benchmark's header carries both; on this network the front
+   * page IS what is on, and two links to one address is a menu
+   * that teaches somebody one of them is broken. [D-19]
+   */
+  { at: '/tv', says: 'Home' },
   { at: '/tv/guide', says: 'Guide' },
+  { at: '/tv/channels', says: 'Channels' },
+  { at: '/tv/categories', says: 'Categories' },
   { at: '/tv/search', says: 'Search' },
   /*
    * THE ONE ENTRY IN THE BRIEF'S OWN NAVIGATION THAT WAS MISSING:
@@ -226,30 +256,45 @@ function TvWorker() {
 }
 
 export function TvFrame(
-  { here, children }: { here: string; children: ReactNode },
+  { here, children, bare }: {
+    here: string; children: ReactNode;
+    /** The page lays out its own full-width bands. [front page] */
+    bare?: boolean;
+  },
 ) {
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
-      <header className="row" style={{
-        gap: 'var(--space-5)', alignItems: 'center', flexWrap: 'wrap',
-        padding: '14px var(--space-6)',
-        borderBottom: '1px solid var(--line)',
-      }}>
-        <Link href="/tv" style={{
-          fontWeight: 700, letterSpacing: '0.06em', textDecoration: 'none',
-          color: 'var(--text)',
-        }}>BalanceVid <span style={{ color: 'var(--accent)' }}>TV</span></Link>
-        <nav className="row" style={{ gap: 'var(--space-4)' }}>
+      {/*
+        * A STATION IDENT, NOT AN APP BAR.
+        *
+        * The header was the product's name in letter-spaced caps
+        * with five links beside it — which is what a tool's
+        * toolbar looks like. A television network's header is an
+        * IDENT: a mark, the channel's name, and the strapline that
+        * says what kind of network it is. The person reading this
+        * page has never heard of the software. [N-4]
+        */}
+      <header className="net-bar">
+        <Link href="/tv" className="net-ident" data-testid="tv-ident">
+          <span aria-hidden="true" className="net-ident-mark">
+            <Icon name="play" size={15} />
+          </span>
+          <span style={{ minWidth: 0 }}>
+            <span className="net-ident-name">
+              BalanceVid <span style={{ color: 'var(--accent)' }}>TV</span>
+            </span>
+            <span className="net-ident-says">
+              Global channels · Real people · Real stories
+            </span>
+          </span>
+        </Link>
+        <nav className="net-nav">
           {WAYS.map((way) => (
             <Link key={way.at} href={way.at} data-testid="tv-way"
-                  data-here={way.at === here ? 'true' : 'false'}
-                  style={{
-                    fontSize: 'var(--text-sm)', textDecoration: 'none',
-                    color: way.at === here ? 'var(--text)' : 'var(--muted)',
-                    borderBottom: way.at === here
-                      ? '2px solid var(--accent)' : '2px solid transparent',
-                    paddingBottom: 2,
-                  }}>{way.says}</Link>
+                  className="net-way"
+                  data-here={way.at === here ? 'true' : 'false'}>
+              {way.says}
+            </Link>
           ))}
         </nav>
         <span className="grow" />
@@ -259,12 +304,30 @@ export function TvFrame(
           * rather than a call to action. Somebody watching
           * television is not in the middle of buying software.
           */}
-        <Link href="/signin" className="small muted"
-              style={{ textDecoration: 'none' }}>Sign in</Link>
+        {/*
+          * A GLYPH, NOT A SENTENCE. *Sign in* in running text next
+          * to an install button is two pieces of UI competing in
+          * the corner of a shop window; a round mark is what a
+          * television service puts there, and it is the quieter of
+          * the two. The label stays for a screen reader.
+          */}
+        <Link href="/signin" className="net-account" aria-label="Sign in"
+              data-testid="tv-account">
+          <Icon name="person" size={15} />
+        </Link>
       </header>
-      <main style={{ padding: 'var(--space-6)', maxWidth: 1180, margin: '0 auto' }}>
-        {children}
-      </main>
+      {/*
+        * `bare` IS FOR A PAGE THAT BRINGS ITS OWN FULL-WIDTH BANDS.
+        * The front page's hero runs edge to edge under the header,
+        * which a centred 1180px column cannot contain — so that
+        * page lays itself out and the other four keep the column
+        * they were written for. [D-19]
+        */}
+      {bare ? children : (
+        <main style={{ padding: 'var(--space-6)', maxWidth: 1180, margin: '0 auto' }}>
+          {children}
+        </main>
+      )}
       <TvWorker />
     </div>
   );
@@ -410,11 +473,21 @@ export function ChannelGrid(
 function Address({ label, url }: { label: string; url: string }) {
   const [copied, setCopied] = useState(false);
   return (
-    <div className="row" style={{
-      gap: 'var(--space-3)', alignItems: 'center', flexWrap: 'wrap',
+    /*
+      * NOT `flexWrap: 'wrap'`, WHICH PUT THE BUTTON UNDER THE FIELD.
+      *
+      * At 390px the label, the address and *Copy* cannot share a
+      * line, so the row wrapped and the button landed below a box
+      * it no longer looked attached to — found in a screenshot of
+      * the phone. An address is horizontally scrollable and a
+      * button is not, so the field is the thing that gives way.
+      */
+    <div className="row net-address" style={{
+      gap: 'var(--space-3)', alignItems: 'center', flexWrap: 'nowrap',
       padding: '8px 0',
     }}>
-      <span className="small muted" style={{ minWidth: 68 }}>{label}</span>
+      <span className="small muted net-address-label"
+            style={{ minWidth: 68 }}>{label}</span>
       <code data-testid="tv-export-url" style={{
         flex: '1 1 260px', minWidth: 0, overflowX: 'auto',
         fontSize: 'var(--text-sm)', whiteSpace: 'nowrap',
@@ -482,5 +555,359 @@ export function TvApps({ origin }: { origin: string }) {
       <Address label="Playlist" url={`${origin}/api/tv/playlist.m3u`} />
       <Address label="Guide" url={`${origin}/api/tv/guide.xml`} />
     </section>
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ *  The front page's own bands.  [TV-NETWORK N-4]
+ * ------------------------------------------------------------------ */
+
+/**
+ * The network, said at the size a network says itself.
+ *
+ * THE PHOTOGRAPH IS NAMED IN ONE PLACE, `NETWORK_ART` at the head
+ * of this file, so replacing it is one string and not a search
+ * through markup. It defaults to the picture this product already
+ * owns — the one the studio introduces the Online TV room with —
+ * so the front door and the room behind it are recognisably the
+ * same place until better artwork arrives. [D-19]
+ *
+ * THE GENRES UNDER THE SENTENCE ARE REAL. *Faith · News · Culture*
+ * is read off the channels that are actually listed, in the order
+ * most of them first — so a network of three faith channels says
+ * so, and does not advertise a Sports section nobody can watch.
+ * [D-21]
+ */
+export function NetworkHero(
+  { genres, watch, channels, more }: {
+    genres: string[]; watch: string | null; channels: number;
+    /** Whether the line was cut short, so *More* means something. */
+    more?: boolean;
+  },
+) {
+  return (
+    <section className="net-hero" data-testid="tv-hero">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img alt="" className="net-hero-art" src={NETWORK_ART.hero}
+           style={{ objectPosition: NETWORK_ART.heroFocus }} />
+      <span aria-hidden="true" className="net-hero-veil" />
+      <div className="net-hero-said">
+        <p className="net-eyebrow">The world in one network</p>
+        <h1 className="net-title">
+          BalanceVid <span style={{ color: 'var(--accent)' }}>TV</span>
+        </h1>
+        <p className="net-lede">
+          Live television from channels around the world.
+        </p>
+        {genres.length > 0 && (
+          <p className="net-genres" data-testid="tv-hero-genres">
+            {genres.map(asWord).join(' · ')}
+            {/*
+              * *MORE* IS A DOOR, NOT A WORD. The benchmark ends
+              * this line with it; printed as plain text it is a
+              * promise with nothing behind it, so it goes only
+              * where there are genres this line did not fit, and
+              * it opens the page that has them all.
+              */}
+            {more && (
+              <> · <Link href="/tv/categories" data-testid="tv-hero-more"
+                         style={{ color: 'var(--ink-200)' }}>More</Link></>
+            )}
+          </p>
+        )}
+        <div className="net-hero-doors">
+          {/*
+            * THE FIRST DOOR GOES SOMEWHERE OR IS NOT THERE.
+            *
+            * *Watch Live TV* on a network with nothing on air is the
+            * button that teaches somebody the product is broken. With
+            * no channel to send them to, the page offers the
+            * directory instead and says the truth above it. [U-19]
+            */}
+          {watch ? (
+            <Link href={watch} className="net-door net-door-lit"
+                  data-testid="tv-hero-watch">
+              <Icon name="play" size={15} /> Watch Live TV
+            </Link>
+          ) : null}
+          <Link href="/tv/channels"
+                className={watch ? 'net-door net-door-outline' : 'net-door net-door-lit'}
+                data-testid="tv-hero-browse">
+            {channels === 1 ? 'See the channel' : 'Explore channels'}
+          </Link>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * A station with no logo gets an identity rather than a gap.
+ *
+ * TWO GREY LETTERS IN A DARK WELL IS WHAT *MISSING* LOOKS LIKE,
+ * and on a shelf of six it is what the whole network looks like.
+ * An independent broadcaster who has not uploaded a logo yet is
+ * the ordinary case on a new network, not the edge one — so the
+ * absence has to be designed rather than merely handled. [U-19]
+ *
+ * DETERMINISTIC, FROM THE SLUG. The same station is the same
+ * colour on every page, every load and every device, because a
+ * channel whose tile changed colour between the directory and the
+ * guide would read as two channels. A hash over the address, not a
+ * random — and the address is the one thing a listing is
+ * guaranteed to have.
+ *
+ * AND IT IS A GROUND, NOT A BRAND. Deep, low-saturation, two stops
+ * apart: it has to sit in a row beside real logos without
+ * competing with them, because the day the broadcaster uploads one
+ * this disappears and nothing else on the card should move.
+ */
+function identityFor(slug: string): React.CSSProperties {
+  let hash = 0;
+  for (let i = 0; i < slug.length; i += 1) {
+    hash = (hash * 31 + slug.charCodeAt(i)) % 360;
+  }
+  return {
+    background: `radial-gradient(120% 120% at 24% 18%,`
+      + ` hsl(${hash} 42% 26%) 0%, hsl(${(hash + 28) % 360} 46% 13%) 62%,`
+      + ` hsl(${(hash + 40) % 360} 48% 9%) 100%)`,
+  };
+}
+
+/**
+ * One channel, as a tile on the shelf.
+ *
+ * IT CARRIES WHAT THE BENCHMARK'S CARD DID NOT, because this
+ * network already knows it and a card that withheld it would be a
+ * redesign that cost the product something. `nowAndNext` answers
+ * what is on this minute; the station page has shown it since N-5
+ * and the directory never did. A television listing whose tiles say
+ * only the channel's name is a listing you have to open six times
+ * to find out what to watch.
+ */
+export function NetworkCard(
+  { channel, live, now }: {
+    channel: Listing; live?: boolean; now?: string | null;
+  },
+) {
+  const mark = channel.callsign ?? channel.name.slice(0, 2).toUpperCase();
+  return (
+    <Link href={`/tv/channels/${channel.slug}`} className="net-card"
+          data-testid="tv-channel-card" data-slug={channel.slug}
+          data-live={live ? 'true' : 'false'}>
+      <span className="net-card-art"
+            {...(channel.logoAssetId ? {} : { 'data-made': 'true',
+              style: identityFor(channel.slug) })}>
+        {channel.logoAssetId
+          // eslint-disable-next-line @next/next/no-img-element
+          ? <img alt="" src={`/api/tv/channels/${channel.slug}/logo`} />
+          : <span className="net-card-mark">{mark}</span>}
+        {/*
+          * THE BADGE SITS ON THE PICTURE, not in the text below it.
+          * That is where a television listing puts it, and it is the
+          * only place it can be read at a glance down a shelf.
+          */}
+        {live && (
+          <span className="net-live net-live-over" data-testid="card-live">
+            LIVE
+          </span>
+        )}
+      </span>
+      <span className="net-card-said">
+        <span className="net-card-top">
+          {channel.number !== undefined && (
+            <span className="mono net-card-number" data-testid="card-number">
+              {String(channel.number).padStart(3, '0')}
+            </span>
+          )}
+          <span className="net-card-name">{channel.name}</span>
+        </span>
+        {/*
+          * WHAT IS ON, WHERE THERE IS AN ANSWER. A channel between
+          * programmes has none, and a line reading "Now:" with
+          * nothing after it is worse than no line. [U-19]
+          */}
+        {/*
+          * AND *OFF AIR* IS NOT A PROGRAMME.
+          *
+          * `nowAndNext` answers *Off air* for a channel between
+          * things, which is the truth and the right answer on a
+          * station page. Down a shelf of eight it became *Now Off
+          * air* eight times — a column of the same two words,
+          * which is a listing repeating its null state at the
+          * reader. The line is for what is ON; a channel with
+          * nothing on says nothing here and the shelf stays
+          * readable. Found in a screenshot. [U-19]
+          */}
+        {now && now.toLowerCase() !== 'off air' && (
+          <span className="net-card-now" data-testid="tv-card-now">
+            <span className="muted">Now</span> {now}
+          </span>
+        )}
+        {channel.says && (
+          <span className="net-card-meta" data-testid="tv-card-says">
+            {channel.says}
+          </span>
+        )}
+      </span>
+    </Link>
+  );
+}
+
+/**
+ * What is on right now, as a shelf.
+ *
+ * ORDERED LIVE FIRST, and that is the only place on this network
+ * where the order is not the name. *Live now* is a claim about this
+ * minute; a shelf that opened on a channel playing a repeat while a
+ * live one sat off the right-hand edge would be making it falsely.
+ */
+export function LiveNow(
+  { channels, live, now }: {
+    channels: Listing[];
+    live: Record<string, boolean>;
+    now: Record<string, string | null>;
+  },
+) {
+  /*
+   * THE STARS COME WITH IT.  [N-9]
+   *
+   * `useFavorites` and `Star` were built for the grid this shelf
+   * replaces, and dropping them would have been a redesign that
+   * quietly removed a feature nobody asked to lose. One read of
+   * storage for the shelf, and the star sits over the tile's
+   * corner rather than inside the link, because a button inside a
+   * link is a card you cannot click.
+   */
+  const { list, ready, toggle } = useFavorites();
+  if (channels.length === 0) return null;
+  const shelf = [...channels].sort(
+    (a, b) => Number(Boolean(live[b.slug])) - Number(Boolean(live[a.slug])));
+  return (
+    <section className="net-band">
+      <div className="net-band-head">
+        <h2 className="net-band-title">
+          <span aria-hidden="true" className="net-lamp" />
+          Live now
+        </h2>
+        <span className="grow" />
+        <Link href="/tv/channels" className="small"
+              style={{ textDecoration: 'none', color: 'var(--ink-350)' }}>
+          View all
+        </Link>
+      </div>
+      <div className="net-shelf" data-testid="tv-grid">
+        {shelf.map((channel) => (
+          <div key={channel.slug} style={{ position: 'relative', minWidth: 0 }}>
+            <NetworkCard channel={channel}
+                         {...(live[channel.slug] ? { live: true } : {})}
+                         now={now[channel.slug] ?? null} />
+            {ready && (
+              <span style={{ position: 'absolute', top: 8, right: 8 }}>
+                <Star slug={channel.slug} name={channel.name}
+                      on={isFavorite(list, channel.slug)} onToggle={toggle} />
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/**
+ * The glyph a genre is shown with.
+ *
+ * A LOOKUP WITH A FALLBACK, because `genre` is a free string a
+ * broadcaster typed. A map that had to be complete would be a map
+ * that broke the strip the first time somebody wrote *Documentary*.
+ */
+/**
+ * A genre as a word rather than as a key.
+ *
+ * `Genre` is stored lowercase because it is an enum on a record.
+ * A strip reading *culture · faith · children* is a strip showing
+ * its database, which is the fault the studio's own surfaces are
+ * careful about everywhere else.
+ */
+function asWord(genre: string): string {
+  return genre.charAt(0).toUpperCase() + genre.slice(1);
+}
+
+const GENRE_MARKS: Record<string, IconName> = {
+  faith: 'passed', news: 'broadcast', culture: 'library',
+  education: 'list', music: 'music', sport: 'live', sports: 'live',
+  entertainment: 'play', talk: 'conversation', kids: 'sun', film: 'play',
+};
+
+/**
+ * The genres this network actually carries.
+ *
+ * READ OFF THE CHANNELS AND NOT A FIXED LIST. A strip of seven
+ * categories with three of them empty is a directory advertising
+ * what it does not have — and the one thing a viewer does with a
+ * category is press it, which on an empty one is a dead end. [D-21]
+ */
+export function Categories({ genres }: { genres: string[] }) {
+  if (genres.length === 0) return null;
+  return (
+    <div className="net-strip">
+      <div className="net-strip-row" data-testid="tv-categories">
+        {genres.map((genre) => (
+          <Link key={genre} className="net-chip" data-testid="tv-category"
+                href={`/tv/search?q=${encodeURIComponent(genre)}`}>
+            <span aria-hidden="true" className="net-chip-mark">
+              <Icon name={GENRE_MARKS[genre.toLowerCase()] ?? 'broadcast'}
+                    size={13} />
+            </span>
+            {asWord(genre)}
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * How far the network reaches, counted rather than claimed.
+ *
+ * THREE NUMBERS THAT ARE TRUE. The benchmark for this page carried
+ * *"54 Countries · 22 Destinations · 5 Regions"*, and two of those
+ * three are not things this product knows: a channel has a country
+ * and a language and no notion of a destination or a region. So
+ * this counts what there is. A network that invented two numbers to
+ * fill a line would be a network whose first number nobody should
+ * believe either. [D-21, U-19]
+ *
+ * AND IT SAYS *TODAY*, WHICH IS THE WHOLE DIFFERENCE BETWEEN A
+ * COUNT AND A BOUNDARY. A line reading *54 countries* on a shop
+ * window reads as the SIZE of the thing — as though fifty-four
+ * were what the network is for. This network has no region: it is
+ * every station that joins it, and the number is only what has
+ * joined so far.
+ */
+export function Reach(
+  { countries, languages, channels }: {
+    countries: number; languages: number; channels: number;
+  },
+) {
+  const says = [
+    `${channels} ${channels === 1 ? 'channel' : 'channels'}`,
+    countries > 0 && `${countries} ${countries === 1 ? 'country' : 'countries'}`,
+    languages > 0 && `${languages} ${languages === 1 ? 'language' : 'languages'}`,
+  ].filter(Boolean) as string[];
+  return (
+    <p className="net-reach" data-testid="tv-reach">
+      <span className="net-reach-said">
+        <span aria-hidden="true" style={{ color: 'var(--accent)' }}>
+          <Icon name="broadcast" size={16} />
+        </span>
+        {says.join(' · ')} on the network today
+      </span>
+      <span className="grow" />
+      <span className="small muted" style={{ fontSize: 'var(--text-2xs)' }}>
+        Open to any station, anywhere.
+      </span>
+    </p>
   );
 }

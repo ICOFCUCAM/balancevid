@@ -348,6 +348,34 @@ const ASSET_PATTERNS: RegExp[] = [
    */
   /^\/tv-sw\.js$/,
   /^\/tv-app\/[A-Za-z0-9_.-]+$/,
+  /*
+   * THE PRODUCT'S OWN ARTWORK.  [N-4]
+   *
+   * `public/rooms/*.webp` are three photographs shipped in the
+   * image: how the studio introduces each room, and now the
+   * ground the television network's front page is built on.
+   *
+   * FOUND IN A SCREENSHOT, AS A BLACK BAND WITH A BROKEN-IMAGE
+   * GLYPH IN THE CORNER. They had never been reached without a
+   * session before, because the only pages drawing them were
+   * behind one — so a stranger arriving at `/tv` was redirected
+   * to sign in FOR A PHOTOGRAPH, and got a hero with no picture
+   * in it.
+   *
+   * THEY CARRY NOTHING. These are files in the repository,
+   * identical on every installation, the same bytes for the owner
+   * and for somebody who has never heard of this product. There
+   * is nothing here to protect and a login wall in front of
+   * decoration is a login wall that only breaks pages.
+   *
+   * AND IT IS AN ASSET RULE, NOT A PUBLIC-ROUTE ONE. It belongs in
+   * this list and not in `PUBLIC_PATTERNS`, because a photograph
+   * decides nothing: `mayBePublic` governs routes that are allowed
+   * to answer, and a static file has no answer to give. The first
+   * version of this rule went into the other list and a test
+   * caught it.
+   */
+  /^\/rooms\/[A-Za-z0-9_.-]+\.(webp|png|jpg|jpeg|avif|svg)$/,
 ];
 
 export function isAssetPath(pathname: string): boolean {
