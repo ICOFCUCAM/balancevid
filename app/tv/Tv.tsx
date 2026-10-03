@@ -22,6 +22,7 @@ import { type ReactNode, useCallback, useEffect, useState } from 'react';
 import {
   FAVORITES_KEY, isFavorite, readFavorites, withFavorite, withoutFavorite,
 } from '../../src/domain/favorites.js';
+import { useInstallOffer } from '../useInstallOffer.js';
 
 export interface Listing {
   slug: string;
@@ -149,6 +150,81 @@ export function Star(
   );
 }
 
+/**
+ * The network, installed.  [N-9]
+ *
+ * IN THE HEADER AND NOT IN A BANNER, because a banner over a
+ * channel grid is an advertisement for the thing the viewer is
+ * already using. One word beside Sign in, on every page of the
+ * network, and absent entirely on a browser that cannot install
+ * or a viewer who already has.
+ *
+ * IT APPEARS ONLY WHEN THERE IS SOMETHING TO OFFER. Chromium
+ * fires `beforeinstallprompt` only when the page actually
+ * qualifies — manifest, icons, a service worker — so this is also
+ * the honest test of whether the network is installable at all.
+ */
+function InstallTv() {
+  const { offered, teach, gone, install, dismiss } = useInstallOffer();
+  if (gone || (!offered && !teach)) return null;
+  if (teach && !offered) {
+    /* Safari has Add to Home Screen and no API for it, so it is
+       told rather than left out — in the share sheet's own words. */
+    return (
+      <span className="small muted" data-testid="tv-install-teach"
+            style={{ fontSize: 'var(--text-2xs)' }}>
+        Share → Add to Home Screen
+      </span>
+    );
+  }
+  return (
+    <span className="row" style={{ gap: 'var(--space-3)' }}>
+      <button type="button" data-testid="tv-install" className="small"
+              onClick={() => void install()}
+              style={{
+                padding: '5px 11px', cursor: 'pointer', fontWeight: 600,
+                color: 'var(--text)', background: 'transparent',
+                border: '1px solid var(--line)',
+                borderRadius: 'var(--radius-control)',
+              }}>Install</button>
+      <button type="button" data-testid="tv-install-no" className="small muted"
+              onClick={dismiss}
+              style={{
+                padding: 0, cursor: 'pointer', background: 'transparent',
+                border: 'none', color: 'var(--muted)',
+                fontSize: 'var(--text-2xs)',
+              }}>Not now</button>
+    </span>
+  );
+}
+
+/**
+ * The service worker, registered.
+ *
+ * WITHOUT IT NOTHING INSTALLS: a browser's install criteria are a
+ * manifest, icons AND a worker with a fetch handler. What this
+ * one adds beyond qualifying is one thing, and it is the honest
+ * one — an installed app that opens to a browser error page looks
+ * broken, and one that opens to its own name saying "no
+ * connection" looks like an app. It caches no page, because you
+ * cannot watch television offline and a stale guide is a page
+ * lying about what is on.
+ *
+ * SCOPED TO `/tv`, so the control room is not a television app's
+ * business. A worker's scope cannot rise above its own path,
+ * which is why the file sits at the root. [N-9]
+ */
+function TvWorker() {
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return;
+    /* Registration failures are not worth telling a viewer about:
+       the network works, and this only ever added an apology. */
+    void navigator.serviceWorker.register('/tv-sw.js', { scope: '/tv' })
+      .catch(() => undefined);
+  }, []);
+  return null;
+}
+
 export function TvFrame(
   { here, children }: { here: string; children: ReactNode },
 ) {
@@ -177,6 +253,7 @@ export function TvFrame(
           ))}
         </nav>
         <span className="grow" />
+        <InstallTv />
         {/*
           * THE WAY BACK TO THE PRODUCT, and it is a quiet link
           * rather than a call to action. Somebody watching
@@ -188,6 +265,7 @@ export function TvFrame(
       <main style={{ padding: 'var(--space-6)', maxWidth: 1180, margin: '0 auto' }}>
         {children}
       </main>
+      <TvWorker />
     </div>
   );
 }
@@ -243,7 +321,9 @@ export function ChannelCard({ channel }: { channel: Listing }) {
                    style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             : mark}
         </div>
-        <div style={{ minWidth: 0 }}>
+        {/* Clear of the star, which sits over the top-right
+             corner on the grid. [N-9] */}
+        <div style={{ minWidth: 0, paddingRight: 42 }}>
           {/*
             * THE NUMBER LEADS, because that is what a channel
             * number is for: a lineup is scanned down the numbers
@@ -298,16 +378,24 @@ export function ChannelGrid(
       gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
     }}>
       {channels.map((channel) => (
-        <div key={channel.slug} className="row"
-             style={{ gap: 'var(--space-3)', alignItems: 'center' }}>
-          <span className="grow" style={{ minWidth: 0 }}>
-            <ChannelCard channel={channel} />
-          </span>
+        /*
+          * THE STAR SITS OVER THE CARD'S CORNER, not beside it in
+          * a flex row. It was beside it first, and `.row` wraps:
+          * in a 260px grid cell a card whose name does not shrink
+          * pushed the star onto a line of its own, under the card,
+          * on exactly the channels with longer names. Found by
+          * looking at the screenshot, where one of two cards had
+          * it and the other did not.
+          */
+        <div key={channel.slug} style={{ position: 'relative' }}>
+          <ChannelCard channel={channel} />
           {/* Nothing until storage has been read, so the first
               paint matches the HTML that arrived. */}
           {ready && (
-            <Star slug={channel.slug} name={channel.name}
-                  on={isFavorite(list, channel.slug)} onToggle={toggle} />
+            <span style={{ position: 'absolute', top: 10, right: 10 }}>
+              <Star slug={channel.slug} name={channel.name}
+                    on={isFavorite(list, channel.slug)} onToggle={toggle} />
+            </span>
           )}
         </div>
       ))}

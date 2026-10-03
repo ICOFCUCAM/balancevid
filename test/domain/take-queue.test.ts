@@ -24,7 +24,7 @@
  * two ideas of what is in it.
  */
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -41,6 +41,14 @@ const SINK = code('app/take/[link]/takeSink.ts');
 const APP = code('app/take/[link]/TakeApp.tsx');
 const MANIFEST = code('app/api/take/[link]/manifest/route.ts');
 const BAR = code('app/take/[link]/InstallBar.tsx');
+/*
+ * THE MACHINERY MOVED AND THE WORDING DID NOT. A second surface
+ * installs — the television network — and what the two share is
+ * every subtle line of this: the standalone check, the Chromium
+ * event, the Safari exception, the spent prompt. The bar keeps
+ * the words; the hook keeps the behaviour. [D-19, TV-NETWORK N-9]
+ */
+const OFFER = code('app/useInstallOffer.ts');
 const POLICY = code('src/auth/policy.ts');
 
 describe('a segment is written down before it is sent', () => {
@@ -375,15 +383,15 @@ describe('the chooser T2c was waiting for', () => {
    * worse than no offer. [U-19]
    */
   it('shows nothing where it cannot install', () => {
-    expect(BAR).toMatch(/addEventListener\('beforeinstallprompt', caught\)/);
-    expect(BAR).toMatch(/if \(gone \|\| \(!offer && !teach\)\) return null/);
+    expect(OFFER).toMatch(/addEventListener\('beforeinstallprompt', caught\)/);
+    expect(BAR).toMatch(/if \(gone \|\| \(!offered && !teach\)\) return null/);
   });
 
   /* And never to somebody already running it: offering to install
      the app you are inside is the product not knowing where it is. */
   it('shows nothing to somebody who has already installed it', () => {
-    expect(BAR).toMatch(/\(display-mode: standalone\)/);
-    expect(BAR).toMatch(/if \(standalone\) return undefined/);
+    expect(OFFER).toMatch(/\(display-mode: standalone\)/);
+    expect(OFFER).toMatch(/if \(standalone\) return undefined/);
   });
 
   /*
@@ -392,7 +400,39 @@ describe('the chooser T2c was waiting for', () => {
    */
   it('tells an iPhone what to do instead', () => {
     expect(BAR).toMatch(/Add to Home Screen/);
-    expect(BAR).toMatch(/iPad\|iPhone\|iPod/);
+    expect(OFFER).toMatch(/iPad\|iPhone\|iPod/);
+  });
+
+  /*
+   * AND THERE IS EXACTLY ONE COPY OF IT, which is the whole point
+   * of the move and the thing that would quietly stop being true.
+   * The standalone check and the Chromium event are the two lines
+   * a second surface is most likely to re-derive; if either ever
+   * appears in a component again, this fails rather than the two
+   * drifting apart unnoticed. [D-19]
+   */
+  it('keeps the machinery in one place', () => {
+    const copies = readdirSync(join(ROOT, 'app'),
+      { recursive: true, encoding: 'utf8' })
+      .filter((name) => name.endsWith('.tsx'))
+      .filter((name) => {
+        const body = code(join('app', name));
+        return /\(display-mode: standalone\)/.test(body)
+          || /beforeinstallprompt/.test(body);
+      });
+    expect(copies, 'use useInstallOffer').toEqual([]);
+  });
+
+  /*
+   * THE TAKE APP'S BEHAVIOUR DID NOT CHANGE, with one fix taken in
+   * passing: `appinstalled` was added and never removed, so a bar
+   * that unmounted left a listener holding a dead setState.
+   */
+  it('removes every listener it added', () => {
+    for (const one of ['beforeinstallprompt', 'appinstalled']) {
+      expect(OFFER, one).toMatch(
+        new RegExp(`removeEventListener\\('${one}'`));
+    }
   });
 });
 

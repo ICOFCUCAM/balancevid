@@ -288,6 +288,21 @@ const ASSET_PATTERNS: RegExp[] = [
    */
   /^\/take-sw\.js$/,
   /^\/take-app\/[A-Za-z0-9_.-]+$/,
+  /*
+   * And the television network's, for the same reasons.  [N-9]
+   *
+   * `/tv` IS ALREADY PUBLIC, so unlike the Take App's these are
+   * not opening a surface — they are the surface becoming an
+   * application. A manifest, an offline page, four icons and a
+   * worker, identical for every visitor and carrying nothing
+   * about this installation's channels.
+   *
+   * THE WORKER IS AT THE ROOT for the reason that one is: a
+   * worker's scope cannot rise above its own path, and this one
+   * claims `/tv/`.
+   */
+  /^\/tv-sw\.js$/,
+  /^\/tv-app\/[A-Za-z0-9_.-]+$/,
 ];
 
 export function isAssetPath(pathname: string): boolean {

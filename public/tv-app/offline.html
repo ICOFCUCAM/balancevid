@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BalanceVid TV</title>
+<!--
+  What an installed television app shows with no network.
+
+  THE HONEST THING AND NOT A CACHED LINEUP. You cannot watch
+  television offline, and a channel grid served from last week's
+  cache is a page that lies about what is on — which is the one
+  thing this network exists to tell the truth about.
+
+  AN INSTALLED APP THAT OPENS TO A BROWSER ERROR PAGE LOOKS
+  BROKEN. This is the whole of the difference: the same absence,
+  said by the thing the viewer installed.
+
+  SELF-CONTAINED, because the stylesheet is on the network that
+  is not there.
+-->
+<style>
+  :root { color-scheme: dark; }
+  html, body {
+    margin: 0; min-height: 100%;
+    background: #0e0f11; color: #e6e8ea;
+    font: 400 16px/1.6 ui-sans-serif, system-ui, sans-serif;
+  }
+  main {
+    min-height: 100vh; display: grid; place-content: center;
+    gap: 14px; padding: 24px; text-align: center;
+  }
+  h1 { margin: 0; font-size: 20px; letter-spacing: 0.06em; font-weight: 700; }
+  .tv { color: #3f8ee8; }
+  p { margin: 0; color: #9aa1a8; max-width: 34ch; }
+  button {
+    margin-top: 8px; padding: 10px 18px; font: inherit; font-weight: 600;
+    color: #e6e8ea; background: transparent; cursor: pointer;
+    border: 1px solid #2a2e33; border-radius: 8px;
+  }
+</style>
+</head>
+<body>
+  <main>
+    <h1>BalanceVid <span class="tv">TV</span></h1>
+    <p>No connection. The channels are still broadcasting — this device
+       cannot reach them.</p>
+    <button type="button" onclick="location.reload()">Try again</button>
+  </main>
+</body>
+</html>
