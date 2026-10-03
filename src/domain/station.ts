@@ -66,6 +66,28 @@ export interface Station {
   genre?: Genre;
   /** A library asset, like every other picture reference. [§3, D-18] */
   logoAssetId?: string;
+  /**
+   * A HOST THIS STATION ALSO ANSWERS ON: `tv.redemption.example`.
+   *
+   * > *"The channel owner can eventually have a custom domain, but
+   * > BalanceVid provides the canonical public channel identity."*
+   *
+   * SECOND, NEVER INSTEAD. The slug above is the identity — it is
+   * what the directory links to, what a share card names and what
+   * the canonical tag on both pages points at. This is a front
+   * door the owner also owns, and the brief is explicit about why
+   * it cannot be the identity:
+   *
+   * > *"imagine 10,000 BalanceVid channels. A viewer cannot
+   * > reasonably remember `channel-name-247.some-domain.com`."*
+   *
+   * THE HOST ALONE. No scheme, no port, no path, no trailing dot —
+   * refused rather than repaired, like every other identifier
+   * here, because a domain is a thing somebody prints on a poster
+   * and quietly turning what they typed into something else is how
+   * a station advertises an address that is not theirs.
+   */
+  domain?: string;
 }
 
 /* ------------------------------------------------------------------------ *
@@ -112,6 +134,93 @@ export function slugProblem(slug: string): string | null {
   if (slug.includes('--')) return 'two hyphens together is a typing mistake';
   if (RESERVED_SLUGS.includes(slug)) return 'that word belongs to the directory';
   return null;
+}
+
+/* ------------------------------------------------------------------------ *
+ *  The custom domain.  [TV-NETWORK N-8]
+ * ------------------------------------------------------------------------ */
+
+/** The length a hostname may not exceed, from the DNS itself. */
+export const DOMAIN_LONGEST = 253;
+/** And one label of it. */
+export const LABEL_LONGEST = 63;
+
+/**
+ * Why this host cannot be a station's domain, or null.
+ *
+ * THE ORDER OF THE CLAUSES IS THE QUALITY OF THE MESSAGE. Somebody
+ * pasting `https://tv.example.com/` has made one mistake and should
+ * be told which; checked label by label first, they would be told
+ * their domain contains an illegal character, which is true and
+ * useless.
+ *
+ * NO PORT, because a public station reached on `:8443` is not a
+ * public station, and the host a request arrives with has its port
+ * stripped before anything compares it.
+ *
+ * PUNYCODE OR NOTHING. `tv.café.example` is a real domain and its
+ * wire form is `tv.xn--caf-dma.example`; converting it here would
+ * be the quiet repair this product refuses everywhere else, and
+ * storing the unicode form would be a value no incoming request
+ * can ever equal.
+ */
+export function domainProblem(domain: string): string | null {
+  if (domain !== domain.trim()) return 'a domain cannot start or end with a space';
+  if (!domain) return 'nothing to use as a domain';
+  if (domain.includes('://')) return 'just the host — no https:// in front';
+  if (domain.includes('/')) return 'just the host — no path after it';
+  if (domain.includes(':')) return 'a domain carries no port';
+  if (domain.includes('@')) return 'that is an address, not a domain';
+  if (domain.length > DOMAIN_LONGEST) {
+    return `too long — ${DOMAIN_LONGEST} characters at most`;
+  }
+  if (domain.endsWith('.')) return 'a domain does not end with a dot';
+  if (!domain.includes('.')) return 'needs at least one dot, like tv.example.com';
+  if (/[^a-z0-9.-]/.test(domain)) {
+    return 'lower case letters, numbers, dots and hyphens only — '
+      + 'an international domain goes in its punycode form (xn--…)';
+  }
+  const labels = domain.split('.');
+  for (const label of labels) {
+    if (!label) return 'two dots together is a typing mistake';
+    if (label.length > LABEL_LONGEST) {
+      return `one part of it is too long — ${LABEL_LONGEST} characters at most`;
+    }
+    if (label.startsWith('-') || label.endsWith('-')) {
+      return 'no part of a domain starts or ends with a hyphen';
+    }
+  }
+  /*
+   * AND THE LAST PART IS NOT A NUMBER, which is the whole of the
+   * IP-address check: `1.2.3.4` passes every rule above and is not
+   * a domain. A station reachable only at an address is a station
+   * nobody can be told about.
+   */
+  if (/^[0-9]+$/.test(labels[labels.length - 1]!)) {
+    return 'that is an IP address, not a domain';
+  }
+  return null;
+}
+
+/**
+ * The host a request arrived on, as a domain can be compared to.
+ *
+ * ONE FUNCTION, BECAUSE THERE ARE TWO READERS AND THEY MUST AGREE.
+ * The middleware decides whether a host is the installation's own
+ * and the page decides which station answers on it; a port kept in
+ * one and stripped in the other is a custom domain that routes and
+ * then 404s, which is the worst of both.
+ *
+ * Nothing for a host there is no sense in comparing.
+ */
+export function hostOf(value: string | null | undefined): string | null {
+  if (!value) return null;
+  /* The first, where a proxy chain left several. */
+  const first = value.split(',')[0]!.trim().toLowerCase();
+  /* And without its port, which `tv.example.com:443` carries and a
+     stored domain never does. */
+  const bare = first.split(':')[0]!;
+  return bare && !bare.includes('/') ? bare : null;
 }
 
 /**

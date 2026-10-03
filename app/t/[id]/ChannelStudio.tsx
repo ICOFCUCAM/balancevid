@@ -7185,6 +7185,42 @@ function ListingTab({ channel, onStation }: {
       </label>
 
       {/*
+        * THE STATION'S OWN FRONT DOOR.  [N-8]
+        *
+        * Below the address above and not beside it, because the
+        * order on this desk is the order of the identities: the
+        * slug is what the directory links to and what the
+        * canonical tag points at, and this is a second door the
+        * owner also owns. The brief: "The channel owner can
+        * eventually have a custom domain, but BalanceVid provides
+        * the canonical public channel identity."
+        *
+        * AND THE INSTRUCTION IS NEXT TO THE FIELD, because a
+        * domain box with nothing beside it is a box that does
+        * nothing: the owner has to point DNS at this installation
+        * and somebody has to issue a certificate, and neither of
+        * those happens because a value was typed here.
+        */}
+      <label className="small" style={{ margin: 0, fontSize: 'var(--text-xs)' }}>
+        Own domain
+        <input className="small" data-testid="station-domain"
+               defaultValue={station?.domain ?? ''}
+               placeholder="tv.yourstation.com"
+               onBlur={(event) => onStation({ domain: event.target.value })} />
+      </label>
+      <p className="small muted" data-testid="station-domain-how"
+         style={{ margin: 0, fontSize: 'var(--text-2xs)', lineHeight: 1.5 }}>
+        {station?.domain
+          ? <>Point <code>{station.domain}</code> at this server with a CNAME or
+            an A record, and give it a certificate there. Until both are done
+            the address will not answer — nothing on this page can do it
+            for you.</>
+          : <>A host you own, which will show this station and nothing else.
+            The directory keeps <code>/tv/channels/{station?.slug ?? '…'}</code> as
+            the canonical address.</>}
+      </p>
+
+      {/*
         * AND WHETHER IT IS FINDABLE AT ALL, said here rather than
         * assumed. Being listed is `publication.listed`, which is a
         * different decision from being watchable and has been in

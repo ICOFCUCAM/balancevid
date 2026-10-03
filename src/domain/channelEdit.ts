@@ -27,7 +27,7 @@ import {
 import { LAYOUTS } from './presentation.js';
 import { newId } from './ids.js';
 import {
-  GENRES, type Station, callsignProblem, slugFor, slugProblem,
+  GENRES, type Station, callsignProblem, domainProblem, slugFor, slugProblem,
 } from './station.js';
 import { setById } from './virtualSet.js';
 import { roomHostKind } from './document.js';
@@ -1213,12 +1213,57 @@ export function setStation(
       fail('a language is a tag like en, fr or sw');
     } else next.language = language;
   }
+  /*
+   * THE CUSTOM DOMAIN, WHICH IS AN ADDRESS AND SO IS CHECKED LIKE
+   * ONE. Cleared by an empty string, the way the callsign is — a
+   * field the owner can empty needs a way to say so, and
+   * `undefined` is what the patch says when it is not mentioning
+   * the field at all. [N-8]
+   */
+  if (next.domain !== undefined) {
+    const domain = next.domain.trim().toLowerCase();
+    if (!domain) delete next.domain;
+    else {
+      const wrongHost = domainProblem(domain);
+      if (wrongHost) fail(`that domain will not do: ${wrongHost}`);
+      /*
+       * AND UNIQUE, for the reason the slug is: two stations on
+       * one host is a request that resolves to whichever document
+       * the walk reached first, which is not a decision anybody
+       * made.
+       */
+      if (takenDomains(others, channel.id).has(domain)) {
+        fail('another channel already answers on that domain');
+      }
+      next.domain = domain;
+    }
+  }
   for (const field of ['description', 'logoAssetId'] as const) {
     const value = next[field]?.trim();
     if (!value) delete next[field];
     else next[field] = value.slice(0, field === 'description' ? 400 : 128);
   }
   channel.station = next;
+}
+
+/**
+ * Every custom domain in use, except this channel's own.
+ *
+ * LOWER CASED ON THE WAY OUT, because this reads documents off
+ * disk and a hand-edited file can hold `TV.Example.com`. A
+ * uniqueness check that is case-sensitive against a case-
+ * insensitive namespace lets the same host be claimed twice.
+ */
+export function takenDomains(
+  channels: Iterable<Channel>, exceptId?: string,
+): Set<string> {
+  const out = new Set<string>();
+  for (const channel of channels) {
+    if (channel.id === exceptId) continue;
+    const domain = channel.station?.domain?.trim().toLowerCase();
+    if (domain) out.add(domain);
+  }
+  return out;
 }
 
 /** Every slug in use, except this channel's own. */

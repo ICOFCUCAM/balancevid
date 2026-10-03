@@ -916,7 +916,7 @@ It was small, and it was not only small: building it was what
 found that every logo on the public network had been a 401 since
 N-4 drew it.
 
-## N-8 · Custom domains — **ADD**
+## N-8 · Custom domains — **ADD** · *built, see PART EIGHT*
 
 The station's own public identity, per the brief, and explicitly
 **not** the discovery mechanism.
@@ -1378,6 +1378,198 @@ copy is how one of them comes to say `faith`.
 And in the browser: the card's logo draws at 1600×900 where it was
 a broken image before.
 
+---
+
+# PART EIGHT · N-8, as built
+
+> *"And eventually an owner could connect `tv.redemption.example`
+> or `tv.mychannel.com`. But I would not make custom domains the
+> primary discovery mechanism… The BalanceVid directory/app is the
+> discovery layer. The domain is the station's own public
+> identity."*
+
+```
+tv.redemption.example/          ──►  that station's page
+tv.redemption.example/api/…     ──►  through, as normal
+tv.redemption.example/anything  ──►  308 to balancevid.com
+balancevid.com/anything         ──►  untouched
+```
+
+### Off until the installation says what it is called
+
+`BALANCEVID_HOST`. Nothing in the code can tell a customer's host
+from its own without being told, and guessing would turn the
+first request carrying an odd `Host` header into a station
+lookup. **With it unset every branch answers `own`** — which is
+exactly what the gate did before this existed, so a deployment
+that does not want custom domains cannot be broken by one. This
+matters more than a feature flag usually does, because the
+deployment this runs on is not configured from this repository.
+
+### Two things are served on a custom host and no more
+
+The station at `/`, and the **API and assets the station page
+reads**. A station page redirected to the canonical host for its
+stylesheet is a station page with no stylesheet; one redirected
+for its playlist is a player that cannot play. Everything else is
+a 308 to the canonical host, which is the brief stated as routing
+— and has a second effect worth naming on its own:
+
+**The control room is not reachable on a customer's domain.**
+`/t/<id>`, `/settings`, `/take` and the sign-in page are the
+product, and the product answers at the product's address.
+
+### The decision is pure and the lookup is the page's
+
+`middleware.ts` has said since it was written that *"middleware
+has no business reading storage"*, and that rule is kept. The
+gate knows only that the host is not the installation's own and
+rewrites to `/tv/station`; **that page** reads the host out of
+the request and asks `byDomain`. One is a routing decision with
+no I/O in it, which is why it can be tested as a table; the other
+is a page, which is where storage belongs.
+
+`/tv/station` renders **the same `Station` component**
+`/tv/channels/<slug>` does. A cut-down copy for custom domains is
+a second page that drifts.
+
+### What the domain is, as a value
+
+Beside the slug in `station.ts`, because both are public
+identities and the slug stays the canonical one.
+
+**Refused rather than repaired**, like every other identifier
+here. No scheme, no port, no path, no trailing dot, no IP
+address, and **punycode or nothing** — converting
+`tv.café.example` would be the quiet repair this product refuses
+everywhere else, and storing the unicode form would be a value no
+incoming request can ever equal.
+
+**The order of the clauses is the quality of the message.**
+Somebody pasting a URL out of their address bar has made one
+mistake and is told which one; checked label-first they would be
+told their domain contains an illegal character, which is true
+and useless.
+
+`hostOf` is one function with two readers — the gate comparing
+against the installation's own name, the page looking a station
+up. A port kept in one and stripped in the other is a custom
+domain that routes and then 404s, which is the worst of both.
+
+**An unlisted station answers on its domain**, which is not a
+liberty taken: the brief defines unlisted as *"works through
+direct link/domain but doesn't appear in the directory."* A
+domain is that direct link with the station's own name on it.
+Verified both ways — published unlisted, the station answered 200
+on its own host while the directory returned zero channels;
+unpublished, its own host answered 404.
+
+### The fault, found by looking for one word
+
+**The canonical tag was going to point at `localhost`.**
+
+It was written relative — `/tv/channels/<slug>` — on the
+assumption Next resolves it against the origin. It resolves a
+relative canonical against `metadataBase`, **which this product
+does not set**, so what would have gone out on a live station
+page was:
+
+```
+<link rel="canonical" href="http://localhost:3000/tv/channels/…">
+```
+
+A canonical tag pointing at a machine nobody can reach, on the
+one page whose entire job is to say where the real address is.
+Found by grepping for `metadataBase` rather than by a test,
+because a test would have had to already know what Next does with
+the relative form.
+
+`canonicalFor` builds it absolutely, and `landingFor` builds the
+308 through the same function. The redirect says *the real
+address is over there* and the tag says it to a search engine;
+built twice they eventually disagree, and a station whose
+redirect and whose canonical point at different hosts is one a
+search engine picks between. **No name configured means no tag**,
+rather than a guess.
+
+### And a guard deleted after measuring the claim attached to it
+
+A collapse of leading slashes was written against `//evil.example`
+as a protocol-relative URL — *the redirect would leave this
+installation entirely*. It survived mutation, and measuring
+showed the reason was simply wrong:
+
+```
+https://balancevid.com//evil.example     host = balancevid.com
+https://balancevid.com///evil.example    host = balancevid.com
+https://balancevid.com/\evil.example     host = balancevid.com
+https://balancevid.com/%2f%2fevil.example host = balancevid.com
+```
+
+The authority is already closed by `https://<own>`. What actually
+keeps this from being an open redirect is **one substitution**:
+the host comes from the environment and nothing a request carries
+reaches the authority — which is the mutation that *is* killed.
+Deleted rather than kept, because a guard with a false reason
+attached teaches the next reader something untrue. **The
+twenty-third.**
+
+### What N-8 does not do, and cannot
+
+**It does not get a certificate, and it does not touch DNS.**
+Those are the reverse proxy's and the owner's, and no value typed
+into a form makes either happen. The field on the Listing desk
+says so in as many words — *"nothing on this page can do it for
+you"* — because a domain box with nothing beside it is a box that
+does nothing.
+
+**It does not verify ownership.** On this installation that is
+not a live concern: there is one owner and one password, so there
+is no second tenant to take a domain from. A hosted,
+multi-tenant BalanceVid would need a proof — a TXT record, the
+usual — before accepting a claim, and that is a decision for the
+federated registry rather than for this file.
+
+**The frame on a custom host is still the network's**, nav bar
+and all, and those links 308 home. That is a trade rather than an
+oversight: the brief says *"BalanceVid provides the canonical
+public channel identity"*, and a different frame for custom
+domains is the second page that drifts. If a station ever wants
+its own chrome, that is a decision to take deliberately and not
+by letting two station pages diverge.
+
+### The record
+
+Forty-six mutations across `station.ts`, `channelEdit.ts`,
+`channelListing.ts` and `hosting.ts`, all killed. One needed a
+fixture — a station whose document holds `TV.Example.com` is
+unreachable without the lower on the stored side, and only a
+hand-edited file says that.
+
+**And one mutation was dropped as EQUIVALENT**, which is a third
+category this project had not met before. Coalescing both sides
+of `byDomain`'s comparison to `''` cannot be told apart from the
+original, because `hostOf` answers null for every empty host and
+the early return sends those away. A survivor is usually a
+missing fixture or a dead guard; this was neither, and the
+assertion stays because it states the contract the early return
+is holding.
+
+**Verified against a running server** with `BALANCEVID_HOST` set:
+
+```
+tv.balancevid.example/                200  the station, CH 100, ON AIR
+tv.balancevid.example/api/…/playlist  200  through
+tv.balancevid.example/settings        308  -> balancevid.example/settings
+tv.balancevid.example/t/<id>          308  -> balancevid.example/t/<id>
+tv.balancevid.example/tv/guide        308  -> balancevid.example/tv/guide
+balancevid.example/ /tv /settings     307 200 307, unchanged
+balancevid.example/tv/station         404
+tv.nobody.example/                    404
+
+canonical = https://balancevid.example/tv/channels/balancevid-tv
+```
+
 ## Not built
 
 - **The federated registry.** What N-6 built is allocation within
@@ -1387,11 +1579,6 @@ a broken image before.
   `connections.ts`'s standing rule about not indexing
   installations. It needs its own decision, not an extension of
   this one.
-- **N-8 · custom domains.** The station's own public identity, and
-  explicitly not the discovery mechanism. Unblocked by N-7 in one
-  respect: `originFrom` is now the single place that decides where
-  this installation answers, which is where a custom domain would
-  be read.
 - **N-9 · the mobile and CTV applications.** `/tv` is the web
   client, and the API they would consume is built. N-7 makes a
   third option real that was not on the list: **a viewer with any
@@ -1402,3 +1589,10 @@ a broken image before.
   address for one channel, the way the network offers one for all
   of them. Not built because nothing asked, and a second export
   surface should answer a request rather than anticipate one.
+- **Certificates and DNS for a custom domain.** N-8 routes a host
+  it is given; getting the host to arrive is the reverse proxy's
+  and the owner's. See PART EIGHT.
+- **Ownership proof for a custom domain.** One owner, one
+  password, no second tenant to take a domain from. A hosted
+  BalanceVid would need a TXT record before accepting a claim,
+  and that belongs with the federated registry.

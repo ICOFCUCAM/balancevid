@@ -15,6 +15,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 import { isAssetPath, mayBePublic } from './src/auth/policy.js';
 import { SESSION_COOKIE, verifySession } from './src/auth/session.js';
+import { landingFor } from './src/web/hosting.js';
 
 export const config = {
   // Everything except Next's own build output. `_next/static` is hashed
@@ -39,6 +40,37 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
   if (!passwordHash && !plain) {
     if (pathname === '/signin' || pathname === '/api/health') return NextResponse.next();
     return deny(request, 'this instance has no password configured');
+  }
+
+  /*
+   * A STATION'S OWN FRONT DOOR.  [TV-NETWORK N-8]
+   *
+   * Before the session is looked at, because a custom host is a
+   * public station whoever is asking — and after the lock above,
+   * because an unconfigured instance serves nothing to anybody.
+   *
+   * THE DECISION IS `landingFor`'s AND THE LOOKUP IS THE PAGE'S.
+   * This still reads no storage: it knows only that the host is
+   * not the one this installation answers to, so the rewrite
+   * sends the request somewhere that can go and ask.
+   *
+   * WITH `BALANCEVID_HOST` UNSET EVERY REQUEST IS `own`, which is
+   * exactly what this file did before the branch existed.
+   */
+  const landing = landingFor({
+    host: request.headers.get('x-forwarded-host') ?? request.headers.get('host'),
+    ownHost: process.env['BALANCEVID_HOST'],
+    pathname,
+    search: request.nextUrl.search,
+    proto: request.headers.get('x-forwarded-proto'),
+  });
+  if (landing.kind === 'station') {
+    return NextResponse.rewrite(new URL(landing.to, request.url));
+  }
+  if (landing.kind === 'canonical') {
+    /* 308, not 302: the canonical address is permanent and a
+       television or a crawler should stop asking the other one. */
+    return NextResponse.redirect(landing.to, 308);
   }
 
   const signedIn = passwordHash
