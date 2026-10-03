@@ -68,6 +68,33 @@ transcript is a degraded conversation, not a broken one.
 | `BALANCEVID_PASSWORD` | *(unset)* | Plaintext alternative, hashed at boot. For a first run; prefer the hash. |
 | `BALANCEVID_SESSION_HOURS` | `336` | How long a session lasts. |
 | `STREAM_QUALITY` | `standard` | What Online TV transmits: `low`, `standard` (720p), `high` (1080p) or `maximum` (1080p60). One answer for the whole deployment, read once at start — see below. |
+| `BALANCEVID_REVIEW` | *(unset)* | `1`, `true` or `yes` makes this an installation where a call is written by one person and passed by another: a new call starts as a DRAFT and walks DRAFT → SUBMITTED → REVIEW → APPROVED before it reaches the calendar. Anything else is off, which is every installation built before this existed. See below. |
+
+### An installation that reviews its calls
+
+`BALANCEVID_REVIEW` is how the BalanceVid public competition network is
+run, and it is a property of the **process**, not of an account.
+
+> *"Operating the network must not become an entitlement, because an
+> entitlement is something an account can be granted and this is the one
+> capability that cannot be."*
+
+An entitlement is a field on a record, and a record can be edited, copied
+into a backup, restored onto another machine, and granted by whoever holds
+the password. What a container was started with is none of those things.
+
+**Setting it on your own installation is fine and gains you nothing from
+anybody else's.** What it gives you is the four states, which are worth
+having wherever two people work together: one writes a call, another
+passes it, and a call under review cannot be edited by its author while
+they hold it. What it does *not* give you is any reach into another
+installation's records — there is no path function anywhere in this
+product that names a record belonging to a different installation, which
+is the actual enforcement and which no environment variable can change.
+
+**Turning it off again leaves calls where they are.** A call already in
+DRAFT, SUBMITTED, REVIEW or APPROVED keeps its state and its verbs; only
+newly created calls change where they start. Nothing migrates.
 
 ### Broadcast quality
 

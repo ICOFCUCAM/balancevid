@@ -24,7 +24,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import type { CampaignState } from '../../src/domain/campaign.js';
+import {
+  type CampaignState, beforeRunning, stillBeingWritten,
+} from '../../src/domain/campaign.js';
 import {
   type Criterion, type Judge, type Judgement, type Mark, type Verdict,
   judgementProblem, verdictSays,
@@ -54,8 +56,23 @@ interface Call {
   submitted: number;
 }
 
-/** One verb per move, which is the shape of the campaign machine. [V-2] */
+/**
+ * One verb per move, which is the shape of the campaign machine.
+ *   [V-2; GO-VIRAL V-8]
+ *
+ * THE FIVE AT THE TOP ARE DRAWN ONLY WHERE A CALL CAN BE IN ONE
+ * OF THOSE STATES, AND THAT NEEDS NO FLAG ON THIS PAGE. A desk on
+ * an installation that is not the network is showing calls that
+ * start at SCHEDULED and can never go back, so `from` never
+ * matches and the buttons never appear. The page asks the call
+ * what it is, not the installation what it may do.
+ */
 const MOVES: { action: string; says: string; from: CampaignState[] }[] = [
+  { action: 'submit', says: 'Hand it in', from: ['draft'] },
+  { action: 'review', says: 'Start looking at it', from: ['submitted'] },
+  { action: 'approve', says: 'Approve it', from: ['review'] },
+  { action: 'back', says: 'Send it back', from: ['submitted', 'review'] },
+  { action: 'schedule', says: 'Put it in the calendar', from: ['approved'] },
   { action: 'begin', says: 'Open it', from: ['scheduled'] },
   { action: 'closing', says: 'Last stretch', from: ['live'] },
   { action: 'reopen', says: 'Back to open', from: ['closing'] },
@@ -127,9 +144,32 @@ export default function Desk({ id }: { id: string }) {
         </div>
         <p className="small muted" data-testid="desk-says"
            style={{ margin: 0 }}>{call.says}</p>
+        {/*
+          * THE ADDRESS, AND WHETHER IT ANSWERS YET.
+          *   [GO-VIRAL V-8; D-03]
+          *
+          * FOUND IN A SCREENSHOT. A draft said *in the
+          * directory* under a link that 404s, because `listed`
+          * is the author's standing answer to *put this in the
+          * directory when it runs* and the page read it as *it
+          * is in the directory*. Two different sentences, and
+          * the one on the screen was the false one.
+          *
+          * SO IT IS PLAIN TEXT UNTIL THE CALL IS PASSED. A link
+          * an organiser can press and be 404'd by is worse than
+          * no link: it reads as though their call were broken
+          * rather than not yet public.
+          */}
         <p className="small muted" style={{ margin: 0 }}>
-          <a href={call.at} data-testid="desk-public">{call.at}</a>
-          {call.listed ? ' · in the directory' : ' · not listed'}
+          {beforeRunning(call) ? (
+            <span data-testid="desk-public">{call.at}</span>
+          ) : (
+            <a href={call.at} data-testid="desk-public">{call.at}</a>
+          )}
+          {beforeRunning(call)
+            ? (call.listed
+              ? ' · in the directory once it runs' : ' · not listed')
+            : (call.listed ? ' · in the directory' : ' · not listed')}
           {` · ${call.submitted} of ${call.entries} have sent something`}
         </p>
       </header>
@@ -195,7 +235,9 @@ function Scorecard(
 ) {
   const [says, setSays] = useState('');
   const [outOf, setOutOf] = useState(10);
-  const fixed = call.state !== 'scheduled';
+  /* A draft and a scheduled call are the same moment on two kinds
+     of installation: written, not yet open. [GO-VIRAL V-8] */
+  const fixed = !stillBeingWritten(call);
   return (
     <section>
       <h2 className="small muted" style={HEAD}>Marked on</h2>
@@ -222,10 +264,32 @@ function Scorecard(
           ))}
         </ul>
       )}
+      {/*
+        * AND WHY IT IS FIXED, WHICH IS NOT ONE REASON.
+        *   [GO-VIRAL V-8]
+        *
+        * FOUND IN A SCREENSHOT. A call waiting to be looked at
+        * said *the criteria cannot change while people are
+        * recording against them* — over a call nobody has
+        * recorded against, that has not opened, and that nobody
+        * outside this installation can see. The rule is right
+        * and the sentence was about a different call.
+        *
+        * THE TWO REASONS ARE GENUINELY DIFFERENT. Once a call is
+        * running, changing the scorecard re-scales marks already
+        * made. While it is being reviewed, changing it means what
+        * was passed is not what runs — and the way out is to send
+        * it back, which the page says, because a person reading
+        * *fixed* needs to know what to do rather than that they
+        * cannot.
+        */}
       {fixed ? (
         <p className="small muted" data-testid="desk-criteria-fixed" style={{ margin: 0 }}>
-          Fixed. The criteria were published before this call opened and
-          cannot change while people are recording against them.
+          {beforeRunning(call)
+            ? 'Fixed while somebody else has it. What was approved has to be '
+              + 'what runs — send it back to change the criteria.'
+            : 'Fixed. The criteria were published before this call opened and '
+              + 'cannot change while people are recording against them.'}
         </p>
       ) : (
         <div className="row" style={{ gap: 8, marginTop: 8, flexWrap: 'wrap' }}>

@@ -6,6 +6,8 @@ import {
   addConnection, asOrigin, askInstance, readConnections, removeConnection,
   type Connection,
 } from './connections.js';
+import { type HomeCall, type Row, homeFrom } from './home.js';
+import { Standing } from '../go/Go.js';
 
 /**
  * The Take App's home.  [TAKE-PLATFORM P1, P2, P3, P4, P5, P6, U5]
@@ -37,27 +39,11 @@ import {
  * person's own material comes from their own device. [D-25]
  */
 
-interface Row {
-  kind: 'music' | 'video' | 'programme';
-  /**
-   * Which installation offered it, filled in by the client.
-   *
-   * NOT SENT BY THE SERVER. Each installation answers about itself; it
-   * is this device that knows it asked three of them, and a row that
-   * carried its own origin would be a row that could claim somebody
-   * else's. [connections.ts]
-   */
-  from?: { name: string; origin: string };
-  id: string;
-  title: string;
-  author?: string;
-  publishedAt?: string;
-  respondable: boolean;
-  access: string | null;
-  state: string;
-  watch: string;
-  openToAnyone: boolean;
-}
+/*
+ * `Row` AND THE MERGE MOVED TO `home.ts` AT V-8, because the
+ * question *what does this device see when one installation is
+ * unreachable* could not be asked of a `useEffect`. [D-19]
+ */
 
 /** A request this device holds, which is the whole of "My Takes". */
 interface Mine {
@@ -108,6 +94,16 @@ const SECTIONS: { kind: Row['kind']; title: string; empty: string }[] = [
 
 export default function TakeHome() {
   const [rows, setRows] = useState<Row[] | null>(null);
+  /*
+   * THE CALLS, WHICH ARRIVED IN THE SAME ANSWER AND WERE NOT
+   * DRAWN.  [GO-VIRAL V-4, V-8]
+   *
+   * A SECTION AND NOT A FOURTH `kind`, which is the route's own
+   * reason: a call is not a fourth thing to take part in — it is
+   * a thing several of the rows above may belong to, with a
+   * deadline of its own and a page of its own.
+   */
+  const [calls, setCalls] = useState<HomeCall[]>([]);
   const [mine, setMine] = useState<Mine[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [said, setSaid] = useState<string | null>(null);
@@ -149,11 +145,17 @@ export default function TakeHome() {
       const local = await fetch('/api/participate', { cache: 'no-store' })
         .then((r) => r.json()).catch(() => ({}));
       if (!alive) return;
-      const mine = ((local.participate ?? []) as Row[]).map((row) => ({
-        ...row,
-        ...(local.instance ? { from: local.instance } : {}),
-      }));
-      setRows(mine);
+      /*
+       * THE LOCAL ANSWER IS DRAWN BEFORE ANY OTHER IS ASKED FOR,
+       * which is V-8's first claim as a sequence of two renders:
+       * *a self-hosted installation with the network's origin
+       * unreachable loses nothing of its own.* Whatever the
+       * others do or fail to do happens to a screen that is
+       * already complete.
+       */
+      const here = homeFrom(local);
+      setRows(here.rows);
+      setCalls(here.calls);
       if (local.instance) setWhereIAm(local.instance);
 
       /*
@@ -164,21 +166,14 @@ export default function TakeHome() {
       const others = readConnections()
         .filter((one) => one.origin !== window.location.origin);
       if (others.length === 0) return;
-      const answers = await Promise.all(others.map(async (one) => ({
-        one, answer: await askInstance(one.origin),
+      const answers = await Promise.all(others.map(async (connection) => ({
+        connection, answer: await askInstance(connection.origin),
       })));
       if (!alive) return;
-      const more: Row[] = [];
-      const quiet: string[] = [];
-      for (const { one, answer } of answers) {
-        if (!answer) { quiet.push(one.origin); continue; }
-        for (const row of answer.rows as Row[]) {
-          more.push({ ...row, from: answer.instance });
-        }
-      }
-      setAsleep(quiet);
-      setRows([...mine, ...more].sort(
-        (a, b) => (b.publishedAt ?? '').localeCompare(a.publishedAt ?? '')));
+      const all = homeFrom(local, answers);
+      setAsleep(all.asleep);
+      setRows(all.rows);
+      setCalls(all.calls);
     })();
     return () => { alive = false; };
   }, [loaded]);
@@ -270,6 +265,55 @@ export default function TakeHome() {
                   <a className="btn ctl sm" data-testid="mine-open"
                      href={`/take/${encodeURIComponent(one.link)}`}>
                     Open
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {/*
+          * CALLS ABOVE EVERYTHING BUT A PERSON'S OWN TAKES.
+          *   [GO-VIRAL §1, V-4, V-8]
+          *
+          * A call is the one row on this screen with a deadline on
+          * it, and the loop section 1 describes starts with
+          * somebody seeing one. Below the four sections it would
+          * be below everything a first-time visitor scrolls past.
+          *
+          * AND THE LIST IS MERGED ACROSS INSTALLATIONS, which is
+          * the whole of V-8's third claim drawn: the BalanceVid
+          * public competition network is one more connection, its
+          * calls sit next to a friend's self-hosted ones, and the
+          * link goes to ITS OWN `/go` page where the ordinary Take
+          * protocol takes over. Nothing is proxied through here.
+          */}
+        {calls.length > 0 && (
+          <section data-testid="section-calls">
+            <h2 style={heading}>Open calls</h2>
+            <ul style={list}>
+              {calls.map((one) => (
+                <li key={`${one.from?.origin ?? ''}${one.id}`}
+                    data-testid="call-row" data-open={one.open ? 'yes' : 'no'}
+                    style={card}>
+                  <div className="grow" style={{ minWidth: 0 }}>
+                    <div style={{
+                      fontSize: 'var(--text-sm)', overflow: 'hidden',
+                      textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>{one.title}</div>
+                    <div className="small muted"
+                         style={{
+                           fontSize: 'var(--text-2xs)', overflow: 'hidden',
+                           textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                         }}>
+                      {connections.length > 0 && one.from
+                        ? `${one.from.name} · ${one.asks}` : one.asks}
+                    </div>
+                  </div>
+                  <Standing call={one} />
+                  <a className="btn ctl sm" data-testid="call-open"
+                     data-at={one.at} href={one.at}>
+                    Look
                   </a>
                 </li>
               ))}
