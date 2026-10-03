@@ -109,6 +109,11 @@ export async function GET(_request: Request, { params }: Params): Promise<Respon
       ...viewFor(request),
       createdAt: request.createdAt,
       expiresAt: request.expiresAt,
+      /*
+       * THE CALL IT ANSWERS, so the inbox can show one row
+       * instead of a hundred. [GO-VIRAL V-2]
+       */
+      ...(request.campaign ? { campaign: request.campaign } : {}),
       submissions: (request.submissions ?? []).map((submission) => ({
         id: submission.id,
         /*

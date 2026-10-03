@@ -213,6 +213,23 @@ export interface ParticipationRequest {
    * ARRIVED and nothing about what it is. [D-19]
    */
   claimed?: boolean;
+  /**
+   * The call this request is one answer to.  [GO-VIRAL V-2]
+   *
+   * ONE OPTIONAL FIELD, AND ABSENT IS WHAT EVERY EXISTING REQUEST
+   * IS. A producer inviting four people to sing on a song has made
+   * four requests and no call; a hundred strangers answering a
+   * campaign have made a hundred requests and one. The difference
+   * is worth recording and is not worth a second kind of request.
+   *
+   * IT CHANGES NOTHING ABOUT THE LIFECYCLE. `REQUEST_NEXT`,
+   * `mayMove`, `advance`, `submit`, `accept` and `viewFor` are
+   * untouched — a campaign READS requests and never advances one,
+   * which is D-25 applied to a container: the participant still
+   * holds only a request, and `viewFor` stays the one gate on what
+   * they are told. [GO-VIRAL §4]
+   */
+  campaign?: Id<'camp'>;
   state: RequestState;
   createdAt: string;
   /** When the state last changed, and to what it was changed by whom. */

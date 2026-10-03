@@ -1364,7 +1364,7 @@ to today; an item with a window stops accepting at the minute it
 says, and says so before it does. And a `licensed` master with no
 licence note cannot be opened to anyone.
 
-## V-2 · The campaign is an object, and it is not a second request — **ADD**
+## V-2 · The campaign is an object, and it is not a second request — **ADD**  ·  *built, PART SIX*
 
 **What exists today.** `ParticipationRequest` with its ten states,
 `REQUEST_NEXT` as a readable table, and `claimed` distinguishing a
@@ -2127,3 +2127,192 @@ had wrong was the half that mattered — the uncalled rule was not
 the one the document named. A ledger entry that is nearly true is
 worth correcting in place, because the next stage reads it as
 given.
+
+---
+
+# PART SIX — V-2, as built
+
+> *"A campaign moves through states and they are not the same
+> states a single person's invitation moves through."*
+>
+> **Judged on:** *"A hundred claimed requests under one campaign
+> are listed as one call in the inbox; every request made before
+> this stage reads and behaves exactly as it did; and a campaign
+> cannot be moved to JUDGING while its window is open."*
+
+## A second noun, not a second protocol
+
+```
+src/domain/campaign.ts       the model and the table
+src/domain/campaignEdit.ts   the rules
+src/store/campaigns.ts       the fifth store, under owned()
+app/api/campaigns[/id]       open one, list them, move one along
+```
+
+`ParticipationRequest` gained **one optional field** — `campaign?:
+CampaignId` — and absent is what every request on disk already is.
+`REQUEST_STATES`, `REQUEST_NEXT`, `mayMove`, `advance`, `submit`,
+`accept`, `reject`, `attach`, `rotate`, `viewFor`, `takesLeft` and
+`takesMade` are untouched. A campaign reads requests; it never
+advances one.
+
+## Six states, and the four in front of them left out
+
+```
+scheduled ─► live ⇄ closing ─► judging ─► results ─► completed
+```
+
+**`closing` returns to `live`** and nothing else does. The only
+thing that makes a call closing is how much of its window is left,
+so an organiser who extends the deadline has a live call again —
+not a call stuck in its last stretch. Entries never reopen once
+judging has seen the field: that is the one thing a competition
+cannot allow.
+
+**DRAFT → SUBMITTED → REVIEW → APPROVED are deliberately absent.**
+They only mean something with two parties, and on one installation
+there is one account, one password and one owner. An owner
+submitting a campaign to themselves and approving it is ceremony
+with the same person on both sides, and a guard nobody enforces
+teaches people to click through. They arrive with the network at
+V-8, and the list has room at the front rather than an invented
+authority.
+
+## Two answers, and they disagree on purpose
+
+```
+state        where somebody moved this call to
+clockSays    where its window says it should be
+```
+
+They differ whenever nobody has pressed the button yet — and a
+surface showing only the first says LIVE about a call that shut an
+hour ago, while one showing only the second cannot tell JUDGING
+from RESULTS, because the clock has nothing to say about either.
+Both are in the listing. The clock answers only the three states
+it knows about and is silent after entries close.
+
+**The window is V-1's own `TakeAvailability`**, read by V-1's own
+`isOpenAt`, so a call and the item it is about cannot come to
+different conclusions about whether it is open. What a campaign
+adds is a NAME for the period, which is what `state` is. [D-19]
+
+**And the last stretch is the organiser's number.** *"CLOSING is
+the last stretch, where the countdown is the point"* — a different
+length for a weekend challenge and a three-month album campaign.
+A constant here would be this product deciding for both; absent
+means a day.
+
+## Judging cannot start while entries are arriving
+
+The one rule a competition cannot bend, and V-2's own criterion. A
+panel that starts while entries are still coming is judging a
+different field from the one that entered — so `mayJudge` asks the
+window as well as the state, and `moveDeadline` refuses once
+judging has begun, because extending a call then would let
+somebody enter knowing what they are competing against.
+
+## The inbox shows a call, not a hundred strangers
+
+A producer who opened a song to the public has **one** thing to
+think about and a hundred things to look at. Before this, the
+inbox drew a hundred rows that looked exactly like a hundred
+people they had invited by name — which is the same failure B-3
+found one layer down, where four angles of one capture arrived as
+four strangers.
+
+`entriesIn` groups them, with a call standing where its FIRST
+answer stood so the list does not reshuffle when the ninety-ninth
+arrives. A request answering no call is a group of one, which is
+every request this product has ever issued.
+
+## Which call a request belongs to, and when there is no answer
+
+The call is stamped at the moment the request is made, because
+that is the only moment it is known: a request that learned later
+which campaign it belonged to would be a campaign that could
+gather entries it never opened for.
+
+**With two calls open on one track, nothing is stamped.** A song
+may have several — *"France Launch Challenge, Global Take
+Challenge, TikTok Performance Challenge"* — and the discovery
+door names a SONG, not a call. Guessing which one somebody meant
+would put their entry in a competition they never read the rules
+of. They get a request belonging to no call, which is what every
+request was before this stage, and V-4's campaign page is the door
+that names one.
+
+## Measured on the running product
+
+```
+GET  /api/campaigns   without a session          401
+
+POST /api/campaigns   opens one                  state=scheduled
+POST .../judge        before it is even live     409  "still taking entries"
+POST .../begin                                   state=live   clock=live
+
+three strangers press "Take this song"           201, 201, 201
+                                                 all three stamped with the call
+
+the organiser's list      state=live clock=live entries=3  "Open for takes."
+POST .../judge            while entries arrive   409  "still taking entries"
+
+POST .../deadline  → a minute ago
+                          state=live clock=over
+                          "The deadline has passed. Nothing more can be entered."
+POST .../judge                                   state=judging
+```
+
+```
+the inbox
+
+  Anybody with the link                 created
+  Sing along to "balancevid-e2e-song"
+  [Hold] [Pass] [New link]
+
+  An open call                        3 entries
+  Sing along to "balancevid-e2e-song"
+  0 of 3 have sent something
+```
+
+## A 201 that reads like a leak and is not
+
+A fourth stranger pressed the button **after** the deadline, and
+got 201. Reading why is what turned an implicit behaviour into a
+stated one.
+
+**Two clocks, two meanings.** The song's window is the producer
+saying *anybody may send me a take of this*; the call's is a
+competition on that song with its own deadline. When the
+competition shuts, somebody may still sing — they are simply not
+in it, and the entry carries no call. The call's own count did not
+move. A producer who wants both to shut together sets both, which
+is exactly what V-1 gave them.
+
+## The record
+
+**Thirty-five mutations across `campaign.ts`, `campaignEdit.ts`
+and the claim route — all killed, against a baseline checked
+first.** No clause deleted.
+
+**Two survived the first pass and both were real:**
+
+1. **`mayJudge` answered for the clock and not the state.**
+   `beginJudging` was covered either way, because the state table
+   catches it afterwards — but `mayJudge` is the predicate a
+   SURFACE asks, and a button offered on a scheduled call whose
+   window has passed is a button that refuses the person who
+   presses it.
+2. **Nothing tested that the claim route stamps anything.** The
+   route was covered by reading its source for call shapes, which
+   a version that stamped the wrong call would satisfy. It is
+   driven now: a temporary store, a published song, a live call,
+   three presses, and an assertion on what landed on disk.
+
+**And one thing the build caught that no test could.** A Next.js
+route file may export only its handlers; `export const MOVES` —
+a list of states for a surface to offer, which nothing offered —
+made `app/api/campaigns/route.ts` *"not match the required types
+of a Next.js Route."* Deleted rather than moved: a list nobody
+reads is the thing this project removes, and the framework
+happened to say so first.

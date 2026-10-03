@@ -6,6 +6,7 @@ import { useConfirm } from '../../Confirm.js';
 import ShareLink from '../../ShareLink.js';
 import { HOUSE_SAMPLE_RATE, formatMasterPosition } from '../../../src/domain/time.js';
 import { angleSays, arrivalsIn, spreadSays } from '../../../src/domain/angles.js';
+import { entriesIn } from '../../../src/domain/campaign.js';
 
 /**
  * Inviting performers, and what comes back.
@@ -62,6 +63,8 @@ interface RequestRow {
   createdAt?: string;
   expiresAt?: string;
   submissions?: Submission[];
+  /** The call this is one answer to, where there is one. [V-2] */
+  campaign?: `camp_${string}`;
 }
 
 export default function PerformersPanel({
@@ -269,7 +272,54 @@ export default function PerformersPanel({
             listStyle: 'none', margin: 0, padding: 0,
             display: 'flex', flexDirection: 'column', gap: 6,
           }}>
-            {rows.map((row) => (
+            {/*
+              * ONE CALL, NOT A HUNDRED STRANGERS.  [GO-VIRAL V-2]
+              *
+              * A producer who opened a song to the public has ONE
+              * thing to think about and a hundred things to look
+              * at — and before this the inbox drew a hundred rows
+              * that looked exactly like a hundred people they had
+              * invited by name. Which is the same failure B-3
+              * found one layer down, where four angles of one
+              * capture arrived as four strangers.
+              *
+              * A request answering no call is a group of one, not
+              * a special case, which is every request this product
+              * has ever issued.
+              */}
+            {entriesIn(rows).map((group) => (group.campaign ? (
+              <li key={group.campaign} data-testid="performers-call"
+                  data-entries={group.requests.length}
+                  style={{
+                    display: 'flex', flexDirection: 'column', gap: 5,
+                    padding: '7px 8px', borderRadius: 'var(--radius-sm)',
+                    border: 'var(--border) solid var(--accent)',
+                    background: 'var(--surface-sunk)',
+                  }}>
+                <div className="row" style={{ gap: 6, alignItems: 'baseline' }}>
+                  <span className="grow" style={{
+                    fontSize: 'var(--text-sm)',
+                    fontWeight: 'var(--weight-semi)',
+                  }}>An open call</span>
+                  <span className="small muted" data-testid="performers-entry-count">
+                    {group.requests.length === 1
+                      ? '1 entry' : `${group.requests.length} entries`}
+                  </span>
+                </div>
+                <p className="small muted" style={{ margin: 0 }}>
+                  {group.requests[0]?.assignment.asks}
+                </p>
+                {/*
+                  * HOW MANY HAVE ACTUALLY SENT SOMETHING, which is
+                  * the number a producer acts on: a hundred people
+                  * pressed the button and eleven of them sang.
+                  */}
+                <p className="small muted" style={{ margin: 0 }}>
+                  {`${group.requests.filter((one) => (one.submissions ?? []).length > 0)
+                    .length} of ${group.requests.length} have sent something`}
+                </p>
+              </li>
+            ) : group.requests.map((row) => (
               <li key={row.id} data-testid="performers-row" data-state={row.state}
                   style={{
                     display: 'flex', flexDirection: 'column', gap: 5,
@@ -457,7 +507,7 @@ export default function PerformersPanel({
                   </button>
                 </div>
               </li>
-            ))}
+            ))))}
           </ul>
         </div>
       )}

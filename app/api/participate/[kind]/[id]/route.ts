@@ -4,6 +4,8 @@ import { isRespondable } from '../../../../../src/domain/document.js';
 import {
   claimsAllowed, isListed, mayClaim, maySubmit,
 } from '../../../../../src/domain/availability.js';
+import { callFor } from '../../../../../src/domain/campaign.js';
+import { listCampaigns } from '../../../../../src/store/campaigns.js';
 import { loadPerformance } from '../../../../../src/store/performances.js';
 import { loadConversation } from '../../../../../src/store/repository.js';
 import { loadChannel } from '../../../../../src/store/channels.js';
@@ -94,6 +96,33 @@ export async function POST(_request: Request, { params }: Params): Promise<Respo
     .filter((one) => one.claimed
       && one.holder.kind === holderKind && one.holder.id === holderId).length;
 
+  /*
+   * AND WHICH CALL THEY ARE ANSWERING, WHERE THERE IS ONE.
+   *   [GO-VIRAL V-2]
+   *
+   * A hundred strangers pressing this button produced a hundred
+   * requests and no record that they were answering one thing.
+   * The call is stamped here, at the moment the request is made,
+   * because that is the only moment it is known — a request that
+   * learned later which campaign it belonged to would be a
+   * campaign that could gather entries it never opened for.
+   *
+   * ONLY WHERE THERE IS NO QUESTION WHICH ONE. A track may have
+   * several calls, and this door names a document rather than a
+   * call. `callFor` answers nothing when two are open, and the
+   * request belongs to none — which is what every request was
+   * before this stage. [GO-VIRAL §3]
+   *
+   * THE SAME SCAN `claimsSoFar` MAKES, and honest about its cost
+   * for the same reason: O(campaigns) per claim, at the scale one
+   * installation holds, with no index. If that stops being true
+   * the call belongs on the holder.
+   */
+  const callOn = async (holder: { kind: 'performance' | 'conversation' | 'channel'; id: string }) => {
+    const found = callFor(await listCampaigns(), holder, now);
+    return found ? { campaign: found.id } : {};
+  };
+
   try {
     if (kind === 'music') {
       const performance = await loadPerformance(id);
@@ -120,6 +149,7 @@ export async function POST(_request: Request, { params }: Params): Promise<Respo
         allowed: { video: true, takes: 3 },
         token: newSecret(),
         claimed: true,
+        ...(await callOn({ kind: 'performance', id: performance.id })),
         now,
       });
       await saveRequest(request);
@@ -146,6 +176,7 @@ export async function POST(_request: Request, { params }: Params): Promise<Respo
         allowed: { video: true, takes: 3 },
         token: newSecret(),
         claimed: true,
+        ...(await callOn({ kind: 'conversation', id: conversation.id })),
         now,
       });
       await saveRequest(request);
@@ -170,6 +201,7 @@ export async function POST(_request: Request, { params }: Params): Promise<Respo
         allowed: { video: true, takes: 3 },
         token: newSecret(),
         claimed: true,
+        ...(await callOn({ kind: 'channel', id: channel.id })),
         now,
       });
       await saveRequest(request);

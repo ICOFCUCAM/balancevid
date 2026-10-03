@@ -248,6 +248,26 @@ export const paths = {
     join(paths.request(id), 'chunks', safe(submissionId),
       ...(track > 0 ? [`t${Math.floor(track)}`] : [])),
 
+  /**
+   * The calls this account has opened.  [GO-VIRAL V-2]
+   *
+   * A FIFTH STORE BESIDE THE FOURTH, for the reason D-25 gives
+   * about the fourth: a campaign is not part of a production
+   * either, and it is not a request. It contains N of them and
+   * outlives all of them, so it cannot live inside one — and a
+   * campaign written into a performance would be a call that
+   * disappeared when somebody deleted the song it was about.
+   *
+   * UNDER `owned()`, like everything else an account holds. A
+   * campaign on the public competition network is a different
+   * installation's record, reached as a connection, which is
+   * V-8's whole argument. [GO-VIRAL, separation one]
+   */
+  campaigns: () => join(owned(), 'campaigns'),
+  campaign: (id: string) => join(paths.campaigns(), safe(id)),
+  campaignDocument: (id: string) =>
+    join(paths.campaign(id), 'campaign.json'),
+
   channels: () => join(owned(), 'channels'),
   channel: (id: string) => join(paths.channels(), safe(id)),
   /**
