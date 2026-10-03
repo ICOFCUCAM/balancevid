@@ -2,17 +2,37 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 
 import { bySlug, listingFor } from '../../../../src/domain/channelListing.js';
+import type { Assignments } from '../../../../src/domain/registry.js';
 import { nowAndNext } from '../../../../src/domain/onAir.js';
+import { lineupFor } from '../../../../src/store/lineup.js';
 import { listChannels } from '../../../../src/store/channels.js';
 import { TvFrame } from '../../Tv.js';
 import Station from './Station.js';
 
 export const dynamic = 'force-dynamic';
 
+/**
+ * The channel at this address, with its number.
+ *
+ * THE NUMBER WAS MISSED HERE AND NOT IN THE API, which is the
+ * cost of resolving the same channel twice. The route and the
+ * page each find it, each build a listing, and only one of them
+ * was taught about the lineup — so the API answered `100` while
+ * the page it serves drew nothing. Found by looking at the page
+ * after reading the right answer out of the endpoint.
+ *
+ * Kept as two resolvers rather than one for now, because the page
+ * must render on the server without a round trip to itself; the
+ * duplication is the shape of that, and this comment is the
+ * marker for the day a third caller appears. [D-19]
+ */
 async function found(slug: string) {
-  const channel = bySlug(await listChannels().catch(() => []), slug);
+  const channels = await listChannels().catch(() => []);
+  const channel = bySlug(channels, slug);
   if (!channel) return null;
-  const listing = listingFor(channel);
+  const lineup: Assignments = await lineupFor(channels.map((one) => one.id))
+    .catch(() => ({}));
+  const listing = listingFor(channel, lineup[channel.id]);
   return listing ? { channel, listing } : null;
 }
 
