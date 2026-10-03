@@ -1,6 +1,7 @@
 'use client';
 
 import type { RecordingSink } from '../../p/[id]/useMasterRecording.js';
+import { deviceSays } from '../../../src/domain/participation.js';
 import {
   type TrackSpec, declarePath, piecePath, sendPath,
 } from '../../../shared/src/submit.js';
@@ -134,7 +135,18 @@ export function takeSink(
     finish: async (id, spec) => {
       keep(id, {
         ...spec,
-        device: typeof navigator === 'undefined' ? undefined : navigator.userAgent,
+        /*
+         * WHAT RECORDED IT, SHORTENED BEFORE IT LEAVES.  [V-7]
+         *
+         * This sent `navigator.userAgent` whole. The server
+         * shortens it anyway — an installed phone holds its own
+         * copy of this file, so the server is the only place that
+         * covers every client — but a build string that is going
+         * to be thrown away is a build string with no reason to
+         * be on the wire. [`deviceSays`, D-03]
+         */
+        device: typeof navigator === 'undefined'
+          ? undefined : deviceSays(navigator.userAgent),
         ...(track > 0 ? { track } : {}),
       });
       return {};

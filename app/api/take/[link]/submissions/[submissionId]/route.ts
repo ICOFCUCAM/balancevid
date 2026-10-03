@@ -9,7 +9,7 @@ import { currentTerms, entryProblem } from '../../../../../../src/domain/campaig
 import { callOf } from '../../../../../../src/store/campaigns.js';
 import { paths } from '../../../../../../src/store/paths.js';
 import { mutateRequest, requestForLink } from '../../../../../../src/store/requests.js';
-import { viewFor } from '../../../../../../src/domain/participation.js';
+import { deviceSays, viewFor } from '../../../../../../src/domain/participation.js';
 import { fail, json } from '../../../../../../src/web/http.js';
 
 export const dynamic = 'force-dynamic';
@@ -201,17 +201,27 @@ export async function PUT(request: Request, { params }: Params): Promise<Respons
           ...(Number.isFinite(one.track.hintSamples)
             ? { offsetSamples: Math.round(one.track.hintSamples!) } : {}),
           /*
-           * WHAT RECORDED IT, as the client reports it and nothing more.
-           * A producer with twenty submissions and one that is out of
-           * sync needs to know which device; nothing decides anything
-           * from this string. Bounded, because it arrives from a phone.
+           * WHAT RECORDED IT. A producer with twenty submissions and
+           * one that is out of sync needs to know which device;
+           * nothing decides anything from this string.
            *
            * PER ANGLE WHERE THERE ARE ANGLES, because on a capture
            * station the four are four cameras on one machine and the
            * camera is the answer to "which one is out".
+           *
+           * AND SHORTENED HERE RATHER THAN TRUSTED.  [GO-VIRAL V-7]
+           *
+           * This was `String(...).slice(0, 120)`, and what the Take
+           * App put in it was `navigator.userAgent` — a build string
+           * written into a document kept forever, against the entry
+           * of somebody who was asked for no account. Reduced at the
+           * SERVER and not only in the client, because an installed
+           * phone holds its own copy of the page and a client that
+           * has not updated is the one this has to cover.
+           * [`deviceSays`]
            */
           ...(one.track.device ?? body.device
-            ? { device: String(one.track.device ?? body.device).slice(0, 120) } : {}),
+            ? { device: deviceSays(String(one.track.device ?? body.device)) } : {}),
           /*
            * ONLY WHEN THERE IS SOMETHING TO BELONG TO. A single
            * recording carries no membership — not an empty one — so

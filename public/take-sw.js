@@ -31,7 +31,14 @@ importScripts('/take-app/queue.js');
  * way no matter what the server learned to accept. Changing the file
  * without changing this line is changing a file nobody receives.
  */
-const SHELL = 'balancevid-take-shell-v2';
+/*
+ * v3 IS THE WATCH LIST.  [GO-VIRAL V-7] `queue.js` gained a second
+ * store and a second version of the database, and a phone that has
+ * installed the app holds a COPY of that file — so a device left on
+ * v2 would go on opening the database at version 1 and never see
+ * the store the worker below reads.
+ */
+const SHELL = 'balancevid-take-shell-v3';
 
 /*
  * WHAT IS WORTH HOLDING OFFLINE, AND NOTHING MORE.
@@ -128,4 +135,114 @@ self.addEventListener('message', (event) => {
   if (event.data && event.data.kind === 'take-drain') {
     event.waitUntil(self.TakeQueue.drain());
   }
+});
+
+/* ------------------------------------------------------------------ *
+ *  THE NEWS.  [GO-VIRAL V-7; Doctrine D-03, D-25]
+ * ------------------------------------------------------------------ */
+
+/*
+ * THE PHONE ASKS; NOTHING IS SENT TO IT.
+ *
+ * There is no push subscription here and there is no address on the
+ * request — *"no email, no phone number, no third-party push
+ * identity."* What this device has is the link, which is the address
+ * it was opened at, and what it does with it is ask. The
+ * installation learns nothing it did not already know: a GET on a
+ * link somebody holds is what the Take App does every time it opens.
+ *
+ * WHICH IS WHY THERE IS NO SERVER TO TRUST WITH THIS. A Web Push
+ * endpoint is an address, stored on an installation, that a third
+ * party can deliver to — and the whole claim of this layer is that a
+ * participant is a person with a link and nothing else.
+ *
+ * WHAT IT COSTS, STATED: this only fires when the browser wakes the
+ * worker. Chrome gives `periodicsync` to an installed app it trusts;
+ * everything else gives nothing, and on an iPhone the device learns
+ * the moment the page is next opened — which is what happens today
+ * and remains correct. A device that declined notifications loses
+ * the notification and nothing else: the page says the same thing
+ * when it is opened.
+ */
+async function askAbout(link) {
+  const answer = await fetch(`/api/take/${encodeURIComponent(link)}`, {
+    cache: 'no-store',
+  }).catch(() => null);
+  /*
+   * A LINK THAT IS NO LONGER OPEN STOPS BEING WATCHED. Rotated,
+   * expired, attached: the device has nothing more to hear and no
+   * reason to keep asking. A network failure is not that, and is
+   * left alone to be tried again.
+   */
+  if (answer && answer.status === 404) {
+    await self.TakeWatch.unwatch(link);
+    return;
+  }
+  if (!answer || !answer.ok) return;
+
+  const body = await answer.json().catch(() => null);
+  const outcome = body && body.request && body.request.outcome;
+  if (!outcome || !outcome.state) return;
+
+  const saw = await self.TakeWatch.saw(link);
+  /* Nothing has changed since this device was last told. */
+  if (saw === outcome.state) return;
+
+  await self.TakeWatch.watch(link, outcome.state);
+  /*
+   * AND THE WORD IS WRITTEN DOWN BEFORE THE NOTIFICATION IS SHOWN,
+   * so a device whose permission was withdrawn — or whose browser
+   * refuses — is not asked again on every wake about news it
+   * already has. The page tells them when they open it.
+   */
+  if (self.Notification && self.Notification.permission === 'granted') {
+    await self.registration.showNotification('Your take', {
+      body: outcome.says,
+      tag: `take-${link}`,
+      data: { link },
+    }).catch(() => undefined);
+  }
+}
+
+async function askAboutEverything() {
+  if (!self.TakeWatch) return;
+  const rows = await self.TakeWatch.watching().catch(() => []);
+  for (const row of rows) await askAbout(row.link);
+}
+
+self.addEventListener('sync', (event) => {
+  if (event.tag !== 'take-watch') return;
+  event.waitUntil(askAboutEverything());
+});
+
+self.addEventListener('periodicsync', (event) => {
+  if (event.tag !== 'take-watch') return;
+  event.waitUntil(askAboutEverything());
+});
+
+/* And a page that has just been opened may ask on this device's behalf. */
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.kind === 'take-watch') {
+    event.waitUntil(askAboutEverything());
+  }
+});
+
+/*
+ * TAPPING IT OPENS THE LINK IT IS ABOUT, which is the only address
+ * this worker knows and the only page that can say more. An existing
+ * window on that link is focused rather than a second one opened.
+ */
+self.addEventListener('notificationclick', (event) => {
+  const link = event.notification.data && event.notification.data.link;
+  event.notification.close();
+  if (!link) return;
+  const at = `/take/${encodeURIComponent(link)}`;
+  event.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+    .then((windows) => {
+      for (const one of windows) {
+        if (one.url.includes(at) && 'focus' in one) return one.focus();
+      }
+      return self.clients.openWindow(at);
+    })
+    .catch(() => undefined));
 });

@@ -39,8 +39,19 @@
   'use strict';
 
   var DB = 'balancevid-take';
-  var VERSION = 1;
+  /*
+   * v2 ADDS THE WATCH LIST.  [GO-VIRAL V-7]
+   *
+   * A SECOND STORE IN THE SAME DATABASE, and in the same file,
+   * for this file's own stated reason: the page and the service
+   * worker both open it, and two scripts opening one IndexedDB
+   * with different version expectations is a database that
+   * refuses to open for whichever of them is behind. What is
+   * true of the queue is true of anything beside it.
+   */
+  var VERSION = 2;
   var STORE = 'chunks';
+  var WATCH = 'watch';
 
   /*
    * A BACKOFF, NOT A HAMMER. A phone that has just lost signal will not
@@ -60,17 +71,22 @@
           var store = db.createObjectStore(STORE, { keyPath: 'key' });
           store.createIndex('submission', 'submissionId', { unique: false });
         }
+        /* Added at v2; a phone upgrading from v1 keeps its chunks. */
+        if (!db.objectStoreNames.contains(WATCH)) {
+          db.createObjectStore(WATCH, { keyPath: 'link' });
+        }
       };
       request.onsuccess = function () { resolve(request.result); };
       request.onerror = function () { reject(request.error); };
     });
   }
 
-  function tx(mode, run) {
+  function tx(mode, run, which) {
     return open().then(function (db) {
       return new Promise(function (resolve, reject) {
-        var transaction = db.transaction(STORE, mode);
-        var store = transaction.objectStore(STORE);
+        var name = which || STORE;
+        var transaction = db.transaction(name, mode);
+        var store = transaction.objectStore(name);
         var out = run(store);
         transaction.oncomplete = function () { db.close(); resolve(out && out.value); };
         transaction.onerror = function () { db.close(); reject(transaction.error); };
@@ -265,5 +281,69 @@
     broken: broken,
     forget: forget,
     keyOf: keyOf,
+  };
+
+  /* ---------------------------------------------------------------- *
+   *  The links this device is waiting to hear about.
+   *    [GO-VIRAL V-7; Doctrine D-03, D-25]
+   * ---------------------------------------------------------------- */
+
+  /*
+   * THE WHOLE OF WHAT IS STORED, AND IT IS STORED HERE.
+   *
+   * A participant has no account on this installation and the
+   * request holds no address — *"no email, no phone number, no
+   * third-party push identity written into a request."* So the
+   * list of what a phone is waiting to hear about lives ON THE
+   * PHONE, beside the queue, in the same database the worker
+   * already opens. Nothing is sent anywhere to start watching and
+   * nothing can be revoked from a server, because there is
+   * nothing on a server to revoke.
+   *
+   * WHAT A ROW IS: the link, which the device already has because
+   * it is the address it was opened at, and the last thing it was
+   * told — so a notification fires when that CHANGES rather than
+   * every time the worker wakes.
+   *
+   * CLEARING THE BROWSER'S DATA ENDS IT, and that is the right
+   * shape: this is a phone remembering something, and forgetting
+   * is what a phone that was wiped should do.
+   */
+
+  function watch(link, saw) {
+    return tx('readwrite', function (store) {
+      store.put({ link: link, saw: saw || '', at: Date.now() });
+    }, WATCH);
+  }
+
+  function unwatch(link) {
+    return tx('readwrite', function (store) { store.delete(link); }, WATCH);
+  }
+
+  /** Every link this device is waiting on. */
+  function watching() {
+    return tx('readonly', function (store) {
+      var out = { value: [] };
+      var request = store.getAll();
+      request.onsuccess = function () { out.value = request.result || []; };
+      return out;
+    }, WATCH).then(function (rows) { return rows || []; });
+  }
+
+  /** What this device was last told about one link. */
+  function sawOf(link) {
+    return watching().then(function (rows) {
+      for (var i = 0; i < rows.length; i += 1) {
+        if (rows[i].link === link) return rows[i].saw || '';
+      }
+      return null;
+    });
+  }
+
+  scope.TakeWatch = {
+    watch: watch,
+    unwatch: unwatch,
+    watching: watching,
+    saw: sawOf,
   };
 }(self));

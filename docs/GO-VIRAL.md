@@ -1758,7 +1758,7 @@ word, because a paragraph explaining why the playout path knows
 nothing about campaigns would otherwise be a violation of its own
 test. [T-1]
 
-## V-7 · The loop closes on the participant's own device — **UPGRADE**
+## V-7 · The loop closes on the participant's own device — **UPGRADE**  ·  *built, PART ELEVEN*
 
 **What exists today.** `public/take-sw.js`, registered from
 `app/take/[link]/queue.ts:111`, already waking without a page open
@@ -1783,6 +1783,87 @@ third-party push identity written into a request.
 told the result without the installation ever holding anything that
 identifies its owner; and a device that declined notifications
 loses nothing but the notification.
+
+**What was built, and the four places it is not what this section
+said.**
+
+**One. The phone asks; nothing is sent to it.** This section says
+*"through the worker it already has"*, and the shape that follows
+from *"no address stored anywhere"* is the one it does not name:
+there is no Web Push here, because a push endpoint IS an address,
+stored on an installation, that a third party delivers to. What
+the device has is the link — the address it was opened at — and
+what it does with it is a GET, which is what the Take App does
+every time it opens. The installation learns nothing it did not
+already know, and a test reads the request document byte for byte
+before and after five asks.
+
+**Two. The watch list is a second store in the queue's own
+database.** `public/take-app/queue.js` already argues that the
+page and the worker must load one file, because *"two copies of a
+queue is how a queue develops two different ideas of what is in
+it."* The same is true of the database: two scripts opening one
+IndexedDB at different versions is a database that refuses
+whichever is behind. So the list of links a device is waiting on
+lives beside the chunks, at version 2, and `SHELL` went to v3 —
+because a phone that installed the app holds a COPY of that file
+and would otherwise open the database at version 1 forever.
+
+**Three. The outcome is a word and a sentence.** The word is what
+a device compares — it holds the last one it was told and says
+nothing until that changes — and the sentence is what a person
+reads. A notification built by diffing prose would fire every time
+a reason was reworded. And the order is written down rather than
+left to whichever branch came first: **the result outranks the
+acceptance**, because somebody who entered a competition and whose
+take was also used has had two pieces of news and the one they
+entered for is where they came.
+
+**Four. The permission is asked for separately from the
+watching.** A refusal costs the notification and nothing else: the
+device goes on watching, the worker goes on recording what it
+learns, and the page says the sentence the next time the link is
+opened — *"which is what happens today and remains correct."* The
+worker writes the word down BEFORE it shows anything, so a device
+whose permission was withdrawn is not asked again on every wake
+about news it already has.
+
+**What it costs, stated.** The worker only runs when the browser
+wakes it. Chrome gives `periodicsync` to an installed app it
+trusts, Background Sync is most things but not Safari, and on an
+iPhone the device learns the moment the page is next opened. The
+page is the one surface that always works, which is why opening it
+is also what records that the person has been told.
+
+**And the user agent came off the request.** A browser run
+checking this stage's own claim — *"without the installation ever
+holding anything that identifies its owner"* — found
+`Submission.device` holding `navigator.userAgent` whole: eighty
+characters of build string written into the document of somebody
+who was asked for no account, kept forever, exportable. The field
+exists for one sentence of reasoning, *"a producer with twenty
+submissions and one that is out of sync needs to know which
+device"*, and *Chrome on Android* answers it exactly as well.
+`deviceSays` reduces anything shaped like a user agent to the
+browser and the platform and leaves everything else alone,
+because a capture station sends a CAMERA'S NAME in the same field
+and reducing *Camera 2* to a browser would be the product
+deciding it knew better than the thing that measured. Applied at
+the SERVER as well as in the client, because an installed phone
+holds its own copy of the page and a client that has not updated
+is the one that has to be covered. [T5, B-2, D-03]
+
+**And the take counter was counting one visit.** It read
+`kept.length + 1`, so a performer who sent one take and opened
+the link again a week later was told *Take 1 of 3* about their
+second. `submitted` is the server's own count and has been in the
+view since B-2; nothing read it, and nothing refreshed the view
+after a send. Both now do. [T4]
+
+**And `littleStore` grew a map per store**, which it did not have:
+one map and an ignored store name was exactly right while `chunks`
+was the only store there was, and a fake that mixed the two would
+have had the worker reading a performer's segments as links.
 
 ## V-8 · The BalanceVid Public Competition Network — **ADD**
 
@@ -1906,7 +1987,7 @@ the brief does not ask for.
 
 | § | the brief asks for | answered by | state |
 |---|---|---|---|
-| 1 | the viral loop | V-1 … V-7 | six of seven arrows shipped |
+| 1 | the viral loop | V-1 … V-7 | **all seven arrows shipped** |
 | 2 | track / campaign / take, and the ids | PART ZERO, V-2 | two of three objects shipped |
 | 3 | the campaign as the unit | V-2 | the rules exist, per request |
 | 4 | the ten-state lifecycle | V-2 (six), V-8 (four) | argued in §4 |
@@ -2032,6 +2113,20 @@ with the reason rather than as a list of absences — the practice
 `docs/TV-NETWORK.md` ends with, and part of the house style
 because a plan that only lists what it will do cannot be argued
 with.
+
+- **Web Push, and any address a notification is delivered to.**
+  [V-7]
+  V-7's device learns by ASKING with the link it holds. The
+  alternative is a push subscription — an endpoint, stored on this
+  installation, that a third-party service delivers to — and that
+  is an address, which is the one thing the stage forbids: *"no
+  email, no phone number, no third-party push identity written
+  into a request."* It would also put a participant's device
+  behind Google's or Apple's push infrastructure to be told the
+  result of a competition they entered with no account, which is
+  the opposite of what the Take App is. The cost is stated rather
+  than hidden: on a browser that never wakes the worker, the
+  device finds out the next time the link is opened.
 
 - **Accounts for judges.**  [V-5, §4]
   One account exists on an installation (`OWNER_ACCOUNT_ID`), and

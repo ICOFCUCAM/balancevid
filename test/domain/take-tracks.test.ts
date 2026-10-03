@@ -255,6 +255,43 @@ describe('four cameras, which is one take', () => {
   });
 
   /*
+   * AND A WHOLE USER AGENT IS NOT WHAT A PRODUCER CAN READ.
+   *   [GO-VIRAL V-7; D-03]
+   *
+   * The Take App sent `navigator.userAgent`, so the request
+   * document of somebody who was asked for no account held
+   * eighty characters of build string, kept forever. The field
+   * exists for *"which one is out"*, and the browser and the
+   * platform answer it.
+   *
+   * SHORTENED AT THE SERVER, which is the half that matters: an
+   * installed phone holds its own copy of the page, so a client
+   * that has not updated is the one this has to cover. Driven
+   * through the route for that reason. [`deviceSays`]
+   */
+  it('does not keep a whole user agent', async () => {
+    const id = 'sub_agent';
+    await chunk(id, 0, 'x');
+    await send(id, {
+      elapsedSamples: 96000,
+      device: 'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36'
+        + ' (KHTML, like Gecko) Chrome/153.0.8010.12 Mobile Safari/537.3',
+    });
+    const [one] = await submissions();
+    expect(one!.device).toBe('Chrome on Android');
+  });
+
+  /* And a camera's name is still a camera's name. [B-2] */
+  it('leaves a camera name alone', async () => {
+    const id = 'sub_named';
+    await chunk(id, 0, 'x', 0);
+    await send(id, {
+      tracks: [{ track: 0, offsetSamples: 0, device: 'Hall · front' }],
+    });
+    expect((await submissions())[0]!.device).toBe('Hall · front');
+  });
+
+  /*
    * THE POINT OF THE WHOLE STAGE. Four submissions that an inbox can
    * tell are four views of one performance rather than four goes at
    * it — which is B-1's question, asked of a submission instead of a

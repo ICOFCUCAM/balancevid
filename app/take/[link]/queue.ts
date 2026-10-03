@@ -28,9 +28,27 @@ export interface TakeQueueApi {
   forget(submissionId: string): Promise<void>;
 }
 
+/**
+ * The device's own list of links it is waiting to hear about.
+ *   [GO-VIRAL V-7]
+ *
+ * IN THE SAME FILE AND THE SAME DATABASE AS THE QUEUE, for the
+ * reason that one states: the page and the service worker both
+ * open it, and two scripts opening one IndexedDB at different
+ * versions is a database that refuses whichever is behind.
+ */
+export interface TakeWatchApi {
+  watch(link: string, saw?: string): Promise<void>;
+  unwatch(link: string): Promise<void>;
+  watching(): Promise<{ link: string; saw: string }[]>;
+  saw(link: string): Promise<string | null>;
+}
+
 declare global {
   // eslint-disable-next-line no-var
   var TakeQueue: TakeQueueApi | undefined;
+  // eslint-disable-next-line no-var
+  var TakeWatch: TakeWatchApi | undefined;
 }
 
 let loading: Promise<TakeQueueApi | null> | null = null;
@@ -158,5 +176,116 @@ export async function settle(
     }
     if (Date.now() >= until) return { ok: false, reason: 'waiting', left };
     await new Promise((wake) => { setTimeout(wake, 1000); });
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ *  Waiting to hear.  [GO-VIRAL V-7; Doctrine D-03, D-25]
+ * ------------------------------------------------------------------ */
+
+/** The watch list, or nothing. Loaded by the same script as the queue. */
+export async function takeWatch(): Promise<TakeWatchApi | null> {
+  await takeQueue();
+  return (typeof window === 'undefined' ? null : window.TakeWatch) ?? null;
+}
+
+/**
+ * Start waiting to hear about this link.
+ *
+ * NOTHING IS SENT ANYWHERE. The link goes into this device's own
+ * store beside its upload queue, and the worker asks with it. The
+ * installation is told nothing about this device and holds no
+ * address for it — which is the whole of what V-7 is. [D-03]
+ *
+ * `saw` IS WRITTEN AT THE SAME MOMENT, because the page has just
+ * shown the person whatever there is to know. A device that
+ * started watching with an empty memory would be notified, a
+ * minute later, about the thing on the screen in front of them.
+ *
+ * AND THE PERMISSION IS ASKED FOR SEPARATELY, by whoever calls
+ * this. Watching without notifications is a device that finds out
+ * the next time the page opens, which is better than not watching
+ * and costs nobody a prompt they did not ask for. [U-19]
+ */
+export async function startWatching(link: string, saw: string): Promise<void> {
+  const list = await takeWatch();
+  if (!list) return;
+  await list.watch(link, saw).catch(() => undefined);
+  await wakeTheWorker();
+}
+
+/** Stop. The row goes; nothing was ever anywhere else. */
+export async function stopWatching(link: string): Promise<void> {
+  const list = await takeWatch();
+  if (!list) return;
+  await list.unwatch(link).catch(() => undefined);
+}
+
+/** Whether this device is waiting to hear about this link. */
+export async function isWatching(link: string): Promise<boolean> {
+  const list = await takeWatch();
+  if (!list) return false;
+  return (await list.saw(link).catch(() => null)) !== null;
+}
+
+/**
+ * Ask the browser to wake the worker about this, by every means it
+ * has — and depend on none of them.
+ *
+ * PERIODIC SYNC IS CHROME AND AN INSTALLED APP, Background Sync is
+ * most things but not Safari, and a message only reaches a worker
+ * that is already running. On a phone with none of them the page
+ * asks when it is opened, which is what happens today and remains
+ * correct. Every call is wrapped, because a browser refusing to
+ * register one of these is not a reason a performer cannot record.
+ */
+async function wakeTheWorker(): Promise<void> {
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    const periodic = (registration as ServiceWorkerRegistration & {
+      periodicSync?: { register(tag: string, options?: { minInterval: number }): Promise<void> };
+    }).periodicSync;
+    /* Once a day. A competition is judged over days, not minutes,
+       and a worker woken hourly is a battery nobody consented to. */
+    if (periodic) {
+      await periodic.register('take-watch', { minInterval: 24 * 60 * 60 * 1000 })
+        .catch(() => undefined);
+    }
+    const sync = (registration as ServiceWorkerRegistration & {
+      sync?: { register(tag: string): Promise<void> };
+    }).sync;
+    if (sync) await sync.register('take-watch').catch(() => undefined);
+    registration.active?.postMessage({ kind: 'take-watch' });
+  } catch {
+    /* No worker, or a browser that refuses. The page still asks. */
+  }
+}
+
+/**
+ * Ask to be told.  [GO-VIRAL V-7]
+ *
+ * THE PROMPT IS THE WHOLE OF WHAT IS ASKED FOR, and it is asked
+ * for once, by a person pressing a button that says what it is
+ * for. No account, no address, no identity — the permission is
+ * the browser's and the link is already on the device.
+ *
+ * A REFUSAL LOSES THE NOTIFICATION AND NOTHING ELSE. The device
+ * goes on watching, the worker goes on recording what it learns,
+ * and the page says it when it is next opened. Which is why the
+ * watch is started whatever the answer was.
+ */
+export async function askToBeTold(
+  link: string, saw: string,
+): Promise<'granted' | 'denied' | 'unavailable'> {
+  await startWatching(link, saw);
+  if (typeof window === 'undefined' || !('Notification' in window)) {
+    return 'unavailable';
+  }
+  try {
+    const answer = await Notification.requestPermission();
+    return answer === 'granted' ? 'granted' : 'denied';
+  } catch {
+    return 'unavailable';
   }
 }
