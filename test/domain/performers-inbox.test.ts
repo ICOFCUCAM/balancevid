@@ -151,8 +151,29 @@ describe('the other three decisions', () => {
 
   /* And passing is not an end: a producer may change their mind. */
   it('passes on one without ending it', () => {
-    expect(ROUTE).toMatch(/case 'reject': \{[\s\S]{0,200}reject\(draft, now, by\)/);
+    expect(ROUTE).toMatch(/case 'reject': \{[\s\S]{0,400}reject\(draft, now, by,/);
     expect(PANEL).toMatch(/Not an end — you can change your mind/);
+  });
+
+  /*
+   * AND IT MAY SAY WHY.  [GO-VIRAL G8]
+   *
+   * Optional, which is the whole of the field: a producer passing
+   * on a take in their own studio owes nobody minutes, and every
+   * decline written before this one has no reason. What it buys
+   * is the case the competition layer needs — *"a decline with no
+   * reason is one nobody can review or reverse on grounds"* —
+   * and the inbox shows it where it shows the decision.
+   *
+   * The behaviour is driven in `judging-route.test.ts`; what is
+   * read here is that the surface offers the field and draws what
+   * comes back.
+   */
+  it('offers a place to say why, and shows what was said', () => {
+    expect(PANEL).toContain('data-testid="performers-reject-why"');
+    expect(PANEL).toMatch(/placeholder="why \(optional\)"/);
+    expect(PANEL).toContain('data-testid="performers-reject-says"');
+    expect(PANEL).toMatch(/\{row\.passedBecause\}/);
   });
 
   /*

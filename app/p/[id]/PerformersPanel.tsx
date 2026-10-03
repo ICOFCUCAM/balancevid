@@ -65,6 +65,17 @@ interface RequestRow {
   submissions?: Submission[];
   /** The call this is one answer to, where there is one. [V-2] */
   campaign?: `camp_${string}`;
+  /**
+   * Why it was passed over, where whoever passed gave a reason.
+   *   [GO-VIRAL G8]
+   *
+   * CARRIED RATHER THAN DERIVED HERE. The reason is on a history
+   * line and the history is not in this view — a producer's
+   * inbox does not need the whole audit to show the one sentence
+   * that explains the row it is drawing. `rejectedBecause` reads
+   * it on the server, where the document is. [D-19]
+   */
+  passedBecause?: string;
 }
 
 export default function PerformersPanel({
@@ -97,6 +108,8 @@ export default function PerformersPanel({
   const [error, setError] = useState<string | null>(null);
   const [playing, setPlaying] = useState<
     { requestId: string; submissionId: string } | null>(null);
+  /** Per row: why it is being passed over, where somebody types one. [G8] */
+  const [why, setWhy] = useState<Record<string, string>>({});
   const { confirm, dialog } = useConfirm();
 
   useEffect(() => { setOrigin(window.location.origin); }, []);
@@ -477,15 +490,55 @@ export default function PerformersPanel({
                   </div>
                 ))}
 
+                {/*
+                  * WHY IT WAS PASSED OVER, WHERE SOMEBODY SAID.
+                  *   [GO-VIRAL G8, V-5]
+                  *
+                  * A history line with a state, a time and a name
+                  * was enough while this inbox was only a
+                  * producer's: *"a producer who changes their mind
+                  * should not have to ask them to send it again."*
+                  * A call declining an ENTRY is a decision somebody
+                  * may have to review or reverse on grounds, and
+                  * one with no reason cannot be either.
+                  *
+                  * SHOWN RATHER THAN BURIED IN THE HISTORY. The
+                  * reason is written on the line that records the
+                  * decision, and the row that shows the decision is
+                  * where it is read.
+                  */}
+                {row.passedBecause && (
+                  <p className="small" data-testid="performers-reject-says"
+                     style={{ margin: 0, color: 'var(--ink-300)' }}>
+                    Passed: {row.passedBecause}
+                  </p>
+                )}
+
                 <div className="row" style={{ gap: 6 }}>
                   <button className="ctl sm" data-testid="performers-hold"
                           title="Park it — you have not decided"
                           onClick={() => void act(row.id, { action: 'hold' })}>
                     Hold
                   </button>
+                  {/*
+                    * AND A PLACE TO SAY WHY, WHICH IS NOT REQUIRED.
+                    * A producer passing on a take in their own
+                    * studio owes nobody minutes, so the field is
+                    * empty and the button works without it. What it
+                    * buys is the one case that needs it.
+                    */}
+                  <input data-testid="performers-reject-why"
+                         value={why[row.id] ?? ''} placeholder="why (optional)"
+                         onChange={(event) => setWhy((was) => ({
+                           ...was, [row.id]: event.target.value,
+                         }))}
+                         style={{ flex: '1 1 110px', minWidth: 0 }} />
                   <button className="ctl sm" data-testid="performers-reject"
                           title="Do not use it. Not an end — you can change your mind"
-                          onClick={() => void act(row.id, { action: 'reject' })}>
+                          onClick={() => void act(row.id, {
+                            action: 'reject',
+                            ...(why[row.id]?.trim() ? { says: why[row.id] } : {}),
+                          })}>
                     Pass
                   </button>
                   {/*

@@ -233,8 +233,26 @@ export interface ParticipationRequest {
   campaign?: Id<'camp'>;
   state: RequestState;
   createdAt: string;
-  /** When the state last changed, and to what it was changed by whom. */
-  history: { state: RequestState; at: string; by?: string }[];
+  /**
+   * When the state last changed, to what, by whom — and why.
+   *
+   * `says` IS THE REASON, AND IT IS THE DECLINE THAT NEEDS ONE.
+   *   [GO-VIRAL G8, V-5]
+   *
+   * A history line with a state, a time and a name is enough for
+   * a producer passing on a take: *"a producer who changes their
+   * mind should not have to ask them to send it again"* is the
+   * posture, and the state is the whole of what happened. For a
+   * competition declining an ENTRY it is not: a decline with no
+   * reason is one nobody can review and nobody can reverse on
+   * grounds.
+   *
+   * OPTIONAL, BECAUSE THE PRODUCER'S OWN INBOX DOES NOT OWE
+   * ANYBODY ONE. Every history line written before this field
+   * existed has none, and a take passed over in a studio is not
+   * a decision that needs minuting.
+   */
+  history: { state: RequestState; at: string; by?: string; says?: string }[];
   /**
    * After this moment the link is refused.  [D-25]
    *
@@ -321,6 +339,61 @@ export interface Submission {
   at: string;
   /** Set when a producer accepts THIS submission, not the request. */
   acceptedAt?: string;
+}
+
+/**
+ * What `rotate` writes in the `by` of its history line.
+ *
+ * A NAME AND NOT A LITERAL IN TWO FILES. The line records a new
+ * secret rather than a decision, and anything reading the
+ * history for decisions has to be able to tell the two apart.
+ * `participationEdit.rotate` writes it; `rejectedBecause` skips
+ * it. [D-19]
+ */
+export const ROTATED = 'rotated';
+
+/**
+ * The reason the last decline gave, where it gave one.
+ *   [GO-VIRAL G8, V-5]
+ *
+ * A READ AND NOT AN EDIT, so it lives beside `takesMade` rather
+ * than in `participationEdit` — which matters for one concrete
+ * reason: the inbox is a browser component, and
+ * `participationEdit` reaches `node:crypto` through `newId`. A
+ * projection the producer's surface needs has to be on this side
+ * of that line. [the import-graph guard]
+ *
+ * THE LAST ONE, because `REQUEST_NEXT` admits `rejected →
+ * reviewed → rejected`: a producer may pass, look again, and
+ * pass for a different reason. What is current is the most
+ * recent decline; the earlier ones stay in the history, which is
+ * where the audit is.
+ *
+ * NOT A ROTATION NOTE, WHICH IS WHAT THE SEARCH IS FOR. `rotate`
+ * also pushes a history line, carrying the state the request is
+ * ALREADY in and `by: ROTATED` — an audit of the new secret, not
+ * a decision. A producer who passed on a take with a reason and
+ * then withdrew the link would otherwise find the reason gone,
+ * because the newest `rejected` line would be the rotation's and
+ * it carries no words. One name, read by the writer and by this.
+ * [D-19]
+ *
+ * AND ONLY WHILE IT IS STILL PASSED OVER, which a mutation run
+ * found. `rejected → accepted` is also in the table — a producer
+ * changing their mind is the whole reason passing is not an end
+ * — and a surface drawing *"Passed: recorded indoors"* over a
+ * take that is now in the rail would be reporting a decision
+ * that was reversed. The reason belongs to the state, not to the
+ * history alone.
+ */
+export function rejectedBecause(request: {
+  state: RequestState;
+  history: { state: RequestState; by?: string; says?: string }[];
+}): string {
+  if (request.state !== 'rejected') return '';
+  const last = [...request.history].reverse()
+    .find((one) => one.state === 'rejected' && one.by !== ROTATED);
+  return last?.says ?? '';
 }
 
 /** Is this link still good. A pure predicate, so every caller agrees. */

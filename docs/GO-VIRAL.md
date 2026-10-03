@@ -1594,7 +1594,7 @@ third kind is named now. Each guard alone survives mutation because
 the other covers it; removing both mints the request, which is the
 test that holds the pair up. [T-3]
 
-## V-5 · Judging is people, and every score carries its reason — **ADD**
+## V-5 · Judging is people, and every score carries its reason — **ADD**  ·  *built, PART NINE*
 
 **What exists today.** `takeRanking.ts`, which ranks on measured
 facts and refuses taste. The producer's `hold` / `accept` /
@@ -1619,6 +1619,65 @@ cannot hear.
 **Judged on.** The result recomputes exactly from the stored
 judgements; no score exists without a reason; and a criterion
 cannot be added after LIVE.
+
+**What was built, and the four places it is not what this section
+said.**
+
+**One. The criteria are a second field, not the one that already
+exists.** `rules.criteria` is a paragraph an entrant reads before
+deciding whether to enter — *"tuning, feel, and whether it sounds
+like you rather than like the record"* — and collapsing it into a
+scored list would force the organiser's own sentence into bullet
+points. `campaign.scorecard` is what a JUDGE fills in: each row
+needs an id a judgement can name and a scale to be out of,
+neither of which a paragraph has. The paragraph is already frozen
+because nothing can edit it; the scorecard freezes at LIVE, which
+is the rule this stage adds.
+
+**Two. The reason is per judgement, not per mark.** *"No score
+exists without a reason"* is satisfied by a reason that cannot be
+omitted. Four reasons per entry per judge would produce the same
+sentence four times, which is a form that yields words and not
+reasons.
+
+**Three. The panel is names, and the page says so.** One account
+exists on an installation, and a second kind of login so three
+people can mark eleven videos would be a user system built for a
+panel. What is recorded is who a judgement is ATTRIBUTED to —
+honest about what it proves, and further than a score with
+nobody's name on it. Judge accounts are recorded in **Not
+built**.
+
+**Four. The stage shipped a door.** V-2 built the campaign, V-3
+its terms and V-4 its public page, and every one of them was
+reachable only by curl. `/calls` and `/calls/[id]` are where a
+call is moved along, given its criteria and its panel, marked,
+and read — behind the session by default, because
+`middleware.ts` is default-closed and this path is in no public
+list. A capability with no door is the thing this series keeps
+finding; this closes four stages' worth of it at once.
+
+**And the result is derived on every read.** `resultsFor` is a
+pure function of the judgements and nothing stores a standing, so
+a corrected mark moves it. The mean of each judge's total rather
+than the sum, because a panel is not always three people and a
+sum would make attendance a criterion. Ties are not broken:
+inventing one would be this module having an opinion about a
+competition it is not judging.
+
+**G8 shipped with it.** `reject` learns an optional `says`,
+written to the history line that already records the decision and
+read back by `rejectedBecause` — which lives in `participation.ts`
+and not in `participationEdit.ts`, because the inbox is a browser
+component and the edit module reaches `node:crypto`. A pass with
+no reason is byte for byte what every pass has been.
+
+**`takeRanking.ts` is untouched in both directions**, and a
+derived test holds it that way: no file of this stage imports it,
+and it names none of these nouns. The first draft of that test
+failed on `judging.ts`'s own paragraph explaining why it does not
+use it — a test that reads prose is a test of the prose, so it
+reads imports. [T-1]
 
 ## V-6 · Results, and the winning entry re-enters the system it came from — **UPGRADE**
 
@@ -1802,7 +1861,7 @@ the brief does not ask for.
 | 8 | MediaAsset / MediaVariant | — | shipped as derived paths; **not built** as a record |
 | 9 | the media pipeline | — | shipped; queue order measured if it bites |
 | 10 | discovery | V-4 | **shipped**: `/go`, the call page, the wall |
-| 11 | judging | V-5 | ranking exists and must not be used for it |
+| 11 | judging | V-5 | **shipped**: scorecard, panel, reasons, derived result |
 | 12 | public voting | — | **not built**, with the reason |
 | 13 | moderation | V-5 (reasons), — (automation) | the queue is shipped; automation **not built** |
 | 14 | social distribution | V-6 | clips shipped; credentials **not built** |
@@ -1918,6 +1977,18 @@ with the reason rather than as a list of absences — the practice
 `docs/TV-NETWORK.md` ends with, and part of the house style
 because a plan that only lists what it will do cannot be argued
 with.
+
+- **Accounts for judges.**  [V-5, §4]
+  One account exists on an installation (`OWNER_ACCOUNT_ID`), and
+  the panel is a list of NAMES: what a judgement records is who it
+  is attributed to, not proof that they typed it. A second kind of
+  login so three people can mark eleven videos would be a user
+  system built for a panel, and every argument against public
+  voting at scale applies to it one step weaker. The honest
+  version of this is the same door the Take App already uses — a
+  per-judge link that is the credential, expiring, rotatable — and
+  it is a stage, not a missing piece. Until then the page says
+  plainly that these are names on a record.
 
 - **A link-preview image for a campaign page.**  [V-4]
   `generateMetadata` gives a title and the organiser's own ask, and
