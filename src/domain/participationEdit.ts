@@ -153,9 +153,57 @@ export function submit(
   request: ParticipationRequest, submission: Omit<Submission, 'id'>, now: string,
 ): Submission {
   if (!isOpen(request, now)) fail('this request is closed');
-  if (takesLeft(request) <= 0) {
+  /*
+   * AN ANGLE JOINING A CAPTURE IS NOT A NEW TAKE.  [B-2, T-5]
+   *
+   * FOUND BY A CAPTURE STATION, AFTER IT HAD UPLOADED 42 MB. A
+   * request allowing three takes, with two already made, accepted
+   * the first angle of the third capture — which made it the
+   * third take — and then refused the second angle with *"this
+   * request accepts 3 submission(s) and has them"*. The limit had
+   * been reached by the thing that was in the middle of being
+   * added.
+   *
+   * B-2 taught `takesLeft` to count captures rather than files,
+   * which was right and is why the number was three and not six.
+   * What it did not do is teach this guard that the four `submit`
+   * calls of one capture are one arrival: the count is correct
+   * after each of them and the GUARD is about to start a take,
+   * which only the first of the four does.
+   *
+   * THE FIXTURE THAT MISSED IT allowed four takes and sent one
+   * capture — so the count went from nothing to one and never
+   * came near the boundary. A limit is only tested at the limit.
+   */
+  const capture = submission.capturedIn?.id;
+  const sameCapture = capture
+    ? (request.submissions ?? []).filter((one) => one.capturedIn?.id === capture)
+    : [];
+  if (sameCapture.length === 0 && takesLeft(request) <= 0) {
     const allowed = request.allowed.takes ?? 1;
     fail(`this request accepts ${allowed} submission(s) and has them`);
+  }
+  /*
+   * AND THE SAME FILE IS NOT SENT TWICE.  [T-5]
+   *
+   * THIS IS WHAT ACTUALLY SHUTS THE DOOR the exemption above
+   * would otherwise open. "An angle joining a capture is free"
+   * plus a client that sends the same capture twice is a way
+   * past the take limit — and a `MOST_ANGLES` bound written
+   * here to stop it could not fire, because the route numbers a
+   * capture's angles 0 to `MOST_ANGLES - 1` and names each asset
+   * after its track, so a capture cannot have more distinct
+   * files than that. A guard nobody can reach is a guard nobody
+   * can check; this one can. [C-49]
+   *
+   * IT WAS ALSO ALREADY WRONG WITHOUT CAPTURES. Sending the same
+   * recording twice has always produced two submissions of one
+   * file — two rows in a producer's inbox, the same performance
+   * in both, and a take limit spent twice on one take. Nothing
+   * had noticed because no client does it.
+   */
+  if ((request.submissions ?? []).some((one) => one.assetId === submission.assetId)) {
+    fail('that recording has already been sent');
   }
   const allowed = request.allowed;
   if (submission.kind === 'video' && !allowed.video) fail('this request does not ask for video');

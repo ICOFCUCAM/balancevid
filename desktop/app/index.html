@@ -6,10 +6,19 @@
   No remote content, ever: everything this application draws it
   ships with. The policy says so rather than leaving it to
   nobody having written a `fetch` yet. [T-1]
+
+  `take-capture:` IS NOT AN EXCEPTION TO THAT. It is a scheme
+  the MAIN PROCESS answers, out of this machine's own capture
+  directory, so REVIEW can play back what was recorded without
+  the window gaining a filesystem — and `connect-src` stays
+  'none', so the page still cannot ask it, or anything else,
+  for anything. A `<video>` may play it; `fetch` may not reach
+  it. [T-5]
 -->
 <meta http-equiv="Content-Security-Policy"
       content="default-src 'none'; script-src 'self'; style-src 'self';
-               img-src 'self' data: blob:; media-src 'self' blob:;
+               img-src 'self' data: blob:;
+               media-src 'self' blob: take-capture:;
                connect-src 'none'">
 <title>Take</title>
 <link rel="stylesheet" href="shell.css">

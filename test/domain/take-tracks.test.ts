@@ -314,6 +314,90 @@ describe('four cameras, which is one take', () => {
   });
 
   /*
+   * A LIMIT IS ONLY TESTED AT THE LIMIT.  [T-5]
+   *
+   * The first version of this file allowed four takes and sent
+   * one capture, so the count went from nothing to one and never
+   * came near the boundary. A capture station found what that
+   * missed, after it had uploaded 42 MB: the first angle of the
+   * LAST permitted capture makes the count reach the limit, and
+   * the second angle is then refused by a guard that is about to
+   * start a take — which only the first of the four does.
+   */
+  it('takes the last capture a request allows, all of it', async () => {
+    await openRequest(1);
+    const id = 'sub_last';
+    await fourAngles(id);
+    const sent = await send(id, {
+      tracks: [0, 1, 2, 3].map((track) => ({ track, offsetSamples: track * 9 })),
+    });
+    expect(sent.status).toBe(201);
+    expect(await submissions()).toHaveLength(4);
+    const after = await loadRequest(request.id);
+    expect(takesMade(after)).toBe(1);
+    expect(takesLeft(after)).toBe(0);
+  });
+
+  /*
+   * AND A FULL REQUEST IS STILL FULL. "An angle joining a capture
+   * is not a new take" must not become "a capture is not a take".
+   */
+  it('refuses a second capture when the request allowed one', async () => {
+    await openRequest(1);
+    await fourAngles('sub_first');
+    await send('sub_first', {
+      tracks: [0, 1, 2, 3].map((track) => ({ track, offsetSamples: track })),
+    });
+    await fourAngles('sub_second');
+    const sent = await send('sub_second', {
+      tracks: [0, 1, 2, 3].map((track) => ({ track, offsetSamples: track })),
+    });
+    expect(sent.status).toBe(409);
+    expect((await sent.json() as { error: string }).error)
+      .toBe('this request accepts 1 submission(s) and has them');
+    expect(await submissions()).toHaveLength(4);
+  });
+
+  /*
+   * AND THE WAY PAST THE LIMIT IS SHUT. "An angle joining a
+   * capture is not a new take" plus a client that sends the same
+   * capture twice would be a door straight through the take
+   * limit — four more angles on a request that allowed one.
+   *
+   * SENDING THE SAME RECORDING TWICE WAS ALWAYS WRONG, captures
+   * or not: two rows in a producer's inbox with the same
+   * performance in both. Nothing had noticed because no client
+   * does it on purpose.
+   */
+  it('refuses a recording that has already been sent', async () => {
+    await openRequest(1);
+    await fourAngles('sub_cap');
+    const first = await send('sub_cap', {
+      tracks: [0, 1, 2, 3].map((track) => ({ track, offsetSamples: track })),
+    });
+    expect(first.status).toBe(201);
+    /* The same send again, from a client that retried after an
+       answer it did not see. */
+    const again = await send('sub_cap', {
+      tracks: [0, 1, 2, 3].map((track) => ({ track, offsetSamples: track })),
+    });
+    expect(again.status).toBe(409);
+    expect((await again.json() as { error: string }).error)
+      .toBe('that recording has already been sent');
+    expect(await submissions()).toHaveLength(4);
+  });
+
+  /* A phone's single recording, sent twice, is refused the same way. */
+  it('refuses one recording sent twice, with no capture involved', async () => {
+    await openRequest(2);
+    await chunk('sub_once', 0, 'only');
+    expect((await send('sub_once', { hintSamples: 0 })).status).toBe(201);
+    const again = await send('sub_once', { hintSamples: 0 });
+    expect(again.status).toBe(409);
+    expect(await submissions()).toHaveLength(1);
+  });
+
+  /*
    * THREE ANGLES SUBMITTED AS THOUGH THEY WERE THE CAPTURE is a
    * producer cutting to a camera that is not there. Said by number,
    * and nothing is written.

@@ -5,12 +5,17 @@
  * > and says it is not connected to anything. That is a complete,
  * > honest first release."*
  *
- * THE SIX STEPS ARE DRAWN AND FIVE OF THEM ARE GREY, which is
- * the opposite of the usual first release and is the point. The
+ * THE SIX STEPS ARE DRAWN AND FIVE OF THEM WERE GREY, which was
+ * the opposite of the usual first release and was the point. The
  * flow is frozen — CONNECT → CAMERAS → PREPARE → RECORD →
- * REVIEW → SUBMIT — and showing it with one step lit says
- * exactly where the application is. A window saying "coming
+ * REVIEW → SUBMIT — and showing it with one step lit said
+ * exactly where the application was. A window saying "coming
  * soon" says nothing a person can plan around.
+ *
+ * AT T-5 ALL SIX ARE LIT, and the strip is the same strip. What
+ * it said about an unfinished application and what it says about
+ * a finished one are the same sentence read at two times, which
+ * is the argument for having drawn it on the first day.
  *
  * IT PROVES THE SHARED LIBRARY IS WIRED, and that is the only
  * other thing T-1 is judged on that a person can see. The house
@@ -38,29 +43,50 @@ export type Step = (typeof STEPS)[number];
  * answer to "can this machine record them" changes every time
  * somebody changes which cameras; T-4 built RECORD on the same
  * screen, because the thing you press to start is the thing that
- * just told you whether you could. Nothing else in the shell
- * changed any of the three times. A release that lights a step
- * it has not built is a release that lies to the person who
- * installed it.
+ * just told you whether you could; T-5 built REVIEW and SUBMIT
+ * together, for the same reason CAMERAS and PREPARE are one.
+ * Nothing else in the shell changed any of the four times. A
+ * release that lights a step it has not built is a release that
+ * lies to the person who installed it.
+ *
+ * AND NOW IT IS `null`, WHICH IS NOT A CONSTANT GOING AWAY. The
+ * frozen flow has six steps and this build has all six; the
+ * constant stays, because T-6 adds sources rather than steps and
+ * the next stage to leave one unbuilt will need it back.
  */
-export const BUILT_TO: Step = 'REVIEW';
+export const BUILT_TO: Step | null = null;
 
-/** Whether a step is something this build can actually do. */
+/**
+ * Whether a step is something this build can actually do.
+ *
+ * `null` MEANS ALL OF THEM, and T-5 is the stage that made that
+ * a case. Every earlier stage bumped `BUILT_TO` to the first
+ * step it had not built; T-5 built the last two, so there is no
+ * such step and saying `'SUBMIT'` would grey out the thing that
+ * now works. The flow is frozen and it is finished.
+ */
 export function reached(step: Step): boolean {
-  return STEPS.indexOf(step) < STEPS.indexOf(BUILT_TO);
+  return BUILT_TO === null || STEPS.indexOf(step) < STEPS.indexOf(BUILT_TO);
 }
 
 /**
  * What this build is, in one sentence a person can act on.
  *
- * NOT "NOT CONNECTED", which reads as a fault to fix. The
- * application has nothing to connect WITH yet, and saying so is
- * the difference between a first release and a broken one.
+ * NOT "NOT CONNECTED", which reads as a fault to fix. The first
+ * release had nothing to connect WITH, and saying so was the
+ * difference between a first release and a broken one.
+ *
+ * IT STILL NAMES WHAT IS NOT BUILT, now that nearly everything
+ * is. T-6's other sources — NDI, a stream off the network — are
+ * the one thing the brief asks for that this does not do, and a
+ * sentence that stopped mentioning the gap the moment the gap
+ * got small would be a sentence that had started selling.
  */
 export function standing(): string {
-  return 'This build records every camera at once to this machine, and '
-    + 'writes down how far apart they started. Reviewing what it made '
-    + 'is the next thing it learns.';
+  return 'This build connects to a studio, records every camera at once '
+    + 'to this machine, and sends the set as one capture — resuming '
+    + 'where it stopped if the connection goes. Sources beyond the '
+    + 'cameras this machine already has are the next thing it learns.';
 }
 
 /**
