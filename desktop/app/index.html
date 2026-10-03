@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!--
+  No remote content, ever: everything this application draws it
+  ships with. The policy says so rather than leaving it to
+  nobody having written a `fetch` yet. [T-1]
+-->
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self';
+               img-src 'self' data: blob:; media-src 'self' blob:;
+               connect-src 'none'">
+<title>Take</title>
+<link rel="stylesheet" href="shell.css">
+</head>
+<body>
+  <main id="app"></main>
+  <script type="module" src="renderer.js"></script>
+</body>
+</html>

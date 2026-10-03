@@ -1,0 +1,70 @@
+# How Take Software for desktop is packaged.  [TAKE-DESKTOP T-1]
+#
+# ONE CHROMIUM PER PLATFORM, which is the cost of the decision in
+# `src/main.ts`: a capture station whose measurement depends on
+# which operating system it is on is not one, so the engine
+# travels with the application.
+#
+# WHAT IS SHIPPED IS `out/` AND NOTHING ELSE. The repository holds
+# a web application beside this one; `files` names the build
+# output rather than excluding things, because a deny-list is how
+# `src/` ends up inside somebody's installer the first time
+# somebody adds a directory.
+
+appId: com.balancevid.take
+productName: Take
+copyright: BalanceVid
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - out/**/*
+
+# No auto-update server. An application that phones home for a new
+# version is an application that phones home, and the brief's whole
+# premise is that recording does not depend on the internet.
+# Updating is downloading the next release, as it is for ffmpeg.
+publish: null
+
+linux:
+  # THE MAINTAINER IS AN ADDRESS IN EVERY INSTALLED PACKAGE, which
+  # is why it is not a person's. `dpkg -I` prints it to anybody who
+  # downloads the .deb, and a personal mailbox published in a
+  # product is a decision for whoever publishes it, not a build
+  # setting somebody fills in to make a tool stop complaining.
+  maintainer: BalanceVid <noreply@balancevid.com>
+  # AppImage runs on anything with a kernel and FUSE and needs no
+  # package manager, which is the honest default for a program
+  # people will install on one machine in a studio. The .deb is
+  # for the machines that are managed.
+  target:
+    - AppImage
+    - deb
+  category: AudioVideo
+  synopsis: Multi-camera capture station
+
+win:
+  target:
+    - nsis
+
+nsis:
+  # Per-user by default: a capture station does not need
+  # Administrator, and asking for it is how an installer gets
+  # refused by somebody's IT.
+  perMachine: false
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+
+# NOTHING IS SIGNED, and that is stated rather than left to be
+# discovered. Signing needs a certificate from a certificate
+# authority — an Authenticode certificate on Windows, an Apple
+# Developer ID on macOS — which is a purchase and an identity, not
+# a build setting. Until there is one, Windows SmartScreen will
+# warn about this installer and that warning is accurate.
+#
+# macOS IS DELIBERATELY ABSENT from this file. Building for it
+# needs a Mac, and shipping for it needs notarisation, which needs
+# the Developer ID above. Half a macOS target would be a target
+# that fails in CI and teaches everybody to ignore it.

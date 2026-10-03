@@ -1,0 +1,27 @@
+{
+  "name": "balancevid-take-desktop",
+  "productName": "Take",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Take Software for desktop: a multi-camera capture station.",
+  "main": "out/main.js",
+  "scripts": {
+    "build": "node build.mjs",
+    "start": "npm run build && electron .",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "package": "npm run build && electron-builder --linux --publish never",
+    "package:win": "npm run build && electron-builder --win --publish never"
+  },
+  "devDependencies": {
+    "electron": "^38.4.0",
+    "electron-builder": "^25.1.8",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.7.2"
+  },
+  "homepage": "https://balancevid.com",
+  "author": {
+    "name": "BalanceVid",
+    "email": "noreply@balancevid.com"
+  }
+}

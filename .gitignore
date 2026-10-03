@@ -32,3 +32,8 @@ tsconfig.tsbuildinfo
 # is how a verification script becomes something somebody later has to
 # read and wonder about.
 /scratch-*
+
+# Take Software for desktop's build output. `desktop/node_modules` is
+# already covered above; this is what esbuild and electron-builder write.
+/desktop/out/
+/desktop/release/
