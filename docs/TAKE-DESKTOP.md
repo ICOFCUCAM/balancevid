@@ -903,7 +903,7 @@ replacing it.
 **Judged on:** four files on disk, each with a measured start, with
 the machine offline for the whole recording.
 
-### T-5 · Review and Submit — **ADD**
+### T-5 · Review and Submit — **ADD**  ·  *built, PART TWELVE*
 
 Review each angle and all of them; no editing, per the brief.
 Submit sends the set under one capture, resumable per source, over
@@ -1371,6 +1371,13 @@ discovery. A second camera path built in T-2 would be the *"no
 third multiview"* mistake one stage early. The screen says in one
 line what it needs rather than drawing a button that cannot act,
 because a control that cannot act looks like a fault. [U-19]
+
+> **This reason expired at T-3 and the note did not.** The
+> camera stack was built one stage later and the line under the
+> box went on saying the build did not have a camera, for three
+> stages. T-5 replaced it with what is actually missing — a
+> decoder that works on every platform Electron ships to. See
+> PART TWELVE, *A refusal whose reason had expired*.
 
 **No listing of what a studio offers**, beyond the count and the
 one invitation named. Drawing the whole listing here would be the
@@ -2234,3 +2241,344 @@ DOM harness in this repository, so its assertions read the file.
 That is weaker than running it, and the screenshots above are the
 part that actually checks it — which is how the two "Use it"
 findings in this stage were made, neither of them by a test.
+
+---
+
+# PART TWELVE — T-5, as built
+
+> *"Review each angle and all of them; no editing. Submit sends
+> the set under one capture, resumable per source, over the
+> existing Take protocol."*
+>
+> **Judged on:** *"a four-camera capture recorded offline, then
+> submitted when a connection returns, arriving in the inbox as
+> one capture with four angles."*
+
+**This is the first stage that needs the network and the first
+that needs Track B**, and both halves of that turned out to be
+true in ways the plan did not say.
+
+## The protocol has two writers now, so it has one definition
+
+B-2 gave the participation route a track dimension and the
+browser's Take App was its only client. The moment a second
+client speaks it, a URL spelled out at each end is a URL that
+disagrees with itself the first time either changes — and the
+one rule this document states about the two programs is **no
+second participation protocol**.
+
+So `shared/src/submit.ts` is the seventh file in the shared
+library: the paths, the body, and the arithmetic that turns a
+capture into a send.
+
+```
+callPath(link)                     arrive at the call
+declarePath(link)                  POST — be given a recording id
+piecePath(link, id, index, track)  POST — one piece of one angle
+sendPath(link, id)                 PUT  — make it a submission
+
+piecesOf(bytes)                    how a finished file is cut up
+tracksFrom(capture)                what the PUT says about the angles
+refusedBecause(capture)            why it cannot be sent, before it is
+```
+
+`app/take/[link]/takeSink.ts` imports them; it no longer spells
+a single URL. `public/take-app/queue.js` cannot — it is a
+classic script, which is what lets the page and the service
+worker share one queue — so its copy is **compared against the
+shared one in a test**. A duplication a test checks cannot
+drift; one nothing checks is how three clients end up posting
+to two URLs.
+
+## A round trip nobody would have written from the document
+
+The first desktop send declared a recording, uploaded every
+angle, and was refused: **"a created request cannot become
+submitted."** The whole upload done and nothing to show for it.
+
+The installation's request machine allows `submitted` only from
+`opened`, and a link is opened by somebody **following** it. The
+browser does that by loading the page. A capture station never
+loads a page, so it must do it on purpose — and `callPath` is
+now the first thing a send does, before a byte moves.
+
+## Resumable per source
+
+```
+sending.json, beside the videos in the capture's own directory
+
+{ "to": { origin, link, name },
+  "openedAt": …, "submissionId": "sub_…",
+  "done": { "0": 11, "1": 4 } }
+```
+
+**A count per track, not a set.** The pieces of one angle are
+sent in order and the track stops at the first that fails, so
+the number accepted says exactly which remain. A set of indices
+would describe states this sender cannot produce and would have
+to be trusted not to.
+
+**Written down before the next piece is sent.** A count kept in
+the loop and saved at the end is a count worth nothing the
+moment the thing it protects against happens.
+
+**The state is read off the record, not held in a variable**, so
+a send resumed in a later run of the application reaches the
+same conclusion as one that never stopped. There is no resume
+path and a normal path; there is one path that starts wherever
+it starts.
+
+## The credential never enters the window
+
+A capture station holds a participation link — an origin plus a
+secret — because it must submit with nobody present. The
+renderer is a web page with four cameras pointed at a room.
+
+```
+CONNECT   the person types the link    → chooseCall(origin, link, name)
+                                         it goes OUT
+anything  call()                       → { origin, name }
+after     sending(id).to               → { origin, name }
+```
+
+It goes out and does not come back. One function strips it,
+named, used everywhere a record crosses, and asserted on.
+
+**And a capture is stamped with its destination when it BEGINS**,
+by the main process, not when somebody presses SEND. An operator
+who records four calls on Monday and re-points the station on
+Tuesday would otherwise send Monday's work to Tuesday's studio.
+A capture was recorded *for* something, and the moment it knows
+that is the moment it starts.
+
+**Where the credential lives is the capture's own directory**,
+not a station-wide list — which would have to carry one per
+entry, and *"a list of every credential in the installation in
+one place"* is the thing `src/store/requests.ts` refuses to
+build on the other side of this same protocol. The station's
+*current* call is one record, not a list. [D-21, D-19]
+
+## REVIEW: each angle and all of them
+
+Two views of one capture, because the questions are different.
+*Did the four of them get it* is not answerable one at a time;
+*is camera three in focus* is not answerable in a quarter of the
+window. Pressing a tile makes it the only one; pressing it again
+puts the others back.
+
+**No editing.** No trim, no best-bit, no reorder. *"No editor in
+Take. Studio Two produces."* What this screen offers is watching
+what was recorded and deciding whether to send it.
+
+**The videos come from a scheme the main process answers.** The
+window has no filesystem and is not getting one, and reading a
+gigabyte into a `Blob` to watch ten seconds of it would be a
+capture station that cannot review a long take. `connect-src`
+stays `'none'`: a `<video>` may play it, `fetch` may not reach
+it.
+
+## Six steps, three screens, and `BUILT_TO` is `null`
+
+Every stage so far bumped one constant to the first step it had
+not built. T-5 built the last two, so there is no such step.
+
+```
+CONNECT   CAMERAS   PREPARE   RECORD   REVIEW   SUBMIT
+  │          └────────┬────────┘         └────┬───┘
+connectScreen    camerasScreen           reviewScreen
+```
+
+The constant stays, as `Step | null`, because T-6 adds **sources
+rather than steps** and the next stage to leave one unbuilt will
+need it back. The strip is the same strip T-1 drew with one step
+lit; what it says about an unfinished application and what it
+says about a finished one are the same sentence read at two
+times, which is the argument for having drawn it on the first
+day.
+
+## Measured on the running product
+
+A real installation, a real Electron build, four fake cameras,
+and the server stopped for the recording.
+
+```
+RECORDED OFFLINE
+  server                  stopped
+  four angles             553,431 bytes each, spread 0.8 ms
+  the window asked the
+    network for           nothing
+  sending.json            written at beginCapture, destination
+                          already on it
+
+SUBMITTED WHEN IT CAME BACK
+  POST ?index=…&track=0..3           44 pieces
+  PUT  { tracks: [ … ] }             201
+  the inbox               4 submissions, one capture, spread 38
+                          Camera 1 … Camera 4, offsets 24/34/0/38
+
+INTERRUPTED AND RESUMED
+  42 MB, 11 pieces per angle
+  killed mid-angle-1      done {"0": 2}
+                          "Camera 1 stopped sending — try again
+                           when the connection is back"
+  brought back            "2 MB of 42 MB sent to Owner ·
+                           0 of 4 angles complete"   [Keep sending]
+  pieces 0 and 1          mtime UNCHANGED on the installation's disk
+  pieces 2 onward         34 seconds later
+  finished                "Sent to Owner as one capture of 4 angles."
+```
+
+**And every angle arrived byte for byte, on its own track.** The
+first run could not prove that: four fake cameras produce
+identical frames, so four identical files would look the same
+however they were shuffled — *a fixture that cannot
+distinguish*. One byte was changed in each local file, and then:
+
+```
+local                                arrived
+88f928ed…  01-camera1.webm     →     sub_d9cdbe….webm      (track 0)
+4ccca10b…  02-camera2.webm     →     sub_d9cdbe…-t1.webm   (track 1)
+30d90ea0…  03-camera3.webm     →     sub_d9cdbe…-t2.webm   (track 2)
+ff602ac8…  04-camera4.webm     →     sub_d9cdbe…-t3.webm   (track 3)
+```
+
+## A B-2 bug that only a full request could find
+
+The 42 MB send finished uploading and was then refused:
+
+> **this request accepts 3 submission(s) and has them**
+
+B-2 taught `takesLeft` to count **captures** rather than files,
+which is right and is why the number was three and not six. What
+it did not do is teach `submit`'s guard that the four calls of
+one capture are **one arrival**: the first angle of the last
+permitted capture makes the count reach the limit, and the
+second angle is then refused by a check that is about *starting*
+a take — which only the first of the four does.
+
+**The fixture that missed it allowed four takes and sent one
+capture**, so the count went from nothing to one and never came
+near the boundary. *A limit is only tested at the limit.*
+
+An angle joining a capture already present is not a new take.
+And the door that opens — send the capture, then send angles
+naming it for ever — is shut by the guard that turned out to be
+reachable:
+
+> **that recording has already been sent**
+
+which was *always* the right answer and had never been given.
+Sending one recording twice has always produced two submissions
+of one file: two rows in a producer's inbox with the same
+performance in both, and a take limit spent twice on one take.
+Nothing had noticed because no client does it on purpose.
+
+## Two faults the screen found, and one the URL did
+
+1. **Four black rectangles.** `take-capture://<id>/<file>` reads
+   better than putting the id in the path, and does not work: a
+   URL host is **case-folded**, and a capture id is
+   `cap_20261003T120928_p67y` — ISO 8601's own uppercase `T` in
+   a string that is otherwise lowercase. Every angle 404'd and
+   nothing in either file looked wrong.
+2. **Four angles in one narrow column.** `.screen` is 520px
+   unless a rule widens it, and T-3 widened it for `.grid`. T-5
+   drew its own grid under its own class and inherited the
+   default — the fault T-3 found, arriving again because the
+   rule was keyed on a class name rather than on *this screen
+   shows video*. Both are named in one selector now.
+3. **Three across and a hole.** `minmax(220px, 1fr)` put four
+   angles 3+1. The live grid had already solved this with a
+   maximum as well as a minimum; a review grid that chose
+   differently would be two answers to one question.
+
+## A boundary only CI could find
+
+The first push failed `Typecheck and build`:
+
+```
+desktop/src/recordings.ts(33,21): error TS2307:
+Cannot find module 'electron'
+```
+
+Both typechecks pass on a developer's machine and this one
+cannot pass on a clean checkout, which is the whole shape of
+it. The root `tsconfig.json` compiles `test/**`; the repository
+root installs no Electron, because Electron is `desktop/`'s
+dependency; and a machine that has built the desktop
+application has `desktop/node_modules` sitting right there for
+Node to resolve. A test imported `verdictOf` from
+`sending.ts`, `sending.ts` reaches the disk so it imports
+`recordings.ts`, and `recordings.ts` imports `electron`.
+
+**A test may import a desktop file.** `check.ts` and `submit.ts`
+are pure and two suites depend on them, which is the point of
+their being pure. What it may not import is a file that reaches
+the machine — and the fix is not an exception, it is that
+`verdictOf` and `troubleFrom` were in the wrong file. Deciding
+what an HTTP answer means is not I/O. They live in
+`desktop/src/submit.ts` with the rest of the reasoning, and
+`sending.ts` is the I/O that calls them.
+
+**And the rule is now a test**, which reproduces CI's failure by
+name: it reads which desktop files import `electron`, follows
+the imports of every desktop file reachable from `test/` and
+`src/`, and names the crossing.
+
+```
+the web tier compiles a file that needs Electron:
+test/domain/capture-send.test.ts → desktop/src/sending.ts
+```
+
+## A refusal whose reason had expired
+
+CONNECT's note said a QR scanner *"needs the camera, which this
+build does not have yet."* True at T-2. T-3 built the camera
+stack and T-4 recorded with it, and the note went on giving a
+reason that stopped being true three stages ago.
+
+**A refusal whose stated reason is no longer true is worse than
+no note**: it tells a person the thing is impossible here when
+it is merely unbuilt. What is actually missing is a decoder —
+`BarcodeDetector` is not on every platform Electron ships to,
+and a scanner that works on one operating system and silently
+does nothing on another is worse than a box somebody types into.
+The note says that instead, which is something a person can act
+on and something somebody could fix. [N-8, deletion 23]
+
+## The record
+
+**Forty-one mutations across `shared/src/submit.ts`,
+`desktop/src/submit.ts`, `desktop/src/sending.ts` and
+`participationEdit.ts`, all killed.**
+
+**Two clauses deleted, the thirtieth and thirty-first:**
+
+- `Math.min(done, all.length)` in `remaining` and `progressOf`.
+  A count higher than there are pieces cannot make `slice` go
+  backwards — that is specified, not a coincidence — and the
+  clamp changed nothing any test could see. What keeps a corrupt
+  count out is `readSending`, which is where a number off a disk
+  is believed or not.
+- `bytes <= 0` in `piecesOf`. The loop does not run for zero or
+  a negative number.
+
+**And the second deletion found a hole while being measured.**
+Asking *why can this guard not be killed* showed what it was not
+guarding: `bytes` comes off a manifest on a disk a person can
+open, `1e999` parses as `Infinity`, it passes every "is it
+positive" check in the file, and it turns the loop into one that
+never ends **in the process that owns the window**. The guard
+that could not fire became `Number.isFinite`, which can.
+
+**One bound tightened by its own test.** `readSending` accepted
+any one- or two-digit key as a track number — 99, which no
+capture can have, kept as a key meaning nothing. The bound is
+the protocol's own now.
+
+**And one boundary learned from a clean checkout.** See *A
+boundary only CI could find* above: a local typecheck cannot
+see a dependency the repository root does not install, because
+the directory it does not install is sitting on the disk. The
+guard that replaced the accident is the one assertion in this
+stage that no amount of running it here would have produced.

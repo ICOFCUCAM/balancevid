@@ -31,13 +31,42 @@
  */
 
 import { app } from 'electron';
-import { appendFile, mkdir, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
+import {
+  appendFile, mkdir, readFile, readdir, rename, rm, stat, writeFile,
+} from 'node:fs/promises';
 import { join } from 'node:path';
 
+import { NAME_LONGEST, asOrigin } from '../../shared/src/connections.js';
+
 import { type Capture, captureOf } from '../../shared/src/capture.js';
+import { type Destination, type Sending, readSending } from './submit.js';
 
 /** The file in a capture's directory that says what it is. */
 export const MANIFEST = 'capture.json';
+
+/**
+ * Where this capture is going, and how far it has got.
+ *   [TAKE-DESKTOP T-5, D-21]
+ *
+ * A SECOND FILE AND NOT A FIELD ON THE MANIFEST, because the
+ * manifest is the shared `Capture` — the record the
+ * INSTALLATION reads, the one a person opens in a file manager
+ * beside the videos, the one somebody copies onto a stick with
+ * them. A credential in it would be a credential in all of
+ * those places. *"A stream key in one is a stream key in
+ * somebody's backup."* [D-21]
+ *
+ * AND IT IS THE CAPTURE'S OWN, deleted with it. A station-wide
+ * list of what is half-sent would have to carry a credential
+ * per entry, which is the list `store/requests.ts` refuses to
+ * build on the other side of this same protocol.
+ */
+export const SENDING = 'sending.json';
+
+/** What `sending.json` holds: the progress, plus where it goes. */
+export interface Stored extends Sending {
+  to?: Destination;
+}
 
 export function capturesDir(): string {
   return join(app.getPath('userData'), 'captures');
@@ -134,6 +163,82 @@ export async function sizesIn(
   return out;
 }
 
+/**
+ * Where a capture is going, as this machine recorded it.
+ *
+ * READ THROUGH THE SHARED RULES, never believed as JSON: this
+ * is a file in a directory a person can open, and a
+ * hand-written count would make the sender skip pieces nobody
+ * sent. A file that cannot be read is a capture nothing has
+ * been sent of, which is true of every capture before this
+ * stage existed. [D-21]
+ */
+export async function readSendingOf(id: string): Promise<Stored> {
+  try {
+    const raw = await readFile(join(captureDir(id), SENDING), 'utf8');
+    const said: unknown = JSON.parse(raw);
+    const read = readSending(said);
+    const to = (said as { to?: unknown })?.to;
+    return { ...read, ...(destinationFrom(to) ? { to: destinationFrom(to)! } : {}) };
+  } catch {
+    return { done: {} };
+  }
+}
+
+/**
+ * A destination off the disk, or nothing.
+ *
+ * THE ORIGIN GOES THROUGH `asOrigin`, the same parser both
+ * programs use, so a hand-edited file cannot point a capture
+ * station at something that is not an origin. The link's shape
+ * is checked too: it is about to be put in a URL path.
+ */
+export function destinationFrom(raw: unknown): Destination | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const said = raw as Record<string, unknown>;
+  const origin = typeof said['origin'] === 'string'
+    ? asOrigin(said['origin']) : null;
+  const link = said['link'];
+  if (!origin || typeof link !== 'string') return null;
+  if (!/^[A-Za-z0-9_-]{1,160}\.[A-Za-z0-9_-]{1,160}$/.test(link)) return null;
+  return {
+    origin,
+    link,
+    name: String(said['name'] ?? '').slice(0, NAME_LONGEST) || origin,
+  };
+}
+
+/** Write it, temp-then-rename, like every other record here. */
+export async function writeSendingOf(id: string, record: Stored): Promise<void> {
+  const target = join(captureDir(id), SENDING);
+  const temp = `${target}.${process.pid}.tmp`;
+  try {
+    await writeFile(temp, JSON.stringify(record, null, 2), 'utf8');
+    await rename(temp, target);
+  } catch {
+    /*
+     * A CAPTURE WHOSE PROGRESS CANNOT BE WRITTEN STILL SENDS.
+     * What is lost is the resume, not the upload — and telling
+     * an operator their send failed because a note about it
+     * could not be filed would be refusing to do the work over
+     * the paperwork. [U-19]
+     */
+  }
+}
+
+/** One capture's manifest, or nothing. */
+export async function oneCapture(id: string): Promise<Capture | null> {
+  try {
+    const raw = await readFile(join(captureDir(id), MANIFEST), 'utf8');
+    const read: unknown = JSON.parse(raw);
+    if (!read || typeof read !== 'object') return null;
+    const said = read as Capture;
+    return Array.isArray(said.angles) ? said : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Every capture on this machine, newest first. */
 export async function listCaptures(): Promise<Capture[]> {
   let names: string[];
@@ -145,8 +250,7 @@ export async function listCaptures(): Promise<Capture[]> {
   const found: Capture[] = [];
   for (const name of names.sort().reverse()) {
     try {
-      const raw = await import('node:fs/promises')
-        .then((fs) => fs.readFile(join(capturesDir(), name, MANIFEST), 'utf8'));
+      const raw = await readFile(join(capturesDir(), name, MANIFEST), 'utf8');
       const read: unknown = JSON.parse(raw);
       if (read && typeof read === 'object') found.push(read as Capture);
     } catch {

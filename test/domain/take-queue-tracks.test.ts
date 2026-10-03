@@ -21,6 +21,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { piecePath } from '../../shared/src/submit.js';
 import { type LittleScope, littleStore } from '../helpers/littleStore.js';
 
 const SOURCE = readFileSync(
@@ -97,6 +98,35 @@ describe('a second camera does not land on the first', () => {
 });
 
 describe('what the queue sends', () => {
+  /*
+   * THE ONE SPELLING THE QUEUE CANNOT IMPORT.  [T-5, D-19]
+   *
+   * `shared/src/submit.ts` owns these URLs now, because the
+   * desktop capture station posts to the same route and a path
+   * written out at each end is a path that disagrees with itself
+   * the first time either changes. The browser sink imports it;
+   * this file cannot — it is a classic script loaded by
+   * `importScripts` and by a `<script>` tag, which is the
+   * decision that lets the page and the service worker share one
+   * queue.
+   *
+   * SO THE COPY IS CHECKED RATHER THAN TOLERATED. A duplication
+   * that a test compares against its source is a duplication
+   * that cannot drift; one that nothing compares is how three
+   * clients end up posting to two URLs.
+   */
+  it('posts where the shared protocol says, for every track', async () => {
+    for (const track of [0, 1, 7]) {
+      await put(5, track);
+    }
+    await queue.drain();
+    expect(asked).toEqual([
+      piecePath('req_x.secret', 'sub_one', 5, 0),
+      piecePath('req_x.secret', 'sub_one', 5, 1),
+      piecePath('req_x.secret', 'sub_one', 5, 7),
+    ]);
+  });
+
   /*
    * TRACK 0 SENDS THE URL IT HAS ALWAYS SENT, down to the query —
    * including every row written before tracks existed, which has no

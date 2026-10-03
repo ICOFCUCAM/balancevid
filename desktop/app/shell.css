@@ -154,6 +154,36 @@ main {
 
 .go:hover { border-color: var(--accent); color: var(--accent); }
 
+.go:disabled {
+  color: #5c636b;
+  border-color: var(--line);
+  cursor: not-allowed;
+}
+
+/*
+ * THE SECOND BUTTON IN A ROW OF TWO.  [T-5]
+ *
+ * `.go` is what a screen is for — send this, ask that studio.
+ * `.ctl` is everything beside it: stop, delete, open in a
+ * browser instead. Smaller and quieter, because a row of
+ * equally loud buttons is a row where the dangerous one looks
+ * like the ordinary one.
+ */
+.ctl {
+  flex: 0 0 auto;
+  padding: 6px 12px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.ctl:hover { border-color: var(--accent); color: var(--accent); }
+.ctl:disabled { color: #5c636b; cursor: not-allowed; }
+
 .hint, .note {
   margin: 0;
   min-height: 1.6em;
@@ -218,8 +248,20 @@ main {
  *  CAMERAS and PREPARE.  [T-3]
  * ------------------------------------------------------------------ */
 
-/* The screen is wider here: four pictures need room. */
-.screen:has(.grid) { width: min(100%, 1040px); }
+/*
+ * The screen is wider here: four pictures need room.
+ *
+ * AND REVIEW IS THE SAME SCREEN WITH THE SAME PICTURES ON IT.
+ * T-5 drew its grid under a class of its own and inherited the
+ * 520px default — four angles in one narrow column, stacked,
+ * with the controls pushed below the fold. Which is the fault
+ * T-3 found and fixed on the live grid, arriving again because
+ * the rule was keyed on a class name rather than on *this
+ * screen shows video*. Both are named here so the next one is
+ * obvious. [T-3, T-5]
+ */
+.screen:has(.grid),
+.screen:has(.review-columns) { width: min(100%, 1040px); }
 
 .devices { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
 
@@ -358,3 +400,125 @@ main {
 /* A tile that is being recorded says so, because the picture
    looks exactly the same either way. */
 .grid[data-recording='true'] .tile { border-color: #c4473f; }
+
+/* ------------------------------------------------------------------ *
+ *  REVIEW and SUBMIT.  [T-5]
+ *
+ *  TWO COLUMNS, because the two questions are *which capture*
+ *  and *is it any good* and an operator moves between them. The
+ *  list is narrow and fixed; the pictures take what is left.
+ * ------------------------------------------------------------------ */
+
+.pointed { display: grid; gap: 4px; justify-items: center; }
+
+.review-columns {
+  display: grid;
+  grid-template-columns: minmax(200px, 260px) 1fr;
+  gap: 16px;
+  width: min(100%, 1040px);
+  align-items: start;
+}
+
+.captures {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  /* A station that has been out for a week has a lot of these,
+     and the pictures must not be pushed off the screen by them. */
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.capture-row {
+  display: grid;
+  gap: 2px;
+  justify-items: start;
+  text-align: left;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.capture-row:hover { border-color: var(--accent); }
+.capture-row[data-chosen='true'] {
+  border-color: var(--accent);
+  background: rgba(63, 142, 232, 0.08);
+}
+
+.capture-when { font-size: 13px; }
+.capture-label { font-size: 12px; color: var(--muted); }
+
+.review { display: grid; gap: 8px; justify-items: start; }
+.review-title { margin: 0; font-size: 17px; font-weight: 600; }
+
+/*
+ * THE SAME SHAPE AS THE LIVE GRID, AND THE SAME CAP.
+ *
+ * `minmax(220px, 1fr)` put four angles three-across with a hole
+ * beside the fourth. The live grid already solved this — a
+ * maximum as well as a minimum, so the columns settle at a size
+ * four of them divide into — and a review grid that chose
+ * differently would be two answers to one question. A capture of
+ * two is still two across; a capture of four is two by two.
+ * [T-3, D-19]
+ */
+.review-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 340px));
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+}
+
+/* One angle asked for is one angle, as wide as the column. */
+.review-grid[data-only]:not([data-only='']) {
+  grid-template-columns: minmax(220px, 700px);
+}
+
+.review-tile {
+  position: relative;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  overflow: hidden;
+  background: #000;
+  cursor: pointer;
+}
+
+.review-tile:hover { border-color: var(--accent); }
+
+.review-tile video {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: contain;
+  background: #000;
+}
+
+.review-name {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.72);
+  font-size: 12px;
+}
+
+.review-controls { display: flex; gap: 8px; align-items: center; }
+.review-to { margin: 0; font-size: 13px; }
+
+/* What has arrived, as a width rather than a number: the number
+   is in the sentence above it. */
+.bar {
+  width: min(100%, 420px);
+  height: 6px;
+  border-radius: 3px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.bar-fill { height: 100%; background: var(--accent); }

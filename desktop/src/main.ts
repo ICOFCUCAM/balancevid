@@ -37,22 +37,24 @@
  * opens a socket belongs to T-2.
  */
 
-import { app, BrowserWindow, ipcMain, shell } from 'electron';
-import { fileURLToPath } from 'node:url';
+import { app, BrowserWindow, ipcMain, net, protocol, shell } from 'electron';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 
 import { asOrigin } from '../../shared/src/connections.js';
 import { askInstance } from './ask.js';
 import { measure } from './machine.js';
 import {
-  beginCapture, endCapture, listCaptures, writeChunk,
+  beginCapture, captureDir, endCapture, listCaptures, oneCapture,
+  readSendingOf, removeCapture, writeChunk, writeSendingOf,
 } from './recordings.js';
-import { readStored, writeStored } from './store.js';
+import { isSending, sendCapture, stopSending } from './sending.js';
+import { callSeen, readCall, readStored, writeCall, writeStored } from './store.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
 /**
- * The four questions the window may ask.  [T-2]
+ * The questions the window may ask.  [T-2, T-4, T-5]
  *
  * REGISTERED ONCE, BEFORE ANY WINDOW OPENS, because a handler
  * registered per window is a handler registered twice the second
@@ -102,7 +104,28 @@ function listen(): void {
   ) => {
     if (typeof id !== 'string' || typeof label !== 'string'
       || typeof beganAt !== 'string') return null;
-    return beginCapture(id, label.slice(0, 120), beganAt).catch(() => null);
+    const dir = await beginCapture(id, label.slice(0, 120), beganAt)
+      .catch(() => null);
+    /*
+     * WHERE IT IS GOING IS WRITTEN WHEN IT BEGINS.  [T-5]
+     *
+     * Not when somebody presses SEND, which is the obvious place
+     * and the wrong one: an operator who records four calls on
+     * Monday and re-points the station on Tuesday would send
+     * Monday's work to Tuesday's studio. A capture was recorded
+     * FOR something, and the moment it knows that is the moment
+     * it starts.
+     *
+     * THE WINDOW IS NOT ASKED FOR IT. The renderer declares a
+     * capture by id; the credential is read out here, from the
+     * call this station is pointed at, and the page never holds
+     * it. [D-21]
+     */
+    if (dir) {
+      const call = await readCall();
+      if (call) await writeSendingOf(id, { done: {}, to: call });
+    }
+    return dir;
   });
   ipcMain.handle('take:write-chunk', async (
     _event, id: unknown, file: unknown, bytes: unknown,
@@ -117,6 +140,54 @@ function listen(): void {
       .catch(() => null);
   });
   ipcMain.handle('take:captures', () => listCaptures().catch(() => []));
+  ipcMain.handle('take:forget-capture', async (_event, id: unknown) => {
+    if (typeof id !== 'string') return false;
+    stopSending(id);
+    return removeCapture(id).then(() => true).catch(() => false);
+  });
+
+  /*
+   * THE CALL, AND THE HALF OF IT THE WINDOW MAY SEE.  [T-5, D-21]
+   *
+   * `take:call` answers the name and the origin, so a person can
+   * read where their work is going. It does not answer the link,
+   * because the link is a credential and the renderer is a web
+   * page with four cameras pointed at a room. The window sets
+   * one by handing over what somebody typed; it never gets one
+   * back.
+   */
+  ipcMain.handle('take:call', async () => callSeen(await readCall()));
+  ipcMain.handle('take:choose-call', async (_event, said: unknown) =>
+    callSeen(await writeCall(said)));
+
+  /*
+   * SENDING, WHICH THE WINDOW ASKS FOR AND DOES NOT DO. [T-5]
+   *
+   * `take:send` runs until the capture is sent, refused, or the
+   * connection goes, and answers what happened. `take:sending`
+   * is what a screen polls while it runs — polled rather than
+   * pushed, because the one-way door is the arrangement: the
+   * main process answers questions and never calls into the
+   * window. [T-1 preload]
+   */
+  ipcMain.handle('take:send', async (_event, id: unknown) => {
+    if (typeof id !== 'string') return null;
+    return sendCapture(id).catch(() => null);
+  });
+  ipcMain.handle('take:stop-send', (_event, id: unknown) => {
+    if (typeof id === 'string') stopSending(id);
+    return true;
+  });
+  ipcMain.handle('take:sending', async (_event, id: unknown) => {
+    if (typeof id !== 'string') return null;
+    const record = await readSendingOf(id).catch(() => null);
+    if (!record) return null;
+    const { to, ...rest } = record;
+    /* The credential is stripped on the way out, in one place. */
+    return { ...rest, to: callSeen(to ?? null), running: isSending(id) };
+  });
+  ipcMain.handle('take:capture', async (_event, id: unknown) =>
+    (typeof id === 'string' ? oneCapture(id).catch(() => null) : null));
   ipcMain.handle('take:open-external', async (_event, url: unknown) => {
     if (typeof url !== 'string' || !asOrigin(url)) return false;
     await shell.openExternal(url);
@@ -158,7 +229,7 @@ function open(): void {
     title: 'Take',
     show: false,
     webPreferences: {
-      /* The four named questions, and nothing else. [T-2] */
+      /* The named questions, and nothing else. [T-2] */
       preload: join(HERE, 'preload.cjs'),
       /*
        * THE RENDERER IS A WEB PAGE AND IS TREATED AS ONE. No Node
@@ -166,8 +237,9 @@ function open(): void {
        *
        * T-1 SAID THE STAGE THAT NEEDED THE MACHINE WOULD OPEN
        * NAMED FUNCTIONS RATHER THAN `require`, AND T-2 IS IT:
-       * four of them, in `preload.ts`. The window still has no
-       * filesystem and no socket — it has four questions it may
+       * `preload.ts` is the list, and every stage since has
+       * added to it by name. The window still has no filesystem
+       * and no socket — it has a set of named questions it may
        * ask of something that does.
        */
       nodeIntegration: false,
@@ -200,8 +272,83 @@ function open(): void {
   void window.loadFile(join(HERE, 'index.html'));
 }
 
+/**
+ * How REVIEW sees what was recorded.  [TAKE-DESKTOP T-5]
+ *
+ * A SCHEME OF ITS OWN, NOT `file://` AND NOT A BLOB. The
+ * window has no filesystem and is not getting one, and handing
+ * it a whole angle as a `Blob` would mean reading a gigabyte of
+ * video into the renderer's memory to look at the first ten
+ * seconds of it. A scheme the main process answers lets
+ * `<video>` do what it is for — ask for the part it is playing
+ * — and `net.fetch` on a `file://` URL serves byte ranges for
+ * it.
+ *
+ * THE ID AND THE FILE ARE CHECKED BY THE SAME RULES THAT WROTE
+ * THEM. `captureDir` refuses an id that is not one; the file
+ * name is matched against the same shape `writeChunk` accepts.
+ * A scheme handler that joined whatever it was given would be
+ * the `../../` hole in a different coat, and this one is
+ * reachable from a page.
+ *
+ * REGISTERED AS PRIVILEGED BEFORE THE APP IS READY, because
+ * Electron decides what a scheme may do — streaming and ranges
+ * among them — at registration and not at use.
+ */
+const MEDIA_SCHEME = 'take-capture';
+
+protocol.registerSchemesAsPrivileged([{
+  scheme: MEDIA_SCHEME,
+  privileges: { standard: true, secure: true, stream: true, supportFetchAPI: true },
+}]);
+
+function serveCaptures(): void {
+  protocol.handle(MEDIA_SCHEME, async (request) => {
+    let id = '';
+    let file = '';
+    try {
+      const asked = new URL(request.url);
+      /*
+       * THE ID IS IN THE PATH AND NOT THE HOST, AND THAT COST A
+       * BROWSER RUN TO LEARN.
+       *
+       * It was `take-capture://<id>/<file>`, which reads better
+       * and does not work: a URL host is CASE-FOLDED, and a
+       * capture id is `cap_20261003T120928_p67y` — ISO 8601's
+       * own uppercase `T`, in the middle of a string that is
+       * otherwise lowercase. Every angle 404'd, the review grid
+       * drew four black rectangles, and nothing in the code
+       * looked wrong. A path component is not folded. [T-5]
+       */
+      const parts = asked.pathname.split('/').filter(Boolean)
+        .map((one) => decodeURIComponent(one));
+      id = parts[0] ?? '';
+      file = parts[1] ?? '';
+      if (parts.length !== 2) return new Response('no', { status: 400 });
+    } catch {
+      return new Response('no', { status: 400 });
+    }
+    if (!/^[A-Za-z0-9_.-]{1,80}$/.test(file) || file.includes('..')) {
+      return new Response('no', { status: 400 });
+    }
+    let dir: string;
+    try {
+      dir = captureDir(id);
+    } catch {
+      return new Response('no', { status: 400 });
+    }
+    return net.fetch(pathToFileURL(join(dir, file)).toString(), {
+      /* The range header is the whole point: a player asks for
+         the part it is playing. */
+      headers: request.headers,
+      method: 'GET',
+    }).catch(() => new Response('gone', { status: 404 }));
+  });
+}
+
 app.whenReady().then(() => {
   listen();
+  serveCaptures();
   open();
   /* macOS keeps an application running with no windows. */
   app.on('activate', () => {

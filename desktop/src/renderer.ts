@@ -21,6 +21,7 @@ import {
 } from './shell.js';
 import { connectScreen } from './connectScreen.js';
 import { camerasScreen } from './camerasScreen.js';
+import { reviewScreen } from './reviewScreen.js';
 
 function el(tag: string, className?: string, text?: string): HTMLElement {
   const node = document.createElement(tag);
@@ -60,9 +61,24 @@ function draw(): void {
    * this fell through to the else. Found by looking at the
    * screenshot, where PREPARE was lit and led somewhere else.
    */
-  const screenFor = (step: Step) =>
-    (step === 'CAMERAS' || step === 'PREPARE' || step === 'RECORD'
-      ? camerasScreen : connectScreen);
+  /*
+   * REVIEW AND SUBMIT ARE ONE SCREEN TOO, and for the reason
+   * CAMERAS and PREPARE are: what you are about to send is the
+   * thing you are looking at. A SUBMIT page of its own would be
+   * a page you walk to having left the pictures behind. [T-5]
+   *
+   * SIX STEPS, THREE SCREENS, and the strip still names all six
+   * because the flow is frozen and a person plans around the
+   * words, not around how many pages this application happens
+   * to have.
+   */
+  const screenFor = (step: Step) => {
+    if (step === 'CAMERAS' || step === 'PREPARE' || step === 'RECORD') {
+      return camerasScreen;
+    }
+    if (step === 'REVIEW' || step === 'SUBMIT') return reviewScreen;
+    return connectScreen;
+  };
 
   const show = (step: Step): void => {
     leave?.();

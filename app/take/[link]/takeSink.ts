@@ -1,7 +1,12 @@
 'use client';
 
 import type { RecordingSink } from '../../p/[id]/useMasterRecording.js';
+import {
+  type TrackSpec, declarePath, piecePath, sendPath,
+} from '../../../shared/src/submit.js';
 import { askToDrain, takeQueue } from './queue.js';
+
+export type { TrackSpec };
 
 /**
  * Where the Take App sends a recording.  [D-19, D-25; TAKE-APP T3, T5]
@@ -54,12 +59,17 @@ export function takeSink(
    */
   track = 0,
 ): RecordingSink {
-  const at = `/api/take/${encodeURIComponent(link)}`;
-  /* Track 0 sends the URL it has always sent, down to the query. */
-  const on = track > 0 ? `&track=${track}` : '';
+  /*
+   * THE URLS ARE THE SHARED ONES. [T-5] A second client now
+   * speaks this protocol — the desktop capture station — and a
+   * path spelled out at each end is a path that disagrees with
+   * itself the first time either changes. Track 0's URL carries
+   * no `track`, which is what a phone has always posted and the
+   * whole of B-2's compatibility story.
+   */
   return {
     begin: async () => {
-      const response = await fetch(`${at}/submissions`, { method: 'POST' });
+      const response = await fetch(declarePath(link), { method: 'POST' });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         throw new Error(data.error ?? 'could not start recording');
@@ -99,7 +109,7 @@ export function takeSink(
         void askToDrain();
         return;
       }
-      const response = await fetch(`${at}/submissions/${id}?index=${index}${on}`, {
+      const response = await fetch(piecePath(link, id, index, track), {
         method: 'POST', body,
         headers: { 'content-type': 'application/octet-stream' },
       });
@@ -153,15 +163,9 @@ export interface KeptSpec {
   tracks?: TrackSpec[];
 }
 
-/** One angle, as the client describes it when it sends a capture. [B-2] */
-export interface TrackSpec {
-  track: number;
-  /** From the earliest angle, in samples. Not against the reference. */
-  offsetSamples: number;
-  hintSamples?: number;
-  elapsedSamples?: number;
-  device?: string;
-}
+/* `TrackSpec` is `shared/src/submit.ts`'s, re-exported above: the
+   desktop capture station sends the same shape to the same route,
+   and one protocol has one definition. [T-5, D-19] */
 
 /**
  * Send one to the producer.  [TAKE-APP T4, T5; D-25]
@@ -174,8 +178,7 @@ export async function sendTake(
   link: string, submissionId: string, spec: KeptSpec,
   send: typeof fetch = fetch,
 ): Promise<void> {
-  const response = await send(
-    `/api/take/${encodeURIComponent(link)}/submissions/${submissionId}`, {
+  const response = await send(sendPath(link, submissionId), {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(spec),
@@ -198,8 +201,7 @@ export async function sendTake(
 export async function dropTake(
   link: string, submissionId: string, send: typeof fetch = fetch,
 ): Promise<void> {
-  const response = await send(
-    `/api/take/${encodeURIComponent(link)}/submissions/${submissionId}`,
+  const response = await send(sendPath(link, submissionId),
     { method: 'DELETE' });
   if (!response.ok) {
     const body = await response.json().catch(() => ({})) as { error?: string };
