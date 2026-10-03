@@ -57,7 +57,7 @@ export default function PublishPanel({
           <p className="small muted" style={{ marginTop: 2 }}>
             Published {publication.publishedAt?.slice(0, 10)}
             {publication.author ? ` as ${publication.author}` : ''} ·{' '}
-            {describeAvailability(publication)}
+            {describeAvailability(publication, new Date().toISOString())}
           </p>
           <SharePreview conversationId={conversationId} />
           <div className="row">

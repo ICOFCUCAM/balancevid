@@ -161,7 +161,7 @@ export default function AvailabilityFields({
         */}
       <p className="small muted" data-testid={`${testId}-says`}
          style={{ margin: 0, fontSize: 'var(--text-2xs)' }}>
-        {describeAvailability(value)}
+        {describeAvailability(value, new Date().toISOString())}
       </p>
     </div>
   );

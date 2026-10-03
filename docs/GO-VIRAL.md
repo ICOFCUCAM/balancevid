@@ -1259,6 +1259,14 @@ opened.** A `licensed` master with no licence note can be made
 `respondable: true, access: 'anyone'` today, and a thousand people
 can sing on it.
 
+> **Half of this was wrong, and V-1 found out by building it.**
+> `mayPublish` IS enforced, at `publishPerformance`. What was
+> enforced nowhere is the LICENCE NOTE: `assertPublishable`
+> carries it, has nine assertions over it, and is called by
+> nothing but its own test. The hole was real and it was not
+> where this entry put it. See PART FIVE, *G7 was right about
+> the hole and wrong about where it was*.
+
 Small, real, and cheapest to close before there is a campaign
 object to close it in.
 
@@ -1322,7 +1330,7 @@ shipping on a system with no campaigns in it at all**, and the
 public network — the largest commitment in the brief and the one
 that cannot be undone quietly — is last.
 
-## V-1 · A call opens and shuts on a clock — **UPGRADE**
+## V-1 · A call opens and shuts on a clock — **UPGRADE**  ·  *built, PART FIVE*
 
 **What exists today.** `TakeAvailability` in
 `src/domain/availability.ts` carries `respondable`, `listed`,
@@ -1885,3 +1893,237 @@ and the one every stage above is checked against:
 > *"The important thing is to build these capabilities into the
 > existing take/timeline model, not create a second editing
 > system."*
+
+---
+
+# PART FIVE — V-1, as built
+
+> *"An item with neither field behaves byte-identically to today;
+> an item with a window stops accepting at the minute it says, and
+> says so before it does. And a `licensed` master with no licence
+> note cannot be opened to anyone."*
+
+## What was missing was a clock, not a ceiling
+
+`claims` bounds how many strangers may come through a door.
+Nothing bounded **until when**. A song opened to `anyone` stayed
+open until somebody unticked it or the hundredth arrived — so
+there was no closing time, which means no moment at which a call
+can be judged, no countdown to show, and nothing that can
+honestly be labelled *ending soon*.
+
+```
+opensAt?   absent means open since always
+closesAt?  absent means never closes
+```
+
+**Not `expiresAt`, and the difference is who it is about.**
+`ParticipationRequest.expiresAt` is one person's link running out
+— forty invitations are forty deadlines. This is the CALL's own
+clock, and a call has one. Both exist, neither replaces the
+other, and the request machine is untouched. [D-19]
+
+## `now` is a parameter, not a reading
+
+```
+maySubmit(availability, holds, now)
+mayClaim(availability, claimed, now)
+availabilityState(availability, now)
+describeAvailability(availability, now)
+isOpenAt(availability, now)
+```
+
+Required rather than defaulted, and the compiler then listed
+every call site — eight of them across three routes, two publish
+panels and the field editor. **A permission check with an
+optional clock is a permission check somebody forgets to wind**,
+and the type checker is the only reviewer that reads every caller.
+
+It is also what lets a test say *before it opens* and *after it
+shuts* without waiting, which is why the sixteen assertions on
+the window run in milliseconds.
+
+**One instant per answer, not one per row.** `/api/participate`
+reads the clock once: a listing that read it per row could let a
+call close between two rows of one response, which is a listing
+that disagrees with itself.
+
+## Two new states, and they come first
+
+```
+unavailable   browse-only   scheduled   closed
+open          restricted    unlisted    private
+```
+
+*Who may take part* is a different question from *may anybody
+yet*, and the second is answered first: an item open to `anyone`
+next Tuesday is not `open`, it is `scheduled`, and a surface that
+drew it as open would invite people to press a button that
+refuses them.
+
+**Still listed either way.** Discovery is not the clock — a call
+nobody can find before it opens is a call nobody enters when it
+does, and *ending soon* is a thing to show rather than a thing to
+hide. `isListed` is untouched, which is PART FIVE of
+`docs/TAKE-PLATFORM.md` left exactly where it was.
+
+## Forgiven at the read, refused at the write
+
+An unreadable date on disk leaves the door **open**, which is
+`isOpen`'s own decision about `expiresAt` and is taken here for
+the reason it gives: *"a corrupt expiry that locked somebody out
+mid-recording is a worse failure than a link that outlives its
+terms"* — and there is a revocation that always works, unticking
+it or unpublishing. A date nobody can read is not a deadline
+anybody set; it is a damaged record, and the answer to a damaged
+record is not to lock the room.
+
+**What is refused instead is writing one.** `whenProblem` is what
+a producer meets, at the moment they type it, where the thing
+that is wrong is still in front of them:
+
+```
+that is not a date to close at
+it cannot close before it opens
+```
+
+Two minds about one question would be a fault; this is one parse
+reaching two conclusions about two different situations.
+`availabilityFrom` keeps a window only when `whenProblem` is
+silent, so a route that forgot to ask cannot store a window the
+door will not read.
+
+**Stored as the instant, not as what was typed.**
+`2026-06-01T10:00:00+02:00` becomes `2026-06-01T08:00:00.000Z`,
+so two producers in two time zones write the same record and the
+predicates compare like with like.
+
+## A repair the addition uncovered
+
+`Publication` wrote out `respondable`, `listed` and `access` by
+hand — and **`claims` was not written out at all.** It has been
+stored on published performances since P41 and read back by
+`claimsAllowed`, working only because a spread skips the
+excess-property check and a structural type does not mind a field
+it never heard of.
+
+A field on disk that no type admits to is a field the next
+refactor drops in silence. So `Publication extends
+TakeAvailability` now, and `ChannelPublication` carries the same
+four, from the module that holds the rules that read them. A
+fifth cannot be added to one half of the product. [D-19]
+
+## G7 was right about the hole and wrong about where it was
+
+The document said *"nothing calls them at the moment participation
+is opened."* Reading the code: **`mayPublish` is enforced** at
+`publishPerformance`, and has been.
+
+What is not enforced anywhere is the other half. `assertPublishable`
+in `invariants.ts` carries INV-15's licence rule, has nine
+assertions over it in `performance.test.ts`, and **a search for
+its callers turns up that test file and nothing else.**
+
+> A rule with a test suite and no caller is worse than one with
+> neither: it reads as live.
+
+So a `licensed` master with no word about what permits it could be
+published, made `respondable: true, access: 'anyone'`, and sung on
+by a thousand people.
+
+**The fix is to call the rule that exists**, not to write it
+again. `licenceMissing` is one predicate; the invariant keeps its
+own wording and `publishPerformance` gets wording for a person
+about to press a button. And it is refused **at the publish**,
+because `availability` is written two statements later — one
+refusal covers the publication and the participation, where a
+separate check at the moment somebody claims would be the same
+rule in a second place, after a person had already decided to
+sing.
+
+## Measured on the running product
+
+```
+THE PUBLIC LISTING
+  perf_v1_open   state=open       openToAnyone=True   opens 11:24  closes 15:24
+  perf_v1_shut   state=scheduled  openToAnyone=False  opens 16:24  closes 22:24
+
+A STRANGER PRESSING "TAKE THIS SONG"
+  perf_v1_open   201   request minted
+  perf_v1_shut   404   that is not open for anybody to take part in
+
+THE SAME CALL, ONE MINUTE AFTER IT SHUT
+  listing        state=closed  openToAnyone=False  — still listed, with its dates
+  claim          404   that is not open for anybody to take part in
+
+A WINDOW THAT WILL NOT PARSE, AT THE WRITE
+  closesAt "the end of June"        400  that is not a date to close at
+  closes before it opens            400  it cannot close before it opens
+```
+
+**The scheduled call is still in the listing, with both its
+dates.** That is the half that makes the rest of Go Viral
+possible: *LIVE NOW*, *ENDING SOON* and *OPENS TUESDAY* are
+subtractions, and `state` cannot be subtracted from.
+
+**And the door says nothing.** A call that opens on Tuesday and a
+call that shut last night answer with the same 404 as everything
+else — a door that said *not yet* in a different voice from *not
+here* is a door that tells a stranger which drafts exist. The
+clock is enforced inside `maySubmit`, so there is no second
+refusal to word differently, and a test asserts the route never
+reads the clock itself.
+
+## The record, and a mistake in how it was taken
+
+**Twenty-five mutations across `availability.ts`,
+`performance.ts`, `performanceEdit.ts` and the two participate
+routes, all killed. One clause deleted, the thirty-second.**
+
+### A mutation run with no baseline proves nothing
+
+The first run of this stage's mutations reported **24 for 24**,
+and the number was worthless. Four assertions in
+`participate.test.ts` were failing before a single mutation was
+applied — they read the source of a panel and a route for call
+shapes this stage had changed — so the suite was already red, and
+**every mutant was recorded as killed by a failure it had not
+caused.**
+
+A mutation is killed when the suite goes from green to red. A
+suite that starts red cannot say anything about any of them, and
+a clean sweep is exactly what that looks like. *The run that
+reports no survivors is the run to distrust.*
+
+**With a green baseline, three survived**, and all three were
+real:
+
+1. **`at === null` on the caller's clock.** Every fixture passed
+   a real instant, so shutting every windowed door when `now` is
+   unreadable looked the same as opening them. A caller with a
+   broken clock must not close the whole installation.
+2. **`at < opens` against `at <= opens`.** Every fixture was
+   comfortably either side of the opening time, so the two were
+   the same function. The closing boundary had been tested and
+   its mirror had not.
+3. **`typeof said !== 'string'`.** Less obvious than it reads:
+   `Date.parse(2026)` coerces to `"2026"` and answers with the
+   first instant of the **year** 2026. A client sending
+   `opensAt: 2026` would have opened a call in January of that
+   year and nothing would have looked wrong.
+
+Two fixtures and one more, and the fourth survivor was the
+genuine kind: `!said.trim()` beside the type check could not
+change an answer, because `Date.parse('')` and `Date.parse('   ')`
+are both `NaN`. **Deleted — the thirty-second.**
+
+**The baseline is now the first thing the runner does**, and it
+refuses to report anything if the suite is not green.
+
+## And one thing found by reading rather than by measuring
+
+G7 said a rule was uncalled; it was half right, and the half it
+had wrong was the half that mattered — the uncalled rule was not
+the one the document named. A ledger entry that is nearly true is
+worth correcting in place, because the next stage reads it as
+given.

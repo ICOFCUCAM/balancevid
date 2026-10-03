@@ -60,7 +60,27 @@ export async function GET(request: Request): Promise<Response> {
      * the row says so rather than offering a button that will refuse.
      */
     openToAnyone: boolean;
+    /**
+     * WHEN IT OPENS AND WHEN IT SHUTS, where the author said.
+     *   [GO-VIRAL V-1]
+     *
+     * The only two facts a browsing surface needs to draw *LIVE
+     * NOW*, *ENDING SOON* and *OPENS TUESDAY* — and the reason
+     * they are here rather than derived from `state` is that a
+     * countdown needs the instant, not the word. Absent means
+     * what it means on the document: open since always, never
+     * closes.
+     */
+    opensAt?: string;
+    closesAt?: string;
   }[] = [];
+
+  /*
+   * ONE INSTANT FOR THE WHOLE LISTING. Reading the clock once per
+   * row would let a call close between two rows of one answer,
+   * which is a listing that disagrees with itself. [V-1]
+   */
+  const now = new Date().toISOString();
 
   /*
    * A SONG SOMEBODY MAY SING ON. `Performance.publication` is the same
@@ -79,9 +99,11 @@ export async function GET(request: Request): Promise<Response> {
       publishedAt: publication.publishedAt,
       respondable: publication.respondable === true,
       access: publication.respondable === true ? publication.access ?? 'anyone' : null,
-      state: availabilityState(publication),
+      state: availabilityState(publication, now),
       watch: `/p/${performance.id}/watch`,
-      openToAnyone: maySubmit(publication, 'anyone'),
+      openToAnyone: maySubmit(publication, 'anyone', now),
+      ...(publication.opensAt ? { opensAt: publication.opensAt } : {}),
+      ...(publication.closesAt ? { closesAt: publication.closesAt } : {}),
     });
   }
 
@@ -102,9 +124,11 @@ export async function GET(request: Request): Promise<Response> {
       publishedAt: publication.publishedAt,
       respondable: isRespondable(conversation),
       access: isRespondable(conversation) ? publication.access ?? 'anyone' : null,
-      state: availabilityState(publication),
+      state: availabilityState(publication, now),
       watch: `/c/${conversation.id}/watch`,
-      openToAnyone: maySubmit(publication, 'anyone'),
+      openToAnyone: maySubmit(publication, 'anyone', now),
+      ...(publication.opensAt ? { opensAt: publication.opensAt } : {}),
+      ...(publication.closesAt ? { closesAt: publication.closesAt } : {}),
     });
   }
 
@@ -125,9 +149,11 @@ export async function GET(request: Request): Promise<Response> {
       publishedAt: publication.publishedAt,
       respondable: publication.respondable === true,
       access: publication.respondable === true ? publication.access ?? 'anyone' : null,
-      state: availabilityState(publication),
+      state: availabilityState(publication, now),
       watch: `/t/${channel.id}/watch`,
-      openToAnyone: maySubmit(publication, 'anyone'),
+      openToAnyone: maySubmit(publication, 'anyone', now),
+      ...(publication.opensAt ? { opensAt: publication.opensAt } : {}),
+      ...(publication.closesAt ? { closesAt: publication.closesAt } : {}),
     });
   }
 

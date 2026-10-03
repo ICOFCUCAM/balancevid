@@ -63,6 +63,15 @@ const ID = /^[A-Za-z0-9_-]{1,64}$/;
  * A FULL ITEM ANSWERS LIKE A CLOSED ONE, as everything else here does:
  * "that is full" and "that does not exist" are the same 404, because a
  * counter a stranger can read is a counter a stranger can watch.
+ *
+ * AND SO DOES ONE OUTSIDE ITS WINDOW.  [GO-VIRAL V-1]
+ *
+ * A call that opens on Tuesday and a call that shut last night
+ * answer with the same 404 as everything else, for the same
+ * reason — a door that said *not yet* in a different voice from
+ * *not here* is a door that tells a stranger which drafts exist.
+ * The LISTING is where a person learns the two dates, because
+ * the author chose to be listed; the door only ever says no.
  */
 export async function POST(_request: Request, { params }: Params): Promise<Response> {
   const { kind, id } = await params;
@@ -90,8 +99,8 @@ export async function POST(_request: Request, { params }: Params): Promise<Respo
       const performance = await loadPerformance(id);
       const publication = performance.publication;
       if (!publication || publication.unpublishedAt) return no();
-      if (!isListed(publication) || !maySubmit(publication, 'anyone')) return no();
-      if (!mayClaim(publication, await claimsSoFar('performance', performance.id))) return no();
+      if (!isListed(publication) || !maySubmit(publication, 'anyone', now)) return no();
+      if (!mayClaim(publication, await claimsSoFar('performance', performance.id), now)) return no();
 
       const beats = performance.beats;
       const request = newRequest({
@@ -123,8 +132,8 @@ export async function POST(_request: Request, { params }: Params): Promise<Respo
       if (!publication || publication.unpublishedAt) return no();
       /* The predicate that already answers this for a conversation. */
       if (!isRespondable(conversation)) return no();
-      if (!isListed(publication) || !maySubmit(publication, 'anyone')) return no();
-      if (!mayClaim(publication, await claimsSoFar('conversation', conversation.id))) return no();
+      if (!isListed(publication) || !maySubmit(publication, 'anyone', now)) return no();
+      if (!mayClaim(publication, await claimsSoFar('conversation', conversation.id), now)) return no();
 
       const request = newRequest({
         holder: { kind: 'conversation', id: conversation.id },
@@ -147,8 +156,8 @@ export async function POST(_request: Request, { params }: Params): Promise<Respo
       const channel = await loadChannel(id);
       const publication = channel.publication;
       if (!publication || publication.unpublishedAt) return no();
-      if (!isListed(publication) || !maySubmit(publication, 'anyone')) return no();
-      if (!mayClaim(publication, await claimsSoFar('channel', channel.id))) return no();
+      if (!isListed(publication) || !maySubmit(publication, 'anyone', now)) return no();
+      if (!mayClaim(publication, await claimsSoFar('channel', channel.id), now)) return no();
 
       const request = newRequest({
         holder: { kind: 'channel', id: channel.id },

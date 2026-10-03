@@ -50,7 +50,8 @@ import {
   type AudioMode, type MasterTrack, type Performance, type PerformanceTake, type Scene,
   AUDIO_MODES, MASTER_CLASSES, PERFORMANCE_SCHEMA_VERSION,
   TAKE_ACCENT_FALLBACK,
-  allProblems, coverage, coversSpan, mayPublish, orderedScenes, plateFor,
+  allProblems, coverage, coversSpan, licenceMissing, mayPublish, orderedScenes,
+  plateFor,
   renderProblems, takeById,
 } from './performance.js';
 import {
@@ -874,6 +875,29 @@ export function publishPerformance(
     fail(`"${performance.master.title}" is not marked as something you may publish, `
       + 'so this cannot be given an audience. A private export is still yours.');
   }
+  /*
+   * AND THE OTHER HALF OF INV-15, WHICH NOTHING WAS ASKING.
+   *   [GO-VIRAL V-1, G7]
+   *
+   * `mayPublish` was enforced here and the licence note was not —
+   * anywhere. A `licensed` master with no word about what permits it
+   * could be published, made `respondable` and opened to `anyone`,
+   * and a thousand people could sing on it. The rule was written,
+   * tested nine ways in `assertPublishable`, and called by nothing
+   * but that test.
+   *
+   * IT BELONGS AT THIS LINE because this is the moment the door
+   * opens: `availability` is set two statements down, so refusing
+   * here refuses the publication AND the participation in one act,
+   * which is what V-1 asks for. A separate check at the moment
+   * somebody claims would be the same rule in a second place, later,
+   * after a person had already decided to sing. [D-19]
+   */
+  if (licenceMissing(performance.master)) {
+    fail(`"${performance.master.title}" is marked ${performance.master.class} `
+      + 'but does not say what permits it. Name the licence before giving '
+      + 'this an audience.');
+  }
   if (performance.scenes.length === 0) fail('there is nothing here to publish yet');
   if (!options.planHash.trim()) fail('publish a render, not a draft');
 
@@ -894,6 +918,14 @@ export function publishPerformance(
     ...(respondable && wanted?.access ? { access: wanted.access } : {}),
     ...(respondable && wanted?.access === 'anyone' && wanted.claims !== undefined
       ? { claims: wanted.claims } : {}),
+    /*
+     * AND WHEN THE DOOR OPENS AND SHUTS, on the same condition the
+     * rest of it travels under: a closing time on a performance
+     * nobody may take is a value that will later be read as though
+     * it said something. [V-1, PART FIVE]
+     */
+    ...(respondable && wanted?.opensAt ? { opensAt: wanted.opensAt } : {}),
+    ...(respondable && wanted?.closesAt ? { closesAt: wanted.closesAt } : {}),
     ...(options.author?.trim() ? { author: options.author.trim() } : {}),
   };
 }
