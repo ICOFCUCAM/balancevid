@@ -1,4 +1,6 @@
-import { availabilityFrom } from '../../../../../src/domain/availability.js';
+import {
+  availabilityFrom, whenProblem,
+} from '../../../../../src/domain/availability.js';
 import { EditError } from '../../../../../src/domain/edit.js';
 import { publish, unpublish } from '../../../../../src/domain/publish.js';
 import { enqueue, listJobs } from '../../../../../src/store/queue.js';
@@ -21,10 +23,14 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
   const body = await request.json().catch(() => ({})) as {
     respondable?: boolean; author?: string;
     listed?: unknown; access?: unknown; claims?: unknown;
+    opensAt?: unknown; closesAt?: unknown;
   };
   if (typeof body.respondable !== 'boolean') {
     return fail(400, 'say whether responses are allowed — it is not assumed either way');
   }
+  /* A window that will not parse is refused where it was typed. [V-1] */
+  const badWindow = whenProblem(body);
+  if (badWindow) return fail(400, badWindow);
 
   let conversation;
   try {
@@ -59,6 +65,11 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
           ? { access: availabilityFrom(body).access! } : {}),
         ...(availabilityFrom(body).claims !== undefined
           ? { claims: availabilityFrom(body).claims! } : {}),
+        /* And when it opens and shuts, from the same reader. [V-1] */
+        ...(availabilityFrom(body).opensAt
+          ? { opensAt: availabilityFrom(body).opensAt! } : {}),
+        ...(availabilityFrom(body).closesAt
+          ? { closesAt: availabilityFrom(body).closesAt! } : {}),
         ...(body.author ? { author: body.author } : {}),
         publishedAt: new Date().toISOString(),
       });

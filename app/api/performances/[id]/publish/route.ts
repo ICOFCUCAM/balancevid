@@ -5,7 +5,7 @@ import { enqueue, listJobs } from '../../../../../src/store/queue.js';
 import {
   auditPerformance, loadPerformance, mutatePerformance,
 } from '../../../../../src/store/performances.js';
-import { availabilityFrom } from '../../../../../src/domain/availability.js';
+import { availabilityFrom, whenProblem } from '../../../../../src/domain/availability.js';
 import { fail, json } from '../../../../../src/web/http.js';
 
 export const dynamic = 'force-dynamic';
@@ -24,8 +24,20 @@ export async function POST(request: Request, { params }: Params): Promise<Respon
   const { id } = await params;
   const body = await request.json().catch(() => ({})) as {
     author?: string; respondable?: unknown; listed?: unknown; access?: unknown;
-    claims?: unknown;
+    claims?: unknown; opensAt?: unknown; closesAt?: unknown;
   };
+
+  /*
+   * A WINDOW THAT WILL NOT PARSE IS REFUSED HERE, where the
+   * producer who typed it is standing.  [GO-VIRAL V-1]
+   *
+   * `availabilityFrom` keeps only a window it can read, which is
+   * the safe direction and a silent one — so the reason is given
+   * at the write rather than discovered later by a call that
+   * never closed. Same parse, one conclusion. [D-19, U-19]
+   */
+  const badWindow = whenProblem(body);
+  if (badWindow) return fail(400, badWindow);
 
   try {
     await loadPerformance(id);

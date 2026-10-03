@@ -137,3 +137,103 @@ describe('what a stranger may reach (D-03)', () => {
     }
   });
 });
+
+/* ------------------------------------------------------------------ *
+ *  The other half of INV-15, which nothing was asking.
+ *    [GO-VIRAL V-1, G7]
+ * ------------------------------------------------------------------ */
+
+describe('a master that does not say what permits it', () => {
+  /*
+   * `mayPublish` WAS ENFORCED HERE AND THE LICENCE NOTE WAS NOT —
+   * anywhere. `assertPublishable` in `invariants.ts` has carried the
+   * rule since INV-15 was written, with nine assertions over it, and
+   * a search for its callers turns up that test file and nothing
+   * else.
+   *
+   * SO THIS WAS PUBLISHABLE: a `licensed` master with no word about
+   * what permits it, made `respondable: true, access: 'anyone'`, and
+   * a thousand people could sing on it. A rule with a test suite and
+   * no caller is worse than one with neither — it reads as live.
+   */
+  it('cannot be given an audience', () => {
+    const p = performance({ class: 'licensed' });
+    expect(() => publishPerformance(p, { planHash: 'abc123', publishedAt: AT }))
+      .toThrow(PerformanceEditError);
+    expect(() => publishPerformance(p, { planHash: 'abc123', publishedAt: AT }))
+      .toThrow(/Name the licence/);
+    expect(isPubliclyVisible(p)).toBe(false);
+  });
+
+  it('cannot be opened to anyone either, because it is the same act', () => {
+    const p = performance({ class: 'open' });
+    expect(() => publishPerformance(p, {
+      planHash: 'abc123', publishedAt: AT,
+      availability: { respondable: true, access: 'anyone' },
+    })).toThrow(/Name the licence/);
+    /* Nothing was written: not the publication, not the policy. */
+    expect(p.publication).toBeUndefined();
+  });
+
+  /* Named, and it publishes. */
+  it('publishes once the licence is named', () => {
+    const p = performance({ class: 'licensed', licence: 'PRS 12345' });
+    publishPerformance(p, { planHash: 'abc123', publishedAt: AT });
+    expect(isPubliclyVisible(p)).toBe(true);
+  });
+
+  /* And a class that needs no note is unaffected. */
+  it('leaves a master the author owns alone', () => {
+    const p = performance({ class: 'own' });
+    publishPerformance(p, { planHash: 'abc123', publishedAt: AT });
+    expect(isPubliclyVisible(p)).toBe(true);
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ *  The call's own clock, where it is written down.  [GO-VIRAL V-1]
+ * ------------------------------------------------------------------ */
+
+describe('a published performance with a window', () => {
+  const WINDOW = {
+    respondable: true, access: 'anyone' as const,
+    opensAt: '2026-10-01T09:00:00.000Z',
+    closesAt: '2026-10-08T17:00:00.000Z',
+  };
+
+  it('keeps both ends of it', () => {
+    const p = performance();
+    publishPerformance(p, {
+      planHash: 'abc123', publishedAt: AT, availability: WINDOW,
+    });
+    expect(p.publication?.opensAt).toBe(WINDOW.opensAt);
+    expect(p.publication?.closesAt).toBe(WINDOW.closesAt);
+  });
+
+  /*
+   * ONLY WHERE SOMETHING MAY BE SUBMITTED, which is the condition
+   * `access` and `claims` already travel under: a closing time on a
+   * performance nobody may take is a value that will later be read
+   * as though it said something. [PART FIVE]
+   */
+  it('keeps neither end on a performance nobody may take', () => {
+    const p = performance();
+    publishPerformance(p, {
+      planHash: 'abc123', publishedAt: AT,
+      availability: { ...WINDOW, respondable: false },
+    });
+    expect(p.publication?.opensAt).toBeUndefined();
+    expect(p.publication?.closesAt).toBeUndefined();
+  });
+
+  /* And a publication with no window is what every existing one is. */
+  it('writes no window where none was asked for', () => {
+    const p = performance();
+    publishPerformance(p, {
+      planHash: 'abc123', publishedAt: AT,
+      availability: { respondable: true, access: 'anyone' },
+    });
+    expect(p.publication?.opensAt).toBeUndefined();
+    expect(p.publication?.closesAt).toBeUndefined();
+  });
+});

@@ -1135,6 +1135,15 @@ export function publishChannel(
     ...(access ? { access } : {}),
     ...(respondable && access === 'anyone' && wanted?.claims !== undefined
       ? { claims: wanted.claims } : {}),
+    /*
+     * AND WHEN IT OPENS AND SHUTS, kept across a re-publish the way
+     * `access` is: a station that goes dark and comes back has not
+     * withdrawn its closing time by going dark. [V-1]
+     */
+    ...(respondable && (wanted?.opensAt ?? channel.publication?.opensAt)
+      ? { opensAt: (wanted?.opensAt ?? channel.publication?.opensAt)! } : {}),
+    ...(respondable && (wanted?.closesAt ?? channel.publication?.closesAt)
+      ? { closesAt: (wanted?.closesAt ?? channel.publication?.closesAt)! } : {}),
     ...(options.author?.trim() ? { author: options.author.trim().slice(0, 120) } : {}),
   };
 }

@@ -10,7 +10,7 @@ import { quoteHash } from './ids.js';
 import type { SourceItem, Timeline } from './timeline.js';
 import {
   type Performance, type PerformanceTake, type PerformanceWindow,
-  mayPublish, needsLicenceNote, plateFor, projectExport,
+  licenceMissing, mayPublish, plateFor, projectExport,
   renderProblems,
 } from './performance.js';
 import { needsMatte } from './environment.js';
@@ -187,7 +187,7 @@ export function assertPublishable(performance: Performance): void {
       + 'You can perform and export privately against it; publishing needs a '
       + 'track you own, hold a licence for, or that is openly licensed.');
   }
-  if (needsLicenceNote(performance.master) && !performance.master.licence?.trim()) {
+  if (licenceMissing(performance.master)) {
     fail('INV-15',
       `"${performance.master.title}" is marked ${performance.master.class} but does `
       + 'not say what permits it. Name the licence.');

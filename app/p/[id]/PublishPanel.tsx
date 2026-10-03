@@ -234,7 +234,8 @@ export default function PublishPanel({
            style={{ margin: 0 }}>
           {published
             ? `Anyone with the link can watch this. ${
-              describeAvailability(performance.publication)} Withdrawing stops `
+              describeAvailability(performance.publication,
+                new Date().toISOString())} Withdrawing stops `
               + 'the link working; the video stays here.'
             : why
               ?? 'Publishing puts the master video on a page anyone with the '

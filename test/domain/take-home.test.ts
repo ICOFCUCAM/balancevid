@@ -26,6 +26,11 @@ import {
 } from '../../src/domain/availability.js';
 import { asOrigin } from '../../app/take/connections.js';
 
+/* One instant, passed to every predicate that now takes the
+   clock. Nothing here has a window, so every assertion means
+   what it meant before V-1. [GO-VIRAL V-1] */
+const NOW = '2026-06-01T12:00:00.000Z';
+
 const ROOT = join(import.meta.dirname, '..', '..');
 const code = (file: string) => readFileSync(join(ROOT, file), 'utf8')
   .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/[^\n]*/gm, '');
@@ -100,7 +105,7 @@ describe('taking part without an invitation', () => {
    */
   it('requires the author to have opened it to anyone, and listed it', () => {
     const conditions = CLAIM.match(
-      /if \(!isListed\(publication\) \|\| !maySubmit\(publication, 'anyone'\)\) return no\(\);/g);
+      /if \(!isListed\(publication\) \|\| !maySubmit\(publication, 'anyone', now\)\) return no\(\);/g);
     expect(conditions).toHaveLength(3);
   });
 
@@ -316,17 +321,17 @@ describe('the ceiling on claims', () => {
 
   it('stops letting people in once it is reached', () => {
     const open = { respondable: true, listed: true, access: 'anyone' as const, claims: 2 };
-    expect(mayClaim(open, 0)).toBe(true);
-    expect(mayClaim(open, 1)).toBe(true);
-    expect(mayClaim(open, 2)).toBe(false);
-    expect(mayClaim(open, 99)).toBe(false);
+    expect(mayClaim(open, 0, NOW)).toBe(true);
+    expect(mayClaim(open, 1, NOW)).toBe(true);
+    expect(mayClaim(open, 2, NOW)).toBe(false);
+    expect(mayClaim(open, 99, NOW)).toBe(false);
   });
 
   /* A ceiling never opens a door the policy keeps shut. */
   it('lets nobody in where the policy would not', () => {
-    expect(mayClaim({ respondable: false, claims: 100 }, 0)).toBe(false);
-    expect(mayClaim({ respondable: true, access: 'invited', claims: 100 }, 0)).toBe(false);
-    expect(mayClaim({ respondable: true, access: 'link', claims: 100 }, 0)).toBe(false);
+    expect(mayClaim({ respondable: false, claims: 100 }, 0, NOW)).toBe(false);
+    expect(mayClaim({ respondable: true, access: 'invited', claims: 100 }, 0, NOW)).toBe(false);
+    expect(mayClaim({ respondable: true, access: 'link', claims: 100 }, 0, NOW)).toBe(false);
   });
 
   /*
@@ -343,9 +348,12 @@ describe('the ceiling on claims', () => {
 
   /* One per holder, each counting its own. */
   it('bounds every kind, against its own holder', () => {
-    expect(CLAIM).toMatch(/mayClaim\(publication, await claimsSoFar\('performance', performance\.id\)\)/);
-    expect(CLAIM).toMatch(/mayClaim\(publication, await claimsSoFar\('conversation', conversation\.id\)\)/);
-    expect(CLAIM).toMatch(/mayClaim\(publication, await claimsSoFar\('channel', channel\.id\)\)/);
+    expect(CLAIM).toMatch(
+      /mayClaim\(publication, await claimsSoFar\('performance', performance\.id\), now\)/);
+    expect(CLAIM).toMatch(
+      /mayClaim\(publication, await claimsSoFar\('conversation', conversation\.id\), now\)/);
+    expect(CLAIM).toMatch(
+      /mayClaim\(publication, await claimsSoFar\('channel', channel\.id\), now\)/);
   });
 
   /*
@@ -641,5 +649,59 @@ describe('a name somebody else chose', () => {
     const parsers = everywhere.filter((file) =>
       /\[a-z0-9\+\.-\]\*\):\(\?!\\d\)/.test(code(file)));
     expect(parsers).toEqual([join('shared/src', 'connections.ts')]);
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ *  The clock, where a stranger meets it.  [GO-VIRAL V-1]
+ * ------------------------------------------------------------------ */
+
+describe('a call outside its window', () => {
+  /*
+   * ONE INSTANT FOR THE WHOLE LISTING. Reading the clock once per
+   * row would let a call close between two rows of one answer,
+   * which is a listing that disagrees with itself.
+   */
+  it('is judged against one instant per answer, not one per row', () => {
+    const list = readFileSync(
+      join(import.meta.dirname, '..', '..', 'app', 'api', 'participate', 'route.ts'),
+      'utf8');
+    expect(list.match(/const now = new Date\(\)\.toISOString\(\);/g)).toHaveLength(1);
+    /* And every predicate in it is asked against that one. */
+    expect(list.match(/availabilityState\(publication, now\)/g)).toHaveLength(3);
+    expect(list.match(/maySubmit\(publication, 'anyone', now\)/g)).toHaveLength(3);
+  });
+
+  /*
+   * THE LISTING SAYS WHEN, BECAUSE THE AUTHOR CHOSE TO BE LISTED.
+   * A countdown needs the instant, not the word — *ending soon* is
+   * a subtraction, and `state` cannot be subtracted from.
+   */
+  it('tells a browsing surface when it opens and when it shuts', () => {
+    const list = readFileSync(
+      join(import.meta.dirname, '..', '..', 'app', 'api', 'participate', 'route.ts'),
+      'utf8');
+    expect(list.match(/opensAt: publication\.opensAt/g)).toHaveLength(3);
+    expect(list.match(/closesAt: publication\.closesAt/g)).toHaveLength(3);
+  });
+
+  /*
+   * AND THE DOOR SAYS NOTHING. A call that opens on Tuesday and a
+   * call that shut last night answer with the same 404 as
+   * everything else here — a door that said *not yet* in a
+   * different voice from *not here* is a door that tells a stranger
+   * which drafts exist. [D-03]
+   */
+  it('answers a closed window the way it answers everything else', () => {
+    /*
+     * ONE GATE AND NOT TWO. The clock is enforced inside
+     * `maySubmit`, so the route has no second refusal to word
+     * differently — and asserting that it never calls the clock
+     * itself is the assertion that it cannot grow one.
+     */
+    expect(CLAIM).not.toMatch(/isOpenAt|closesWhen|opensAt|closesAt/);
+    expect(CLAIM).not.toMatch(/not open yet|has closed|opens on/i);
+    /* Every refusal in it is still the one that says nothing. */
+    expect(CLAIM).toMatch(/const no = \(\) => fail\(404,/);
   });
 });

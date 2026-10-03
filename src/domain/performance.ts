@@ -204,6 +204,27 @@ export function needsLicenceNote(master: MasterTrack): boolean {
   return master.class === 'licensed' || master.class === 'open';
 }
 
+/**
+ * A master that says it is licensed and does not say by what.
+ *   [INV-15; GO-VIRAL V-1, G7]
+ *
+ * THE RULE EXISTED AND ONLY ITS OWN TEST ASKED IT. `assertPublishable`
+ * in `invariants.ts` has carried this since INV-15 was written, with
+ * nine assertions over it — and a search for its callers turns up
+ * that test file and nothing else. A rule enforced nowhere is a rule
+ * with a test suite, which is worse than one with neither: it reads
+ * as live.
+ *
+ * SO IT BECOMES A PREDICATE AND BOTH ASK IT. The invariant keeps its
+ * own wording, `publishPerformance` gets wording for a person about
+ * to press a button, and there is one place that decides. A second
+ * copy of *licensed but silent* is how the two come to disagree about
+ * a rights question. [D-19]
+ */
+export function licenceMissing(master: MasterTrack): boolean {
+  return needsLicenceNote(master) && !master.licence?.trim();
+}
+
 export interface MasterTrack {
   assetId: AssetId;
   /** What the song is called. Carried into the attribution block. [U-21] */

@@ -619,6 +619,18 @@ export interface ChannelPublication {
   respondable?: boolean;
   listed?: boolean;
   access?: TakeAccess;
+  /**
+   * And when the door opens and shuts.  [GO-VIRAL V-1]
+   *
+   * `TakeAvailability`'s, like the three above: a channel's
+   * call for things to send in has a closing time for the same
+   * reason a song's does, and two vocabularies for one clock is
+   * how two surfaces come to disagree about whether a call is
+   * over. [D-19]
+   */
+  claims?: number;
+  opensAt?: string;
+  closesAt?: string;
 }
 
 /**

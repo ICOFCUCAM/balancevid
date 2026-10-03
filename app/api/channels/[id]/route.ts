@@ -1,4 +1,6 @@
-import { availabilityFrom } from '../../../../src/domain/availability.js';
+import {
+  availabilityFrom, whenProblem,
+} from '../../../../src/domain/availability.js';
 import { isOwner } from '../../../../src/auth/request.js';
 import {
   ChannelEditError,
@@ -521,7 +523,13 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
          * Publishing moves no bytes. The playout engine was already writing
          * segments; this decides who may fetch them. [D-18]
          */
-        case 'publish':
+        case 'publish': {
+          /*
+           * A window that will not parse is refused here, where the
+           * person who typed it is standing. [GO-VIRAL V-1]
+           */
+          const bad = whenProblem(body as Record<string, unknown>);
+          if (bad) throw new ChannelEditError(bad);
           publishChannel(draft, {
             at,
             author: body['author'],
@@ -530,6 +538,7 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
             availability: availabilityFrom(body as Record<string, unknown>),
           });
           break;
+        }
         case 'unpublish':
           unpublishChannel(draft, at);
           break;

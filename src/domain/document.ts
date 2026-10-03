@@ -8,7 +8,7 @@
  * the user meant.  [Doctrine §33, U-25]
  */
 
-import type { TakeAccess } from './availability.js';
+import type { TakeAccess, TakeAvailability } from './availability.js';
 import type { Frames } from './time.js';
 import type { Id } from './ids.js';
 import type {
@@ -441,9 +441,15 @@ export interface Intervention {
  * cannot be added cheaply afterwards -- by then there are responses that were
  * made under an assumption nobody stated.
  */
-export interface Publication {
+export interface Publication extends TakeAvailability {
   publishedAt: string;
-  /** Whether anyone may respond to this. The publisher's decision. [U-31] */
+  /**
+   * Whether anyone may respond to this. The publisher's decision. [U-31]
+   *
+   * REQUIRED HERE AND OPTIONAL ON `TakeAvailability`, which is the
+   * one thing this type narrows: a publication was written by
+   * somebody pressing publish, so the answer exists.
+   */
   respondable: boolean;
   /**
    * Whether it should appear in a browse surface.
@@ -469,6 +475,23 @@ export interface Publication {
    * meant something.
    */
   access?: TakeAccess;
+  /*
+   * `claims`, `opensAt` and `closesAt` COME FROM `TakeAvailability`
+   * ABOVE, and that is the repair as much as the addition.
+   *   [TAKE-PLATFORM P41; GO-VIRAL V-1]
+   *
+   * `respondable`, `listed` and `access` were written out here by
+   * hand and `claims` was not written out at all — it has been
+   * stored on published performances since P41 and read back by
+   * `claimsAllowed`, working only because a spread skips the
+   * excess-property check and a structural type does not mind a
+   * field it never heard of. A field on disk that no type admits
+   * to is a field the next refactor drops in silence.
+   *
+   * So the four travel together, from the module that holds the
+   * rules that read them, and a fifth cannot be added to one half
+   * of the product. [D-19]
+   */
   /** The render that was published; what a responder will be answering. */
   planHash: string;
   /** Shown as the author of the response, where one is given. */

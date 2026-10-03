@@ -94,6 +94,29 @@ export interface TakeAvailability {
    * door nobody can open by themselves is a number that does nothing.
    */
   claims?: number;
+  /**
+   * WHEN THE DOOR OPENS AND WHEN IT SHUTS.  [GO-VIRAL V-1]
+   *
+   * A CEILING WAS THE ONLY BOUND AND IT IS THE WRONG KIND. `claims`
+   * says how many; nothing said *until when*. A song opened to
+   * `anyone` stayed open until somebody unticked it or the hundredth
+   * stranger arrived — so there was no closing time, which means no
+   * moment at which a call can be judged, no countdown to show, and
+   * no way to say *ending soon* about anything.
+   *
+   * NOT `expiresAt`, AND THE DIFFERENCE IS WHO IT IS ABOUT.
+   * `ParticipationRequest.expiresAt` is one person's link running
+   * out — forty invitations are forty deadlines. This is the CALL's
+   * own clock, and a call has one. Both exist, neither replaces the
+   * other, and the request machine is not touched. [D-19]
+   *
+   * BOTH OPTIONAL, AND ABSENT IS WHAT EVERY ITEM ON DISK ALREADY
+   * MEANS: no `opensAt` is *open since always*, no `closesAt` is
+   * *never closes*. An item with neither behaves exactly as it did
+   * before this field existed.
+   */
+  opensAt?: string;
+  closesAt?: string;
 }
 
 /**
@@ -111,6 +134,97 @@ export interface TakeAvailability {
  */
 export const DEFAULT_LISTED = true;
 export const DEFAULT_ACCESS: TakeAccess = 'anyone';
+
+/* ------------------------------------------------------------------ *
+ *  The call's own clock.  [GO-VIRAL V-1]
+ * ------------------------------------------------------------------ */
+
+/**
+ * An instant, or nothing.
+ *
+ * ONE PARSER, READ AND WRITE. The predicates below and
+ * `availabilityFrom` must agree about what a date is, or a
+ * producer sets a closing time the door never reads.
+ */
+function instant(said: unknown): number | null {
+  if (typeof said !== 'string' || !said.trim()) return null;
+  const at = Date.parse(said);
+  return Number.isFinite(at) ? at : null;
+}
+
+/**
+ * Whether the call is inside its own window.
+ *
+ * AN UNREADABLE DATE IS AN OPEN DOOR, which is `isOpen`'s
+ * decision on `expiresAt` and is taken here for the reason it
+ * gives: *"a corrupt expiry that locked somebody out
+ * mid-recording is a worse failure than a link that outlives its
+ * terms"*, and there is a revocation that always works —
+ * unticking it, or unpublishing. A date that cannot be read is
+ * not a deadline anybody set; it is a damaged record, and the
+ * answer to a damaged record is not to lock the room.
+ *
+ * WHAT IS REFUSED INSTEAD IS WRITING ONE. `whenProblem` below is
+ * what a producer meets, at the moment they set it, where the
+ * thing that is wrong is still in front of them.
+ *
+ * CLOSED AT THE MINUTE IT SAYS, not after it: `closesAt` is the
+ * first instant at which nothing more is accepted, so a call
+ * that shuts at noon does not take a take stamped noon.
+ */
+export function isOpenAt(
+  availability: TakeAvailability | undefined, now: string,
+): boolean {
+  const at = instant(now);
+  /* No clock to check against is no reason to shut the door. */
+  if (at === null) return true;
+  const opens = instant(availability?.opensAt);
+  const closes = instant(availability?.closesAt);
+  if (opens !== null && at < opens) return false;
+  if (closes !== null && at >= closes) return false;
+  return true;
+}
+
+/** Whether this call has a closing time that has not come yet. */
+export function closesWhen(
+  availability: TakeAvailability | undefined,
+): number | null {
+  return instant(availability?.closesAt);
+}
+
+/**
+ * What is wrong with the window somebody is setting, or nothing.
+ *
+ * REFUSED AT THE WRITE AND FORGIVEN AT THE READ, which is not
+ * two minds about the same question. A date that will not parse
+ * in a request body is a producer about to be surprised, and
+ * they are here to be told; the same date found on disk a month
+ * later is a damaged record, and refusing to serve a
+ * performance because of it helps nobody. [U-19]
+ */
+export function whenProblem(body: {
+  opensAt?: unknown; closesAt?: unknown;
+}): string {
+  const said = (one: unknown) => one !== undefined && one !== null && one !== '';
+  if (said(body.opensAt) && instant(body.opensAt) === null) {
+    return 'that is not a date to open at';
+  }
+  if (said(body.closesAt) && instant(body.closesAt) === null) {
+    return 'that is not a date to close at';
+  }
+  const opens = instant(body.opensAt);
+  const closes = instant(body.closesAt);
+  /*
+   * A WINDOW THAT IS ALREADY SHUT IS NOT A WINDOW. Setting a
+   * closing time before the opening one is a typo every time,
+   * and the item it would produce is one nobody can ever take
+   * part in — which the surface would then have to explain.
+   */
+  if (opens !== null && closes !== null && closes <= opens) {
+    return 'it cannot close before it opens';
+  }
+  return '';
+}
 
 /** The access policy in force, which is only a question when one applies. */
 export function accessOf(availability: TakeAvailability | undefined): TakeAccess | null {
@@ -148,9 +262,23 @@ export function isListed(availability: TakeAvailability | undefined): boolean {
 export function maySubmit(
   availability: TakeAvailability | undefined,
   holds: TakeAccess,
+  now: string,
 ): boolean {
   const policy = accessOf(availability);
   if (!policy) return false;
+  /*
+   * AND THE CALL'S OWN CLOCK, WHICH IS A SEPARATE QUESTION FROM
+   * WHO. [V-1] `now` is required rather than defaulted, so every
+   * caller is counted: a permission check with an optional clock
+   * is a permission check somebody forgets to wind, and the
+   * compiler is the only reviewer that reads every call site.
+   *
+   * THE INVITED PATH DOES NOT COME THROUGH HERE. A person
+   * holding a participation request is admitted by
+   * `requestForLink` and `isOpen`, against their own
+   * `expiresAt`; this predicate is what a stranger meets.
+   */
+  if (!isOpenAt(availability, now)) return false;
   /* `holds` is at least as narrow as the policy demands. */
   return TAKE_ACCESS.indexOf(holds) >= TAKE_ACCESS.indexOf(policy);
 }
@@ -165,17 +293,40 @@ export function maySubmit(
 export type AvailabilityState =
   | 'unavailable'      // not respondable, not listed
   | 'browse-only'      // listed, but nothing may be submitted
+  | 'scheduled'        // respondable, but not yet [V-1]
+  | 'closed'           // respondable, and no longer [V-1]
   | 'open'             // respondable, listed, anyone
   | 'restricted'       // respondable, listed, narrower than anyone
   | 'unlisted'         // respondable, not listed, link holders
   | 'private';         // respondable, not listed, invited only
 
+/**
+ * EIGHT ROWS NOW, AND THE TWO NEW ONES COME FIRST once there is
+ * anything to submit.  [V-1]
+ *
+ * *Who may take part* is a different question from *may anybody
+ * yet*, and the second one is answered first: an item open to
+ * `anyone` next Tuesday is not `open`, it is `scheduled`, and a
+ * surface that drew it as open would be inviting people to press
+ * a button that refuses them.
+ *
+ * STILL LISTED EITHER WAY. Discovery is not the clock — a call
+ * nobody can find before it opens is a call nobody enters when
+ * it does, and *ending soon* is a thing to show rather than a
+ * thing to hide. `isListed` is untouched. [TAKE-PLATFORM PART FIVE]
+ */
 export function availabilityState(
   availability: TakeAvailability | undefined,
+  now: string,
 ): AvailabilityState {
   const listed = isListed(availability);
   const policy = accessOf(availability);
   if (!policy) return listed ? 'browse-only' : 'unavailable';
+  if (!isOpenAt(availability, now)) {
+    const opens = instant(availability?.opensAt);
+    const at = instant(now);
+    return opens !== null && at !== null && at < opens ? 'scheduled' : 'closed';
+  }
   if (listed) return policy === 'anyone' ? 'open' : 'restricted';
   return policy === 'invited' ? 'private' : 'unlisted';
 }
@@ -183,12 +334,17 @@ export function availabilityState(
 /** What to tell somebody looking at the setting. One sentence, no jargon. */
 export function describeAvailability(
   availability: TakeAvailability | undefined,
+  now: string,
 ): string {
-  switch (availabilityState(availability)) {
+  switch (availabilityState(availability, now)) {
     case 'unavailable':
       return 'Nobody can find this or take part in it.';
     case 'browse-only':
       return 'People can find this, but cannot send you a take.';
+    case 'scheduled':
+      return 'People can find this. It opens for takes later.';
+    case 'closed':
+      return 'This has closed. Nobody can send you a take now.';
     case 'open':
       return 'Anybody who finds this can send you a take.';
     case 'restricted':
@@ -217,6 +373,7 @@ export function describeAvailability(
  */
 export function availabilityFrom(body: {
   respondable?: unknown; listed?: unknown; access?: unknown; claims?: unknown;
+  opensAt?: unknown; closesAt?: unknown;
 }): TakeAvailability {
   const respondable = body.respondable === true;
   const asked = typeof body.access === 'string' ? body.access : undefined;
@@ -229,6 +386,30 @@ export function availabilityFrom(body: {
    */
   const claims = Number.isInteger(body.claims) && (body.claims as number) >= 0
     ? body.claims as number : undefined;
+  /*
+   * THE WINDOW, NORMALISED, AND ONLY WHEN IT IS ONE.  [V-1]
+   *
+   * Stored as the instant rather than as whatever the client
+   * typed, so two producers in two time zones write the same
+   * record and the predicates above compare like with like.
+   *
+   * ONLY WHERE SOMETHING MAY BE SUBMITTED, for the reason
+   * `access` is: a closing time on an item nothing can be sent
+   * to is a value somebody later reads as though it meant
+   * something.
+   *
+   * AND NOTHING AT ALL IF THE PAIR IS WRONG. `whenProblem` is
+   * what tells the producer why, at the write, where the thing
+   * that is wrong is still in front of them — this is the same
+   * parse reaching the same conclusion, so a route that forgot
+   * to ask cannot store a window the door will not read. [D-19]
+   */
+  const window = whenProblem(body) ? {} : {
+    ...(instant(body.opensAt) !== null
+      ? { opensAt: new Date(instant(body.opensAt)!).toISOString() } : {}),
+    ...(instant(body.closesAt) !== null
+      ? { closesAt: new Date(instant(body.closesAt)!).toISOString() } : {}),
+  };
   return {
     respondable,
     listed: body.listed !== false,
@@ -236,6 +417,7 @@ export function availabilityFrom(body: {
     ...(respondable ? { access } : {}),
     ...(respondable && access === 'anyone' && claims !== undefined
       ? { claims } : {}),
+    ...(respondable ? window : {}),
   };
 }
 
@@ -276,7 +458,8 @@ export function claimsAllowed(availability: TakeAvailability | undefined): numbe
 /** Whether one more stranger may take part, given how many already have. */
 export function mayClaim(
   availability: TakeAvailability | undefined, alreadyClaimed: number,
+  now: string,
 ): boolean {
-  if (!maySubmit(availability, 'anyone')) return false;
+  if (!maySubmit(availability, 'anyone', now)) return false;
   return alreadyClaimed < claimsAllowed(availability);
 }
