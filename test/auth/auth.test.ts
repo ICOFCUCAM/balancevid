@@ -141,6 +141,58 @@ describe('what the holder of a Take link may reach', () => {
   });
 
   /*
+   * THE PRODUCT'S OWN PHOTOGRAPHS.  [TV-NETWORK N-4]
+   *
+   * FOUND IN A SCREENSHOT: the television network's front page was a
+   * black band with a broken-image glyph in the corner, because
+   * `/rooms/online-tv.webp` had never been fetched WITHOUT a session
+   * — every page drawing it until now was behind one. A stranger
+   * arriving at `/tv` was redirected to sign in for a photograph.
+   *
+   * WIDENING THE POLICY IS THE PART THAT NEEDS A TEST, not the page
+   * that prompted it. These are files in the repository, the same
+   * bytes for everybody, and the allowance has to stay exactly that
+   * narrow: a known image extension, one segment deep, under one
+   * directory.
+   */
+  it('serves the shipped artwork to somebody with no session', () => {
+    expect(isAssetPath('/rooms/online-tv.webp')).toBe(true);
+    expect(isAssetPath('/rooms/conversation.webp')).toBe(true);
+    expect(isAssetPath('/rooms/performance.png')).toBe(true);
+  });
+
+  /*
+   * AND NOTHING ELSE UNDER IT. A directory opened for pictures is a
+   * directory somebody will later put something else in — so the
+   * rule is the extension and the depth, not the prefix.
+   */
+  it('opens the pictures and not the directory', () => {
+    for (const path of [
+      '/rooms/secrets.json',
+      '/rooms/notes.txt',
+      '/rooms/deeper/online-tv.webp',
+      '/rooms/',
+      '/rooms/online-tv.webp.json',
+    ]) {
+      expect(isAssetPath(path), path).toBe(false);
+    }
+  });
+
+  /*
+   * AND IT IS AN ASSET RATHER THAN A PUBLIC ROUTE, which is a
+   * distinction this test exists to keep. A first attempt put the
+   * rule in `PUBLIC_PATTERNS` and asserted `mayBePublic`; the
+   * assertion failed, because the rule had gone into the asset list
+   * instead — which is where it belongs. A photograph in the
+   * repository is a static file, not a surface that decides
+   * anything, and widening the list that governs ROUTES to carry it
+   * would have been the wrong kind of permission.
+   */
+  it('is an asset and not a route that may answer', () => {
+    expect(mayBePublic('/rooms/online-tv.webp', 'GET')).toBe(false);
+  });
+
+  /*
    * THE METHOD IS PART OF THE RULE, which this product learned from a
    * real hole: a path-only allowance on interventions also answered
    * DELETE. A participant may say they are recording, begin a

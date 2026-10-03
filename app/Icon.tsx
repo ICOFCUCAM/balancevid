@@ -20,7 +20,7 @@
  */
 
 export type IconName =
-  | 'home' | 'conversation' | 'music' | 'broadcast' | 'library'
+  | 'home' | 'person' | 'conversation' | 'music' | 'broadcast' | 'library'
   | 'channels' | 'distribution' | 'settings' | 'search' | 'bell'
   | 'disk' | 'clock' | 'calendar' | 'play' | 'plus' | 'chevron'
   | 'arrow' | 'upload' | 'link' | 'live' | 'pencil' | 'sun' | 'moon'
@@ -31,6 +31,18 @@ export type IconName =
 /* Each is the inner geometry; the frame and the stroke are set below. */
 const PATHS: Record<IconName, React.ReactNode> = {
   home: <path d="M4 10.5 12 4l8 6.5V19a1 1 0 0 1-1 1h-4v-5h-6v5H5a1 1 0 0 1-1-1z" />,
+  /*
+   * WHO YOU ARE, which this set did not have because nothing had
+   * asked. The studio says it in words in the account menu; the
+   * television network's header has room for a mark and not a
+   * sentence, so the mark had to exist. [N-4]
+   */
+  person: (
+    <>
+      <circle cx="12" cy="8.2" r="3.6" />
+      <path d="M4.8 20a7.2 7.2 0 0 1 14.4 0" />
+    </>
+  ),
   conversation: (
     <>
       <path d="M4 6a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H9l-5 4z" />
