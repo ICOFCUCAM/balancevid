@@ -28,7 +28,10 @@
  * Nothing here touches the filesystem, the network or a clock.
  */
 
-import type { Channel } from './channel.js';
+import type { Channel, OnAirKind, Programme } from './channel.js';
+import {
+  orderedProgrammes, programmeEnd, programmeStart,
+} from './channel.js';
 import { airtime } from './airtime.js';
 import { viewerTitle } from './onAir.js';
 import { type Listing } from './channelListing.js';
@@ -38,10 +41,28 @@ export const GUIDE_SPAN_MS = 3 * 60 * 60 * 1000;
 /** The column width, in time. */
 export const GUIDE_STEP_MS = 30 * 60 * 1000;
 
+/**
+ * WHAT A LISTED BLOCK CAN BE, which is one more than what can be
+ * ON AIR: a booked live event is announced and not broadcast —
+ * see `withBookings`. [§6]
+ */
+export type SlotKind = OnAirKind | 'live_event';
+
 export interface Slot {
   fromMs: number;
   toMs: number;
   title: string;
+  /**
+   * WHAT SORT OF THING THIS IS, carried rather than inferred.
+   *
+   * A grid has to tell *Off air* from a programme — it must not
+   * paint a dead hour in the colour it reserves for what you can
+   * watch right now. The only other way to know is to compare the
+   * title against the words `Off air`, which is a surface reading
+   * a sentence this module wrote, and which stops being true the
+   * first time anything is translated. [D-19]
+   */
+  kind: SlotKind;
 }
 
 export interface Row {
@@ -94,8 +115,118 @@ export function rowFor(
     fromMs: stretch.fromMs,
     toMs: stretch.toMs,
     title: viewerTitle(channel, stretch.on),
+    kind: stretch.on.kind,
   }));
-  return { channel: listing, slots };
+  return { channel: listing, slots: withBookings(channel, slots, fromMs, toMs) };
+}
+
+/**
+ * A BOOKED LIVE SLOT IS IN THE LISTING EVEN THOUGH IT IS NOT ON
+ * THE WIRE.  [§6, N-5, D-21]
+ *
+ *     19:00  LIVE — Evening Discussion
+ *
+ * That line is the brief's own illustration of what `live_event`
+ * is for, and until now no listing could draw it. `whatIsOn`
+ * deliberately falls a booked slot THROUGH to whatever would
+ * otherwise have been on, because *"a listing cannot make
+ * somebody turn up"* and a channel must not go to black at
+ * nineteen hundred over a late presenter. That is right for
+ * playout and wrong for a guide: `airtime` is what is going out,
+ * and a guide is what is ANNOUNCED. The whole point of booking
+ * Friday on Monday is that people can see it.
+ *
+ * So the walk stays untouched — this is a second reading of the
+ * same document laid over it, not a change to what the channel
+ * broadcasts.
+ *
+ * A BOOKING LOSES TO A LIVE FEED AND TO AN ORDINARY PROGRAMME.
+ * If somebody turned up, the feed IS the booking and the walk
+ * already named it; if the schedule has something else on, two
+ * programmes cannot be on air at once and the editor refuses it
+ * anyway. A booking only replaces the FALLBACK — the loop and
+ * the dead air it was holding open.
+ */
+function withBookings(
+  channel: Channel, slots: Slot[], fromMs: number, toMs: number,
+): Slot[] {
+  /*
+   * NOT FILTERED TO THE WINDOW HERE, AND THAT IS NOT AN
+   * OVERSIGHT. A clause dropping bookings outside `fromMs`–
+   * `toMs` survived every mutation at the boundary, because the
+   * clipping below already decides it: a booking before the
+   * window clips to a width of nothing and finds no slot to
+   * overlap, and one after it clips the same way. An untested
+   * guard against a case the next six lines forbid is a guard
+   * nobody can check. [the twentieth]
+   */
+  /*
+   * AND THIS TEST OVERLAPS THE ONE BELOW, WHICH IS WORTH SAYING
+   * OUT LOUD. Replacing it with *every programme* changes no
+   * output any test can reach, because `whatIsOn` returns
+   * `programme` across exactly the range an ordinary programme
+   * occupies, so an ordinary programme never finds a yielding
+   * slot to displace. It stays because it is what this function
+   * IS rather than a guard on it: `yields` enforces the rule and
+   * this states it, and a reader who met only `yields` would
+   * have to derive the subject of the function from the list of
+   * things it leaves alone. [§6]
+   */
+  const booked = orderedProgrammes(channel).filter(
+    (one) => one.source.kind === 'live_event');
+
+  let out = slots;
+  for (const one of booked) {
+    const at = Math.max(fromMs, programmeStart(one));
+    const until = Math.min(toMs, programmeEnd(one));
+    /*
+     * ONLY WHERE THE AIR IS FREE. A booking that overlapped a
+     * live feed would announce an empty studio over a broadcast
+     * that is actually happening.
+     */
+    const free = out.some((slot) => yields(slot.kind)
+      && slot.fromMs < until && slot.toMs > at);
+    if (!free) continue;
+    out = carve(out, at, until, {
+      fromMs: at, toMs: until, title: titleOf(one), kind: 'live_event',
+    });
+  }
+  return out.sort((a, b) => a.fromMs - b.fromMs);
+}
+
+/** What a booking displaces: the loop, and the dead air. */
+function yields(kind: SlotKind): boolean {
+  return kind === 'off' || kind === 'rotation';
+}
+
+/**
+ * The booked slot's own name.
+ *
+ * `LIVE — ` IS NOT PREFIXED HERE. The brief writes the line that
+ * way and a reader does need to know, but a title is data and the
+ * marker is presentation: the grid has `kind` on every slot and
+ * draws it, the way it draws the one block that is on air now. A
+ * title carrying its own badge is a title that cannot be
+ * translated or shown without one. [D-19]
+ */
+function titleOf(one: Programme): string {
+  const note = one.source.kind === 'live_event' ? one.source.note : undefined;
+  return one.title ?? note ?? 'Live';
+}
+
+/** The row with `at`–`until` cut out of the yielding slots and `put` in. */
+function carve(slots: Slot[], at: number, until: number, put: Slot): Slot[] {
+  const out: Slot[] = [];
+  for (const slot of slots) {
+    if (!yields(slot.kind) || slot.fromMs >= until || slot.toMs <= at) {
+      out.push(slot);
+      continue;
+    }
+    if (slot.fromMs < at) out.push({ ...slot, toMs: at });
+    if (slot.toMs > until) out.push({ ...slot, fromMs: until });
+  }
+  out.push(put);
+  return out;
 }
 
 /**

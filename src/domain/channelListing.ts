@@ -270,3 +270,34 @@ export function tuning(
     down: at(tuneFrom(numbers, from, -1)),
   };
 }
+
+/**
+ * The directory, grouped by what kind of channel each one is.
+ *
+ * MOST-CARRIED FIRST, AND BY NAME WHERE TWO KINDS TIE. The same
+ * two orderings the directory itself draws, for the same reason:
+ * a page is scanned down the headings and read across the names.
+ * [D-04]
+ *
+ * A CHANNEL THAT NAMED NO GENRE IS NOT FILED UNDER *OTHER*.
+ * `genre` is optional on a station, and a bucket called Other is
+ * a heading nobody chose — those channels are in the directory,
+ * which is where a list of everything belongs.
+ *
+ * ONE FUNCTION BECAUSE IT IS ONE QUESTION. `/tv/categories` asks
+ * it to draw a section per kind and the guide asks it to draw a
+ * sidebar of counts; when they each grouped their own, the two
+ * pages were one edit away from disagreeing about what the
+ * network carries. [D-19]
+ */
+export function byGenre(listings: Iterable<Listing>): [string, Listing[]][] {
+  const held = new Map<string, Listing[]>();
+  for (const one of listings) {
+    if (!one.genre) continue;
+    const under = held.get(one.genre);
+    if (under) under.push(one);
+    else held.set(one.genre, [one]);
+  }
+  return [...held.entries()]
+    .sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]));
+}

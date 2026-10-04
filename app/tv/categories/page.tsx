@@ -1,4 +1,4 @@
-import { directory } from '../../../src/domain/channelListing.js';
+import { byGenre, directory } from '../../../src/domain/channelListing.js';
 import { listChannels } from '../../../src/store/channels.js';
 import { lineupFor } from '../../../src/store/lineup.js';
 import { nowAndNext } from '../../../src/domain/onAir.js';
@@ -48,19 +48,7 @@ export default async function CategoriesPage() {
     now[slug] = on.title;
   }
 
-  const byGenre = new Map<string, typeof channels>();
-  for (const one of channels) {
-    /*
-     * A CHANNEL THAT NAMED NO GENRE IS NOT FILED UNDER *OTHER*.
-     * `Genre` is optional on a station and a bucket called Other
-     * is a heading nobody chose — those channels are in the
-     * directory, which is where a list of everything belongs.
-     */
-    if (!one.genre) continue;
-    byGenre.set(one.genre, [...(byGenre.get(one.genre) ?? []), one]);
-  }
-  const sections = [...byGenre.entries()]
-    .sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]));
+  const sections = byGenre(channels);
 
   return (
     <TvFrame here="/tv/categories">

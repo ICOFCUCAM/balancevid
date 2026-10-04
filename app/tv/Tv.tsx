@@ -25,8 +25,9 @@ import {
 
 export { isFavorite };
 import { useInstallOffer } from '../useInstallOffer.js';
-import Icon, { type IconName } from '../Icon.js';
+import Icon from '../Icon.js';
 import { NETWORK_ART } from './art.js';
+import { asWord, markFor } from './kinds.js';
 
 export interface Listing {
   slug: string;
@@ -798,30 +799,6 @@ export function LiveNow(
   );
 }
 
-/**
- * The glyph a genre is shown with.
- *
- * A LOOKUP WITH A FALLBACK, because `genre` is a free string a
- * broadcaster typed. A map that had to be complete would be a map
- * that broke the strip the first time somebody wrote *Documentary*.
- */
-/**
- * A genre as a word rather than as a key.
- *
- * `Genre` is stored lowercase because it is an enum on a record.
- * A strip reading *culture · faith · children* is a strip showing
- * its database, which is the fault the studio's own surfaces are
- * careful about everywhere else.
- */
-function asWord(genre: string): string {
-  return genre.charAt(0).toUpperCase() + genre.slice(1);
-}
-
-const GENRE_MARKS: Record<string, IconName> = {
-  faith: 'passed', news: 'broadcast', culture: 'library',
-  education: 'list', music: 'music', sport: 'live', sports: 'live',
-  entertainment: 'play', talk: 'conversation', kids: 'sun', film: 'play',
-};
 
 /**
  * The genres this network actually carries.
@@ -840,8 +817,7 @@ export function Categories({ genres }: { genres: string[] }) {
           <Link key={genre} className="net-chip" data-testid="tv-category"
                 href={`/tv/search?q=${encodeURIComponent(genre)}`}>
             <span aria-hidden="true" className="net-chip-mark">
-              <Icon name={GENRE_MARKS[genre.toLowerCase()] ?? 'broadcast'}
-                    size={13} />
+              <Icon name={markFor(genre)} size={13} />
             </span>
             {asWord(genre)}
           </Link>

@@ -11,7 +11,7 @@ import { describe, expect, it } from 'vitest';
 import type { Channel } from '../../src/domain/channel.js';
 import { newChannel, setStation } from '../../src/domain/channelEdit.js';
 import {
-  bySlug, directory, inDirectory, listingFor, standingOf, tuning,
+  byGenre, bySlug, directory, inDirectory, listingFor, standingOf, tuning,
 } from '../../src/domain/channelListing.js';
 
 const AT = '2026-10-02T20:00:00.000Z';
@@ -336,5 +336,76 @@ describe('CH+ and CH− (N-9)', () => {
     const without = { ...numbers };
     delete without[b.id];
     expect(tuning(all, without, 100).up?.number).toBe(102);
+  });
+});
+
+/*
+ * THE NETWORK BY WHAT IS ON IT.  [N-4, D-04, D-19]
+ *
+ * `/tv/categories` draws a section per kind and the guide draws
+ * a sidebar of counts. They each grouped their own, which is two
+ * answers to one question and one edit away from disagreeing
+ * about what the network carries.
+ */
+describe('grouping the directory by kind (N-4)', () => {
+  function kinded(name: string, slug: string, genre?: string) {
+    const listing = listingFor(made(name, { slug }))!;
+    return genre ? { ...listing, genre } : listing;
+  }
+
+  it('is most-carried first, and by name where two kinds tie', () => {
+    const groups = byGenre([
+      kinded('One', 'one', 'music'),
+      kinded('Two', 'two', 'faith'),
+      kinded('Three', 'three', 'music'),
+      kinded('Four', 'four', 'culture'),
+      kinded('Five', 'five', 'faith'),
+      kinded('Six', 'six', 'music'),
+    ]);
+    expect(groups.map(([kind, under]) => [kind, under.length]))
+      .toEqual([['music', 3], ['faith', 2], ['culture', 1]]);
+  });
+
+  /*
+   * A CHANNEL THAT NAMED NO GENRE IS NOT FILED UNDER *OTHER*.
+   * `genre` is optional on a station and a bucket called Other is
+   * a heading nobody chose.
+   */
+  it('files a channel that named no kind under nothing', () => {
+    const groups = byGenre([
+      kinded('One', 'one', 'music'),
+      kinded('Two', 'two'),
+      kinded('Three', 'three'),
+    ]);
+    expect(groups).toEqual([['music', [expect.objectContaining({ slug: 'one' })]]]);
+  });
+
+  it('keeps every channel of a kind, not just the first', () => {
+    const [[, under]] = byGenre([
+      kinded('One', 'one', 'music'),
+      kinded('Two', 'two', 'music'),
+    ]) as [[string, unknown[]]];
+    expect(under.map((one) => (one as { slug: string }).slug))
+      .toEqual(['one', 'two']);
+  });
+
+  /*
+   * THE TIE IS BROKEN BY NAME AND NOT BY WHO WAS FOUND FIRST. A
+   * sidebar that reordered itself because a channel was
+   * published is a sidebar that moves under the hand reaching
+   * for it. [D-04]
+   */
+  it('orders two kinds of equal size by name, not by arrival', () => {
+    const groups = byGenre([
+      kinded('One', 'one', 'sport'),
+      kinded('Two', 'two', 'faith'),
+      kinded('Three', 'three', 'sport'),
+      kinded('Four', 'four', 'faith'),
+    ]);
+    expect(groups.map(([kind]) => kind)).toEqual(['faith', 'sport']);
+  });
+
+  it('says nothing about a directory with no kinds in it', () => {
+    expect(byGenre([])).toEqual([]);
   });
 });

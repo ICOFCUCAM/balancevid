@@ -150,3 +150,134 @@ describe('the contract the row relies on (N-5)', () => {
     }
   });
 });
+
+/*
+ * A BOOKED LIVE SLOT IS ANNOUNCED EVEN THOUGH IT IS NOT ON THE
+ * WIRE.  [§6, N-5, D-21]
+ *
+ *     19:00  LIVE — Evening Discussion
+ *
+ * That line is the brief's own illustration of `live_event`, and
+ * no listing could draw it: `whatIsOn` falls a booking THROUGH to
+ * whatever would otherwise have been on, because a listing cannot
+ * make somebody turn up. Right for playout, wrong for a guide —
+ * the whole point of booking Friday on Monday is that people can
+ * see it.
+ */
+function booking(at: number, mins: number, title: string) {
+  return {
+    id: `p${at}`,
+    startsAt: new Date(at).toISOString(),
+    durationMs: mins * MIN,
+    source: { kind: 'live_event' as const },
+    title,
+  };
+}
+
+describe('a booked live slot in the listing (N-5, §6)', () => {
+  it('is in the guide although nothing is on the wire', () => {
+    const channel = looping('Europe/London', ['Worship'], 180);
+    channel.programmes = [booking(AT + 30 * MIN, 30, 'Evening Discussion')] as never;
+    const row = rowFor(channel, listingFor(channel)!, AT, AT + 90 * MIN);
+    expect(row.slots.map((s) => s.title))
+      .toEqual(['Worship', 'Evening Discussion', 'Worship']);
+    expect(row.slots[1]!.kind).toBe('live_event');
+    expect(row.slots[1]!.fromMs).toBe(AT + 30 * MIN);
+    expect(row.slots[1]!.toMs).toBe(AT + 60 * MIN);
+  });
+
+  /* The loop it interrupts keeps the air either side of it. */
+  it('leaves the fallback on both sides of itself', () => {
+    const channel = looping('Europe/London', ['Worship'], 180);
+    channel.programmes = [booking(AT + 30 * MIN, 30, 'Discussion')] as never;
+    const row = rowFor(channel, listingFor(channel)!, AT, AT + 90 * MIN);
+    expect(row.slots.map((s) => [s.fromMs - AT, s.toMs - AT]))
+      .toEqual([[0, 30 * MIN], [30 * MIN, 60 * MIN], [60 * MIN, 90 * MIN]]);
+  });
+
+  /*
+   * A CHANNEL WITH NOTHING ELSE ON IS THE CASE THIS MATTERS MOST
+   * FOR: an empty schedule is dead air every other hour, and the
+   * booking is the only thing there is to announce.
+   */
+  it('replaces the dead air it was holding open', () => {
+    const channel = looping('Europe/London', []);
+    channel.programmes = [booking(AT + 30 * MIN, 30, 'The Debate')] as never;
+    const row = rowFor(channel, listingFor(channel)!, AT, AT + 90 * MIN);
+    expect(row.slots.map((s) => s.kind)).toEqual(['off', 'live_event', 'off']);
+  });
+
+  it('is clipped to the window like everything else', () => {
+    const channel = looping('Europe/London', []);
+    channel.programmes = [booking(AT - 60 * MIN, 180, 'Long Debate')] as never;
+    const row = rowFor(channel, listingFor(channel)!, AT, AT + 60 * MIN);
+    expect(row.slots).toHaveLength(1);
+    expect(row.slots[0]!.fromMs).toBe(AT);
+    expect(row.slots[0]!.toMs).toBe(AT + 60 * MIN);
+  });
+
+  /*
+   * IT LOSES TO A FEED THAT IS ACTUALLY UP. Somebody turned up,
+   * so the broadcast IS the booking and the walk already named
+   * it; announcing an empty studio over a live picture would be
+   * the guide contradicting the channel.
+   */
+  it('does not overwrite a live feed that is on air', () => {
+    const channel = looping('Europe/London', ['Worship'], 180);
+    channel.programmes = [booking(AT, 60, 'Evening Discussion')] as never;
+    channel.ingests = [{
+      id: 'ing_1', kind: 'camera', openedAt: new Date(AT - MIN).toISOString(),
+    }] as never;
+    channel.live = {
+      ingestId: 'ing_1', phase: 'on_air', openedAt: new Date(AT - MIN).toISOString(),
+    } as never;
+    const row = rowFor(channel, listingFor(channel)!, AT, AT + 60 * MIN);
+    expect(row.slots.every((s) => s.kind !== 'live_event')).toBe(true);
+  });
+
+  /* Nothing booked, nothing changed. */
+  it('leaves a channel with no bookings exactly as the walk found it', () => {
+    const channel = looping('Europe/London', ['Worship', 'Talk']);
+    const row = rowFor(channel, listingFor(channel)!, AT, AT + 90 * MIN);
+    expect(row.slots.map((s) => s.title)).toEqual(['Worship', 'Talk', 'Worship']);
+    expect(row.slots.every((s) => s.kind === 'rotation')).toBe(true);
+  });
+
+  /*
+   * THE NAME IS THE PROGRAMME'S, AND THE NOTE IS THE FALLBACK. A
+   * booking with neither still has to say something, because a
+   * blank block is a guide announcing nothing at all. [D-21]
+   */
+  it('falls back from the title to the note to the plain word', () => {
+    const channel = looping('Europe/London', []);
+    channel.programmes = [
+      /* The title is what the listing calls it, and the note is
+         what the booking was for; where both exist the title is
+         the one a reader chose for this slot. */
+      { ...booking(AT, 30, 'Friday Debate'),
+        source: { kind: 'live_event', note: 'A note to the operator' } },
+      { ...booking(AT + 30 * MIN, 30, ''), title: undefined,
+        source: { kind: 'live_event', note: 'The Debate' } },
+      { ...booking(AT + 60 * MIN, 30, ''), title: undefined,
+        source: { kind: 'live_event' } },
+    ] as never;
+    const row = rowFor(channel, listingFor(channel)!, AT, AT + 90 * MIN);
+    expect(row.slots.map((s) => s.title))
+      .toEqual(['Friday Debate', 'The Debate', 'Live']);
+  });
+
+  /*
+   * A BOOKING OUTSIDE THE WINDOW ADDS NOTHING, and the clipping
+   * is the only thing that says so — the filter that used to is
+   * gone, because both halves of it survived every mutation.
+   */
+  it('ignores a booking that ends before the window opens', () => {
+    const channel = looping('Europe/London', []);
+    channel.programmes = [
+      booking(AT - 120 * MIN, 60, 'Before'),
+      booking(AT + 120 * MIN, 60, 'After'),
+    ] as never;
+    const row = rowFor(channel, listingFor(channel)!, AT, AT + 60 * MIN);
+    expect(row.slots.map((s) => s.kind)).toEqual(['off']);
+  });
+});
