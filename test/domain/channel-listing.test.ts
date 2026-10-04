@@ -128,13 +128,13 @@ describe('a row is a poster, not a schedule (N-3)', () => {
   it('carries what a viewer needs to choose', () => {
     const channel = made('Redemption TV', { slug: 'redemption-tv' });
     setStation(channel, { callsign: 'RDTV', genre: 'faith',
-      language: 'en', country: 'CM', description: 'A station.' });
+      language: 'en', country: 'JP', description: 'A station.' });
     const row = listingFor(channel)!;
     expect(row).toMatchObject({
       slug: 'redemption-tv', name: 'Redemption TV', callsign: 'RDTV',
-      genre: 'faith', language: 'en', country: 'CM',
+      genre: 'faith', language: 'en', country: 'JP',
     });
-    expect(row.says).toBe('Faith · English · CM');
+    expect(row.says).toBe('Faith · English · Japan');
   });
 });
 

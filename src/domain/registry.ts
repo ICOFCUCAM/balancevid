@@ -2,7 +2,7 @@
  * Channel numbers.  [Doctrine CHANNEL §2, D-04, D-18, TV-NETWORK N-6]
  *
  *     CH 102   REDEMPTION TV
- *     CH 103   AFRIN KONG TV
+ *     CH 103   SAKURA CHANNEL
  *     CH 104   MUSIC HOUSE
  *
  * > *"The channel number is the key network-level identity, while

@@ -87,7 +87,7 @@ export interface Listing {
    */
   number?: number;
   callsign?: string;
-  /** `Faith · English · CM`, or nothing. */
+  /** `Faith · English · Japan`, or nothing. */
   says: string;
   description?: string;
   genre?: string;

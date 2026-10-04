@@ -26,7 +26,7 @@ export type IconName =
   | 'arrow' | 'upload' | 'link' | 'live' | 'pencil' | 'sun' | 'moon'
   | 'sound' | 'muted' | 'expand' | 'faders' | 'list' | 'mic'
   | 'stop' | 'next' | 'start' | 'loop' | 'warning' | 'graphics' | 'pause'
-  | 'passed';
+  | 'passed' | 'close';
 
 /* Each is the inner geometry; the frame and the stroke are set below. */
 const PATHS: Record<IconName, React.ReactNode> = {
@@ -237,6 +237,15 @@ const PATHS: Record<IconName, React.ReactNode> = {
    * size beside the same triangle. [U-19, D-04]
    */
   passed: <path d="M4.5 12.6 9.4 17.5 19.5 7" />,
+  /*
+   * A DISMISSAL: two strokes on the same 24-unit grid as `passed`,
+   * so a *clear* and a *done* beside each other are one set rather
+   * than a drawn glyph next to a × borrowed from the font. It was
+   * the only furniture left in this product still typed as a
+   * character, which is how a close button comes to be a different
+   * optical weight on every platform.
+   */
+  close: <path d="M6.5 6.5 17.5 17.5M17.5 6.5 6.5 17.5" />,
   /*
    * A KEYER'S SOURCE: a frame with a plate laid into one corner,
    * which is what a bug or a lower third is. It was ◰.

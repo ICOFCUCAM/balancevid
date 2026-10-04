@@ -36,6 +36,17 @@ function clockOf(at: number): string {
     .toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 }
 
+/**
+ * A time of day, in the viewer's own clock.
+ *
+ * EXPORTED BECAUSE A SECOND READER ARRIVED: the search page lists
+ * what is on and has exactly the same problem, and a second copy
+ * is how one of them comes to print the server's timezone. [D-19]
+ */
+export function Clock({ at }: { at: number }) {
+  return <span suppressHydrationWarning>{clockOf(at)}</span>;
+}
+
 /** Today, in the viewer's own calendar. */
 export function GuideDate({ at }: { at: number }) {
   return (

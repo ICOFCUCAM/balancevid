@@ -5,8 +5,8 @@
  *     ────────────────────────────────────────────
  *     Redemption TV
  *               Worship     Live Talk   Music
- *     Afrin Kong TV
- *               Cameroon    Fako        Uganda
+ *     Canal Mirador
+ *               Mirador     Calles      Sesiones
  *
  * > *"That is what makes hundreds of channels feel like a
  * > television network, rather than hundreds of independent web

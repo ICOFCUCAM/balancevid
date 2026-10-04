@@ -33,4 +33,7 @@ export const NETWORK_ART = {
   /** The shorter band over the directory. */
   directory: '/rooms/online-tv.webp',
   directoryFocus: '76% 38%',
+  /** The panel beside the search results. */
+  search: '/rooms/online-tv.webp',
+  searchFocus: '58% 40%',
 } as const;
