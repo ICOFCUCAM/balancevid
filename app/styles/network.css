@@ -1000,14 +1000,59 @@
  *  What is on, and what is after it.
  * ------------------------------------------------------------------ */
 
+/*
+ * ONE COLUMN, AND THE PICTURE IS IT.  [D-04]
+ *
+ * > *"having all programs listed at the side like that i think
+ * > is not wise as it does not render the individuality of the
+ * > player. the player should at onetime be the player"*
+ *
+ * The day's schedule stood in a column beside the picture, so
+ * the tallest thing on a station page was a list of times and
+ * the picture was the narrower of the two. A station page is a
+ * channel playing; NOW and NEXT are the two facts that belong
+ * beside it, and the schedule is one press away underneath.
+ */
 .stn-body {
   max-width: 1180px;
   margin: 0 auto;
   padding: var(--space-5) var(--space-6) var(--space-6);
+}
+
+/*
+ * THE STAGE: the picture and the row under it.
+ *
+ * > *"Dont we have a player already? what you put is so small"*
+ *
+ * A THOUSAND PIXELS, WHICH IS WHAT `/t/<id>/watch` HAS ALWAYS
+ * DRAWN. There was a cinema-sized player in this product and
+ * this page drew the same component at a third of the size,
+ * because the cap here was written against a viewport height to
+ * keep NOW above the fold — a sensible rule for a page with a
+ * schedule beside it, and the wrong one for a page whose
+ * subject is the picture. Two pages had two answers to one
+ * question; this is the watch page's, which was right. [D-19]
+ *
+ * `width: 100%` BESIDE THE CAP IS LOAD-BEARING. This is a grid
+ * item, and a grid item with `margin-inline: auto` and no width
+ * is sized to its CONTENT — which, for a video element with no
+ * source yet, is its intrinsic three hundred pixels. The player
+ * came out thumbnail-sized in a screenshot.
+ */
+.stn-stage {
+  width: 100%;
+  max-width: 1000px;
+  margin-inline: auto;
   display: grid;
-  gap: var(--space-5);
-  grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr);
-  align-items: start;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+/* NOW and NEXT are two short facts, not two stacked cards. */
+.stn-two {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--space-4);
 }
 
 .stn-panel {
@@ -1071,8 +1116,7 @@
  * with an empty right-hand column is a page that looks like it
  * failed to load half of itself.
  */
-.stn-body:not(:has(aside > *)) { grid-template-columns: minmax(0, 1fr); }
-.stn-body:not(:has(aside > *)) > aside { display: none; }
+
 
 /*
  * THE WAY OUT OF A STATION, in the page's own column.
@@ -2311,3 +2355,113 @@
   .fav-open { gap: 11px; padding: 11px 12px; }
   .fav-mark { width: 40px; height: 40px; }
 }
+
+/* ------------------------------------------------------------------ *
+ *  The bar under the picture.  [TV-NETWORK N-10]
+ *
+ *  OUTSIDE THE FRAME, NOT OVER IT. The design floats its
+ *  controls on the bottom of the picture, which is where a
+ *  player's own transport goes — and this product already draws
+ *  one there (`VideoTransport`, seated on the frame's bottom
+ *  edge). A second overlay would be two bars fighting for the
+ *  same forty pixels, one of which disappears when the pointer
+ *  leaves. These are links and a language, not transport.
+ * ------------------------------------------------------------------ */
+
+.stn-bar {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+  margin-top: var(--space-4);
+}
+
+.stn-bar-way,
+.stn-bar-audio {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--console-control);
+  color: var(--ink-200);
+  text-decoration: none;
+  font-size: var(--text-sm);
+}
+
+.stn-bar-way:hover { border-color: var(--accent); color: var(--ink-000); }
+
+.stn-bar-audio { padding-right: 8px; gap: 7px; }
+.stn-bar-audio-said { color: var(--ink-300); }
+
+/* The field is the row's own, so the pill is the only box. */
+.stn-bar-audio select {
+  border: 0;
+  background: transparent;
+  color: var(--ink-000);
+  font-size: var(--text-sm);
+  padding: 2px 4px;
+  max-width: 160px;
+}
+
+.stn-bar-audio select:focus { outline: none; }
+
+/* ------------------------------------------------------------------ *
+ *  Today, shut until it is asked for.  [TV-NETWORK N-10]
+ *
+ *  A day is twenty rows, and twenty rows of times beside a
+ *  picture made the longest column on the page the one nobody
+ *  came for. NOW and NEXT stay out; the schedule is one press
+ *  away. [D-04]
+ * ------------------------------------------------------------------ */
+
+.stn-today { padding: 0; }
+
+.stn-today-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px var(--space-4);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+/* Safari draws its own triangle; this page draws a chevron. */
+.stn-today-head::-webkit-details-marker { display: none; }
+
+.stn-today-head:hover { background: var(--surface-float); }
+
+.stn-today-count {
+  margin-left: auto;
+  font-size: var(--text-xs);
+  color: var(--ink-400);
+}
+
+.stn-today-mark {
+  display: flex;
+  color: var(--ink-400);
+  transform: rotate(90deg);
+  transition: transform 120ms ease;
+}
+
+.stn-today[open] .stn-today-mark { transform: rotate(-90deg); }
+
+.stn-today-list { border-top: 1px solid var(--line-soft); padding-bottom: 6px; }
+
+.stn-today-all {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 6px var(--space-4) 8px;
+  padding: 9px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line);
+  background: var(--console-control);
+  color: var(--ink-100);
+  text-decoration: none;
+  font-size: var(--text-sm);
+}
+
+.stn-today-all:hover { border-color: var(--accent); }

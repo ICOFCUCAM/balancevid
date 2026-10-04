@@ -68,6 +68,22 @@ export function owned(account: string = OWNER_ACCOUNT_ID): string {
 /** The roots that belong to an account, for the move below. */
 const OWNED_ROOTS = ['conversations', 'performances', 'channels', 'library'] as const;
 
+/**
+ * A language subtag, or nothing at all.
+ *
+ * NOT A VALIDATION THAT RETURNS A MESSAGE — a path function has
+ * nobody to tell. What is not a subtag becomes the empty string,
+ * which makes a path inside the channel's own `audio/` directory
+ * that holds no segments, so the request 404s exactly as a
+ * language nobody is producing does. Refusing by producing a
+ * harmless path rather than by throwing keeps every caller the
+ * same shape. [D-06]
+ */
+function audioTag(language: string): string {
+  return /^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})*$/.test(language)
+    ? language.toLowerCase() : '';
+}
+
 export const paths = {
   conversations: () => join(owned(), 'conversations'),
   conversation: (id: string) => join(paths.conversations(), safe(id)),
@@ -289,6 +305,28 @@ export const paths = {
     join(paths.channelAssets(id), `${safe(assetId)}.${ext.replace(/[^a-z0-9]/gi, '')}`),
   /** The wire. Windowed and swept, never archived. */
   channelStream: (id: string) => join(paths.channel(id), 'stream'),
+  /**
+   * AN ALTERNATE AUDIO RENDITION.  [CHANNEL §7, N-10]
+   *
+   *   var/channels/<id>/audio/<language>/<index>.ts
+   *
+   * BESIDE `stream/` AND NOT IN IT, because `stream/` holds only
+   * `N.ts` and is swept by age on exactly that shape — a
+   * language directory among the segments is one the sweeper
+   * would walk into. The same reasoning that keeps a sender's
+   * playlist out of there.
+   *
+   * THE LANGUAGE IS A SUBTAG AND IS TREATED AS UNTRUSTED. It
+   * reaches this function from a URL, so anything that is not a
+   * subtag is refused rather than joined into a path: `..` in a
+   * language is a request to read somebody else's channel.
+   */
+  channelAudioRoot: (id: string) => join(paths.channel(id), 'audio'),
+  channelAudio: (id: string, language: string) =>
+    join(paths.channelAudioRoot(id), audioTag(language)),
+  channelAudioSegment: (id: string, language: string, index: number) =>
+    join(paths.channelAudio(id, language),
+      `${Math.max(0, Math.floor(index))}.ts`),
   /**
    * THE LIVE BUFFER, which is not an asset. [CHANNEL §7, §8, D-18]
    *

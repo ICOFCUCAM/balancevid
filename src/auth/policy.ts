@@ -220,6 +220,18 @@ const PUBLIC_PATTERNS: RegExp[] = [
   /^\/t\/[A-Za-z0-9_-]+\/watch\/?$/,
   /^\/api\/channels\/[A-Za-z0-9_-]+\/playlist$/,
   /^\/api\/channels\/[A-Za-z0-9_-]+\/stream\/[0-9]{1,15}$/,
+  /*
+   * THE MASTER AND THE ALTERNATE AUDIO.  [CHANNEL §7, N-10]
+   *
+   * Public for the reason the playlist and the segments are: a
+   * channel is watched by strangers, and audio that needed a
+   * session would be a language only the broadcaster can hear.
+   * The routes themselves still refuse an unpublished channel,
+   * which is where that decision belongs.
+   */
+  /^\/api\/channels\/[A-Za-z0-9_-]+\/master\.m3u8$/,
+  /^\/api\/channels\/[A-Za-z0-9_-]+\/audio\/[A-Za-z0-9-]{2,20}\/playlist$/,
+  /^\/api\/channels\/[A-Za-z0-9_-]+\/audio\/[A-Za-z0-9-]{2,20}\/stream\/[0-9]{1,15}$/,
   /^\/api\/channels\/[A-Za-z0-9_-]+\/now$/,
 
   /*
