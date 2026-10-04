@@ -1108,3 +1108,913 @@
   .stn-body { padding: var(--space-4); }
   .stn-foot { padding: 0 var(--space-4) var(--space-4); }
 }
+
+/* ------------------------------------------------------------------ *
+ *  The guide.  [TV-NETWORK N-5]
+ *
+ *  *"That is what makes hundreds of channels feel like a television
+ *   network, rather than hundreds of independent web streams."*
+ *
+ *  A GUIDE IS A GRID AND A GRID IS READ IN TWO DIRECTIONS AT ONCE:
+ *  down the channels and across the clock. Everything here exists
+ *  to keep both axes legible while the middle scrolls — the
+ *  channel column stays, the hour headings stay, and the only
+ *  thing that moves is the schedule.
+ * ------------------------------------------------------------------ */
+
+.gd-head {
+  border-bottom: 1px solid var(--line);
+  background: var(--ink-900);
+}
+
+.gd-head-row {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: var(--space-5) var(--space-6);
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.gd-title {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  letter-spacing: -0.02em;
+  color: var(--ink-000);
+}
+
+.gd-lede { margin: 6px 0 0; font-size: var(--text-sm); color: var(--ink-300); }
+
+/* The date and the span sit together: both say WHICH schedule. */
+.gd-when {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+
+.gd-date {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--console-control);
+  color: var(--ink-100);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+
+.gd-spans {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--console-control);
+}
+
+.gd-span {
+  padding: 6px 15px;
+  border-radius: 999px;
+  font-size: var(--text-sm);
+  text-decoration: none;
+  color: var(--ink-300);
+  white-space: nowrap;
+}
+
+.gd-span[aria-current='page'] {
+  background: var(--accent-deep);
+  color: var(--text-on-accent);
+  font-weight: var(--weight-semi);
+}
+
+/* ------------------------------------------------------------------ *
+ *  The two columns: what to look at, and the schedule itself.
+ * ------------------------------------------------------------------ */
+
+.gd-body {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: var(--space-5) var(--space-6) var(--space-6);
+  display: grid;
+  grid-template-columns: 206px minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.gd-kinds {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  overflow: hidden;
+  position: sticky;
+  top: 72px;
+}
+
+.gd-kind {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 13px;
+  border-top: 1px solid var(--line-soft);
+  text-decoration: none;
+  color: var(--ink-200);
+  font-size: var(--text-sm);
+}
+
+.gd-kind:first-child { border-top: 0; }
+.gd-kind[aria-current='page'] {
+  background: var(--accent-deep);
+  color: var(--text-on-accent);
+  font-weight: var(--weight-semi);
+}
+
+.gd-kind-mark {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  background: var(--surface-float);
+  color: var(--ink-200);
+}
+
+.gd-kind[aria-current='page'] .gd-kind-mark {
+  background: rgba(255, 255, 255, 0.2);
+  color: var(--text-on-accent);
+}
+
+.gd-kind-name { flex: 1 1 auto; min-width: 0; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
+
+.gd-kind-count { flex: 0 0 auto; font-size: var(--text-2xs); opacity: 0.75; }
+
+/* ------------------------------------------------------------------ *
+ *  The schedule.
+ * ------------------------------------------------------------------ */
+
+.gd-grid {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  overflow: hidden;
+  min-width: 0;
+}
+
+/*
+ * THE CHANNEL COLUMN DOES NOT SCROLL AWAY. A guide where you can
+ * see a programme but no longer which channel it is on is a guide
+ * that has stopped being one — and at three hours across, on a
+ * laptop, the right-hand edge is off screen.
+ */
+.gd-scroll { overflow-x: auto; }
+.gd-inner { --gd-names: 220px; min-width: 680px; position: relative; }
+
+.gd-hours {
+  display: flex;
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--surface-raised);
+  border-bottom: 1px solid var(--line);
+}
+
+.gd-corner {
+  flex: 0 0 var(--gd-names);
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--surface-raised);
+  border-right: 1px solid var(--line);
+}
+
+.gd-hours-track { position: relative; flex: 1 1 auto; height: 34px; }
+
+.gd-hour {
+  position: absolute;
+  top: 10px;
+  font-size: var(--text-2xs);
+  color: var(--ink-300);
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.gd-hour:first-child { transform: none; }
+
+.gd-line {
+  display: flex;
+  border-top: 1px solid var(--line-soft);
+  min-height: 50px;
+}
+
+.gd-who {
+  flex: 0 0 var(--gd-names);
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 11px;
+  background: var(--panel);
+  border-right: 1px solid var(--line);
+  text-decoration: none;
+  color: inherit;
+  min-width: 0;
+}
+
+.gd-num { flex: 0 0 auto; font-size: var(--text-2xs); color: var(--ink-400); }
+
+/* The mark, small, so a row is a row and not a card. */
+.gd-logo {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: var(--screen-bed);
+  border: 1px solid var(--line);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.86);
+}
+
+.gd-logo img { width: 100%; height: 100%; object-fit: contain; padding: 3px; }
+
+.gd-who-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semi);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gd-track { position: relative; flex: 1 1 auto; }
+
+.gd-slot {
+  position: absolute;
+  top: 5px;
+  bottom: 5px;
+  padding: 5px 9px;
+  border-radius: 5px;
+  overflow: hidden;
+  background: var(--surface-float);
+  border: 1px solid var(--console-edge);
+  font-size: var(--text-2xs);
+  color: var(--ink-100);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/*
+ * THE ONE ON AIR IS THE ONLY ONE THAT IS COLOURED. A guide where
+ * every block is tinted is a guide with no emphasis in it; the
+ * question a reader brings is *what is on right now*, and exactly
+ * one block per row can answer it.
+ */
+.gd-slot[data-on='true'] {
+  background: rgba(45, 110, 200, 0.26);
+  border-color: var(--accent-deep);
+  color: var(--ink-000);
+}
+
+/*
+ * A DEAD HOUR IS NOT A BLOCK. *Off air* drawn as a filled tile
+ * reads as something to watch; drawn as an outline it reads as
+ * the gap it is, and a row of them says plainly that this
+ * channel has nothing on this evening. [D-21, U-19]
+ */
+.gd-slot[data-kind='off'] {
+  background: transparent;
+  border-style: dashed;
+  color: var(--ink-400);
+}
+
+/*
+ * A BOOKED LIVE SLOT: announced, not yet broadcast. Outlined in
+ * the live colour rather than filled with it, because filled is
+ * what the block that is ON AIR gets and this one is a promise
+ * about later. [§6, D-21]
+ */
+/*
+ * TINTED, NOT ONLY OUTLINED. A booked slot narrower than its own
+ * badge used to draw as an empty box with a red edge, which says
+ * less than nothing — the name is on the `title` attribute and
+ * the colour has to carry the rest. Fainter than the block that
+ * is ON AIR, because this one is a promise about later.
+ */
+.gd-slot[data-kind='live_event'] {
+  border-color: var(--state-live);
+  background: color-mix(in srgb, var(--state-live) 14%, transparent);
+}
+
+.gd-booked {
+  flex: 0 0 auto;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--state-live);
+  color: var(--text-on-accent);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.gd-slot-name { min-width: 0; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; }
+
+.gd-live-dot {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--state-live);
+}
+
+/*
+ * THE LINE SAYING WHERE NOW IS.
+ *
+ * A guide snaps its first column backwards to the half hour, so
+ * *now* is almost never at the left edge — and without a mark for
+ * it a reader has to do arithmetic to tell what has already
+ * started. One hairline, over everything, in the colour this
+ * product reserves for live.
+ */
+.gd-now {
+  position: absolute;
+  top: 34px;
+  bottom: 0;
+  left: calc(var(--gd-names) + (100% - var(--gd-names)) * var(--gd-at, 0));
+  width: 2px;
+  background: var(--state-live);
+  pointer-events: none;
+}
+
+.gd-now::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--state-live);
+}
+
+@media (max-width: 900px) {
+  /* The kinds become a scrolling strip above the grid, because a
+     206px column beside a 680px grid is no grid at all. */
+  .gd-body { grid-template-columns: minmax(0, 1fr); }
+  .gd-kinds {
+    position: static;
+    display: flex;
+    overflow-x: auto;
+    scrollbar-width: none;
+    border-radius: 999px;
+  }
+  .gd-kinds::-webkit-scrollbar { display: none; }
+  .gd-kind { border-top: 0; white-space: nowrap; flex: 0 0 auto; }
+  .gd-kind-mark { display: none; }
+}
+
+@media (max-width: 760px) {
+  .gd-head-row { padding: var(--space-4); }
+  .gd-body { padding: var(--space-4); }
+  .gd-when { margin-left: 0; }
+  /*
+   * THE MARK GOES, THE NAME STAYS. At 220px the column held a
+   * number, a logo and a name; at phone width the same three
+   * left *Red…* and *Inte…*, which is a guide you cannot read
+   * down. A channel is identified by its name and its number —
+   * the logo is the one of the three that is decoration. [D-21]
+   */
+  .gd-inner { --gd-names: 150px; }
+  .gd-logo { display: none; }
+  .gd-inner { min-width: 560px; }
+}
+
+/* ------------------------------------------------------------------ *
+ *  Search.  [TV-NETWORK N-4]
+ *
+ *  > *"Search, Countries, Languages. This is how hundreds or
+ *  > thousands of user-created channels become navigable."*
+ *
+ *  A SEARCH PAGE IS A FIELD AND A LIST, and almost everything
+ *  here is about making the field the first thing the eye lands
+ *  on. The result shape is a ROW rather than a card, because a
+ *  reader comparing twelve results reads down one column of
+ *  names — a grid of cards makes them hunt in two directions for
+ *  an answer they already know the shape of. [D-04]
+ * ------------------------------------------------------------------ */
+
+.sr-head {
+  border-bottom: 1px solid var(--line);
+  background: var(--ink-900);
+}
+
+.sr-head-row {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: var(--space-5) var(--space-6);
+}
+
+.sr-title {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  letter-spacing: -0.02em;
+  color: var(--ink-000);
+}
+
+.sr-lede { margin: 6px 0 0; font-size: var(--text-sm); color: var(--ink-300); }
+
+/* The field, which is the page. */
+.sr-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: var(--space-5) 0 0;
+  max-width: 620px;
+  padding: 4px 6px 4px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--console-control);
+}
+
+.sr-field:focus-within { border-color: var(--accent); }
+
+.sr-field-mark { flex: 0 0 auto; color: var(--ink-300); display: flex; }
+
+/*
+ * THE INPUT KEEPS NO BOX OF ITS OWN, because the pill around it
+ * is the box. Two borders on one control is the fault every
+ * composed field makes once.
+ */
+.sr-field input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  padding: 11px 0;
+  color: var(--ink-000);
+  font-size: var(--text-base);
+}
+
+.sr-field input:focus { outline: none; }
+
+.sr-clear {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--ink-300);
+  text-decoration: none;
+  background: var(--surface-float);
+}
+
+.sr-clear:hover { color: var(--ink-000); }
+
+.sr-go {
+  flex: 0 0 auto;
+  padding: 10px 20px;
+  border-radius: 999px;
+  border: 0;
+  background: var(--accent-deep);
+  color: var(--text-on-accent);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semi);
+  cursor: pointer;
+}
+
+/* The three questions a search can be asking. [D-04] */
+.sr-tabs {
+  display: inline-flex;
+  margin-top: var(--space-4);
+  padding: 3px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--console-control);
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.sr-tabs::-webkit-scrollbar { display: none; }
+
+.sr-tab {
+  padding: 7px 18px;
+  border-radius: 999px;
+  font-size: var(--text-sm);
+  text-decoration: none;
+  color: var(--ink-300);
+  white-space: nowrap;
+}
+
+.sr-tab[aria-current='page'] {
+  background: var(--accent-deep);
+  color: var(--text-on-accent);
+  font-weight: var(--weight-semi);
+}
+
+.sr-tab-count { margin-left: 7px; font-size: var(--text-2xs); opacity: 0.8; }
+
+/* ------------------------------------------------------------------ *
+ *  The results, and the picture beside them.
+ * ------------------------------------------------------------------ */
+
+.sr-body {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: var(--space-5) var(--space-6) var(--space-6);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.sr-list {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  overflow: hidden;
+}
+
+.sr-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: 11px var(--space-4);
+  border-top: 1px solid var(--line-soft);
+  text-decoration: none;
+  color: inherit;
+}
+
+.sr-row:first-child { border-top: 0; }
+.sr-row:hover { background: var(--surface-float); }
+
+.sr-mark {
+  flex: 0 0 auto;
+  width: 46px;
+  height: 46px;
+  border-radius: var(--radius-screen);
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: var(--screen-bed);
+  border: 1px solid var(--line);
+  font-size: var(--text-2xs);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--ink-300);
+}
+
+.sr-mark img { width: 100%; height: 100%; object-fit: cover; }
+
+.sr-said { flex: 1 1 auto; min-width: 0; }
+
+/*
+ * BLOCK, BECAUSE A NAME AND WHAT IS UNDER IT ARE TWO LINES. These
+ * are spans — a row is a link and a `<div>` inside an `<a>` is
+ * legal but a `<p>` is not — and spans run together: the first
+ * draft read `Redemption TVCH 101 · Faith`.
+ */
+.sr-name {
+  display: block;
+  font-weight: var(--weight-semi);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sr-under {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--text-xs);
+  color: var(--ink-300);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sr-tag {
+  flex: 0 0 auto;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  background: var(--state-live);
+  color: var(--text-on-accent);
+}
+
+/* Booked, and not broadcast yet: outlined where live is filled. [§6] */
+.sr-tag[data-booked='true'] {
+  background: transparent;
+  border: 1px solid var(--state-live);
+  color: var(--state-live);
+}
+
+.sr-go-mark { flex: 0 0 auto; color: var(--ink-400); display: flex; }
+
+/*
+ * THE PICTURE IS NOT THE PAGE. The design this was built against
+ * gives half the width to a photograph with a slogan over it,
+ * which is a poster where a result list should be: a search page
+ * is read, and the thing being read is the left column. It keeps
+ * a third, it goes under the results on a narrow screen, and it
+ * is the first thing dropped when the window is short of room.
+ */
+.sr-poster {
+  position: relative;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  min-height: 340px;
+  display: flex;
+  align-items: flex-end;
+  background: var(--screen-bed);
+}
+
+.sr-poster img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.sr-poster-wash {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg, rgba(0, 0, 0, 0.1) 0%, rgba(0, 0, 0, 0.72) 100%);
+}
+
+.sr-poster-said {
+  position: relative;
+  padding: var(--space-5);
+  width: 100%;
+}
+
+.sr-poster-lead {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semi);
+  color: #fff;
+  letter-spacing: -0.01em;
+}
+
+.sr-poster-under {
+  margin: 5px 0 0;
+  font-size: var(--text-xs);
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.sr-empty {
+  padding: var(--space-6) var(--space-4);
+  text-align: center;
+  color: var(--ink-300);
+  font-size: var(--text-sm);
+}
+
+@media (max-width: 900px) {
+  .sr-body { grid-template-columns: minmax(0, 1fr); }
+  .sr-poster { min-height: 200px; order: 2; }
+}
+
+@media (max-width: 760px) {
+  .sr-head-row { padding: var(--space-4); }
+  .sr-body { padding: var(--space-4); }
+  .sr-field { padding-left: 13px; }
+  .sr-go { padding: 10px 15px; }
+}
+
+/* ------------------------------------------------------------------ *
+ *  Browse by category.  [TV-NETWORK N-4]
+ *
+ *  > *"But don't make it just a giant list."*
+ *
+ *  THE CATEGORIES PAGE WAS A LIST OF LISTS: a heading per kind
+ *  with a shelf of channel cards under each, which is the
+ *  directory drawn twice and read once. A category is a DOOR, and
+ *  a door is a tile — one press, one place to land, and
+ *  `/tv/channels?genre=…` already draws what is behind it. Two
+ *  pages, two questions. [D-04]
+ * ------------------------------------------------------------------ */
+
+.cat-head {
+  border-bottom: 1px solid var(--line);
+  background: var(--ink-900);
+}
+
+.cat-head-row {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: var(--space-5) var(--space-6);
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.cat-title {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  letter-spacing: -0.02em;
+  color: var(--ink-000);
+}
+
+.cat-lede { margin: 6px 0 0; font-size: var(--text-sm); color: var(--ink-300); }
+
+.cat-count {
+  margin-left: auto;
+  font-size: var(--text-sm);
+  color: var(--ink-300);
+  white-space: nowrap;
+}
+
+.cat-body {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: var(--space-5) var(--space-6) var(--space-6);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.cat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: var(--space-4);
+}
+
+/*
+ * A TILE IS A PICTURE WITH A WORD ON IT, and the picture is a
+ * GROUND rather than a photograph: this product has one
+ * photograph per studio and none per category, and eight tiles
+ * carrying the same stock image is worse than eight tiles
+ * carrying none. `identityFor` already answers *what colour is
+ * this thing* for a station with no logo, deterministically from
+ * its name, and a category is the same question. [D-19, U-19]
+ */
+.cat-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-height: 148px;
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  overflow: hidden;
+  text-decoration: none;
+  color: inherit;
+}
+
+.cat-tile:hover { border-color: var(--accent); }
+
+.cat-tile-wash {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    170deg, rgba(0, 0, 0, 0) 30%, rgba(0, 0, 0, 0.55) 100%);
+}
+
+.cat-tile-mark {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  margin-bottom: auto;
+}
+
+.cat-tile-name {
+  position: relative;
+  margin-top: var(--space-4);
+  font-size: var(--text-base);
+  font-weight: var(--weight-semi);
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cat-tile-says {
+  position: relative;
+  margin-top: 2px;
+  font-size: var(--text-xs);
+  color: rgba(255, 255, 255, 0.78);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+/* On air inside this category, right now. */
+.cat-tile-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #fff;
+}
+
+.cat-tile-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--state-live);
+}
+
+/* ------------------------------------------------------------------ *
+ *  The panel beside the tiles.
+ * ------------------------------------------------------------------ */
+
+.cat-aside {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  padding: var(--space-5);
+  position: sticky;
+  top: 72px;
+}
+
+.cat-aside-mark {
+  width: 44px;
+  height: 44px;
+  border-radius: 13px;
+  display: grid;
+  place-items: center;
+  background: var(--accent-deep);
+  color: var(--text-on-accent);
+}
+
+.cat-aside-lead {
+  margin: var(--space-4) 0 0;
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semi);
+  letter-spacing: -0.01em;
+  color: var(--ink-000);
+}
+
+.cat-aside-said {
+  margin: 7px 0 0;
+  font-size: var(--text-xs);
+  color: var(--ink-300);
+}
+
+.cat-aside-ways {
+  margin-top: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cat-aside-way {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line);
+  background: var(--console-control);
+  color: var(--ink-100);
+  text-decoration: none;
+  font-size: var(--text-sm);
+}
+
+.cat-aside-way:hover { border-color: var(--accent); }
+
+@media (max-width: 900px) {
+  .cat-body { grid-template-columns: minmax(0, 1fr); }
+  .cat-aside { position: static; order: 2; }
+}
+
+@media (max-width: 760px) {
+  .cat-head-row, .cat-body { padding: var(--space-4); }
+  .cat-count { margin-left: 0; }
+  .cat-grid { grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); }
+  .cat-tile { min-height: 124px; }
+}

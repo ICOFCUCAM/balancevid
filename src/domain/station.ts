@@ -4,7 +4,7 @@
  *
  *     REDEMPTION TV
  *     RDTV · Channel 124
- *     Faith · English · Africa
+ *     Faith · English · United States
  *
  * A CHANNEL HAD A NAME AND AN ID AND NOTHING ELSE A STRANGER COULD
  * USE. `balancevid.com/t/chan_c3bf272865354bc3baa3` is an address a
@@ -38,10 +38,30 @@
  * Nothing here touches the filesystem, the network or a clock.
  */
 
-/** What kind of channel this is, for the directory's shelves. */
+/**
+ * What kind of channel this is, for the directory's shelves.
+ *
+ * A MENU A BROADCASTER CHOOSES FROM, NOT A SET OF SHELVES THE
+ * NETWORK DRAWS. Nothing is listed anywhere because it is in this
+ * list — every surface reads the genres off the channels that
+ * exist — so adding one here costs an empty shelf nowhere and
+ * opens a door for somebody whose channel had no honest answer.
+ * [D-21]
+ *
+ * `health` AND `business` ARRIVED LATE, from a design that named
+ * eight categories to this list's ten and had two of them we
+ * could not file. A world network of thousands will carry a
+ * clinic's channel and a market report, and `general` is where
+ * both were going.
+ *
+ * ORDER IS DECLARATION ORDER AND NOTHING READS IT AS A RANKING —
+ * the directory sorts its pills by how many channels sit under
+ * each, which is the only ordering that is about this network
+ * rather than about this file. [D-04]
+ */
 export const GENRES = [
   'general', 'news', 'music', 'faith', 'education', 'culture',
-  'entertainment', 'sport', 'children', 'talk',
+  'entertainment', 'sport', 'children', 'talk', 'health', 'business',
 ] as const;
 export type Genre = (typeof GENRES)[number];
 
@@ -388,7 +408,7 @@ export function stationSays(station: Station | undefined): string {
   return [
     station.genre ? genreSays(station.genre) : null,
     station.language ? languageSays(station.language) : null,
-    station.country ? station.country.toUpperCase() : null,
+    station.country ? countrySays(station.country) : null,
   ].filter(Boolean).join(' · ');
 }
 
@@ -421,5 +441,41 @@ export function languageSays(tag: string, inLocale = 'en'): string {
     return names.of(tag) ?? tag;
   } catch {
     return tag;
+  }
+}
+
+/**
+ * A country code as the country's name.
+ *
+ * > *"remember this is a world system not for only 54 countries"*
+ *
+ * The directory line read `Faith · English · CM`, which is a row
+ * showing its database to a viewer who has no reason to know ISO
+ * 3166. `Intl.DisplayNames` is the platform's own table and the
+ * same argument `languageSays` already makes applies unchanged:
+ * a hand-written list of countries is a list that is wrong about
+ * somebody's country, and it is wrong about more of them every
+ * decade. Falls back to the code in capitals, which is honest.
+ *
+ * THE CODE IS WHAT IS STORED AND THIS IS ONLY HOW IT READS.
+ * Nothing filters or routes on the output — `?country=cm` stays
+ * the key — because a name is a thing that can be translated and
+ * a key is not. [D-19, N-4]
+ */
+export function countrySays(code: string, inLocale = 'en'): string {
+  const want = code.trim().toUpperCase();
+  if (!want) return '';
+  try {
+    const names = new Intl.DisplayNames([inLocale], { type: 'region' });
+    /*
+     * BACK TO THE CODE RATHER THAN TO A SHRUG. A reader can look
+     * up `QZ`; they cannot look up a phrase meaning *we do not
+     * know*. (`fallback: 'code'` stood here and said the same
+     * thing twice — it survived every mutation, because this
+     * clause already answers for every code the table misses.)
+     */
+    return names.of(want) ?? want;
+  } catch {
+    return want;
   }
 }

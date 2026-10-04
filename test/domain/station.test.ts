@@ -13,7 +13,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   CALLSIGN_LONGEST, GENRES, RESERVED_SLUGS, SLUG_LONGEST, SLUG_SHORTEST,
-  callsignProblem, languageSays, slugFor, slugProblem, stationSays,
+  callsignProblem, countrySays, languageSays, slugFor, slugProblem,
+  stationSays,
 } from '../../src/domain/station.js';
 
 describe('the slug is an address (N-1)', () => {
@@ -121,8 +122,8 @@ describe('what a listing says (N-1)', () => {
 
   it('joins only the parts that are there', () => {
     expect(stationSays({ slug: 'x', genre: 'faith' })).toBe('Faith');
-    expect(stationSays({ slug: 'x', genre: 'faith', country: 'cm' }))
-      .toBe('Faith · CM');
+    expect(stationSays({ slug: 'x', genre: 'faith', country: 'jp' }))
+      .toBe('Faith · Japan');
   });
 
   it('names a language in words', () => {
@@ -147,7 +148,7 @@ describe('what a listing says (N-1)', () => {
 describe('the shelves (N-1)', () => {
   it('has the genres the brief names', () => {
     for (const named of ['music', 'education', 'faith', 'news', 'culture',
-      'entertainment']) {
+      'entertainment', 'sport', 'children', 'health', 'business']) {
       expect(GENRES).toContain(named);
     }
   });
@@ -179,5 +180,41 @@ describe('the suggester has no unreachable branch (N-1)', () => {
     for (const word of RESERVED_SLUGS) {
       expect(word.startsWith('station-'), word).toBe(false);
     }
+  });
+});
+
+/*
+ * A WORLD SYSTEM, NOT A LIST OF COUNTRIES.
+ *
+ * > *"remember this is a world system not for only 54 countries"*
+ *
+ * The directory line read `Faith · English · CM`, which is a row
+ * showing its database. `Intl.DisplayNames` is the platform's own
+ * table, by the same argument `languageSays` already makes.
+ */
+describe('a country in words (N-4)', () => {
+  it('names the country rather than printing its code', () => {
+    /* Four continents, because this is a world network and a
+       test that only ever names one is a test that reads like a
+       regional product. */
+    expect(countrySays('jp')).toBe('Japan');
+    expect(countrySays('br')).toBe('Brazil');
+    expect(countrySays('cm')).toBe('Cameroon');
+    expect(countrySays('GB')).toBe('United Kingdom');
+  });
+
+  it('does not care how the code was typed', () => {
+    expect(countrySays(' no ')).toBe(countrySays('NO'));
+  });
+
+  /* A code the table does not hold comes back as itself, because a
+     reader can look up `QZ` and cannot look up a shrug. */
+  it('falls back to the code and never to a shrug', () => {
+    expect(countrySays('qz')).toBe('QZ');
+  });
+
+  it('says nothing about a station that named no country', () => {
+    expect(countrySays('')).toBe('');
+    expect(stationSays({ slug: 'x', genre: 'faith' })).toBe('Faith');
   });
 });

@@ -108,11 +108,11 @@ CHANNEL
 ```
 
 ```
-REDEMPTION TV          AFRIN KONG TV
-RDTV                   AKTV
+REDEMPTION TV          SAKURA CHANNEL
+RDTV                   SKRA
 Channel 124            Channel 318
-Christian · English    Travel · Culture
-Africa / Global        Africa
+Christian · English    Drama · Japanese
+United States          Japan
 ```
 
 > *"The channel number is the key network-level identity, while the
@@ -128,9 +128,9 @@ Africa / Global        Africa
 LIVE TV
 001  BalanceVid News
 002  Redemption TV
-003  Afrin Kong TV
+003  Canal Mirador
 004  Music House
-005  University Channel
+005  Vidya TV
 ```
 
 > *"But don't make it just a giant list. Have: Live Now, Popular, New
@@ -145,9 +145,9 @@ LIVE TV
 
 ```
 CH 002  REDEMPTION TV        [ LIVE ]
-CH 003  AFRIN KONG TV
+CH 003  SAKURA CHANNEL
 CH 004  INTERMISSIONS MUSIC
-CH 005  UNIVERSITY TV
+CH 005  VIDYA TV
 ```
 
 > *"A remote control could eventually have: CH + / CH − and: Enter
@@ -228,11 +228,11 @@ BALANCEVID TV GUIDE
 ────────────────────────────────────────────────
 002 Redemption TV
               Worship     Live Talk   Music
-003 Afrin Kong TV
-              Cameroon    Fako       Uganda
+003 Canal Mirador
+              Mirador     Calles     Sesiones
 004 InterMissions
               Anthem      Live        Gospel
-005 University
+005 Vidya TV
               Lecture     Discussion
 ```
 
@@ -256,7 +256,7 @@ BALANCEVID TV GUIDE
                          │
         ┌────────────────┼────────────────┐
    Channel 002      Channel 003      Channel 004
-   Redemption       Afrin Kong       Music House
+   Redemption       Canal Mirador    Music House
         │                │                │
      HLS/live         HLS/live         HLS/live
         │                │                │
@@ -394,7 +394,7 @@ Watch live channels from the BalanceVid network.
 [ WATCH LIVE ]       [ TV GUIDE ]       [ CHANNELS ]
 ────────────────────────────────────────────
 LIVE NOW
-[ Redemption TV ] [ Afrin Kong TV ] [ Music House ]
+[ Redemption TV ] [ Canal Mirador ] [ Music House ]
 ```
 
 > *"This means a normal person can arrive at BalanceVid and immediately
@@ -1806,3 +1806,82 @@ left, each with the reason rather than as a list of absences.
   password, no second tenant to take a domain from. A hosted
   BalanceVid would need a TXT record before accepting a claim,
   and that belongs with the federated registry.
+
+---
+
+# PART TEN · the redesign loop, N-10 onwards
+
+Four pages were rebuilt against benchmark images, keeping the
+engines underneath and covering the gaps the images showed.
+
+## N-10 · the guide, and the slot nobody could see
+
+A booked live slot was invisible in the guide. `live_event` exists
+so a station can book Friday on Monday, and this document's own
+illustration of it is a listing line. No listing could draw it:
+`whatIsOn` falls a booking *through* to whatever would otherwise
+have been on, because
+
+> *"a listing cannot make somebody turn up"*
+
+and a channel must not go to black at nineteen hundred over a late
+presenter. Right for playout and wrong for a guide — `airtime` is
+what is going out, a guide is what is **announced**. `withBookings`
+lays that second reading over the walk without touching it.
+
+Also: a slot carries its kind rather than having the page compare
+its title against the words *Off air*; the dead hour stopped
+wearing the colour that means *watch this now*; and what fits in a
+block is measured in pixels, not in fractions of a window that
+changes size.
+
+**No WEEK.** The benchmark offers Day and Week. A week is not a
+longer version of this grid: the horizontal axis is time itself at
+two hundred pixels to the hour, so a week on it is thirty-three
+thousand pixels. A real week view is seven day columns against
+channels — a second layout for a second question.
+
+## N-11 · search, and the two questions it could not answer
+
+The benchmark offers CHANNELS, PROGRAMS and CATEGORIES.
+
+- **Programmes** was the question this network could not answer at
+  all, although every piece of the answer was here. `showings`
+  reads the guide's own walk, so it sees the loop that fills most
+  of a channel's day and the booked slots N-10 added. One walk,
+  two readers.
+- **Countries and languages.** The brief names them beside search:
+  *"Search, Countries, Languages. This is how hundreds or
+  thousands of user-created channels become navigable."* The
+  country matched only its two-letter code, and the language
+  matched nothing at all — it had been on every listing since the
+  station existed with nothing reading it.
+- **A country reads as a country.** The directory line said
+  `Faith · English · CM`, which is a row showing its database.
+  `Intl.DisplayNames` is the platform's own table, by the same
+  argument `languageSays` already made.
+
+## A correction: the examples in this document were not global
+
+Every worked example in PART ONE through PART NINE — the identity
+card, the lineup, the guide grid, the registry diagram, the front
+page — was drawn with African stations and African countries, and
+the identity card read `Africa / Global`. Those illustrations are
+in plain code blocks rather than in the `> *"…"*` form this project
+reserves for the author's own words, which means they were written
+here rather than taken from the brief.
+
+> *"This is world class app and must not be tailored for africa and
+> read african nations"*
+
+The illustrations now run across six continents, and so do the test
+fixtures and the sample rows in the source. **Africa is in the
+spread, not the whole of it** — the fault was a product that looked
+regional, not the presence of a region.
+
+## Not built, at the end of the loop
+
+- **A WEEK view**, which is a second grid. See N-10.
+- **Countries and languages as DIRECTORY FACETS.** Search matches
+  them now; the directory still filters by genre alone. The brief
+  names all three.
