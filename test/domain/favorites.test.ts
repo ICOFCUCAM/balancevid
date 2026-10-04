@@ -11,8 +11,8 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  FAVORITES_KEY, MOST_FAVORITES, favoritesAmong, isFavorite,
-  readFavorites, withFavorite, withoutFavorite,
+  FAVORITES_KEY, MOST_FAVORITES, carried, favoritesAmong, isFavorite,
+  readCarried, readFavorites, withFavorite, withFavorites, withoutFavorite,
 } from '../../src/domain/favorites.js';
 import { dialOrder } from '../../src/domain/registry.js';
 
@@ -191,5 +191,82 @@ describe('one order for both lineups (N-9)', () => {
       .toBeLessThan(0);
     expect(dialOrder({ number: 100, name: 'Apple' }, { number: 100, name: 'Zebra' }))
       .toBeLessThan(0);
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ *  Carrying the list to another device.  [N-9, D-03]
+ *
+ *  The cost of holding nothing about a viewer is that the list
+ *  does not follow them. It does not have to be paid twice: a
+ *  list of addresses is small enough to carry in a link, so a
+ *  lineup moves from a laptop to a television WITHOUT this
+ *  installation ever learning what is in it.
+ * ------------------------------------------------------------------ */
+
+describe('a list carried in a link (N-9)', () => {
+  it('is the addresses themselves, not an opaque blob', () => {
+    expect(carried(['redemption-tv', 'music-house']))
+      .toBe('redemption-tv,music-house');
+  });
+
+  it('comes back the way it went out', () => {
+    const list = ['redemption-tv', 'nordlys', 'music-house'];
+    expect(readCarried(carried(list))).toEqual(list);
+  });
+
+  it('says nothing about an empty list', () => {
+    expect(carried([])).toBe('');
+    expect(readCarried('')).toEqual([]);
+    expect(readCarried(null)).toEqual([]);
+  });
+
+  /*
+   * THIS IS THE UNTRUSTED DOOR. Anybody can write the query, so
+   * everything storage gets done to it has to happen here too —
+   * and does, because it is the same function underneath. [D-19]
+   */
+  it('cleans a link exactly as it cleans storage', () => {
+    expect(readCarried(' Redemption-TV , music-house ,, music-house , '))
+      .toEqual(['redemption-tv', 'music-house']);
+  });
+
+  it('cannot be a second way past the bound on storage', () => {
+    const many = Array.from({ length: MOST_FAVORITES + 40 },
+      (_, at) => `ch-${at}`);
+    expect(readCarried(many.join(',')).length).toBe(MOST_FAVORITES);
+  });
+});
+
+describe('adding several at once (N-9)', () => {
+  it('keeps what was there and adds what was not', () => {
+    expect(withFavorites(['a-tv'], ['b-tv', 'c-tv']))
+      .toEqual(['a-tv', 'b-tv', 'c-tv']);
+  });
+
+  it('never doubles a channel already kept', () => {
+    expect(withFavorites(['a-tv', 'b-tv'], ['b-tv', 'a-tv']))
+      .toEqual(['a-tv', 'b-tv']);
+  });
+
+  it('folds and trims what it is handed, like the star does', () => {
+    expect(withFavorites([], [' A-TV ', 'a-tv'])).toEqual(['a-tv']);
+  });
+
+  /*
+   * THE SAME BOUND, because it is a fold of the same
+   * `withFavorite`. A carried list that could overfill storage
+   * would be a link that breaks the page it was sent to.
+   */
+  it('respects the bound the star respects', () => {
+    const full = Array.from({ length: MOST_FAVORITES }, (_, at) => `ch-${at}`);
+    const after = withFavorites(full, ['one-more']);
+    expect(after.length).toBe(MOST_FAVORITES);
+    expect(after).toContain('one-more');
+    expect(after).not.toContain('ch-0');
+  });
+
+  it('leaves the list alone when there is nothing to add', () => {
+    expect(withFavorites(['a-tv'], [])).toEqual(['a-tv']);
   });
 });

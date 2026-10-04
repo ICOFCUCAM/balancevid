@@ -2018,3 +2018,296 @@
   .cat-grid { grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); }
   .cat-tile { min-height: 124px; }
 }
+
+/* ------------------------------------------------------------------ *
+ *  Favourites: the viewer's own lineup.  [TV-NETWORK N-9]
+ *
+ *  A LINEUP IS A LIST AND NOT A GRID, which is the one way this
+ *  page differs from every other shelf on the network. The
+ *  directory is browsed — a grid of cards, read by name — and
+ *  this is TUNED, read down the numbers in the order a remote
+ *  steps through them. `favoritesAmong` has sorted it by
+ *  `dialOrder` since N-9 and the page drew it as a grid anyway,
+ *  which threw the ordering away at the last step. [D-04, N-6]
+ * ------------------------------------------------------------------ */
+
+.fav-head {
+  border-bottom: 1px solid var(--line);
+  background: var(--ink-900);
+}
+
+.fav-head-row {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: var(--space-5) var(--space-6);
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.fav-title {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  letter-spacing: -0.02em;
+  color: var(--ink-000);
+}
+
+.fav-lede { margin: 6px 0 0; font-size: var(--text-sm); color: var(--ink-300); }
+
+.fav-count {
+  margin-left: auto;
+  font-size: var(--text-sm);
+  color: var(--ink-300);
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.fav-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-100);
+}
+
+.fav-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--state-live);
+}
+
+.fav-body {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: var(--space-5) var(--space-6) var(--space-6);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.fav-list {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  overflow: hidden;
+}
+
+/*
+ * THE ROW IS NOT A LINK. It holds one, and it holds a BUTTON —
+ * and a button inside a link is a control you cannot press,
+ * which is the lesson `ChannelGrid` already records about stars
+ * on cards. Two siblings in a flex row, and only the left one
+ * navigates. [N-9]
+ */
+.fav-row {
+  display: flex;
+  align-items: stretch;
+  border-top: 1px solid var(--line-soft);
+}
+
+.fav-row:first-child { border-top: 0; }
+.fav-row:hover { background: var(--surface-float); }
+
+.fav-open {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: 12px var(--space-4);
+  text-decoration: none;
+  color: inherit;
+}
+
+/* The number leads, because that is what a lineup is read by. */
+.fav-num {
+  flex: 0 0 auto;
+  width: 38px;
+  text-align: right;
+  font-size: var(--text-sm);
+  color: var(--ink-400);
+}
+
+.fav-mark {
+  flex: 0 0 auto;
+  width: 46px;
+  height: 46px;
+  border-radius: var(--radius-screen);
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: var(--screen-bed);
+  border: 1px solid var(--line);
+  font-size: var(--text-2xs);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.86);
+}
+
+.fav-mark img { width: 100%; height: 100%; object-fit: cover; }
+
+.fav-said { flex: 1 1 auto; min-width: 0; }
+
+.fav-name {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: var(--weight-semi);
+  min-width: 0;
+}
+
+.fav-name-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.fav-tag {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  background: var(--state-live);
+  color: var(--text-on-accent);
+}
+
+.fav-under {
+  display: block;
+  margin-top: 3px;
+  font-size: var(--text-xs);
+  color: var(--ink-300);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fav-next {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--text-2xs);
+  color: var(--ink-400);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The way back out of the list, which is the star again. */
+.fav-drop {
+  flex: 0 0 auto;
+  width: 46px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-left: 1px solid var(--line-soft);
+  background: transparent;
+  color: var(--ink-400);
+  cursor: pointer;
+}
+
+.fav-drop:hover { color: var(--state-live); background: var(--surface-float); }
+
+/* ------------------------------------------------------------------ *
+ *  The panel: what this list is, and how to carry it.
+ * ------------------------------------------------------------------ */
+
+.fav-aside {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  padding: var(--space-5);
+  position: sticky;
+  top: 72px;
+}
+
+.fav-aside-lead {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: var(--weight-semi);
+  color: var(--ink-000);
+}
+
+.fav-aside-said {
+  margin: 7px 0 0;
+  font-size: var(--text-xs);
+  color: var(--ink-300);
+}
+
+/* The field gives way, not the button: an address scrolls
+   sideways and `Copy` does not. The lesson `Address` already
+   carries, in a 300px column that needs it more. */
+.fav-carry { margin-top: 10px; }
+.fav-carry .net-address-label { display: none; }
+.fav-carry code { font-size: var(--text-2xs); }
+
+.fav-ways {
+  margin-top: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fav-way {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line);
+  background: var(--console-control);
+  color: var(--ink-100);
+  text-decoration: none;
+  font-size: var(--text-sm);
+}
+
+.fav-way:hover { border-color: var(--accent); }
+
+/*
+ * A LIST ARRIVING FROM ANOTHER DEVICE. It is an OFFER and never
+ * an action: a link anybody can write must not be able to
+ * change what is in somebody's browser by being opened. [D-03]
+ */
+.fav-offer {
+  margin: 0 auto var(--space-4);
+  max-width: 1180px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  padding: 13px var(--space-5);
+  border: 1px solid var(--accent-deep);
+  border-radius: var(--radius-lg);
+  background: var(--surface-float);
+}
+
+.fav-offer-said { flex: 1 1 240px; font-size: var(--text-sm); }
+
+.fav-empty {
+  padding: var(--space-6) var(--space-4);
+  text-align: center;
+  color: var(--ink-300);
+  font-size: var(--text-sm);
+}
+
+.fav-gone {
+  margin: var(--space-4) 0 0;
+  font-size: var(--text-xs);
+  color: var(--ink-400);
+}
+
+@media (max-width: 900px) {
+  .fav-body { grid-template-columns: minmax(0, 1fr); }
+  .fav-aside { position: static; order: 2; }
+}
+
+@media (max-width: 760px) {
+  .fav-head-row, .fav-body { padding: var(--space-4); }
+  .fav-count { margin-left: 0; }
+  .fav-num { width: 28px; }
+  .fav-open { gap: 11px; padding: 11px 12px; }
+  .fav-mark { width: 40px; height: 40px; }
+}

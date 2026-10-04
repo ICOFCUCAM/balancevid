@@ -20,7 +20,8 @@ import Link from 'next/link';
 import { type ReactNode, useCallback, useEffect, useState } from 'react';
 
 import {
-  FAVORITES_KEY, isFavorite, readFavorites, withFavorite, withoutFavorite,
+  FAVORITES_KEY, isFavorite, readFavorites, withFavorite, withFavorites,
+  withoutFavorite,
 } from '../../src/domain/favorites.js';
 
 export { isFavorite };
@@ -118,7 +119,25 @@ export function useFavorites() {
     });
   }, []);
 
-  return { list, ready, toggle };
+  /*
+   * ADDING SEVERAL AT ONCE, for a list carried here in a link.
+   * It goes through `withFavorites`, which is a fold of the same
+   * `withFavorite` the star uses, so a carried list cannot be a
+   * second way past the bound on storage. [N-9, D-19]
+   */
+  const keep = useCallback((slugs: readonly string[]) => {
+    setList((was) => {
+      const next = withFavorites(was, slugs);
+      try {
+        window.localStorage.setItem(FAVORITES_KEY, JSON.stringify(next));
+      } catch {
+        /* Kept for this visit and not beyond it. */
+      }
+      return next;
+    });
+  }, []);
+
+  return { list, ready, toggle, keep };
 }
 
 /**
@@ -460,7 +479,16 @@ export function ChannelGrid(
  *  Taking the network off the web page.
  * ------------------------------------------------------------------ */
 
-function Address({ label, url }: { label: string; url: string }) {
+/*
+ * EXPORTED BECAUSE A SECOND SURFACE NOW ASKS. Favourites carries
+ * a viewer's lineup to another device in a link, and the hard
+ * part of that is the same hard part as the M3U address: a
+ * half-copied URL is the commonest way this goes wrong, and the
+ * fix — one click selects the whole thing, and a Copy that knows
+ * `navigator.clipboard` is absent outside a secure context —
+ * has already been found once. [D-19, N-9]
+ */
+export function Address({ label, url }: { label: string; url: string }) {
   const [copied, setCopied] = useState(false);
   return (
     /*
