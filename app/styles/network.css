@@ -1804,3 +1804,217 @@
   .sr-field { padding-left: 13px; }
   .sr-go { padding: 10px 15px; }
 }
+
+/* ------------------------------------------------------------------ *
+ *  Browse by category.  [TV-NETWORK N-4]
+ *
+ *  > *"But don't make it just a giant list."*
+ *
+ *  THE CATEGORIES PAGE WAS A LIST OF LISTS: a heading per kind
+ *  with a shelf of channel cards under each, which is the
+ *  directory drawn twice and read once. A category is a DOOR, and
+ *  a door is a tile — one press, one place to land, and
+ *  `/tv/channels?genre=…` already draws what is behind it. Two
+ *  pages, two questions. [D-04]
+ * ------------------------------------------------------------------ */
+
+.cat-head {
+  border-bottom: 1px solid var(--line);
+  background: var(--ink-900);
+}
+
+.cat-head-row {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: var(--space-5) var(--space-6);
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.cat-title {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  letter-spacing: -0.02em;
+  color: var(--ink-000);
+}
+
+.cat-lede { margin: 6px 0 0; font-size: var(--text-sm); color: var(--ink-300); }
+
+.cat-count {
+  margin-left: auto;
+  font-size: var(--text-sm);
+  color: var(--ink-300);
+  white-space: nowrap;
+}
+
+.cat-body {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: var(--space-5) var(--space-6) var(--space-6);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.cat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: var(--space-4);
+}
+
+/*
+ * A TILE IS A PICTURE WITH A WORD ON IT, and the picture is a
+ * GROUND rather than a photograph: this product has one
+ * photograph per studio and none per category, and eight tiles
+ * carrying the same stock image is worse than eight tiles
+ * carrying none. `identityFor` already answers *what colour is
+ * this thing* for a station with no logo, deterministically from
+ * its name, and a category is the same question. [D-19, U-19]
+ */
+.cat-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-height: 148px;
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  overflow: hidden;
+  text-decoration: none;
+  color: inherit;
+}
+
+.cat-tile:hover { border-color: var(--accent); }
+
+.cat-tile-wash {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    170deg, rgba(0, 0, 0, 0) 30%, rgba(0, 0, 0, 0.55) 100%);
+}
+
+.cat-tile-mark {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  margin-bottom: auto;
+}
+
+.cat-tile-name {
+  position: relative;
+  margin-top: var(--space-4);
+  font-size: var(--text-base);
+  font-weight: var(--weight-semi);
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cat-tile-says {
+  position: relative;
+  margin-top: 2px;
+  font-size: var(--text-xs);
+  color: rgba(255, 255, 255, 0.78);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+/* On air inside this category, right now. */
+.cat-tile-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #fff;
+}
+
+.cat-tile-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--state-live);
+}
+
+/* ------------------------------------------------------------------ *
+ *  The panel beside the tiles.
+ * ------------------------------------------------------------------ */
+
+.cat-aside {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  padding: var(--space-5);
+  position: sticky;
+  top: 72px;
+}
+
+.cat-aside-mark {
+  width: 44px;
+  height: 44px;
+  border-radius: 13px;
+  display: grid;
+  place-items: center;
+  background: var(--accent-deep);
+  color: var(--text-on-accent);
+}
+
+.cat-aside-lead {
+  margin: var(--space-4) 0 0;
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semi);
+  letter-spacing: -0.01em;
+  color: var(--ink-000);
+}
+
+.cat-aside-said {
+  margin: 7px 0 0;
+  font-size: var(--text-xs);
+  color: var(--ink-300);
+}
+
+.cat-aside-ways {
+  margin-top: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cat-aside-way {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line);
+  background: var(--console-control);
+  color: var(--ink-100);
+  text-decoration: none;
+  font-size: var(--text-sm);
+}
+
+.cat-aside-way:hover { border-color: var(--accent); }
+
+@media (max-width: 900px) {
+  .cat-body { grid-template-columns: minmax(0, 1fr); }
+  .cat-aside { position: static; order: 2; }
+}
+
+@media (max-width: 760px) {
+  .cat-head-row, .cat-body { padding: var(--space-4); }
+  .cat-count { margin-left: 0; }
+  .cat-grid { grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); }
+  .cat-tile { min-height: 124px; }
+}

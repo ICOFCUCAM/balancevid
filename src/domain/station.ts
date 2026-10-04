@@ -38,10 +38,30 @@
  * Nothing here touches the filesystem, the network or a clock.
  */
 
-/** What kind of channel this is, for the directory's shelves. */
+/**
+ * What kind of channel this is, for the directory's shelves.
+ *
+ * A MENU A BROADCASTER CHOOSES FROM, NOT A SET OF SHELVES THE
+ * NETWORK DRAWS. Nothing is listed anywhere because it is in this
+ * list — every surface reads the genres off the channels that
+ * exist — so adding one here costs an empty shelf nowhere and
+ * opens a door for somebody whose channel had no honest answer.
+ * [D-21]
+ *
+ * `health` AND `business` ARRIVED LATE, from a design that named
+ * eight categories to this list's ten and had two of them we
+ * could not file. A world network of thousands will carry a
+ * clinic's channel and a market report, and `general` is where
+ * both were going.
+ *
+ * ORDER IS DECLARATION ORDER AND NOTHING READS IT AS A RANKING —
+ * the directory sorts its pills by how many channels sit under
+ * each, which is the only ordering that is about this network
+ * rather than about this file. [D-04]
+ */
 export const GENRES = [
   'general', 'news', 'music', 'faith', 'education', 'culture',
-  'entertainment', 'sport', 'children', 'talk',
+  'entertainment', 'sport', 'children', 'talk', 'health', 'business',
 ] as const;
 export type Genre = (typeof GENRES)[number];
 

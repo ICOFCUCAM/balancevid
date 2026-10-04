@@ -28,6 +28,12 @@ import { useInstallOffer } from '../useInstallOffer.js';
 import Icon from '../Icon.js';
 import { NETWORK_ART } from './art.js';
 import { asWord, markFor } from './kinds.js';
+import { identityFor } from './art.js';
+
+/* The ground behind a station with no logo. It moved to `art.js`
+   when a SERVER page needed it, and is re-exported because four
+   client modules already ask this file for it. [D-19] */
+export { identityFor };
 
 export interface Listing {
   slug: string;
@@ -625,38 +631,6 @@ export function NetworkHero(
   );
 }
 
-/**
- * A station with no logo gets an identity rather than a gap.
- *
- * TWO GREY LETTERS IN A DARK WELL IS WHAT *MISSING* LOOKS LIKE,
- * and on a shelf of six it is what the whole network looks like.
- * An independent broadcaster who has not uploaded a logo yet is
- * the ordinary case on a new network, not the edge one — so the
- * absence has to be designed rather than merely handled. [U-19]
- *
- * DETERMINISTIC, FROM THE SLUG. The same station is the same
- * colour on every page, every load and every device, because a
- * channel whose tile changed colour between the directory and the
- * guide would read as two channels. A hash over the address, not a
- * random — and the address is the one thing a listing is
- * guaranteed to have.
- *
- * AND IT IS A GROUND, NOT A BRAND. Deep, low-saturation, two stops
- * apart: it has to sit in a row beside real logos without
- * competing with them, because the day the broadcaster uploads one
- * this disappears and nothing else on the card should move.
- */
-export function identityFor(slug: string): React.CSSProperties {
-  let hash = 0;
-  for (let i = 0; i < slug.length; i += 1) {
-    hash = (hash * 31 + slug.charCodeAt(i)) % 360;
-  }
-  return {
-    background: `radial-gradient(120% 120% at 24% 18%,`
-      + ` hsl(${hash} 42% 26%) 0%, hsl(${(hash + 28) % 360} 46% 13%) 62%,`
-      + ` hsl(${(hash + 40) % 360} 48% 9%) 100%)`,
-  };
-}
 
 /**
  * One channel, as a tile on the shelf.

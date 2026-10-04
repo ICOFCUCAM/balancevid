@@ -148,7 +148,7 @@ describe('what a listing says (N-1)', () => {
 describe('the shelves (N-1)', () => {
   it('has the genres the brief names', () => {
     for (const named of ['music', 'education', 'faith', 'news', 'culture',
-      'entertainment']) {
+      'entertainment', 'sport', 'children', 'health', 'business']) {
       expect(GENRES).toContain(named);
     }
   });
