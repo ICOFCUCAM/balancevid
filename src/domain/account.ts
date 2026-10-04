@@ -139,6 +139,91 @@ export interface Account {
    * field means "a line has been drawn"; no line is no field.
    */
   sessionsValidFrom?: string;
+  /**
+   * WHAT THIS ACCOUNT HAS PAID FOR BEYOND ITS STUDIOS.
+   *   [D-19, U-24; TV-NETWORK]
+   *
+   * A STUDIO IS A ROOM AND AN EXTRA IS A CAPABILITY INSIDE ONE,
+   * which is why these are a separate list rather than three more
+   * `StudioId`s. Online TV is a room somebody has or has not got;
+   * multi-track audio is a thing a broadcaster who already has
+   * that room may additionally buy, and folding it into `studios`
+   * would make the rail draw a fourth room nobody can enter.
+   *
+   * ABSENT MEANS NONE, which is the opposite of how `studios`
+   * reads, and deliberately so. An unset `studios` means *this
+   * installation predates the field, so grant everything* —
+   * because the alternative locks an existing owner out of their
+   * own work on the deploy that adds it. Nobody is locked out of
+   * a feature that did not exist yesterday, so an extra has to be
+   * granted before it is held. [U-19]
+   *
+   * AND IT IS AN ENTITLEMENT, WHICH IS A WORD THIS PRODUCT USES
+   * CAREFULLY. V-8 refused to make operating the public network
+   * one, because *"an entitlement is something an account can be
+   * granted and this is the one capability that cannot be."*
+   * This is the opposite case and the one entitlements exist for:
+   * a priced capability, granted per account, that changes what a
+   * broadcaster may OFFER and never what a viewer may hear.
+   * [GO-VIRAL V-8]
+   */
+  extras?: ExtraId[];
+}
+
+/**
+ * The priced capabilities, by name.
+ *
+ * ONE AT A TIME, AND EACH ONE REAL. A list of planned features
+ * dressed as entitlements is a price list for things that do not
+ * work.
+ */
+export const EXTRAS = {
+  /**
+   * More than one audio track on a channel.
+   *
+   * THE COST IS THE ENCODER, NOT THE PANEL. Every extra language
+   * is another audio rendition muxed, segmented and stored for
+   * every hour the channel is on air — which is why this is
+   * priced and the rest of the station page is not.
+   */
+  'multi-audio': { label: 'Multi-track audio', within: 'online-tv' },
+} as const satisfies Record<string, { label: string; within: StudioId }>;
+
+export type ExtraId = keyof typeof EXTRAS;
+
+const ALL_EXTRAS = Object.keys(EXTRAS) as ExtraId[];
+
+export function isExtraId(said: string): said is ExtraId {
+  return (ALL_EXTRAS as string[]).includes(said);
+}
+
+/**
+ * What this account has bought.
+ *
+ * UNKNOWN ENTRIES ARE DROPPED, for the reason `studiosOf` states:
+ * the list comes out of a JSON file a forward version of this
+ * product may have written a name into, and a name this build
+ * does not understand is not a permission this build can honour.
+ *
+ * AND AN EXTRA IS WORTHLESS WITHOUT THE ROOM IT IS INSIDE. An
+ * account that bought multi-track audio and then gave up Online
+ * TV does not have multi-track audio; it has a line item. Asking
+ * both questions here means no surface has to remember to ask the
+ * second one. [D-19]
+ */
+export function extrasOf(
+  account: Pick<Account, 'studios' | 'extras'>,
+): ExtraId[] {
+  return (account.extras ?? [])
+    .filter((id): id is ExtraId => isExtraId(id))
+    .filter((id) => ownsStudio(account, EXTRAS[id].within));
+}
+
+/** May this account use that extra. The one question a surface asks. */
+export function hasExtra(
+  account: Pick<Account, 'studios' | 'extras'>, extra: ExtraId,
+): boolean {
+  return extrasOf(account).includes(extra);
 }
 
 /**

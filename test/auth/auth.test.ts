@@ -141,6 +141,23 @@ describe('what the holder of a Take link may reach', () => {
   });
 
   /*
+   * A STATION'S OWN TWO PICTURES, and nothing else under that
+   * path.  [N-4, N-7]
+   *
+   * The banner arrives on the same terms the logo already had:
+   * the asset id is read out of the station document by slug and
+   * is never taken from the caller, so there is no way to turn
+   * either route into the library's.
+   */
+  it('shows a station\'s mark and its photograph to a stranger', () => {
+    expect(mayBePublic('/api/tv/channels/redemption-tv/logo', 'GET')).toBe(true);
+    expect(mayBePublic('/api/tv/channels/redemption-tv/banner', 'GET')).toBe(true);
+    /* And nothing else of the station, by either name. */
+    expect(mayBePublic('/api/tv/channels/redemption-tv/logo/x', 'GET')).toBe(false);
+    expect(mayBePublic('/api/tv/channels/redemption-tv/banner', 'DELETE')).toBe(false);
+  });
+
+  /*
    * THE PRODUCT'S OWN PHOTOGRAPHS.  [TV-NETWORK N-4]
    *
    * FOUND IN A SCREENSHOT: the television network's front page was a

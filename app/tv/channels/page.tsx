@@ -149,11 +149,16 @@ export default async function ChannelsPage(
       {shelves.length > 0 && (
         <div className="net-filters">
           <nav className="net-pills" data-testid="tv-shelves">
+            {/* A LINK SAYS WHERE YOU ARE WITH `aria-current`, which
+                is the anchor's equivalent of the `aria-pressed` a
+                toggle owes a reader. A filled pill is a colour. */}
             <a href={keep({ order: asked })} className="net-pill"
+               {...(wanted ? {} : { 'aria-current': 'page' as const })}
                data-on={wanted ? 'false' : 'true'}>All</a>
             {shelves.map((shelf) => (
               <a key={shelf} href={keep({ genre: shelf, order: asked })}
                  data-testid="tv-shelf" className="net-pill"
+                 {...(shelf === wanted ? { 'aria-current': 'page' as const } : {})}
                  data-on={shelf === wanted ? 'true' : 'false'}
                  style={{ textTransform: 'capitalize' }}>{shelf}</a>
             ))}

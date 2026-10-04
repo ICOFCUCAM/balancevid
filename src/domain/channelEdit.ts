@@ -1179,6 +1179,20 @@ export function unpublishChannel(channel: Channel, at: string): void {
  */
 export function setStation(
   channel: Channel, patch: Partial<Station>, others: Iterable<Channel> = [],
+  /**
+   * WHAT THIS ACCOUNT HAS PAID FOR.
+   *
+   * PASSED IN, BECAUSE THIS MODULE READS NOTHING — the same
+   * arrangement `newCampaign`'s `taken` and `review` use. The
+   * route holds the account; the domain decides. A domain that
+   * loaded an account to price a field would be a domain with a
+   * billing system in it. [D-19]
+   *
+   * ABSENT MEANS NOTHING EXTRA, which is the safe direction: a
+   * caller that forgets to pass it cannot accidentally grant a
+   * priced capability. [account.ts `extras`]
+   */
+  allowed?: { multiAudio?: boolean },
 ): void {
   const now: Station = channel.station
     ?? { slug: slugFor(channel.name, takenSlugs(others, channel.id)) };
@@ -1247,7 +1261,63 @@ export function setStation(
       next.domain = domain;
     }
   }
-  for (const field of ['description', 'logoAssetId'] as const) {
+  /*
+   * THE AUDIO RENDITIONS, WHICH ARE PRICED AND SO ARE REFUSED
+   * RATHER THAN IGNORED.  [account.ts `EXTRAS`, N-4]
+   *
+   * A BROADCASTER WITHOUT THE EXTRA IS TOLD, not quietly given a
+   * one-track channel: a station owner who declared four
+   * languages and found three missing a week later would have no
+   * way to know why. [U-19]
+   *
+   * AND THE GATE IS ON OFFERING, NEVER ON HEARING. Nothing a
+   * viewer does reaches this function. [GO-VIRAL V-8]
+   */
+  if (next.audio !== undefined) {
+    const tracks = next.audio
+      .map((one) => ({
+        language: String(one.language ?? '').trim().toLowerCase(),
+        ...(one.label?.trim() ? { label: one.label.trim().slice(0, 60) } : {}),
+        ...(one.default ? { default: true as const } : {}),
+      }))
+      .filter((one) => /^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/.test(one.language));
+
+    /*
+     * ONE LANGUAGE ONCE. Two renditions with the same tag is a
+     * master playlist whose player picks whichever it read
+     * first, which is a different stream for different viewers.
+     */
+    const seen = new Set<string>();
+    const kept = tracks.filter((one) => {
+      if (seen.has(one.language)) return false;
+      seen.add(one.language);
+      return true;
+    });
+
+    if (kept.length <= 1) {
+      /* One track is what every channel already has, and
+         `language` is where it is said. A list of one is noise. */
+      delete next.audio;
+    } else {
+      if (!allowed?.multiAudio) {
+        fail('more than one audio track needs the multi-track audio extra');
+      }
+      /*
+       * EXACTLY ONE DEFAULT, decided here rather than trusted.
+       * Zero defaults is a player with no instruction; two is a
+       * stream whose opening audio depends on parse order. The
+       * first marked one wins, and failing that the first track.
+       */
+      const chosen = kept.findIndex((one) => one.default);
+      next.audio = kept.map((one, index) => ({
+        language: one.language,
+        ...(one.label ? { label: one.label } : {}),
+        ...(index === (chosen < 0 ? 0 : chosen) ? { default: true } : {}),
+      }));
+    }
+  }
+
+  for (const field of ['description', 'logoAssetId', 'bannerAssetId'] as const) {
     const value = next[field]?.trim();
     if (!value) delete next[field];
     else next[field] = value.slice(0, field === 'description' ? 400 : 128);
