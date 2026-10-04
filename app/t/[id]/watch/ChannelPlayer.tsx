@@ -35,8 +35,16 @@ import VideoTransport from '../../../VideoTransport.js';
 /** How far behind the edge is too far, before it is nudged forward. */
 const DRIFT_S = 12;
 
+/** One audio rendition, as the player can see it. */
+export interface Track {
+  /** What `hls.js` calls it, or `-1` for the element's own. */
+  id: number;
+  label: string;
+  language: string;
+}
+
 export default function ChannelPlayer({
-  channelId, poster, onAir = false, compact = false, onVideo,
+  channelId, poster, onAir = false, compact = false, onVideo, onAudio,
 }: {
   channelId: string;
   poster?: string;
@@ -64,16 +72,45 @@ export default function ChannelPlayer({
    * picture instead of hoping somebody notices it.
    */
   onVideo?: (video: HTMLVideoElement | null) => void;
+  /**
+   * The audio renditions this stream turned out to have, once it
+   * has been read. [N-10]
+   */
+  onAudio?: (audio: {
+    tracks: Track[]; chosen: number; pick: (id: number) => void;
+  }) => void;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [video, setVideo] = useState<HTMLVideoElement | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
+  /*
+   * THE AUDIO RENDITIONS, DISCOVERED FROM THE STREAM AND NOT
+   * FROM THE DOCUMENT.  [N-10]
+   *
+   * The station document says what a broadcaster INTENDED; the
+   * master playlist says what the encoder is writing and the
+   * account is entitled to. A picker built on the first offers
+   * languages that go silent when they are chosen, which is the
+   * worst shape this fault takes — the viewer blames their own
+   * connection. So the player asks the stream. [D-21, U-19]
+   */
+  const [tracks, setTracks] = useState<Track[]>([]);
+  const [chosen, setChosen] = useState(-1);
+  const pick = useRef<(id: number) => void>(() => undefined);
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
+    /*
+     * THE MASTER FIRST, AND A 404 IS THE ORDINARY ANSWER. Most
+     * channels carry one audio track and have no master at all;
+     * `hls.js` follows a master transparently when there is one,
+     * so the only thing that changes for them is one HEAD-shaped
+     * request that fails fast. [D-19]
+     */
     const url = `/api/channels/${channelId}/playlist`;
+    const master = `/api/channels/${channelId}/master.m3u8`;
     let destroy: (() => void) | undefined;
     let cancelled = false;
 
@@ -83,7 +120,37 @@ export default function ChannelPlayer({
      * megabyte to re-implement something already in the operating system.
      */
     if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      video.src = url;
+      /*
+       * SAFARI PICKS ITS OWN TRACK AND LETS US MOVE IT. The
+       * element exposes `audioTracks` once the master is parsed,
+       * which is the operating system's own switcher rather than
+       * a second implementation of one.
+       */
+      void fetch(master, { method: 'GET' })
+        .then((answer) => { if (!cancelled) video.src = answer.ok ? master : url; })
+        .catch(() => { if (!cancelled) video.src = url; });
+      const held = (video as unknown as {
+        audioTracks?: { length: number; [at: number]: {
+          label: string; language: string; enabled: boolean } };
+      }).audioTracks;
+      const sync = () => {
+        if (!held || held.length < 2) return;
+        setTracks(Array.from({ length: held.length }, (_, at) => ({
+          id: at,
+          label: held[at]!.label || held[at]!.language,
+          language: held[at]!.language,
+        })));
+        for (let at = 0; at < held.length; at += 1) {
+          if (held[at]!.enabled) setChosen(at);
+        }
+      };
+      pick.current = (id) => {
+        if (!held) return;
+        for (let at = 0; at < held.length; at += 1) held[at]!.enabled = at === id;
+        setChosen(id);
+      };
+      video.addEventListener('loadedmetadata', sync);
+      destroy = () => video.removeEventListener('loadedmetadata', sync);
       setReady(true);
     } else {
       void (async () => {
@@ -106,9 +173,36 @@ export default function ChannelPlayer({
             lowLatencyMode: false,
             enableWorker: true,
           });
-          hls.loadSource(url);
+          /*
+           * THE MASTER WHERE THERE IS ONE. `hls.js` reads a
+           * master and a media playlist through the same door,
+           * so this is a URL choice and not a second code path.
+           */
+          const answer = await fetch(master).catch(() => null);
+          if (cancelled) { hls.destroy(); return; }
+          hls.loadSource(answer?.ok ? master : url);
           hls.attachMedia(video);
-          hls.on(Hls.Events.MANIFEST_PARSED, () => setReady(true));
+          hls.on(Hls.Events.MANIFEST_PARSED, () => {
+            setReady(true);
+            /*
+             * `audioTracks` IS EMPTY ON A MEDIA PLAYLIST, which
+             * is the common case and needs no branch: no
+             * renditions, no picker.
+             */
+            const held = hls.audioTracks;
+            if (held.length > 1) {
+              setTracks(held.map((one, at) => ({
+                id: at,
+                label: one.name || one.lang || `Track ${at + 1}`,
+                language: one.lang ?? '',
+              })));
+              setChosen(hls.audioTrack);
+            }
+          });
+          hls.on(Hls.Events.AUDIO_TRACK_SWITCHED, () => {
+            setChosen(hls.audioTrack);
+          });
+          pick.current = (id) => { hls.audioTrack = id; };
           hls.on(Hls.Events.ERROR, (_event, data) => {
             if (!data.fatal) return;
             /*
@@ -142,6 +236,18 @@ export default function ChannelPlayer({
       destroy?.();
     };
   }, [channelId]);
+
+  /*
+   * HANDED OUT RATHER THAN DRAWN HERE. This component is the
+   * picture and the transport; WHERE a language picker belongs
+   * is a question about the page around it — the station page
+   * puts it in the bar under the picture, and the control
+   * room's confidence monitor must not grow one at all. [§18,
+   * D-19]
+   */
+  useEffect(() => {
+    onAudio?.({ tracks, chosen, pick: (id: number) => pick.current(id) });
+  }, [onAudio, tracks, chosen]);
 
   return (
     <>

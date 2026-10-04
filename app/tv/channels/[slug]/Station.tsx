@@ -5,7 +5,7 @@ import Link from 'next/link';
 
 import { numberSays } from '../../../../src/domain/registry.js';
 import type { Tuning } from '../../../../src/domain/channelListing.js';
-import ChannelPlayer from '../../../t/[id]/watch/ChannelPlayer.js';
+import ChannelPlayer, { type Track } from '../../../t/[id]/watch/ChannelPlayer.js';
 import Icon from '../../../Icon.js';
 import {
   type Listing, identityFor, isFavorite, useFavorites,
@@ -47,6 +47,48 @@ export interface Slot {
   title: string;
 }
 
+interface Audio {
+  tracks: Track[];
+  chosen: number;
+  pick: (id: number) => void;
+}
+
+/**
+ * The audio languages this channel is carrying.  [N-10]
+ *
+ * > *"i plan for multitrack audio which is wise to include so it
+ * > would not complecate in feature. however subscribers would
+ * > have to pay extra for this special feature"*
+ *
+ * DRAWN ONLY OVER A CHOICE. A single-track channel gets no
+ * control at all — not a disabled one, and not a menu with one
+ * item in it, both of which tell a viewer there is something
+ * here they cannot have. A channel that has not bought the
+ * extra is indistinguishable from one that only ever had one
+ * language, which is deliberate: the viewer is not the
+ * customer. [D-21, account.ts `EXTRAS`]
+ *
+ * A `<select>`, NOT A POPOVER. It is the control every platform
+ * already draws as a list on a television remote, a phone wheel
+ * and a desktop menu, and it is reachable from a keyboard
+ * without this file inventing focus management. The design's
+ * floating panel is prettier on one device and worse on three.
+ */
+function AudioPicker({ audio }: { audio: Audio }) {
+  return (
+    <label className="stn-bar-audio" data-testid="station-audio">
+      <Icon name="sound" size={14} />
+      <span className="stn-bar-audio-said">Audio</span>
+      <select value={audio.chosen} aria-label="Audio language"
+              onChange={(event) => audio.pick(Number(event.target.value))}>
+        {audio.tracks.map((one) => (
+          <option key={one.id} value={one.id}>{one.label}</option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 export default function Station(
   { channelId, listing, first, tune, today }: {
     channelId: string; listing: Listing; first: On; tune?: Tuning;
@@ -55,6 +97,14 @@ export default function Station(
   },
 ) {
   const [on, setOn] = useState<On>(first);
+  /*
+   * WHAT THE STREAM TURNED OUT TO HAVE. Handed up by the player
+   * once the master playlist has been read, because the only
+   * thing that knows which renditions exist is the thing
+   * playing them. [N-10]
+   */
+  const [audio, setAudio] = useState<Audio>(
+    { tracks: [], chosen: -1, pick: () => undefined });
 
   useEffect(() => {
     let stopped = false;
@@ -224,22 +274,26 @@ export default function Station(
       <div className="stn-body">
         <div style={{ display: 'grid', gap: 'var(--space-4)', minWidth: 0 }}>
           {/*
-            * THE PICTURE IS CAPPED, so what is on stays on the
-            * screen. At full width a 16:9 player is 720 pixels
-            * tall on a laptop and pushes NOW and NEXT below the
-            * fold — on the one page whose job is to say what is
-            * on. [D-04]
+            * THE STAGE: the picture and the row under it, capped
+            * together and centred.
+            *
+            * CAPPED, so what is on stays on the screen — at full
+            * width a 16:9 player is 650 pixels tall on a laptop
+            * and pushes NOW below the fold, on the one page
+            * whose job is to say what is on. The cap was dropped
+            * once when this page was rebuilt and a screenshot
+            * put it straight back.
+            *
+            * `width: 100%` BESIDE THE CAP, AND THAT IS NOT
+            * BELT-AND-BRACES. This is a grid item, and a grid
+            * item with `margin-inline: auto` and no width is
+            * sized to its CONTENT — which for a video element
+            * with no source is its intrinsic 300 pixels. The
+            * player came out thumbnail-sized, in a screenshot.
+            * [D-04]
             */}
+          <div className="stn-stage">
           <div style={{
-            /*
-             * THE PICTURE IS CAPPED, so what is on stays on the
-             * screen. At full width a 16:9 player is 650 pixels
-             * tall on a laptop and pushes NOW below the fold — on
-             * the one page whose job is to say what is on. The cap
-             * was dropped when this page was rebuilt, and a
-             * screenshot put it straight back. [D-04]
-             */
-            maxWidth: 'min(100%, calc((100vh - 360px) * 16 / 9))',
             borderRadius: 'var(--radius-screen)', overflow: 'hidden',
             /* The bed is NAMED, never typed. compose.ts pads with
                color=black, so a player drawn on a hand-picked
@@ -247,9 +301,52 @@ export default function Station(
                is playing. [D-19] */
             border: '1px solid var(--line)', background: 'var(--screen-bed)',
           }}>
-            <ChannelPlayer channelId={channelId} onAir={on.live} />
+            <ChannelPlayer channelId={channelId} onAir={on.live}
+                           onAudio={setAudio} />
           </div>
 
+          {/*
+            * THE BAR UNDER THE PICTURE.  [N-10]
+            *
+            * The design this was built against carries AUDIO,
+            * SUBTITLES, QUALITY, GUIDE and CHANNELS. Three of
+            * those are drawn here and two are not, and the two
+            * are the point:
+            *
+            * SUBTITLES. Nothing in this product makes one. A
+            * control that opens an empty menu is a promise the
+            * broadcaster never made and the viewer will try
+            * twice before believing. [D-21]
+            *
+            * QUALITY. The wire is one rendition — `STREAM` is
+            * read once at import and is constant across every
+            * programme, which is the invariant the whole
+            * segmenter is built around. A chooser over one
+            * choice is a control that does nothing, and a
+            * SECOND rendition is a second encode per segment on
+            * a machine keeping up with real time: a decision,
+            * not a menu. [playout/segment.ts]
+            *
+            * AUDIO is here only when the stream turned out to
+            * have more than one track — not when the document
+            * says it should.
+            */}
+          <div className="stn-bar" data-testid="station-bar">
+            {audio.tracks.length > 1 && (
+              <AudioPicker audio={audio} />
+            )}
+            <Link href="/tv/guide" className="stn-bar-way">
+              <Icon name="calendar" size={14} />
+              Guide
+            </Link>
+            <Link href="/tv/channels" className="stn-bar-way">
+              <Icon name="channels" size={14} />
+              Channels
+            </Link>
+          </div>
+          </div>
+
+          <div className="stn-two">
           <div className="stn-panel">
             <div className="stn-panel-said">
               <p className="stn-kicker">Now playing</p>
@@ -283,9 +380,8 @@ export default function Station(
               </div>
             </div>
           )}
-        </div>
+          </div>
 
-        <aside style={{ display: 'grid', gap: 'var(--space-4)', minWidth: 0 }}>
           {/*
             * TODAY, WHERE THERE IS A TODAY. A channel running a
             * rotation and nothing else has no times to print, and
@@ -293,27 +389,53 @@ export default function Station(
             * station has stopped. [U-19]
             */}
           {today && today.length > 0 && (
-            <div className="stn-panel" data-testid="station-today">
-              <div className="stn-panel-said" style={{ paddingBottom: 10 }}>
-                <div className="row" style={{ alignItems: 'baseline', gap: 10 }}>
-                  <p className="stn-kicker" style={{ margin: 0 }}>Today</p>
-                  <span className="grow" />
-                  <Link href="/tv/guide" className="small"
-                        style={{ color: 'var(--ink-300)' }}>Full guide</Link>
-                </div>
-              </div>
-              {today.map((slot) => (
-                <span key={`${slot.at}${slot.title}`} className="stn-row"
-                      data-testid="station-slot"
-                      data-on={slot.title === on.title ? 'true' : 'false'}>
-                  <span className="stn-row-time mono">{clock(slot.at)}</span>
-                  <span className="stn-row-name">{slot.title}</span>
+            /*
+              * SHUT UNTIL IT IS ASKED FOR.  [D-04, U-19]
+              *
+              * A day is twenty rows, and twenty rows of times
+              * beside a picture is a page whose longest column
+              * is the one nobody came for — a viewer arrives at
+              * a station to watch it, and looks up the schedule
+              * when they want the schedule. What is on NOW and
+              * what is NEXT stay out, because those are the two
+              * questions the page exists to answer.
+              *
+              * `<details>`, NOT A BUTTON AND A PIECE OF STATE.
+              * It opens with no JavaScript, it is in the tab
+              * order, a screen reader announces it as expanded
+              * or collapsed without being told to, and a
+              * television remote's OK key works on it. Every one
+              * of those is something this file would otherwise
+              * have to implement and get wrong once. [D-19]
+              */
+            <details className="stn-panel stn-today"
+                     data-testid="station-today">
+              <summary className="stn-today-head">
+                <span className="stn-kicker">Today</span>
+                <span className="stn-today-count">
+                  {today.length} {today.length === 1 ? 'programme' : 'programmes'}
                 </span>
-              ))}
-            </div>
+                <span aria-hidden="true" className="stn-today-mark">
+                  <Icon name="chevron" size={15} />
+                </span>
+              </summary>
+              <div className="stn-today-list">
+                {today.map((slot) => (
+                  <span key={`${slot.at}${slot.title}`} className="stn-row"
+                        data-testid="station-slot"
+                        data-on={slot.title === on.title ? 'true' : 'false'}>
+                    <span className="stn-row-time mono">{clock(slot.at)}</span>
+                    <span className="stn-row-name">{slot.title}</span>
+                  </span>
+                ))}
+                <Link href="/tv/guide" className="stn-today-all">
+                  <Icon name="calendar" size={14} />
+                  The whole network&rsquo;s guide
+                </Link>
+              </div>
+            </details>
           )}
-
-        </aside>
+        </div>
       </div>
 
       {/*

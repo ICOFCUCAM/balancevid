@@ -64,7 +64,20 @@ export function readFavorites(raw: string | null | undefined): string[] {
   } catch {
     return [];
   }
-  if (!Array.isArray(read)) return [];
+  return Array.isArray(read) ? cleaned(read) : [];
+}
+
+/**
+ * A list of slugs, from whatever was handed over.
+ *
+ * ONE CLEANER FOR TWO DOORS. Storage is one way a list of slugs
+ * arrives and a LINK is the other, and the second door is the
+ * one a stranger can push on: `/tv/favorites?add=` is a URL
+ * anybody may construct. Folding, trimming, dropping the
+ * duplicates and the bound all have to happen on both, and two
+ * copies is how one of them comes to be unbounded. [D-19]
+ */
+function cleaned(read: readonly unknown[]): string[] {
   const out: string[] = [];
   for (const one of read) {
     if (typeof one !== 'string') continue;
@@ -105,6 +118,65 @@ export function withFavorite(list: readonly string[], slug: string): string[] {
 export function withoutFavorite(list: readonly string[], slug: string): string[] {
   const wanted = slug.trim().toLowerCase();
   return list.filter((one) => one !== wanted);
+}
+
+/* ------------------------------------------------------------------ *
+ *  Carrying the list to another device.  [N-9, D-03]
+ *
+ *  THE COST OF HOLDING NOTHING ABOUT A VIEWER IS THAT THE LIST
+ *  DOES NOT FOLLOW THEM, and that cost is stated on the page
+ *  rather than hidden. It does not have to be paid twice: a list
+ *  of addresses is small enough to carry in a link, which means
+ *  a viewer can move their lineup from a laptop to a television
+ *  WITHOUT this installation ever learning what is in it.
+ *
+ *  A LINK AND NOT AN ACCOUNT, and that is the whole argument.
+ *  Everything a sync would do, a URL does — except keep a record
+ *  of which channels a named person watches, which is the one
+ *  part nobody asked for. [D-03]
+ * ------------------------------------------------------------------ */
+
+/** What separates one address from the next in a carried list. */
+export const CARRIED_APART = ',';
+
+/**
+ * The list, as the tail of a link.
+ *
+ * THE ADDRESSES THEMSELVES, NOT AN OPAQUE BLOB. A slug is
+ * `[a-z0-9-]`, so a comma-joined list needs no encoding and
+ * stays a thing a person can read, check and edit in their own
+ * address bar before they press it. An encoded payload would be
+ * a URL asking to be trusted. [D-21]
+ */
+export function carried(list: readonly string[]): string {
+  return list.join(CARRIED_APART);
+}
+
+/**
+ * The slugs a link is offering, cleaned exactly as storage is.
+ *
+ * THIS IS THE UNTRUSTED DOOR. Anybody can write the query, so
+ * everything `readFavorites` does to a stored value has to
+ * happen here too — and does, because it is the same function
+ * underneath.
+ */
+export function readCarried(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  return cleaned(raw.split(CARRIED_APART));
+}
+
+/**
+ * The list with all of these in it.
+ *
+ * A FOLD OF `withFavorite`, so the bound, the folding and the
+ * refusal to duplicate are decided in one place. Adding a
+ * carried list must not be a second way to overfill storage.
+ */
+export function withFavorites(
+  list: readonly string[], adding: readonly string[],
+): string[] {
+  return adding.reduce<string[]>(
+    (held, one) => withFavorite(held, one), [...list]);
 }
 
 /**

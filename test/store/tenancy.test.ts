@@ -293,3 +293,61 @@ describe('and nothing reaches another installation', () => {
     expect(paths.campaignDocument('camp_1')).toContain(under);
   });
 });
+
+/*
+ * A LANGUAGE ARRIVES FROM A URL.  [CHANNEL §7, D-06, N-10]
+ *
+ * `channelAudio` is the one path function whose argument is typed
+ * by a stranger, so it is the one that has to refuse a traversal
+ * — and it refuses by producing a harmless path inside the
+ * channel's own directory rather than by throwing, which keeps
+ * every caller the same shape and makes the request a 404.
+ */
+describe('an alternate audio path (N-10)', () => {
+  const MINE = 'chan_aaaaaaaaaaaaaaaaaaaa';
+
+  it('stays inside the channel it was asked about', () => {
+    for (const language of [
+      '../../../../etc', '..', '../other', 'fr/../../..', '/etc/passwd',
+      'fr\u0000', 'f', '', ' ', 'a'.repeat(40),
+    ]) {
+      const where = paths.channelAudio(MINE, language);
+      expect(where.startsWith(paths.channelAudioRoot(MINE)), language).toBe(true);
+      expect(where.includes('..'), language).toBe(false);
+    }
+  });
+
+  /*
+   * A ONE-LETTER TAG IS NOT A LANGUAGE. It cannot escape the
+   * directory, but it is not a subtag either, and a path
+   * function that accepted it would be the only thing in this
+   * product with its own idea of what a language is. [D-19]
+   */
+  it('refuses what is not a subtag, not merely what is dangerous', () => {
+    for (const language of ['f', 'e1', '1en', 'en-', 'en--GB', 'toolongatag']) {
+      expect(paths.channelAudio(MINE, language), language)
+        .toBe(paths.channelAudioRoot(MINE));
+    }
+  });
+
+  it('accepts the subtags a broadcaster actually uses', () => {
+    for (const language of ['en', 'fr', 'swa', 'pt-BR', 'zh-Hant']) {
+      expect(paths.channelAudio(MINE, language))
+        .toBe(`${paths.channelAudioRoot(MINE)}/${language.toLowerCase()}`);
+    }
+  });
+
+  /* A refused language lands on the root, which holds no
+     segments, so the request 404s exactly as an unproduced one
+     does. */
+  it('refuses by producing a path with nothing in it', () => {
+    expect(paths.channelAudio(MINE, '../..')).toBe(paths.channelAudioRoot(MINE));
+  });
+
+  it('numbers a segment the way the video segments are numbered', () => {
+    expect(paths.channelAudioSegment(MINE, 'fr', 12))
+      .toBe(`${paths.channelAudio(MINE, 'fr')}/12.ts`);
+    expect(paths.channelAudioSegment(MINE, 'fr', -3))
+      .toBe(`${paths.channelAudio(MINE, 'fr')}/0.ts`);
+  });
+});

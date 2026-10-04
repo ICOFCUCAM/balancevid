@@ -868,3 +868,60 @@ describe('what a television reads, and the logo it could not (N-7)', () => {
     }
   });
 });
+
+/*
+ * ALTERNATE AUDIO IS AS PUBLIC AS THE PICTURE.  [CHANNEL §7, N-10]
+ *
+ * A channel is watched by strangers, and a language that needed a
+ * session would be one only the broadcaster can hear. The routes
+ * themselves still refuse an unpublished channel, which is where
+ * that decision belongs — not in the pattern.
+ */
+describe('the alternate audio routes (N-10)', () => {
+  it('lets a stranger fetch the master and a rendition', () => {
+    for (const path of [
+      '/api/channels/chan_abc/master.m3u8',
+      '/api/channels/chan_abc/audio/fr/playlist',
+      '/api/channels/chan_abc/audio/pt-BR/playlist',
+      '/api/channels/chan_abc/audio/fr/stream/4291',
+    ]) {
+      expect(mayBePublic(path, 'GET'), path).toBe(true);
+    }
+  });
+
+  /* Reading a channel is public; changing one never is. */
+  it('is a reading door and nothing else', () => {
+    for (const method of ['POST', 'PUT', 'PATCH', 'DELETE']) {
+      expect(mayBePublic('/api/channels/chan_abc/master.m3u8', method), method)
+        .toBe(false);
+    }
+  });
+
+  /*
+   * AND THE PATTERN DOES NOT OPEN ANYTHING ELSE. A language is a
+   * subtag, not a path: the one thing that must never match here
+   * is a traversal, because the route hands what it is given to
+   * a path function. [D-06]
+   */
+  it('does not open a door the shape of a language', () => {
+    for (const path of [
+      '/api/channels/chan_abc/audio/../../secrets/playlist',
+      '/api/channels/chan_abc/audio/fr/stream/4291/extra',
+      '/api/channels/chan_abc/audio/fr',
+      '/api/channels/chan_abc/master.m3u8/anything',
+      '/api/channels/chan_abc/audio/fr/stream/notanumber',
+      /* Anchored at both ends, so nothing rides along behind a
+         path that is otherwise exactly right. */
+      '/api/channels/chan_abc/audio/fr/playlistEXTRA',
+      '/api/channels/chan_abc/audio/fr/playlist/more',
+      '/api/channels/chan_abc/audio/fr/stream/42/more',
+      /* And a language is letters, digits and hyphens — a dot in
+         one is the shape a traversal starts with, refused here as
+         well as in the path function. Two doors, one rule. */
+      '/api/channels/chan_abc/audio/f.r/playlist',
+      '/api/channels/chan_abc/audio/..fr/playlist',
+    ]) {
+      expect(mayBePublic(path, 'GET'), path).toBe(false);
+    }
+  });
+});
