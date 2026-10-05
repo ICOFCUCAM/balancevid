@@ -717,6 +717,29 @@ main {
   }
 
   .step[data-next='true']::before { background: currentColor; }
+
+  /* The label is a BUTTON on a step that can be pressed, so the
+     whole row has to be the target rather than the six
+     characters in the middle of it. */
+  .step-go {
+    display: block;
+    width: 100%;
+    text-align: left;
+    font-size: 13px;
+    letter-spacing: 0.02em;
+    text-transform: capitalize;
+  }
+
+  /* `data-here` is the screen being looked at, which is not the
+     same as the step being built to: CAMERAS, PREPARE and
+     RECORD are one screen and three steps, so three rows light
+     together. The rail says that rather than hiding it. */
+  .step[data-here='true'] {
+    background: var(--float);
+    color: var(--ink);
+  }
+
+  .step[data-here='true']::before { background: currentColor; }
 }
 
 /* ------------------------------------------------------------------ *
