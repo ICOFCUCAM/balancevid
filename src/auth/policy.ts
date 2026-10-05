@@ -119,6 +119,27 @@ const PUBLIC_PATTERNS: RegExp[] = [
    * assignment, and it still requires a link shaped like a credential.
    */
   /^\/take\/?$/,
+  /*
+   * The Library.  [TAKE-APP T16, P1, P6]
+   *
+   * PUBLIC FOR THE SAME REASON `/take` IS, AND IT CARRIES
+   * NOTHING. There is no sign-in on the Take App by
+   * construction, so a page that required one would be a page
+   * nobody this product is for could open. What makes it safe
+   * is that the server has nothing to hand over: the list of
+   * links is in that browser's own storage, and the page reads
+   * each of them through `/api/take/<link>` — the route above,
+   * where the link IS the credential and always was. A person
+   * with no links sees two empty shelves and a sentence.
+   * [D-03, D-25]
+   *
+   * ANCHORED EXACTLY, so this opens the Library and nothing
+   * else. `library` has no dot in it and so cannot be mistaken
+   * for the `<id>.<secret>` pattern above — but the pattern
+   * above is matched first either way, and anchoring both is
+   * what keeps that an accident rather than a dependency.
+   */
+  /^\/take\/library\/?$/,
   /^\/api\/take\/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/,
   /* The song they were asked to perform against, and nothing else about
      the performance it belongs to. [T6] */

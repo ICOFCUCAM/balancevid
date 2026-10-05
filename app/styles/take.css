@@ -318,6 +318,37 @@
 
 .tk-row-go { flex: 0 0 auto; }
 
+/*
+ * THREE VERBS WHERE A ROW NORMALLY HAS ONE.  [TAKE-APP T16]
+ *
+ * A collection row offers WATCH, KEEP and SEND, and on a
+ * three-hundred-and-ninety pixel phone those do not sit beside
+ * a title. They wrap under it instead of being squeezed into a
+ * column the width of one word, which is the lesson the call
+ * rows learned in a screenshot: a row that will not fit is a
+ * row that stacks, not a row with smaller text in it.
+ */
+.tk-row-keep {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+@media (max-width: 520px) {
+  /* The whole row stacks, so the verbs get the width. */
+  .tk-row:has(.tk-row-keep) {
+    flex-wrap: wrap;
+  }
+
+  .tk-row-keep {
+    width: 100%;
+    justify-content: flex-start;
+    margin-top: 2px;
+    padding-left: 30px;
+  }
+}
+
 .tk-row-quiet {
   flex: 0 0 auto;
   font-size: var(--text-2xs);

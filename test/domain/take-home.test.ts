@@ -54,6 +54,8 @@ const CLAIM = code('app/api/participate/[kind]/[id]/route.ts');
  * refusal. Those are still read out of `CLAIM`. [D-19]
  */
 const MINT = code('src/web/claim.ts');
+const KEPT = code('app/take/mine.ts');
+const LIBRARY = code('app/take/library/Library.tsx');
 const FIELDS = code('app/AvailabilityFields.tsx');
 const CONN = code('app/take/connections.ts');
 /*
@@ -77,6 +79,22 @@ describe('the home is reachable without an account', () => {
     expect(mayBePublic('/take', 'GET')).toBe(true);
     expect(mayBePublic('/take/', 'GET')).toBe(true);
     expect(mayBePublic('/api/participate', 'GET')).toBe(true);
+  });
+
+  /*
+   * AND THE LIBRARY, FOR THE SAME REASON AND WITH THE SAME
+   * SAFETY. There is no sign-in on the Take App, so a page
+   * behind one is a page nobody this product is for can open
+   * — and the server has nothing to hand over anyway: the
+   * list of links is in that browser's own storage, and each
+   * is read through `/api/take/<link>`, where the link IS the
+   * credential. [T16, D-03]
+   */
+  it('opens the library to a stranger, because it carries nothing', () => {
+    expect(mayBePublic('/take/library', 'GET')).toBe(true);
+    expect(mayBePublic('/take/library/', 'GET')).toBe(true);
+    /* And it is a page, not a door: nothing is written there. */
+    expect(mayBePublic('/take/library', 'POST')).toBe(false);
   });
 
   /*
@@ -293,15 +311,75 @@ describe('my takes lives on the device', () => {
    * is asked nothing about who this person is. [U3, P16]
    */
   it('is held in local storage and nowhere else', () => {
-    expect(HOME).toMatch(/'balancevid\.take\.mine'/);
-    expect(HOME).toMatch(/window\.localStorage\.setItem\(MINE/);
-    /* No endpoint is asked who this person is. */
-    expect(HOME).not.toMatch(/\/api\/(me|account|profile|identity)/);
+    /*
+     * IT MOVED TO `mine.ts` WHEN THE LIBRARY ARRIVED, and the
+     * assertion moved with it. Two screens read this list now;
+     * the home writes it when somebody opens a link and the
+     * Library reads it to say what became of each.
+     */
+    expect(KEPT).toMatch(/'balancevid\.take\.mine'/);
+    expect(KEPT).toMatch(/window\.localStorage\.setItem\(MINE/);
+    /* No endpoint is asked who this person is — on any of the
+       three files that touch the list. */
+    for (const [where, text] of [
+      ['home', HOME], ['mine', KEPT], ['library', LIBRARY],
+    ] as const) {
+      expect(text, where).not.toMatch(/\/api\/(me|account|profile|identity)/);
+    }
+  });
+
+  /*
+   * AND ONE SPELLING OF THE KEY, WHICH IS THE WHOLE REASON IT
+   * MOVED. A second `balancevid.take.mine` written out in a
+   * second component is a second list, and the one that loses
+   * somebody's work is whichever page they did not open.
+   * [D-19]
+   */
+  it('is spelled in exactly one place', () => {
+    const spellings = [HOME, KEPT, LIBRARY, PAGE]
+      .flatMap((text) => [...text.matchAll(/'balancevid\.take\.mine'/g)]);
+    expect(spellings).toHaveLength(1);
   });
 
   /* And a device that cannot remember still works. [U-19] */
   it('survives storage being refused', () => {
-    expect(HOME).toMatch(/catch \{\s*\n[\s\S]{0,200}return \[\];/);
+    expect(KEPT).toMatch(/catch \{\s*\n[\s\S]{0,200}return \[\];/);
+  });
+
+  /*
+   * THE LIBRARY ASKS THE LINKS AND NOT AN ACCOUNT. There is no
+   * sign-in on the Take App by construction, so *my collection*
+   * can only be derived: each held link is read, and the ones
+   * whose answer carries a published work are the collection.
+   * A page that fetched a list of somebody's work by identity
+   * would be the one thing this surface has never done. [T16,
+   * D-03]
+   */
+  it('derives the collection from the links, not from an identity', () => {
+    expect(LIBRARY).toMatch(/\/api\/take\/\$\{encodeURIComponent\(mine\.link\)\}/);
+    expect(LIBRARY).toMatch(/readMine\(\)/);
+    /*
+     * AND IT ASKS NOTHING ELSE, which is the claim rather
+     * than *the word `account` does not appear*. It does
+     * appear — in the sentence on the page telling a person
+     * there is no account — and a test that forbade the word
+     * would be a test of the prose. [T-1]
+     */
+    const asks = [...LIBRARY.matchAll(/fetch\(\s*`?([^`',)]*)/g)]
+      .map((hit) => hit[1]!);
+    expect(asks).toHaveLength(1);
+    expect(asks[0]).toMatch(/^\/api\/take\//);
+  });
+
+  /*
+   * AND IT IS A DOWNLOAD, NOT A FETCH. `download` on an anchor
+   * is what a phone's own browser understands as *put this in
+   * my files*; a button that read the bytes into memory first
+   * would hold the same file twice on the device with the
+   * least room for it. [T16]
+   */
+  it('keeps a finished piece by handing the file to the browser', () => {
+    expect(LIBRARY).toMatch(/href=\{one\.collection\.file\}\s*\n?\s*download/);
   });
 
   /*

@@ -491,3 +491,59 @@ describe('the contrast of every text tone, lit', () => {
     expect(luminance(ink['surface-sunk']!)).toBeLessThan(0.02);
   });
 });
+
+/**
+ * AND THE TWO CONSOLE TONES A LIT SURFACE BORROWED.
+ *   [D-24, console.css]
+ *
+ * `console.css` is the desk and the desk is dark — but the Take
+ * App and BalanceVid Go reach into it for `--console-control`,
+ * because the pill that is not the primary action is the same
+ * shape on every surface this product has. Unlit, that token is
+ * `#161a1f`, and the Library's WATCH and KEEP came out as
+ * near-black pills with blue text on a white card: the quiet
+ * variant of a button rendering as the loudest thing on the
+ * page. Found in a screenshot, which is the only way a leaked
+ * token is ever found.
+ *
+ * SO THE LIT VALUE IS MEASURED HERE, not stated in a comment —
+ * the whole argument of the block above, applied to the file
+ * that leaked.
+ */
+const DESK = readFileSync(join(STYLES, 'console.css'), 'utf8');
+
+describe('the console tones a lit page borrows', () => {
+  const lit = litTokens();
+  const control = /\[data-ground='light'\][\s\S]*?--console-control:\s*(#[0-9a-f]{6});/i
+    .exec(DESK)?.[1];
+
+  it('has one, and it is a pale control rather than a hole', () => {
+    expect(control).toMatch(/^#[0-9a-f]{6}$/i);
+    /* Nearly as light as the card it sits on, which is what
+       makes it read as a control and not as a well. */
+    expect(luminance(control!)).toBeGreaterThan(0.8);
+  });
+
+  /*
+   * THE INK ON IT IS `--ink-100`, which is what `.tk-go-quiet`
+   * sets. A quiet button is still a button somebody reads the
+   * word on.
+   */
+  it('carries its label at AA', () => {
+    expect(contrast(lit['ink-100']!, control!)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  /*
+   * AND THE FILLED ONE BESIDE IT. `.tk-go` is `--accent-deep`
+   * with `--text-on-accent`, and on a lit ground the accent
+   * darkens for exactly this reason — the bright blue that is a
+   * legible fill on a desk is 2.96:1 against white.
+   */
+  it('keeps the filled button legible too', () => {
+    const deep = /\[data-ground='light'\][\s\S]*?--accent-deep:\s*(#[0-9a-f]{6});/i
+      .exec(LIT)?.[1];
+    const ink = /--text-on-accent:\s*(#[0-9a-f]{6});/i
+      .exec(readFileSync(join(STYLES, 'tokens.css'), 'utf8'))?.[1];
+    expect(contrast(ink!, deep!)).toBeGreaterThanOrEqual(4.5);
+  });
+});

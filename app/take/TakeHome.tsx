@@ -11,6 +11,7 @@ import { Standing } from '../go/Go.js';
 import Icon, { type IconName } from '../Icon.js';
 import { GroundToggle } from '../Ground.js';
 import { NETWORK_ART, identityFor, shelfFor } from '../tv/art.js';
+import { type Mine, keepMine, readMine } from './mine.js';
 
 /**
  * The Take App's home.  [TAKE-PLATFORM P1, P2, P3, P4, P5, P6, U5]
@@ -48,34 +49,13 @@ import { NETWORK_ART, identityFor, shelfFor } from '../tv/art.js';
  * unreachable* could not be asked of a `useEffect`. [D-19]
  */
 
-/** A request this device holds, which is the whole of "My Takes". */
-interface Mine {
-  link: string;
-  title: string;
-  kind: string;
-  at: string;
-}
-
-const MINE = 'balancevid.take.mine';
-
-function readMine(): Mine[] {
-  try {
-    const raw = window.localStorage.getItem(MINE);
-    return raw ? JSON.parse(raw) as Mine[] : [];
-  } catch {
-    /* Private browsing, or storage refused. The home still works; this
-       person simply has no remembered list. [U-19] */
-    return [];
-  }
-}
-
-function keepMine(one: Mine): Mine[] {
-  const next = [one, ...readMine().filter((was) => was.link !== one.link)];
-  try {
-    window.localStorage.setItem(MINE, JSON.stringify(next.slice(0, 50)));
-  } catch { /* as above. */ }
-  return next;
-}
+/*
+ * `Mine` AND ITS KEY MOVED TO `mine.ts` WHEN THE LIBRARY
+ * ARRIVED. Two screens read the same list now, and a second
+ * spelling of `balancevid.take.mine` would be a second list —
+ * the one that loses a person's work being whichever they did
+ * not look at. [D-19, mine.ts]
+ */
 
 /**
  * A mark per kind of thing to take part in.
@@ -433,9 +413,17 @@ export default function TakeHome() {
           <section className="tk-shelf" data-testid="section-mine">
             <div className="tk-shelf-head">
               <h2 className="tk-shelf-title">My takes</h2>
-              <span className="tk-shelf-count">
-                {mine.length === 1 ? '1' : mine.length}
-              </span>
+              {/*
+                * THE WHOLE SHELF IS A TAP AWAY, which is what
+                * makes it right for the home to show only the
+                * top of it. The Library has every link this
+                * phone holds and what became of each — and the
+                * finished work besides. [T16, D-04]
+                */}
+              <a className="tk-more" href="/take/library"
+                 data-testid="mine-all">
+                {mine.length === 1 ? '1 · Library' : `${mine.length} · Library`}
+              </a>
             </div>
             <ul className="tk-rows">
               {mine.map((one) => (
@@ -884,9 +872,21 @@ export default function TakeHome() {
           <Icon name="calendar" size={19} />
           Guide
         </a>
-        <a className="tk-bottom-way" href="/tv/favorites">
-          <Icon name="passed" size={19} />
-          Mine
+        {/*
+          * LIBRARY, WHERE *MINE* WAS.  [T16]
+          *
+          * The last slot pointed at `/tv/favorites`, which is
+          * the television's list of channels somebody follows
+          * — a useful page and not this person's own work. The
+          * word under it was *Mine*, which is what the Library
+          * is: the finished pieces a studio made with their
+          * take in them, and every link this phone holds. The
+          * favourites are one tap away on the television pages
+          * where they belong. [D-04]
+          */}
+        <a className="tk-bottom-way" href="/take/library">
+          <Icon name="library" size={19} />
+          Library
         </a>
       </nav>
     </div>
