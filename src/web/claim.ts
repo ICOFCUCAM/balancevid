@@ -33,6 +33,7 @@ import type { Id } from '../domain/ids.js';
 import { ParticipationError, newRequest } from '../domain/participationEdit.js';
 import type { ParticipationRequest, RequestHolder } from '../domain/participation.js';
 import { isRespondable } from '../domain/document.js';
+import type { TakeAvailability } from '../domain/availability.js';
 import { maySubmit, mayClaim } from '../domain/availability.js';
 import { loadPerformance } from '../store/performances.js';
 import { loadConversation } from '../store/repository.js';
@@ -73,6 +74,23 @@ export function isClaimKind(said: string): said is ClaimKind {
   return said === 'music' || said === 'video' || said === 'programme';
 }
 
+/**
+ * WHICH DOOR A CALL'S TRACK IS BEHIND.
+ *
+ * The inverse of `holderKind`, and it lives beside it because
+ * two places mapping between the same two vocabularies is two
+ * places that can disagree about which one `channel` means. The
+ * enter route had this table and the call page needed it to ask
+ * `claimable`; a second copy on the page is how the page comes
+ * to ask about the wrong door. [D-19]
+ */
+export function doorFor(kind: RequestHolder['kind']): ClaimKind | undefined {
+  if (kind === 'performance') return 'music';
+  if (kind === 'conversation') return 'video';
+  if (kind === 'channel') return 'programme';
+  return undefined;
+}
+
 /** The kind a `RequestHolder` uses, from the kind a path uses. */
 export function holderKind(kind: ClaimKind): RequestHolder['kind'] {
   if (kind === 'music') return 'performance';
@@ -99,6 +117,89 @@ export type Claimed =
   | { request: ParticipationRequest }
   | { refused: 'missing' }
   | { refused: 'closed' };
+
+/**
+ * WHETHER THIS DOOR WOULD OPEN, ASKED WITHOUT OPENING IT.
+ *   [GO-VIRAL V-4; D-19, D-21]
+ *
+ * THE CALL PAGE DREW AN ENTER BUTTON THAT ALWAYS WORKED AND A
+ * ROUTE THAT SOMETIMES REFUSED. `takingEntries` is the CALL's
+ * own clock and state, which is what the page could ask; the
+ * three conditions below are the TRACK's, which only this
+ * module knew, and they are the ones that actually decide. A
+ * campaign whose song was unpublished, or withdrawn from
+ * strangers, or already at the producer's ceiling, showed a
+ * live call with a working-looking button and answered *that is
+ * not open for anybody to take part in* when it was pressed.
+ * Advertising what you do not have. [D-21]
+ *
+ * ONE FUNCTION, SO THE PAGE AND THE ROUTE CANNOT DISAGREE. The
+ * obvious repair is a second copy of the three conditions on
+ * the page, which is the repair that drifts: the next condition
+ * added to the door is the one the page keeps saying yes to.
+ * The gate is extracted instead, and `claim` is now its only
+ * other caller. [D-19]
+ */
+type Openness = 'open' | 'missing' | 'closed';
+
+async function openness(
+  publication: (TakeAvailability & { unpublishedAt?: string }) | undefined,
+  holder: RequestHolder, now: string,
+  also: ((publication: unknown) => boolean) | undefined,
+  /** The one condition only a conversation has. */
+  respondable: boolean,
+): Promise<Openness> {
+  if (!publication || publication.unpublishedAt) return 'missing';
+  if (also && !also(publication)) return 'missing';
+  if (!respondable) return 'closed';
+  if (!maySubmit(publication, 'anyone', now)) return 'closed';
+  if (!mayClaim(publication, await claimsSoFar(holder), now)) return 'closed';
+  return 'open';
+}
+
+/**
+ * Would a stranger get in?
+ *
+ * ANSWERED FOR A PAGE AND NOT FOR A DECISION. Between this call
+ * and the press of the button a producer can unpublish, close
+ * the door or the hundredth stranger can arrive, so the route
+ * asks again and is the one that decides. What this buys is a
+ * page that does not invite somebody into a room that is
+ * already full. [U-19]
+ *
+ * IT SAYS WHICH OF THE TWO, because the page draws them
+ * differently and neither leaks anything: the call is listed by
+ * its organiser, so *there is nothing here* and *it is shut*
+ * are both things the organiser has already published. The
+ * DOOR still collapses them, for the reason it always did —
+ * there the id came off a URL a stranger could have guessed.
+ * [D-03]
+ */
+export async function claimable(spec: {
+  kind: ClaimKind;
+  id: string;
+  now: string;
+  also?: (publication: unknown) => boolean;
+}): Promise<Openness> {
+  const { kind, id, now } = spec;
+  const holder: RequestHolder = { kind: holderKind(kind), id };
+  try {
+    if (kind === 'music') {
+      const performance = await loadPerformance(id);
+      return await openness(performance.publication, holder, now, spec.also, true);
+    }
+    if (kind === 'video') {
+      const conversation = await loadConversation(id);
+      return await openness(conversation.publication, holder, now, spec.also,
+        isRespondable(conversation));
+    }
+    if (kind !== 'programme') return 'missing';
+    const channel = await loadChannel(id);
+    return await openness(channel.publication, holder, now, spec.also, true);
+  } catch {
+    return 'missing';
+  }
+}
 
 /**
  * Mint a request against a published document.
@@ -167,13 +268,9 @@ export async function claim(spec: {
   try {
     if (kind === 'music') {
       const performance = await loadPerformance(id);
-      const publication = performance.publication;
-      if (!publication || publication.unpublishedAt) return { refused: 'missing' };
-      if (spec.also && !spec.also(publication)) return { refused: 'missing' };
-      if (!maySubmit(publication, 'anyone', now)) return { refused: 'closed' };
-      if (!mayClaim(publication, await claimsSoFar(holder), now)) {
-        return { refused: 'closed' };
-      }
+      const shut = await openness(
+        performance.publication, holder, now, spec.also, true);
+      if (shut !== 'open') return { refused: shut };
       const beats = performance.beats;
       const request = newRequest({
         holder: { kind: 'performance', id: performance.id },
@@ -201,15 +298,12 @@ export async function claim(spec: {
 
     if (kind === 'video') {
       const conversation = await loadConversation(id);
-      const publication = conversation.publication;
-      if (!publication || publication.unpublishedAt) return { refused: 'missing' };
-      if (spec.also && !spec.also(publication)) return { refused: 'missing' };
-      /* The predicate that already answers this for a conversation. */
-      if (!isRespondable(conversation)) return { refused: 'closed' };
-      if (!maySubmit(publication, 'anyone', now)) return { refused: 'closed' };
-      if (!mayClaim(publication, await claimsSoFar(holder), now)) {
-        return { refused: 'closed' };
-      }
+      /* `isRespondable` is the one condition only a conversation
+         has, and it is handed to the shared gate rather than
+         asked beside it. */
+      const shut = await openness(conversation.publication, holder, now,
+        spec.also, isRespondable(conversation));
+      if (shut !== 'open') return { refused: shut };
       const request = newRequest({
         holder: { kind: 'conversation', id: conversation.id },
         assignment: {
@@ -248,13 +342,8 @@ export async function claim(spec: {
     if (kind !== 'programme') return { refused: 'missing' };
 
     const channel = await loadChannel(id);
-    const publication = channel.publication;
-    if (!publication || publication.unpublishedAt) return { refused: 'missing' };
-    if (spec.also && !spec.also(publication)) return { refused: 'missing' };
-    if (!maySubmit(publication, 'anyone', now)) return { refused: 'closed' };
-    if (!mayClaim(publication, await claimsSoFar(holder), now)) {
-      return { refused: 'closed' };
-    }
+    const shut = await openness(channel.publication, holder, now, spec.also, true);
+    if (shut !== 'open') return { refused: shut };
     const request = newRequest({
       holder: { kind: 'channel', id: channel.id },
       assignment: {

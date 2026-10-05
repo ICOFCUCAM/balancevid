@@ -9,7 +9,9 @@ import {
 import { type HomeCall, type Row, homeFrom } from './home.js';
 import { Standing } from '../go/Go.js';
 import Icon, { type IconName } from '../Icon.js';
-import { NETWORK_ART, identityFor } from '../tv/art.js';
+import { GroundToggle } from '../Ground.js';
+import { NETWORK_ART, identityFor, shelfFor } from '../tv/art.js';
+import { type Mine, keepMine, readMine } from './mine.js';
 
 /**
  * The Take App's home.  [TAKE-PLATFORM P1, P2, P3, P4, P5, P6, U5]
@@ -47,34 +49,13 @@ import { NETWORK_ART, identityFor } from '../tv/art.js';
  * unreachable* could not be asked of a `useEffect`. [D-19]
  */
 
-/** A request this device holds, which is the whole of "My Takes". */
-interface Mine {
-  link: string;
-  title: string;
-  kind: string;
-  at: string;
-}
-
-const MINE = 'balancevid.take.mine';
-
-function readMine(): Mine[] {
-  try {
-    const raw = window.localStorage.getItem(MINE);
-    return raw ? JSON.parse(raw) as Mine[] : [];
-  } catch {
-    /* Private browsing, or storage refused. The home still works; this
-       person simply has no remembered list. [U-19] */
-    return [];
-  }
-}
-
-function keepMine(one: Mine): Mine[] {
-  const next = [one, ...readMine().filter((was) => was.link !== one.link)];
-  try {
-    window.localStorage.setItem(MINE, JSON.stringify(next.slice(0, 50)));
-  } catch { /* as above. */ }
-  return next;
-}
+/*
+ * `Mine` AND ITS KEY MOVED TO `mine.ts` WHEN THE LIBRARY
+ * ARRIVED. Two screens read the same list now, and a second
+ * spelling of `balancevid.take.mine` would be a second list —
+ * the one that loses a person's work being whichever they did
+ * not look at. [D-19, mine.ts]
+ */
 
 /**
  * A mark per kind of thing to take part in.
@@ -154,6 +135,7 @@ export default function TakeHome() {
    * what is here. [D-04]
    */
   const [finding, setFinding] = useState('');
+  const [showing, setShowing] = useState<TabId>('all');
   const [loaded, setLoaded] = useState(0);
 
   const [whereIAm, setWhereIAm] = useState<{ name: string; origin: string } | null>(null);
@@ -232,6 +214,26 @@ export default function TakeHome() {
    * between the response and the navigation would be losing the only
    * copy. [T2a]
    */
+  /*
+   * A TAB IS OFFERED WHERE IT HAS SOMETHING UNDER IT. A row of
+   * five with three dead ends is a row that teaches a reader
+   * not to press any of them. [D-21]
+   */
+  const held = new Set<string>([
+    ...(calls.length > 0 ? ['calls'] : []),
+    ...(rows ?? []).map((row) => row.kind),
+  ]);
+  const tabs = TABS.filter(
+    (one) => one.kinds === null || one.kinds.some((kind) => held.has(kind)));
+  /* A tab that was chosen and then emptied — the last call
+     closed while the page was open — falls back rather than
+     leaving a page with nothing on it. [U-19] */
+  const chosen = tabs.some((one) => one.id === showing) ? showing : 'all';
+  const shows = (kind: string) => {
+    const tab = TABS.find((one) => one.id === chosen)!;
+    return tab.kinds === null || (tab.kinds as readonly string[]).includes(kind);
+  };
+
   const take = useCallback(async (row: Row) => {
     setSaid(null);
     setBusy(row.id);
@@ -255,7 +257,20 @@ export default function TakeHome() {
   }, []);
 
   return (
-    <div className="tk-page" data-testid="take-home">
+    /*
+     * LIT, LIKE THE LOBBY AND LIKE GO.  [D-24, D-04]
+     *
+     * This page is READ: what a church or a school is being
+     * asked to record, what their channels are showing, which
+     * call is open. It is opened on a phone, in a hall, in
+     * daylight — the furthest thing from a broadcast desk in a
+     * dark room, which is the one place the dark ground was
+     * argued for. The RECORDER is a different room again and
+     * stays dark, because a camera preview is a picture being
+     * judged. [TakeApp.tsx]
+     */
+    <div className="tk-page" data-ground="light" data-ground-host
+         data-testid="take-home">
       {/*
         * AN IDENT, NOT A SPLASH SCREEN. The page opened with the
         * product's name centred in large letters over nothing,
@@ -280,6 +295,7 @@ export default function TakeHome() {
           <Icon name="broadcast" size={14} />
           TV
         </a>
+        <GroundToggle />
       </header>
 
       {/*
@@ -300,11 +316,33 @@ export default function TakeHome() {
              style={{ objectPosition: NETWORK_ART.heroFocus }} />
         <span aria-hidden="true" className="tk-hero-wash" />
         <div className="tk-hero-said">
+          <p className="tk-hero-kicker">Welcome to</p>
           <h1 className="tk-hero-lead">
             {whereIAm?.name ?? 'BalanceVid'}
           </h1>
+          {/*
+            * WHO THIS IS FOR, SAID IN ONE LINE.
+            *
+            * > *"institutions, churches and many organization
+            * > would use this take mobile to record their
+            * > services and programs, being light wieghts, send
+            * > to the balancevid for production."*
+            *
+            * The line said *watch what is on, and take part in
+            * what is open*, which describes a viewer who
+            * wandered in. The person this page is most often
+            * opened by is a volunteer at the back of a hall who
+            * was sent a link that morning and is about to
+            * record a service on a phone — and nothing on the
+            * screen told them they were in the right place.
+            *
+            * RECORD BEFORE WATCH, because that is the order of
+            * the two things and the second one is the one
+            * people already know how to do.
+            */}
           <p className="tk-hero-under">
-            Watch what is on, and take part in what is open.
+            Record a service, a programme or a song on your phone and send it
+            straight to the studio. Watch what is on while you wait.
           </p>
           {/*
             * THE FIELD NARROWS WHAT IS ALREADY HERE RATHER THAN
@@ -330,6 +368,34 @@ export default function TakeHome() {
         </div>
       </div>
 
+      {/*
+        * TABS THAT CUT THE PAGE DOWN, NOT TABS THAT NAVIGATE.
+        *   [D-04]
+        *
+        * Everything on this page has already been fetched — it
+        * is tens of rows, not thousands — so a tab is a filter
+        * over what is here rather than a second screen to load.
+        * The one a reader presses hides the shelves they did
+        * not ask for, which on a phone is the difference
+        * between a page and a scroll.
+        *
+        * EVERY TAB HAS SOMETHING UNDER IT. A tab that can be
+        * empty is a tab somebody has to press to find out, and
+        * the whole point of the row is to save them that.
+        * [D-21]
+        */}
+      <nav className="tk-tabs" data-testid="take-tabs" aria-label="What to show">
+        {tabs.map((one) => (
+          <button key={one.id} type="button" className="tk-tab"
+                  data-testid="take-tab"
+                  aria-pressed={chosen === one.id}
+                  onClick={() => setShowing(one.id)}>
+            <Icon name={one.mark} size={14} />
+            {one.says}
+          </button>
+        ))}
+      </nav>
+
       <main className="tk-main">
 
         {said && (
@@ -347,9 +413,17 @@ export default function TakeHome() {
           <section className="tk-shelf" data-testid="section-mine">
             <div className="tk-shelf-head">
               <h2 className="tk-shelf-title">My takes</h2>
-              <span className="tk-shelf-count">
-                {mine.length === 1 ? '1' : mine.length}
-              </span>
+              {/*
+                * THE WHOLE SHELF IS A TAP AWAY, which is what
+                * makes it right for the home to show only the
+                * top of it. The Library has every link this
+                * phone holds and what became of each — and the
+                * finished work besides. [T16, D-04]
+                */}
+              <a className="tk-more" href="/take/library"
+                 data-testid="mine-all">
+                {mine.length === 1 ? '1 · Library' : `${mine.length} · Library`}
+              </a>
             </div>
             <ul className="tk-rows">
               {mine.map((one) => (
@@ -388,7 +462,7 @@ export default function TakeHome() {
           * link goes to ITS OWN `/go` page where the ordinary Take
           * protocol takes over. Nothing is proxied through here.
           */}
-        {calls.length > 0 && (
+        {calls.length > 0 && shows('calls') && (
           <section className="tk-shelf" data-testid="section-calls">
             <div className="tk-shelf-head">
               <h2 className="tk-shelf-title">Open calls</h2>
@@ -396,7 +470,7 @@ export default function TakeHome() {
                 {calls.length === 1 ? '1 open' : `${calls.length} open`}
               </span>
             </div>
-            <ul className="tk-rows">
+            <ul className="tk-calls">
               {calls.map((one) => (
                 /*
                   * STACKED, BECAUSE A PHONE IS 390 PIXELS WIDE.
@@ -414,27 +488,50 @@ export default function TakeHome() {
                   */
                 <li key={`${one.from?.origin ?? ''}${one.id}`}
                     data-testid="call-row" data-open={one.open ? 'yes' : 'no'}
-                    className="tk-row tk-row-stack">
-                  <div className="tk-row-top">
-                    <span aria-hidden="true" className="tk-row-mark">
-                      <Icon name="live" size={16} />
+                    className="tk-call">
+                  {/*
+                    * THE SUBJECT, AS A KICKER. A call is a call
+                    * ABOUT something, and `about` is the track's
+                    * own kind rather than a label somebody typed
+                    * — so a reader can tell a song from a film
+                    * before reading either. [V-4, D-19]
+                    */}
+                  {/*
+                    * `shelfFor`, NOT `identityFor`. A logo
+                    * ground is deliberately muted because it
+                    * sits behind somebody else's mark; this
+                    * square has nothing in front of it, and
+                    * three muted ones in a column read as three
+                    * empty boxes. The same argument the
+                    * category tiles made. [D-19]
+                    */}
+                  <span aria-hidden="true" className="tk-call-art"
+                        style={shelfFor(one.slug ?? one.id)} />
+                  <span className="tk-call-said">
+                    <span className="tk-call-kind" data-about={one.about}>
+                      <Icon name={aboutSays(one.about).mark} size={11} />
+                      {aboutSays(one.about).says}
                     </span>
-                    <span className="tk-row-said">
-                      <span className="tk-row-name">{one.title}</span>
-                      <span className="tk-row-under">
-                        {connections.length > 0 && one.from
-                          ? `${one.from.name} · ${one.asks}` : one.asks}
-                      </span>
+                    <span className="tk-row-name">{one.title}</span>
+                    <span className="tk-row-under">
+                      {connections.length > 0 && one.from
+                        ? `${one.from.name} · ${one.asks}` : one.asks}
                     </span>
-                  </div>
-                  <div className="tk-row-foot">
-                    <Standing call={one} />
-                    <span className="grow" />
-                    <a className="tk-go" data-testid="call-open"
-                       data-at={one.at} href={one.at}>
-                      Look
-                    </a>
-                  </div>
+                    <span className="tk-call-foot">
+                      <Standing call={one} />
+                    </span>
+                  </span>
+                  {/*
+                    * THE VERB IS *TAKE PART*, WHICH IS WHAT
+                    * PRESSING IT LEADS TO. It said *Look*, which
+                    * is true of the next page and not of the
+                    * reason anybody is on this one.
+                    */}
+                  <a className="tk-go tk-call-go" data-testid="call-open"
+                     data-at={one.at} href={one.at}>
+                    Take Part
+                    <Icon name="chevron" size={13} />
+                  </a>
                 </li>
               ))}
             </ul>
@@ -445,7 +542,8 @@ export default function TakeHome() {
           <p className="tk-note">Looking…</p>
         )}
 
-        {rows !== null && SECTIONS.map((section) => {
+        {rows !== null && SECTIONS.filter((section) => shows(section.kind))
+          .map((section) => {
           const found = rows
             .filter((row) => row.kind === section.kind)
             .filter((row) => matches(row.title, finding));
@@ -486,13 +584,41 @@ export default function TakeHome() {
                          style={identityFor(row.slug ?? row.id)}
                          href={`${isElsewhere(row) ? row.from!.origin : ''}${row.watch}`}>
                         <span aria-hidden="true" className="tk-tile-wash" />
-                        <span aria-hidden="true" className="tk-tile-mark">
-                          {initials(row.title)}
+                        <span className="tk-tile-top">
+                          <span aria-hidden="true" className="tk-tile-mark">
+                            {initials(row.title)}
+                          </span>
+                          {/*
+                            * LIVE WHERE IT IS LIVE, and nowhere
+                            * else. A badge every card carries is
+                            * a badge that means nothing. [D-21]
+                            */}
+                          {row.live && (
+                            <span className="tk-tile-live">
+                              <span aria-hidden="true" className="tk-tile-dot" />
+                              LIVE
+                            </span>
+                          )}
                         </span>
                         <span className="tk-tile-name">{row.title}</span>
+                        {/*
+                          * WHAT IS ON, WHERE THE CHANNEL IS
+                          * SHOWING ANYTHING. The row carries it
+                          * now, from the same `nowAndNext` the
+                          * guide and the directory read — a card
+                          * with a name and nothing under it is a
+                          * card nobody can choose between. The
+                          * verb falls back to *Watch* rather
+                          * than drawing the words this product
+                          * wrote for dead air. [N-7, D-21]
+                          */}
                         <span className="tk-tile-go">
-                          <Icon name="play" size={12} />
-                          Watch
+                          {row.now ?? (
+                            <>
+                              <Icon name="play" size={12} />
+                              Watch
+                            </>
+                          )}
                         </span>
                       </a>
                     ))}
@@ -639,6 +765,7 @@ export default function TakeHome() {
           * anyway. A musician with three production companies is the
           * person this section is for, and they will come looking.
           */}
+        {chosen === 'all' && (
         <section className="tk-shelf" data-testid="section-instances">
           <div className="tk-shelf-head">
             <h2 className="tk-shelf-title">Where you take part</h2>
@@ -696,6 +823,7 @@ export default function TakeHome() {
             </button>
           </div>
         </section>
+        )}
 
         <p className="tk-note">
           {/*
@@ -709,6 +837,58 @@ export default function TakeHome() {
           alone.
         </p>
       </main>
+
+      {/*
+        * A BOTTOM BAR, WHICH IS WHAT AN APP HAS.  [D-04]
+        *
+        * EVERY TAB GOES SOMEWHERE THAT EXISTS. The design this
+        * was built against carries Home, Discover, Take Part, My
+        * Takes and Library; three of those are pages this
+        * product has and two are not, so three are drawn. A bar
+        * with a dead tab in it is worse than a bar with three
+        * live ones. [D-21]
+        *
+        * TAKE PART IS THE RAISED ONE because it is the verb the
+        * whole application is named for — and it goes to the
+        * calls, which is where taking part starts.
+        */}
+      <nav className="tk-bottom" aria-label="Where to go"
+           data-testid="take-bottom">
+        <a className="tk-bottom-way" href="/take" aria-current="page">
+          <Icon name="home" size={19} />
+          Home
+        </a>
+        <a className="tk-bottom-way" href="/tv">
+          <Icon name="broadcast" size={19} />
+          Watch
+        </a>
+        <a className="tk-bottom-go" href="/go">
+          <span aria-hidden="true" className="tk-bottom-go-mark">
+            <Icon name="plus" size={20} />
+          </span>
+          Take Part
+        </a>
+        <a className="tk-bottom-way" href="/tv/guide">
+          <Icon name="calendar" size={19} />
+          Guide
+        </a>
+        {/*
+          * LIBRARY, WHERE *MINE* WAS.  [T16]
+          *
+          * The last slot pointed at `/tv/favorites`, which is
+          * the television's list of channels somebody follows
+          * — a useful page and not this person's own work. The
+          * word under it was *Mine*, which is what the Library
+          * is: the finished pieces a studio made with their
+          * take in them, and every link this phone holds. The
+          * favourites are one tap away on the television pages
+          * where they belong. [D-04]
+          */}
+        <a className="tk-bottom-way" href="/take/library">
+          <Icon name="library" size={19} />
+          Library
+        </a>
+      </nav>
     </div>
   );
 }
@@ -736,6 +916,50 @@ function isElsewhere(row: { from?: { origin: string } }): boolean {
  * before a visitor reaches the thing they came for.
  */
 const SHOWN = 6;
+
+/**
+ * A CALL'S SUBJECT, AS A READER'S WORD FOR IT.
+ *
+ * `about` is the track's own kind — `performance`,
+ * `conversation`, `channel` — which is a word about how this
+ * product stores things. What goes on a card is what the call
+ * asks of somebody, which is the same three in their own
+ * language. The mapping is here, on the surface, because the
+ * domain must not acquire an opinion about English. [D-19]
+ */
+const ABOUT: Record<string, { says: string; mark: IconName }> = {
+  performance: { says: 'Music', mark: 'music' },
+  conversation: { says: 'Video', mark: 'play' },
+  channel: { says: 'Programme', mark: 'broadcast' },
+};
+
+/*
+ * AND A CALL FROM A NEWER INSTALLATION STILL DRAWS. These rows
+ * are merged across installations, so `about` is a word
+ * somebody ELSE's version of this product chose — a kind added
+ * there and not here must not leave a hole in the card. [V-8,
+ * U-19]
+ */
+function aboutSays(kind: string): { says: string; mark: IconName } {
+  return ABOUT[kind] ?? { says: 'Call', mark: 'live' };
+}
+
+/**
+ * WHAT A TAB SHOWS, AND THE ONE RULE THEY ALL OBEY.
+ *
+ * `All` is not a tab that filters nothing — it is the absence
+ * of a filter, which is why it has no `kinds`. Every other tab
+ * names the shelves it keeps, and a tab whose shelves are all
+ * empty is not offered at all. [D-21]
+ */
+const TABS = [
+  { id: 'all', says: 'For You', mark: 'home' as IconName, kinds: null },
+  { id: 'calls', says: 'Take Part', mark: 'live' as IconName, kinds: ['calls'] },
+  { id: 'tv', says: 'Live TV', mark: 'broadcast' as IconName, kinds: ['programme'] },
+  { id: 'music', says: 'Music', mark: 'music' as IconName, kinds: ['music'] },
+  { id: 'video', says: 'Video', mark: 'play' as IconName, kinds: ['video'] },
+] as const;
+type TabId = (typeof TABS)[number]['id'];
 
 /**
  * Two letters for a channel with no logo here.

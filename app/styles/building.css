@@ -157,7 +157,26 @@
   box-shadow: var(--elev-1);
 }
 
-[data-ground='light'] a { color: var(--accent); }
+/*
+ * AN ORDINARY LINK TAKES THE ACCENT, AND A LINK THAT IS A
+ * BUTTON DOES NOT.  [D-19, D-24]
+ *
+ * `[data-ground='light'] a` has a specificity of (0,1,1), which
+ * beats every class in this product — so `.tk-go`, an anchor
+ * styled as a filled pill, came out with ITS OWN BLUE FILL and
+ * THIS RULE'S BLUE TEXT. Blue on blue. Found in a screenshot of
+ * the Library, where KEEP was unreadable.
+ *
+ * `:where()` IS THE WHOLE FIX AND IT IS NOT A TRICK. It
+ * contributes nothing to specificity, so what this says is
+ * exactly what it meant all along: *the default colour of a
+ * link on a lit ground is the accent* — a DEFAULT, which any
+ * component that has decided for itself overrides. The rule was
+ * written when the building was the only lit surface and every
+ * anchor on it was a sentence; the Take App and Go have anchors
+ * that are controls.
+ */
+:where([data-ground='light']) a { color: var(--accent); }
 
 /*
  * A BUTTON ON A LIT PAGE IS NOT THE SAME OBJECT. The dark one is a
@@ -166,15 +185,23 @@
  * darkens on hover — which is what a button has looked like on a light
  * interface for thirty years, and is not a thing to be clever about.
  */
-[data-ground='light'] button,
-[data-ground='light'] .btn {
+/*
+ * AND THE SAME FOR THE CONTROLS, for the same reason: these are
+ * what a button LOOKS LIKE unless something has decided
+ * otherwise, and a page with its own pills had its own
+ * decisions overruled by a ground. `:disabled` keeps its own
+ * weight because being disabled is not a style a component
+ * gets to argue with.
+ */
+:where([data-ground='light']) button,
+:where([data-ground='light']) .btn {
   background: #ffffff;
   border-color: var(--line-strong);
   color: var(--text);
   box-shadow: var(--elev-1);
 }
-[data-ground='light'] button:hover:not(:disabled),
-[data-ground='light'] .btn:hover:not(:disabled) {
+:where([data-ground='light']) button:hover:not(:disabled),
+:where([data-ground='light']) .btn:hover:not(:disabled) {
   background: #f6f8fb;
   border-color: var(--ink-450);
 }

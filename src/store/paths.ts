@@ -79,6 +79,31 @@ const OWNED_ROOTS = ['conversations', 'performances', 'channels', 'library'] as 
  * harmless path rather than by throwing keeps every caller the
  * same shape. [D-06]
  */
+/**
+ * A RUNG NAME, OR NOTHING.
+ *
+ * The same shape as `audioTag` below and for the same reason: a
+ * rung reaches the path builder off a URL, and `..` in one is a
+ * request to read somebody else's channel. Refusing by
+ * producing a harmless path rather than by throwing keeps every
+ * caller the same shape. [D-06]
+ */
+/**
+ * A pairing code as a filename, or nothing.
+ *
+ * The same shape as `rungTag` and `audioTag`: refused by
+ * producing a harmless path rather than by throwing, so every
+ * caller stays one shape. [D-06]
+ */
+function pairingName(code: string): string {
+  return /^[0-9A-HJKMNP-TV-Z]{10}$/.test(code) ? code : '_';
+}
+
+const RUNGS = ['low', 'standard', 'high', 'maximum', 'ultra'];
+function rungTag(rung: string): string {
+  return RUNGS.includes(rung) ? rung : '';
+}
+
 function audioTag(language: string): string {
   return /^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})*$/.test(language)
     ? language.toLowerCase() : '';
@@ -242,6 +267,26 @@ export const paths = {
   request: (id: string) => join(paths.requests(), safe(id)),
   requestDocument: (id: string) => join(paths.request(id), 'request.json'),
   requestAssets: (id: string) => join(paths.request(id), 'assets'),
+  /**
+   * A PAIRING CODE, WHICH IS A CREDENTIAL WITH A SHORT LIFE.
+   *   [TAKE-DESKTOP T-2; D-25, D-06]
+   *
+   *   var/accounts/<a>/pairings/<CODE>.json
+   *
+   * BESIDE THE REQUESTS AND NOT INSIDE ONE, because the lookup
+   * goes the other way: a station holds the code and is asking
+   * which request it stands in for. A file per request would
+   * mean reading every request to answer that.
+   *
+   * THE CODE ARRIVES FROM A POST BODY AND IS TREATED AS
+   * UNTRUSTED. Anything that is not ten letters of the pairing
+   * alphabet becomes the empty name, which is a path that holds
+   * no file — so a guess 404s exactly as a wrong code does, and
+   * `..` in one never becomes a directory. [D-06]
+   */
+  pairings: () => join(owned(), 'pairings'),
+  pairing: (code: string) =>
+    join(paths.pairings(), `${pairingName(code)}.json`),
   requestAsset: (id: string, assetId: string, ext: string) =>
     join(paths.requestAssets(id), `${safe(assetId)}.${ext.replace(/[^a-z0-9]/gi, '')}`),
   /**
@@ -327,6 +372,51 @@ export const paths = {
   channelAudioSegment: (id: string, language: string, index: number) =>
     join(paths.channelAudio(id, language),
       `${Math.max(0, Math.floor(index))}.ts`),
+  /**
+   * A LOWER RUNG OF THE PICTURE, ON THE SAME GRID.  [§7, §23]
+   *
+   *   var/accounts/<a>/channels/<id>/q/<rung>/<index>.ts
+   *
+   * Beside `stream/` rather than inside it, so the sweeper and
+   * the route treat a rung exactly as they treat the house
+   * rendition and the audio ones — same arithmetic, same
+   * window, same 404 when it has gone. The house rung keeps
+   * `stream/`, because a set-top box is already reading that
+   * address and a ladder must not move it. [D-18]
+   *
+   * THE RUNG NAME IS A `QualityId` AND IS TREATED AS
+   * UNTRUSTED, because it reaches this from a URL. Anything
+   * that is not one of the five words becomes the empty
+   * string, which lands on the channel's own `q/` directory —
+   * a path that holds no segments, so the request 404s exactly
+   * as an unknown rung should. [D-06]
+   */
+  channelRungRoot: (id: string) => join(paths.channel(id), 'q'),
+  channelRung: (id: string, rung: string) =>
+    join(paths.channelRungRoot(id), rungTag(rung)),
+  channelRungSegment: (id: string, rung: string, index: number) =>
+    join(paths.channelRung(id, rung), `${Math.max(0, Math.floor(index))}.ts`),
+  /**
+   * THE WORDS, ON THE SAME GRID AS THE PICTURE.  [§7, §17, N-10]
+   *
+   *   var/accounts/<a>/channels/<id>/subtitles/<lang>/<index>.vtt
+   *
+   * Laid out exactly like `audio/` above and swept by the same
+   * sweeper, because it is the same kind of thing: transport,
+   * not an archive. A caption segment is a few hundred bytes and
+   * keeping a broadcast day of them would still be D-18 broken
+   * by a housekeeping omission.
+   *
+   * THE LANGUAGE IS A SUBTAG AND IS TREATED AS UNTRUSTED, by the
+   * same `audioTag` the audio renditions use — one answer to
+   * *is this a language or an escape*, not two. [D-06, D-19]
+   */
+  channelSubtitleRoot: (id: string) => join(paths.channel(id), 'subtitles'),
+  channelSubtitle: (id: string, language: string) =>
+    join(paths.channelSubtitleRoot(id), audioTag(language)),
+  channelSubtitleSegment: (id: string, language: string, index: number) =>
+    join(paths.channelSubtitle(id, language),
+      `${Math.max(0, Math.floor(index))}.vtt`),
   /**
    * THE LIVE BUFFER, which is not an asset. [CHANNEL §7, §8, D-18]
    *

@@ -119,6 +119,43 @@ const PUBLIC_PATTERNS: RegExp[] = [
    * assignment, and it still requires a link shaped like a credential.
    */
   /^\/take\/?$/,
+  /*
+   * The Library.  [TAKE-APP T16, P1, P6]
+   *
+   * PUBLIC FOR THE SAME REASON `/take` IS, AND IT CARRIES
+   * NOTHING. There is no sign-in on the Take App by
+   * construction, so a page that required one would be a page
+   * nobody this product is for could open. What makes it safe
+   * is that the server has nothing to hand over: the list of
+   * links is in that browser's own storage, and the page reads
+   * each of them through `/api/take/<link>` — the route above,
+   * where the link IS the credential and always was. A person
+   * with no links sees two empty shelves and a sentence.
+   * [D-03, D-25]
+   *
+   * ANCHORED EXACTLY, so this opens the Library and nothing
+   * else. `library` has no dot in it and so cannot be mistaken
+   * for the `<id>.<secret>` pattern above — but the pattern
+   * above is matched first either way, and anchoring both is
+   * what keeps that an accident rather than a dependency.
+   */
+  /^\/take\/library\/?$/,
+  /*
+   * SPENDING A PAIRING CODE.  [TAKE-DESKTOP T-2, D-25]
+   *
+   * PUBLIC FOR THE SAME REASON `/api/take/<link>` IS: the
+   * thing presenting it has no account and never will. A
+   * capture station in a hall is not signed in to anything —
+   * the protocol is that a credential is who you are, and a
+   * pairing code is a short credential with fifteen minutes to
+   * live and one use. What comes back is the link, which is
+   * the long one.
+   *
+   * A POST, BECAUSE SPENDING CHANGES IT. The record is deleted
+   * before the link is returned, so this is not a read and
+   * must not be a GET that lands in a log or a history.
+   */
+  /^\/api\/pair$/,
   /^\/api\/take\/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/,
   /* The song they were asked to perform against, and nothing else about
      the performance it belongs to. [T6] */
@@ -433,6 +470,15 @@ const GUEST_WRITABLE: { method: string; path: RegExp }[] = [
    * that has been sent: what a performer may undo is their own decision
    * not yet acted on, never a producer's. [D-25; TAKE-APP T4]
    */
+  /*
+   * AND SPENDING A PAIRING CODE, which is a write that mints
+   * nothing: it exchanges a short credential for the long one
+   * it stood in for, and destroys the short one doing it. A
+   * capture station has no session and is never going to —
+   * this is the one door it knocks on before it holds a link
+   * at all. [T-2, pairing.ts]
+   */
+  { method: 'POST', path: /^\/api\/pair$/ },
   { method: 'POST', path: /^\/api\/take\/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/ },
   { method: 'POST', path: /^\/api\/take\/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\/submissions$/ },
   { method: 'PUT', path: /^\/api\/take\/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\/submissions\/[A-Za-z0-9_-]+$/ },

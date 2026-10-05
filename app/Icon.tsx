@@ -22,7 +22,8 @@
 export type IconName =
   | 'home' | 'person' | 'conversation' | 'music' | 'broadcast' | 'library'
   | 'channels' | 'distribution' | 'settings' | 'search' | 'bell'
-  | 'disk' | 'clock' | 'calendar' | 'play' | 'plus' | 'chevron'
+  | 'disk' | 'clock' | 'camera' | 'captions' | 'calendar' | 'play' | 'plus'
+  | 'chevron'
   | 'arrow' | 'upload' | 'link' | 'live' | 'pencil' | 'sun' | 'moon'
   | 'sound' | 'muted' | 'expand' | 'faders' | 'list' | 'mic'
   | 'stop' | 'next' | 'start' | 'loop' | 'warning' | 'graphics' | 'pause'
@@ -148,6 +149,40 @@ const PATHS: Record<IconName, React.ReactNode> = {
     <>
       <circle cx="12" cy="12" r="8.2" />
       <path d="M12 7.6V12l3 1.8" />
+    </>
+  ),
+  /*
+   * A CAMERA, ON THE SCREEN THAT IS ONE.
+   *
+   * The recorder's standby drew the PLAY triangle, which is the
+   * mark for *this will start playing* and is what a viewfinder
+   * waiting for permission is not. A body with a lens in it is
+   * the shape on every phone's own camera button and on every
+   * sign that means *filming here*; drawing it is not inventing
+   * a glyph, it is using the one that exists. [D-12]
+   */
+  camera: (
+    <>
+      <path d="M3.4 8.6a2 2 0 0 1 2-2h2.1l1.2-2h6.6l1.2 2h2.1a2 2 0 0 1 2 2v8.2a2
+        2 0 0 1-2 2H5.4a2 2 0 0 1-2-2z" />
+      <circle cx="12" cy="12.6" r="3.5" />
+    </>
+  ),
+  /*
+   * CAPTIONS, WHICH IS A GLYPH THE WORLD ALREADY AGREED ON.
+   *
+   * A thirteenth icon invented for one card was refused
+   * elsewhere in this product, and rightly; this is not that.
+   * The rounded rectangle with two `c`s in it is the mark on
+   * every television remote and every player made in the last
+   * forty years, and a viewer looking for captions looks for
+   * exactly this shape. Drawn as two arcs rather than as text,
+   * so it does not change with a font or a locale. [D-12]
+   */
+  captions: (
+    <>
+      <rect x="3" y="5.2" width="18" height="13.6" rx="2.6" />
+      <path d="M10.3 10.2a2.6 2.6 0 1 0 0 3.6M17 10.2a2.6 2.6 0 1 0 0 3.6" />
     </>
   ),
   calendar: (

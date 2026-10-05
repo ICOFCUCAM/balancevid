@@ -632,3 +632,35 @@
   background: #000;
   box-shadow: var(--console-well);
 }
+
+/*
+ * THE TWO CONSOLE TONES A LIT SURFACE BORROWED.
+ *   [Doctrine D-24, D-04; take.css, network.css]
+ *
+ * THIS FILE IS THE DESK AND THE DESK IS DARK, which is the
+ * stated reason for every value above it: a broadcast desk is
+ * operated in a dark room beside a live monitor. None of that
+ * is about the Take App or BalanceVid Go — and both of them
+ * reach in here for `--console-control`, because the pill that
+ * is *not* the primary action is the same shape on every
+ * surface this product has.
+ *
+ * SO THOSE TWO GET A LIT VALUE AND THE REST DO NOT. The
+ * chassis, the face, the inset and the bevels describe a
+ * physical object with light falling on it from above; relit,
+ * they would be a pale object with light falling on it from
+ * above, which is a different object and nobody has designed
+ * it. What is here is the two tokens that escaped the desk.
+ *
+ * FOUND IN A SCREENSHOT. The Library's WATCH and KEEP came out
+ * as near-black pills with blue text on a white card — the
+ * quiet variant of a button rendering as the loudest thing on
+ * the page — because `#161a1f` is a control on a desk and a
+ * hole in a lobby. Measured: `--ink-100` (#252b35) on #eef1f6
+ * is 12.6:1.
+ */
+[data-ground='light'] {
+  --console-control: #eef1f6;
+  --console-control-hover: #e4e9f1;
+  --console-edge: var(--line);
+}

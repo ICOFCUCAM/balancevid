@@ -1,7 +1,11 @@
 import {
   ParticipationError, advance, open,
 } from '../../../../src/domain/participationEdit.js';
-import { outcomeFor, viewFor } from '../../../../src/domain/participation.js';
+import {
+  type CollectionEntry, outcomeFor, usedIt, viewFor,
+} from '../../../../src/domain/participation.js';
+import { loadPerformance } from '../../../../src/store/performances.js';
+import { loadConversation } from '../../../../src/store/repository.js';
 import {
   currentTerms, judgementsOf, scorecardOf, wallOf,
 } from '../../../../src/domain/campaign.js';
@@ -109,8 +113,78 @@ export async function GET(_request: Request, { params }: Params): Promise<Respon
   const standing = await placeOf(request, call);
   return json({
     request: viewFor(
-      request, call && currentTerms(call), outcomeFor(request, standing)),
+      request, call && currentTerms(call), outcomeFor(request, standing),
+      await collectionFor(request)),
   });
+}
+
+/**
+ * The finished work this take is in, where there is one.
+ *   [TAKE-APP T16; D-03, D-25]
+ *
+ * > *"My collection are already produced TAKE of the person that
+ * > was produced by the balancevid studio and generated. The
+ * > owner of take can download it or share it through their
+ * > phones."*
+ *
+ * TWO CONDITIONS AND THEY ARE OWNED IN TWO PLACES. `viewFor`
+ * decides whether this request's work is actually IN the result
+ * — accepted or attached, which is a fact about the request —
+ * and this decides whether there is a published result at all,
+ * which is a fact about somebody else's document and takes a
+ * read. Neither can answer the other's half, which is why the
+ * entitlement is checked where it is known rather than trusted
+ * from here. [D-19, D-03]
+ *
+ * THE TWO ADDRESSES ARE ONES A STRANGER COULD ALREADY REACH:
+ * the public watch page and the file it plays. A participant
+ * learns nothing here that somebody handed the published link
+ * would not already have — what they are spared is having to be
+ * handed it. [D-25]
+ *
+ * A CHANNEL HAS NO FINISHED WORK TO BE IN, and that is not an
+ * omission. A programme sent in to a channel goes out on a
+ * schedule and the thing it went out in is four seconds of
+ * transport that was swept minutes later; there is no master to
+ * keep. The honest answer is nothing. [§7, D-18]
+ *
+ * AND A FAILED READ IS NOTHING TOO. The answer to *where is my
+ * copy* is allowed to be *not yet*; it is never allowed to be an
+ * error that stops a person seeing the rest of their own
+ * standing. [U-19]
+ */
+async function collectionFor(
+  request: Awaited<ReturnType<typeof requestForLink>>,
+): Promise<CollectionEntry | null> {
+  if (!request || !usedIt(request)) return null;
+  const { kind, id } = request.holder;
+  try {
+    if (kind === 'performance') {
+      const performance = await loadPerformance(id);
+      const out = performance.publication;
+      if (!out || out.unpublishedAt) return null;
+      return {
+        title: performance.master.title || 'Untitled',
+        watch: `/p/${performance.id}/watch`,
+        file: `/api/performances/${performance.id}`
+          + `/renders/${out.planHash}/file`,
+      };
+    }
+    if (kind === 'conversation') {
+      const conversation = await loadConversation(id);
+      const out = conversation.publication;
+      if (!out || out.unpublishedAt) return null;
+      return {
+        title: conversation.title || 'Untitled',
+        watch: `/c/${conversation.id}/watch`,
+        file: `/api/conversations/${conversation.id}`
+          + `/renders/${out.planHash}/file`,
+      };
+    }
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 /**

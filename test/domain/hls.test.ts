@@ -9,13 +9,17 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { AUDIO_GROUP, masterPlaylist, renditions } from '../../src/domain/hls.js';
+import {
+  AUDIO_GROUP, SUBS_GROUP, masterPlaylist, renditions, subtitleRendition,
+} from '../../src/domain/hls.js';
 import type { Station } from '../../src/domain/station.js';
 
 const WIRE = { bitsPerSecond: 2_564_000, codecs: 'avc1.4d401f,mp4a.40.2' };
 const WHERE = {
   variant: '/api/channels/chan_1/playlist',
   audio: (language: string) => `/api/channels/chan_1/audio/${language}/playlist`,
+  subtitles: (language: string) =>
+    `/api/channels/chan_1/subtitles/${language}/playlist`,
 };
 const BOTH = { multiAudio: true };
 const PAID = ['fr', 'es'];
@@ -207,5 +211,108 @@ describe('the master playlist (N-10)', () => {
       expect(line).not.toContain('\n');
     }
     expect(text).toContain('NAME="Le grand');
+  });
+});
+
+/**
+ * The caption track.  [§17, N-10, D-21]
+ *
+ * THE WORDS WERE ALWAYS THERE AND NEVER REACHED THE WIRE. Every
+ * render this product finishes is written with a WebVTT sidecar
+ * beside it, and a channel scheduling that render broadcast the
+ * picture and the sound and left the captions on the disk.
+ */
+describe('the captions a channel offers (§17)', () => {
+  const CAPTIONED: Station = {
+    slug: 'a-channel', language: 'en', subtitles: true,
+  };
+
+  it('offers none until a broadcaster switches them on', () => {
+    expect(subtitleRendition({ slug: 'a' } as Station, ['en'])).toBeNull();
+    expect(subtitleRendition(undefined, ['en'])).toBeNull();
+  });
+
+  /*
+   * NOT ADVERTISED UNLESS IT IS BEING WRITTEN, exactly as for
+   * audio. A CC button over a channel producing nothing is a
+   * viewer pressing it, seeing no words, and concluding this
+   * product has no captions — a false conclusion drawn from a
+   * true observation, which is the worst kind.
+   */
+  it('says nothing about a track nobody is writing', () => {
+    expect(subtitleRendition(CAPTIONED, [])).toBeNull();
+    expect(subtitleRendition(CAPTIONED, ['fr'])).toBeNull();
+  });
+
+  it('offers the channel’s own language when it is being written', () => {
+    expect(subtitleRendition(CAPTIONED, ['en'])).toEqual({
+      language: 'en', label: 'English', isDefault: false,
+    });
+  });
+
+  /*
+   * NEVER THE DEFAULT. `DEFAULT=YES` turns captions on for
+   * every viewer who did not ask, which is a broadcaster's
+   * decision about their own channel and not this product's to
+   * make for them.
+   */
+  it('is never on until somebody asks for it', () => {
+    const text = masterPlaylist([], WHERE, WIRE,
+      subtitleRendition(CAPTIONED, ['en']))!;
+    const line = text.split('\n')
+      .find((one) => one.includes('TYPE=SUBTITLES'))!;
+    expect(line).toContain('DEFAULT=NO');
+    expect(line).toContain('AUTOSELECT=NO');
+    expect(line).toContain('URI="/api/channels/chan_1/subtitles/en/playlist"');
+  });
+
+  /*
+   * A CAPTION TRACK IS REASON ENOUGH FOR A MASTER ON ITS OWN.
+   * `EXT-X-MEDIA` lives in a master playlist, so a channel with
+   * one audio track and captions cannot express them any other
+   * way — the `offered.length < 2` rule is about AUDIO.
+   * [RFC 8216 §4.3.4]
+   */
+  it('makes a master for a single-language channel that captions', () => {
+    const text = masterPlaylist(
+      renditions(station([{ language: 'en' }]), BOTH, []), WHERE, WIRE,
+      subtitleRendition(CAPTIONED, ['en']));
+    expect(text).not.toBeNull();
+    expect(text).toContain(`SUBTITLES="${SUBS_GROUP}"`);
+    /* And no audio group, because there is no choice of audio
+       to be a member of one. */
+    expect(text).not.toContain(`AUDIO="${AUDIO_GROUP}"`);
+    expect(text).not.toContain('TYPE=AUDIO');
+  });
+
+  it('still makes none for a channel with neither', () => {
+    expect(masterPlaylist(
+      renditions(station([{ language: 'en' }]), BOTH, []), WHERE, WIRE, null))
+      .toBeNull();
+  });
+
+  /* Both, where a channel has both, and the variant names each
+     group exactly once. */
+  it('carries the audio group and the caption group together', () => {
+    const text = masterPlaylist(renditions(THREE, BOTH, PAID), WHERE, WIRE,
+      subtitleRendition(CAPTIONED, ['en']))!;
+    const variant = text.split('\n')
+      .find((one) => one.startsWith('#EXT-X-STREAM-INF:'))!;
+    expect(variant).toContain(`AUDIO="${AUDIO_GROUP}"`);
+    expect(variant).toContain(`SUBTITLES="${SUBS_GROUP}"`);
+    expect(text.match(/TYPE=SUBTITLES/g)).toHaveLength(1);
+    expect(text.match(/TYPE=AUDIO/g)).toHaveLength(3);
+  });
+
+  /*
+   * AND THE PLAYLIST THE PLAYER READS IS STILL THE LAST LINE.
+   * A master whose variant URI is not last is a master a
+   * player reads as having no variant at all.
+   */
+  it('ends with the variant, whatever is declared above it', () => {
+    const text = masterPlaylist(renditions(THREE, BOTH, PAID), WHERE, WIRE,
+      subtitleRendition(CAPTIONED, ['en']))!;
+    expect(text.trimEnd().split('\n').at(-1))
+      .toBe('/api/channels/chan_1/playlist');
   });
 });

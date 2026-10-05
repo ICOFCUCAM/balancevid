@@ -327,3 +327,223 @@ describe('the console surfaces', () => {
       .toBeGreaterThanOrEqual(3);
   });
 });
+
+/**
+ * AND THE SAME MEASUREMENT ON THE LIT GROUND.  [D-24, D-04]
+ *
+ * `building.css` states every light tone's ratio against #ffffff in
+ * a comment, which is how the dark ramp was *before this file
+ * existed* — and the comment at the top of this file says what
+ * happened then: the numbers were picked by eye, three of them were
+ * under the bar, and nothing knew. A ratio written in prose is a
+ * ratio nobody recomputes when a value moves.
+ *
+ * SO THE SECOND GROUND IS MEASURED TOO, by the same machinery, out
+ * of the same stylesheet. The ramp is inverted BY ROLE rather than
+ * by number — `--ink-900` means *furthest back* and `--ink-050`
+ * means *what you read* — so the surfaces are the same names and
+ * the test is the same test with the parse pointed somewhere else.
+ */
+const LIT = readFileSync(join(STYLES, 'building.css'), 'utf8');
+
+/**
+ * The light ramp, resolved.
+ *
+ * `var(--ink-550)` AND FRIENDS ARE FOLLOWED, because the light block
+ * defines several of its surfaces by naming a tone rather than a
+ * colour — which is the right way to write it and would otherwise
+ * make this test skip exactly the values it is for.
+ */
+function litTokens(): Record<string, string> {
+  const block = /\[data-ground='light'\]\s*\{([\s\S]*?)\n\}/.exec(LIT)?.[1] ?? '';
+  const raw: Record<string, string> = {};
+  for (const [, name, value] of block.matchAll(/--([\w-]+):\s*([^;]+);/g)) {
+    raw[name!] = value!.trim();
+  }
+  const resolve = (value: string, depth = 0): string | null => {
+    if (/^#[0-9a-f]{6}$/i.test(value)) return value.toLowerCase();
+    const named = /^var\(--([\w-]+)\)$/.exec(value);
+    if (!named || depth > 4) return null;
+    const next = raw[named[1]!];
+    return next === undefined ? null : resolve(next, depth + 1);
+  };
+  const out: Record<string, string> = {};
+  for (const [name, value] of Object.entries(raw)) {
+    const hex = resolve(value);
+    if (hex) out[name] = hex;
+  }
+  return out;
+}
+
+describe('the contrast of every text tone, lit', () => {
+  const ink = litTokens();
+
+  it('reads the lit ramp out of the stylesheet rather than a copy of it', () => {
+    expect(Object.keys(ink).length).toBeGreaterThanOrEqual(16);
+    expect(ink['ink-050']).toMatch(/^#[0-9a-f]{6}$/);
+    /* And the surfaces defined by naming a tone were followed. */
+    expect(ink['surface-base']).toBe(ink['ink-800']);
+  });
+
+  /*
+   * THE LIGHTEST SURFACE IS STILL THE ONE THAT MATTERS, and on this
+   * ground three of the five are #ffffff — which is why the comment
+   * in `building.css` measures against white. The loop is the same:
+   * a reader does not know which surface they are looking at.
+   */
+  it.each([
+    ['ink-050', 'body and headings', 4.5],
+    ['ink-200', 'secondary text', 4.5],
+    ['ink-300', 'faint text — subtitles, captions, empty states', 4.5],
+  ])('%s (%s) reaches AA on every lit surface', (tone, _why, need) => {
+    for (const surface of SURFACES) {
+      const got = contrast(ink[tone]!, ink[surface]!);
+      expect(got, `lit ${tone} on ${surface} is ${got.toFixed(2)}:1`)
+        .toBeGreaterThanOrEqual(need);
+    }
+  });
+
+  /*
+   * AND `ink-400` CLEARS THE TEXT BAR HERE, which it does not on the
+   * dark ground — `building.css` says so and nothing checked it. It
+   * is asserted at the non-text bar it is *promised* at, so a future
+   * light value cannot quietly fall below the one the dark ground
+   * holds.
+   */
+  it('ink-400 clears the non-text bar on every lit surface', () => {
+    for (const surface of SURFACES) {
+      const got = contrast(ink['ink-400']!, ink[surface]!);
+      expect(got, `lit ink-400 on ${surface} is ${got.toFixed(2)}:1`)
+        .toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  /*
+   * MONOTONIC IN TWO RUNS, NOT ONE — WHICH IS THE SHAPE OF THE
+   * THING AND TOOK A FAILING TEST TO SEE.
+   *
+   * The first draft of this check required one falling run from
+   * `ink-900` to `ink-000`, by analogy with the dark ramp's single
+   * rising one, and `ink-850` failed it at once. The analogy was
+   * wrong. On the dark ground the SURFACES are the dark end and
+   * the TEXT is the light end, so one run covers both; on a lit
+   * ground the surfaces are the light end and the text is the dark
+   * end, and the run turns over in the middle — at exactly the
+   * boundary `building.css` draws between them.
+   *
+   * So it is two checks, which is also two statements: the
+   * surfaces get LIGHTER as they come forward, and the text gets
+   * DARKER as it gets more prominent. A ramp that drifted out of
+   * either order would not look broken; it would quietly make
+   * every rule about which tone to use meaningless.
+   */
+  it('lets its surfaces get lighter as they come forward', () => {
+    const order = ['ink-900', 'ink-850', 'ink-800', 'ink-750', 'ink-700'];
+    const lums = order.map((name) => luminance(ink[name]!));
+    for (let i = 1; i < lums.length; i += 1) {
+      expect(lums[i]!, `lit ${order[i]} is not lighter than ${order[i - 1]}`)
+        .toBeGreaterThan(lums[i - 1]!);
+    }
+  });
+
+  it('gets darker as its text tones get more prominent', () => {
+    const order = [
+      'ink-550', 'ink-500', 'ink-450', 'ink-400', 'ink-300',
+      'ink-200', 'ink-100', 'ink-050', 'ink-000',
+    ];
+    const lums = order.map((name) => luminance(ink[name]!));
+    for (let i = 1; i < lums.length; i += 1) {
+      expect(lums[i]!, `lit ${order[i]} is not darker than ${order[i - 1]}`)
+        .toBeLessThan(lums[i - 1]!);
+    }
+  });
+
+  /*
+   * AND THE TURN IS WHERE THE SHEET SAYS IT IS. `ink-550` is the
+   * first tone on the text side and it must be darker than the
+   * lightest surface, or the boundary the two runs above are
+   * written around has moved and nothing else would say so.
+   */
+  it('turns over between the surfaces and the text', () => {
+    expect(luminance(ink['ink-550']!)).toBeLessThan(luminance(ink['ink-700']!));
+  });
+
+  /*
+   * `ink-700`, `ink-650` AND `ink-600` ARE ALL #ffffff, AND THAT IS
+   * NOT A RAMP FAULT. A lit ground has one white: a raised card, a
+   * floating menu and a lifted sheet are separated by SHADOW here,
+   * not by a lighter fill, which is what `--elev-*` is redefined for
+   * in the same block. The three are left out of the order above and
+   * checked for being what they claim instead.
+   */
+  it('has one white, and says so', () => {
+    expect([ink['ink-700'], ink['ink-650'], ink['ink-600']])
+      .toEqual(['#ffffff', '#ffffff', '#ffffff']);
+    expect(ink['surface-raised']).toBe('#ffffff');
+  });
+
+  /*
+   * A WELL IS STILL DARK, because a well holds a picture. Inverted,
+   * every empty thumbnail would be the brightest object on the page
+   * — and on BalanceVid TV the player's own frame is a well.
+   */
+  it('keeps the well dark, so a picture still sits in a hole', () => {
+    expect(luminance(ink['surface-sunk']!)).toBeLessThan(0.02);
+  });
+});
+
+/**
+ * AND THE TWO CONSOLE TONES A LIT SURFACE BORROWED.
+ *   [D-24, console.css]
+ *
+ * `console.css` is the desk and the desk is dark — but the Take
+ * App and BalanceVid Go reach into it for `--console-control`,
+ * because the pill that is not the primary action is the same
+ * shape on every surface this product has. Unlit, that token is
+ * `#161a1f`, and the Library's WATCH and KEEP came out as
+ * near-black pills with blue text on a white card: the quiet
+ * variant of a button rendering as the loudest thing on the
+ * page. Found in a screenshot, which is the only way a leaked
+ * token is ever found.
+ *
+ * SO THE LIT VALUE IS MEASURED HERE, not stated in a comment —
+ * the whole argument of the block above, applied to the file
+ * that leaked.
+ */
+const DESK = readFileSync(join(STYLES, 'console.css'), 'utf8');
+
+describe('the console tones a lit page borrows', () => {
+  const lit = litTokens();
+  const control = /\[data-ground='light'\][\s\S]*?--console-control:\s*(#[0-9a-f]{6});/i
+    .exec(DESK)?.[1];
+
+  it('has one, and it is a pale control rather than a hole', () => {
+    expect(control).toMatch(/^#[0-9a-f]{6}$/i);
+    /* Nearly as light as the card it sits on, which is what
+       makes it read as a control and not as a well. */
+    expect(luminance(control!)).toBeGreaterThan(0.8);
+  });
+
+  /*
+   * THE INK ON IT IS `--ink-100`, which is what `.tk-go-quiet`
+   * sets. A quiet button is still a button somebody reads the
+   * word on.
+   */
+  it('carries its label at AA', () => {
+    expect(contrast(lit['ink-100']!, control!)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  /*
+   * AND THE FILLED ONE BESIDE IT. `.tk-go` is `--accent-deep`
+   * with `--text-on-accent`, and on a lit ground the accent
+   * darkens for exactly this reason — the bright blue that is a
+   * legible fill on a desk is 2.96:1 against white.
+   */
+  it('keeps the filled button legible too', () => {
+    const deep = /\[data-ground='light'\][\s\S]*?--accent-deep:\s*(#[0-9a-f]{6});/i
+      .exec(LIT)?.[1];
+    const ink = /--text-on-accent:\s*(#[0-9a-f]{6});/i
+      .exec(readFileSync(join(STYLES, 'tokens.css'), 'utf8'))?.[1];
+    expect(contrast(ink!, deep!)).toBeGreaterThanOrEqual(4.5);
+  });
+});

@@ -38,6 +38,9 @@ export const NETWORK_ART = {
   /** The panel beside the search results. */
   search: '/rooms/online-tv.webp',
   searchFocus: '58% 40%',
+  /** The band over the open calls. [GO-VIRAL V-4] */
+  calls: '/rooms/performance.webp',
+  callsFocus: '50% 42%',
 } as const;
 
 /**

@@ -7185,6 +7185,44 @@ function ListingTab({ channel, onStation }: {
       </label>
 
       {/*
+        * THE CAPTIONS, WHICH ARE A SWITCH AND NOT A SETTING.
+        *   [§17, N-10]
+        *
+        * There is nothing to configure: the words come from the
+        * transcript of whatever is scheduled, through the same
+        * `buildVtt` every export uses, and the only question is
+        * whether they go on the wire. A panel of caption
+        * options here would be five controls over one boolean.
+        *
+        * AND IT COSTS NOTHING, unlike the audio renditions. A
+        * product that charged a station for its deaf audience
+        * would be charging for access to itself, so there is no
+        * extra to check and no upsell beside the box.
+        *
+        * WHAT IT SAYS UNDERNEATH IS WHAT IT CANNOT DO. Only a
+        * programme that came out of a BalanceVid studio has a
+        * transcript; a film somebody uploaded to the library
+        * has none, and a live feed has not been said yet. An
+        * owner who ticked this and saw captions on half their
+        * day would otherwise think it was broken. [D-21, U-19]
+        */}
+      <label className="row small" data-testid="station-subtitles"
+             style={{ gap: 8, margin: '4px 0 0', fontSize: 'var(--text-xs)',
+                      alignItems: 'center' }}>
+        <input type="checkbox" checked={station?.subtitles === true}
+               onChange={(event) =>
+                 onStation({ subtitles: event.target.checked })} />
+        Broadcast captions
+      </label>
+      <p className="small muted" data-testid="station-subtitles-how"
+         style={{ margin: 0, fontSize: 'var(--text-2xs)', lineHeight: 1.5 }}>
+        Programmes made in a BalanceVid studio are already transcribed, and
+        their captions go out as a track a viewer can turn on. An uploaded
+        film and a live feed have no transcript, so the caption track runs
+        empty while one of those is on air.
+      </p>
+
+      {/*
         * THE STATION'S OWN FRONT DOOR.  [N-8]
         *
         * Below the address above and not beside it, because the

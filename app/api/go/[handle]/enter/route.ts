@@ -5,17 +5,12 @@ import { viewFor } from '../../../../../src/domain/participation.js';
 import { ParticipationError } from '../../../../../src/domain/participationEdit.js';
 import { listCampaigns } from '../../../../../src/store/campaigns.js';
 import { linkFor } from '../../../../../src/store/requests.js';
-import { type ClaimKind, claim } from '../../../../../src/web/claim.js';
+import { claim, doorFor } from '../../../../../src/web/claim.js';
 import { fail, json } from '../../../../../src/web/http.js';
 
 export const dynamic = 'force-dynamic';
 
 type Params = { params: Promise<{ handle: string }> };
-
-/** Which door of the three this call's track is behind. */
-const DOOR: Record<string, ClaimKind> = {
-  performance: 'music', conversation: 'video', channel: 'programme',
-};
 
 /**
  * Enter this call.  [GO-VIRAL V-4, §3; D-25, U-31]
@@ -70,7 +65,9 @@ export async function POST(_request: Request, { params }: Params): Promise<Respo
     return fail(409, campaignSays(call, now));
   }
 
-  const kind = DOOR[call.track.kind];
+  /* The one table, shared with the page that draws the button.
+     [`src/web/claim.ts`] */
+  const kind = doorFor(call.track.kind);
   if (!kind) return fail(404, 'no such call');
 
   try {

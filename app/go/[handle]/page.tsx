@@ -8,8 +8,30 @@ import {
 import { resultsFor, saidAbout } from '../../../src/domain/judging.js';
 import { listCampaigns } from '../../../src/store/campaigns.js';
 import { listRequests } from '../../../src/store/requests.js';
+import { claimable, doorFor } from '../../../src/web/claim.js';
 import { GoFrame, Standing } from '../Go.js';
 import { Deadline, EnterButton, Loop, Results, Wall } from './Call.js';
+import Icon, { type IconName } from '../../Icon.js';
+
+/**
+ * A CALL'S SUBJECT, AS A READER'S WORD FOR IT.
+ *
+ * The same three the Take App draws, and for the same reason:
+ * `about` is the track's kind, which is a word about how this
+ * product stores things. The mapping lives on the surface
+ * because the domain must not acquire an opinion about
+ * English. [D-19]
+ */
+const ABOUT: Record<string, { says: string; mark: IconName }> = {
+  performance: { says: 'Music', mark: 'music' },
+  conversation: { says: 'Video', mark: 'play' },
+  channel: { says: 'Programme', mark: 'broadcast' },
+};
+
+/* A call from a newer installation still draws. [V-8, U-19] */
+function aboutSays(kind: string): { says: string; mark: IconName } {
+  return ABOUT[kind] ?? { says: 'Open', mark: 'live' };
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -27,6 +49,22 @@ export const dynamic = 'force-dynamic';
  * and the fix was to share the function rather than the fetch.
  * [D-19]
  */
+/**
+ * The track's own answer, or `open` where there is no door at
+ * all to ask.
+ *
+ * A CALL ABOUT A KIND THIS INSTALLATION DOES NOT KNOW is a call
+ * from a newer installation, and the page draws it rather than
+ * refusing it — the same decision `aboutSays` makes two
+ * screens up. The route is the one that refuses, and it does.
+ * [V-8, U-19]
+ */
+async function openDoor(call: Campaign): Promise<'open' | 'closed' | 'missing'> {
+  const kind = doorFor(call.track.kind);
+  if (!kind) return 'open';
+  return claimable({ kind, id: call.track.id, now: new Date().toISOString() });
+}
+
 async function found(handle: string) {
   const campaigns = await listCampaigns().catch(() => [] as Campaign[]);
   const call = bySlugOrId(campaigns, handle);
@@ -46,9 +84,32 @@ async function found(handle: string) {
    * second answer to a question about somebody's face. [D-19]
    */
   const announced = call.state === 'results' || call.state === 'completed';
+  /*
+   * WHETHER THE DOOR WOULD ACTUALLY OPEN.  [V-4; D-21, D-19]
+   *
+   * `callRow` answers the CALL's own clock and state, which is
+   * what this page has always drawn the button from. The TRACK
+   * has conditions of its own — published, not withdrawn from
+   * strangers, under the producer's ceiling — and they are the
+   * ones `/api/go/<handle>/enter` actually applies. A campaign
+   * whose song had been unpublished drew a live call with a
+   * working-looking ENTER and answered *that is not open for
+   * anybody to take part in* when somebody pressed it.
+   *
+   * ASKED THROUGH THE DOOR'S OWN FUNCTION so the two cannot
+   * disagree, and asked only while the call's own gate is open,
+   * because a finished competition's button is already gone and
+   * `claimable` costs a scan of the requests. [D-19]
+   */
+  const row = callRow(call, now);
+  const shut = row.clock !== 'over' && row.state !== 'completed'
+      && row.state !== 'judging' && row.state !== 'results'
+    ? await openDoor(call)
+    : 'open';
   return {
+    entry: shut,
     call,
-    row: callRow(call, now),
+    row,
     wall,
     numbers: loopNumbers(call, requests),
     panel: panelOf(call).map((one) => one.name),
@@ -128,7 +189,7 @@ export default async function CallPage(
   const { handle } = await params;
   const it = await found(handle);
   if (!it) notFound();
-  const { call, row, wall, numbers, panel, standings } = it;
+  const { call, row, wall, numbers, panel, standings, entry } = it;
   const shownWall = wall.map((one) => ({
     submissionId: one.submissionId,
     kind: one.kind,
@@ -152,6 +213,17 @@ export default async function CallPage(
       <div className="go-head">
         <div className="go-head-row">
           <div style={{ minWidth: 0 }}>
+            {/*
+              * THE SUBJECT, AS A KICKER. `about` is the track's
+              * own kind rather than a label somebody typed, so
+              * a reader arriving from a shared link knows what
+              * sort of thing is being asked of them before
+              * reading a word of the brief. [V-4, D-19]
+              */}
+            <p className="go-kind" data-about={row.about}>
+              <Icon name={aboutSays(row.about).mark} size={12} />
+              {aboutSays(row.about).says} campaign
+            </p>
             <h1 className="go-title" data-testid="go-title">{call.title}</h1>
             <p className="go-lede" data-testid="go-says">{row.says}</p>
             <p className="go-lede" style={{ marginTop: 4 }}>
@@ -165,7 +237,11 @@ export default async function CallPage(
       <article className="go-body">
 
         {/* WHAT TO DO, in the organiser's own words. [V-2] */}
+        <div className="go-cards">
         <section className="go-said">
+          <span aria-hidden="true" className="go-said-mark" data-mark="do">
+            <Icon name="list" size={15} />
+          </span>
           <h2 className="go-h">What to do</h2>
           <p data-testid="go-asks" className="go-prose">
             {call.rules.asks}
@@ -179,6 +255,9 @@ export default async function CallPage(
           */}
         {call.rules.criteria && (
           <section className="go-said">
+            <span aria-hidden="true" className="go-said-mark" data-mark="judge">
+              <Icon name="passed" size={15} />
+            </span>
             <h2 className="go-h">Judged on</h2>
             <p data-testid="go-criteria" className="go-prose">
               {call.rules.criteria}
@@ -195,6 +274,15 @@ export default async function CallPage(
           */}
         {call.rules.prize && (
           <section className="go-said">
+            {/* NOT THE TICK AGAIN. `passed` marks *judged on*,
+                and two cards wearing one glyph is a set that
+                has stopped distinguishing anything. There is no
+                trophy in this icon set and inventing one for a
+                single card is a thirteenth glyph nobody
+                maintains. [Icon.tsx] */}
+            <span aria-hidden="true" className="go-said-mark" data-mark="prize">
+              <Icon name="sun" size={15} />
+            </span>
             <h2 className="go-h">Prize</h2>
             <p data-testid="go-prize" className="go-prose">
               {call.rules.prize}
@@ -202,11 +290,45 @@ export default async function CallPage(
           </section>
         )}
 
+        </div>
+
         {/* The way in, where there still is one. */}
         {row.clock !== 'over' && row.state !== 'completed'
           && row.state !== 'judging' && row.state !== 'results' && (
-          <EnterButton handle={handle}
-                       asksConsent={(call.terms?.length ?? 0) > 0} />
+          entry === 'open'
+            ? (
+              <EnterButton handle={handle}
+                           asksConsent={(call.terms?.length ?? 0) > 0} />
+            )
+            : (
+              /*
+                * A SENTENCE WHERE THE BUTTON WOULD HAVE BEEN,
+                * AND NOT A DISABLED BUTTON. [D-21, U-19]
+                *
+                * A greyed-out ENTER is a control a person tries
+                * to press and then wonders whether their phone
+                * is broken. The call is still worth reading —
+                * the rules, the wall, the standing are all here
+                * — so the page says what is true about entering
+                * and leaves the rest alone.
+                *
+                * TWO SENTENCES, BECAUSE THEY ARE TWO FACTS AND
+                * THE ORGANISER PUBLISHED BOTH. The door
+                * collapses them into one 404 because there an
+                * id came off a URL a stranger could have
+                * guessed; here the organiser listed this call
+                * and named what it is about, so *the thing is
+                * gone* and *it is not taking entries* are
+                * theirs already. [D-03]
+                */
+              <p className="go-shut" data-testid="go-shut"
+                 data-why={entry}>
+                {entry === 'missing'
+                  ? 'What this call is about is no longer available, '
+                    + 'so nothing more can be entered.'
+                  : 'This call is not taking entries just now.'}
+              </p>
+            )
         )}
 
         {/*

@@ -24,11 +24,52 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
 import type { CallRow } from '../../src/domain/campaign.js';
-import Icon from '../Icon.js';
+import Icon, { type IconName } from '../Icon.js';
+import { GroundToggle } from '../Ground.js';
+import { shelfFor } from '../tv/art.js';
 
-export function GoFrame({ children }: { children: React.ReactNode }) {
+/**
+ * A CALL'S SUBJECT, AS A READER'S WORD FOR IT.
+ *
+ * `about` is the track's own kind — a word about how this
+ * product stores things. What goes on a card is the same three
+ * in a reader's language, and the mapping lives on the surface
+ * because the domain must not acquire an opinion about
+ * English. A call from a NEWER installation still draws, which
+ * is why there is a fallback: these rows are merged across
+ * installations. [D-19, V-8, U-19]
+ */
+const ABOUT: Record<string, { says: string; mark: IconName }> = {
+  performance: { says: 'Music', mark: 'music' },
+  conversation: { says: 'Video', mark: 'play' },
+  channel: { says: 'Programme', mark: 'broadcast' },
+};
+
+export function aboutSays(kind: string): { says: string; mark: IconName } {
+  return ABOUT[kind] ?? { says: 'Open', mark: 'live' };
+}
+
+export function GoFrame({ children, here = 'calls' }: {
+  children: React.ReactNode;
+  /** Which rail row is this page. */
+  here?: 'calls' | 'tv' | 'take';
+}) {
   return (
-    <div className="tk-page">
+    /*
+     * LIT, LIKE THE LOBBY, AND FOR THE SAME REASON.  [D-24, D-04]
+     *
+     * Go is read: the rules of a call, a wall of entries, a
+     * standing. It is a page a stranger opens on a phone in
+     * daylight, having followed a link from a message — the
+     * furthest thing in this product from a broadcast desk in a
+     * dark room, which is the one place the dark ground was ever
+     * argued for. The hero bands keep their scrims, because a
+     * colour over a photograph is not a theme colour.
+     *
+     * AND THE PERSON CAN SAY OTHERWISE. One switch, one stored
+     * key, every surface that is not a dark room. [Ground.tsx]
+     */
+    <div className="tk-page go-page" data-ground="light" data-ground-host>
       {/*
         * THE SAME IDENT AS THE TAKE APP, AND THAT IS THE POINT.
         * Go is the door somebody walks through before they have
@@ -57,8 +98,57 @@ export function GoFrame({ children }: { children: React.ReactNode }) {
           <Icon name="broadcast" size={14} />
           TV
         </Link>
+        <GroundToggle />
       </header>
-      {children}
+
+      {/*
+        * A RAIL, ON A SCREEN WIDE ENOUGH FOR ONE.  [D-04]
+        *
+        * At 1440 the page was a 900px column in the middle of a
+        * window with six hundred pixels of nothing either side —
+        * a phone layout that had been allowed to grow. A rail is
+        * what a desktop uses the width for, and it is hidden
+        * below 1000px rather than stacked, because a nav that
+        * becomes six rows above the content is a page that
+        * starts with its own menu.
+        *
+        * EVERY ROW GOES SOMEWHERE THAT EXISTS. The design this
+        * was built against names Home, Open calls, Live now,
+        * Music, Video, TV Channels, My Takes and Library. Four
+        * of those are pages this product has.
+        */}
+      <div className="go-frame">
+        <nav className="go-rail" aria-label="Where to go">
+          <Link href="/go" className="go-rail-way"
+                {...(here === 'calls' ? { 'aria-current': 'page' as const } : {})}>
+            <Icon name="live" size={17} />
+            Open calls
+          </Link>
+          <Link href="/tv" className="go-rail-way"
+                {...(here === 'tv' ? { 'aria-current': 'page' as const } : {})}>
+            <Icon name="broadcast" size={17} />
+            Watch TV
+          </Link>
+          <Link href="/tv/channels" className="go-rail-way">
+            <Icon name="channels" size={17} />
+            Channels
+          </Link>
+          <Link href="/tv/guide" className="go-rail-way">
+            <Icon name="calendar" size={17} />
+            Guide
+          </Link>
+          <Link href="/take" className="go-rail-way"
+                {...(here === 'take' ? { 'aria-current': 'page' as const } : {})}>
+            <Icon name="mic" size={17} />
+            Take App
+          </Link>
+          <Link href="/tv/favorites" className="go-rail-way">
+            <Icon name="passed" size={17} />
+            My channels
+          </Link>
+        </nav>
+        <div className="go-work">{children}</div>
+      </div>
     </div>
   );
 }
@@ -135,24 +225,61 @@ export function howLong(ms: number): string {
  * ------------------------------------------------------------------ */
 
 export function CallCard({ call }: { call: CallRow }) {
+  const says = standingSays(call);
   return (
     <Link href={call.at} data-testid="go-call-card" className="go-call"
-          data-standing={standingSays(call)}>
-      <span className="go-call-top">
-        <span className="go-call-name">{call.title}</span>
-      </span>
+          data-standing={says}>
       {/*
-        * THE ORGANISER'S OWN INSTRUCTION, WHOLE. This is the
-        * text somebody reads before deciding to record, and it
-        * is the only thing on the page that has to be read
-        * rather than scanned — so it is not clamped, the way a
-        * row in a list is. [V-8]
+        * A PICTURE, WHICH IS A GROUND AND NOT A PHOTOGRAPH.
+        * The design gives every call its own image; this
+        * product has three photographs and none of them is
+        * *City in Sixty Seconds*. A call keeps one colour
+        * everywhere, hashed from its own address, the way a
+        * station with no logo does — and when a call can carry
+        * artwork this becomes the fallback. [D-19, U-19]
         */}
-      <p className="go-call-asks">{call.asks}</p>
-      <span className="go-call-foot">
-        <Standing call={call} />
-        <span className="grow" />
-        <span className="tk-go tk-go-quiet">
+      <span aria-hidden="true" className="go-call-art"
+            style={shelfFor(call.slug ?? call.id)}>
+        <span className="go-call-badge" data-about={call.about}>
+          <Icon name={aboutSays(call.about).mark} size={11} />
+          {aboutSays(call.about).says} campaign
+        </span>
+      </span>
+
+      <span className="go-call-said">
+        <span className="go-call-name">{call.title}</span>
+        <span className="go-call-asks">{call.asks}</span>
+        {/*
+          * WHAT A CALL IS, IN FACTS IT ACTUALLY HOLDS. The
+          * design's meta line reads *60 seconds · Open to
+          * everyone · Creative expression*. The middle one is
+          * real — a call's window carries who may enter. The
+          * first is not: `CampaignRules` has an instruction, a
+          * criteria and a prize, and no duration, so a length
+          * printed here would be this card inventing a rule
+          * the door will not enforce. The third IS the
+          * criteria, which is the organiser's own words about
+          * what they are looking for. [D-21]
+          */}
+        <span className="go-call-meta">
+          <span className="go-call-fact">
+            <Icon name="person" size={12} />
+            Open to everyone
+          </span>
+          {call.criteria && (
+            <span className="go-call-fact">
+              <Icon name="passed" size={12} />
+              {call.criteria}
+            </span>
+          )}
+        </span>
+        <span className="go-call-foot">
+          <Standing call={call} />
+        </span>
+      </span>
+
+      <span className="go-call-go">
+        <span className="tk-go">
           Look
           <Icon name="chevron" size={13} />
         </span>
@@ -161,15 +288,6 @@ export function CallCard({ call }: { call: CallRow }) {
   );
 }
 
-/**
- * Where a call has got to, in one chip.
- *
- * THE CLOCK AND NOT THE STATE, where they differ. `state` is where
- * somebody moved it to and `clock` is where its window says it
- * should be, and a chip reading LIVE over a call that shut an hour
- * ago is the failure `clockSays` exists to prevent. The state is
- * what the page itself says in the organiser's own sentence.
- */
 /** What a call's chip says, which the card also colours by. */
 export function standingSays(call: CallRow): string {
   const closing = call.clock === 'closing' && call.msLeft !== null;

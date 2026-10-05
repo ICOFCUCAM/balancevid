@@ -28,12 +28,54 @@
 
 import { HOUSE_FPS, HOUSE_SAMPLE_RATE } from '../../shared/src/time.js';
 
-/** The flow, frozen. [TAKE-DESKTOP, PART ZERO] */
+/**
+ * The flow — and CONNECT moved, which is not a small edit.
+ *   [TAKE-DESKTOP, PART ZERO; D-04, U-19]
+ *
+ * > *"Take Desktop should [be] such that one can open and do all
+ * > necessary records. only connect when decided. putting
+ * > connect into the door to the software is problematic"*
+ *
+ * IT WAS FIRST, AND FIRST IS A DOOR. Every step here has always
+ * been pressable — nothing was ever gated — but a strip that
+ * READS left to right and opens on CONNECT tells an operator
+ * they must find a studio before they may point a camera at
+ * anything. In a hall, twenty minutes before a service, with
+ * the wifi not working yet, that is the application refusing to
+ * do the one thing it is for.
+ *
+ * AND IT IS WRONG ABOUT THE WORK AS WELL AS ABOUT THE MOOD. A
+ * capture station records to ITS OWN DISK and sends afterwards
+ * — that is the whole design of `sending.ts`, which resumes
+ * from the last acknowledged piece precisely because the
+ * connection is not assumed to be there. The step that needs a
+ * studio is SUBMIT, and CONNECT belongs immediately before it,
+ * where the question *where is this going* is actually being
+ * asked.
+ *
+ * THE SIX ARE THE SAME SIX. Nothing is added, nothing removed,
+ * nothing gated that was not. What changed is which one the
+ * window opens on and where the word sits in the row — and that
+ * is the difference between a program you can use and a program
+ * you have to configure.
+ */
 export const STEPS = [
-  'CONNECT', 'CAMERAS', 'PREPARE', 'RECORD', 'REVIEW', 'SUBMIT',
+  'CAMERAS', 'PREPARE', 'RECORD', 'REVIEW', 'CONNECT', 'SUBMIT',
 ] as const;
 
+/**
+ * Where the window opens.
+ *
+ * THE CAMERAS, because that is what somebody opened this for.
+ * An operator who already knows where the work is going presses
+ * CONNECT when they get there; one who does not can record the
+ * whole service first and decide afterwards, which is what a
+ * capture station recording to its own disk makes possible and
+ * what the old first step quietly denied. [D-04]
+ */
 export type Step = (typeof STEPS)[number];
+
+export const OPENS_ON: Step = 'CAMERAS';
 
 /**
  * How far the application has actually been built.

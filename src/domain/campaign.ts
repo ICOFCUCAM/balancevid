@@ -209,13 +209,19 @@ export function mayMoveCampaign(from: CampaignState, to: CampaignState): boolean
 /**
  * What the organiser said, in their own words.
  *
+ * > *"rules a participant can read before they record"*
+ *
  * TEXT AND NOT A SCHEMA, which is a decision rather than
- * laziness. *"Sing the second verse, outdoors, phone held
- * sideways"* is a rule a person can follow and a machine cannot
- * check, and a product that offered `minDurationSeconds` and
- * `requiredHashtag` would be offering to enforce what it cannot.
- * What it can do is show the words to everybody who enters and
- * to everybody who judges, which is what makes them a rule.
+ * laziness. A rule like *sing the second verse, outdoors, phone
+ * held sideways* — the sort of thing an organiser actually
+ * writes — is something a person can follow and a machine
+ * cannot check, and a product that offered `minDurationSeconds`
+ * and `requiredHashtag` would be offering to enforce what it
+ * cannot. What it can do is show the words to everybody who
+ * enters and to everybody who judges, which is what makes them
+ * a rule. It is the decision `Assignment.asks` already made,
+ * one level up: *"What the producer is asking, in their own
+ * words. Shown as given."* [V-3]
  *
  * THE CRITERIA ARE PUBLISHED FOR THE SAME REASON. A competition
  * whose basis is announced after the entries is not one, and V-5
@@ -849,6 +855,35 @@ export interface CallRow {
   open: boolean;
   /** Where it lives, which is the thing a person shares. */
   at: string;
+  /**
+   * WHAT KIND OF THING THIS CALL IS ABOUT.  [V-4, D-21]
+   *
+   * A call is a call ABOUT something — a performance, a
+   * conversation, a channel — and a browsing surface that can
+   * say which is a surface somebody can scan. It is the
+   * TRACK's kind and not a field of the campaign's own,
+   * because a second field could disagree with the document
+   * the call is for. [D-19]
+   *
+   * The names are the holder's: a reader's word for each is a
+   * decision for the surface drawing it, not for this
+   * module. [`asksFor`]
+   */
+  about: RequestHolder['kind'];
+  /**
+   * WHAT IT WILL BE JUDGED ON, where the organiser said.
+   *   [V-2, V-5]
+   *
+   * > *"A competition whose basis is announced after the
+   * > entries is not one."*
+   *
+   * On the ROW and not only on the call's own page, because a
+   * directory is where somebody decides which of three to
+   * enter — and the basis is half of that decision. Absent
+   * where none was given rather than empty, so a card draws
+   * nothing instead of a heading over a blank. [D-21]
+   */
+  criteria?: string;
 }
 
 export function callRow(campaign: Campaign, now: string): CallRow {
@@ -866,6 +901,8 @@ export function callRow(campaign: Campaign, now: string): CallRow {
     msLeft: msLeft(campaign, now),
     open: takingEntries(campaign, now),
     at: `/go/${campaign.slug ?? campaign.id}`,
+    about: campaign.track.kind,
+    ...(campaign.rules.criteria ? { criteria: campaign.rules.criteria } : {}),
   };
 }
 

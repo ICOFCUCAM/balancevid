@@ -616,6 +616,46 @@ export interface RequestView {
    * nothing until there is something to say.
    */
   outcome?: RequestOutcome;
+  /**
+   * THE FINISHED WORK THEIR TAKE IS IN.  [TAKE-APP T16; D-25, D-03]
+   *
+   * > *"My collection are already produced TAKE of the person
+   * > that was produced by the balancevid studio and generated.
+   * > The owner of take can download it or share it through
+   * > their phones."*
+   *
+   * `outcome` SAYS *your take was used* AND STOPPED THERE, which
+   * is the half of the sentence that is about the producer's
+   * decision. The other half is about the person: the thing they
+   * sang into exists now, it is published, and it has their work
+   * in it. A phone that was told *used* and given nowhere to go
+   * was being told the least interesting true thing.
+   *
+   * PRESENT ONLY WHEN BOTH ARE TRUE — the take was used, AND the
+   * holder published the result and has not withdrawn it. A
+   * producer who accepted a take and never published is a
+   * producer whose unpublished work is nobody else's to know
+   * about, and `publication` is the field that says otherwise.
+   * [D-03]
+   *
+   * IT NAMES THE WORK AND NOT THE DOCUMENT'S KIND OR ANYBODY
+   * ELSE. No list of who else is in it, no studio, no plan
+   * hash beyond the one the public file is already addressed
+   * by — which is the same rule the rest of this view keeps.
+   * The two addresses are the ones a stranger could already
+   * reach: the public watch page, and the file it plays. [D-25]
+   */
+  collection?: CollectionEntry;
+}
+
+/** A published work this request's take is in. */
+export interface CollectionEntry {
+  /** What the producer called it. */
+  title: string;
+  /** The public page, for sharing. */
+  watch: string;
+  /** The file itself, for keeping. */
+  file: string;
 }
 
 /**
@@ -655,6 +695,16 @@ export function viewFor(
    * route that loaded the call hands over the one line.
    */
   outcome?: RequestOutcome | null,
+  /*
+   * AND WHAT IT ENDED UP IN.  [T16]
+   *
+   * Passed in for `terms`' and `outcome`'s own reason: this
+   * module decides what a participant may be told and reads
+   * nothing off a disk. Whether the holder is published, and
+   * where its public file is, are two reads the route has
+   * already done.
+   */
+  collection?: CollectionEntry | null,
 ): RequestView {
   return {
     id: request.id,
@@ -666,7 +716,22 @@ export function viewFor(
     ...(terms ? { terms: { hash: terms.hash, text: terms.text } } : {}),
     ...(request.consent ? { consent: request.consent } : {}),
     ...(outcome && outcome.state !== 'waiting' ? { outcome } : {}),
+    /*
+     * AND ONLY WHERE THE TAKE WAS USED. A request that was
+     * passed over, or is still waiting, has nothing in the
+     * finished work — and handing its holder the address of a
+     * published piece they are not in would be telling them
+     * about somebody else's. The caller establishes the
+     * publication; this establishes the entitlement, because
+     * that is the half of it this module can see. [D-03]
+     */
+    ...(collection && usedIt(request) ? { collection } : {}),
   };
+}
+
+/** Whether this request's work is actually in the finished thing. */
+export function usedIt(request: ParticipationRequest): boolean {
+  return request.state === 'accepted' || request.state === 'attached';
 }
 
 /**

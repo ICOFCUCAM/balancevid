@@ -54,6 +54,8 @@ const CLAIM = code('app/api/participate/[kind]/[id]/route.ts');
  * refusal. Those are still read out of `CLAIM`. [D-19]
  */
 const MINT = code('src/web/claim.ts');
+const KEPT = code('app/take/mine.ts');
+const LIBRARY = code('app/take/library/Library.tsx');
 const FIELDS = code('app/AvailabilityFields.tsx');
 const CONN = code('app/take/connections.ts');
 /*
@@ -77,6 +79,22 @@ describe('the home is reachable without an account', () => {
     expect(mayBePublic('/take', 'GET')).toBe(true);
     expect(mayBePublic('/take/', 'GET')).toBe(true);
     expect(mayBePublic('/api/participate', 'GET')).toBe(true);
+  });
+
+  /*
+   * AND THE LIBRARY, FOR THE SAME REASON AND WITH THE SAME
+   * SAFETY. There is no sign-in on the Take App, so a page
+   * behind one is a page nobody this product is for can open
+   * — and the server has nothing to hand over anyway: the
+   * list of links is in that browser's own storage, and each
+   * is read through `/api/take/<link>`, where the link IS the
+   * credential. [T16, D-03]
+   */
+  it('opens the library to a stranger, because it carries nothing', () => {
+    expect(mayBePublic('/take/library', 'GET')).toBe(true);
+    expect(mayBePublic('/take/library/', 'GET')).toBe(true);
+    /* And it is a page, not a door: nothing is written there. */
+    expect(mayBePublic('/take/library', 'POST')).toBe(false);
   });
 
   /*
@@ -121,23 +139,54 @@ describe('taking part without an invitation', () => {
    */
   it('requires the author to have opened it to anyone, and listed it', () => {
     /*
-     * `anyone` IS ASKED FOR ALL THREE KINDS, WHERE THE MINTING IS.
-     * `listed` IS ASKED HERE, BECAUSE IT IS THIS DOOR'S ALONE: an
-     * unlisted item a stranger reached by guessing an id is not a
-     * thing to let them write to, and a campaign page IS a
-     * listing in its own right. [GO-VIRAL V-4]
+     * ONCE, NOW, AND NOT THREE TIMES — WHICH IS A STRONGER CLAIM
+     * THAN THE ONE THIS TEST USED TO MAKE.
+     *
+     * It counted three copies of each condition, one per kind,
+     * because that is how `claim` was written. The call page then
+     * needed to ask the same question without minting anything —
+     * it was drawing an ENTER button from the CALL's clock while
+     * the route refused on the TRACK's conditions — and a fourth
+     * copy on the page would have been the copy that goes stale.
+     * The conditions moved into `openness`, which `claim` calls
+     * three times and `claimable` calls once.
+     *
+     * So the assertion is now that there is ONE of each, and that
+     * every kind goes through it. Three copies would pass the old
+     * test and fail this one, which is the right way round.
+     *
+     * `listed` IS ASKED AT THE DOOR, BECAUSE IT IS THAT DOOR'S
+     * ALONE: an unlisted item a stranger reached by guessing an id
+     * is not a thing to let them write to, and a campaign page IS
+     * a listing in its own right. [GO-VIRAL V-4]
      */
     const opened = MINT.match(
-      /if \(!maySubmit\(publication, 'anyone', now\)\) return \{ refused: 'closed' \};/g);
-    expect(opened).toHaveLength(3);
+      /if \(!maySubmit\(publication, 'anyone', now\)\) return 'closed';/g);
+    expect(opened).toHaveLength(1);
     expect(CLAIM).toMatch(/also: \(publication\) => isListed\(publication as never\)/);
+  });
+
+  /* Every kind goes through the one gate, and so does the page. */
+  it('sends all three kinds, and the page, through one gate', () => {
+    /*
+     * SIX ASKINGS OF ONE QUESTION: three kinds at the door that
+     * mints, and the same three at the one that only looks. A
+     * seventh would be somebody having written the conditions
+     * out again. [D-19]
+     */
+    const asked = MINT.match(/await openness\(/g);
+    expect(asked).toHaveLength(6);
+    /* Three of them mint; the other three only answer. */
+    const shut = MINT.match(/if \(shut !== 'open'\) return \{ refused: shut \};/g);
+    expect(shut).toHaveLength(3);
+    expect(MINT).toMatch(/export async function claimable\(/);
   });
 
   /* Unpublished or withdrawn is refused before anything else. */
   it('refuses anything unpublished or withdrawn', () => {
     const guards = MINT.match(
-      /if \(!publication \|\| publication\.unpublishedAt\) return \{ refused: 'missing' \};/g);
-    expect(guards).toHaveLength(3);
+      /if \(!publication \|\| publication\.unpublishedAt\) return 'missing';/g);
+    expect(guards).toHaveLength(1);
   });
 
   /*
@@ -176,10 +225,16 @@ describe('taking part without an invitation', () => {
     expect(MINT).not.toMatch(/saveCampaign|savePerformance|saveConversation/);
   });
 
-  /* A conversation is judged by the predicate that already exists. */
+  /*
+   * A conversation is judged by the predicate that already
+   * exists — and it is HANDED TO the shared gate rather than
+   * asked beside it, which is what keeps the gate one gate.
+   */
   it('uses isRespondable for a conversation', () => {
-    expect(MINT).toMatch(
-      /if \(!isRespondable\(conversation\)\) return \{ refused: 'closed' \};/);
+    expect(MINT).toMatch(/isRespondable\(conversation\)\);/);
+    /* And nowhere else: the other two kinds have no such
+       condition and pass `true`. */
+    expect(MINT.match(/isRespondable\(/g)).toHaveLength(2);
   });
 });
 
@@ -256,15 +311,75 @@ describe('my takes lives on the device', () => {
    * is asked nothing about who this person is. [U3, P16]
    */
   it('is held in local storage and nowhere else', () => {
-    expect(HOME).toMatch(/'balancevid\.take\.mine'/);
-    expect(HOME).toMatch(/window\.localStorage\.setItem\(MINE/);
-    /* No endpoint is asked who this person is. */
-    expect(HOME).not.toMatch(/\/api\/(me|account|profile|identity)/);
+    /*
+     * IT MOVED TO `mine.ts` WHEN THE LIBRARY ARRIVED, and the
+     * assertion moved with it. Two screens read this list now;
+     * the home writes it when somebody opens a link and the
+     * Library reads it to say what became of each.
+     */
+    expect(KEPT).toMatch(/'balancevid\.take\.mine'/);
+    expect(KEPT).toMatch(/window\.localStorage\.setItem\(MINE/);
+    /* No endpoint is asked who this person is — on any of the
+       three files that touch the list. */
+    for (const [where, text] of [
+      ['home', HOME], ['mine', KEPT], ['library', LIBRARY],
+    ] as const) {
+      expect(text, where).not.toMatch(/\/api\/(me|account|profile|identity)/);
+    }
+  });
+
+  /*
+   * AND ONE SPELLING OF THE KEY, WHICH IS THE WHOLE REASON IT
+   * MOVED. A second `balancevid.take.mine` written out in a
+   * second component is a second list, and the one that loses
+   * somebody's work is whichever page they did not open.
+   * [D-19]
+   */
+  it('is spelled in exactly one place', () => {
+    const spellings = [HOME, KEPT, LIBRARY, PAGE]
+      .flatMap((text) => [...text.matchAll(/'balancevid\.take\.mine'/g)]);
+    expect(spellings).toHaveLength(1);
   });
 
   /* And a device that cannot remember still works. [U-19] */
   it('survives storage being refused', () => {
-    expect(HOME).toMatch(/catch \{\s*\n[\s\S]{0,200}return \[\];/);
+    expect(KEPT).toMatch(/catch \{\s*\n[\s\S]{0,200}return \[\];/);
+  });
+
+  /*
+   * THE LIBRARY ASKS THE LINKS AND NOT AN ACCOUNT. There is no
+   * sign-in on the Take App by construction, so *my collection*
+   * can only be derived: each held link is read, and the ones
+   * whose answer carries a published work are the collection.
+   * A page that fetched a list of somebody's work by identity
+   * would be the one thing this surface has never done. [T16,
+   * D-03]
+   */
+  it('derives the collection from the links, not from an identity', () => {
+    expect(LIBRARY).toMatch(/\/api\/take\/\$\{encodeURIComponent\(mine\.link\)\}/);
+    expect(LIBRARY).toMatch(/readMine\(\)/);
+    /*
+     * AND IT ASKS NOTHING ELSE, which is the claim rather
+     * than *the word `account` does not appear*. It does
+     * appear — in the sentence on the page telling a person
+     * there is no account — and a test that forbade the word
+     * would be a test of the prose. [T-1]
+     */
+    const asks = [...LIBRARY.matchAll(/fetch\(\s*`?([^`',)]*)/g)]
+      .map((hit) => hit[1]!);
+    expect(asks).toHaveLength(1);
+    expect(asks[0]).toMatch(/^\/api\/take\//);
+  });
+
+  /*
+   * AND IT IS A DOWNLOAD, NOT A FETCH. `download` on an anchor
+   * is what a phone's own browser understands as *put this in
+   * my files*; a button that read the bytes into memory first
+   * would hold the same file twice on the device with the
+   * least room for it. [T16]
+   */
+  it('keeps a finished piece by handing the file to the browser', () => {
+    expect(LIBRARY).toMatch(/href=\{one\.collection\.file\}\s*\n?\s*download/);
   });
 
   /*
@@ -383,11 +498,21 @@ describe('the ceiling on claims', () => {
    * both doors. [GO-VIRAL V-4]
    */
   it('bounds every kind, against its own holder', () => {
+    /*
+     * ONCE, IN THE GATE, AND THE HOLDER IS STILL BUILT FROM THE
+     * KIND. The ceiling used to be written out three times; the
+     * count it reads was already shared, which is what made it
+     * possible to ask the same question at both doors — and now
+     * the asking is shared too.
+     */
     const bounds = MINT.match(
-      /if \(!mayClaim\(publication, await claimsSoFar\(holder\), now\)\) \{/g);
-    expect(bounds).toHaveLength(3);
-    expect(MINT).toMatch(
-      /const holder: RequestHolder = \{ kind: holderKind\(kind\), id \};/);
+      /if \(!mayClaim\(publication, await claimsSoFar\(holder\), now\)\) return 'closed';/g);
+    expect(bounds).toHaveLength(1);
+    const built = MINT.match(
+      /const holder: RequestHolder = \{ kind: holderKind\(kind\), id \};/g);
+    /* One in `claim`, one in `claimable` — the page counts the
+       same strangers the door does. */
+    expect(built).toHaveLength(2);
     expect(MINT).toMatch(/one\.holder\.kind === holder\.kind && one\.holder\.id === holder\.id/);
   });
 

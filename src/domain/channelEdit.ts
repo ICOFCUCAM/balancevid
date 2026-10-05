@@ -1317,6 +1317,19 @@ export function setStation(
     }
   }
 
+  /*
+   * CAPTIONS ARE A YES OR A NO, AND NOTHING IS CHARGED FOR THEM.
+   *   [§17, N-10]
+   *
+   * No `allowed` check beside it, unlike `audio` above: a
+   * product that priced a station's deaf audience would be
+   * pricing access to itself. `false` is removed rather than
+   * stored, because a flag that is off is the same as a flag
+   * that was never set and two shapes for one fact is two
+   * things a reader has to check. [D-21]
+   */
+  if (next.subtitles !== undefined && !next.subtitles) delete next.subtitles;
+
   for (const field of ['description', 'logoAssetId', 'bannerAssetId'] as const) {
     const value = next[field]?.trim();
     if (!value) delete next[field];

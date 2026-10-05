@@ -351,3 +351,105 @@ describe('an alternate audio path (N-10)', () => {
       .toBe(`${paths.channelAudio(MINE, 'fr')}/0.ts`);
   });
 });
+
+/*
+ * AND THE TWO PATHS THAT CAME AFTER IT.  [§7, §17, §23, D-06]
+ *
+ * `channelAudio` was *the one path function whose argument is
+ * typed by a stranger* when it was written, and it is now one of
+ * three: a caption track names a language the same way, and a
+ * rung of the ladder names a preset. Both reach the path builder
+ * off a URL, both refuse by producing a harmless path rather
+ * than by throwing, and the rule above holds for all three.
+ *
+ * TESTED SEPARATELY RATHER THAN BY A LOOP OVER THE THREE,
+ * because they do not refuse the same things: a language is a
+ * subtag and a rung is one of five words, and a test that
+ * checked them with one predicate would be a test that could
+ * not tell which of the two rules it was holding up. [D-04]
+ */
+describe('a caption path (§17)', () => {
+  const MINE = 'chan_aaaaaaaaaaaaaaaaaaaa';
+
+  it('stays inside the channel it was asked about', () => {
+    for (const language of [
+      '../../../../etc', '..', '../other', 'fr/../../..', '/etc/passwd',
+      'fr\u0000', 'f', '', ' ', 'a'.repeat(40),
+    ]) {
+      const where = paths.channelSubtitle(MINE, language);
+      expect(where.startsWith(paths.channelSubtitleRoot(MINE)), language)
+        .toBe(true);
+      expect(where.includes('..'), language).toBe(false);
+    }
+  });
+
+  /* The same rule about what a language IS, by the same
+     function — one answer, not two. [D-19] */
+  it('accepts a subtag and refuses what is not one', () => {
+    expect(paths.channelSubtitle(MINE, 'pt-BR'))
+      .toBe(`${paths.channelSubtitleRoot(MINE)}/pt-br`);
+    expect(paths.channelSubtitle(MINE, 'toolongatag'))
+      .toBe(paths.channelSubtitleRoot(MINE));
+  });
+
+  /* `.vtt`, because a caption segment is text and the route
+     serves it as `text/vtt`. Served as anything else a browser
+     hands the bytes to the wrong reader and the track silently
+     carries nothing. */
+  it('numbers a segment the way the others are, and names it vtt', () => {
+    expect(paths.channelSubtitleSegment(MINE, 'en', 12))
+      .toBe(`${paths.channelSubtitle(MINE, 'en')}/12.vtt`);
+    expect(paths.channelSubtitleSegment(MINE, 'en', -3))
+      .toBe(`${paths.channelSubtitle(MINE, 'en')}/0.vtt`);
+  });
+});
+
+describe('a rung path (§23)', () => {
+  const MINE = 'chan_aaaaaaaaaaaaaaaaaaaa';
+
+  it('stays inside the channel it was asked about', () => {
+    for (const rung of [
+      '../../../../etc', '..', '../other', 'low/../../..', '/etc/passwd',
+      'low\u0000', '', ' ', 'a'.repeat(40),
+    ]) {
+      const where = paths.channelRung(MINE, rung);
+      expect(where.startsWith(paths.channelRungRoot(MINE)), rung).toBe(true);
+      expect(where.includes('..'), rung).toBe(false);
+    }
+  });
+
+  /*
+   * THE FIVE WORDS AND NOTHING ELSE. A rung is a `QualityId`,
+   * not a free string: `standard` is a directory and `banana`
+   * is a request for one that will never hold a segment.
+   */
+  it('accepts a preset and refuses anything else', () => {
+    for (const rung of ['low', 'standard', 'high', 'maximum', 'ultra']) {
+      expect(paths.channelRung(MINE, rung))
+        .toBe(`${paths.channelRungRoot(MINE)}/${rung}`);
+    }
+    for (const rung of ['banana', 'LOW', 'constructor', 'standard ']) {
+      expect(paths.channelRung(MINE, rung), rung)
+        .toBe(paths.channelRungRoot(MINE));
+    }
+  });
+
+  /* Transport, like the house rendition it is an alternative
+     to, numbered on the same grid. */
+  it('numbers a segment the way the house rendition is', () => {
+    expect(paths.channelRungSegment(MINE, 'low', 12))
+      .toBe(`${paths.channelRung(MINE, 'low')}/12.ts`);
+  });
+
+  /*
+   * AND IT IS NOT INSIDE `stream/`. A set-top box is already
+   * reading that address and a ladder must not move what was
+   * already there. [D-18]
+   */
+  it('leaves the house rendition where it was', () => {
+    expect(paths.channelRungRoot(MINE).startsWith(paths.channelStream(MINE)))
+      .toBe(false);
+    expect(paths.channelSegment(MINE, 12))
+      .toBe(`${paths.channelStream(MINE)}/12.ts`);
+  });
+});

@@ -89,6 +89,78 @@ function AudioPicker({ audio }: { audio: Audio }) {
   );
 }
 
+/**
+ * The captions this channel is carrying.  [§17, N-10]
+ *
+ * THE WORDS WERE ALWAYS THERE AND NEVER REACHED THE WIRE. Every
+ * render this product finishes is written with a WebVTT sidecar
+ * beside it, and a channel scheduling that render broadcast the
+ * picture and the sound and left the captions on the disk. The
+ * playout engine now cuts them on the segment grid, the master
+ * playlist offers them, and this is the control.
+ *
+ * DRAWN FROM THE STREAM AND NOT FROM THE DOCUMENT, like the
+ * audio beside it. A CC button over a channel that is not
+ * producing captions is a viewer pressing it, seeing nothing,
+ * and concluding this product has none — a false conclusion
+ * from a true observation, which is the worst kind. [D-21]
+ *
+ * ONE TRACK IS STILL A CHOICE, which is the difference from
+ * `AudioPicker`. A viewer always hears something and the audio
+ * question is *which language*; the caption question is *do you
+ * want words on your picture*, and that has two answers however
+ * many languages there are. So the control appears over a
+ * single track and the first option is OFF. [D-04]
+ */
+function SubtitlePicker({ subs }: { subs: Audio }) {
+  return (
+    <label className="stn-bar-audio" data-testid="station-subtitles">
+      <Icon name="captions" size={14} />
+      <span className="stn-bar-audio-said">Subtitles</span>
+      <select value={subs.chosen} aria-label="Subtitles"
+              onChange={(event) => subs.pick(Number(event.target.value))}>
+        <option value={-1}>Off</option>
+        {subs.tracks.map((one) => (
+          <option key={one.id} value={one.id}>{one.label}</option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+/**
+ * How big a picture the viewer wants.  [§23, D-04, D-21]
+ *
+ * THE BAR USED TO SAY THIS CONTROL COULD NOT EXIST, because the
+ * wire was one rendition and a chooser over one choice is a
+ * control that does nothing. The wire is a ladder now — the
+ * same compositor at a second size, written beside the house
+ * rendition and offered in the master playlist only when the
+ * engine is actually writing it — so the control is real.
+ *
+ * AUTO IS FIRST AND IS WHERE IT STARTS. A ladder's whole point
+ * is that the player measures the line and chooses; the menu
+ * is for the viewer who knows something the measurement does
+ * not — a metered connection, a small screen, a hotel. It
+ * follows the player on Auto rather than going on saying 720p
+ * after the stream has stepped down.
+ */
+function QualityPicker({ levels }: { levels: Audio }) {
+  return (
+    <label className="stn-bar-audio" data-testid="station-quality">
+      <Icon name="faders" size={14} />
+      <span className="stn-bar-audio-said">Quality</span>
+      <select value={levels.chosen} aria-label="Picture quality"
+              onChange={(event) => levels.pick(Number(event.target.value))}>
+        <option value={-1}>Auto</option>
+        {levels.tracks.map((one) => (
+          <option key={one.id} value={one.id}>{one.label}</option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 export default function Station(
   { channelId, listing, first, tune, today }: {
     channelId: string; listing: Listing; first: On; tune?: Tuning;
@@ -104,6 +176,10 @@ export default function Station(
    * playing them. [N-10]
    */
   const [audio, setAudio] = useState<Audio>(
+    { tracks: [], chosen: -1, pick: () => undefined });
+  const [subs, setSubs] = useState<Audio>(
+    { tracks: [], chosen: -1, pick: () => undefined });
+  const [levels, setLevels] = useState<Audio>(
     { tracks: [], chosen: -1, pick: () => undefined });
 
   useEffect(() => {
@@ -302,7 +378,8 @@ export default function Station(
             border: '1px solid var(--line)', background: 'var(--screen-bed)',
           }}>
             <ChannelPlayer channelId={channelId} onAir={on.live}
-                           onAudio={setAudio} />
+                           onAudio={setAudio} onSubtitles={setSubs}
+                           onQuality={setLevels} />
           </div>
 
           {/*
@@ -313,27 +390,45 @@ export default function Station(
             * those are drawn here and two are not, and the two
             * are the point:
             *
-            * SUBTITLES. Nothing in this product makes one. A
-            * control that opens an empty menu is a promise the
-            * broadcaster never made and the viewer will try
-            * twice before believing. [D-21]
+            * SUBTITLES is here now, and it was not. The note
+            * that used to stand in this place said *nothing in
+            * this product makes one*, which was true of the
+            * WIRE and false of the product: `compose.ts` has
+            * written a WebVTT sidecar beside every render since
+            * INV-07, and the playout engine walked past it. It
+            * cuts them on the segment grid now, and this
+            * control appears on the same terms the audio one
+            * does — only when the stream turned out to have
+            * them. [§17]
             *
-            * QUALITY. The wire is one rendition — `STREAM` is
-            * read once at import and is constant across every
-            * programme, which is the invariant the whole
-            * segmenter is built around. A chooser over one
-            * choice is a control that does nothing, and a
-            * SECOND rendition is a second encode per segment on
-            * a machine keeping up with real time: a decision,
-            * not a menu. [playout/segment.ts]
+            * QUALITY is here now too, and the note that stood
+            * in its place said the wire was one rendition and
+            * a second was *a decision, not a menu*. The
+            * decision is taken: `STREAM_LADDER` is the
+            * installation's, the compositor takes the size as
+            * an argument rather than reading it from a
+            * constant, and the engine writes the rungs after
+            * the house rendition. The constancy rule the
+            * segmenter is built around was always per
+            * RENDITION — it never said a channel transmits
+            * one. [playout/segment.ts, §23]
             *
-            * AUDIO is here only when the stream turned out to
-            * have more than one track — not when the document
-            * says it should.
+            * ALL THREE APPEAR ONLY WHEN THE STREAM TURNED OUT
+            * TO HAVE THEM — not when the document says it
+            * should. A control over a rendition the encoder is
+            * not writing is a viewer choosing something that
+            * goes silent or black, and blaming their own
+            * connection. [D-21, U-19]
             */}
           <div className="stn-bar" data-testid="station-bar">
             {audio.tracks.length > 1 && (
               <AudioPicker audio={audio} />
+            )}
+            {subs.tracks.length > 0 && (
+              <SubtitlePicker subs={subs} />
+            )}
+            {levels.tracks.length > 1 && (
+              <QualityPicker levels={levels} />
             )}
             <Link href="/tv/guide" className="stn-bar-way">
               <Icon name="calendar" size={14} />

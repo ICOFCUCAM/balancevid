@@ -10,7 +10,8 @@ import { roomFor } from '../src/domain/rooms.js';
 import type { StudioId } from '../src/domain/account.js';
 import { MenuButton, RightClickHint, useMenu, type MenuEntry } from './Menu.js';
 import { useRecordActions } from './RecordMenu.js';
-import AccountMenu, { GroundToggle } from './AccountMenu.js';
+import AccountMenu from './AccountMenu.js';
+import { GroundToggle } from './Ground.js';
 
 /**
  * The workspace.  [Doctrine §19, §13, D-24, STUDIO-TWO §13, CHANNEL §13]
@@ -311,7 +312,8 @@ export default function Workspace({
                     {...(hero ? { heroHref: hero.href } : {})} />
 
       {/* ============ THE WORK — lit ================================= */}
-      <div data-ground="light" data-building data-testid="building" style={{
+      <div data-ground="light" data-ground-host data-building
+           data-testid="building" style={{
         display: 'flex', flexDirection: 'column', minHeight: 0,
       }}>
         {dialog}

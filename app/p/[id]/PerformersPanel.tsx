@@ -271,6 +271,17 @@ export default function PerformersPanel({
                   + `\n\nOpen this on your phone: ${origin}/take/${made.link}`}
                 qrSrc={`/api/requests/${made.link.split('.')[0]}/qr`}
                 qrCaption="Scan to record your part"
+                /*
+                  * AND THE THIRD WAY, for the machine the other
+                  * two cannot reach. A link goes through a
+                  * message and a square goes to a phone held up
+                  * to this screen; neither reaches a capture
+                  * station at the front of a hall, which has
+                  * four cameras, a keyboard and no way to be
+                  * sent anything. Ten letters typed across the
+                  * room is what does. [T-2, P24]
+                  */
+                codeSrc={`/api/requests/${made.link.split('.')[0]}/code`}
               />
             </div>
           )}

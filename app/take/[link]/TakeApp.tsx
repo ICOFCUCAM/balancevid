@@ -17,6 +17,7 @@ import {
 } from './queue.js';
 import InstallBar from './InstallBar.js';
 import { useCamera } from '../../useCamera.js';
+import { useFeedLevels } from '../../t/[id]/useFeedLevels.js';
 import { useQuality } from '../../useQuality.js';
 import { QUALITIES } from '../../../src/domain/quality.js';
 import { cameraConstraints } from '../../useDevices.js';
@@ -172,6 +173,17 @@ export default function TakeApp({ link }: { link: string }) {
   const camera = useCamera(!soundOnly && !mustAgree);
   const grade = useQuality('recording');
 
+  /*
+   * THE SETTINGS SHEET, OPEN OR SHUT.  [T3, D-04]
+   *
+   * A `<details>` below the picture became a sheet over it, so
+   * this is state rather than the browser's own. The trade is
+   * worth naming: a disclosure needed no React and pushed the
+   * record button off the bottom of a phone when it was open,
+   * which was measured in a screenshot.
+   */
+  const [setup, setSetup] = useState(false);
+
   const recording = useMasterRecording({
     sink,
     video: soundOnly ? undefined : cameraConstraints(
@@ -197,6 +209,27 @@ export default function TakeApp({ link }: { link: string }) {
     audioOnly: soundOnly,
     onFinished: () => { /* Nothing to wait on: see `takeSink`. */ },
   });
+
+  /*
+   * WHETHER THE MICROPHONE IS HEARING ANYTHING.  [T3, U-19]
+   *
+   * A church recording a service on a phone at the back of a
+   * hall has exactly one way to discover the microphone was
+   * muted, and it is afterwards. A meter is the only thing on
+   * a viewfinder that answers that before the forty minutes
+   * rather than after them.
+   *
+   * `useFeedLevels` IS THE CONTROL ROOM'S OWN METER, reused
+   * rather than reimplemented. A second loudness calculation
+   * in this codebase would be a second answer to *is anybody
+   * talking*, and the two would disagree on exactly the quiet
+   * sentence where it matters. [D-19]
+   */
+  const tapped = useMemo(
+    () => (recording.stream ? [{ id: 'take', stream: recording.stream }] : []),
+    [recording.stream]);
+  const levels = useFeedLevels(tapped, recording.stream !== null);
+  const level = levels['take']?.energy ?? 0;
 
   /*
    * THE WORKER, AND A DRAIN ON ARRIVAL.  [T13a]
@@ -670,6 +703,16 @@ export default function TakeApp({ link }: { link: string }) {
             <span className="tk-ident-says">Recording</span>
           </span>
         </a>
+        {/*
+          * A WAY OUT. This page is opened from a link in a
+          * message, so the browser's back button goes to the
+          * message and not to anything of this product's — and
+          * a page with no exit is a page somebody closes the
+          * tab on rather than coming back to.
+          */}
+        <a href="/take" className="tk-bar-way" aria-label="Leave this take">
+          <Icon name="close" size={15} />
+        </a>
       </header>
       <main className="tk-stage">
 
@@ -697,128 +740,367 @@ export default function TakeApp({ link }: { link: string }) {
 
         {/* WHAT IS BEING ASKED, in the producer's own words. [T3] */}
         {/*
-          * THE ASK READS AS A SENTENCE, NOT A TITLE CARD. It was
-          * letter-spaced uppercase and centred — which is how a
-          * film's opening credit is set, and this is an
-          * instruction somebody has to follow. [T3]
-          */}
-        <p data-testid="take-title" className="tk-ask">
-          {reference?.title ?? (view ? asksFor(view.assignment.kind) : '…')}
-        </p>
-        <p data-testid="take-asks" className="tk-ask-said">
-          {view?.assignment.asks ?? ''}
-        </p>
-
-        {/*
-          * WHICH TAKE THIS IS, COUNTING THE ONES ALREADY SENT.
-          *   [TAKE-APP T4; GO-VIRAL V-7]
+          * THE TWO STEPS, SAID BEFORE THE FIRST ONE.  [T4, U-19]
           *
-          * `submitted` is the server's count and `kept` is this
-          * visit's — and the two must not overlap, so only the
-          * recordings that have NOT been sent are added. A take
-          * sent a moment ago moves from one to the other when
-          * the view is refreshed above.
+          * Recording is not the end of this: what you record is
+          * reviewed and then sent, and a performer who did not
+          * know that is one who stops after the first take
+          * thinking they have finished. Two, because there are
+          * two — not a five-step bar with three greyed, which
+          * is a progress indicator inventing a process.
           */}
-        <p data-testid="take-number" className="small muted" style={{ margin: 0 }}>
-          {reference ? 'Take' : 'Answer'}{' '}
-          {(view?.submitted ?? 0)
-            + kept.filter((one) => one.state === 'kept' || one.state === 'sending').length
-            + 1}
-          {view?.allowed.takes ? ` of ${view.allowed.takes}` : ''}
-        </p>
+        <ol className="tk-steps" data-testid="take-steps">
+          <li className="tk-step" aria-current="step">
+            <span className="tk-step-no">1</span>
+            Your take
+          </li>
+          <li className="tk-step">
+            <span className="tk-step-no">2</span>
+            Review and send
+          </li>
+        </ol>
 
         {/*
-          * THE CAMERA, WHICH IS THE WHOLE PAGE ON A PHONE. Mirrored,
-          * because a performer watching themselves is using it as a
-          * mirror and an unmirrored preview makes people reach the
-          * wrong way. The recording itself is not mirrored.
+          * THE VIEWFINDER IS THE PAGE.  [TAKE-APP T3; D-04, U-19]
+          *
+          * IT WAS A BLACK RECTANGLE WITH FOUR WORDS IN IT. The
+          * ask was a paragraph above the picture, the clock a
+          * line below it, the camera and quality a disclosure
+          * below that, and the only button at the bottom of a
+          * 844-pixel phone. Everything on it was true and none
+          * of it was designed: a person about to sing into
+          * their own phone was looking at a form with a hole in
+          * the middle.
+          *
+          * SO THE PICTURE FILLS THE SCREEN AND EVERYTHING ELSE
+          * SITS ON THE GLASS. That is what every camera made in
+          * the last fifteen years does, and the reason is not
+          * fashion: a performer frames themselves by looking at
+          * themselves, and a control that is not over the
+          * picture is a control they look away to find. The
+          * chrome is a scrim at the top and one at the bottom,
+          * so the middle of the frame — which is where the
+          * person is — is never covered.
+          *
+          * AND NOTHING HERE IS NEW MACHINERY. `useMasterRecording`
+          * still arms, counts in, records and stops;
+          * `useCamera` still chooses; `useQuality` still grades;
+          * the level comes off `useFeedLevels`, which the
+          * control room's meters already use. What changed is
+          * where the parts are. [D-19]
           */}
-        {/*
-          * AND A SPOKEN ANSWER HAS NO PICTURE, so it does not get a
-          * phone-sized empty rectangle saying "the camera is off".
-          * A box the height of the screen with nothing in it reads as
-          * something broken rather than as something not asked for.
-          * [U-04, B14d]
-          */}
-        <div data-testid="take-stage" data-sound={soundOnly ? 'true' : 'false'}
-             style={{
-               position: 'relative', width: '100%',
-               ...(soundOnly
-                 ? { minHeight: 132, display: 'grid', placeItems: 'center' }
-                 : { aspectRatio: '3 / 4' }),
-               borderRadius: 'var(--radius-screen)', overflow: 'hidden',
-               background: 'var(--screen-bed)', border: '1px solid var(--line)',
-             }}>
-          {soundOnly && (
-            <span className="row" style={{
-              gap: 8, color: 'var(--ink-300)', fontSize: 'var(--text-sm)',
-            }}>
-              <Icon name="mic" size={16} />
-              {recording.phase === 'recording' ? 'Listening\u2026'
-                : recording.phase === 'idle' ? 'Sound only \u2014 nothing is filmed'
-                  : 'Ready'}
-            </span>
-          )}
-          {!soundOnly && (
-            <video
-              data-testid="take-camera" ref={recording.videoRef}
-              muted playsInline autoPlay
-              style={{
-                width: '100%', height: '100%', objectFit: 'cover',
-                transform: 'scaleX(-1)', display: 'block',
-              }}
-            />
-          )}
-          {recording.phase === 'counting' && (
-            <div data-testid="take-countin" style={overlay}>
-              {/* The display step, which exists for exactly this: "a
-                  display figure: the clock, the counter". */}
-              <span style={{
-                fontSize: 'var(--text-2xl)',
-                fontWeight: 'var(--weight-bold)',
-              }}>
-                {Math.max(1, Math.ceil(COUNT_IN_SECONDS - recording.position))}
-              </span>
-            </div>
-          )}
+        <div className="rec" data-testid="take-stage"
+             data-sound={soundOnly ? 'true' : 'false'}
+             data-phase={recording.phase}>
+          {soundOnly
+            ? (
+              /*
+                * A SPOKEN ANSWER HAS NO PICTURE, so it does not
+                * get a phone-sized empty rectangle. What it gets
+                * is the only thing there is to look at while
+                * talking: whether the microphone is hearing you.
+                * [U-04, B14d]
+                */
+              <div className="rec-sound" data-testid="take-sound">
+                <span aria-hidden="true" className="rec-sound-mark">
+                  <Icon name="mic" size={26} />
+                </span>
+                <Meter level={level} tall />
+                <p className="rec-sound-says">
+                  {recording.phase === 'recording' ? 'Listening'
+                    : recording.phase === 'idle'
+                      ? 'Sound only — nothing is filmed' : 'Ready'}
+                </p>
+              </div>
+            )
+            : (
+              <video
+                data-testid="take-camera" ref={recording.videoRef}
+                muted playsInline autoPlay className="rec-glass"
+              />
+            )}
+
+          {/*
+            * THE STANDBY, WHICH IS NOT AN ERROR MESSAGE. *The
+            * camera is off* in the middle of black is a sentence
+            * about a fault. This is a lens, the name of the
+            * thing being asked for, and nothing else — the
+            * picture arrives over it the moment it is turned
+            * on. [C-46, U-19]
+            */}
           {recording.phase === 'idle' && !soundOnly && (
-            <div style={overlay}>
-              <span className="small muted">The camera is off</span>
+            <div className="rec-standby" data-testid="take-standby">
+              <span aria-hidden="true" className="rec-lens">
+                <Icon name="camera" size={24} />
+              </span>
+              <p className="rec-standby-says">Your camera, when you are ready</p>
             </div>
           )}
-          {recording.phase === 'recording' && (
-            <span data-testid="take-live" style={{
-              position: 'absolute', top: 10, left: 10, padding: '3px 8px',
-              borderRadius: 'var(--radius-screen)', background: 'rgba(0,0,0,0.72)',
-              border: '1px solid rgba(255,255,255,0.16)',
-              color: '#e0674f', fontSize: 'var(--text-2xs)',
-              fontWeight: 'var(--weight-bold)', letterSpacing: '0.08em',
-              display: 'inline-flex', alignItems: 'center', gap: 5,
-            }}>
-              <Icon name="live" size={9} /> RECORDING
+
+          {/*
+            * THE THIRDS, WHILE THERE IS STILL TIME TO MOVE.
+            *
+            * A volunteer at the back of a hall with a phone on a
+            * rail is doing the one job a grid helps with, and
+            * every camera application draws one for that reason.
+            * It goes the moment recording starts, because by
+            * then it is lines across somebody's face.
+            */}
+          {!soundOnly && (recording.phase === 'ready'
+            || recording.phase === 'arming') && (
+            <div aria-hidden="true" className="rec-guides"
+                 data-testid="take-guides" />
+          )}
+
+          {/* ---- on the glass: the top ---------------------------- */}
+          <div className="rec-top">
+            <span className="rec-chip" data-testid="take-number">
+              {reference ? 'Take' : 'Answer'}{' '}
+              {(view?.submitted ?? 0)
+                + kept.filter((one) => one.state === 'kept'
+                  || one.state === 'sending').length
+                + 1}
+              {view?.allowed.takes ? ` of ${view.allowed.takes}` : ''}
             </span>
+
+            {recording.phase === 'recording' && (
+              <span className="rec-live" data-testid="take-live">
+                <span aria-hidden="true" className="rec-live-dot" />
+                REC
+              </span>
+            )}
+
+            <span className="rec-top-right">
+              {/*
+                * FLIP, WHICH IS THE ONE CONTROL A PHONE CAMERA
+                * HAS AND THIS ONE DID NOT. Singing to the phone
+                * and filming the room are the two things this
+                * app is for, and the difference between them
+                * was three taps inside a disclosure. Drawn only
+                * where there IS more than one camera, and only
+                * once the browser will name them — before
+                * permission it answers with unnamed entries and
+                * a flip button over one camera is a button that
+                * does nothing. [D-21, useDevices]
+                */}
+              {!soundOnly && camera.devices.named
+                && camera.devices.cameras.length > 1
+                && (recording.phase === 'idle' || recording.phase === 'ready') && (
+                <button type="button" className="rec-ctl"
+                        data-testid="take-flip"
+                        aria-label="Switch camera"
+                        onClick={() => camera.chooseCamera(nextCamera(
+                          camera.devices.cameras, camera.cameraId))}>
+                  <Icon name="loop" size={17} />
+                </button>
+              )}
+              {(recording.phase === 'idle' || recording.phase === 'ready') && (
+                <button type="button" className="rec-ctl"
+                        data-testid="take-setup-open"
+                        aria-label="Camera and quality"
+                        aria-expanded={setup}
+                        onClick={() => setSetup(!setup)}>
+                  <Icon name="faders" size={17} />
+                </button>
+              )}
+            </span>
+          </div>
+
+          {/*
+            * THE COUNT-IN, AS A NUMBER AND NOTHING ELSE. It was
+            * a number on a flat black wash over the whole
+            * picture, which is the moment a performer most
+            * wants to see where they are standing. The wash is
+            * a soft vignette now and the figure sits in it.
+            */}
+          {recording.phase === 'counting' && (
+            <div className="rec-count" data-testid="take-countin">
+              <span>{Math.max(1, Math.ceil(
+                COUNT_IN_SECONDS - recording.position))}</span>
+            </div>
+          )}
+
+          {/* ---- on the glass: the bottom ------------------------- */}
+          <div className="rec-foot">
+            {/*
+              * THE ASK, WHERE SOMEBODY CAN READ IT WHILE
+              * LOOKING AT THE LENS.  [T3]
+              *
+              * It was a paragraph above the picture, which on a
+              * phone means it is off the top of the screen the
+              * moment the viewfinder is the size of a
+              * viewfinder. A performer who cannot see what they
+              * were asked to do while doing it is a performer
+              * who does it wrong — so it is a prompter line,
+              * over the scrim, in the producer's own words.
+              */}
+            {/*
+              * AND IT NEVER READS `…`.  [T3, C-46]
+              *
+              * The producer's own words where there are any,
+              * the song's title where there is one, and
+              * failing both what the page is FOR — because a
+              * prompter line of three dots over somebody's
+              * camera says nothing at all, and the standby
+              * sentence underneath is about the camera rather
+              * than about the ask.
+              */}
+            {view && (
+              <p className="rec-prompt" data-testid="take-asks">
+                {view.assignment.asks || reference?.title
+                  || asksFor(view.assignment.kind)}
+              </p>
+            )}
+
+            <div className="rec-read">
+              {/*
+                * THE LEVEL, WHICH IS THE OTHER HALF OF A
+                * VIEWFINDER. A church recording a service on a
+                * phone at the back of a hall has exactly one
+                * way to discover the microphone was muted, and
+                * it is afterwards. [useFeedLevels]
+                */}
+              <Meter level={level} />
+              <p className="rec-clock mono" data-testid="take-clock">
+                {formatMasterPosition(Math.round(
+                  Math.max(0, recording.position) * HOUSE_SAMPLE_RATE))}
+                {reference && (
+                  <span className="rec-clock-of">
+                    {' / '}
+                    {formatMasterPosition(Math.round(
+                      songSeconds * HOUSE_SAMPLE_RATE))}
+                  </span>
+                )}
+              </p>
+            </div>
+
+            {/*
+              * ONE ROUND THING ON THE SCREEN, AND IT IS THE ONE
+              * YOU PRESS. Every other control here is a pill or
+              * a square; this is a circle, it is the largest
+              * target on the page, and it is in the place a
+              * thumb rests. Its inside is a red disc while
+              * there is something to start and a square while
+              * there is something to stop — the two shapes
+              * every recorder has used since tape.
+              */}
+            {recording.phase === 'idle' && (
+              <button type="button" className="rec-go" data-testid="take-arm"
+                      aria-label={soundOnly ? 'Turn the microphone on'
+                        : 'Turn the camera on'}
+                      onClick={() => void recording.arm()}>
+                <span aria-hidden="true" className="rec-go-in" />
+              </button>
+            )}
+            {recording.phase === 'arming' && (
+              <button type="button" className="rec-go" disabled
+                      aria-label="Preparing">
+                <span aria-hidden="true" className="rec-go-in" data-wait="true" />
+              </button>
+            )}
+            {recording.phase === 'ready' && (
+              <button type="button" className="rec-go" data-testid="take-start"
+                      aria-label={reference ? 'Start recording'
+                        : 'Start answering'}
+                      onClick={() => void begin()}>
+                <span aria-hidden="true" className="rec-go-in" />
+              </button>
+            )}
+            {(recording.phase === 'counting'
+              || recording.phase === 'recording') && (
+              <button type="button" className="rec-go" data-testid="take-stop"
+                      aria-label="Stop" onClick={end}>
+                <span aria-hidden="true" className="rec-go-in" data-stop="true" />
+              </button>
+            )}
+            {recording.phase === 'finishing' && (
+              <button type="button" className="rec-go" disabled
+                      aria-label="Saving">
+                <span aria-hidden="true" className="rec-go-in" data-wait="true" />
+              </button>
+            )}
+
+            {/*
+              * AND WHAT THE BUTTON WILL DO, under it, because a
+              * circle is unambiguous about being pressable and
+              * silent about what it starts.
+              */}
+            <p className="rec-go-says">
+              {recording.phase === 'idle'
+                ? (soundOnly ? 'Turn the microphone on' : 'Turn the camera on')
+                : recording.phase === 'arming' ? 'Preparing…'
+                  : recording.phase === 'ready'
+                    ? (reference ? 'Start recording' : 'Start answering')
+                    : recording.phase === 'finishing' ? 'Saving…' : 'Stop'}
+            </p>
+          </div>
+
+          {/*
+            * THE SETTINGS, AS A SHEET OVER THE GLASS.  [D-04]
+            *
+            * They were a disclosure BELOW the picture, which put
+            * the only button on the page off the bottom of a
+            * phone when it was open — measured in a screenshot.
+            * Over the picture they cost no layout at all, and
+            * they close by pressing the same thing that opened
+            * them.
+            */}
+          {setup && (recording.phase === 'idle'
+            || recording.phase === 'ready') && (
+            <div className="rec-sheet" data-testid="take-setup">
+              <div className="rec-sheet-head">
+                <span>Camera and quality</span>
+                <button type="button" className="rec-ctl"
+                        aria-label="Close" onClick={() => setSetup(false)}>
+                  <Icon name="close" size={15} />
+                </button>
+              </div>
+              {!soundOnly && camera.devices.named
+                && camera.devices.cameras.length > 1 && (
+                <label className="rec-field">
+                  <span>Camera</span>
+                  <select className="small" data-testid="take-camera-pick"
+                          value={camera.cameraId ?? ''}
+                          onChange={(event) => camera.chooseCamera(
+                            event.target.value || undefined)}>
+                    <option value="">This phone’s default</option>
+                    {camera.devices.cameras.map((one) => (
+                      <option key={one.deviceId} value={one.deviceId}>
+                        {one.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              <label className="rec-field">
+                <span>Quality</span>
+                <select className="small" data-testid="take-quality-pick"
+                        value={grade.id}
+                        onChange={(event) => grade.choose(
+                          event.target.value as typeof grade.id)}>
+                  {grade.offered.map((one) => (
+                    <option key={one} value={one}>{QUALITIES[one].label}</option>
+                  ))}
+                </select>
+              </label>
+              {/*
+                * WHAT IT COSTS, AND IN THE RIGHT UNITS. `needs`
+                * is the LIVE menu's sentence and talks about the
+                * uplink; `records` is the same preset described
+                * as a recording — megabytes a minute, which is
+                * what somebody choosing 2160p before a
+                * forty-minute service needs to know. [U-19]
+                */}
+              <p className="rec-sheet-says">{grade.quality.records}</p>
+              {camera.lost && (
+                <p className="rec-sheet-says" data-testid="take-camera-lost"
+                   data-bad="true">
+                  {camera.lost} is no longer connected — using the default.
+                </p>
+              )}
+            </div>
           )}
         </div>
-
-        {/*
-          * THE SONG'S CLOCK, which is the only clock on this screen —
-          * and there is no clock at all when there is no song, so it
-          * counts up rather than towards a total of 00:00.000. A
-          * denominator of nothing is a progress bar that is always
-          * full. [U-04, B14d]
-          */}
-        <p data-testid="take-clock" className="mono readout" style={{
-          margin: 0, fontSize: 'var(--text-sm)',
-        }}>
-          {formatMasterPosition(Math.round(
-            Math.max(0, recording.position) * HOUSE_SAMPLE_RATE))}
-          {reference && (
-            <span style={{ color: 'var(--ink-400)' }}>
-              {' / '}
-              {formatMasterPosition(Math.round(songSeconds * HOUSE_SAMPLE_RATE))}
-            </span>
-          )}
-        </p>
 
         {recording.error && (
           <p data-testid="take-error" className="small" style={{
@@ -829,124 +1111,6 @@ export default function TakeApp({ link }: { link: string }) {
           <p data-testid="take-said" className="small" style={{
             margin: 0, color: 'var(--ink-on-bad)', textAlign: 'center',
           }}>{said}</p>
-        )}
-
-        {/*
-          * THE TWO THINGS TO SET BEFORE RECORDING, AND ONLY BEFORE.
-          *   [T3; U-19]
-          *
-          * A phone has a front camera and a back one, and which is
-          * right depends entirely on whether the performer is
-          * singing to the phone or filming the room. Nothing here
-          * used to ask.
-          *
-          * SHOWN ONLY WHILE THEY STILL MATTER. Once the count-in has
-          * started, changing the camera would reopen the stream
-          * mid-take — so these are gone from the moment recording
-          * begins, rather than present and refusing.
-          *
-          * AND THE CAMERA LIST IS ONLY REAL AFTER PERMISSION. Before
-          * that the browser answers with unnamed entries, so the
-          * picker waits for `named` rather than offering a menu of
-          * "Camera 1, Camera 2". [useDevices]
-          */}
-        {!soundOnly
-          && (recording.phase === 'idle' || recording.phase === 'ready') && (
-          /*
-            * SHUT UNTIL IT IS ASKED FOR.  [D-04, U-19]
-            *
-            * A camera picker, a quality picker and a sentence
-            * about megabytes a minute stood between the
-            * viewfinder and the only button on the page, so on
-            * a 390x844 phone *Turn the camera on* was at the
-            * very bottom of the screen — measured in a
-            * screenshot. Almost nobody changes either setting,
-            * and the one who does will look for them.
-            */
-          <details data-testid="take-setup" className="tk-setup">
-            <summary className="tk-setup-head">
-              <Icon name="faders" size={14} />
-              Camera and quality
-              <span className="tk-setup-now">{grade.quality.label}</span>
-              <span aria-hidden="true" className="tk-setup-mark">
-                <Icon name="chevron" size={14} />
-              </span>
-            </summary>
-            <div className="tk-setup-body">
-            {camera.devices.named && camera.devices.cameras.length > 1 && (
-              <label className="grow" style={{ margin: 0, minWidth: 130 }}>
-                <span className="module-sub">Camera</span>
-                <select className="small" data-testid="take-camera-pick"
-                        value={camera.cameraId ?? ''}
-                        onChange={(event) => camera.chooseCamera(
-                          event.target.value || undefined)}>
-                  <option value="">This phone’s default</option>
-                  {camera.devices.cameras.map((one) => (
-                    <option key={one.deviceId} value={one.deviceId}>
-                      {one.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-            <label className="grow" style={{ margin: 0, minWidth: 130 }}>
-              <span className="module-sub">Quality</span>
-              <select className="small" data-testid="take-quality-pick"
-                      value={grade.id}
-                      onChange={(event) => grade.choose(
-                        event.target.value as typeof grade.id)}>
-                {grade.offered.map((one) => (
-                  <option key={one} value={one}>{QUALITIES[one].label}</option>
-                ))}
-              </select>
-            </label>
-            {/*
-              * WHAT IT COSTS, AND IN THE RIGHT UNITS.
-              *
-              * `needs` is the LIVE menu's sentence and talks about the
-              * uplink — "about 770 kB/s up" — which is meaningless
-              * under a record button. `records` is the same preset
-              * described as a recording: megabytes a minute, which is
-              * what a performer choosing 2160p on a phone needs to
-              * know before they sing for four minutes. [U-19]
-              */}
-            <p className="small muted" style={{ margin: 0, width: '100%' }}>
-              {grade.quality.records}
-            </p>
-            {camera.lost && (
-              <p className="small" data-testid="take-camera-lost"
-                 style={{ margin: 0, width: '100%', color: 'var(--ink-on-bad)' }}>
-                {camera.lost} is no longer connected — using the default.
-              </p>
-            )}
-            </div>
-          </details>
-        )}
-
-        {/* ONE BUTTON AT A TIME, because there is one thing to do next. */}
-        {recording.phase === 'idle' && (
-          <button className="ctl lg" data-testid="take-arm" style={wide}
-                  onClick={() => void recording.arm()}>
-            {soundOnly ? 'Turn the microphone on' : 'Turn the camera on'}
-          </button>
-        )}
-        {recording.phase === 'arming' && (
-          <button className="ctl lg" disabled style={wide}>Preparing…</button>
-        )}
-        {recording.phase === 'ready' && (
-          <button className="ctl lg primary" data-testid="take-start" style={wide}
-                  onClick={() => void begin()}>
-            {reference ? 'Start recording' : 'Start answering'}
-          </button>
-        )}
-        {(recording.phase === 'counting' || recording.phase === 'recording') && (
-          <button className="ctl lg" data-testid="take-stop" style={wide}
-                  onClick={end}>
-            Stop
-          </button>
-        )}
-        {recording.phase === 'finishing' && (
-          <button className="ctl lg" disabled style={wide}>Saving…</button>
         )}
 
         {/*
@@ -1198,6 +1362,59 @@ const brand: React.CSSProperties = {
   textTransform: 'uppercase', color: 'var(--ink-300)',
   fontWeight: 'var(--weight-semi)',
 };
+
+/**
+ * The microphone, as a row of marks.  [TAKE-APP T3; U-19]
+ *
+ * TWELVE SEGMENTS AND NOT A SMOOTH BAR, because the question a
+ * performer asks of a meter is *is it moving* and segments
+ * answer it at a glance where a gradient does not. The same
+ * shape the control room's own meters use.
+ *
+ * IT DOES NOT SAY A NUMBER. A decibel figure on a viewfinder is
+ * a figure nobody acts on; what somebody standing at the back
+ * of a hall needs to know is that something is arriving, and
+ * the difference between nothing and anything is the first
+ * segment lighting. [D-21]
+ */
+function Meter({ level, tall = false }: { level: number; tall?: boolean }) {
+  const SEGMENTS = 12;
+  /*
+   * A SQUARE ROOT, BECAUSE HEARING IS NOT LINEAR. Raw energy
+   * puts an ordinary speaking voice in the first two segments
+   * and leaves ten of them for a shout, which is a meter that
+   * reads as broken in the case it is for.
+   */
+  const lit = Math.round(Math.sqrt(Math.max(0, Math.min(1, level))) * SEGMENTS);
+  return (
+    <span aria-hidden="true" className="rec-meter" data-tall={tall ? 'true' : 'false'}
+          data-testid="take-level">
+      {Array.from({ length: SEGMENTS }, (_, at) => (
+        <span key={at} className="rec-meter-seg"
+              data-on={at < lit ? 'true' : 'false'}
+              data-hot={at >= SEGMENTS - 2 ? 'true' : 'false'} />
+      ))}
+    </span>
+  );
+}
+
+/**
+ * The next camera round, for the flip button.
+ *
+ * ROUND RATHER THAN FRONT-AND-BACK, because a browser does not
+ * reliably say which a camera is: `facingMode` is absent on
+ * desktop, lies on some Android builds, and a phone with three
+ * lenses has no single "back". Cycling the list is a thing that
+ * is true everywhere and that somebody presses twice without
+ * being confused by. [useDevices, U-19]
+ */
+export function nextCamera(
+  cameras: readonly { deviceId: string }[], current: string | undefined,
+): string | undefined {
+  if (cameras.length === 0) return undefined;
+  const at = cameras.findIndex((one) => one.deviceId === current);
+  return cameras[(at + 1) % cameras.length]!.deviceId;
+}
 
 const wide: React.CSSProperties = { width: '100%', minHeight: 48 };
 

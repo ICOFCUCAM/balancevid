@@ -52,6 +52,11 @@ export interface Row {
   watch: string;
   /** The public address, where the thing has one. [N-4] */
   slug?: string;
+  /** What it is showing at this instant, where it is showing
+   *  anything. Only a channel has one. [N-7] */
+  now?: string;
+  /** It is taking a live feed right now. */
+  live?: true;
   openToAnyone: boolean;
 }
 

@@ -17,7 +17,7 @@
  */
 
 import {
-  STEPS, BUILT_TO, type Step, houseSays, reached, standing,
+  STEPS, BUILT_TO, OPENS_ON, type Step, houseSays, reached, standing,
 } from './shell.js';
 import { connectScreen } from './connectScreen.js';
 import { camerasScreen } from './camerasScreen.js';
@@ -114,7 +114,7 @@ function draw(): void {
   }
 
   root.append(screen, flow);
-  show('CONNECT');
+  show(OPENS_ON);
 
   const says = el('p', 'standing', standing());
   says.id = 'standing';
