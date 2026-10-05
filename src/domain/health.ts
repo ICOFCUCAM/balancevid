@@ -190,6 +190,74 @@ export function streamState(
  * The viewer's version says less: a stranger is owed an honest "this channel
  * is not transmitting", not a diagnosis of the broadcaster's server.
  */
+/* ------------------------------------------------------------------------ *
+ *  Is anything draining the queue?  [D-13, D-21, U-19, U-23]
+ * ------------------------------------------------------------------------ */
+
+/**
+ * How long a job may sit untouched before nothing is consuming them.
+ *
+ * The worker polls every 400ms (`POLL_MS`), so a job that has not been
+ * CLAIMED after half a minute has not been seen by anybody — seventy-five
+ * polls late. Generous on purpose: this sentence says an installation is
+ * misconfigured and must never say it about a worker that was briefly
+ * busy.
+ */
+export const UNATTENDED_MS = 30_000;
+
+/**
+ * Nothing has picked the work up.  [D-13, D-21]
+ *
+ * THE FAULT THIS ANSWERS, reported from a running installation:
+ *
+ * > *"music get stuck in studio 2 and show preparing and never
+ * > complete preparing"*
+ *
+ * Studio Two shows *"Preparing the song…"* until the master has been
+ * normalised and measured, which is a job, and a job is run by the
+ * WORKER — a separate process, like the playout engine. On an
+ * installation where nothing is draining the queue the song is never
+ * prepared, and the one word the room says about it is "Preparing",
+ * for ever. A spinner with nothing behind it is the thing D-13 is
+ * about.
+ *
+ * `serve.sh` says it in its own header — *"a container running a web
+ * tier with no worker looks healthy and quietly accepts recordings it
+ * will never render"* — and that is exactly what it looked like.
+ *
+ * NEVER CLAIMED IS THE SIGNAL, not "waiting a long time". A worker
+ * chewing through a long render leaves everything behind it pending
+ * for minutes, and that is a queue working. What cannot happen while
+ * anything is consuming is a job that has never been STARTED going
+ * stale: claiming takes one poll.
+ *
+ * AND THE WHOLE QUEUE IS ASKED, not this document's. A worker busy
+ * with somebody else's render has this document's job pending and
+ * nothing of this document's running — which, judged on one
+ * document, looks exactly like no worker at all. [U-02]
+ */
+export function unattended(
+  jobs: readonly {
+    state: string; createdAt: string; startedAt?: string | undefined;
+  }[],
+  now: number,
+): boolean {
+  /* Something is being worked on, so something is working. */
+  if (jobs.some((job) => job.state === 'running')) return false;
+  return jobs.some((job) => {
+    if (job.state !== 'pending' || job.startedAt) return false;
+    const made = Date.parse(job.createdAt);
+    return Number.isFinite(made) && now - made > UNATTENDED_MS;
+  });
+}
+
+/** What to tell the operator of an installation with no worker. */
+export const NO_WORKER =
+  'Nothing is preparing this. Work is queued and no worker has claimed it '
+  + 'for half a minute, which means no worker process is running on this '
+  + 'installation — it is a separate process from the web tier. Start one '
+  + 'with ROLE=all or ROLE=worker.';
+
 /**
  * Was this container ever going to transmit?  [§18, D-20, D-21, U-19]
  *

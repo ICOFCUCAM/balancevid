@@ -1,4 +1,5 @@
 import { isOwner } from '../../../../src/auth/request.js';
+import { unattended } from '../../../../src/domain/health.js';
 import { bookingsFor, refusalFor } from '../../../../src/domain/deletion.js';
 import { deletePerformance } from '../../../../src/store/performances.js';
 import { listChannels } from '../../../../src/store/channels.js';
@@ -39,12 +40,29 @@ export async function GET(_request: Request, { params }: Params): Promise<Respon
     alignmentError = error instanceof Error ? error.message : String(error);
   }
 
+  /*
+   * AND WHETHER ANYTHING IS GOING TO DO THE WORK.  [D-13, D-21]
+   *
+   * Studio Two says "Preparing the song…" until the master has been
+   * measured, which is a job, and a job is run by the WORKER — a
+   * separate process. With nothing draining the queue the song is
+   * never prepared and the room says "Preparing" for ever.
+   *
+   * THE WHOLE QUEUE, NOT THIS DOCUMENT'S, which is why it is a
+   * second call: a worker busy with somebody else's render leaves
+   * this document with a pending job and nothing running, and
+   * judged on one document that is indistinguishable from no
+   * worker at all. [health.ts, unattended]
+   */
+  const [mine, everything] = await Promise.all([listJobs(id), listJobs()]);
+
   return json({
     performance,
     timeline: projectPerformance(performance),
     covered: covered(performance),
     alignmentError,
-    jobs: await listJobs(id),
+    jobs: mine,
+    unattended: unattended(everything, Date.now()),
   });
 }
 
