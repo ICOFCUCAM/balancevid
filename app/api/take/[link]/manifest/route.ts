@@ -62,6 +62,26 @@ export async function GET(_request: Request, { params }: Params): Promise<Respon
      */
     display: 'standalone',
     orientation: 'portrait',
+    /*
+     * AND THE LINK ITSELF OPENS HERE.  [T2c]
+     *
+     * An invitation arrives in a message and is tapped there, which
+     * means the system decides where it goes. A performer who has
+     * installed this and then taps the link they installed it FROM
+     * and lands in a browser tab — no camera permission, no queue,
+     * no icon — has an application that was no use at the one
+     * moment it existed for.
+     *
+     * `handle_links` is the declaration; what honours it is the
+     * platform. Android registers an installed app for the links in
+     * its scope, so this works there; iOS has no mechanism at all
+     * and Safari keeps every link, which is why the page behind the
+     * link is a complete recorder rather than a door to one. [U-19]
+     */
+    handle_links: 'preferred',
+    /* One window. Tapping the link twice must not be two recorders
+       of the same part, each holding half the segments. [D-19] */
+    launch_handler: { client_mode: 'navigate-existing' },
     /* The page's own ground, so there is no white flash on launch. */
     background_color: '#0e0f11',
     theme_color: '#0e0f11',

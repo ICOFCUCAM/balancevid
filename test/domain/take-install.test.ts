@@ -30,6 +30,7 @@ const manifest = JSON.parse(readFileSync(MANIFEST_PATH, 'utf8')) as {
   name: string; short_name: string; start_url: string; scope: string;
   display: string; icons: { src: string; sizes: string; purpose?: string }[];
   shortcuts: { name: string; url: string }[];
+  handle_links: string; launch_handler: { client_mode: string };
 };
 
 /**
@@ -100,6 +101,53 @@ describe('the manifest', () => {
     /* Android crops to whatever shape the launcher uses. */
     expect(manifest.icons.some((icon) => icon.purpose === 'maskable')).toBe(true);
     expect(manifest.icons.some((icon) => icon.sizes === '512x512')).toBe(true);
+  });
+});
+
+describe('an invitation, tapped on a phone that has the app', () => {
+  /*
+   * THE LINK ARRIVES IN A MESSAGE AND IS TAPPED THERE, so the system
+   * decides where it goes. A performer who installed the Take App
+   * and then lands in a browser tab when their invitation comes —
+   * no camera permission carried over, no upload queue, no icon —
+   * has an application that was no use at the one moment it was
+   * for.
+   *
+   * THE SCOPE IS WHAT MAKES IT POSSIBLE. A platform can only hand a
+   * link to an installed app when the link is inside that app's
+   * scope, and an invitation is `/take/<link>` — which `/take`
+   * would NOT have covered on its own, and `/` does.
+   */
+  it('is inside the installed app', () => {
+    const invitation = '/take/req_4f2a9c1e8b7d';
+    expect(invitation.startsWith(manifest.scope)).toBe(true);
+  });
+
+  /*
+   * AND IT IS ASKED FOR, which is a separate thing from being
+   * possible. `handle_links` is the declaration; honouring it is the
+   * platform's. Android registers an installed app for the links in
+   * its scope and this is what it reads; iOS has no mechanism at all
+   * and Safari keeps every link — which is why the page behind an
+   * invitation is a complete recorder and not a door to one. [U-19]
+   */
+  it('asks the platform for its own links', () => {
+    expect(manifest.handle_links).toBe('preferred');
+  });
+
+  /*
+   * ONE WINDOW. Tapping an invitation twice must not be two recorders
+   * of the same part, each holding half of the segments. [D-19]
+   */
+  it('reuses the window it already has', () => {
+    expect(manifest.launch_handler).toMatchObject({ client_mode: 'navigate-existing' });
+  });
+
+  /* The per-link install asks for the same thing about its one link. */
+  it('is asked for by an assignment install too', () => {
+    const route = readFileSync('app/api/take/[link]/manifest/route.ts', 'utf8');
+    expect(route).toMatch(/handle_links: 'preferred'/);
+    expect(route).toMatch(/launch_handler: \{ client_mode: 'navigate-existing' \}/);
   });
 });
 
