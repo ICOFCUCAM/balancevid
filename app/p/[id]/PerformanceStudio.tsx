@@ -27,6 +27,7 @@ import { nudgeItems, nudgeSays } from './takeNudge.js';
 import StudioBar from '../../StudioBar.js';
 import type { StudioId } from '../../../src/domain/account.js';
 import { bodyOf } from '../../../src/domain/saidBy.js';
+import './studio-two.css';
 
 /**
  * The Performance Studio.  [Doctrine STUDIO-TWO §1, §3, §4, §10, §13]
@@ -318,13 +319,56 @@ export default function PerformanceStudio(
 
 
   return (
-    <div className="shell">
+    /*
+     * THE PRODUCTION ROOM, AS THE BRIEF DRAWS IT.
+     *   [STUDIO-TWO §1, §3, §4, §13]
+     *
+     *     TAKES → TIMELINE → MASTER
+     *
+     * > *"the underlying architecture is good, but visually it
+     * > still feels like a developer-built editing utility, not
+     * > a professional multicamera production room"*
+     *
+     * NOTHING BELOW IS NEW MACHINERY. The alignment, the master
+     * clock, the switching, the recorder and the render queue
+     * are all above this line and are not touched by it. What
+     * changed is the frame.
+     *
+     * THE ROOM IS FIXED AND WHAT IS UNDER IT IS A DOCUMENT. The
+     * brief draws one screen: a bar, three columns and a
+     * timeline, and it never scrolls. This studio has more than
+     * that screen holds — the camera setup, the room plate, the
+     * master check, delivery and publish — and hiding any of it
+     * to keep the brief's exact height would be removing
+     * features to make a picture fit. So the room is the
+     * brief's, at the brief's size, and the rest is a document
+     * beneath it. [the brief: *"none of our features should be
+     * abandoned"*]
+     */
+    <div className="s2">
+      <div className="app">
       {confirmDialog}
       {menu}
       {/*
-        * The application's bar, which every studio shares. It used to be
-        * written out here; a second copy of it in Studio Three would have
-        * been a second place the tabs go out of date.
+        * THE BAR IS THE BRIEF'S AND IT CARRIES THE APPLICATION'S.
+        *
+        * The brief's bar is a brand, a product name, a project
+        * and three buttons. `StudioBar` is the six places every
+        * studio shares, and it is how a person gets from here to
+        * Studio One — a bar that replaced it would be a bar that
+        * removed the way out, so it sits inside this one where
+        * the brief puts its product label. [D-19, D-24]
+        */}
+      <header className="topbar">
+      {/*
+        * NO TRAILING SUMMARY ON THE SHARED BAR, because this one
+        * now says it once. `StudioBar` printed the title, the
+        * artist and the length; the brief's own project block
+        * and status say the same three things a few pixels to
+        * the right, and two readouts of one fact are two places
+        * it can disagree. The brief's is the one kept — it is
+        * what this bar was redrawn for — and it carries the
+        * artist the old one did. [D-19]
         */}
       <StudioBar
         current="studio-two"
@@ -342,16 +386,6 @@ export default function PerformanceStudio(
             }
             : { hint: 'Direct some scenes first — there is nothing to publish yet' }),
         }]}
-        trailing={(
-          <span className="small muted" data-testid="master-summary" style={{
-            minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap', textAlign: 'right',
-          }}>
-            {performance.title}
-            {performance.master.artist ? ` \u00b7 ${performance.master.artist}` : ''}
-            {ready ? ` \u00b7 ${songLength}` : ' \u00b7 preparing\u2026'}
-          </span>
-        )}
       />
 
       {/*
@@ -365,7 +399,36 @@ export default function PerformanceStudio(
         *
         * So the rail is handed to the directing surface and placed by it.
         */}
-      <div className="shell-body shell-scroll" style={{ padding: '14px 18px' }}>
+      {/*
+        * THE PROJECT AND THE TWO THINGS THE BRIEF PUTS BESIDE
+        * IT. `Create Master` is NOT one of them: that control
+        * already exists, in the transport under the stage,
+        * where the edit is driven from. A second button for one
+        * action is two places it can go out of date, and the
+        * one in the transport knows whether there is anything
+        * to make. [D-19, D-21]
+        */}
+        <div className="project" data-testid="master-summary">
+          <span className="project-dot" />
+          <span>
+            {performance.title}
+            {performance.master.artist ? ` \u00b7 ${performance.master.artist}` : ''}
+          </span>
+        </div>
+
+        <div className="top-spacer" />
+
+        <div className="status" data-testid="s2-status">
+          {ready ? songLength : 'Preparing the song\u2026'}
+        </div>
+
+        <a className="top-button" data-testid="s2-preview"
+           href={`/p/${performance.id}/watch`}>
+          Preview
+        </a>
+      </header>
+
+      <div className="s2-body shell-scroll" style={{ padding: '14px 18px' }}>
         <SwitchingStage
           performance={performance}
           onChanged={setPerformance}
@@ -1031,6 +1094,7 @@ export default function PerformanceStudio(
           </p>
         )}
         </details>
+      </div>
       </div>
     </div>
   );

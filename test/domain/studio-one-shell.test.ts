@@ -54,8 +54,10 @@ function rules(css: string): Rule[] {
       at.unshift(`@${p.name} ${p.params}`);
     }
     const decls: string[] = [];
-    rule.walkDecls((d) => decls.push(
-      `${d.prop}:${d.value.replace(/\s+/g, ' ').trim()}${d.important ? '!important' : ''}`));
+    rule.walkDecls((d) => {
+      decls.push(
+        `${d.prop}:${d.value.replace(/\s+/g, ' ').trim()}${d.important ? '!important' : ''}`);
+    });
     out.push({
       at: at.join(' | '),
       sel: rule.selectors.map((s) => s.trim()).sort().join(','),

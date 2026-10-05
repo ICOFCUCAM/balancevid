@@ -1,0 +1,1153 @@
+/**
+ * Studio Two's own stylesheet.
+ *   [STUDIO-TWO §1, §3, §4, §13; Doctrine D-19, D-24]
+ *
+ *     TAKES → TIMELINE → MASTER
+ *
+ * > *"the underlying architecture is good, but visually it
+ * > still feels like a developer-built editing utility, not a
+ * > professional multicamera production room"*
+ *
+ * EVERY DECLARATION IN THIS FILE IS THE ONE THAT WAS WRITTEN.
+ * `preview(7).html` carries 126 rules; all 126 are here with
+ * their declarations byte-identical, checked with a parser and
+ * checked again on every run by `studio-two-shell.test.ts`.
+ * What changed is what each selector is attached to.
+ *
+ * EVERY SELECTOR IS UNDER `.s2`, in both directions, for the
+ * reasons Studio One's sheet sets out at length: this one
+ * declares `--line`, `--text` and `--muted`, which the
+ * console's ramp also declares, and `controls.css` styles bare
+ * `button`, which is what every control the brief draws is.
+ *
+ * AND THE RESET NAMES THE BRIEF'S CONTROLS, NOT THE ELEMENT.
+ * Studio One's first attempt said `.s1 button` — (0,1,1)
+ * against `.ctl`'s (0,1,0) — and flattened the console's own
+ * lit controls inside every component rendered in the frame.
+ * Nothing in a screenshot showed it. The list below is the
+ * brief's own control classes and nothing else.
+ *
+ * `html`, `body` AND `:root` BECAME `.s2` ITSELF: the brief is
+ * a standalone document whose body is the room; here the room
+ * is a page inside an application.
+ *
+ * IT IS NOT IN `app/styles/`, whose contract is that
+ * `globals.css` loads every file in it on every page.
+ */
+
+
+.s2{
+  --bg:#07090c;
+  --panel:#0d1014;
+  --panel2:#11151a;
+  --panel3:#151a20;
+  --line:#20262e;
+  --line2:#29313b;
+  --text:#edf1f5;
+  --muted:#7d8792;
+  --dim:#4e5863;
+  --blue:#3188ff;
+  --blue2:#1c5fc4;
+  --cyan:#4fd8ff;
+  --green:#35d39a;
+  --amber:#e9ad4b;
+  --red:#ff5f63;
+  --white:#fff;
+}
+
+.s2, .s2 *{
+  box-sizing:border-box;
+}
+
+.s2{
+  margin:0;
+  width:100%;
+  height:100%;
+  overflow:hidden;
+  background:var(--bg);
+  color:var(--text);
+  font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+
+.s2 button{
+  font:inherit;
+  color:inherit;
+}
+
+.s2 .app{
+  width:100vw;
+  height:100vh;
+  display:grid;
+  grid-template-rows:52px 1fr;
+}
+
+/* TOP BAR */
+
+.s2 .topbar{
+  height:52px;
+  display:flex;
+  align-items:center;
+  gap:18px;
+  padding:0 18px;
+  border-bottom:1px solid var(--line);
+  background:#080a0d;
+}
+
+.s2 .brand{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  min-width:150px;
+  font-size:14px;
+  font-weight:700;
+}
+
+.s2 .brandmark{
+  width:25px;
+  height:25px;
+  border-radius:7px;
+  background:linear-gradient(145deg,#3996ff,#1557ba);
+  display:grid;
+  place-items:center;
+  box-shadow:0 0 20px rgba(49,136,255,.18);
+}
+
+.s2 .brandmark span{
+  width:0;
+  height:0;
+  border-top:5px solid transparent;
+  border-bottom:5px solid transparent;
+  border-left:8px solid white;
+  margin-left:2px;
+}
+
+.s2 .product{
+  color:#8f99a5;
+  font-size:11px;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  font-weight:700;
+}
+
+.s2 .project{
+  display:flex;
+  align-items:center;
+  gap:9px;
+  margin-left:12px;
+  padding-left:18px;
+  border-left:1px solid var(--line);
+  font-size:13px;
+}
+
+.s2 .project-dot{
+  width:7px;
+  height:7px;
+  border-radius:50%;
+  background:var(--green);
+  box-shadow:0 0 10px rgba(53,211,154,.45);
+}
+
+.s2 .top-spacer{flex:1}
+
+.s2 .status{
+  color:#7e8994;
+  font-size:11px;
+}
+
+.s2 .top-button{
+  border:1px solid var(--line2);
+  background:#0d1116;
+  border-radius:7px;
+  height:30px;
+  padding:0 13px;
+  cursor:pointer;
+  font-size:11px;
+  font-weight:700;
+}
+
+.s2 .top-button:hover{
+  border-color:#3a4652;
+  background:#13181e;
+}
+
+.s2 .top-button.primary{
+  border-color:#2e76d8;
+  background:#185ab4;
+}
+
+.s2 .top-button.primary:hover{
+  background:#216bd0;
+}
+
+/* WORKSPACE */
+
+.s2 .workspace{
+  min-height:0;
+  display:grid;
+  grid-template-columns:260px minmax(500px,1fr) 290px;
+  grid-template-rows:minmax(420px,1fr) 285px;
+}
+
+/* LEFT */
+
+.s2 .left{
+  min-height:0;
+  border-right:1px solid var(--line);
+  background:#0a0d11;
+  display:flex;
+  flex-direction:column;
+}
+
+.s2 .section-head{
+  height:42px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:0 14px;
+  border-bottom:1px solid var(--line);
+}
+
+.s2 .section-title{
+  font-size:10px;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  color:#78838e;
+  font-weight:800;
+}
+
+.s2 .section-action{
+  font-size:10px;
+  color:#6e9fdb;
+  cursor:pointer;
+}
+
+.s2 .take-list{
+  padding:10px;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  overflow:auto;
+}
+
+.s2 .take{
+  height:76px;
+  border:1px solid #1d242c;
+  background:#0e1217;
+  border-radius:8px;
+  display:grid;
+  grid-template-columns:86px 1fr;
+  overflow:hidden;
+  cursor:pointer;
+  transition:.15s ease;
+}
+
+.s2 .take:hover{
+  border-color:#34404c;
+  background:#12171d;
+}
+
+.s2 .take.active{
+  border-color:#287ce0;
+  box-shadow:inset 2px 0 0 #3188ff;
+}
+
+.s2 .take-thumb{
+  position:relative;
+  background:
+    radial-gradient(circle at 52% 40%,rgba(88,120,160,.35),transparent 28%),
+    linear-gradient(145deg,#202934,#080a0d);
+  overflow:hidden;
+}
+
+.s2 .take-thumb:after{
+  content:"";
+  position:absolute;
+  left:12px;
+  right:12px;
+  bottom:10px;
+  height:2px;
+  background:linear-gradient(90deg,#4e83b8,#8fc3ed,#355d83);
+  opacity:.65;
+}
+
+.s2 .take-number{
+  position:absolute;
+  left:7px;
+  top:7px;
+  width:22px;
+  height:19px;
+  display:grid;
+  place-items:center;
+  background:rgba(0,0,0,.65);
+  border-radius:4px;
+  font-size:9px;
+  font-weight:800;
+}
+
+.s2 .take-body{
+  padding:10px;
+  min-width:0;
+}
+
+.s2 .take-name{
+  font-size:12px;
+  font-weight:700;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+.s2 .take-meta{
+  margin-top:5px;
+  color:#69747f;
+  font-size:10px;
+}
+
+.s2 .take-state{
+  margin-top:8px;
+  display:flex;
+  gap:6px;
+  align-items:center;
+  color:#71808d;
+  font-size:9px;
+}
+
+.s2 .state-dot{
+  width:5px;
+  height:5px;
+  border-radius:50%;
+  background:#5b6874;
+}
+
+.s2 .take.selected .state-dot{
+  background:var(--blue);
+}
+
+.s2 .import-zone{
+  margin:0 10px 10px;
+  border:1px dashed #29323c;
+  border-radius:8px;
+  min-height:62px;
+  display:grid;
+  place-items:center;
+  color:#69747e;
+  font-size:10px;
+  cursor:pointer;
+}
+
+.s2 .import-zone:hover{
+  border-color:#397cc5;
+  color:#9db9d5;
+}
+
+.s2 .left-bottom{
+  margin-top:auto;
+  border-top:1px solid var(--line);
+  padding:10px;
+}
+
+.s2 .invite{
+  width:100%;
+  height:34px;
+  background:#10151b;
+  border:1px solid #222b34;
+  border-radius:7px;
+  font-size:10px;
+  color:#8d98a3;
+  cursor:pointer;
+}
+
+.s2 .invite:hover{
+  background:#151b22;
+}
+
+/* CENTER */
+
+.s2 .center{
+  min-width:0;
+  min-height:0;
+  background:#090c10;
+  display:grid;
+  grid-template-rows:42px 1fr 56px;
+}
+
+.s2 .viewer-head{
+  display:flex;
+  align-items:center;
+  gap:18px;
+  padding:0 16px;
+  border-bottom:1px solid var(--line);
+}
+
+.s2 .viewer-mode{
+  color:#6f7a85;
+  font-size:10px;
+  text-transform:uppercase;
+  letter-spacing:.12em;
+  cursor:pointer;
+}
+
+.s2 .viewer-mode.active{
+  color:#e8edf2;
+}
+
+.s2 .viewer-spacer{
+  flex:1;
+}
+
+.s2 .tc{
+  font-family:ui-monospace,monospace;
+  font-size:11px;
+  color:#c0c8cf;
+}
+
+.s2 .viewer{
+  min-height:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:20px;
+  background:
+    radial-gradient(circle at 50% 45%,rgba(31,47,63,.18),transparent 45%),
+    #080a0d;
+}
+
+.s2 .stage{
+  width:min(100%,1040px);
+  aspect-ratio:16/9;
+  position:relative;
+  overflow:hidden;
+  background:
+    radial-gradient(circle at 52% 38%,rgba(91,126,164,.18),transparent 22%),
+    linear-gradient(135deg,#151b22,#050608 68%);
+  border:1px solid #202831;
+  box-shadow:0 25px 80px rgba(0,0,0,.45);
+}
+
+.s2 .stage:before{
+  content:"";
+  position:absolute;
+  inset:7%;
+  border:1px dashed rgba(140,160,180,.18);
+  pointer-events:none;
+}
+
+.s2 .stage-grid{
+  position:absolute;
+  inset:0;
+  background:
+    linear-gradient(90deg,transparent 49.9%,rgba(255,255,255,.055) 50%,transparent 50.1%),
+    linear-gradient(transparent 49.9%,rgba(255,255,255,.055) 50%,transparent 50.1%);
+}
+
+.s2 .stage-empty{
+  position:absolute;
+  inset:0;
+  display:grid;
+  place-items:center;
+  text-align:center;
+}
+
+.s2 .empty-content{
+  max-width:380px;
+}
+
+.s2 .empty-kicker{
+  font-size:10px;
+  color:#64717d;
+  letter-spacing:.18em;
+  text-transform:uppercase;
+  font-weight:800;
+}
+
+.s2 .empty-title{
+  margin-top:12px;
+  font-size:25px;
+  font-weight:600;
+  letter-spacing:-.03em;
+}
+
+.s2 .empty-copy{
+  margin-top:9px;
+  color:#68747f;
+  font-size:11px;
+  line-height:1.6;
+}
+
+.s2 .viewer-overlay{
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+}
+
+.s2 .overlay-top{
+  position:absolute;
+  left:13px;
+  right:13px;
+  top:11px;
+  display:flex;
+  justify-content:space-between;
+}
+
+.s2 .overlay-chip{
+  padding:5px 7px;
+  border-radius:4px;
+  background:rgba(4,6,8,.72);
+  color:#9ca8b3;
+  font-size:8px;
+  font-family:ui-monospace,monospace;
+}
+
+.s2 .transport{
+  height:56px;
+  border-top:1px solid var(--line);
+  display:flex;
+  align-items:center;
+  gap:12px;
+  padding:0 15px;
+}
+
+.s2 .transport button{
+  width:30px;
+  height:30px;
+  border-radius:6px;
+  background:#11161b;
+  border:1px solid #242c35;
+  cursor:pointer;
+}
+
+.s2 .transport button:hover{
+  background:#182029;
+}
+
+.s2 .play{
+  background:#1a5fb8 !important;
+  border-color:#2d78d5 !important;
+}
+
+.s2 .seek{
+  flex:1;
+  height:3px;
+  appearance:none;
+  background:#252e37;
+  border-radius:10px;
+}
+
+.s2 .seek::-webkit-slider-thumb{
+  appearance:none;
+  width:11px;
+  height:11px;
+  border-radius:50%;
+  background:#dce5ed;
+  cursor:pointer;
+}
+
+.s2 .transport-time{
+  width:90px;
+  text-align:right;
+  font-family:ui-monospace,monospace;
+  font-size:10px;
+  color:#7e8994;
+}
+
+/* RIGHT */
+
+.s2 .right{
+  min-height:0;
+  border-left:1px solid var(--line);
+  background:#0a0d11;
+  overflow:auto;
+}
+
+.s2 .control-group{
+  border-bottom:1px solid var(--line);
+  padding:14px;
+}
+
+.s2 .control-title{
+  color:#737e89;
+  font-size:9px;
+  font-weight:800;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  margin-bottom:12px;
+}
+
+.s2 .compositions{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:6px;
+}
+
+.s2 .comp{
+  height:57px;
+  border:1px solid #1d252e;
+  border-radius:6px;
+  background:#10151a;
+  cursor:pointer;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+}
+
+.s2 .comp:hover{
+  border-color:#34414d;
+}
+
+.s2 .comp.active{
+  border-color:#3489eb;
+  background:#102039;
+  box-shadow:inset 0 0 0 1px rgba(49,136,255,.18);
+}
+
+.s2 .comp-icon{
+  width:22px;
+  height:14px;
+  border:1px solid #65727e;
+  position:relative;
+}
+
+.s2 .comp-icon.half:after{
+  content:"";
+  position:absolute;
+  left:50%;
+  top:0;
+  bottom:0;
+  border-left:1px solid #65727e;
+}
+
+.s2 .comp-icon.third:before,
+.s2 .comp-icon.third:after{
+  content:"";
+  position:absolute;
+  top:0;
+  bottom:0;
+  border-left:1px solid #65727e;
+}
+
+.s2 .comp-icon.third:before{left:33%}
+.s2 .comp-icon.third:after{left:66%}
+
+.s2 .comp-label{
+  font-size:8px;
+  color:#77838f;
+}
+
+.s2 .environment{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+}
+
+.s2 .environment-name{
+  font-size:11px;
+  font-weight:700;
+}
+
+.s2 .environment-sub{
+  margin-top:3px;
+  font-size:9px;
+  color:#65717c;
+}
+
+.s2 .change{
+  color:#6da8e8;
+  font-size:9px;
+  cursor:pointer;
+}
+
+.s2 .parameter{
+  display:flex;
+  justify-content:space-between;
+  padding:8px 0;
+  border-bottom:1px solid #161c22;
+  font-size:10px;
+}
+
+.s2 .parameter:last-child{
+  border-bottom:0;
+}
+
+.s2 .parameter span:first-child{
+  color:#68737e;
+}
+
+.s2 .parameter span:last-child{
+  color:#c2cad1;
+}
+
+.s2 .meter{
+  height:5px;
+  background:#1a2026;
+  border-radius:5px;
+  overflow:hidden;
+  margin-top:10px;
+}
+
+.s2 .meter-fill{
+  width:62%;
+  height:100%;
+  background:linear-gradient(90deg,#39c88f,#e1bd4d,#d34b4f);
+}
+
+.s2 .action{
+  width:100%;
+  height:36px;
+  border-radius:7px;
+  border:1px solid #27323d;
+  background:#11171d;
+  font-size:10px;
+  font-weight:700;
+  cursor:pointer;
+}
+
+.s2 .action:hover{
+  background:#171e25;
+}
+
+/* TIMELINE */
+
+.s2 .timeline{
+  grid-column:1 / 4;
+  min-width:0;
+  min-height:0;
+  background:#080b0e;
+  border-top:1px solid var(--line);
+  display:grid;
+  grid-template-rows:46px 1fr;
+}
+
+.s2 .timeline-head{
+  display:flex;
+  align-items:center;
+  gap:15px;
+  padding:0 14px;
+  border-bottom:1px solid var(--line);
+}
+
+.s2 .timeline-title{
+  font-size:10px;
+  letter-spacing:.14em;
+  color:#818c97;
+  font-weight:800;
+}
+
+.s2 .timeline-flow{
+  color:#c8d0d7;
+  font-size:11px;
+}
+
+.s2 .timeline-flow strong{
+  color:#6ba6e5;
+}
+
+.s2 .timeline-spacer{
+  flex:1;
+}
+
+.s2 .tool{
+  height:27px;
+  border:1px solid #202933;
+  background:#0e1318;
+  border-radius:5px;
+  padding:0 9px;
+  font-size:9px;
+  color:#78848f;
+  cursor:pointer;
+}
+
+.s2 .tool:hover{
+  color:#b8c3cc;
+  border-color:#34404b;
+}
+
+.s2 .timeline-body{
+  display:grid;
+  grid-template-columns:180px 1fr;
+  min-height:0;
+}
+
+.s2 .track-labels{
+  border-right:1px solid var(--line);
+  background:#0a0d11;
+}
+
+.s2 .track{
+  height:47px;
+  border-bottom:1px solid #161c22;
+  padding:0 12px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+
+.s2 .track-main{
+  color:#aab4bd;
+  font-size:9px;
+  font-weight:700;
+  letter-spacing:.05em;
+}
+
+.s2 .track-sub{
+  color:#56616c;
+  font-size:8px;
+  margin-top:2px;
+}
+
+.s2 .track-icon{
+  width:20px;
+  height:20px;
+  border:1px solid #26313b;
+  border-radius:4px;
+  display:grid;
+  place-items:center;
+  color:#697682;
+  font-size:8px;
+}
+
+.s2 .timeline-canvas{
+  position:relative;
+  min-width:0;
+  overflow:hidden;
+  background:
+    repeating-linear-gradient(
+      90deg,
+      transparent 0,
+      transparent 79px,
+      rgba(255,255,255,.035) 80px
+    ),
+    #090c10;
+}
+
+.s2 .ruler{
+  height:25px;
+  border-bottom:1px solid #181f26;
+  position:relative;
+}
+
+.s2 .tick{
+  position:absolute;
+  top:0;
+  bottom:0;
+  border-left:1px solid #252e37;
+  padding-left:5px;
+  padding-top:6px;
+  color:#596570;
+  font-family:ui-monospace,monospace;
+  font-size:8px;
+}
+
+.s2 .clips{
+  position:absolute;
+  left:0;
+  right:0;
+  top:25px;
+}
+
+.s2 .clip{
+  position:absolute;
+  height:38px;
+  border-radius:5px;
+  border:1px solid #2a5d91;
+  background:linear-gradient(90deg,#173653,#102537);
+  overflow:hidden;
+  cursor:pointer;
+}
+
+.s2 .clip:hover{
+  border-color:#559be1;
+}
+
+.s2 .clip.master{
+  background:linear-gradient(90deg,#29353f,#1a232b);
+  border-color:#394650;
+}
+
+.s2 .clip.audio{
+  background:linear-gradient(90deg,#1c403b,#102825);
+  border-color:#286a60;
+}
+
+.s2 .clip-name{
+  position:absolute;
+  left:8px;
+  top:7px;
+  font-size:9px;
+  font-weight:700;
+  color:#cbd8e2;
+}
+
+.s2 .wave{
+  position:absolute;
+  left:0;
+  right:0;
+  bottom:5px;
+  height:8px;
+  opacity:.5;
+  background:
+    repeating-linear-gradient(
+      90deg,
+      transparent 0,
+      transparent 3px,
+      rgba(112,214,192,.5) 4px,
+      transparent 5px
+    );
+}
+
+.s2 .playhead{
+  position:absolute;
+  z-index:10;
+  top:0;
+  bottom:0;
+  left:27%;
+  width:1px;
+  background:#ff5d62;
+  box-shadow:0 0 8px rgba(255,93,98,.45);
+}
+
+.s2 .playhead:before{
+  content:"";
+  position:absolute;
+  top:0;
+  left:-4px;
+  width:9px;
+  height:9px;
+  background:#ff5d62;
+  clip-path:polygon(0 0,100% 0,50% 100%);
+}
+
+.s2 .timeline-footer{
+  position:absolute;
+  bottom:8px;
+  left:10px;
+  right:10px;
+  display:flex;
+  justify-content:space-between;
+  pointer-events:none;
+}
+
+.s2 .timeline-info{
+  font-size:8px;
+  color:#58636e;
+}
+
+/* TOAST */
+
+.s2 .toast{
+  position:fixed;
+  right:20px;
+  bottom:20px;
+  padding:11px 14px;
+  background:#151b21;
+  border:1px solid #303a45;
+  border-radius:7px;
+  box-shadow:0 15px 40px rgba(0,0,0,.45);
+  color:#dce4eb;
+  font-size:10px;
+  transform:translateY(20px);
+  opacity:0;
+  pointer-events:none;
+  transition:.22s ease;
+}
+
+.s2 .toast.show{
+  transform:translateY(0);
+  opacity:1;
+}
+
+/* RESPONSIVE */
+
+@media(max-width:1150px){
+  .s2 .workspace{
+    grid-template-columns:220px minmax(420px,1fr) 245px;
+  }
+
+  .s2 .timeline-body{
+    grid-template-columns:150px 1fr;
+  }
+}
+
+@media(max-width:900px){
+  .s2{
+    overflow:auto;
+  }
+
+  .s2 .app{
+    min-width:900px;
+  }
+}
+
+/* REDUCED MOTION */
+
+@media(prefers-reduced-motion:reduce){
+  .s2, .s2 *{
+    transition:none!important;
+  }
+}
+
+
+/* =========================================================
+   THE CONSOLE'S CONTROL RULES, UNDONE ON THE BRIEF'S CONTROLS
+   ========================================================= */
+
+.s2 .top-button,
+.s2 .viewer-mode,
+.s2 .comp,
+.s2 .tool,
+.s2 .action,
+.s2 .invite,
+.s2 .change,
+.s2 .section-action,
+.s2 .transport button {
+  display: inline-block;
+  align-items: normal;
+  justify-content: normal;
+  gap: normal;
+  min-height: 0;
+  margin: 0;
+  box-shadow: none;
+  font-weight: inherit;
+  line-height: normal;
+  letter-spacing: normal;
+  user-select: auto;
+}
+
+.s2 .top-button:hover:not(:disabled),
+.s2 .viewer-mode:hover:not(:disabled),
+.s2 .comp:hover:not(:disabled),
+.s2 .tool:hover:not(:disabled),
+.s2 .action:hover:not(:disabled),
+.s2 .invite:hover:not(:disabled),
+.s2 .transport button:hover:not(:disabled) {
+  box-shadow: none;
+  transform: none;
+}
+
+/* The brief's own reset, which its standalone document only
+   needed against the browser's defaults. */
+.s2 button,
+.s2 input,
+.s2 select {
+  font: inherit;
+}
+
+/* =========================================================
+   WHAT THE BRIEF DREW ONCE AND STUDIO TWO HAS MORE OF
+   =========================================================
+
+   Addition, not alteration. The brief draws three takes, one
+   stage and five control groups; this studio has an inspector,
+   a master check, a render queue, a performers panel, a room
+   plate, a delivery panel, a publish panel, sound modes and a
+   reframe box, and all of them keep working inside the frame.  */
+
+/* A rail or a group that holds an existing component keeps its
+   own scrolling, so the room itself never scrolls. [§40] */
+.s2 .s2-slot {
+  min-height: 0;
+  overflow: auto;
+  flex: 1 1 auto;
+}
+
+.s2 .s2-slot > :first-child,
+.s2 .control-group > :first-child {
+  margin-top: 0;
+}
+
+/* THE BAR CARRIES THE APPLICATION'S OWN TABS AS WELL.
+
+   The brief's top bar is brand, product, project and three
+   buttons. This one also carries `StudioBar` — the six places
+   every studio shares — because that strip is how a person
+   gets from Studio Two to Studio One, and a bar that replaced
+   it would be a bar that removed the way out. It sits where
+   the brief's product label is, and the row grows rather than
+   clipping when it has to, which is the lesson Studio One's
+   bar taught at 1280px. */
+.s2 .topbar {
+  height: auto;
+  min-height: 52px;
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+
+.s2 .topbar .studio-bar,
+.s2 .topbar nav {
+  min-width: 0;
+}
+
+/* The stage holds the real composition, which brings its own
+   aspect box; the brief's stage is the frame around it. */
+.s2 .stage > .s2-picture {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  min-height: 0;
+}
+
+/* The timeline canvas is the existing timeline, which draws
+   its own ruler, clips and playhead. The brief's chrome is the
+   head and the track labels around it. */
+.s2 .timeline-canvas > .s2-timeline {
+  position: relative;
+  min-height: 0;
+  height: 100%;
+  overflow: auto;
+}
+
+/* Everything the brief has no row for — the inspector, the
+   notes, the master check, delivery and publish — is a
+   document under the room, and the one region that scrolls. */
+.s2 .s2-below {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+/* THE ROOM'S OWN GRID.
+
+   This replaces the transcribed `.workspace` rule above, and it
+   is the one place this sheet overrides the brief rather than
+   extending it. The brief's room is two rows — three columns,
+   then a 285px timeline — because it draws three takes and
+   nothing else. This studio's room has the same three columns
+   and the same timeline, and then two more rows under them that
+   the brief has no equivalent for: the clip inspector and the
+   scene notes, both of which existed before this frame and
+   neither of which is being dropped to make a picture fit.
+
+   The transport moves INTO the centre column, which is the
+   brief's own arrangement and an improvement on what was here:
+   it was a band under the whole room, so the keys that drive
+   the edit sat below the timeline rather than under the stage.
+   [STUDIO-TWO §12] */
+.s2 .workspace {
+  display: grid;
+  min-height: 0;
+  gap: 12px;
+  align-items: start;
+  grid-template-columns: 260px minmax(500px, 1fr) 290px;
+  grid-template-rows: minmax(420px, 1fr) 56px auto auto auto;
+  grid-template-areas:
+    "takes stage panel"
+    "takes transport panel"
+    "timeline timeline timeline"
+    "inspector inspector inspector"
+    "notes notes notes";
+}
+
+/* AND THE BAR MUST BE ABLE TO GROW RATHER THAN OVERFLOW.
+
+   The brief fixes the first grid row at 52px because its bar
+   holds six things. This one holds six plus the application's
+   own six-place strip, so it wraps — and a fixed row does not
+   grow with it: measured, the wrapped line rendered at y=65,
+   on top of the takes rail, with the Preview button sitting
+   over the first take.
+
+   The same fix as Studio One's bar, for the same reason, found
+   the same way. */
+.s2 .app {
+  grid-template-rows: auto minmax(0, 1fr);
+}
