@@ -56,6 +56,15 @@ export async function GET(request: Request): Promise<Response> {
     /** Where to watch it before deciding. Same-origin, always. */
     watch: string;
     /**
+     * The public address, where the thing has one.
+     *
+     * Only a channel does — a performance is reached by id —
+     * and a surface that draws a mark for it needs the same
+     * string the television pages hash, or one channel is two
+     * colours. [N-4, D-19]
+     */
+    slug?: string;
+    /**
      * Whether somebody arriving with nothing but this listing may take
      * part, which is the only question the browsing surface can answer
      * for itself. Anything narrower needs a link or an invitation, and
@@ -148,6 +157,18 @@ export async function GET(request: Request): Promise<Response> {
       kind: 'programme',
       id: channel.id,
       title: channel.name,
+      /*
+       * THE ADDRESS AS WELL AS THE ID.  [N-4, D-19]
+       *
+       * A browsing surface draws a channel with no logo on a
+       * ground hashed from the one string that identifies it,
+       * and the television pages hash the SLUG. Handing this
+       * surface only the id made every fixture channel the same
+       * colour — the ids differ in their last two characters —
+       * and would have made a channel one colour on `/tv` and
+       * another in the Take App, which reads as two channels.
+       */
+      ...(channel.station?.slug ? { slug: channel.station.slug } : {}),
       publishedAt: publication.publishedAt,
       respondable: publication.respondable === true,
       access: publication.respondable === true ? publication.access ?? 'anyone' : null,

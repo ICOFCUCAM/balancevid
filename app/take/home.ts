@@ -50,6 +50,8 @@ export interface Row {
   access: string | null;
   state: string;
   watch: string;
+  /** The public address, where the thing has one. [N-4] */
+  slug?: string;
   openToAnyone: boolean;
 }
 

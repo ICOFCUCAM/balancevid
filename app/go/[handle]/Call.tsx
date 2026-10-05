@@ -12,7 +12,6 @@
 import { useCallback, useState } from 'react';
 
 import { type CallRow, timeInWords } from '../../../src/domain/campaign.js';
-import { Countdown } from '../Go.js';
 
 export interface WallEntry {
   submissionId: string;
@@ -72,8 +71,14 @@ export function EnterButton(
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <button className="ctl lg primary" data-testid="go-enter"
-              style={{ width: '100%', minHeight: 48 }}
+      {/*
+        * THE ONE THING THIS PAGE IS FOR, drawn as the one thing
+        * this page is for: full width and the only filled
+        * control on it. A pill among pills would make entering
+        * a competition look like the same weight of decision as
+        * opening the guide. [D-04]
+        */}
+      <button type="button" className="tk-go go-enter" data-testid="go-enter"
               disabled={going} onClick={() => void enter()}>
         {going ? 'Opening…' : 'Enter this call'}
       </button>
@@ -236,7 +241,15 @@ export function Deadline({ call }: { call: CallRow }) {
         * link. Found in a screenshot. [GO-VIRAL V-8]
         */}
       <time dateTime={call.closesAt}>{timeInWords(call.closesAt)}</time>
-      {running && <> · <Countdown msLeft={call.msLeft!} /> left</>}
+      {/*
+        * AND NOT THE COUNTDOWN AS WELL. The standing chip beside
+        * this line already carries it, so the page read *Closes 5
+        * October 2026 at 13:22 UTC · 5h 56m left* over *Ending
+        * soon · 5h 56m* — one number printed twice, in two
+        * places that then have to agree. The chip ticks; this
+        * says which day. Found in a screenshot, and the same
+        * fault the favourites row had. [D-19]
+        */}
     </p>
   );
 }

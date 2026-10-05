@@ -25,6 +25,78 @@
   --muted: #9aa1a8;
   --line: #2a2e33;
   --accent: #3f8ee8;
+  /*
+   * AND THE REST OF THE RAMP, WRITTEN HERE RATHER THAN BORROWED.
+   *
+   * The two programs came to look alike, which is what the note
+   * at the top of this file said would happen — the Take App
+   * and BalanceVid TV both gained a surface above the ground, a
+   * dimmer rule, a deeper accent and a pill. Take Desktop had a
+   * ground, an ink and one line colour, so every panel in it
+   * was the same flat rectangle and every control the same
+   * outlined box.
+   *
+   * STILL NOT THE WEB TIER'S FILE. These are values, derived
+   * from the same manifest ground, and T-1 is judged on this
+   * program containing none of `app/styles`. A shared token
+   * file is the right answer the day something other than a
+   * colour needs sharing; six more hex codes do not justify
+   * reaching across.
+   */
+  --panel: #15171a;
+  --float: #1b1e22;
+  --line-soft: #23272c;
+  --accent-deep: #2f6fb8;
+  --on-accent: #ffffff;
+  --dim: #5c636b;
+  --live: #e0484d;
+  --radius: 12px;
+  --radius-pill: 999px;
+}
+
+/* ------------------------------------------------------------------ *
+ *  The ident.  [T-1]
+ *
+ *  The window opened on a centred wordmark above a wizard, so
+ *  this looked like a different product from the Take App and
+ *  the television pages — both of which say who they are in a
+ *  bar at the top. Outside `#app`, because the renderer
+ *  replaces that element on every screen.
+ * ------------------------------------------------------------------ */
+
+.ident {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 20px;
+  background: rgba(14, 15, 17, 0.92);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line);
+}
+
+.ident-mark {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(150deg, var(--accent) 0%, var(--accent-deep) 100%);
+  color: var(--on-accent);
+}
+
+.ident-said { display: flex; flex-direction: column; line-height: 1.25; }
+
+.ident-name { font-weight: 650; letter-spacing: -0.01em; color: #f3f5f7; }
+
+.ident-says {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dim);
 }
 
 html, body {
@@ -41,7 +113,7 @@ html, body {
 }
 
 main {
-  min-height: 100vh;
+  min-height: calc(100vh - 53px);
   display: grid;
   align-content: center;
   justify-items: center;
@@ -58,11 +130,18 @@ main {
   width: min(100%, 520px);
 }
 
+/*
+ * THE SCREEN'S OWN TITLE, AND NO LONGER THE PRODUCT'S NAME.
+ * The bar above says what this program is; a 30px letter-spaced
+ * wordmark repeating it over every screen was the window
+ * introducing itself four times in one session.
+ */
 .mark {
   margin: 0;
-  font-size: 30px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
+  font-size: 23px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #f3f5f7;
 }
 
 .sub { margin: 0; color: var(--muted); }
@@ -85,11 +164,11 @@ main {
 .step {
   padding: 7px 13px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.1em;
-  color: #5c636b;
+  color: var(--dim);
 }
 
 .step.on { color: var(--ink); }
@@ -114,7 +193,7 @@ main {
 .house {
   margin: 0;
   font: 400 12px/1 ui-monospace, 'DejaVu Sans Mono', monospace;
-  color: #5c636b;
+  color: var(--dim);
   letter-spacing: 0.05em;
 }
 
@@ -130,9 +209,9 @@ main {
   padding: 10px 13px;
   font: inherit;
   color: var(--ink);
-  background: #15171a;
+  background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius);
   /* The one place in this application somebody types. */
   user-select: text;
   cursor: text;
@@ -140,22 +219,34 @@ main {
 
 .typed:focus { outline: none; border-color: var(--accent); }
 
+/*
+ * THE ONE THING TO DO NEXT, FILLED.
+ *
+ * `.go` and `.ctl` were both outlined boxes a shade apart, so
+ * every screen offered two controls of equal weight and the
+ * reader had to read both to find the forward one. Filled
+ * against outlined is the distinction the Take App and the
+ * television pages already draw, and it survives being looked
+ * at from across a room — which is where a capture station is
+ * usually read from.
+ */
 .go {
   flex: 0 0 auto;
-  padding: 10px 18px;
+  padding: 11px 20px;
   font: inherit;
   font-weight: 600;
-  color: var(--ink);
-  background: transparent;
-  border: 1px solid var(--line);
-  border-radius: 8px;
+  color: var(--on-accent);
+  background: var(--accent-deep);
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
   cursor: pointer;
 }
 
-.go:hover { border-color: var(--accent); color: var(--accent); }
+.go:hover { background: var(--accent); }
 
 .go:disabled {
-  color: #5c636b;
+  color: var(--dim);
+  background: var(--float);
   border-color: var(--line);
   cursor: not-allowed;
 }
@@ -171,18 +262,18 @@ main {
  */
 .ctl {
   flex: 0 0 auto;
-  padding: 6px 12px;
+  padding: 7px 14px;
   font: inherit;
   font-size: 13px;
   color: var(--muted);
-  background: transparent;
+  background: var(--float);
   border: 1px solid var(--line);
-  border-radius: 7px;
+  border-radius: var(--radius-pill);
   cursor: pointer;
 }
 
 .ctl:hover { border-color: var(--accent); color: var(--accent); }
-.ctl:disabled { color: #5c636b; cursor: not-allowed; }
+.ctl:disabled { color: var(--dim); cursor: not-allowed; }
 
 .hint, .note {
   margin: 0;
@@ -191,7 +282,7 @@ main {
   color: var(--muted);
 }
 
-.note { max-width: 44ch; font-size: 12px; color: #5c636b; }
+.note { max-width: 44ch; font-size: 12px; color: var(--dim); }
 
 /* Recently connected: on the second day this is the whole screen. */
 .recent { display: grid; gap: 6px; width: 100%; }
@@ -201,7 +292,7 @@ main {
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.1em;
-  color: #5c636b;
+  color: var(--dim);
   text-align: left;
 }
 
@@ -217,7 +308,7 @@ main {
   color: var(--ink);
   background: transparent;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius);
   cursor: pointer;
 }
 
@@ -233,7 +324,7 @@ main {
   color: var(--muted);
   background: transparent;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius);
   cursor: pointer;
 }
 
@@ -269,13 +360,13 @@ main {
   display: inline-flex; align-items: baseline; gap: 8px;
   padding: 8px 13px; font: inherit; cursor: pointer;
   color: var(--muted); background: transparent;
-  border: 1px solid var(--line); border-radius: 8px;
+  border: 1px solid var(--line); border-radius: var(--radius);
 }
 
 .device:hover { border-color: var(--accent); }
 .device[data-on='true'] { color: var(--ink); border-color: var(--accent); }
 .device-name { font-weight: 600; }
-.device-kind { font-size: 11px; color: #5c636b; letter-spacing: 0.06em; }
+.device-kind { font-size: 11px; color: var(--dim); letter-spacing: 0.06em; }
 
 /*
  * THE GRID IS N WIDE, NOT FOUR. Four in the UI is what the brief
@@ -302,7 +393,7 @@ main {
   /* The bed a picture sits on, which is the screen's own black
      and not a hand-picked near-black. */
   background: #000;
-  border: 1px solid var(--line); border-radius: 8px;
+  border: 1px solid var(--line); border-radius: var(--radius);
 }
 
 /* The one word over the picture is the health, in the health's colour. */
@@ -364,7 +455,7 @@ main {
 .check[data-ok='false'] .check-says { color: var(--ink); }
 
 .arm { margin-top: 8px; justify-self: center; }
-.arm:disabled { color: #5c636b; cursor: not-allowed; border-color: var(--line); }
+.arm:disabled { color: var(--dim); cursor: not-allowed; border-color: var(--line); }
 
 /* A step that is built is a step you can press. */
 .step-go {
@@ -394,7 +485,7 @@ main {
 
 .done {
   margin: 4px 0 0; justify-self: center;
-  font-size: 12px; color: #5c636b;
+  font-size: 12px; color: var(--dim);
 }
 
 /* A tile that is being recorded says so, because the picture
@@ -436,7 +527,7 @@ main {
   text-align: left;
   padding: 7px 9px;
   border: 1px solid var(--line);
-  border-radius: 7px;
+  border-radius: var(--radius);
   background: transparent;
   color: var(--ink);
   font: inherit;
@@ -482,7 +573,7 @@ main {
 .review-tile {
   position: relative;
   border: 1px solid var(--line);
-  border-radius: 7px;
+  border-radius: var(--radius);
   overflow: hidden;
   background: #000;
   cursor: pointer;
