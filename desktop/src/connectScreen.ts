@@ -41,19 +41,35 @@ type Doing =
 export function connectScreen(root: HTMLElement): (() => void) | null {
   const bridge = window.take;
   let known: Connection[] = [];
+  /*
+   * A BALANCEVID ON THIS VERY COMPUTER.  [T-2, P24]
+   *
+   * > *"directly if it is a selfhost balancevid server, it can
+   * > automatically connect"*
+   *
+   * Found rather than typed, and OFFERED rather than chosen: a
+   * station that silently pointed four cameras at whatever was
+   * listening on port 3000 would be a station that sends a
+   * service to the wrong studio. One press, with the name of
+   * the installation on it, is what *automatically* can
+   * honestly mean. [D-21, nearby.ts]
+   */
+  let here: { origin: string; instance: Connection }[] = [];
   let doing: Doing = { kind: 'idle' };
   /* What this station is pointed at, by name. Never the link. [T-5] */
   let call: { origin: string; name: string } | null = null;
 
   const pointed = el('div', 'pointed');
   pointed.id = 'pointed';
+  const found = el('div', 'found');
+  found.id = 'found';
   const recent = el('div', 'recent');
   recent.id = 'recent';
   const box = document.createElement('input');
   box.type = 'text';
   box.id = 'typed';
   box.className = 'typed';
-  box.placeholder = 'studio.example, or the link they sent you';
+  box.placeholder = 'studio.example, a link, or a code';
   box.spellcheck = false;
   box.autocapitalize = 'off';
   const hint = el('p', 'hint');
@@ -65,6 +81,39 @@ export function connectScreen(root: HTMLElement): (() => void) | null {
   go.textContent = 'Connect';
   const result = el('div', 'result');
   result.id = 'result';
+
+  /**
+   * What answered on this machine.
+   *
+   * ABOVE THE BOX AND ABOVE THE REMEMBERED ONES, because on a
+   * self-hosted installation it is the whole screen: the studio
+   * is the same computer, and everything else here is for
+   * reaching one that is not.
+   *
+   * NOTHING AT ALL WHERE NOTHING ANSWERED, which is every
+   * station connecting to a cloud installation. A line reading
+   * *no local server found* would be an error message about
+   * something nobody was looking for. [U-19]
+   */
+  function drawFound(): void {
+    found.replaceChildren();
+    if (here.length === 0) return;
+    found.appendChild(el('p', 'label', 'On this computer'));
+    for (const one of here) {
+      const row = el('div', 'known');
+      row.dataset['origin'] = one.origin;
+      const open = document.createElement('button');
+      open.type = 'button';
+      open.className = 'known-go';
+      open.dataset['testid'] = 'nearby-go';
+      open.appendChild(el('span', 'known-name',
+        one.instance.name || one.instance.origin || one.origin));
+      open.appendChild(el('span', 'known-origin', one.origin));
+      open.addEventListener('click', () => { box.value = one.origin; void ask(); });
+      row.append(open);
+      found.appendChild(row);
+    }
+  }
 
   function drawRecent(): void {
     recent.replaceChildren();
@@ -193,7 +242,8 @@ export function connectScreen(root: HTMLElement): (() => void) | null {
     pointed.replaceChildren();
     if (!call) {
       pointed.appendChild(el('p', 'quiet',
-        'Not recording for anything yet. Paste the link a studio sent you.'));
+        'Not recording for anything yet. Pick a studio below, paste the link '
+        + 'they sent you, or type the code they read out.'));
       return;
     }
     const line = el('p', 'good', `Recording for ${call.name}`);
@@ -214,7 +264,7 @@ export function connectScreen(root: HTMLElement): (() => void) | null {
     pointed.appendChild(clear);
   }
 
-  function draw(): void { drawCall(); drawRecent(); drawResult(); }
+  function draw(): void { drawCall(); drawFound(); drawRecent(); drawResult(); }
 
   async function remember(one: Connection): Promise<void> {
     known = (await bridge?.remember(
@@ -230,6 +280,47 @@ export function connectScreen(root: HTMLElement): (() => void) | null {
   async function ask(): Promise<void> {
     const typed = readTyped(box.value);
     hint.textContent = says(typed);
+    /*
+     * A CODE IS SPENT SOMEWHERE, AND THE SCREEN KNOWS WHERE.
+     *   [T-2, P24]
+     *
+     * Ten letters say nothing about which installation minted
+     * them — that is the one way a code differs from a link,
+     * which carries its origin, and from an address, which is
+     * one. So the screen supplies the other half from what it
+     * already has: the studio found on this machine, then the
+     * one most recently connected to. Both are things the
+     * operator can see on this screen, so a code spent at the
+     * wrong one is a mistake they can read rather than one
+     * the program made quietly. [D-21]
+     *
+     * AND IT REFUSES RATHER THAN GUESSES when there is no
+     * installation at all. A code with nowhere to spend it is
+     * not an error in the code.
+     */
+    if (typed.kind === 'code') {
+      const at = here[0]?.origin ?? known[0]?.origin;
+      if (!at) {
+        hint.textContent = 'Type the studio’s address first, then the code.';
+        return;
+      }
+      doing = { kind: 'asking', origin: at };
+      drawResult();
+      const got = (await bridge?.pair({ origin: at, code: typed.code })) ?? null;
+      if (!got) {
+        doing = { kind: 'idle' };
+        hint.textContent = 'That code did not work at ' + at
+          + '. Codes last fifteen minutes and work once.';
+        drawResult();
+        return;
+      }
+      call = got;
+      box.value = '';
+      hint.textContent = '';
+      doing = { kind: 'idle' };
+      draw();
+      return;
+    }
     if (typed.kind !== 'origin' && typed.kind !== 'link') return;
     doing = { kind: 'asking', origin: typed.origin };
     drawResult();
@@ -265,7 +356,7 @@ export function connectScreen(root: HTMLElement): (() => void) | null {
   root.replaceChildren();
   root.appendChild(el('h1', 'mark', 'Take'));
   root.appendChild(el('p', 'sub', 'Connect to the studio that invited you.'));
-  root.append(pointed, recent);
+  root.append(pointed, found, recent);
   const field = el('div', 'field');
   field.append(box, go);
   root.append(field, hint, result);
@@ -289,9 +380,10 @@ export function connectScreen(root: HTMLElement): (() => void) | null {
    * and a thing somebody could fix. [U-19]
    */
   root.appendChild(el('p', 'note',
-    'There is no QR scanner yet — the camera is there, the decoder '
-    + 'is not, and one that worked on only some machines would be '
-    + 'worse than this box. Type the address or paste the link.'));
+    'Three ways in: a studio running on this computer, a link they '
+    + 'sent you, or a ten-letter code from their screen. There is no '
+    + 'QR scanner — the camera is there, the decoder is not, and one '
+    + 'that worked on only some machines would be worse than this box.'));
 
   void (async () => {
     [known, call] = await Promise.all([
@@ -299,6 +391,33 @@ export function connectScreen(root: HTMLElement): (() => void) | null {
       bridge?.call().then((one) => one ?? null) ?? Promise.resolve(null),
     ]);
     draw();
+  })();
+
+  /*
+   * AND THE LOOK ROUND THIS COMPUTER, SEPARATELY AND AFTER.
+   *   [T-2, P24]
+   *
+   * Four requests to loopback that fail in milliseconds when
+   * nothing is there — but *milliseconds* is a claim about a
+   * machine that is behaving, and this screen must be drawn
+   * before it is known. So it is its own pass: the remembered
+   * studios and the box are up at once, and the local one
+   * appears above them a moment later if there is one. A
+   * screen that waited for a probe before drawing anything
+   * would be a screen that is blank on the machine where the
+   * probe is slowest. [U-19]
+   */
+  void (async () => {
+    const answered = await bridge?.nearby().catch(() => []) ?? [];
+    here = answered.map((one) => ({
+      origin: one.origin,
+      instance: {
+        origin: one.instance.origin,
+        name: one.instance.name,
+        addedAt: new Date().toISOString(),
+      },
+    }));
+    if (here.length > 0) drawFound();
   })();
 
   /* Nothing to let go of: this screen holds no device and no

@@ -758,3 +758,21 @@ main {
      even though nothing else on this window is. */
   user-select: all;
 }
+
+/*
+ * WHAT IS LISTENING ON THIS COMPUTER.
+ *   [TAKE-DESKTOP T-2; TAKE-PLATFORM P24]
+ *
+ * A self-hosted installation is usually the same machine as the
+ * capture station, and the operator was being asked to type its
+ * address anyway. It sits above the remembered studios and
+ * above the box, because on that machine it IS the screen —
+ * and it is marked, because *on this computer* is a different
+ * kind of claim from *you connected to this before*.
+ */
+.found { display: flex; flex-direction: column; gap: 8px; }
+
+.found .known-go {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}

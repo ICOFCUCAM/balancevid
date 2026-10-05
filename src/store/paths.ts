@@ -88,6 +88,17 @@ const OWNED_ROOTS = ['conversations', 'performances', 'channels', 'library'] as 
  * producing a harmless path rather than by throwing keeps every
  * caller the same shape. [D-06]
  */
+/**
+ * A pairing code as a filename, or nothing.
+ *
+ * The same shape as `rungTag` and `audioTag`: refused by
+ * producing a harmless path rather than by throwing, so every
+ * caller stays one shape. [D-06]
+ */
+function pairingName(code: string): string {
+  return /^[0-9A-HJKMNP-TV-Z]{10}$/.test(code) ? code : '_';
+}
+
 const RUNGS = ['low', 'standard', 'high', 'maximum', 'ultra'];
 function rungTag(rung: string): string {
   return RUNGS.includes(rung) ? rung : '';
@@ -256,6 +267,26 @@ export const paths = {
   request: (id: string) => join(paths.requests(), safe(id)),
   requestDocument: (id: string) => join(paths.request(id), 'request.json'),
   requestAssets: (id: string) => join(paths.request(id), 'assets'),
+  /**
+   * A PAIRING CODE, WHICH IS A CREDENTIAL WITH A SHORT LIFE.
+   *   [TAKE-DESKTOP T-2; D-25, D-06]
+   *
+   *   var/accounts/<a>/pairings/<CODE>.json
+   *
+   * BESIDE THE REQUESTS AND NOT INSIDE ONE, because the lookup
+   * goes the other way: a station holds the code and is asking
+   * which request it stands in for. A file per request would
+   * mean reading every request to answer that.
+   *
+   * THE CODE ARRIVES FROM A POST BODY AND IS TREATED AS
+   * UNTRUSTED. Anything that is not ten letters of the pairing
+   * alphabet becomes the empty name, which is a path that holds
+   * no file — so a guess 404s exactly as a wrong code does, and
+   * `..` in one never becomes a directory. [D-06]
+   */
+  pairings: () => join(owned(), 'pairings'),
+  pairing: (code: string) =>
+    join(paths.pairings(), `${pairingName(code)}.json`),
   requestAsset: (id: string, assetId: string, ext: string) =>
     join(paths.requestAssets(id), `${safe(assetId)}.${ext.replace(/[^a-z0-9]/gi, '')}`),
   /**

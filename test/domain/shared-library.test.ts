@@ -13,6 +13,8 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
+import { OPENS_ON, STEPS } from '../../desktop/src/shell.js';
+
 const ROOT = join(import.meta.dirname, '..', '..');
 const read = (file: string) => readFileSync(join(ROOT, file), 'utf8');
 /*
@@ -47,6 +49,15 @@ describe('what is in the shared library (T-1)', () => {
       join('shared/src', 'align.ts'),
       join('shared/src', 'capture.ts'),
       join('shared/src', 'connections.ts'),
+      /*
+       * THE SHORT CREDENTIAL, ADDED FOR THE CAPTURE STATION'S
+       * CONNECT. The installation mints ten letters and prints
+       * them; the station recognises one in its box and spends
+       * it. Two opinions about the alphabet, the length or
+       * where the dash goes is a code a producer reads out and
+       * an operator cannot type. [T-2, D-19]
+       */
+      join('shared/src', 'pairing.ts'),
       join('shared/src', 'prepare.ts'),
       join('shared/src', 'sourceGrid.ts'),
       /*
@@ -134,6 +145,7 @@ describe('there is exactly one copy of it (T-1)', () => {
     for (const [door, behind] of [
       ['src/domain/time.ts', '../../shared/src/time.js'],
       ['src/domain/align.ts', '../../shared/src/align.js'],
+      ['src/domain/pairing.ts', '../../shared/src/pairing.js'],
     ] as const) {
       /* Comments are the point of these files; code is not. */
       const body = code(door).trim();
@@ -224,10 +236,28 @@ describe('the desktop application reaches nowhere into the web tier (T-1)', () =
    */
   it('names the six steps and claims only what is built', () => {
     const shell = code('desktop/src/shell.ts');
-    for (const step of ['CONNECT', 'CAMERAS', 'PREPARE', 'RECORD',
-      'REVIEW', 'SUBMIT']) {
+    for (const step of ['CAMERAS', 'PREPARE', 'RECORD', 'REVIEW', 'CONNECT',
+      'SUBMIT']) {
       expect(shell, step).toContain(`'${step}'`);
     }
+    /*
+     * AND CONNECT IS NOT FIRST, WHICH IS A CLAIM WORTH PINNING.
+     *
+     * > *"only connect when decided. putting connect into the
+     * > door to the software is problematic"*
+     *
+     * Every step was always pressable and none was ever gated —
+     * but a strip that reads left to right and opens on CONNECT
+     * tells an operator they must find a studio before they may
+     * point a camera at anything, which in a hall twenty
+     * minutes before a service is the application refusing to
+     * do the one thing it is for. A capture station records to
+     * its own disk and sends afterwards; the step that needs a
+     * studio is SUBMIT, and CONNECT sits immediately before it.
+     */
+    expect(STEPS[0]).toBe('CAMERAS');
+    expect(STEPS.indexOf('CONNECT')).toBe(STEPS.indexOf('SUBMIT') - 1);
+    expect(OPENS_ON).toBe('CAMERAS');
     /*
      * T-1 shipped with CONNECT named next; T-2 built CONNECT,
      * T-3 built CAMERAS and PREPARE together, T-4 built RECORD,

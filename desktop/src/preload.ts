@@ -23,6 +23,11 @@
  *   captures()             what is on this machine
  *   capture(id)            one of them, in full
  *   forgetCapture(id)      throw one away, whole [T-5]
+ *   nearby()               a BalanceVid on this very computer,
+ *                          where there is one [T-2]
+ *   pair(origin, code)     ten letters a producer read out,
+ *                          spent for the link — which stays in
+ *                          the main process [T-2]
  *   call() / chooseCall()  which call this station records for —
  *                          by name, never by credential [T-5]
  *   send(id)               send a capture, resumable per source
@@ -45,7 +50,7 @@
 
 import { contextBridge, ipcRenderer } from 'electron';
 
-import type { Connection } from '../../shared/src/connections.js';
+import type { Connection, Instance } from '../../shared/src/connections.js';
 import type { Capture } from '../../shared/src/capture.js';
 import type { captureOf } from '../../shared/src/capture.js';
 import type { Machine } from './machine.js';
@@ -85,6 +90,23 @@ export interface TakeBridge {
    * renderer is a web page and this one has four cameras
    * pointed at a room.
    */
+  /*
+   * A SELF-HOSTED INSTALLATION ON THIS MACHINE. [T-2]
+   *
+   * Offered, never chosen: the window draws what answered and
+   * an operator presses one. A station that silently pointed
+   * four cameras at whatever was listening on port 3000 would
+   * be a station that sends a service to the wrong studio.
+   * [D-21]
+   */
+  nearby(): Promise<{ origin: string; instance: Instance }[]>;
+  /*
+   * A SHORT CREDENTIAL IN, A NAME OUT. The window never sees
+   * the link the code stood in for; it is spent, kept and
+   * pointed at, and what comes back is where the work is
+   * going. [T-1, D-25]
+   */
+  pair(said: { origin: string; code: string }): Promise<Seen | null>;
   call(): Promise<Seen | null>;
   chooseCall(said: { origin: string; link: string; name: string } | null):
     Promise<Seen | null>;
@@ -121,6 +143,8 @@ const bridge: TakeBridge = {
     ipcRenderer.invoke('take:write-chunk', id, file, bytes),
   endCapture: (spec) => ipcRenderer.invoke('take:end-capture', spec),
   captures: () => ipcRenderer.invoke('take:captures'),
+  nearby: () => ipcRenderer.invoke('take:nearby'),
+  pair: (said) => ipcRenderer.invoke('take:pair', said),
   capture: (id) => ipcRenderer.invoke('take:capture', id),
   forgetCapture: (id) => ipcRenderer.invoke('take:forget-capture', id),
   call: () => ipcRenderer.invoke('take:call'),
