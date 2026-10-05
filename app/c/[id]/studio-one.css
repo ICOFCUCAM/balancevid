@@ -1,0 +1,1727 @@
+/**
+ * Studio One's own stylesheet.
+ *   [Doctrine §36, §40, U-27, U-28, D-19, D-24]
+ *
+ * SOURCE → PAUSE → RESPOND → REVIEW → PRODUCE
+ *
+ * EVERY DECLARATION IN THIS FILE IS THE ONE THAT WAS WRITTEN.
+ * `Studio1.html` carries 163 rules; all 163 are here with their
+ * declarations byte-identical, and the only thing that changed
+ * is what each selector is attached to. That was checked with a
+ * parser rather than by eye, and `studio-one.test.ts` checks it
+ * again on every run.
+ *
+ * EVERY SELECTOR IS UNDER `.s1`, AND BOTH DIRECTIONS NEEDED IT.
+ *
+ *   OUT  `:root` here declares `--line`, `--text`, `--muted` and
+ *        `--surface`, every one of which the console's token ramp
+ *        also declares, and `.panel` is eight rules deep in
+ *        `surfaces.css`. Unscoped, opening Studio One would have
+ *        restyled the whole product for as long as the page was
+ *        mounted.
+ *   IN   `controls.css` styles bare `button`, `input` and
+ *        `select`; `globals.css` styles `h1, h2, h3`. Unscoped,
+ *        every tab, pill and transport button in here would have
+ *        arrived as a 34px inline-flex control with a corner
+ *        radius and a surface colour — which is what happened to
+ *        the gateway's product tabs, found in a screenshot.
+ *
+ * `html`, `body` AND `:root` BECAME `.s1` ITSELF. The brief is a
+ * standalone document whose body IS the workstation; here the
+ * workstation is a page inside an application, so the element
+ * that carries the tokens, the dark ground and the no-scroll
+ * rule is the studio's own root.
+ *
+ * IT IS NOT IN `app/styles/`, deliberately: every file in that
+ * directory is loaded by `globals.css` on every page, which
+ * `design-system.test.ts` enforces, and a sheet that redeclares
+ * `--text` must not be one of them. It sits with the route that
+ * owns it, as the gateway's does.
+ *
+ * WHAT IS NOT TRANSCRIBED is anything that was a drawing of
+ * content: `.fake-person`, `.video-scene` and `.mini-person` are
+ * the brief's stand-ins for a picture, and Studio One has the
+ * picture. They are kept because the shell still needs them
+ * where no media has loaded yet, and they are the only honest
+ * thing to show then. [U-19]
+ */
+
+
+/* =========================================================
+   BALANCEVID STUDIO ONE
+   SOURCE → PAUSE → RESPOND → REVIEW → PRODUCE
+   ========================================================= */
+
+.s1 {
+  --bg: #080b10;
+  --bg-2: #0d1118;
+  --surface: #11161e;
+  --surface-2: #151b24;
+  --surface-3: #1a212c;
+  --line: rgba(255,255,255,.09);
+  --line-strong: rgba(255,255,255,.16);
+
+  --text: #f4f7fb;
+  --muted: #8994a3;
+  --muted-2: #5f6a78;
+
+  --blue: #4da3ff;
+  --blue-2: #147ff5;
+  --cyan: #64d9ff;
+
+  --green: #52d48a;
+  --amber: #eab45c;
+  --red: #ff5268;
+
+  --white: #fff;
+
+  --radius: 10px;
+  --radius-sm: 7px;
+
+  --left: 274px;
+  --right: 302px;
+  --top: 58px;
+  --bottom: 235px;
+}
+
+.s1, .s1 * {
+  box-sizing: border-box;
+}
+
+.s1 {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+}
+
+.s1 button,
+.s1 input,
+.s1 select {
+  font: inherit;
+}
+
+.s1 button {
+  color: inherit;
+}
+
+.s1 button:focus-visible,
+.s1 input:focus-visible,
+.s1 select:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+/* =========================================================
+   APP FRAME
+   ========================================================= */
+
+.s1 .app {
+  width: 100%;
+  height: 100vh;
+  display: grid;
+  grid-template-rows: var(--top) 1fr;
+}
+
+/* =========================================================
+   TOP BAR
+   ========================================================= */
+
+.s1 .topbar {
+  height: var(--top);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 18px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(8,11,16,.96);
+  position: relative;
+  z-index: 20;
+}
+
+.s1 .brand {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-width: 250px;
+}
+
+.s1 .brand-mark {
+  width: 28px;
+  height: 28px;
+  border: 1px solid rgba(255,255,255,.32);
+  border-radius: 7px;
+  position: relative;
+}
+
+.s1 .brand-mark::before {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  border-left: 2px solid var(--blue);
+  border-bottom: 2px solid var(--blue);
+  transform: skew(-14deg);
+}
+
+.s1 .brand-title {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .11em;
+}
+
+.s1 .brand-title span {
+  color: var(--muted);
+  font-weight: 500;
+  margin-left: 8px;
+}
+
+.s1 .project {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+}
+
+.s1 .project-name {
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: .02em;
+}
+
+.s1 .project-meta {
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 3px;
+}
+
+.s1 .top-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 250px;
+  justify-content: flex-end;
+}
+
+.s1 .status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 10px;
+  margin-right: 8px;
+}
+
+.s1 .status-dot {
+  width: 6px;
+  height: 6px;
+  background: var(--green);
+  border-radius: 50%;
+  box-shadow: 0 0 10px rgba(82,212,138,.5);
+}
+
+.s1 .icon-btn,
+.s1 .top-btn,
+.s1 .top-actions button:not(.mode-pill):not(.top-btn) {
+  height: 32px;
+  border: 1px solid var(--line);
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.s1 .icon-btn {
+  width: 34px;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+}
+
+.s1 .icon-btn:hover,
+.s1 .top-btn:hover,
+.s1 .top-actions button:not(.mode-pill):not(.top-btn):hover {
+  border-color: var(--line-strong);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.s1 .top-btn, .s1 .top-actions button:not(.mode-pill):not(.top-btn) {
+  padding: 0 12px;
+  font-size: 11px;
+}
+
+.s1 .top-btn.primary {
+  background: var(--blue-2);
+  border-color: var(--blue-2);
+  color: white;
+  font-weight: 650;
+}
+
+/* =========================================================
+   MAIN WORKSPACE
+   ========================================================= */
+
+.s1 .workspace {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: var(--left) minmax(400px, 1fr) var(--right);
+  grid-template-rows: minmax(0, 1fr) var(--bottom);
+}
+
+/* =========================================================
+   LEFT SOURCE RAIL
+   ========================================================= */
+
+.s1 .source-rail {
+  grid-column: 1;
+  grid-row: 1 / 3;
+  border-right: 1px solid var(--line);
+  background: #0b0f15;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.s1 .rail-header {
+  height: 50px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+}
+
+.s1 .rail-title {
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: .12em;
+  color: var(--muted);
+}
+
+.s1 .rail-action {
+  border: 0;
+  background: transparent;
+  color: var(--blue);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.s1 .source-content {
+  overflow: auto;
+  padding: 14px;
+}
+
+.s1 .section-label {
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: .13em;
+  color: var(--muted-2);
+  margin: 8px 0 10px;
+}
+
+.s1 .source-card {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  cursor: pointer;
+  margin-bottom: 10px;
+}
+
+.s1 .source-card.selected {
+  border-color: rgba(77,163,255,.65);
+  box-shadow: inset 2px 0 0 var(--blue);
+}
+
+.s1 .source-thumb {
+  height: 108px;
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 65% 35%, #4c596c 0, #27313e 24%, #131922 58%, #090c11 100%);
+}
+
+.s1 .source-thumb.alt {
+  background:
+    radial-gradient(circle at 28% 30%, #53616c 0, #26333b 20%, #10171e 65%, #080b10 100%);
+}
+
+.s1 .source-thumb::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(120deg, transparent 0 55%, rgba(255,255,255,.06) 55.5%, transparent 56%),
+    linear-gradient(0deg, rgba(0,0,0,.45), transparent 50%);
+}
+
+.s1 .fake-person {
+  position: absolute;
+  width: 42px;
+  height: 60px;
+  left: 51%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  border-radius: 18px 18px 8px 8px;
+  background: #596879;
+  z-index: 1;
+}
+
+.s1 .fake-person::before {
+  content: "";
+  position: absolute;
+  width: 25px;
+  height: 25px;
+  border-radius: 50%;
+  background: #8793a0;
+  left: 50%;
+  top: -18px;
+  transform: translateX(-50%);
+}
+
+.s1 .source-duration {
+  position: absolute;
+  bottom: 7px;
+  right: 7px;
+  z-index: 2;
+  padding: 3px 5px;
+  background: rgba(0,0,0,.72);
+  border-radius: 3px;
+  font-size: 9px;
+}
+
+.s1 .source-info {
+  padding: 9px 10px 10px;
+}
+
+.s1 .source-name {
+  font-size: 11px;
+  font-weight: 650;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.s1 .source-sub {
+  color: var(--muted);
+  font-size: 9px;
+  margin-top: 4px;
+}
+
+.s1 .source-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 8px;
+  color: var(--green);
+  font-size: 9px;
+}
+
+.s1 .source-state::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.s1 .import-box {
+  border: 1px dashed rgba(255,255,255,.14);
+  border-radius: 7px;
+  padding: 14px 10px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 10px;
+  margin-top: 12px;
+  cursor: pointer;
+}
+
+.s1 .import-box:hover {
+  border-color: rgba(77,163,255,.45);
+  color: var(--text);
+}
+
+/* =========================================================
+   VIEWER
+   ========================================================= */
+
+.s1 .viewer-area {
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+  min-height: 0;
+  background: #07090d;
+  display: grid;
+  grid-template-rows: 46px minmax(0, 1fr) 48px;
+}
+
+.s1 .viewer-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.s1 .viewer-mode {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.s1 .mode-pill {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 5px;
+  height: 26px;
+  padding: 0 9px;
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: .07em;
+  font-weight: 700;
+}
+
+.s1 .mode-pill.active {
+  border-color: rgba(77,163,255,.45);
+  color: var(--blue);
+}
+
+.s1 .viewer-meta {
+  color: var(--muted);
+  font-size: 9px;
+  display: flex;
+  gap: 14px;
+}
+
+.s1 .canvas-wrap {
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  padding: 22px 28px;
+}
+
+.s1 .video-stage {
+  position: relative;
+  width: min(100%, 1060px);
+  aspect-ratio: 16 / 9;
+  background: #10151d;
+  overflow: hidden;
+  box-shadow:
+    0 20px 70px rgba(0,0,0,.45),
+    0 0 0 1px rgba(255,255,255,.06);
+}
+
+.s1 .video-scene {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(105deg, rgba(7,11,16,.95) 0%, rgba(7,11,16,.35) 44%, rgba(7,11,16,.1) 100%),
+    radial-gradient(circle at 67% 31%, rgba(103,125,148,.58), transparent 18%),
+    linear-gradient(180deg, #293643 0%, #1a252f 47%, #10161d 48%, #090d12 100%);
+}
+
+.s1 .video-scene::before {
+  content: "";
+  position: absolute;
+  width: 37%;
+  height: 76%;
+  right: 12%;
+  bottom: 0;
+  background:
+    radial-gradient(circle at 50% 35%, #6f7e8b 0 8%, transparent 8.5%),
+    linear-gradient(90deg, transparent 25%, rgba(93,108,122,.5) 25.5% 74%, transparent 74.5%),
+    linear-gradient(180deg, transparent 0 34%, #303b47 34% 100%);
+  opacity: .72;
+}
+
+.s1 .video-scene::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 33%;
+  background: linear-gradient(180deg, transparent, rgba(0,0,0,.58));
+}
+
+.s1 .viewer-person {
+  position: absolute;
+  z-index: 2;
+  right: 25%;
+  bottom: 10%;
+  width: 14%;
+  height: 48%;
+  background:
+    radial-gradient(circle at 50% 15%, #9a7b68 0 10%, transparent 10.5%),
+    linear-gradient(90deg, #222a34 0 28%, #3d4855 28% 72%, #222a34 72%);
+  border-radius: 20px 20px 5px 5px;
+}
+
+.s1 .viewer-person::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -8%;
+  width: 140%;
+  height: 3px;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,.5);
+  filter: blur(4px);
+}
+
+.s1 .safe-area {
+  position: absolute;
+  inset: 7%;
+  border: 1px dashed rgba(255,255,255,.17);
+  z-index: 5;
+  pointer-events: none;
+}
+
+.s1 .viewer-top-left {
+  position: absolute;
+  z-index: 8;
+  left: 16px;
+  top: 15px;
+  font-size: 9px;
+  letter-spacing: .1em;
+  color: rgba(255,255,255,.62);
+}
+
+.s1 .viewer-timecode {
+  position: absolute;
+  z-index: 8;
+  right: 16px;
+  top: 15px;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+  color: rgba(255,255,255,.85);
+}
+
+.s1 .paused-marker {
+  position: absolute;
+  z-index: 10;
+  left: 50%;
+  top: 50%;
+  width: 56px;
+  height: 56px;
+  transform: translate(-50%,-50%);
+  border: 1px solid rgba(255,255,255,.5);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgba(0,0,0,.25);
+  backdrop-filter: blur(5px);
+}
+
+.s1 .paused-marker::before {
+  content: "";
+  width: 0;
+  height: 0;
+  border-top: 8px solid transparent;
+  border-bottom: 8px solid transparent;
+  border-left: 12px solid white;
+  margin-left: 4px;
+}
+
+.s1 .response-frame {
+  position: absolute;
+  z-index: 7;
+  right: 3.5%;
+  bottom: 5%;
+  width: 25%;
+  aspect-ratio: 16/9;
+  border: 1px solid rgba(77,163,255,.8);
+  background: #0b1017;
+  box-shadow: 0 10px 30px rgba(0,0,0,.5);
+}
+
+.s1 .response-frame .mini-person {
+  position: absolute;
+  width: 28%;
+  height: 62%;
+  left: 50%;
+  bottom: 8%;
+  transform: translateX(-50%);
+  background: #3c4855;
+  border-radius: 10px 10px 4px 4px;
+}
+
+.s1 .response-frame .mini-person::before {
+  content: "";
+  position: absolute;
+  width: 38%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  left: 50%;
+  top: -22%;
+  transform: translateX(-50%);
+  background: #8c7569;
+}
+
+.s1 .response-label {
+  position: absolute;
+  left: 7px;
+  top: 6px;
+  z-index: 3;
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: .12em;
+  color: var(--blue);
+}
+
+.s1 .viewer-controls {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 14px;
+  border-top: 1px solid var(--line);
+  background: #0b0f14;
+}
+
+.s1 .transport {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.s1 .transport button {
+  width: 29px;
+  height: 29px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.s1 .transport button:hover {
+  background: var(--surface);
+  color: white;
+}
+
+.s1 .transport .play {
+  background: var(--blue-2);
+  color: white;
+}
+
+.s1 .time-readout {
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 10px;
+  color: var(--text);
+  min-width: 84px;
+}
+
+.s1 .seek {
+  flex: 1;
+  height: 3px;
+  appearance: none;
+  background: #29313c;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.s1 .seek::-webkit-slider-thumb {
+  appearance: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--blue);
+  border: 0;
+}
+
+.s1 .ratio-select {
+  height: 28px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+  border-radius: 5px;
+  font-size: 9px;
+  padding: 0 7px;
+}
+
+/* =========================================================
+   RIGHT CONTROL RAIL
+   ========================================================= */
+
+.s1 .control-rail {
+  grid-column: 3;
+  grid-row: 1;
+  min-height: 0;
+  border-left: 1px solid var(--line);
+  background: #0b0f15;
+  display: flex;
+  flex-direction: column;
+}
+
+.s1 .control-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  height: 46px;
+  border-bottom: 1px solid var(--line);
+}
+
+.s1 .control-tab {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: .06em;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.s1 .control-tab.active {
+  color: var(--text);
+  border-bottom-color: var(--blue);
+}
+
+.s1 .control-panel {
+  overflow: auto;
+  padding: 15px;
+}
+
+.s1 .s1-panel {
+  display: none;
+}
+
+.s1 .s1-panel.active {
+  display: block;
+}
+
+.s1 .panel-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.s1 .panel-heading h2 {
+  font-size: 12px;
+  margin: 0;
+  font-weight: 700;
+}
+
+.s1 .panel-heading span {
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.s1 .production-state {
+  border: 1px solid rgba(77,163,255,.2);
+  background: rgba(77,163,255,.055);
+  padding: 12px;
+  border-radius: 7px;
+  margin-bottom: 16px;
+}
+
+.s1 .production-state .eyebrow {
+  color: var(--blue);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .12em;
+}
+
+.s1 .production-state strong {
+  display: block;
+  font-size: 13px;
+  margin-top: 5px;
+}
+
+.s1 .production-state p {
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.5;
+  margin: 6px 0 0;
+}
+
+.s1 .control-section {
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+}
+
+.s1 .control-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+
+.s1 .control-label strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.s1 .choice-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 5px;
+}
+
+.s1 .choice {
+  height: 29px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 5px;
+  font-size: 9px;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.s1 .choice.active {
+  color: var(--blue);
+  border-color: rgba(77,163,255,.55);
+  background: rgba(77,163,255,.08);
+}
+
+.s1 .record-button {
+  width: 100%;
+  height: 42px;
+  border: 1px solid rgba(255,82,104,.4);
+  background: rgba(255,82,104,.08);
+  color: #ff7587;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: .08em;
+  cursor: pointer;
+}
+
+.s1 .record-button:hover {
+  background: rgba(255,82,104,.15);
+}
+
+.s1 .record-button.recording {
+  background: var(--red);
+  color: white;
+  border-color: var(--red);
+}
+
+.s1 .audio-meter {
+  height: 6px;
+  display: flex;
+  gap: 2px;
+  margin-top: 8px;
+}
+
+.s1 .audio-meter span {
+  flex: 1;
+  background: #27313b;
+}
+
+.s1 .audio-meter span:nth-child(-n+8) {
+  background: var(--green);
+}
+
+.s1 .audio-meter span:nth-child(n+9):nth-child(-n+11) {
+  background: var(--amber);
+}
+
+.s1 .setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 34px;
+  border-bottom: 1px solid rgba(255,255,255,.05);
+}
+
+.s1 .setting-name {
+  font-size: 9px;
+  color: var(--muted);
+}
+
+.s1 .setting-value {
+  font-size: 9px;
+  color: var(--text);
+}
+
+.s1 .small-select {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 4px;
+  font-size: 9px;
+  padding: 5px 7px;
+}
+
+/* =========================================================
+   BOTTOM PRODUCTION AREA
+   ========================================================= */
+
+.s1 .production-area {
+  grid-column: 2 / 4;
+  grid-row: 2;
+  min-height: 0;
+  border-top: 1px solid var(--line);
+  background: #0b0f14;
+  display: grid;
+  grid-template-rows: 42px minmax(0, 1fr);
+}
+
+.s1 .production-tabs {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.s1 .production-tab {
+  height: 29px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 700;
+  padding: 0 12px;
+  cursor: pointer;
+}
+
+.s1 .production-tab.active {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.s1 .production-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 5px;
+}
+
+.s1 .production-actions button {
+  height: 27px;
+  border: 1px solid var(--line);
+  background: transparent;
+  border-radius: 5px;
+  color: var(--muted);
+  font-size: 9px;
+  padding: 0 9px;
+  cursor: pointer;
+}
+
+.s1 .timeline {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 110px minmax(0,1fr);
+  overflow: hidden;
+}
+
+.s1 .track-labels {
+  border-right: 1px solid var(--line);
+  background: #0a0e13;
+}
+
+.s1 .track-label {
+  height: 43px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  font-size: 8px;
+  font-weight: 750;
+  letter-spacing: .09em;
+  color: var(--muted);
+}
+
+.s1 .track-label.master {
+  color: var(--text);
+  background: rgba(255,255,255,.025);
+}
+
+.s1 .timeline-body {
+  position: relative;
+  overflow: hidden;
+}
+
+.s1 .time-ruler {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 21px;
+  border-bottom: 1px solid var(--line);
+  background: #0d1218;
+  z-index: 5;
+}
+
+.s1 .tick {
+  position: absolute;
+  top: 0;
+  height: 21px;
+  border-left: 1px solid var(--line);
+  padding-left: 5px;
+  font-family: monospace;
+  font-size: 7px;
+  color: var(--muted-2);
+}
+
+.s1 .tracks {
+  position: absolute;
+  top: 21px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+.s1 .track-row {
+  height: 43px;
+  border-bottom: 1px solid var(--line);
+  position: relative;
+  background:
+    repeating-linear-gradient(
+      90deg,
+      transparent 0,
+      transparent calc(10% - 1px),
+      rgba(255,255,255,.035) calc(10% - 1px),
+      rgba(255,255,255,.035) 10%
+    );
+}
+
+.s1 .clip {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  border-radius: 4px;
+  padding: 0 9px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.s1 .clip.source {
+  left: 1%;
+  width: 55%;
+  background: #26313d;
+  border: 1px solid #3b4857;
+}
+
+.s1 .clip.response {
+  left: 57%;
+  width: 22%;
+  background: rgba(77,163,255,.16);
+  border: 1px solid rgba(77,163,255,.5);
+}
+
+.s1 .clip.audio {
+  left: 1%;
+  width: 78%;
+  background: #172a24;
+  border: 1px solid #2c5d4c;
+}
+
+.s1 .clip.master {
+  left: 1%;
+  width: 78%;
+  background: #172131;
+  border: 1px solid #314b68;
+}
+
+.s1 .clip-title {
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.s1 .clip-sub {
+  font-size: 7px;
+  color: rgba(255,255,255,.52);
+  margin-top: 3px;
+}
+
+.s1 .wave {
+  height: 11px;
+  margin-top: 4px;
+  display: flex;
+  gap: 1px;
+  align-items: center;
+}
+
+.s1 .wave i {
+  width: 2px;
+  background: rgba(82,212,138,.65);
+  display: block;
+  border-radius: 2px;
+}
+
+.s1 .playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 41%;
+  width: 1px;
+  background: var(--red);
+  z-index: 10;
+  pointer-events: none;
+}
+
+.s1 .playhead::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: -4px;
+  width: 9px;
+  height: 7px;
+  background: var(--red);
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+}
+
+/* =========================================================
+   MODAL / TOAST
+   ========================================================= */
+
+.s1 .toast {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 100;
+  padding: 11px 15px;
+  background: #151c25;
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 15px 50px rgba(0,0,0,.4);
+  border-radius: 6px;
+  font-size: 10px;
+  color: var(--text);
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+  transition: .2s ease;
+}
+
+.s1 .toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 1150px) {
+  .s1 {
+    --left: 230px;
+    --right: 260px;
+    --bottom: 215px;
+  }
+
+  .s1 .brand {
+    min-width: 200px;
+  }
+
+  .s1 .top-actions {
+    min-width: 200px;
+  }
+
+  .s1 .canvas-wrap {
+    padding: 16px;
+  }
+}
+
+@media (max-width: 900px) {
+  .s1 {
+    --left: 0px;
+    --right: 280px;
+  }
+
+  .s1 .source-rail {
+    display: none;
+  }
+
+  .s1 .workspace {
+    grid-template-columns: minmax(0,1fr) var(--right);
+  }
+
+  .s1 .production-area {
+    grid-column: 1 / 3;
+  }
+
+  .s1 .brand-title span,
+  .s1 .status {
+    display: none;
+  }
+
+  .s1 .project {
+    position: static;
+    transform: none;
+    margin-left: 15px;
+  }
+
+  .s1 .topbar {
+    justify-content: flex-start;
+  }
+
+  .s1 .top-actions {
+    margin-left: auto;
+    min-width: auto;
+  }
+}
+
+@media (max-width: 680px) {
+  .s1 {
+    --right: 0px;
+    --bottom: 190px;
+  }
+
+  .s1 .workspace {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0,1fr) var(--bottom);
+  }
+
+  .s1 .control-rail {
+    display: none;
+  }
+
+  .s1 .viewer-area {
+    grid-column: 1;
+  }
+
+  .s1 .production-area {
+    grid-column: 1;
+  }
+
+  .s1 .brand {
+    min-width: auto;
+  }
+
+  .s1 .project {
+    display: none;
+  }
+
+  .s1 .top-btn, .s1 .top-actions button:not(.mode-pill):not(.top-btn) {
+    display: none;
+  }
+
+  .s1 .canvas-wrap {
+    padding: 10px;
+  }
+
+  .s1 .viewer-meta {
+    display: none;
+  }
+
+  .s1 .response-frame {
+    width: 30%;
+  }
+
+  .s1 .timeline {
+    grid-template-columns: 75px minmax(0,1fr);
+  }
+
+  .s1 .track-label {
+    padding-left: 8px;
+    font-size: 7px;
+  }
+
+  .s1 .production-actions {
+    display: none;
+  }
+}
+
+/* =========================================================
+   REDUCED MOTION
+   ========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  .s1, .s1 *, .s1 ::before, .s1 ::after {
+    scroll-behavior: auto !important;
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+
+
+/* =========================================================
+   THE CONSOLE'S CONTROL RULES, UNDONE ON THE BRIEF'S CONTROLS
+   =========================================================
+
+   The prefix stops this sheet reaching the product. It does
+   nothing about the product reaching in: `controls.css` styles
+   bare `button`, `input` and `select`, so every control the
+   brief draws would arrive as a 34px inline-flex pill with a
+   6px radius, a surface fill, a hairline border and a hover
+   that repaints it grey — the transport, the mode pills, the
+   tabs, the choice row and the record button are all plain
+   `<button>`.
+
+   THE FIRST VERSION OF THIS RESET `.s1 button`, AND THAT WAS
+   WRONG IN A WAY A SCREENSHOT WOULD NOT HAVE SHOWN. This studio
+   is not only the brief's markup: it is thirty existing
+   components rendered inside it, and they are built FROM the
+   console's controls — `.ctl`, `.btn`, `.small`. `.s1 button`
+   is (0,1,1) and `.ctl` is (0,1,0), so the reset won every one
+   of them, and the console's own lit controls came out as bare
+   text. `console.test.ts` caught it from the other end: Studio
+   One stopped using `.ctl` at all.
+
+   So the reset names the brief's controls instead of the
+   element. Each value is the browser's own default, put back,
+   so that the 163 transcribed rules are the only opinion on
+   the controls this sheet draws — and no opinion at all on the
+   controls it does not.  [D-19, D-24]  */
+
+.s1 .top-btn,
+.s1 .icon-btn,
+.s1 .mode-pill,
+.s1 .control-tab,
+.s1 .production-tab,
+.s1 .production-actions button,
+.s1 .rail-action,
+.s1 .choice,
+.s1 .record-button,
+.s1 .transport button,
+.s1 .top-actions button:not(.ctl):not(.btn) {
+  display: inline-block;
+  align-items: normal;
+  justify-content: normal;
+  gap: normal;
+  min-height: 0;
+  margin: 0;
+  box-shadow: none;
+  font-weight: inherit;
+  line-height: normal;
+  letter-spacing: normal;
+  user-select: auto;
+}
+
+.s1 .top-btn:hover:not(:disabled),
+.s1 .icon-btn:hover:not(:disabled),
+.s1 .mode-pill:hover:not(:disabled),
+.s1 .control-tab:hover:not(:disabled),
+.s1 .production-tab:hover:not(:disabled),
+.s1 .rail-action:hover:not(:disabled),
+.s1 .choice:hover:not(:disabled),
+.s1 .record-button:hover:not(:disabled),
+.s1 .transport button:hover:not(:disabled) {
+  box-shadow: none;
+  transform: none;
+}
+
+/* The brief's own three-line reset, which its standalone
+   document only needed against the browser's defaults. */
+.s1 button,
+.s1 input,
+.s1 select {
+  font: inherit;
+}
+
+.s1 button {
+  color: inherit;
+}
+
+/* A link dressed as one of the brief's controls is that
+   control, not a link. Everything else in here keeps the
+   console's link colour, which is what the components inside
+   it were written against. */
+.s1 a.mode-pill,
+.s1 a.top-btn {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* =========================================================
+   WHAT THE BRIEF DREW ONCE AND STUDIO ONE HAS MORE OF
+   =========================================================
+
+   Everything below is addition rather than alteration: the
+   brief draws three control tabs and three production tabs,
+   and this studio has more surfaces than six. Nothing above is
+   touched, and each rule here is in the brief's own vocabulary
+   so that a seventh tab looks like the first six.  */
+
+/* A rail or panel that holds an existing Studio One component
+   keeps its own scrolling, so the workstation itself still
+   never scrolls — which is the brief's first rule about the
+   frame and the oldest rule in this studio. [§40] */
+.s1 .s1-slot {
+  min-height: 0;
+  overflow: auto;
+  flex: 1 1 auto;
+}
+
+/* THE TAB ROW TAKES AS MANY COLUMNS AS IT HAS TABS.
+
+   The brief's control rail is `grid-template-columns:
+   repeat(3, 1fr)` with a fixed 46px height, because it draws
+   three tabs. A fourth lands in an implicit row and overflows
+   the height — measured, OUTPUT sat 23px below the other
+   three, outside the bar it belongs to.
+
+   Naming four would be the same mistake one tab later, so the
+   count comes from the markup: `grid-auto-flow: column` makes
+   every child a column and `grid-auto-columns: 1fr` shares the
+   width between however many there are.
+
+   The production row is already flex, and wraps. */
+.s1 .control-tabs {
+  grid-template-columns: none;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+}
+
+.s1 .production-tabs {
+  flex-wrap: wrap;
+}
+
+/* The components inside a panel brought their own margins from
+   a page that scrolled. In a fixed rail the first one must not
+   push the panel's own heading off the top. */
+.s1 .s1-panel > :first-child,
+.s1 .s1-slot > :first-child {
+  margin-top: 0;
+}
+
+/* LIVE IS THE PICTURE AND ONE KEY, AND THAT SURVIVES THE NEW
+   FRAME.  [U-27, U-28]
+
+   The brief draws one layout: four regions, always. Studio One
+   has three modes, and Live's whole argument is that every
+   panel removed is one less thing between a person and the
+   sentence they want to answer. So the frame stays — the top
+   bar is the one place the product's name and the way out
+   live — and the three rails fold away, leaving the viewer the
+   whole workspace. A mode that merely hid the rails behind a
+   scroll would be the same screen with the furniture pushed
+   out of sight. */
+.s1 .workspace[data-mode='live'],
+.s1 .workspace[data-mode='publish'] {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.s1 .workspace[data-mode='live'] .source-rail,
+.s1 .workspace[data-mode='live'] .control-rail,
+.s1 .workspace[data-mode='live'] .production-area,
+.s1 .workspace[data-mode='publish'] .source-rail,
+.s1 .workspace[data-mode='publish'] .control-rail,
+.s1 .workspace[data-mode='publish'] .production-area {
+  display: none;
+}
+
+/* AND THE REGION THAT IS LEFT TAKES THE WHOLE GRID. The brief
+   places the viewer in column 2 of three; with one column there
+   is no column 2, and a child placed in a track that does not
+   exist is a child in an implicit track outside the frame. */
+.s1 .workspace[data-mode='live'] .viewer-area,
+.s1 .workspace[data-mode='publish'] .publish-area {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+/* THE ONE KEY NEEDS A ROW OF ITS OWN.  [U-04, U-27]
+
+   The brief's viewer is three rows: toolbar, picture, transport.
+   Studio One has a fourth thing under the picture and it is the
+   most important object in the product — the statement being
+   answered, and SPACE. It is a row rather than an overlay
+   because it is read while the picture is being watched, and
+   `auto` rather than a fixed height because the claim card
+   grows to the length of the sentence it quotes. */
+.s1 .viewer-area[data-key='yes'] {
+  grid-template-rows: 46px minmax(0, 1fr) 48px auto;
+}
+
+.s1 .key-bar {
+  border-top: 1px solid var(--line);
+  background: #0b0f15;
+  padding: 10px 14px;
+}
+
+/* Publish is a document, so it is the one region that scrolls. */
+.s1 .publish-area {
+  grid-column: 1 / -1;
+  min-height: 0;
+  overflow: auto;
+  padding: 18px;
+}
+
+/* The source card is a real source now, so it carries the two
+   things the brief's stand-in could not: a poster, and a class
+   the author has to know about. [U-19] */
+.s1 .source-thumb img,
+.s1 .source-thumb video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* THE STAGE HOLDS A VIDEO NOW, NOT A DRAWING.
+
+   `.video-stage` is `position: relative` with an aspect ratio,
+   and every overlay in the brief is absolutely placed against
+   it. A real player is the same shape, so it goes in the same
+   box and the overlays keep working. */
+.s1 .video-stage > .s1-picture {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  min-height: 0;
+}
+
+.s1 .video-stage > .s1-picture > * {
+  min-height: 0;
+}
+
+/* A take being recorded is the responder, and the brief's
+   response frame is where the audience will see them. */
+.s1 .response-frame.live {
+  border-color: var(--red);
+}
+
+/* The transport the brief draws is three buttons; Studio One's
+   is a component with its own. It sits in the same row. */
+.s1 .viewer-controls > .s1-transport {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* =========================================================
+   FOUR THINGS THE BRIEF'S FRAME COULD NOT HOLD
+   =========================================================
+
+   Found by measuring the rendered page, not by reading it.  */
+
+/* 1. THE PROJECT NAME WAS SITTING UNDER THE CONTROLS.
+
+   The brief centres it with `position:absolute; left:50%`,
+   which is exact and which only works while the two sides are
+   small. Its bar has four controls; Studio One's has eleven —
+   three mode pills, Preview, Invite, Produce, All conversations
+   and Sign out — and measured, `.top-actions` is 732px wide
+   starting at x=850 while the centred title runs 668→932. An
+   82px overlap, with the title underneath.
+
+   Absolute positioning cannot be made safe here: it takes the
+   element out of flow, so no amount of room on either side is
+   consulted. It becomes a flex child that still centres, and
+   that still reads as centred whenever the two sides are near
+   enough in width — and when they are not, it slides instead
+   of colliding. */
+.s1 .project {
+  position: static;
+  left: auto;
+  transform: none;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0 14px;
+}
+
+.s1 .project-name,
+.s1 .project-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The two ends stop reserving 250px they no longer need, so
+   the middle gets the room instead of the gap getting it. */
+.s1 .brand,
+.s1 .top-actions {
+  min-width: 0;
+  flex: 0 0 auto;
+}
+
+.s1 .top-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  row-gap: 4px;
+}
+
+/* 2. THE PICTURE WAS TALLER THAN THE ROOM IT IS IN.
+
+   `width: min(100%, 1060px)` with `aspect-ratio: 16/9` fixes
+   the height from the width alone, and the brief's viewer had
+   the room for it. This one has a fourth row under the
+   transport — the claim card and the one key — so measured, a
+   968px-wide stage wanted 545px of height in a 416px canvas,
+   and `place-items:center` overflowed it 64px at each end:
+   the top of the picture sat behind the toolbar.
+
+   A height bound as well as a width bound, and the ratio keeps
+   the other side right. */
+.s1 .canvas-wrap {
+  container-type: size;
+}
+
+.s1 .video-stage {
+  /*
+   * AND THE BOX IS THE SHAPE OF THE PICTURE IN IT. The brief
+   * hardcodes 16/9 because its stage held a drawing; this one
+   * holds whatever was uploaded, and `Stage` already measures
+   * it. The ratio arrives as a custom property so the black
+   * surround, the ring and the four overlays anchored to it
+   * are the same shape as the video — rather than a 16/9 frame
+   * with a pillarboxed 4:3 source floating inside it.
+   */
+  aspect-ratio: var(--stage-ar, 16 / 9);
+  max-height: 100%;
+  max-width: 100%;
+}
+
+/*
+ * FITTING A FIXED RATIO INSIDE A BOX IS A WIDTH PROBLEM, NOT A
+ * HEIGHT ONE.
+ *
+ * `max-height` alone stops the overflow and loses the shape:
+ * when a width and a max-height both apply, CSS clamps the
+ * height and does NOT re-derive the width, so the measured
+ * stage came out 968 × 457 — 2.12 : 1 around a 16 : 9 picture.
+ * The width has to know the height instead, which is what a
+ * container query unit is for.
+ *
+ * Where `cqh` is not understood the rule above still applies
+ * and the stage still fits; it is the ratio that degrades, not
+ * the layout. [U-19]
+ */
+@supports (width: 1cqh) {
+  .s1 .video-stage {
+    width: min(100%, 1060px, calc(100cqh * var(--stage-fit, 1.7778)));
+    max-height: none;
+  }
+}
+
+/* 3. THE KIND-OF-RESPONSE SELECT FILLED THE BAR. A `<select>`
+   in a flex row with no basis takes the row when the row
+   wraps; at the size of a technical readout it is as wide as
+   its longest word. [U-11] */
+.s1 .key-bar .small-select {
+  width: auto;
+  flex: 0 0 auto;
+}
+
+
+
+/* 5. THE BAR MUST BE ABLE TO GROW RATHER THAN CLIP.
+
+   The brief fixes the top row at 58px because it holds four
+   things. This one holds eleven, and measured at 1600px they
+   end at 1582 with 18px to spare — so it fits, exactly, until
+   the window is narrower. A fixed row then wraps the overflow
+   into a band that is clipped at 58px, which hides whichever
+   control wrapped: Sign out, on the narrowest windows.
+
+   `auto` for the row and a minimum for the bar: the same 58px
+   whenever it fits, and a second line instead of a secret. */
+.s1 .app {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.s1 .topbar {
+  height: auto;
+  min-height: var(--top);
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+

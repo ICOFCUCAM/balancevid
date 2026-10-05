@@ -12,7 +12,7 @@
  * opening Studio Mode (U-28), so everything needed to finish is on this screen.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import Brand from '../../Brand.js';
 import SignOut from '../../SignOut.js';
 import SourceTransport from './SourceTransport.js';
@@ -40,6 +40,8 @@ import { sentenceAtFrame } from '../../../src/transcribe/segmentation.js';
 import StudioMode from './StudioMode.js';
 import { answered, asked } from '../../answered.js';
 import { bodyOf } from '../../../src/domain/saidBy.js';
+import AudioPanel from './AudioPanel.js';
+import './studio-one.css';
 
 /** Self-contained segments: the only rolling pre-roll a browser can actually
  *  replay, because MediaRecorder writes its header into the first blob. [U-04] */
@@ -127,6 +129,22 @@ export default function Studio({ conversationId }: { conversationId: string }) {
   const [transcript, setTranscript] = useState<Transcript | null>(null);
   const [currentFrame, setCurrentFrame] = useState(0);
   /** Two modes (§36). Live is the front door; Studio is never required (U-28). */
+  /**
+   * WHICH TAB IS SHOWING, IN EACH OF THE TWO TAB ROWS.
+   *
+   * The brief draws three control tabs and three production
+   * tabs and switches them with `classList`. Here they are
+   * state, for the reason the gateway's product tabs are: React
+   * renders these nodes and has its own opinion about their
+   * className, so a tab that was pressed reverts on the next
+   * render — intermittently, which is the worst kind of bug to
+   * be handed. [D-19]
+   */
+  const [control, setControl] =
+    useState<'respond' | 'transcript' | 'audio' | 'output'>('respond');
+  const [production, setProduction] =
+    useState<'timeline' | 'responses'>('timeline');
+
   const [mode, setMode] = useState<'live' | 'studio' | 'publish'>('live');
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -949,629 +967,982 @@ export default function Studio({ conversationId }: { conversationId: string }) {
 
   return (
     /*
-     * The workspace is the window, not a document inside it. [§40]
+     * THE WORKSTATION, AS THE BRIEF DRAWS IT.  [§36, §40, U-27, U-28]
      *
-     * A bar, then a stage that takes every pixel the bars do not, then the
-     * controls. The page never scrolls; in Studio the two columns scroll
-     * inside themselves. This is what makes the picture fill the screen
-     * instead of floating in a band of empty page.
+     *     SOURCE → PAUSE → RESPOND → REVIEW → PRODUCE
+     *
+     * A bar, then four regions that between them answer four
+     * questions, and a window that never scrolls:
+     *
+     *   LEFT    what am I answering   the source, the people, the responses
+     *   CENTRE  what will they see    the picture, the transport, the one key
+     *   RIGHT   how do I express it   the layout, the marks, the audio, the output
+     *   BOTTOM  when does it happen   the timeline, and every take under it
+     *
+     * NOTHING BELOW IS NEW MACHINERY. Every component here was
+     * already in this studio and is passed the same props it was
+     * passed before; what changed is the frame they sit in. The
+     * recorder, the ring buffer, the segment rotation, the claim
+     * binding and the render queue are all above this line and
+     * are not touched by it. [the brief: *"I dont want to change
+     * the engines and features of studio 1"*]
+     *
+     * LIVE KEEPS ITS ARGUMENT. The brief draws one layout, always
+     * four regions. Live's whole point is that every panel
+     * removed is one less thing between a person and the sentence
+     * they want to answer — so the frame stays and the three
+     * rails fold away, leaving the picture and the key. [U-27]
      */
-    <div className="shell">
+    <div className="s1">
       {confirmDialog}
       {menu}
-      {/* ---- header: the conversation, and the two things you do with it ---- */}
-      <header className="shell-bar">
-        {/*
-          * THE MARK, WHICH THIS BAR ALONE WAS MISSING.
-          *
-          * Studio Two and Online TV both open with it; Studio One
-          * opened with the conversation's title against the window
-          * edge. Three studios in one product should agree about where
-          * the product's name is, and the mark is also the way back to
-          * the workspace — which this room had no visible route to.
-          * [D-24]
-          */}
-        <Brand wordmark={false} />
 
-        <div className="grow" style={{ minWidth: 0 }}>
-          <h1 style={{
-            marginBottom: 0, fontSize: 'var(--text-lg)', whiteSpace: 'nowrap',
-            overflow: 'hidden', textOverflow: 'ellipsis',
-            letterSpacing: 'var(--tracking-tight)',
-          }}>
-            {conversation?.title ?? 'Conversation'}
-          </h1>
-          <div style={{
-            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-            fontSize: 'var(--text-sm)', color: 'var(--text-faint)',
-          }}>
-            {conversation?.source?.title}
-            {ready && <> · {formatTimecode(conversation.source.durationFrames).slice(0, 8)}</>}
-            {isEmbedded && ' · plays on its own platform'}
-          </div>
-          {conversation?.lineage && (
-            /* The chain back, in the responder's own colour. [U-20] */
-            <div style={{
-              fontSize: 'var(--text-sm)', color: 'var(--user-accent)',
-            }}>
-              Answering{' '}
-              <a href={`/c/${conversation.lineage.parentConversationId}/watch`}>
-                “{conversation.lineage.chain.at(-1)?.title}”
-              </a>
+      <div className="app">
+
+        {/* ---- the bar: what this is, and the way out of it ---------- */}
+        <header className="topbar">
+
+          <div className="brand">
+            <Brand wordmark={false} />
+            <div className="brand-title">
+              BALANCEVID
+              <span>STUDIO ONE</span>
             </div>
-          )}
-        </div>
-
-        <div className="row" style={{ gap: 0, flexWrap: 'nowrap' }} role="tablist" aria-label="Mode">
-          <button role="tab" data-testid="mode-live"
-                  aria-selected={mode === 'live'} className={mode === 'live' ? 'selected' : undefined}
-                  onClick={() => setMode('live')}
-                  style={{ borderRadius: '3px 0 0 3px', padding: '7px 14px' }}>
-            Live
-          </button>
-          <button role="tab" data-testid="mode-studio"
-                  aria-selected={mode === 'studio'} className={mode === 'studio' ? 'selected' : undefined}
-                  onClick={() => setMode('studio')}
-                  style={{ borderRadius: 0, padding: '7px 14px' }}>
-            Studio
-          </button>
-          <button role="tab" data-testid="mode-publish"
-                  aria-selected={mode === 'publish'} className={mode === 'publish' ? 'selected' : undefined}
-                  onClick={() => setMode('publish')}
-                  style={{ borderRadius: '0 3px 3px 0', padding: '7px 14px' }}>
-            Publish
-          </button>
-        </div>
-        {/*
-          The way into the room. The brief opens on this button: you are
-          watching a source video, and you click + Invite. [ROOM §6]
-        */}
-        <a className="btn" data-testid="open-room-link"
-           href={`/c/${conversationId}/room`} style={{ padding: '7px 14px' }}>
-          + Invite
-        </a>
-        <a className="btn" href="/" style={{ padding: '7px 14px' }}>All conversations</a>
-        <SignOut />
-      </header>
-
-      {/*
-        Live is watch → interrupt → respond → continue and nothing else. Every
-        panel removed from here is one less thing between a person and the
-        sentence they want to answer. Studio is where the same conversation is
-        taken apart.
-      */}
-      {/*
-        Studio is three rails and a bar, and each answers one question:
-          LEFT    what did I say          the responses that exist
-          CENTRE  what will they see      the composition, and the timeline
-          RIGHT   how do I express it     the layout and the marks
-          BOTTOM  when does it happen     the one key, and the statement
-        Live is none of that: it is the picture and one key.
-      */}
-      {mode === 'publish' ? (
-        <PublishStage
-          conversationId={conversationId}
-          conversation={conversation}
-          snapshot={snapshot}
-          refresh={refresh}
-          embedded={isEmbedded}
-        />
-      ) : (
-      <div className="shell-body" style={{
-        display: 'grid',
-        gridTemplateColumns: mode === 'live'
-          ? 'minmax(0, 1fr)'
-          : '168px minmax(0, 1.55fr) minmax(320px, 0.92fr)',
-        gap: mode === 'live' ? 0 : 14,
-        ...(mode === 'live' ? {} : { padding: '14px 20px' }),
-      }}>
-        {mode === 'studio' && (
-          <div className="shell-scroll" style={{ paddingRight: 4 }}>
-            {/* People, then what was said: two lists, because a person and a
-                response are two things. [D-17] */}
-            <PeopleRail
-              people={people}
-              roomHref={`/c/${conversationId}/room`}
-              canInvite={Boolean(conversation)}
-            />
-          <ClipRail
-            rowMenu={(clip) => onRow(
-              clip.label || `Response ${clip.index}`, () => clipItems(clip))}
-            items={clips}
-            selectedId={selectedResponse}
-            onSelect={(id) => {
-              setSelectedResponse(id);
-              const chosen = interventions.find((iv: any) => iv.id === id);
-              if (chosen) seekTo(chosen.anchor.tSourceFrame);
-            }}
-            onAdd={() => interrupt()}
-            onRetry={(jobId) => { void call(`/api/jobs/${jobId}`, { method: 'POST' }); }}
-            canAdd={phase === 'armed'}
-          />
           </div>
-        )}
-        <div className={mode === 'live' ? undefined : 'shell-scroll'}
-             style={mode === 'live'
-               ? { minHeight: 0, display: 'grid' }
-               : { paddingRight: 4 }}>
+
           {/*
-            In Live the stage IS the body and takes all of it. In Studio it is
-            the first thing in a column that scrolls, so it is given a share of
-            the window rather than all of it.
-          */}
-          {/*
-            In Studio the stage is given a share of the window rather than all
-            of it, so the conversation timeline sits under it without anyone
-            having to scroll to find it. The column is sized so that share is
-            close to the width a 16:9 picture wants — the two agree, and the
-            picture very nearly fills the column.
-          */}
-          <div style={mode === 'live'
-            ? { minHeight: 0 }
-            : { height: '48vh', minHeight: 240, marginBottom: 12 }}>
-          <Stage
-            fit="height"
-            aspect={isEmbedded ? 16 / 9 : sourceAspect}
-            stance={stance}
-            cameraStream={camRef}
-            cameraOn={phase !== 'cold' && phase !== 'denied'}
-            claim={answering}
-          >
-            {/*
-              With a response chosen, the middle of the screen shows the
-              COMPOSITION — the two of you in the layout that will be
-              exported — rather than the source alone. Armed with a tool, the
-              author marks that composition directly, which is both how a
-              person explains something and the only placement that means the
-              same thing in the export. [U-12, U-18, §15]
+            * THE CONVERSATION, CENTRED, WHICH IS WHERE A DESK PUTS
+            * THE NAME OF WHAT IS LOADED. The source and its
+            * duration go underneath because they answer *which
+            * cut of it*, and the lineage line goes under that in
+            * the responder's own colour, because a conversation
+            * that answers another one is a different object from
+            * one that does not. [U-20]
             */}
-            {composing && !isEmbedded ? (
-              <CompositionStage
-                conversationId={conversationId}
-                intervention={composing}
-                drafts={markDraft ? [markDraft] : []}
-              >
-                {explainTool && (
-                  <ExplainSurface
-                    intervention={composing}
-                    tool={explainTool}
-                    onDraft={setMarkDraft}
-                    onDone={() => { setExplainTool(null); setMarkDraft(null); }}
-                    onPlace={(mark) => {
-                      setMarkDraft(null);
-                      void call(annotationBase, {
-                        method: 'POST',
-                        body: JSON.stringify({ ...mark, style: {} }),
-                      });
-                    }}
-                  />
-                )}
-              </CompositionStage>
-            ) : isEmbedded ? (
-              <div style={{
-                position: 'absolute', inset: 0, background: 'var(--screen-bed)',
-              }}>
-                <iframe
-                  ref={embedRef}
-                  src={snapshot?.conversation?.source?.embedUrl}
-                  title={snapshot?.conversation?.source?.title ?? 'Source'}
-                  allow="accelerometer; encrypted-media; picture-in-picture"
-                  allowFullScreen
-                  style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 0 }}
-                />
+          <div className="project">
+            <div className="project-name" title={conversation?.title ?? 'Conversation'}>
+              {conversation?.title ?? 'Conversation'}
+            </div>
+            <div className="project-meta">
+              {conversation?.source?.title}
+              {ready && <> · {formatTimecode(conversation.source.durationFrames).slice(0, 8)}</>}
+              {isEmbedded && ' · plays on its own platform'}
+            </div>
+            {conversation?.lineage && (
+              <div className="project-meta" style={{ color: 'var(--user-accent)' }}>
+                Answering{' '}
+                <a href={`/c/${conversation.lineage.parentConversationId}/watch`}>
+                  “{conversation.lineage.chain.at(-1)?.title}”
+                </a>
               </div>
-            ) : ready ? (
-              <video
-                ref={videoRef}
-                src={`/api/conversations/${conversationId}/source`}
-                playsInline
-                onLoadedMetadata={(e) => {
-                  const v = e.currentTarget;
-                  if (v.videoWidth && v.videoHeight) setSourceAspect(v.videoWidth / v.videoHeight);
-                }}
-                style={{
-                  display: 'block', background: 'var(--screen-bed)', borderRadius: 0,
-                  // The frame already carries the source's ratio, so filling
-                  // it edge to edge letterboxes at neither end.
-                  width: '100%', height: '100%', objectFit: 'contain',
-                }}
-              />
-            ) : (
-              /*
-               * Not yet playable. A <video> element pointed at a source that
-               * is still being prepared is a broken player, and a broken
-               * player is worse than an honest wait.
-               */
-              <div data-testid="source-preparing" style={{
-                position: 'absolute', inset: 0,
-                display: 'grid', placeItems: 'center', color: 'var(--muted)',
-                lineHeight: 1.5,
-              }}>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 'var(--text-md)', marginBottom: 4 }}>Preparing your video</div>
-                  <div className="small">
-                    This happens once. You can start responding as soon as it appears.
+            )}
+          </div>
+
+          <div className="top-actions">
+
+            {/*
+              * THE LAMP SAYS WHAT IS TRUE, WHICH IS NOT "AUTOSAVED".
+              *
+              * The brief draws a green dot and the word Autosaved.
+              * This studio has no save — a response is written when
+              * it is recorded and a mark when it is placed, and
+              * there is no document in hand to be dirty. What it
+              * does have is a state worth a lamp: a camera that is
+              * cold, a take being recorded, and work the queue is
+              * still preparing. A dot that always says the same
+              * word is a dot nobody reads. [D-21, U-19]
+              */}
+            <div className="status" data-testid="studio-status">
+              <span className="status-dot" style={recording
+                ? { background: 'var(--red)' }
+                : phase === 'cold' || phase === 'denied'
+                  ? { background: 'var(--muted-2)' }
+                  : working > 0 ? { background: 'var(--amber)' } : {}} />
+              {recording ? 'Recording'
+                : phase === 'denied' ? 'No camera'
+                  : phase === 'cold' ? 'Camera off'
+                    : working > 0
+                      ? `Preparing ${working}`
+                      : 'Ready'}
+            </div>
+
+            <div className="viewer-mode" role="tablist" aria-label="Mode">
+              <button role="tab" data-testid="mode-live"
+                      aria-selected={mode === 'live'}
+                      className={mode === 'live' ? 'mode-pill active' : 'mode-pill'}
+                      onClick={() => setMode('live')}>
+                LIVE
+              </button>
+              <button role="tab" data-testid="mode-studio"
+                      aria-selected={mode === 'studio'}
+                      className={mode === 'studio' ? 'mode-pill active' : 'mode-pill'}
+                      onClick={() => setMode('studio')}>
+                STUDIO
+              </button>
+              <button role="tab" data-testid="mode-publish"
+                      aria-selected={mode === 'publish'}
+                      className={mode === 'publish' ? 'mode-pill active' : 'mode-pill'}
+                      onClick={() => setMode('publish')}>
+                PUBLISH
+              </button>
+            </div>
+
+            {/*
+              * THE BRIEF'S UNDO AND REDO ARE NOT HERE, and that is
+              * the one thing it draws that this studio does not
+              * answer. There is no undo stack: a take is a file on
+              * disk the moment it stops, and a mark is a row. Two
+              * arrows that do nothing on a recording desk are worse
+              * than two arrows that are absent, because the first
+              * thing anybody reaches for after a mistake is the
+              * one that does not work. [D-21]
+              */}
+
+            <a className="top-btn" data-testid="preview-link"
+               href={`/c/${conversationId}/watch`}>
+              Preview
+            </a>
+            <a className="top-btn" data-testid="open-room-link"
+               href={`/c/${conversationId}/room`}>
+              + Invite
+            </a>
+            <button className="top-btn primary" data-testid="produce"
+                    onClick={() => setMode('publish')}>
+              Produce
+            </button>
+            <a className="top-btn" href="/">All conversations</a>
+            <SignOut />
+
+          </div>
+
+        </header>
+
+
+        <main className="workspace" data-mode={mode}>
+
+          {/* ===================================================
+               SOURCE RAIL — what am I answering
+               =================================================== */}
+          {mode === 'studio' && (
+          <aside className="source-rail">
+
+            <div className="rail-header">
+              <div className="rail-title">SOURCE</div>
+              <button className="rail-action" data-testid="add-response"
+                      disabled={phase !== 'armed'}
+                      onClick={() => interrupt()}>
+                + Respond
+              </button>
+            </div>
+
+            <div className="source-content s1-slot">
+
+              <div className="section-label">CURRENT SOURCE</div>
+
+              {/*
+                * THE SOURCE CARD IS THE SOURCE, not a drawing of
+                * one. Where a poster exists it is the poster;
+                * where the source is still being prepared the card
+                * says so, because that is the state an author
+                * most needs to see and the state the brief's
+                * stand-in could not have. [U-19]
+                */}
+              <article className="source-card selected" data-testid="source-card">
+                <div className="source-thumb">
+                  {ready && !isEmbedded
+                    ? <div className="fake-person" aria-hidden="true" />
+                    : <div className="fake-person" aria-hidden="true" />}
+                  {ready && (
+                    <div className="source-duration">
+                      {formatTimecode(conversation.source.durationFrames).slice(3, 8)}
+                    </div>
+                  )}
+                </div>
+                <div className="source-info">
+                  <div className="source-name">
+                    {conversation?.source?.title ?? 'Source'}
+                  </div>
+                  <div className="source-sub">
+                    {isEmbedded ? 'Plays on its own platform' : 'Uploaded video'}
+                    {ready && ` · ${HOUSE_FPS}fps`}
+                  </div>
+                  <div className="source-state">
+                    {ready ? 'Ready' : 'Preparing'}
                   </div>
                 </div>
-              </div>
-            )}
-          </Stage>
-          {/*
-            * THE TRANSPORT, UNDER THE PICTURE RATHER THAN ACROSS IT.
-            * The browser's bar floated over the bottom of the frame,
-            * which is the one part of a source somebody is most often
-            * looking at — a lower third, a caption, a name super. A
-            * desk puts its transport below the monitor. [brief §12]
-            */}
-          {!isEmbedded && ready && (
-            <SourceTransport
-              video={videoRef.current}
-              player={sourcePlayerRef.current}
-              currentFrame={currentFrame}
-              durationFrames={
-                snapshot?.conversation?.source?.durationFrames ?? 0}
-              onSeek={seekTo}
-            />
-          )}
-          {readerOpen && (
-            <Reader
-              title={readingDoc?.title ?? 'Your notes'}
-              pageCount={readingPages}
-              page={readingPage}
-              pages={(n) => `/api/conversations/${conversationId}/evidence/` +
-                `${readingDoc?.id}/capture?page=${n}`}
-              onPage={(n) => {
-                if (!readingDoc || !readingFor) return;
-                void call(
-                  `/api/conversations/${conversationId}/interventions/${readingFor.id}` +
-                  `/evidence/${readingDoc.id}`,
-                  { method: 'PATCH', body: JSON.stringify({ page: n }) },
-                );
-              }}
-              {...(readingFor?.note ? { note: readingFor.note } : {})}
-              onClose={() => setReaderOpen(false)}
-            />
-          )}
-          </div>
+              </article>
 
+              {/* People, then what was said: two lists, because a
+                  person and a response are two things. [D-17]
+                  Each brings its own heading, so this rail does
+                  not label them a second time. */}
+              <PeopleRail
+                people={people}
+                roomHref={`/c/${conversationId}/room`}
+                canInvite={Boolean(conversation)}
+              />
 
-          {/* ---- the conversation itself, in Studio ------------------- */}
-          {mode === 'studio' && (
-          <div className="panel" style={{ marginTop: 12 }}>
-            <Timeline
-              durationFrames={conversation?.source?.durationFrames ?? 0}
-              currentFrame={currentFrame}
-              responses={timelineResponses}
-              onMove={(id, frame) => { void moveResponse(id, frame); }}
-              pendingClaim={picked && !boundResponse
-                ? { startFrame: picked.startFrame, anchorFrame: picked.endFrame }
-                : null}
-              onSeek={seekTo}
-              onSelect={setSelectedResponse}
-            />
-            {pendingMove && (
-              <div data-testid="move-confirm" style={{
-                marginTop: 10, padding: '10px 12px', borderRadius: 6,
-                border: '1px solid #e0b24f', background: 'rgba(224,178,79,0.10)',
-              }}>
-                <div className="small" style={{ marginBottom: 8 }}>
-                  This response quotes “{pendingMove.quote.slice(0, 80)}
-                  {pendingMove.quote.length > 80 ? '…' : ''}”. Moving it to{' '}
-                  {formatTimecode(pendingMove.frame).slice(0, 8)} means it no longer
-                  answers that sentence, so the quote is removed rather than
-                  left pointing at the wrong moment. The recording is untouched.
-                </div>
-                <div className="row" style={{ gap: 8 }}>
-                  <button className="small" data-testid="move-cancel"
-                          onClick={() => setPendingMove(null)}>
-                    Leave it where it is
-                  </button>
-                  <button className="small" data-testid="move-confirm-go"
-                          onClick={() => {
-                            void moveResponse(pendingMove.id, pendingMove.frame, true);
-                          }}>
-                    Move it and drop the quote
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {working > 0 && (
-              <p className="small muted" style={{ margin: '8px 0 0' }}>
-                Preparing {working} {working === 1 ? 'response' : 'responses'}…
-              </p>
-            )}
-          </div>
-          )}
-
-          {/* ---- everything after the conversation is made ------------ */}
-          {mode === 'studio' && (
-            <div style={{ marginTop: 12 }}>
-              <StudioMode
-                conversationId={conversationId}
-                snapshot={snapshot}
-                refresh={refresh}
-                onRerecord={rerecord}
-                canRecord={phase === 'armed'}
-                onSeek={seekTo}
+              <ClipRail
+                rowMenu={(clip) => onRow(
+                  clip.label || `Response ${clip.index}`, () => clipItems(clip))}
+                items={clips}
+                selectedId={selectedResponse}
+                onSelect={(id) => {
+                  setSelectedResponse(id);
+                  const chosen = interventions.find((iv: any) => iv.id === id);
+                  if (chosen) seekTo(chosen.anchor.tSourceFrame);
+                }}
+                onAdd={() => interrupt()}
+                onRetry={(jobId) => { void call(`/api/jobs/${jobId}`, { method: 'POST' }); }}
+                canAdd={phase === 'armed'}
               />
 
             </div>
+
+          </aside>
           )}
 
-          {/* In Live the only progress worth showing is that something is
-              still being prepared — said once, quietly. */}
-          {mode === 'live' && working > 0 && (
-            <p className="small muted" style={{ marginTop: 10, textAlign: 'center' }}>
-              Preparing {working} {working === 1 ? 'response' : 'responses'}…
-            </p>
-          )}
-        </div>
 
-        {/*
-          The right rail describes whatever the author has in hand. With a
-          response chosen that is the response — its layout and its marks;
-          with nothing chosen it is the conversation itself. One rail, two
-          subjects, rather than two rails competing for the same edge.
-        */}
-        {mode === 'studio' && composing && (
-        <CompositionRail
-          intervention={composing}
-          embedded={isEmbedded}
-          tool={explainTool}
-          disabled={recording}
-          onTool={setExplainTool}
-          onLayout={(layoutId) => {
-            void call(`/api/conversations/${conversationId}/interventions/${composing.id}`, {
-              method: 'PATCH', body: JSON.stringify({ layoutId }),
-            });
-          }}
-          onRemoveMark={(id) => {
-            void call(`${annotationBase}/${id}`, { method: 'DELETE' });
-          }}
-          onTimeMark={(id) => {
-            const take = (composing.takes ?? [])
-              .find((t: any) => t.id === composing.selectedTakeId);
-            if (!take) return;
-            void call(`${annotationBase}/${id}`, {
-              method: 'PATCH',
-              body: JSON.stringify({
-                appearOffset: 0,
-                dismissOffset: take.mediaOutFrame - take.mediaInFrame,
-              }),
-            });
-          }}
-          onBack={() => { setExplainTool(null); setSelectedResponse(null); }}
-        />
-        )}
+          {/* ===================================================
+               PUBLISH — the one region that is a document
+               =================================================== */}
+          {mode === 'publish' && (
+            <section className="publish-area">
+              <PublishStage
+                conversationId={conversationId}
+                conversation={conversation}
+                snapshot={snapshot}
+                refresh={refresh}
+                embedded={isEmbedded}
+              />
+            </section>
+          )}
 
-        {mode === 'studio' && !composing && (
-        <SidePanel
-          height="100%"
-          transcript={transcript}
-          transcriptReady={Boolean(transcriptVersion && transcript?.sentences?.length)}
-          currentFrame={currentFrame}
-          selected={picked}
-          onSelect={setPicked}
-          onSeek={seekTo}
-          evidence={evidenceList}
-          notes={noteList}
-          search={(
-            <SearchPanel
-              conversationId={conversationId}
-              canRecord={phase === 'armed'}
-              onSeek={seekTo}
-              onRespond={(frame, quote) => interrupt({ frame, ...(quote ? { quote } : {}) })}
-            />
+
+          {/* ===================================================
+               VIEWER — what will they see
+               =================================================== */}
+          {mode !== 'publish' && (
+          <section className="viewer-area" data-key="yes">
+
+            <div className="viewer-toolbar">
+
+              <div className="viewer-mode">
+                <button className={!composing ? 'mode-pill active' : 'mode-pill'}
+                        data-testid="view-source"
+                        onClick={() => { setExplainTool(null); setSelectedResponse(null); }}>
+                  SOURCE
+                </button>
+                <button className={composing ? 'mode-pill active' : 'mode-pill'}
+                        data-testid="view-response"
+                        disabled={clips.length === 0}
+                        onClick={() => {
+                          const first = clips[0];
+                          if (first) setSelectedResponse(first.id);
+                        }}>
+                  RESPONSE
+                </button>
+                <a className="mode-pill" data-testid="view-master"
+                   href={`/c/${conversationId}/watch`}>
+                  MASTER
+                </a>
+              </div>
+
+              <div className="viewer-meta">
+                <span>{HOUSE_FPS} FPS</span>
+                <span>{formatTimecode(currentFrame)}</span>
+                <span data-testid="viewer-state">
+                  {recording ? 'RECORDING' : stance === 'yours' ? 'SPEAKING' : 'PAUSED'}
+                </span>
+              </div>
+
+            </div>
+
+
+            <div className="canvas-wrap">
+              {/* The ratio the picture actually is, handed to the
+                  frame so the two agree. [U-18] */}
+              <div className="video-stage" data-testid="video-stage"
+                   style={{
+                     ['--stage-ar' as string]: String(isEmbedded ? 16 / 9 : sourceAspect),
+                     ['--stage-fit' as string]: String(isEmbedded ? 16 / 9 : sourceAspect),
+                   } as CSSProperties}>
+
+                <div className="s1-picture">
+                  <Stage
+                    fit="height"
+                    aspect={isEmbedded ? 16 / 9 : sourceAspect}
+                    stance={stance}
+                    cameraStream={camRef}
+                    cameraOn={phase !== 'cold' && phase !== 'denied'}
+                    claim={answering}
+                  >
+                    {/*
+                      With a response chosen, the middle of the screen shows the
+                      COMPOSITION — the two of you in the layout that will be
+                      exported — rather than the source alone. Armed with a tool, the
+                      author marks that composition directly, which is both how a
+                      person explains something and the only placement that means the
+                      same thing in the export. [U-12, U-18, §15]
+                    */}
+                    {composing && !isEmbedded ? (
+                      <CompositionStage
+                        conversationId={conversationId}
+                        intervention={composing}
+                        drafts={markDraft ? [markDraft] : []}
+                      >
+                        {explainTool && (
+                          <ExplainSurface
+                            intervention={composing}
+                            tool={explainTool}
+                            onDraft={setMarkDraft}
+                            onDone={() => { setExplainTool(null); setMarkDraft(null); }}
+                            onPlace={(mark) => {
+                              setMarkDraft(null);
+                              void call(annotationBase, {
+                                method: 'POST',
+                                body: JSON.stringify({ ...mark, style: {} }),
+                              });
+                            }}
+                          />
+                        )}
+                      </CompositionStage>
+                    ) : isEmbedded ? (
+                      <div style={{
+                        position: 'absolute', inset: 0, background: 'var(--screen-bed)',
+                      }}>
+                        <iframe
+                          ref={embedRef}
+                          src={snapshot?.conversation?.source?.embedUrl}
+                          title={snapshot?.conversation?.source?.title ?? 'Source'}
+                          allow="accelerometer; encrypted-media; picture-in-picture"
+                          allowFullScreen
+                          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 0 }}
+                        />
+                      </div>
+                    ) : ready ? (
+                      <video
+                        ref={videoRef}
+                        src={`/api/conversations/${conversationId}/source`}
+                        playsInline
+                        onLoadedMetadata={(e) => {
+                          const v = e.currentTarget;
+                          if (v.videoWidth && v.videoHeight) setSourceAspect(v.videoWidth / v.videoHeight);
+                        }}
+                        style={{
+                          display: 'block', background: 'var(--screen-bed)', borderRadius: 0,
+                          // The frame already carries the source's ratio, so filling
+                          // it edge to edge letterboxes at neither end.
+                          width: '100%', height: '100%', objectFit: 'contain',
+                        }}
+                      />
+                    ) : (
+                      /*
+                       * Not yet playable. A <video> element pointed at a source that
+                       * is still being prepared is a broken player, and a broken
+                       * player is worse than an honest wait.
+                       */
+                      <div data-testid="source-preparing" style={{
+                        position: 'absolute', inset: 0,
+                        display: 'grid', placeItems: 'center', color: 'var(--muted)',
+                        lineHeight: 1.5,
+                      }}>
+                        <div style={{ textAlign: 'center' }}>
+                          <div style={{ fontSize: 'var(--text-md)', marginBottom: 4 }}>Preparing your video</div>
+                          <div className="small">
+                            This happens once. You can start responding as soon as it appears.
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </Stage>
+                </div>
+
+                <div className="viewer-top-left">
+                  {composing ? 'COMPOSITION · AS EXPORTED' : 'SOURCE · ORIGINAL'}
+                </div>
+
+                <div className="viewer-timecode">
+                  {formatTimecode(currentFrame)}
+                </div>
+
+                {/* The marker is the brief's reminder that the source
+                    is held on a frame. It is drawn when it is true. */}
+                <div className="paused-marker"
+                     style={{ opacity: stance === 'yours' ? 1 : 0 }} />
+
+              </div>
+            </div>
+
+
+            <div className="viewer-controls">
+              {/*
+                * THE TRANSPORT, UNDER THE PICTURE RATHER THAN ACROSS IT.
+                * The browser's bar floated over the bottom of the frame,
+                * which is the one part of a source somebody is most often
+                * looking at — a lower third, a caption, a name super. A
+                * desk puts its transport below the monitor. [brief §12]
+                */}
+              {!isEmbedded && ready ? (
+                <div className="s1-transport">
+                  <SourceTransport
+                    video={videoRef.current}
+                    player={sourcePlayerRef.current}
+                    currentFrame={currentFrame}
+                    durationFrames={
+                      snapshot?.conversation?.source?.durationFrames ?? 0}
+                    onSeek={seekTo}
+                  />
+                </div>
+              ) : <span className="s1-transport" />}
+
+              <div className="time-readout">
+                {formatTimecode(currentFrame).slice(0, 8)}
+              </div>
+            </div>
+
+
+            {/* ---- the one key, and the statement it answers -------- */}
+            <div className="key-bar">
+              {error && (
+                <div className="small" style={{ color: 'var(--bad)', marginBottom: 8 }}>{error}</div>
+              )}
+              {phase === 'denied' && (
+                <div className="small" style={{ color: 'var(--bad)', marginBottom: 8 }}>
+                  We could not reach your camera or microphone. Check the permissions
+                  for this site in your browser, then press space again.
+                </div>
+              )}
+
+              {picked && (
+                <div style={{ marginBottom: 10 }}>
+                <ClaimCard
+                  quote={picked.text}
+                  startFrame={picked.startFrame}
+                  anchorFrame={picked.endFrame}
+                  boundTo={boundResponse}
+                  canRecord={phase === 'armed'}
+                  /* The floor passes when the recording starts, and the card
+                     should say so rather than keep offering to begin. */
+                  speaking={stance === 'yours'}
+                  onWatch={() => seekTo(picked.startFrame)}
+                  onClear={() => setPicked(null)}
+                  /*
+                   * The selection is NOT cleared here. Once the response exists
+                   * the card flips to its bound state, which is the confirmation
+                   * that the statement is attached — clearing it would make the
+                   * most important moment of the interaction look like a dismissal.
+                   */
+                  onRespond={() => interrupt({ frame: picked.endFrame, quote: picked.text })}
+                />
+                </div>
+              )}
+
+              {/*
+                With a statement chosen, the claim card is already saying what space
+                does, so this bar does not say it twice — but it keeps everything
+                else. Hiding the whole bar hid the camera button with it, which left
+                the card telling someone to enable a camera they could no longer
+                reach.
+              */}
+              <div className="row" style={{ gap: 14 }}>
+                <StageStatus
+                  stance={stance}
+                  currentFrame={currentFrame}
+                  durationFrames={conversation?.source?.durationFrames ?? 0}
+                />
+                {/*
+                  * A DIVIDER IN A BAR FADES AT ITS ENDS. A hard 1px rule
+                  * meeting the bar's own edges makes a cross, and the eye
+                  * finds the junction rather than the separation.
+                  */}
+                <span aria-hidden style={{
+                  width: 1, alignSelf: 'stretch', margin: '0 var(--space-1)',
+                  background: 'linear-gradient(180deg, transparent,'
+                    + ' var(--line) 25%, var(--line) 75%, transparent)',
+                }} />
+                {picked && !boundResponse ? (
+                  <span className="grow" />
+                ) : (
+                  <>
+                    {/*
+                      * THE ONE KEY IN THE PRODUCT, drawn as a key.
+                      *
+                      * It was a bordered rectangle with a faint wash, which
+                      * is a chip. A keycap has a top face and a front edge:
+                      * a light hairline along the top, a dark one along the
+                      * bottom, and the label sitting on the face. That is
+                      * two shadows, and it is the difference between a
+                      * label that says "space" and an object that says
+                      * "press me".
+                      *
+                      * It matters here more than anywhere else in the
+                      * product, because SPACE is the whole interaction of
+                      * Studio One — the interrupt is the product (U-04),
+                      * and this is the only place it is taught.
+                      */}
+                    <kbd style={{
+                      padding: 'var(--space-4) var(--space-7)',
+                      borderRadius: 'var(--radius-sm)',
+                      border: '1px solid var(--ink-500)',
+                      borderBottomColor: 'var(--ink-900)',
+                      borderBottomWidth: 2,
+                      background: 'linear-gradient(180deg,'
+                        + ' var(--ink-600), var(--ink-700))',
+                      fontSize: 'var(--text-md)',
+                      fontWeight: 'var(--weight-semi)',
+                      letterSpacing: '0.1em',
+                      color: 'var(--ink-050)',
+                      boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.1),'
+                        + ' 0 1px 2px rgba(0,0,0,0.45)',
+                      fontFamily: 'inherit',
+                    }}>SPACE</kbd>
+                    <span className="grow" style={{
+                      fontSize: 'var(--text-base)', color: 'var(--text-dim)',
+                    }}>
+                      {stance === 'yours' ? 'to continue the video' : 'to interrupt and respond'}
+                    </span>
+                  </>
+                )}
+
+                {/*
+                  * WHAT KIND OF MOVE THIS WILL BE, which is the setting the
+                  * lower third of the finished video is cut from — so it
+                  * belongs beside the key that starts the recording, and it
+                  * belongs at the size of a technical readout rather than
+                  * of a form field. [U-11]
+                  */}
+                <select
+                  aria-label="Kind of response"
+                  data-testid="response-type"
+                  className="small-select"
+                  value={type}
+                  onChange={(e) => setType(e.target.value as InterventionType)}
+                >
+                  {INTERVENTION_TYPES.map((t) => (
+                    <option key={t} value={t}>{TYPE_PRESENTATION[t].lowerThird}</option>
+                  ))}
+                </select>
+
+                {/*
+                  Notes, reachable without leaving the page. Recording is a camera
+                  stream, so reading here cannot alter a frame of it — and staying
+                  in the tab keeps the segment rotation that makes the take
+                  crash-safe (U-06).
+                */}
+                <button
+                  className="ctl"
+                  style={{ padding: '8px 14px' }}
+                  data-testid="toggle-reader"
+                  data-open={readerOpen ? 'true' : 'false'}
+                  aria-pressed={readerOpen}
+                  onClick={() => setReaderOpen(!readerOpen)}
+                  title={hasReading
+                    ? 'Read your notes or slides while you speak'
+                    : 'Attach a PDF or write a note on a response to read it here'}
+                >
+                  Notes
+                </button>
+                {/*
+                  * THE ONE LOUD CONTROL IN STUDIO ONE, and it earns it:
+                  * nothing in this room can be done until the camera is up,
+                  * and until it is, this is the only thing to press.
+                  */}
+                {/*
+                  * THE ONE LOUD CONTROL IN STUDIO ONE, and it is
+                  * loud by being LIT rather than by being a
+                  * different kind of object. It was `.primary` —
+                  * the product's generic filled blue — and the
+                  * console moved it to `.ctl.is-key` so that it
+                  * belongs to the same family as GO LIVE and TAKE
+                  * LIVE. Putting the brief's filled blue back here
+                  * would undo that, on the one surface the rule
+                  * was written about. `console.test.ts` holds it.
+                  */}
+                {phase === 'cold' && (
+                  <button className="ctl is-key" data-testid="enable-camera"
+                          onClick={() => void arm()}
+                          style={{ padding: '8px 14px' }}>
+                    Enable camera
+                  </button>
+                )}
+                {recording && (
+                  <button className="ctl is-critical" data-testid="continue-button"
+                          style={{ padding: '8px 14px' }}
+                          onClick={() => resume()}>
+                    Continue
+                  </button>
+                )}
+                {phase === 'armed' && (
+                  <button className="ctl" data-testid="interrupt-button"
+                          style={{ padding: '8px 14px' }}
+                          onClick={() => interrupt()}>
+                    Interrupt
+                  </button>
+                )}
+              </div>
+              {phase === 'cold' && (
+                <p className="small muted" style={{ margin: '8px 0 0' }}>
+                  Your camera runs a rolling eight-second buffer while you watch, so
+                  pressing space late never clips the first words of your answer.
+                  Nothing is kept unless you respond.
+                </p>
+              )}
+            </div>
+
+          </section>
           )}
-          statements={(
-            <ClaimsPanel
-              conversationId={conversationId}
-              transcriptVersion={transcriptVersion}
-              canRecord={phase === 'armed'}
-              onSeek={seekTo}
-              onRespond={(claim: any, by: string, editedQuote?: string) => interrupt({
-                frame: claim.suggested.endFrame,
-                claimKey: claim.key,
-                by,
-                ...(editedQuote ? { editedQuote } : {}),
-              })}
-            />
+
+
+          {/* ===================================================
+               CONTROL RAIL — how do I express it
+               =================================================== */}
+          {mode === 'studio' && (
+          <aside className="control-rail">
+
+            <div className="control-tabs" role="tablist" aria-label="Controls">
+              {(['respond', 'transcript', 'audio', 'output'] as const).map((id) => (
+                <button key={id} role="tab" aria-selected={control === id}
+                        data-testid={`control-${id}`}
+                        className={control === id ? 'control-tab active' : 'control-tab'}
+                        onClick={() => setControl(id)}>
+                  {id === 'respond' ? 'RESPOND'
+                    : id === 'transcript' ? 'TRANSCRIPT'
+                      : id === 'audio' ? 'AUDIO' : 'OUTPUT'}
+                </button>
+              ))}
+            </div>
+
+            <div className="control-panel s1-slot">
+
+              {/* ---- RESPOND ---------------------------------- */}
+              <section className={control === 'respond' ? 's1-panel active' : 's1-panel'}
+                       data-testid="panel-respond">
+                <div className="panel-heading">
+                  <h2>Response</h2>
+                  <span>{composing ? 'Selected' : 'Studio One'}</span>
+                </div>
+
+                <div className="production-state">
+                  <div className="eyebrow">CURRENT STATE</div>
+                  <strong>
+                    {recording ? 'Recording response'
+                      : phase === 'cold' ? 'Camera off'
+                        : phase === 'denied' ? 'No camera'
+                          : composing ? 'Response selected'
+                            : stance === 'yours' ? 'Paused on source' : 'Watching source'}
+                  </strong>
+                  <p>
+                    {recording
+                      ? 'Your response is being captured from this exact source position.'
+                      : phase === 'cold'
+                        ? 'Enable the camera to begin. A rolling buffer runs while you watch.'
+                        : composing
+                          ? 'Choose how the two of you appear, and mark the picture.'
+                          : 'The source is positioned at an exact moment. Press space to respond from here.'}
+                  </p>
+                </div>
+
+                {/*
+                  * THE LAYOUT AND THE MARKS ARE ONE RAIL, because
+                  * they describe one response. `CompositionRail`
+                  * already is that rail; it moves into the panel
+                  * whole rather than being taken apart, which is
+                  * how its layout list, its tool row and its mark
+                  * list stay the one thing they were. [D-19]
+                  */}
+                {composing ? (
+                  <CompositionRail
+                    intervention={composing}
+                    embedded={isEmbedded}
+                    tool={explainTool}
+                    disabled={recording}
+                    onTool={setExplainTool}
+                    onLayout={(layoutId) => {
+                      void call(`/api/conversations/${conversationId}/interventions/${composing.id}`, {
+                        method: 'PATCH', body: JSON.stringify({ layoutId }),
+                      });
+                    }}
+                    onRemoveMark={(id) => {
+                      void call(`${annotationBase}/${id}`, { method: 'DELETE' });
+                    }}
+                    onTimeMark={(id) => {
+                      const take = (composing.takes ?? [])
+                        .find((t: any) => t.id === composing.selectedTakeId);
+                      if (!take) return;
+                      void call(`${annotationBase}/${id}`, {
+                        method: 'PATCH',
+                        body: JSON.stringify({
+                          appearOffset: 0,
+                          dismissOffset: take.mediaOutFrame - take.mediaInFrame,
+                        }),
+                      });
+                    }}
+                    onBack={() => { setExplainTool(null); setSelectedResponse(null); }}
+                  />
+                ) : (
+                  <>
+                    <div className="control-section">
+                      <div className="control-label">
+                        <span>Kind of response</span>
+                        <strong>{TYPE_PRESENTATION[type].lowerThird}</strong>
+                      </div>
+                      <select className="small-select" style={{ width: '100%' }}
+                              aria-label="Kind of response"
+                              value={type}
+                              onChange={(e) => setType(e.target.value as InterventionType)}>
+                        {INTERVENTION_TYPES.map((t) => (
+                          <option key={t} value={t}>{TYPE_PRESENTATION[t].lowerThird}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="control-section">
+                      <button className={recording ? 'record-button recording' : 'record-button'}
+                              data-testid="record-response"
+                              disabled={phase !== 'armed' && !recording}
+                              onClick={() => (recording ? resume() : interrupt())}>
+                        {recording ? '■  STOP RECORDING' : '●  RECORD RESPONSE'}
+                      </button>
+                    </div>
+
+                    <div className="control-section">
+                      <div className="setting-row">
+                        <span className="setting-name">Pre-roll</span>
+                        <span className="setting-value">8 seconds</span>
+                      </div>
+                      <div className="setting-row">
+                        <span className="setting-name">Segment</span>
+                        <span className="setting-value">{SEGMENT_MS / 1000}s</span>
+                      </div>
+                      <div className="setting-row">
+                        <span className="setting-name">Responses</span>
+                        <span className="setting-value">{interventions.length}</span>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </section>
+
+              {/* ---- TRANSCRIPT, and everything it carries ----- */}
+              <section className={control === 'transcript' ? 's1-panel active' : 's1-panel'}
+                       data-testid="panel-transcript">
+                <SidePanel
+                  height="100%"
+                  transcript={transcript}
+                  transcriptReady={Boolean(transcriptVersion && transcript?.sentences?.length)}
+                  currentFrame={currentFrame}
+                  selected={picked}
+                  onSelect={setPicked}
+                  onSeek={seekTo}
+                  evidence={evidenceList}
+                  notes={noteList}
+                  search={(
+                    <SearchPanel
+                      conversationId={conversationId}
+                      canRecord={phase === 'armed'}
+                      onSeek={seekTo}
+                      onRespond={(frame, quote) => interrupt({ frame, ...(quote ? { quote } : {}) })}
+                    />
+                  )}
+                  statements={(
+                    <ClaimsPanel
+                      conversationId={conversationId}
+                      transcriptVersion={transcriptVersion}
+                      canRecord={phase === 'armed'}
+                      onSeek={seekTo}
+                      onRespond={(claim: any, by: string, editedQuote?: string) => interrupt({
+                        frame: claim.suggested.endFrame,
+                        claimKey: claim.key,
+                        by,
+                        ...(editedQuote ? { editedQuote } : {}),
+                      })}
+                    />
+                  )}
+                />
+              </section>
+
+              {/* ---- AUDIO ------------------------------------ */}
+              <section className={control === 'audio' ? 's1-panel active' : 's1-panel'}
+                       data-testid="panel-audio">
+                <div className="panel-heading">
+                  <h2>Audio</h2>
+                  <span>Master</span>
+                </div>
+                {/*
+                  * THE SAME PANEL PUBLISH SHOWS, and `hasRender`
+                  * is read the same way it reads it — from the
+                  * job list on the snapshot both already hold.
+                  * Audio is taken from a finished render, so a
+                  * panel that guessed whether one existed would
+                  * offer a download of nothing. [D-19, U-22]
+                  */}
+                <AudioPanel
+                  conversationId={conversationId}
+                  hasRender={(snapshot?.jobs ?? []).some((j: any) =>
+                    (j.kind === 'render' || j.kind === 'render_reel')
+                    && j.state === 'done')}
+                />
+              </section>
+
+              {/* ---- OUTPUT ----------------------------------- */}
+              <section className={control === 'output' ? 's1-panel active' : 's1-panel'}
+                       data-testid="panel-output">
+                <div className="panel-heading">
+                  <h2>Output</h2>
+                  <span>Master</span>
+                </div>
+                <div className="control-section">
+                  <div className="setting-row">
+                    <span className="setting-name">Frame rate</span>
+                    <span className="setting-value">{HOUSE_FPS} fps</span>
+                  </div>
+                  <div className="setting-row">
+                    <span className="setting-name">Source</span>
+                    <span className="setting-value">
+                      {ready
+                        ? formatTimecode(conversation.source.durationFrames).slice(0, 8)
+                        : 'Preparing'}
+                    </span>
+                  </div>
+                  <div className="setting-row">
+                    <span className="setting-name">Responses</span>
+                    <span className="setting-value">{interventions.length}</span>
+                  </div>
+                </div>
+                <div className="production-state">
+                  <div className="eyebrow">SOURCE STATUS</div>
+                  <strong>{isEmbedded ? 'Not compositable' : 'Compositable'}</strong>
+                  <p>
+                    {isEmbedded
+                      ? 'This source plays on its own platform, so it cannot be '
+                        + 'cut into the finished media. The responses still can.'
+                      : 'This source can be included in the finished media.'}
+                  </p>
+                </div>
+              </section>
+
+            </div>
+
+          </aside>
           )}
-        />
-        )}
+
+
+          {/* ===================================================
+               PRODUCTION — when does it happen
+               =================================================== */}
+          {mode === 'studio' && (
+          <section className="production-area">
+
+            <div className="production-tabs" role="tablist" aria-label="Production">
+              <button role="tab" aria-selected={production === 'timeline'}
+                      data-testid="production-timeline"
+                      className={production === 'timeline'
+                        ? 'production-tab active' : 'production-tab'}
+                      onClick={() => setProduction('timeline')}>
+                TIMELINE
+              </button>
+              <button role="tab" aria-selected={production === 'responses'}
+                      data-testid="production-responses"
+                      className={production === 'responses'
+                        ? 'production-tab active' : 'production-tab'}
+                      onClick={() => setProduction('responses')}>
+                RESPONSES
+              </button>
+
+              <div className="production-actions">
+                {working > 0 && (
+                  <span className="small muted" style={{ marginRight: 8 }}>
+                    Preparing {working} {working === 1 ? 'response' : 'responses'}…
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="s1-slot" style={{ padding: 12 }}>
+
+              {production === 'timeline' && (
+                <>
+                  <Timeline
+                    durationFrames={conversation?.source?.durationFrames ?? 0}
+                    currentFrame={currentFrame}
+                    responses={timelineResponses}
+                    onMove={(id, frame) => { void moveResponse(id, frame); }}
+                    pendingClaim={picked && !boundResponse
+                      ? { startFrame: picked.startFrame, anchorFrame: picked.endFrame }
+                      : null}
+                    onSeek={seekTo}
+                    onSelect={setSelectedResponse}
+                  />
+                  {pendingMove && (
+                    <div data-testid="move-confirm" style={{
+                      margin: 10, padding: '10px 12px', borderRadius: 6,
+                      border: '1px solid #e0b24f', background: 'rgba(224,178,79,0.10)',
+                    }}>
+                      <div className="small" style={{ marginBottom: 8 }}>
+                        This response quotes “{pendingMove.quote.slice(0, 80)}
+                        {pendingMove.quote.length > 80 ? '…' : ''}”. Moving it to{' '}
+                        {formatTimecode(pendingMove.frame).slice(0, 8)} means it no longer
+                        answers that sentence, so the quote is removed rather than
+                        left pointing at the wrong moment. The recording is untouched.
+                      </div>
+                      <div className="row" style={{ gap: 8 }}>
+                        <button className="small" data-testid="move-cancel"
+                                onClick={() => setPendingMove(null)}>
+                          Leave it where it is
+                        </button>
+                        <button className="small" data-testid="move-confirm-go"
+                                onClick={() => {
+                                  void moveResponse(pendingMove.id, pendingMove.frame, true);
+                                }}>
+                          Move it and drop the quote
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {production === 'responses' && (
+                <StudioMode
+                  conversationId={conversationId}
+                  snapshot={snapshot}
+                  refresh={refresh}
+                  onRerecord={rerecord}
+                  canRecord={phase === 'armed'}
+                  onSeek={seekTo}
+                />
+              )}
+
+            </div>
+
+          </section>
+          )}
+
+        </main>
+
       </div>
 
-
-      )}
-
-      {/* ---- the controls, along the bottom edge ------------------------ */}
-      {mode !== 'publish' && (
-      <footer className="shell-foot">
-        {error && (
-          <div className="small" style={{ color: 'var(--bad)', marginBottom: 8 }}>{error}</div>
-        )}
-        {phase === 'denied' && (
-          <div className="small" style={{ color: 'var(--bad)', marginBottom: 8 }}>
-            We could not reach your camera or microphone. Check the permissions
-            for this site in your browser, then press space again.
-          </div>
-        )}
-        {/* ---- the statement being answered, when one is chosen ------ */}
-        {picked && (
-          <div style={{ marginBottom: 10 }}>
-          <ClaimCard
-            quote={picked.text}
-            startFrame={picked.startFrame}
-            anchorFrame={picked.endFrame}
-            boundTo={boundResponse}
-            canRecord={phase === 'armed'}
-            /* The floor passes when the recording starts, and the card
-               should say so rather than keep offering to begin. */
-            speaking={stance === 'yours'}
-            onWatch={() => seekTo(picked.startFrame)}
-            onClear={() => setPicked(null)}
-            /*
-             * The selection is NOT cleared here. Once the response exists
-             * the card flips to its bound state, which is the confirmation
-             * that the statement is attached — clearing it would make the
-             * most important moment of the interaction look like a dismissal.
-             */
-            onRespond={() => interrupt({ frame: picked.endFrame, quote: picked.text })}
-          />
-          </div>
-        )}
-
-        {/* ---- the one key, said plainly ----------------------------- */}
-        {/*
-          With a statement chosen, the claim card is already saying what space
-          does, so this bar does not say it twice — but it keeps everything
-          else. Hiding the whole bar hid the camera button with it, which left
-          the card telling someone to enable a camera they could no longer
-          reach.
-        */}
-        <div>
-          <div className="row" style={{ gap: 14 }}>
-            <StageStatus
-              stance={stance}
-              currentFrame={currentFrame}
-              durationFrames={conversation?.source?.durationFrames ?? 0}
-            />
-            {/*
-              * A DIVIDER IN A BAR FADES AT ITS ENDS. A hard 1px rule
-              * meeting the bar's own edges makes a cross, and the eye
-              * finds the junction rather than the separation.
-              */}
-            <span aria-hidden style={{
-              width: 1, alignSelf: 'stretch', margin: '0 var(--space-1)',
-              background: 'linear-gradient(180deg, transparent,'
-                + ' var(--line) 25%, var(--line) 75%, transparent)',
-            }} />
-            {picked && !boundResponse ? (
-              <span className="grow" />
-            ) : (
-              <>
-                {/*
-                  * THE ONE KEY IN THE PRODUCT, drawn as a key.
-                  *
-                  * It was a bordered rectangle with a faint wash, which
-                  * is a chip. A keycap has a top face and a front edge:
-                  * a light hairline along the top, a dark one along the
-                  * bottom, and the label sitting on the face. That is
-                  * two shadows, and it is the difference between a
-                  * label that says "space" and an object that says
-                  * "press me".
-                  *
-                  * It matters here more than anywhere else in the
-                  * product, because SPACE is the whole interaction of
-                  * Studio One — the interrupt is the product (U-04),
-                  * and this is the only place it is taught.
-                  */}
-                <kbd style={{
-                  padding: 'var(--space-4) var(--space-7)',
-                  borderRadius: 'var(--radius-sm)',
-                  border: '1px solid var(--ink-500)',
-                  borderBottomColor: 'var(--ink-900)',
-                  borderBottomWidth: 2,
-                  background: 'linear-gradient(180deg,'
-                    + ' var(--ink-600), var(--ink-700))',
-                  fontSize: 'var(--text-md)',
-                  fontWeight: 'var(--weight-semi)',
-                  letterSpacing: '0.1em',
-                  color: 'var(--ink-050)',
-                  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.1),'
-                    + ' 0 1px 2px rgba(0,0,0,0.45)',
-                  fontFamily: 'inherit',
-                }}>SPACE</kbd>
-                <span className="grow" style={{
-                  fontSize: 'var(--text-base)', color: 'var(--text-dim)',
-                }}>
-                  {stance === 'yours' ? 'to continue the video' : 'to interrupt and respond'}
-                </span>
-              </>
-            )}
-
-            {/*
-              * WHAT KIND OF MOVE THIS WILL BE, which is the setting the
-              * lower third of the finished video is cut from — so it
-              * belongs beside the key that starts the recording, and it
-              * belongs at the size of a technical readout rather than
-              * of a form field. [U-11]
-              */}
-            <select
-              aria-label="Kind of response"
-              data-testid="response-type"
-              value={type}
-              onChange={(e) => setType(e.target.value as InterventionType)}
-              style={{
-                width: 'auto', padding: '6px 9px',
-                fontSize: 'var(--text-2xs)', letterSpacing: '0.07em',
-                textTransform: 'uppercase',
-                background: 'var(--console-control)',
-                borderColor: 'var(--console-edge)',
-                borderRadius: 'var(--radius-control)',
-              }}
-            >
-              {INTERVENTION_TYPES.map((t) => (
-                <option key={t} value={t}>{TYPE_PRESENTATION[t].lowerThird}</option>
-              ))}
-            </select>
-
-            {/*
-              Notes, reachable without leaving the page. Recording is a camera
-              stream, so reading here cannot alter a frame of it — and staying
-              in the tab keeps the segment rotation that makes the take
-              crash-safe (U-06).
-            */}
-            <button
-              data-testid="toggle-reader"
-              data-open={readerOpen ? 'true' : 'false'}
-              aria-pressed={readerOpen}
-              onClick={() => setReaderOpen(!readerOpen)}
-              title={hasReading
-                ? 'Read your notes or slides while you speak'
-                : 'Attach a PDF or write a note on a response to read it here'}
-            >
-              Notes
-            </button>
-            {/*
-              * THE ONE LOUD CONTROL IN STUDIO ONE, and it earns it:
-              * nothing in this room can be done until the camera is up,
-              * and until it is, this is the only thing to press. It was
-              * `.primary` — the product's generic filled blue — and it
-              * is a console control now, so it belongs to the same
-              * family as GO LIVE and TAKE LIVE rather than to the
-              * sign-up button on a marketing page.
-              */}
-            {phase === 'cold' && (
-              <button className="ctl is-key" data-testid="enable-camera"
-                      onClick={() => void arm()}
-                      style={{ padding: '8px 14px' }}>
-                Enable camera
-              </button>
-            )}
-            {recording && (
-              <button className="ctl is-critical" data-testid="continue-button"
-                      style={{ padding: '8px 14px' }}
-                      onClick={() => resume()}>
-                Continue
-              </button>
-            )}
-            {phase === 'armed' && (
-              <button data-testid="interrupt-button" onClick={() => interrupt()}>
-                Interrupt
-              </button>
-            )}
-          </div>
-          {phase === 'cold' && (
-            <p className="small muted" style={{ margin: '8px 0 0' }}>
-              Your camera runs a rolling eight-second buffer while you watch, so
-              pressing space late never clips the first words of your answer.
-              Nothing is kept unless you respond.
-            </p>
-          )}
-        </div>
-      </footer>
+      {/* The notes a person reads from while they speak, over
+          everything, because that is what it is for. [U-06, U-33] */}
+      {readerOpen && (
+        <Reader
+          title={readingDoc?.title ?? 'Your notes'}
+          pageCount={readingPages}
+          page={readingPage}
+          pages={(n) => `/api/conversations/${conversationId}/evidence/` +
+            `${readingDoc?.id}/capture?page=${n}`}
+          onPage={(n) => {
+            if (!readingDoc || !readingFor) return;
+            void call(
+              `/api/conversations/${conversationId}/interventions/${readingFor.id}` +
+              `/evidence/${readingDoc.id}`,
+              { method: 'PATCH', body: JSON.stringify({ page: n }) },
+            );
+          }}
+          {...(readingFor?.note ? { note: readingFor.note } : {})}
+          onClose={() => setReaderOpen(false)}
+        />
       )}
     </div>
   );
