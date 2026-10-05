@@ -21,7 +21,9 @@ import {
   COUNTDOWN_READINGS, LEGIBLE_PX, LENGTH_READINGS,
   audioState,
   blockTone, canZoom, carriesSound, fitsText, labelNudge, leftOf, mostOnScreen,
-  roomOnScreen, spanSays, stepFor, windowFor, zoomed,
+  pieces, piecesSay, roomOnScreen, soundRuns, soundSays, spanSays, stepFor,
+  windowFor, zoomed,
+  type Sound,
 } from '../../src/domain/scheduleView.js';
 
 const MINUTE = 60_000;
@@ -520,5 +522,160 @@ describe('the length has a threshold of its own (C-47)', () => {
   it('drops it before it crowds the title out', () => {
     expect(fitsText(8 * MIN, DEFAULT_SPAN, STRIP)).toBe(true);
     expect(fitsText(8 * MIN, DEFAULT_SPAN, STRIP, LENGTH_READINGS)).toBe(false);
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ *  What each lane knows that the lane above it does not.  [C-48]
+ * ------------------------------------------------------------------ */
+
+describe('the master bus, drawn as runs (C-48)', () => {
+  const run = (fromMs: number, toMs: number, sound: Sound) =>
+    ({ fromMs, toMs, sound });
+
+  /*
+   * THE FAULT: a cell per programme, each reading "Programme", in
+   * PROGRAM's own boundaries, directly under PROGRAM. Twelve blocks
+   * of one word is a row of the screen spent saying nothing.
+   */
+  it('joins programmes that sound the same into one bar', () => {
+    const made = soundRuns([
+      run(0, 10, 'programme'), run(10, 25, 'programme'), run(25, 40, 'programme'),
+    ]);
+    expect(made).toHaveLength(1);
+    expect(made[0]).toMatchObject({ fromMs: 0, toMs: 40, stretches: 3 });
+  });
+
+  /*
+   * AND THE WHOLE POINT: silence stops being one grey cell among
+   * twelve and becomes a break in a bar. [§11]
+   */
+  it('breaks the bar exactly where the engine makes silence', () => {
+    const made = soundRuns([
+      run(0, 10, 'programme'), run(10, 14, 'silence'), run(14, 30, 'programme'),
+    ]);
+    expect(made.map((one) => one.sound)).toEqual(['programme', 'silence', 'programme']);
+    expect(made[1]).toMatchObject({ fromMs: 10, toMs: 14 });
+  });
+
+  it('keeps a fault apart from a hole, because they are different faults', () => {
+    const made = soundRuns([run(0, 10, 'silence'), run(10, 20, 'fault')]);
+    expect(made).toHaveLength(2);
+  });
+
+  /*
+   * JOINED ONLY WHERE THEY TOUCH. A bar drawn across a gap the walk
+   * left would claim sound over a span nothing answered for.
+   */
+  it('does not bridge a gap the walk left', () => {
+    const made = soundRuns([run(0, 10, 'programme'), run(20, 30, 'programme')]);
+    expect(made).toHaveLength(2);
+  });
+
+  it('has nothing to say about nothing', () => {
+    expect(soundRuns([])).toEqual([]);
+  });
+});
+
+describe('what the master bus legend says (C-48)', () => {
+  const run = (fromMs: number, toMs: number, sound: Sound) =>
+    ({ fromMs, toMs, sound });
+
+  /*
+   * "master bus" SAYS WHAT THE LANE IS AND NOT WHAT IT IS SHOWING,
+   * and the one thing worth three words about a master bus is
+   * whether the sound ever stops — so somebody chasing a reported
+   * dropout reads it off the legend instead of hunting a hatched
+   * cell among forty. [D-04, D-21]
+   */
+  it('says so when nothing broke it', () => {
+    expect(soundSays(soundRuns([run(0, 10, 'programme')]))).toBe('unbroken');
+  });
+
+  it('counts the breaks when there are any', () => {
+    expect(soundSays(soundRuns([
+      run(0, 10, 'programme'), run(10, 14, 'silence'), run(14, 30, 'programme'),
+    ]))).toBe('1 silence');
+    expect(soundSays(soundRuns([
+      run(0, 10, 'programme'), run(10, 14, 'silence'),
+      run(14, 30, 'programme'), run(30, 34, 'fault'),
+    ]))).toBe('2 silences');
+  });
+
+  /* An empty window has no claim to make either way. */
+  it('falls back to naming itself when there is nothing to report', () => {
+    expect(soundSays([])).toBe('master bus');
+  });
+});
+
+describe('the filmstrip, which knew nothing the lane above did not (C-48)', () => {
+  const FILM_A: ProgrammeSource = { kind: 'media', assetId: 'a', form: 'video' };
+  const FILM_B: ProgrammeSource = { kind: 'media', assetId: 'b', form: 'video' };
+  const roll = (
+    fromMs: number, toMs: number, source: ProgrammeSource, intoMs: number,
+  ) => ({
+    fromMs, toMs,
+    on: { kind: 'rotation', entry: { id: 'r' }, source, fromMs: intoMs,
+      untilMs: toMs } as unknown as OnAir,
+  });
+  const hole = (fromMs: number, toMs: number) =>
+    ({ fromMs, toMs, on: { kind: 'off' } as OnAir });
+
+  /*
+   * `on.fromMs` IS HOW FAR INTO THE MEDIA, not a wall clock — the
+   * same number the countdown is built from, and nothing on this
+   * page had ever shown it.
+   */
+  it('says where in its own media each stretch starts and ends', () => {
+    const [one] = pieces([roll(1_000_000, 1_000_600, FILM_A, 120_000)]);
+    expect(one).toMatchObject({ intoMs: 120_000, outMs: 120_600 });
+  });
+
+  /*
+   * A WALKER BOUNDARY IS NOT A CUT. The five-minute step cuts one
+   * film into pieces; the lane must not draw a join where there is
+   * none, which is the whole reason this lane exists.
+   */
+  it('marks a cut only where the media actually changes', () => {
+    const made = pieces([
+      roll(0, 300, FILM_A, 0),
+      roll(300, 600, FILM_A, 300),
+      roll(600, 900, FILM_B, 0),
+    ]);
+    expect(made.map((one) => one.cut)).toEqual([true, false, true]);
+  });
+
+  /*
+   * AND A LOOP TURNING OVER IS A CUT, which is the thing PROGRAM
+   * cannot show at all: the same film three times running is three
+   * identical titles up there and three `00:00 →` here.
+   */
+  it('marks the loop turning over, though the film has not changed', () => {
+    const made = pieces([
+      roll(0, 300, FILM_A, 0),
+      hole(300, 304),
+      roll(304, 604, FILM_A, 0),
+    ]);
+    expect(made.map((one) => one.cut)).toEqual([true, true, true]);
+    expect(made[2]?.intoMs).toBe(0);
+  });
+
+  /*
+   * OFF AIR IS NOT A PIECE. Two holes in a row are not one piece
+   * continuing across them — there is nothing to continue — and a
+   * filmstrip that joined them would be claiming media over a span
+   * where the engine is putting black on the wire. [§4, §7]
+   */
+  it('never continues a piece across nothing', () => {
+    expect(pieces([hole(0, 4), hole(4, 8)]).map((one) => one.cut))
+      .toEqual([true, true]);
+  });
+
+  it('counts the pieces for the lane to say so', () => {
+    expect(piecesSay(pieces([roll(0, 300, FILM_A, 0), roll(300, 600, FILM_A, 300)])))
+      .toBe('1 piece');
+    expect(piecesSay(pieces([roll(0, 300, FILM_A, 0), roll(300, 600, FILM_B, 0)])))
+      .toBe('2 pieces');
+    expect(piecesSay([])).toBe('no media');
   });
 });

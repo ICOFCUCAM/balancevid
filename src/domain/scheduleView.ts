@@ -34,7 +34,7 @@
  * Nothing here touches the filesystem, the network or a clock.
  */
 
-import type { OnAir } from './channel.js';
+import { type OnAir, sourceKey } from './channel.js';
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -385,3 +385,131 @@ export const COUNTDOWN_READINGS = 4;
  * different, longer string shares the block.
  */
 export const LENGTH_READINGS = 3;
+
+/* ------------------------------------------------------------------------ *
+ *  What each lane knows that the lane above it does not.  [§13, D-04, D-19]
+ * ------------------------------------------------------------------------ */
+
+/**
+ * The master bus, as runs rather than as blocks.
+ *
+ * THREE LANES WERE ANSWERING ONE QUESTION. The audio lane drew a cell
+ * per programme and wrote "Programme" in each, so a window of twelve
+ * programmes was the word twelve times, in PROGRAM's own boundaries,
+ * directly under PROGRAM. It was correct and it was a row of the
+ * screen spent saying nothing.
+ *
+ * SOUND IS CONTINUOUS AND A SCHEDULE IS NOT. What an operator asks of
+ * a master bus is where the sound STOPS — and a boundary between two
+ * programmes is not a boundary in the audio at all. Drawn as runs,
+ * the same window is one bar reading "Programme", and the four
+ * seconds of silence the engine makes for a hole is a visible break
+ * in it instead of one grey cell among twelve. [§11]
+ */
+export interface SoundRun {
+  fromMs: number;
+  toMs: number;
+  sound: Sound;
+  /** How many scheduled stretches this run covers, for the note. */
+  stretches: number;
+}
+
+export function soundRuns(
+  blocks: readonly { fromMs: number; toMs: number; sound: Sound }[],
+): SoundRun[] {
+  const runs: SoundRun[] = [];
+  for (const block of blocks) {
+    const last = runs[runs.length - 1];
+    /*
+     * JOINED ONLY WHERE THEY TOUCH. A gap between two stretches is a
+     * gap the walk left, and a run drawn across it would be a bar
+     * claiming sound over a span nothing answered for.
+     */
+    if (last && last.sound === block.sound && last.toMs === block.fromMs) {
+      last.toMs = block.toMs;
+      last.stretches += 1;
+    } else {
+      runs.push({
+        fromMs: block.fromMs, toMs: block.toMs, sound: block.sound,
+        stretches: 1,
+      });
+    }
+  }
+  return runs;
+}
+
+/**
+ * The filmstrip's own fact: which piece of media, and how far into it.
+ *
+ * THE LANE WAS A SECOND COPY OF THE LANE ABOVE IT. Its caption read
+ * `stateLine(on) ?? sourceLine(sourceOf(on))`, which is the exact
+ * expression PROGRAM's second line is built from — so "Studio Two ·
+ * Performance" was printed twice, one row apart, on every block.
+ *
+ * AND `sourceLine` IS THE VIEWER'S CAPTION. It was written for the
+ * lower third, where "Studio Two · Performance" is all a viewer
+ * should be told. An operator looking at a video track already knows
+ * which studio made it; what they cannot see anywhere else is WHICH
+ * PIECE and WHERE IN IT — the thing every editing system has put on a
+ * video track since tape. [C-42, D-19]
+ *
+ * `on.fromMs` IS HOW FAR INTO THE MEDIA, not a wall clock. It is the
+ * same number the countdown is built from (`fromMs + (untilMs -
+ * now)` is the media's whole length), and nothing on this page had
+ * ever shown it.
+ *
+ * SO A LOOP TURNING OVER BECOMES VISIBLE. The same film scheduled
+ * three times running is three blocks of one title in PROGRAM and
+ * three identical bars in the filmstrip; here it is `00:00 → 16:00`
+ * three times with a cut mark before each, which is what it is.
+ */
+export interface Piece {
+  /** True when this stretch begins a different piece from the one before. */
+  cut: boolean;
+  /** Where this stretch starts in its own media. */
+  intoMs: number;
+  /** And where it leaves it. */
+  outMs: number;
+}
+
+export function pieces(
+  stretches: readonly { fromMs: number; toMs: number; on: OnAir }[],
+): Piece[] {
+  let before: string | null = null;
+  return stretches.map((stretch) => {
+    /*
+     * OFF AIR IS NOT A PIECE, and two holes in a row are not one
+     * piece continuing: there is nothing to continue. Keyed as a
+     * fresh identity each time so the mark lands on the return.
+     */
+    const key = stretch.on.kind === 'off'
+      ? null : sourceKey(stretch.on.source);
+    const cut = key === null || key !== before;
+    before = key;
+    const intoMs = stretch.on.kind === 'off' ? 0 : stretch.on.fromMs;
+    return { cut, intoMs, outMs: intoMs + (stretch.toMs - stretch.fromMs) };
+  });
+}
+
+/** How many distinct pieces, and how many joins between them. */
+export function piecesSay(made: readonly Piece[]): string {
+  const cuts = made.filter((piece) => piece.cut).length;
+  if (cuts === 0) return 'no media';
+  return `${cuts} piece${cuts === 1 ? '' : 's'}`;
+}
+
+/**
+ * What the master bus is, in the three words the lane has room for.
+ *
+ * "master bus" was the note, which says what the lane IS and not what
+ * it is showing — and the one thing worth saying in a legend about a
+ * master bus is whether the sound ever stops. An operator scanning
+ * for a reported dropout should be able to read it off the legend
+ * and not have to find a hatched cell among forty. [D-04, D-21]
+ */
+export function soundSays(runs: readonly SoundRun[]): string {
+  const broken = runs.filter((run) => run.sound !== 'programme').length;
+  if (runs.length === 0) return 'master bus';
+  if (broken === 0) return 'unbroken';
+  return `${broken} silence${broken === 1 ? '' : 's'}`;
+}

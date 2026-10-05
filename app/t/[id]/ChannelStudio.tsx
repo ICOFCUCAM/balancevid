@@ -70,7 +70,7 @@ import {
   CAPTION_SHARE, COUNTDOWN_READINGS, DEFAULT_SPAN, FRAME_SHARE,
   LENGTH_READINGS, blockTone,
   audioState, canZoom, carriesSound, fitsText, labelNudge, leftOf,
-  roomOnScreen, spanSays,
+  pieces, piecesSay, roomOnScreen, soundRuns, soundSays, spanSays,
   stepFor, windowFor, zoomed,
 } from '../../../src/domain/scheduleView.js';
 /*
@@ -5056,8 +5056,54 @@ const TONE: Record<Tone, {
  *
  * It closes over nothing: four props and its children.
  */
-function Lane({ name, note, height, children }: {
-  name: string; note?: string; height: number; children: React.ReactNode;
+/**
+ * Where the graphics lane's four tracks sit, and how far apart.
+ *
+ * NAMED, BECAUSE TWO PLACES DRAW THEM: the tracks themselves and the
+ * legend beside them. Two copies of `3 + row * 15` is two copies
+ * until somebody changes one. [D-19]
+ *
+ * The first track starts below the lane's own name rather than beside
+ * it, so the column reads as a heading with four entries under it
+ * instead of `GRAPHICS` and `CHANNEL BUG` on one line.
+ */
+const GRAPHICS_TOP = 19;
+const GRAPHICS_PITCH = 15;
+
+function Lane({ name, note, height, rows, children }: {
+  name: string; note?: string; height: number;
+  /*
+   * A LANE WITH TRACKS INSIDE IT NAMES THEM HERE, NOT IN THEM.
+   *   [C-48, D-04]
+   *
+   * The graphics lane draws four tracks — the bug, the LIVE lamp,
+   * the lower third, NEXT — and named none of them, because only
+   * the bug is ever wide enough to carry a label: it holds its text
+   * all day, while a lower third is eight seconds, two pixels of a
+   * two-and-a-half-hour window. Three rows of anonymous ticks.
+   *
+   * The first fix put the name inside the row at its left edge, and
+   * a browser run showed exactly why that is wrong: the bug's bar
+   * starts at the window's left edge and runs the whole width, so
+   * `CHANNEL BUG` and `Channel bug: BALANCEVID` were printed on top
+   * of each other — and the first tick of each other row landed on
+   * its own name.
+   *
+   * A LEGEND GOES IN THE LEGEND COLUMN. It is already there, ninety-
+   * six pixels of it, holding this lane's own name; the tracks are
+   * the same kind of thing one level down. The caller passes the
+   * tops it draws its rows at, so the two cannot drift.
+   *
+   * AND THE COLUMN HOLDS ONE OR THE OTHER, not both: the note sits
+   * directly under the name, which is where the first track's own
+   * name goes — `21 events` and `CHANNEL BUG` printed over each
+   * other the first time this was drawn. Named tracks are the better
+   * answer anyway, and they are the answer to the complaint the
+   * note caused: *“GRAPHICS shows ‘21 events’ as undifferentiated
+   * ticks”*. A total across four layers does not say which. [D-04]
+   */
+  rows?: { name: string; lit: boolean; top: number; height: number }[];
+  children: React.ReactNode;
 }) {
   return (
     <div className="row" data-testid="timeline-lane" data-lane={name}
@@ -5070,7 +5116,7 @@ function Lane({ name, note, height, children }: {
         * programmes they are labelling, every second of every day.
         */}
       <span style={{
-        flex: '0 0 auto', width: 96,
+        flex: '0 0 auto', width: 96, position: 'relative',
         padding: '5px var(--space-4) 0 0', textAlign: 'right',
       }}>
         <span style={{
@@ -5078,13 +5124,30 @@ function Lane({ name, note, height, children }: {
           fontWeight: 'var(--weight-bold)', color: 'var(--ink-300)',
           letterSpacing: '0.1em', textTransform: 'uppercase',
         }}>{name}</span>
-        {note && (
+        {note && !rows && (
           <span style={{
             display: 'block', fontSize: 'var(--text-2xs)',
             transform: 'scale(0.85)', transformOrigin: 'right top',
             color: 'var(--ink-400)',
           }}>{note}</span>
         )}
+        {/*
+          * THE TRACKS INSIDE THIS LANE, at the tops the lane itself
+          * draws them at. Dimmer than the lane's own name because
+          * they are one level down, and dimmer again where the track
+          * is empty — which is the legend saying "this layer exists
+          * and is off" rather than the layer not existing.
+          */}
+        {rows?.map((row) => (
+          <span key={row.name} data-testid="lane-row-name" style={{
+            position: 'absolute', right: 'var(--space-4)',
+            top: row.top, height: row.height, lineHeight: `${row.height}px`,
+            fontSize: 'var(--text-2xs)', letterSpacing: '0.06em',
+            textTransform: 'uppercase', whiteSpace: 'nowrap',
+            transform: 'scale(0.85)', transformOrigin: 'right center',
+            color: row.lit ? 'var(--ink-300)' : 'var(--ink-450)',
+          }}>{row.name}</span>
+        ))}
       </span>
       {/*
         * A LANE IS A TRACK, AND A TRACK IS A GROOVE. The lanes were
@@ -5137,6 +5200,26 @@ function Timeline({
   const graphics: GraphicEvent[] = useMemo(
     () => graphicsOver(channel, windowFrom, windowTo, segments),
     [channel, windowFrom, windowTo, segments]);
+
+  /*
+   * WHICH PIECE OF MEDIA EACH STRETCH IS, AND WHERE IN IT.
+   *
+   * The filmstrip's own fact, and the one thing on this page that
+   * can show a loop turning over. [scheduleView.ts, C-48]
+   */
+  const made = useMemo(() => pieces(segments), [segments]);
+
+  /*
+   * AND THE MASTER BUS AS RUNS RATHER THAN AS BLOCKS, so the lane
+   * says where sound STOPS instead of re-drawing PROGRAM's own
+   * boundaries and writing one word in each. [C-48, §11]
+   */
+  const sound = useMemo(() => soundRuns(segments.map((segment) => ({
+    fromMs: segment.fromMs,
+    toMs: segment.toMs,
+    sound: audioState(blockTone(segment.on, segment.on.kind !== 'off'
+      && missingKeys.has(sourceKey(segment.on.source)))),
+  }))), [segments, missingKeys]);
 
 
   return (
@@ -5412,15 +5495,47 @@ function Timeline({
           })}
         </Lane>
 
-        {/* ---- VIDEO TRACKS: the same, as a strip of frames ------------- */}
-        <Lane name="Video Tracks" note="frames" height={44}>
-          {segments.map((segment) => (
-            <div key={`v${segment.fromMs}`} data-testid="filmstrip-cell" style={{
+        {/* ---- VIDEO TRACKS: which piece of media, and where in it ------ */}
+        {/*
+          * IT KNEW NOTHING THE LANE ABOVE IT DID NOT.  [C-48, D-19, D-04]
+          *
+          * The caption read `stateLine(on) ?? sourceLine(sourceOf(on))`,
+          * which is the exact expression PROGRAM's second line is built
+          * from — so "Studio Two · Performance" was printed twice, one
+          * row apart, on every block in the window. A whole lane of the
+          * screen spent repeating the line above it.
+          *
+          * AND `sourceLine` IS THE VIEWER'S CAPTION. It was written for
+          * the lower third in C-42, where "Studio Two · Performance" is
+          * all a viewer should be told. An operator looking at a video
+          * track already knows which studio made it. What they cannot
+          * see anywhere else is WHICH PIECE and WHERE IN IT — the thing
+          * a video track has carried since tape.
+          *
+          * `on.fromMs` IS HOW FAR INTO THE MEDIA, not a wall clock: the
+          * same number the countdown is built from, and nothing on this
+          * page had ever shown it. So the caption is now the media's own
+          * timecode, and a loop turning over — three identical titles in
+          * PROGRAM — reads here as `00:00 →` three times, with a cut
+          * before each. [scheduleView.ts]
+          */}
+        <Lane name="Video Tracks" note={piecesSay(made)} height={44}>
+          {segments.map((segment, index) => (
+            <div key={`v${segment.fromMs}`} data-testid="filmstrip-cell"
+                 data-cut={made[index]?.cut ? 'yes' : 'no'} style={{
               position: 'absolute', top: 3, bottom: 3, left: across(segment.fromMs),
               width: `calc(${across(segment.toMs)} - ${across(segment.fromMs)})`,
               minWidth: 3, overflow: 'hidden',
               borderRadius: 'var(--radius-screen)',
               border: '1px solid var(--line)', background: 'var(--screen-bed)',
+              /*
+               * THE JOIN IS THE LANE'S WHOLE POINT, so it is a mark and
+               * not an inference. The five-minute walk cuts one film
+               * into pieces; a border on every cell drew a join where
+               * there was none and no join where there was one.
+               */
+              borderLeft: made[index]?.cut
+                ? '2px solid var(--ink-300)' : '1px solid var(--line)',
               /* A strip of sprocket holes: the join between two pieces of
                  video, which is what this lane is for seeing. */
               backgroundImage:
@@ -5456,30 +5571,35 @@ function Timeline({
                 <Thumb source={segment.on.source} />
               )}
               {/*
-                * AND IT SAYS WHICH SOURCE THIS IS.  [brief point 4, C-47]
+                * AND IT SAYS WHERE IN THE MEDIA THIS IS.
+                *   [brief point 4, C-47, C-48]
                 *
                 * > *"The timeline should tell the operator what source
                 * > is actually occupying that period."*
                 *
-                * It told them nothing. The lane was a filmstrip and a
-                * sprocket pattern, and on a build whose browser cannot
-                * decode the renders — or on any stretch too narrow for
-                * a poster — it was an empty black bar.
+                * Which it answered with the lane above's own sentence.
+                * The source is one row up and has not moved; what is
+                * here now is the part of the answer only a video track
+                * can give — the timecode of the piece under the
+                * playhead, and where it was entered and left.
                 *
-                * `sourceLine` already says exactly this, in exactly
-                * these words: "Studio Two · Performance", "Live from
-                * the studio", "Film". It was written for the lower
-                * third in C-42 and read by one caller. The lane that
-                * needed it most could not have told you it existed.
+                * THE WORD STAYS WHERE THE WORD IS ALL THERE IS. A still
+                * has no timecode to run, and `00:00 → 00:08` on a
+                * photograph would be a running number over something
+                * that is not running. [D-21]
                 */}
               {segment.on.kind !== 'off' && (() => {
-                const says = stateLine(segment.on)
-                  ?? sourceLine(sourceOf(segment.on))
-                  /* A still is a still, and `sourceLine` says nothing
-                     about one because a viewer does not need telling.
-                     An operator does: a slide IS the programme here. */
-                  ?? (segment.on.source.kind === 'media'
-                    && segment.on.source.form === 'image' ? 'Slide' : null);
+                const piece = made[index];
+                /* `made` is mapped from `segments`, one for one, so
+                   this cannot miss — said to the compiler, which has
+                   no way to know an index came from the same map. */
+                if (!piece) return null;
+                const still = segment.on.source.kind === 'media'
+                  && segment.on.source.form === 'image';
+                const says = still ? 'Slide'
+                  : stateLine(segment.on)
+                    ? `${stateLine(segment.on)} · ${offsetLabel(piece.intoMs)}`
+                    : `${offsetLabel(piece.intoMs)} → ${offsetLabel(piece.outMs)}`;
                 if (!says || !fitsText(segment.toMs - segment.fromMs,
                   windowTo - windowFrom, stripWidth)) return null;
                 return (
@@ -5524,15 +5644,21 @@ function Timeline({
           * every other source does. Drawing it here would claim it
           * composites OVER a picture when it is the picture. [§3]
           */}
-        <Lane name="Graphics" height={14 + LAYERS.length * 15}
-              note={`${graphics.length} event${graphics.length === 1 ? '' : 's'}`}>
+        <Lane name="Graphics" height={GRAPHICS_TOP + LAYERS.length * GRAPHICS_PITCH}
+              rows={LAYERS.map((layer, row) => ({
+                name: layerSays(layer),
+                lit: graphics.some((event) => event.kind === layer),
+                top: GRAPHICS_TOP + row * GRAPHICS_PITCH,
+                height: GRAPHICS_PITCH - 2,
+              }))}>
           {LAYERS.map((layer, row) => {
             const on = graphics.filter((event) => event.kind === layer);
             return (
               <div key={layer} data-testid="graphics-row" data-layer={layer}
                    style={{
                      position: 'absolute', left: 0, right: 0,
-                     top: 3 + row * 15, height: 13,
+                     top: GRAPHICS_TOP + row * GRAPHICS_PITCH,
+                     height: GRAPHICS_PITCH - 2,
                    }}>
                 {/*
                   * A ROW IS DRAWN EVEN WHEN IT IS EMPTY, which is the
@@ -5581,7 +5707,7 @@ function Timeline({
           })}
         </Lane>
 
-        {/* ---- AUDIO: the master bus, stretch by stretch ---------------- */}
+        {/* ---- AUDIO: the master bus, as runs --------------------------- */}
         {/*
           * IT WAS A LABEL PRETENDING TO BE A TRACK.  [§11, D-21, C-46]
           *
@@ -5595,42 +5721,56 @@ function Timeline({
           *
           * A track that is wrong about silence is worse than no track,
           * because it is the lane somebody checks when a viewer says
-          * they heard nothing. So it is now drawn from the same walk
-          * as every other lane, and it says "Silence" exactly where
-          * the engine makes silence and nowhere else.
+          * they heard nothing. So it was drawn from the same walk as
+          * every other lane, and it said "Silence" exactly where the
+          * engine makes silence and nowhere else.
+          *
+          * AND THEN IT SAID "PROGRAMME" TWELVE TIMES.  [C-48, D-04]
+          *
+          * Drawn from the same walk means drawn in PROGRAM's own
+          * boundaries — a cell per programme, the same word in each,
+          * directly under the lane those boundaries belong to. Correct,
+          * and a row of the screen spent saying nothing.
+          *
+          * SOUND IS CONTINUOUS AND A SCHEDULE IS NOT. A boundary
+          * between two programmes is not a boundary in the audio, and
+          * what an operator asks of a master bus is where the sound
+          * STOPS. Drawn as runs, a window of twelve programmes is one
+          * bar reading "Programme", and the four seconds of silence the
+          * engine makes for a hole is a visible BREAK in it rather than
+          * one grey cell among twelve. The lane is unchanged about what
+          * it claims; only its boundaries are its own now.
           */}
-        <Lane name="Audio" note="master bus" height={34}>
-          {segments.map((segment) => {
-            const broken = segment.on.kind !== 'off'
-              && missingKeys.has(sourceKey(segment.on.source));
-            const sound = audioState(blockTone(segment.on, broken));
-            const heard = sound === 'programme';
+        <Lane name="Audio" note={soundSays(sound)} height={34}>
+          {sound.map((run) => {
+            const heard = run.sound === 'programme';
             return (
               <div
-                key={`a${segment.fromMs}`} data-testid="audio-cell"
-                data-sound={sound}
-                title={heard ? `Programme audio — ${segment.title}`
-                  : sound === 'fault'
+                key={`a${run.fromMs}`} data-testid="audio-cell"
+                data-sound={run.sound} data-stretches={run.stretches}
+                title={heard
+                  ? `Programme audio — unbroken for ${offsetLabel(run.toMs - run.fromMs)}`
+                  : run.sound === 'fault'
                     ? 'Silence — this slot has no media behind it'
                     : 'Silence — the engine generates it for this stretch'}
                 style={{
                   position: 'absolute', top: 3, bottom: 3,
-                  left: across(segment.fromMs),
-                  width: `calc(${across(segment.toMs)} - ${across(segment.fromMs)})`,
+                  left: across(run.fromMs),
+                  width: `calc(${across(run.toMs)} - ${across(run.fromMs)})`,
                   minWidth: 3, borderRadius: 2, padding: '0 6px',
                   fontSize: 'var(--text-2xs)', lineHeight: '22px',
                   overflow: 'hidden', whiteSpace: 'nowrap',
                   textOverflow: 'ellipsis',
                   background: heard ? 'rgba(42,140,140,0.20)'
-                    : sound === 'fault' ? 'rgba(200,60,50,0.18)' : 'transparent',
+                    : run.sound === 'fault' ? 'rgba(200,60,50,0.18)' : 'transparent',
                   backgroundImage: heard ? 'none'
                     : 'repeating-linear-gradient(135deg, '
                       + 'rgba(255,255,255,0.06) 0 5px, transparent 5px 11px)',
                   border: heard ? '1px solid #2f7f7f'
-                    : `1px dashed ${sound === 'fault'
+                    : `1px dashed ${run.sound === 'fault'
                       ? 'var(--state-live-dim)' : 'var(--line)'}`,
                   color: heard ? '#8fd2d2'
-                    : sound === 'fault' ? 'var(--state-live)' : 'var(--ink-400)',
+                    : run.sound === 'fault' ? 'var(--state-live)' : 'var(--ink-400)',
                 }}
               >
                 {/*
@@ -5642,10 +5782,10 @@ function Timeline({
                   * engine's own silence, which is the question a
                   * schedule can answer honestly.
                   */}
-                {fitsText(segment.toMs - segment.fromMs,
+                {fitsText(run.toMs - run.fromMs,
                   windowTo - windowFrom, stripWidth)
                   ? (heard ? 'Programme'
-                    : sound === 'fault' ? 'Silence · no media' : 'Silence') : ''}
+                    : run.sound === 'fault' ? 'Silence · no media' : 'Silence') : ''}
               </div>
             );
           })}
