@@ -1,0 +1,2360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="color-scheme" content="dark" />
+<meta
+  name="description"
+  content="BalanceVid Studio One — interactive video production workstation."
+/>
+<title>BalanceVid Studio One</title>
+
+<style>
+/* =========================================================
+   BALANCEVID STUDIO ONE
+   SOURCE → PAUSE → RESPOND → REVIEW → PRODUCE
+   ========================================================= */
+
+:root {
+  --bg: #080b10;
+  --bg-2: #0d1118;
+  --surface: #11161e;
+  --surface-2: #151b24;
+  --surface-3: #1a212c;
+  --line: rgba(255,255,255,.09);
+  --line-strong: rgba(255,255,255,.16);
+
+  --text: #f4f7fb;
+  --muted: #8994a3;
+  --muted-2: #5f6a78;
+
+  --blue: #4da3ff;
+  --blue-2: #147ff5;
+  --cyan: #64d9ff;
+
+  --green: #52d48a;
+  --amber: #eab45c;
+  --red: #ff5268;
+
+  --white: #fff;
+
+  --radius: 10px;
+  --radius-sm: 7px;
+
+  --left: 274px;
+  --right: 302px;
+  --top: 58px;
+  --bottom: 235px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+button {
+  color: inherit;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+/* =========================================================
+   APP FRAME
+   ========================================================= */
+
+.app {
+  width: 100%;
+  height: 100vh;
+  display: grid;
+  grid-template-rows: var(--top) 1fr;
+}
+
+/* =========================================================
+   TOP BAR
+   ========================================================= */
+
+.topbar {
+  height: var(--top);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 18px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(8,11,16,.96);
+  position: relative;
+  z-index: 20;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-width: 250px;
+}
+
+.brand-mark {
+  width: 28px;
+  height: 28px;
+  border: 1px solid rgba(255,255,255,.32);
+  border-radius: 7px;
+  position: relative;
+}
+
+.brand-mark::before {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  border-left: 2px solid var(--blue);
+  border-bottom: 2px solid var(--blue);
+  transform: skew(-14deg);
+}
+
+.brand-title {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .11em;
+}
+
+.brand-title span {
+  color: var(--muted);
+  font-weight: 500;
+  margin-left: 8px;
+}
+
+.project {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+}
+
+.project-name {
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: .02em;
+}
+
+.project-meta {
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 3px;
+}
+
+.top-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 250px;
+  justify-content: flex-end;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 10px;
+  margin-right: 8px;
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  background: var(--green);
+  border-radius: 50%;
+  box-shadow: 0 0 10px rgba(82,212,138,.5);
+}
+
+.icon-btn,
+.top-btn {
+  height: 32px;
+  border: 1px solid var(--line);
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.icon-btn {
+  width: 34px;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+}
+
+.icon-btn:hover,
+.top-btn:hover {
+  border-color: var(--line-strong);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.top-btn {
+  padding: 0 12px;
+  font-size: 11px;
+}
+
+.top-btn.primary {
+  background: var(--blue-2);
+  border-color: var(--blue-2);
+  color: white;
+  font-weight: 650;
+}
+
+/* =========================================================
+   MAIN WORKSPACE
+   ========================================================= */
+
+.workspace {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: var(--left) minmax(400px, 1fr) var(--right);
+  grid-template-rows: minmax(0, 1fr) var(--bottom);
+}
+
+/* =========================================================
+   LEFT SOURCE RAIL
+   ========================================================= */
+
+.source-rail {
+  grid-column: 1;
+  grid-row: 1 / 3;
+  border-right: 1px solid var(--line);
+  background: #0b0f15;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.rail-header {
+  height: 50px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+}
+
+.rail-title {
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: .12em;
+  color: var(--muted);
+}
+
+.rail-action {
+  border: 0;
+  background: transparent;
+  color: var(--blue);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.source-content {
+  overflow: auto;
+  padding: 14px;
+}
+
+.section-label {
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: .13em;
+  color: var(--muted-2);
+  margin: 8px 0 10px;
+}
+
+.source-card {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  cursor: pointer;
+  margin-bottom: 10px;
+}
+
+.source-card.selected {
+  border-color: rgba(77,163,255,.65);
+  box-shadow: inset 2px 0 0 var(--blue);
+}
+
+.source-thumb {
+  height: 108px;
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 65% 35%, #4c596c 0, #27313e 24%, #131922 58%, #090c11 100%);
+}
+
+.source-thumb.alt {
+  background:
+    radial-gradient(circle at 28% 30%, #53616c 0, #26333b 20%, #10171e 65%, #080b10 100%);
+}
+
+.source-thumb::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(120deg, transparent 0 55%, rgba(255,255,255,.06) 55.5%, transparent 56%),
+    linear-gradient(0deg, rgba(0,0,0,.45), transparent 50%);
+}
+
+.fake-person {
+  position: absolute;
+  width: 42px;
+  height: 60px;
+  left: 51%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  border-radius: 18px 18px 8px 8px;
+  background: #596879;
+  z-index: 1;
+}
+
+.fake-person::before {
+  content: "";
+  position: absolute;
+  width: 25px;
+  height: 25px;
+  border-radius: 50%;
+  background: #8793a0;
+  left: 50%;
+  top: -18px;
+  transform: translateX(-50%);
+}
+
+.source-duration {
+  position: absolute;
+  bottom: 7px;
+  right: 7px;
+  z-index: 2;
+  padding: 3px 5px;
+  background: rgba(0,0,0,.72);
+  border-radius: 3px;
+  font-size: 9px;
+}
+
+.source-info {
+  padding: 9px 10px 10px;
+}
+
+.source-name {
+  font-size: 11px;
+  font-weight: 650;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.source-sub {
+  color: var(--muted);
+  font-size: 9px;
+  margin-top: 4px;
+}
+
+.source-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 8px;
+  color: var(--green);
+  font-size: 9px;
+}
+
+.source-state::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.import-box {
+  border: 1px dashed rgba(255,255,255,.14);
+  border-radius: 7px;
+  padding: 14px 10px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 10px;
+  margin-top: 12px;
+  cursor: pointer;
+}
+
+.import-box:hover {
+  border-color: rgba(77,163,255,.45);
+  color: var(--text);
+}
+
+/* =========================================================
+   VIEWER
+   ========================================================= */
+
+.viewer-area {
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+  min-height: 0;
+  background: #07090d;
+  display: grid;
+  grid-template-rows: 46px minmax(0, 1fr) 48px;
+}
+
+.viewer-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.viewer-mode {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.mode-pill {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 5px;
+  height: 26px;
+  padding: 0 9px;
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: .07em;
+  font-weight: 700;
+}
+
+.mode-pill.active {
+  border-color: rgba(77,163,255,.45);
+  color: var(--blue);
+}
+
+.viewer-meta {
+  color: var(--muted);
+  font-size: 9px;
+  display: flex;
+  gap: 14px;
+}
+
+.canvas-wrap {
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  padding: 22px 28px;
+}
+
+.video-stage {
+  position: relative;
+  width: min(100%, 1060px);
+  aspect-ratio: 16 / 9;
+  background: #10151d;
+  overflow: hidden;
+  box-shadow:
+    0 20px 70px rgba(0,0,0,.45),
+    0 0 0 1px rgba(255,255,255,.06);
+}
+
+.video-scene {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(105deg, rgba(7,11,16,.95) 0%, rgba(7,11,16,.35) 44%, rgba(7,11,16,.1) 100%),
+    radial-gradient(circle at 67% 31%, rgba(103,125,148,.58), transparent 18%),
+    linear-gradient(180deg, #293643 0%, #1a252f 47%, #10161d 48%, #090d12 100%);
+}
+
+.video-scene::before {
+  content: "";
+  position: absolute;
+  width: 37%;
+  height: 76%;
+  right: 12%;
+  bottom: 0;
+  background:
+    radial-gradient(circle at 50% 35%, #6f7e8b 0 8%, transparent 8.5%),
+    linear-gradient(90deg, transparent 25%, rgba(93,108,122,.5) 25.5% 74%, transparent 74.5%),
+    linear-gradient(180deg, transparent 0 34%, #303b47 34% 100%);
+  opacity: .72;
+}
+
+.video-scene::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 33%;
+  background: linear-gradient(180deg, transparent, rgba(0,0,0,.58));
+}
+
+.viewer-person {
+  position: absolute;
+  z-index: 2;
+  right: 25%;
+  bottom: 10%;
+  width: 14%;
+  height: 48%;
+  background:
+    radial-gradient(circle at 50% 15%, #9a7b68 0 10%, transparent 10.5%),
+    linear-gradient(90deg, #222a34 0 28%, #3d4855 28% 72%, #222a34 72%);
+  border-radius: 20px 20px 5px 5px;
+}
+
+.viewer-person::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -8%;
+  width: 140%;
+  height: 3px;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,.5);
+  filter: blur(4px);
+}
+
+.safe-area {
+  position: absolute;
+  inset: 7%;
+  border: 1px dashed rgba(255,255,255,.17);
+  z-index: 5;
+  pointer-events: none;
+}
+
+.viewer-top-left {
+  position: absolute;
+  z-index: 8;
+  left: 16px;
+  top: 15px;
+  font-size: 9px;
+  letter-spacing: .1em;
+  color: rgba(255,255,255,.62);
+}
+
+.viewer-timecode {
+  position: absolute;
+  z-index: 8;
+  right: 16px;
+  top: 15px;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+  color: rgba(255,255,255,.85);
+}
+
+.paused-marker {
+  position: absolute;
+  z-index: 10;
+  left: 50%;
+  top: 50%;
+  width: 56px;
+  height: 56px;
+  transform: translate(-50%,-50%);
+  border: 1px solid rgba(255,255,255,.5);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgba(0,0,0,.25);
+  backdrop-filter: blur(5px);
+}
+
+.paused-marker::before {
+  content: "";
+  width: 0;
+  height: 0;
+  border-top: 8px solid transparent;
+  border-bottom: 8px solid transparent;
+  border-left: 12px solid white;
+  margin-left: 4px;
+}
+
+.response-frame {
+  position: absolute;
+  z-index: 7;
+  right: 3.5%;
+  bottom: 5%;
+  width: 25%;
+  aspect-ratio: 16/9;
+  border: 1px solid rgba(77,163,255,.8);
+  background: #0b1017;
+  box-shadow: 0 10px 30px rgba(0,0,0,.5);
+}
+
+.response-frame .mini-person {
+  position: absolute;
+  width: 28%;
+  height: 62%;
+  left: 50%;
+  bottom: 8%;
+  transform: translateX(-50%);
+  background: #3c4855;
+  border-radius: 10px 10px 4px 4px;
+}
+
+.response-frame .mini-person::before {
+  content: "";
+  position: absolute;
+  width: 38%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  left: 50%;
+  top: -22%;
+  transform: translateX(-50%);
+  background: #8c7569;
+}
+
+.response-label {
+  position: absolute;
+  left: 7px;
+  top: 6px;
+  z-index: 3;
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: .12em;
+  color: var(--blue);
+}
+
+.viewer-controls {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 14px;
+  border-top: 1px solid var(--line);
+  background: #0b0f14;
+}
+
+.transport {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.transport button {
+  width: 29px;
+  height: 29px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.transport button:hover {
+  background: var(--surface);
+  color: white;
+}
+
+.transport .play {
+  background: var(--blue-2);
+  color: white;
+}
+
+.time-readout {
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 10px;
+  color: var(--text);
+  min-width: 84px;
+}
+
+.seek {
+  flex: 1;
+  height: 3px;
+  appearance: none;
+  background: #29313c;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.seek::-webkit-slider-thumb {
+  appearance: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--blue);
+  border: 0;
+}
+
+.ratio-select {
+  height: 28px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+  border-radius: 5px;
+  font-size: 9px;
+  padding: 0 7px;
+}
+
+/* =========================================================
+   RIGHT CONTROL RAIL
+   ========================================================= */
+
+.control-rail {
+  grid-column: 3;
+  grid-row: 1;
+  min-height: 0;
+  border-left: 1px solid var(--line);
+  background: #0b0f15;
+  display: flex;
+  flex-direction: column;
+}
+
+.control-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  height: 46px;
+  border-bottom: 1px solid var(--line);
+}
+
+.control-tab {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: .06em;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.control-tab.active {
+  color: var(--text);
+  border-bottom-color: var(--blue);
+}
+
+.control-panel {
+  overflow: auto;
+  padding: 15px;
+}
+
+.panel {
+  display: none;
+}
+
+.panel.active {
+  display: block;
+}
+
+.panel-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.panel-heading h2 {
+  font-size: 12px;
+  margin: 0;
+  font-weight: 700;
+}
+
+.panel-heading span {
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.production-state {
+  border: 1px solid rgba(77,163,255,.2);
+  background: rgba(77,163,255,.055);
+  padding: 12px;
+  border-radius: 7px;
+  margin-bottom: 16px;
+}
+
+.production-state .eyebrow {
+  color: var(--blue);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .12em;
+}
+
+.production-state strong {
+  display: block;
+  font-size: 13px;
+  margin-top: 5px;
+}
+
+.production-state p {
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.5;
+  margin: 6px 0 0;
+}
+
+.control-section {
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+}
+
+.control-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+
+.control-label strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.choice-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 5px;
+}
+
+.choice {
+  height: 29px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 5px;
+  font-size: 9px;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.choice.active {
+  color: var(--blue);
+  border-color: rgba(77,163,255,.55);
+  background: rgba(77,163,255,.08);
+}
+
+.record-button {
+  width: 100%;
+  height: 42px;
+  border: 1px solid rgba(255,82,104,.4);
+  background: rgba(255,82,104,.08);
+  color: #ff7587;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: .08em;
+  cursor: pointer;
+}
+
+.record-button:hover {
+  background: rgba(255,82,104,.15);
+}
+
+.record-button.recording {
+  background: var(--red);
+  color: white;
+  border-color: var(--red);
+}
+
+.audio-meter {
+  height: 6px;
+  display: flex;
+  gap: 2px;
+  margin-top: 8px;
+}
+
+.audio-meter span {
+  flex: 1;
+  background: #27313b;
+}
+
+.audio-meter span:nth-child(-n+8) {
+  background: var(--green);
+}
+
+.audio-meter span:nth-child(n+9):nth-child(-n+11) {
+  background: var(--amber);
+}
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 34px;
+  border-bottom: 1px solid rgba(255,255,255,.05);
+}
+
+.setting-name {
+  font-size: 9px;
+  color: var(--muted);
+}
+
+.setting-value {
+  font-size: 9px;
+  color: var(--text);
+}
+
+.small-select {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 4px;
+  font-size: 9px;
+  padding: 5px 7px;
+}
+
+/* =========================================================
+   BOTTOM PRODUCTION AREA
+   ========================================================= */
+
+.production-area {
+  grid-column: 2 / 4;
+  grid-row: 2;
+  min-height: 0;
+  border-top: 1px solid var(--line);
+  background: #0b0f14;
+  display: grid;
+  grid-template-rows: 42px minmax(0, 1fr);
+}
+
+.production-tabs {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.production-tab {
+  height: 29px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 700;
+  padding: 0 12px;
+  cursor: pointer;
+}
+
+.production-tab.active {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.production-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 5px;
+}
+
+.production-actions button {
+  height: 27px;
+  border: 1px solid var(--line);
+  background: transparent;
+  border-radius: 5px;
+  color: var(--muted);
+  font-size: 9px;
+  padding: 0 9px;
+  cursor: pointer;
+}
+
+.timeline {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 110px minmax(0,1fr);
+  overflow: hidden;
+}
+
+.track-labels {
+  border-right: 1px solid var(--line);
+  background: #0a0e13;
+}
+
+.track-label {
+  height: 43px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  font-size: 8px;
+  font-weight: 750;
+  letter-spacing: .09em;
+  color: var(--muted);
+}
+
+.track-label.master {
+  color: var(--text);
+  background: rgba(255,255,255,.025);
+}
+
+.timeline-body {
+  position: relative;
+  overflow: hidden;
+}
+
+.time-ruler {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 21px;
+  border-bottom: 1px solid var(--line);
+  background: #0d1218;
+  z-index: 5;
+}
+
+.tick {
+  position: absolute;
+  top: 0;
+  height: 21px;
+  border-left: 1px solid var(--line);
+  padding-left: 5px;
+  font-family: monospace;
+  font-size: 7px;
+  color: var(--muted-2);
+}
+
+.tracks {
+  position: absolute;
+  top: 21px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+.track-row {
+  height: 43px;
+  border-bottom: 1px solid var(--line);
+  position: relative;
+  background:
+    repeating-linear-gradient(
+      90deg,
+      transparent 0,
+      transparent calc(10% - 1px),
+      rgba(255,255,255,.035) calc(10% - 1px),
+      rgba(255,255,255,.035) 10%
+    );
+}
+
+.clip {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  border-radius: 4px;
+  padding: 0 9px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.clip.source {
+  left: 1%;
+  width: 55%;
+  background: #26313d;
+  border: 1px solid #3b4857;
+}
+
+.clip.response {
+  left: 57%;
+  width: 22%;
+  background: rgba(77,163,255,.16);
+  border: 1px solid rgba(77,163,255,.5);
+}
+
+.clip.audio {
+  left: 1%;
+  width: 78%;
+  background: #172a24;
+  border: 1px solid #2c5d4c;
+}
+
+.clip.master {
+  left: 1%;
+  width: 78%;
+  background: #172131;
+  border: 1px solid #314b68;
+}
+
+.clip-title {
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.clip-sub {
+  font-size: 7px;
+  color: rgba(255,255,255,.52);
+  margin-top: 3px;
+}
+
+.wave {
+  height: 11px;
+  margin-top: 4px;
+  display: flex;
+  gap: 1px;
+  align-items: center;
+}
+
+.wave i {
+  width: 2px;
+  background: rgba(82,212,138,.65);
+  display: block;
+  border-radius: 2px;
+}
+
+.playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 41%;
+  width: 1px;
+  background: var(--red);
+  z-index: 10;
+  pointer-events: none;
+}
+
+.playhead::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: -4px;
+  width: 9px;
+  height: 7px;
+  background: var(--red);
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+}
+
+/* =========================================================
+   MODAL / TOAST
+   ========================================================= */
+
+.toast {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 100;
+  padding: 11px 15px;
+  background: #151c25;
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 15px 50px rgba(0,0,0,.4);
+  border-radius: 6px;
+  font-size: 10px;
+  color: var(--text);
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+  transition: .2s ease;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 1150px) {
+  :root {
+    --left: 230px;
+    --right: 260px;
+    --bottom: 215px;
+  }
+
+  .brand {
+    min-width: 200px;
+  }
+
+  .top-actions {
+    min-width: 200px;
+  }
+
+  .canvas-wrap {
+    padding: 16px;
+  }
+}
+
+@media (max-width: 900px) {
+  :root {
+    --left: 0px;
+    --right: 280px;
+  }
+
+  .source-rail {
+    display: none;
+  }
+
+  .workspace {
+    grid-template-columns: minmax(0,1fr) var(--right);
+  }
+
+  .production-area {
+    grid-column: 1 / 3;
+  }
+
+  .brand-title span,
+  .status {
+    display: none;
+  }
+
+  .project {
+    position: static;
+    transform: none;
+    margin-left: 15px;
+  }
+
+  .topbar {
+    justify-content: flex-start;
+  }
+
+  .top-actions {
+    margin-left: auto;
+    min-width: auto;
+  }
+}
+
+@media (max-width: 680px) {
+  :root {
+    --right: 0px;
+    --bottom: 190px;
+  }
+
+  .workspace {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0,1fr) var(--bottom);
+  }
+
+  .control-rail {
+    display: none;
+  }
+
+  .viewer-area {
+    grid-column: 1;
+  }
+
+  .production-area {
+    grid-column: 1;
+  }
+
+  .brand {
+    min-width: auto;
+  }
+
+  .project {
+    display: none;
+  }
+
+  .top-btn {
+    display: none;
+  }
+
+  .canvas-wrap {
+    padding: 10px;
+  }
+
+  .viewer-meta {
+    display: none;
+  }
+
+  .response-frame {
+    width: 30%;
+  }
+
+  .timeline {
+    grid-template-columns: 75px minmax(0,1fr);
+  }
+
+  .track-label {
+    padding-left: 8px;
+    font-size: 7px;
+  }
+
+  .production-actions {
+    display: none;
+  }
+}
+
+/* =========================================================
+   REDUCED MOTION
+   ========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition: none !important;
+    animation: none !important;
+  }
+}
+</style>
+</head>
+
+<body>
+
+<div class="app">
+
+  <!-- =====================================================
+       TOP BAR
+       ===================================================== -->
+
+  <header class="topbar">
+
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true"></div>
+      <div class="brand-title">
+        BALANCEVID
+        <span>STUDIO ONE</span>
+      </div>
+    </div>
+
+    <div class="project">
+      <div class="project-name">The History of Modern Europe</div>
+      <div class="project-meta">Interactive Response · Untitled Master</div>
+    </div>
+
+    <div class="top-actions">
+
+      <div class="status">
+        <span class="status-dot"></span>
+        Autosaved
+      </div>
+
+      <button class="icon-btn" aria-label="Undo">↶</button>
+      <button class="icon-btn" aria-label="Redo">↷</button>
+      <button class="top-btn">Preview</button>
+      <button class="top-btn primary" id="exportBtn">
+        Produce
+      </button>
+
+    </div>
+
+  </header>
+
+
+  <!-- =====================================================
+       MAIN WORKSPACE
+       ===================================================== -->
+
+  <main class="workspace">
+
+    <!-- ===================================================
+         SOURCE RAIL
+         =================================================== -->
+
+    <aside class="source-rail">
+
+      <div class="rail-header">
+        <div class="rail-title">SOURCE</div>
+        <button class="rail-action" id="importBtn">+ Add</button>
+      </div>
+
+      <div class="source-content">
+
+        <div class="section-label">CURRENT SOURCE</div>
+
+        <article class="source-card selected" data-source="primary">
+
+          <div class="source-thumb">
+            <div class="fake-person"></div>
+            <div class="source-duration">18:42</div>
+          </div>
+
+          <div class="source-info">
+            <div class="source-name">
+              The History of Modern Europe
+            </div>
+
+            <div class="source-sub">
+              Uploaded video · 1080p · 25fps
+            </div>
+
+            <div class="source-state">
+              Ready
+            </div>
+          </div>
+
+        </article>
+
+
+        <div class="section-label">RECENT MATERIAL</div>
+
+        <article class="source-card" data-source="secondary">
+
+          <div class="source-thumb alt">
+            <div
+              class="fake-person"
+              style="left:32%;background:#48525e"
+            ></div>
+            <div class="source-duration">07:31</div>
+          </div>
+
+          <div class="source-info">
+            <div class="source-name">
+              European Reconstruction — Interview
+            </div>
+
+            <div class="source-sub">
+              Video · 1080p · 25fps
+            </div>
+          </div>
+
+        </article>
+
+
+        <div class="import-box" id="dropZone">
+          Drop video here<br />
+          <span style="font-size:9px;color:#586474">
+            or browse your Library
+          </span>
+        </div>
+
+      </div>
+
+    </aside>
+
+
+    <!-- ===================================================
+         VIEWER
+         =================================================== -->
+
+    <section class="viewer-area">
+
+      <div class="viewer-toolbar">
+
+        <div class="viewer-mode">
+          <button class="mode-pill active">SOURCE</button>
+          <button class="mode-pill">RESPONSE</button>
+          <button class="mode-pill">MASTER</button>
+        </div>
+
+        <div class="viewer-meta">
+          <span>1920 × 1080</span>
+          <span>25 FPS</span>
+          <span id="viewerState">PAUSED</span>
+        </div>
+
+      </div>
+
+
+      <div class="canvas-wrap">
+
+        <div class="video-stage" id="videoStage">
+
+          <div class="video-scene"></div>
+
+          <div class="viewer-person"></div>
+
+          <div class="safe-area"></div>
+
+          <div class="viewer-top-left">
+            SOURCE · ORIGINAL
+          </div>
+
+          <div class="viewer-timecode" id="timecode">
+            00:04:38:12
+          </div>
+
+          <div class="paused-marker" id="pausedMarker"></div>
+
+
+          <!-- Response preview -->
+
+          <div class="response-frame">
+
+            <div class="response-label">
+              RESPONSE
+            </div>
+
+            <div class="mini-person"></div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+
+      <div class="viewer-controls">
+
+        <div class="transport">
+
+          <button id="backBtn" aria-label="Previous">
+            ◀
+          </button>
+
+          <button
+            class="play"
+            id="playBtn"
+            aria-label="Play"
+          >
+            ▶
+          </button>
+
+          <button id="forwardBtn" aria-label="Next">
+            ▶
+          </button>
+
+        </div>
+
+        <div class="time-readout" id="timeReadout">
+          00:04:38
+        </div>
+
+        <input
+          class="seek"
+          id="seek"
+          type="range"
+          min="0"
+          max="1122"
+          value="278"
+          aria-label="Source position"
+        />
+
+        <select
+          class="ratio-select"
+          id="ratio"
+          aria-label="Composition aspect ratio"
+        >
+          <option value="16:9">16:9</option>
+          <option value="9:16">9:16</option>
+          <option value="1:1">1:1</option>
+          <option value="4:3">4:3</option>
+        </select>
+
+      </div>
+
+    </section>
+
+
+    <!-- ===================================================
+         CONTROL RAIL
+         =================================================== -->
+
+    <aside class="control-rail">
+
+      <div class="control-tabs">
+
+        <button
+          class="control-tab active"
+          data-panel="respond"
+        >
+          RESPOND
+        </button>
+
+        <button
+          class="control-tab"
+          data-panel="audio"
+        >
+          AUDIO
+        </button>
+
+        <button
+          class="control-tab"
+          data-panel="settings"
+        >
+          OUTPUT
+        </button>
+
+      </div>
+
+
+      <div class="control-panel">
+
+
+        <!-- RESPONSE PANEL -->
+
+        <section
+          class="panel active"
+          id="panel-respond"
+        >
+
+          <div class="panel-heading">
+            <h2>Response</h2>
+            <span>Studio One</span>
+          </div>
+
+          <div class="production-state">
+
+            <div class="eyebrow">
+              CURRENT STATE
+            </div>
+
+            <strong id="productionState">
+              Paused on source
+            </strong>
+
+            <p id="productionDescription">
+              The source is positioned at an exact moment.
+              Record a response from here.
+            </p>
+
+          </div>
+
+
+          <div class="control-section">
+
+            <div class="control-label">
+              <span>Response layout</span>
+              <strong>Picture in Picture</strong>
+            </div>
+
+            <div class="choice-row">
+
+              <button class="choice active">
+                PIP
+              </button>
+
+              <button class="choice">
+                SIDE
+              </button>
+
+              <button class="choice">
+                FULL
+              </button>
+
+              <button class="choice">
+                SPLIT
+              </button>
+
+            </div>
+
+          </div>
+
+
+          <div class="control-section">
+
+            <div class="control-label">
+              <span>Camera</span>
+              <strong>FaceTime HD</strong>
+            </div>
+
+            <select class="small-select" style="width:100%">
+              <option>FaceTime HD Camera</option>
+              <option>USB Camera</option>
+              <option>Capture Device</option>
+            </select>
+
+          </div>
+
+
+          <div class="control-section">
+
+            <div class="control-label">
+              <span>Microphone</span>
+              <strong>Default</strong>
+            </div>
+
+            <select class="small-select" style="width:100%">
+              <option>Default Microphone</option>
+              <option>USB Microphone</option>
+              <option>Studio Interface</option>
+            </select>
+
+            <div class="audio-meter" aria-label="Microphone level">
+              <span></span><span></span><span></span><span></span>
+              <span></span><span></span><span></span><span></span>
+              <span></span><span></span><span></span><span></span>
+            </div>
+
+          </div>
+
+
+          <div class="control-section">
+
+            <button
+              class="record-button"
+              id="recordBtn"
+            >
+              ● &nbsp; RECORD RESPONSE
+            </button>
+
+          </div>
+
+        </section>
+
+
+        <!-- AUDIO PANEL -->
+
+        <section class="panel" id="panel-audio">
+
+          <div class="panel-heading">
+            <h2>Audio</h2>
+            <span>Master</span>
+          </div>
+
+          <div class="control-section">
+
+            <div class="control-label">
+              <span>Source</span>
+              <strong>-14.2 LUFS</strong>
+            </div>
+
+            <div class="audio-meter">
+              <span></span><span></span><span></span><span></span>
+              <span></span><span></span><span></span><span></span>
+              <span></span><span></span><span></span><span></span>
+            </div>
+
+          </div>
+
+          <div class="control-section">
+
+            <div class="control-label">
+              <span>Response</span>
+              <strong>-15.0 LUFS</strong>
+            </div>
+
+            <div class="audio-meter">
+              <span></span><span></span><span></span><span></span>
+              <span></span><span></span><span></span><span></span>
+              <span></span><span></span><span></span><span></span>
+            </div>
+
+          </div>
+
+          <div class="control-section">
+
+            <div class="setting-row">
+              <span class="setting-name">Normalize</span>
+              <span class="setting-value">Enabled</span>
+            </div>
+
+            <div class="setting-row">
+              <span class="setting-name">Master target</span>
+              <span class="setting-value">-14 LUFS</span>
+            </div>
+
+            <div class="setting-row">
+              <span class="setting-name">Processing</span>
+              <span class="setting-value">Ready</span>
+            </div>
+
+          </div>
+
+        </section>
+
+
+        <!-- OUTPUT PANEL -->
+
+        <section class="panel" id="panel-settings">
+
+          <div class="panel-heading">
+            <h2>Output</h2>
+            <span>Master</span>
+          </div>
+
+          <div class="control-section">
+
+            <div class="setting-row">
+              <span class="setting-name">Resolution</span>
+              <span class="setting-value">1080p</span>
+            </div>
+
+            <div class="setting-row">
+              <span class="setting-name">Frame rate</span>
+              <span class="setting-value">25 fps</span>
+            </div>
+
+            <div class="setting-row">
+              <span class="setting-name">Aspect</span>
+              <span class="setting-value" id="outputAspect">
+                16:9
+              </span>
+            </div>
+
+            <div class="setting-row">
+              <span class="setting-name">Audio</span>
+              <span class="setting-value">48 kHz</span>
+            </div>
+
+          </div>
+
+          <div class="production-state">
+
+            <div class="eyebrow">
+              SOURCE STATUS
+            </div>
+
+            <strong>Compositable</strong>
+
+            <p>
+              This source can be included in the finished media.
+            </p>
+
+          </div>
+
+        </section>
+
+      </div>
+
+    </aside>
+
+
+    <!-- ===================================================
+         PRODUCTION / TIMELINE
+         =================================================== -->
+
+    <section class="production-area">
+
+      <div class="production-tabs">
+
+        <button class="production-tab active">
+          TIMELINE
+        </button>
+
+        <button class="production-tab">
+          TRANSCRIPT
+        </button>
+
+        <button class="production-tab">
+          EVENTS
+        </button>
+
+        <div class="production-actions">
+
+          <button id="zoomOut">−</button>
+          <button id="zoomIn">+</button>
+          <button id="fitTimeline">FIT</button>
+
+        </div>
+
+      </div>
+
+
+      <div class="timeline">
+
+        <div class="track-labels">
+
+          <div class="track-label master">
+            MASTER
+          </div>
+
+          <div class="track-label">
+            RESPONSE
+          </div>
+
+          <div class="track-label">
+            SOURCE
+          </div>
+
+          <div class="track-label">
+            AUDIO
+          </div>
+
+        </div>
+
+
+        <div class="timeline-body">
+
+          <div class="time-ruler">
+
+            <span class="tick" style="left:0%">00:00</span>
+            <span class="tick" style="left:10%">02:00</span>
+            <span class="tick" style="left:20%">04:00</span>
+            <span class="tick" style="left:30%">06:00</span>
+            <span class="tick" style="left:40%">08:00</span>
+            <span class="tick" style="left:50%">10:00</span>
+            <span class="tick" style="left:60%">12:00</span>
+            <span class="tick" style="left:70%">14:00</span>
+            <span class="tick" style="left:80%">16:00</span>
+            <span class="tick" style="left:90%">18:00</span>
+
+          </div>
+
+
+          <div class="tracks">
+
+            <div class="track-row">
+
+              <div class="clip master">
+                <span class="clip-title">
+                  Interactive Master
+                </span>
+                <span class="clip-sub">
+                  Source + response
+                </span>
+              </div>
+
+            </div>
+
+
+            <div class="track-row">
+
+              <div class="clip response">
+                <span class="clip-title">
+                  Response 01
+                </span>
+                <span class="clip-sub">
+                  00:04:38 → 00:05:12
+                </span>
+              </div>
+
+            </div>
+
+
+            <div class="track-row">
+
+              <div class="clip source">
+
+                <span class="clip-title">
+                  The History of Modern Europe
+                </span>
+
+                <span class="clip-sub">
+                  Original source
+                </span>
+
+              </div>
+
+            </div>
+
+
+            <div class="track-row">
+
+              <div class="clip audio">
+
+                <span class="clip-title">
+                  Source + Response Audio
+                </span>
+
+                <div class="wave" aria-hidden="true">
+                  <i style="height:5px"></i>
+                  <i style="height:9px"></i>
+                  <i style="height:6px"></i>
+                  <i style="height:11px"></i>
+                  <i style="height:7px"></i>
+                  <i style="height:4px"></i>
+                  <i style="height:10px"></i>
+                  <i style="height:8px"></i>
+                  <i style="height:5px"></i>
+                  <i style="height:11px"></i>
+                  <i style="height:7px"></i>
+                  <i style="height:9px"></i>
+                  <i style="height:5px"></i>
+                  <i style="height:10px"></i>
+                  <i style="height:7px"></i>
+                  <i style="height:11px"></i>
+                  <i style="height:6px"></i>
+                  <i style="height:9px"></i>
+                  <i style="height:5px"></i>
+                  <i style="height:8px"></i>
+                </div>
+
+              </div>
+
+            </div>
+
+            <div class="playhead" id="playhead"></div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </section>
+
+  </main>
+
+</div>
+
+
+<div class="toast" id="toast"></div>
+
+
+<script>
+/* =========================================================
+   STUDIO ONE INTERACTION LAYER
+   ========================================================= */
+
+const state = {
+  playing: false,
+  recording: false,
+  seconds: 278,
+  duration: 1122,
+  aspect: "16:9"
+};
+
+const playBtn = document.getElementById("playBtn");
+const seek = document.getElementById("seek");
+const timeReadout = document.getElementById("timeReadout");
+const timecode = document.getElementById("timecode");
+const playhead = document.getElementById("playhead");
+const viewerState = document.getElementById("viewerState");
+const pausedMarker = document.getElementById("pausedMarker");
+const productionState = document.getElementById("productionState");
+const productionDescription =
+  document.getElementById("productionDescription");
+const recordBtn = document.getElementById("recordBtn");
+const ratio = document.getElementById("ratio");
+const outputAspect = document.getElementById("outputAspect");
+const toast = document.getElementById("toast");
+
+let timer = null;
+
+/* ---------------------------------------------------------
+   Helpers
+   --------------------------------------------------------- */
+
+function formatTime(total) {
+  total = Math.max(0, Math.floor(total));
+
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+
+  return [
+    String(h).padStart(2, "0"),
+    String(m).padStart(2, "0"),
+    String(s).padStart(2, "0")
+  ].join(":");
+}
+
+function updateTime() {
+  const time = formatTime(state.seconds);
+
+  timeReadout.textContent = time;
+  timecode.textContent = `${time}:12`;
+
+  seek.value = state.seconds;
+
+  const percentage =
+    (state.seconds / state.duration) * 100;
+
+  playhead.style.left = `${percentage}%`;
+}
+
+function showToast(message) {
+  toast.textContent = message;
+  toast.classList.add("show");
+
+  clearTimeout(showToast.timer);
+
+  showToast.timer = setTimeout(() => {
+    toast.classList.remove("show");
+  }, 2200);
+}
+
+/* ---------------------------------------------------------
+   Playback
+   --------------------------------------------------------- */
+
+function setPlaying(value) {
+  state.playing = value;
+
+  if (state.playing) {
+    playBtn.textContent = "Ⅱ";
+    viewerState.textContent = "PLAYING";
+    pausedMarker.style.opacity = "0";
+
+    productionState.textContent = "Source playing";
+    productionDescription.textContent =
+      "Playback is active. Pause at the exact moment where you want to respond.";
+
+    clearInterval(timer);
+
+    timer = setInterval(() => {
+      state.seconds += 1;
+
+      if (state.seconds >= state.duration) {
+        state.seconds = state.duration;
+        setPlaying(false);
+      }
+
+      updateTime();
+    }, 1000);
+
+  } else {
+    playBtn.textContent = "▶";
+    viewerState.textContent = "PAUSED";
+    pausedMarker.style.opacity = "1";
+
+    clearInterval(timer);
+
+    productionState.textContent = "Paused on source";
+    productionDescription.textContent =
+      "The source is positioned at an exact moment. Record a response from here.";
+  }
+}
+
+playBtn.addEventListener("click", () => {
+  setPlaying(!state.playing);
+});
+
+document.getElementById("backBtn").addEventListener("click", () => {
+  state.seconds = Math.max(0, state.seconds - 5);
+  updateTime();
+  setPlaying(false);
+});
+
+document.getElementById("forwardBtn").addEventListener("click", () => {
+  state.seconds = Math.min(state.duration, state.seconds + 5);
+  updateTime();
+  setPlaying(false);
+});
+
+seek.addEventListener("input", () => {
+  state.seconds = Number(seek.value);
+  updateTime();
+  setPlaying(false);
+});
+
+/* ---------------------------------------------------------
+   Recording
+   --------------------------------------------------------- */
+
+recordBtn.addEventListener("click", () => {
+
+  state.recording = !state.recording;
+
+  if (state.recording) {
+
+    recordBtn.classList.add("recording");
+    recordBtn.textContent = "■  STOP RECORDING";
+
+    productionState.textContent = "Recording response";
+    productionDescription.textContent =
+      "Your response is being captured from this exact source position.";
+
+    viewerState.textContent = "RECORDING";
+
+    showToast("Response recording started");
+
+  } else {
+
+    recordBtn.classList.remove("recording");
+    recordBtn.textContent = "●  RECORD RESPONSE";
+
+    productionState.textContent = "Response recorded";
+    productionDescription.textContent =
+      "Review the response before adding it to the master.";
+
+    viewerState.textContent = "REVIEW";
+
+    showToast("Response recorded");
+
+  }
+});
+
+/* ---------------------------------------------------------
+   Aspect ratio
+   --------------------------------------------------------- */
+
+ratio.addEventListener("change", () => {
+
+  state.aspect = ratio.value;
+  outputAspect.textContent = ratio.value;
+
+  const stage =
+    document.getElementById("videoStage");
+
+  const values = {
+    "16:9": "16 / 9",
+    "9:16": "9 / 16",
+    "1:1": "1 / 1",
+    "4:3": "4 / 3"
+  };
+
+  stage.style.aspectRatio = values[state.aspect];
+
+  showToast(`Composition changed to ${state.aspect}`);
+});
+
+/* ---------------------------------------------------------
+   Control tabs
+   --------------------------------------------------------- */
+
+document.querySelectorAll(".control-tab")
+  .forEach(button => {
+
+    button.addEventListener("click", () => {
+
+      document.querySelectorAll(".control-tab")
+        .forEach(tab => tab.classList.remove("active"));
+
+      document.querySelectorAll(".panel")
+        .forEach(panel => panel.classList.remove("active"));
+
+      button.classList.add("active");
+
+      document
+        .getElementById(`panel-${button.dataset.panel}`)
+        .classList.add("active");
+
+    });
+
+  });
+
+/* ---------------------------------------------------------
+   Response layout controls
+   --------------------------------------------------------- */
+
+document.querySelectorAll(".choice")
+  .forEach(button => {
+
+    button.addEventListener("click", () => {
+
+      document.querySelectorAll(".choice")
+        .forEach(item => item.classList.remove("active"));
+
+      button.classList.add("active");
+
+      showToast(
+        `Response layout: ${button.textContent.trim()}`
+      );
+
+    });
+
+  });
+
+/* ---------------------------------------------------------
+   Source selection
+   --------------------------------------------------------- */
+
+document.querySelectorAll(".source-card")
+  .forEach(card => {
+
+    card.addEventListener("click", () => {
+
+      document.querySelectorAll(".source-card")
+        .forEach(item =>
+          item.classList.remove("selected")
+        );
+
+      card.classList.add("selected");
+
+      const name =
+        card.querySelector(".source-name").textContent.trim();
+
+      showToast(`Source selected: ${name}`);
+
+    });
+
+  });
+
+/* ---------------------------------------------------------
+   Import
+   --------------------------------------------------------- */
+
+document.getElementById("importBtn")
+  .addEventListener("click", () => {
+    showToast("Library import opened");
+  });
+
+document.getElementById("dropZone")
+  .addEventListener("click", () => {
+    showToast("Choose media from your Library");
+  });
+
+/* ---------------------------------------------------------
+   Production tabs
+   --------------------------------------------------------- */
+
+document.querySelectorAll(".production-tab")
+  .forEach(tab => {
+
+    tab.addEventListener("click", () => {
+
+      document.querySelectorAll(".production-tab")
+        .forEach(item => item.classList.remove("active"));
+
+      tab.classList.add("active");
+
+      showToast(`${tab.textContent.trim()} workspace selected`);
+
+    });
+
+  });
+
+/* ---------------------------------------------------------
+   Timeline controls
+   --------------------------------------------------------- */
+
+let timelineScale = 1;
+
+document.getElementById("zoomIn")
+  .addEventListener("click", () => {
+    timelineScale = Math.min(2, timelineScale + .15);
+    showToast("Timeline zoom increased");
+  });
+
+document.getElementById("zoomOut")
+  .addEventListener("click", () => {
+    timelineScale = Math.max(.6, timelineScale - .15);
+    showToast("Timeline zoom decreased");
+  });
+
+document.getElementById("fitTimeline")
+  .addEventListener("click", () => {
+    timelineScale = 1;
+    showToast("Timeline fitted to workspace");
+  });
+
+/* ---------------------------------------------------------
+   Clips
+   --------------------------------------------------------- */
+
+document.querySelectorAll(".clip")
+  .forEach(clip => {
+
+    clip.addEventListener("click", () => {
+
+      document.querySelectorAll(".clip")
+        .forEach(item => {
+          item.style.boxShadow = "";
+        });
+
+      clip.style.boxShadow =
+        "0 0 0 1px rgba(77,163,255,.75)";
+
+      showToast(
+        `${clip.querySelector(".clip-title")?.textContent.trim() || "Clip"} selected`
+      );
+
+    });
+
+  });
+
+/* ---------------------------------------------------------
+   Produce
+   --------------------------------------------------------- */
+
+document.getElementById("exportBtn")
+  .addEventListener("click", () => {
+
+    productionState.textContent = "Master ready";
+    productionDescription.textContent =
+      "The current Studio One composition is ready to be produced.";
+
+    showToast("Production panel ready");
+
+  });
+
+/* ---------------------------------------------------------
+   Initialize
+   --------------------------------------------------------- */
+
+updateTime();
+
+</script>
+
+</body>
+</html>
