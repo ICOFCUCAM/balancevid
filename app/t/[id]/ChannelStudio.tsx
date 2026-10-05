@@ -11,6 +11,7 @@ import {
   programmeStart, referencedAssets, rotationLengthMs, rotationOffsets,
   sourceKey, whatIsOn,
 } from '../../../src/domain/channel.js';
+import { sameCivilDay, shortDay } from '../../../src/domain/calendar.js';
 import { SPACES } from '../../../src/domain/performance.js';
 import { SPACE_LOOKS } from '../../../src/domain/environment.js';
 import { PLATFORMS, type Destination } from '../../../src/domain/distribution.js';
@@ -2214,11 +2215,8 @@ export default function ChannelStudio({
                   * it. The word stays, because "today" is what an
                   * operator is thinking; the date joins it.
                   */}
-                {sameDay(windowNow, now, channel.timezone) ? 'Today · ' : ''}
-                {new Date(windowNow).toLocaleDateString('en-GB', {
-                  weekday: 'short', day: '2-digit', month: 'short',
-                  timeZone: channel.timezone,
-                })}
+                {sameCivilDay(windowNow, now, channel.timezone) ? 'Today · ' : ''}
+                {shortDay(windowNow, channel.timezone)}
                 <Icon name="chevron" size={9} turn={90} />
               </span>
               <span className="grow" />
@@ -6688,11 +6686,6 @@ function studioOf(source: ProgrammeSource): string {
     case 'live': return 'Live ingest';
     case 'live_event': return 'Booked live';
   }
-}
-
-function sameDay(a: number, b: number, timezone: string): boolean {
-  const day = (at: number) => new Date(at).toLocaleDateString('en-GB', { timeZone: timezone });
-  return day(a) === day(b);
 }
 
 /**
