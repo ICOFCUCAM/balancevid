@@ -190,8 +190,52 @@ export function streamState(
  * The viewer's version says less: a stranger is owed an honest "this channel
  * is not transmitting", not a diagnosis of the broadcaster's server.
  */
+/**
+ * Was this container ever going to transmit?  [§18, D-20, D-21, U-19]
+ *
+ * THE ADVICE WAS SOMETHING THE PROCESS COULD HAVE TAKEN ITSELF.
+ * The control room told an operator *"check that it is started
+ * (ROLE=all or ROLE=playout)"* — and `ROLE` is an environment
+ * variable this very process can read. It sent somebody to a
+ * terminal to look up a fact it was sitting on.
+ *
+ * Worse, it is the difference between two completely different
+ * situations wearing the same sentence:
+ *
+ *   ROLE=web      no engine was ever started here. Nothing is
+ *                 wrong with the channel, the schedule or the
+ *                 media; this container does not do that job and
+ *                 no amount of correcting things in the room will
+ *                 change it.
+ *   ROLE=all      an engine WAS started here, by `serve.sh`, and
+ *                 it is not beating. It died, and its reason is in
+ *                 this container's log.
+ *
+ * An operator who has "corrected everything" and is still dark
+ * needs to be told which of those two it is, because only one of
+ * them has anything to correct. [D-21]
+ *
+ * THE DEFAULT IS `all`, because `scripts/serve.sh` says so and this
+ * must not be a second opinion about that. An absent role means
+ * nobody set one, which is the same as setting `all`.
+ */
+export function engineExpected(role: string | undefined | null): boolean {
+  const named = (role ?? '').trim() || 'all';
+  return named === 'all' || named === 'playout';
+}
+
 export function healthSentence(
   engine: EngineState, stream: StreamState, audience: 'operator' | 'viewer',
+  /*
+   * WHAT THIS CONTAINER WAS TOLD TO RUN, where the caller knows.
+   *
+   * Optional because two of the three callers genuinely do not know
+   * — the viewer's page is served by whatever tier answered and has
+   * no business reading deployment configuration, and a test asking
+   * what a state SOUNDS like is not asking about a container. Left
+   * out, the sentences are the ones that do not claim to know.
+   */
+  role?: string | undefined,
 ): string | null {
   if (engine === 'running' && stream === 'transmitting') return null;
 
@@ -201,14 +245,38 @@ export function healthSentence(
       : 'This channel is not transmitting right now.';
   }
 
+  /*
+   * THE ONE THING WORTH SAYING FIRST when nothing is beating and we
+   * know this container was never asked to beat. It is not a fault
+   * to be chased: it is the deployment, and it outranks every other
+   * sentence below because none of them can be acted on until it is
+   * settled. [D-21]
+   */
+  if (engine !== 'running' && role !== undefined && !engineExpected(role)) {
+    return `Nothing here was ever going to transmit: this container runs `
+      + `ROLE=${role.trim() || '(empty)'}, which starts no playout engine. `
+      + 'The channel, the schedule and the media are not the problem. Run a '
+      + 'container with ROLE=all, or one with ROLE=playout against the same '
+      + 'storage.';
+  }
+
   if (engine === 'stopped') {
     return 'The playout engine is not running — nothing is being written. '
       + 'Start it with: npm run start:playout';
   }
   if (engine === 'earlier') {
-    return 'No playout engine has run since this instance started — the '
-      + 'heartbeat on disk is from an earlier one. The engine is a separate '
-      + 'process: check that it is started (ROLE=all or ROLE=playout).';
+    /*
+     * AND WHERE WE KNOW IT WAS MEANT TO RUN HERE, say that rather
+     * than asking the operator to go and check what we just read.
+     */
+    return role !== undefined
+      ? `This container runs ROLE=${role.trim() || 'all'}, so it started a `
+        + 'playout engine — and nothing has beaten since this instance came '
+        + 'up. It stopped. Why it stopped is in this container’s log, '
+        + 'alongside the line that says "serve: playout engine".'
+      : 'No playout engine has run since this instance started — the '
+        + 'heartbeat on disk is from an earlier one. The engine is a separate '
+        + 'process: check that it is started (ROLE=all or ROLE=playout).';
   }
   if (engine === 'stale') {
     return 'The playout engine stopped responding. It may have crashed; '

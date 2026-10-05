@@ -38,7 +38,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import {
-  ENGINE_PULSE_MS, ENGINE_STALE_MS, engineState, healthSentence,
+  ENGINE_PULSE_MS, ENGINE_STALE_MS, engineExpected, engineState,
+  healthSentence,
 } from '../../src/domain/health.js';
 
 /**
@@ -194,5 +195,92 @@ describe('a pulse and a pass beating at the same moment', () => {
     const left = (await readFile(join(root, 'playout.json'), 'utf8')).trim();
     expect(left.startsWith('{')).toBe(true);
     expect(left.endsWith('}')).toBe(true);
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ *  "Why is this channel not broadcasting when I have corrected
+ *  everything?"  [D-21, U-19, §18]
+ * ------------------------------------------------------------------ */
+
+describe('a container that was never going to transmit', () => {
+  /*
+   * THE ADVICE WAS SOMETHING THE PROCESS COULD HAVE TAKEN ITSELF.
+   * The room said *"check that it is started (ROLE=all or
+   * ROLE=playout)"* — and `ROLE` is an environment variable that
+   * very process can read. It sent somebody to a terminal to look
+   * up a fact it was sitting on, and the same sentence covered two
+   * situations only one of which has anything to correct.
+   */
+  it('knows which roles start an engine', () => {
+    expect(engineExpected('all')).toBe(true);
+    expect(engineExpected('playout')).toBe(true);
+    expect(engineExpected('web')).toBe(false);
+    expect(engineExpected('worker')).toBe(false);
+    /* Absent means nobody set one, which `serve.sh` treats as `all`.
+       This must not be a second opinion about that. */
+    expect(engineExpected(undefined)).toBe(true);
+    expect(engineExpected('')).toBe(true);
+    expect(engineExpected('  ')).toBe(true);
+  });
+
+  /*
+   * AND IT OUTRANKS EVERY OTHER SENTENCE, because none of them can
+   * be acted on until this one is settled: an operator correcting
+   * the schedule on a web-only container is correcting a thing that
+   * was never the problem.
+   */
+  it('says so plainly instead of sending somebody to check', () => {
+    for (const state of ['stopped', 'earlier', 'stale'] as const) {
+      const says = healthSentence(state, 'silent', 'operator', 'web')!;
+      expect(says, state).toMatch(/Nothing here was ever going to transmit/);
+      expect(says, state).toMatch(/ROLE=web/);
+      /* It does not send them hunting through the channel. */
+      expect(says, state).toMatch(/not the problem/);
+    }
+  });
+
+  /*
+   * WHERE THE ENGINE WAS MEANT TO RUN HERE, the opposite: it did
+   * start, by `serve.sh`, and it stopped — so the sentence points
+   * at the log rather than at the configuration.
+   */
+  it('points at the log when the engine was started here', () => {
+    const says = healthSentence('earlier', 'silent', 'operator', 'all')!;
+    expect(says).toMatch(/ROLE=all/);
+    expect(says).toMatch(/It stopped/);
+    expect(says).toMatch(/log/);
+    expect(says).not.toMatch(/check that it is started/);
+  });
+
+  /* And a caller that does not know keeps the sentence that does
+     not claim to. */
+  it('claims nothing when the caller cannot say', () => {
+    expect(healthSentence('earlier', 'silent', 'operator'))
+      .toMatch(/check that it is started/);
+  });
+
+  /* A viewer is told nothing about roles: they cannot act on any
+     of it, and a deployment detail is not theirs to read. [D-03] */
+  it('tells a viewer none of this', () => {
+    expect(healthSentence('earlier', 'silent', 'viewer', 'web'))
+      .toBe('This channel is not transmitting right now.');
+  });
+
+  /*
+   * AND THE WEB TIER CAN ONLY READ IT BECAUSE THE ENTRYPOINT
+   * EXPORTS IT. `ROLE="${ROLE:-all}"` is a plain shell variable:
+   * the platform's own setting would be visible, the default would
+   * not, and the one process that can show an operator anything
+   * could not tell "nobody set a role" from "somebody set web".
+   */
+  it('is exported by the entrypoint so the processes can read it', () => {
+    const serve = readFileSync('scripts/serve.sh', 'utf8');
+    expect(serve).toMatch(/^export ROLE="\$\{ROLE:-all\}"$/m);
+  });
+
+  it('is read by the room that shows the sentence', () => {
+    const route = readFileSync('app/api/channels/[id]/route.ts', 'utf8');
+    expect(route).toMatch(/healthSentence\(engine, stream, 'operator', process\.env\['ROLE'\]\)/);
   });
 });

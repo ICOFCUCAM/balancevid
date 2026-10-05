@@ -164,7 +164,13 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
       stream,
       /* One sentence, written in the domain so the control room and the
          viewer cannot describe the same condition two different ways. */
-      says: healthSentence(engine, stream, 'operator'),
+      /*
+       * AND WHAT THIS CONTAINER WAS TOLD TO RUN, because the
+       * sentence about a missing engine used to send the operator
+       * to look up an environment variable this process can read.
+       * `serve.sh` exports it. [health.ts, engineExpected]
+       */
+      says: healthSentence(engine, stream, 'operator', process.env['ROLE']),
       /*
        * AND THE TWO REASONS A HEALTHY CHANNEL IS STILL DARK. [§6, §9]
        *
