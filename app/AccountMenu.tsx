@@ -107,68 +107,6 @@ export default function AccountMenu({
   );
 }
 
-/**
- * LIT OR DARK, for the building only.  [Doctrine D-04, D-24]
- *
- * The studios are dark for a stated reason — a broadcast desk beside a
- * live monitor — and that is not a preference anybody should be offered.
- * The building is a different room: it is read, in daylight, and whether
- * a person wants it lit is genuinely theirs to say. Somebody working at
- * night on the same laptop wants the lobby dark too.
- *
- * BOTH GROUNDS ARE MEASURED. `contrast.test.ts` holds the dark ramp and
- * `building.css` states every light tone's ratio against #ffffff, so this
- * is a switch between two checked systems rather than a filter over one.
- *
- * SET BEFORE PAINT. A preference read in an effect arrives after the
- * first frame, which is a white flash for somebody who chose dark — the
- * exact person most bothered by one. `useLayoutEffect` runs before the
- * browser paints.
- */
-export function GroundToggle() {
-  const [lit, setLit] = useState(true);
-
-  const apply = useCallback((next: boolean) => {
-    const host = document.querySelector('[data-building]');
-    if (host instanceof HTMLElement) {
-      host.setAttribute('data-ground', next ? 'light' : 'dark');
-    }
-  }, []);
-
-  useLayoutEffect(() => {
-    let stored: string | null = null;
-    /* Private windows and blocked site data both throw rather than return. */
-    try { stored = window.localStorage.getItem('balancevid.ground'); } catch { /* no memory */ }
-    if (stored === 'dark') { setLit(false); apply(false); }
-  }, [apply]);
-
-  useEffect(() => { apply(lit); }, [lit, apply]);
-
-  return (
-    <button
-      type="button"
-      data-testid="ground-toggle"
-      aria-pressed={!lit}
-      title={lit ? 'Darken the workspace' : 'Light the workspace'}
-      aria-label={lit ? 'Darken the workspace' : 'Light the workspace'}
-      onClick={() => {
-        const next = !lit;
-        setLit(next);
-        try {
-          window.localStorage.setItem('balancevid.ground', next ? 'light' : 'dark');
-        } catch { /* it will simply not be remembered */ }
-      }}
-      style={{
-        flex: '0 0 auto', padding: 7, borderRadius: 'var(--radius-md)',
-        background: 'none', border: 0, boxShadow: 'none',
-        color: 'var(--ink-300)', cursor: 'pointer',
-      }}
-    >
-      <Icon name={lit ? 'moon' : 'sun'} size={17} />
-    </button>
-  );
-}
-
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return '?';

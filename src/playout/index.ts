@@ -41,7 +41,10 @@ import { paths } from '../store/paths.js';
 import { pathFor } from '../store/playoutSources.js';
 import { ffprobe } from '../render/ffmpeg.js';
 import { beat } from '../store/playoutHealth.js';
+import { produceRenditions } from './audioRendition.js';
+import { produceSubtitle } from './subtitleRendition.js';
 import { produceSegment, type SourceFacts } from './segment.js';
+import { streamLadder } from '../domain/quality.js';
 import { reconcileSenders, settle, stopAllSenders } from './send.js';
 import {
   type Pace, type Pacing, keep, pacing, worstLoad,
@@ -155,7 +158,15 @@ async function factsFor(path: string): Promise<SourceFacts | undefined> {
     measured = durationMs > 0
       ? {
         durationMs,
-        hasAudio: (json.streams ?? []).some((s) => s.codec_type === 'audio'),
+        /*
+         * COUNTED, NOT TESTED FOR. The same walk either way,
+         * and the count is the question an alternate rendition
+         * asks: a channel carrying three languages must know
+         * whether this file has a third stream before it maps
+         * one. [audioRendition.ts]
+         */
+        audioStreams: (json.streams ?? [])
+          .filter((s) => s.codec_type === 'audio').length,
       }
       : undefined;
   } catch {
@@ -190,7 +201,7 @@ export async function advance(channel: Channel, nowMs = Date.now()): Promise<num
     if (!path) continue;
     const measured = await factsFor(path);
     /* A still and a silent file have no loudness to correct. */
-    if (measured?.hasAudio) wantLoudness(path);
+    if ((measured?.audioStreams ?? 0) > 0) wantLoudness(path);
   }
 
   let made = 0;
@@ -203,9 +214,71 @@ export async function advance(channel: Channel, nowMs = Date.now()): Promise<num
     const aired = await produceSegment(
       channel, index, (path) => facts.get(path), gainOf);
     await logAired(channel.id, aired);
+    /*
+     * AND THE ALTERNATE LANGUAGES, AFTER THE PICTURE AND NEVER
+     * BEFORE.  [N-10, §17]
+     *
+     * The picture is what a channel IS. An engine that spent
+     * its four seconds on a French audio track and missed the
+     * frame would have the priority exactly backwards — so
+     * this runs once the segment is on the disk, and a channel
+     * that declares no second language does nothing at all
+     * here.
+     *
+     * NOT IN THE AS-RUN. The as-run records what went out on
+     * the wire, and the wire is one broadcast: a rendition is
+     * the same programme in another language, not a second
+     * thing that was transmitted.
+     */
+    /*
+     * AND THE LOWER RUNGS, BETWEEN THE PICTURE AND THE
+     * LANGUAGES.  [§7, §23]
+     *
+     * After the house rendition, because that is the one a
+     * set-top box is already reading and the one the as-run
+     * records; before the audio and the captions, because a
+     * viewer whose line cannot carry 720p has no picture at
+     * all until this runs, and a viewer choosing a language
+     * has one.
+     *
+     * ONE RUNG'S FAILURE DOES NOT TAKE THE OTHERS, and none of
+     * them takes the house rendition: a rung with a missing
+     * segment is a player stepping back up to the one above
+     * it, which is what a ladder is for. [U-19]
+     *
+     * NOT IN THE AS-RUN. The as-run records what the channel
+     * transmitted, and a rung is the same programme at another
+     * size rather than a second thing that went out.
+     */
+    for (const rung of LADDER) {
+      await produceSegment(
+        channel, index, (path) => facts.get(path), gainOf, {}, rung)
+        .catch(() => undefined);
+    }
+    await produceRenditions(channel, index, (path) => facts.get(path), gainOf);
+    /*
+     * AND THE WORDS, LAST OF THE THREE.  [§17, N-10]
+     *
+     * The same order and the same reason: the picture, then
+     * the languages somebody paid for, then the captions —
+     * which cost no encode at all, because they are text being
+     * cut on a grid rather than bytes being made. A channel
+     * that has not switched them on does nothing here.
+     *
+     * NOT IN THE AS-RUN EITHER. A caption track is the same
+     * programme with its own words written down, not a second
+     * thing that was transmitted.
+     */
+    await produceSubtitle(channel, index, (path) => facts.get(path));
     made += 1;
   }
 
+  /*
+   * THE RENDITIONS ARE SWEPT WITH THE PICTURE, by the same
+   * arithmetic. A language directory that kept its segments
+   * after the video's had gone would be the archive D-18
+   * forbids, one track at a time.
+   */
   await sweep(channel.id, current - WINDOW_SEGMENTS - AHEAD_SEGMENTS);
   return made;
 }
@@ -284,9 +357,67 @@ async function writeSenderPlaylist(
 
 async function sweep(channelId: string, before: number): Promise<void> {
   if (before <= 0) return;
+  await sweepDir(paths.channelStream(channelId), before);
+  /*
+   * AND EVERY ALTERNATE LANGUAGE, ON THE SAME ARITHMETIC.
+   *   [N-10, D-18]
+   *
+   * A language directory that kept its segments after the
+   * picture's had gone would be exactly the archive D-18
+   * forbids — the whole schedule, re-encoded, for ever, one
+   * audio track at a time. Read off the DISK rather than off
+   * the document, so a language a broadcaster REMOVED is still
+   * swept: the list in `station.audio` is what should be
+   * written from now on, and the files already there are
+   * nobody's but this function's.
+   */
+  /*
+   * AND THE CAPTIONS, WHICH ARE LAID OUT THE SAME WAY AND ARE
+   * THE SAME KIND OF THING. A caption segment is a few hundred
+   * bytes, which is the argument for forgetting to sweep it and
+   * is not a good one: a channel captioning twenty hours a day
+   * writes eighteen thousand files a day, and a directory that
+   * large is slow to read long before it is large on disk. [§17]
+   */
+  await Promise.all([
+    sweepUnder(paths.channelRungRoot(channelId),
+      (one) => paths.channelRung(channelId, one), before),
+    sweepUnder(paths.channelAudioRoot(channelId),
+      (one) => paths.channelAudio(channelId, one), before),
+    sweepUnder(paths.channelSubtitleRoot(channelId),
+      (one) => paths.channelSubtitle(channelId, one), before),
+  ]);
+}
+
+/** Every language directory under one root, on the same arithmetic. */
+async function sweepUnder(
+  root: string, dirOf: (language: string) => string, before: number,
+): Promise<void> {
+  let languages: string[];
+  try {
+    languages = (await readdir(root, { withFileTypes: true }))
+      .filter((one) => one.isDirectory()).map((one) => one.name);
+  } catch {
+    return;
+  }
+  await Promise.all(languages.map((one) => sweepDir(dirOf(one), before)));
+}
+
+/**
+ * THE RUNGS THIS DEPLOYMENT TRANSMITS, read once at import.
+ *
+ * For the reason `STREAM` is: a ladder that could change
+ * between segment 4,102 and 4,103 is a player discovering that
+ * the rung it chose has stopped existing. Restarting the engine
+ * is the honest way to change it. [segment.ts]
+ */
+const LADDER = streamLadder();
+
+/** Everything in one directory whose index is behind the window. */
+async function sweepDir(dir: string, before: number): Promise<void> {
   let entries: string[];
   try {
-    entries = await readdir(paths.channelStream(channelId));
+    entries = await readdir(dir);
   } catch {
     return;
   }
@@ -298,7 +429,7 @@ async function sweep(channelId: string, before: number): Promise<void> {
      * that index is behind the window it is never going to be served.
      */
     if (!Number.isFinite(index) || index >= before) return;
-    await rm(join(paths.channelStream(channelId), name), { force: true });
+    await rm(join(dir, name), { force: true });
   }));
 }
 

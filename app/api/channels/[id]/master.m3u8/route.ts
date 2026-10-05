@@ -3,9 +3,15 @@ import { isPublished } from '../../../../../src/domain/channel.js';
 import { loadAccount } from '../../../../../src/store/accounts.js';
 import { OWNER_ACCOUNT_ID, hasExtra } from '../../../../../src/domain/account.js';
 import { loadChannel } from '../../../../../src/store/channels.js';
-import { masterPlaylist, renditions } from '../../../../../src/domain/hls.js';
+import {
+  masterPlaylist, renditions, subtitleRendition,
+} from '../../../../../src/domain/hls.js';
 import { producingAudio } from '../../../../../src/store/audioRenditions.js';
-import { streamQuality } from '../../../../../src/domain/quality.js';
+import { producingSubtitles } from '../../../../../src/store/subtitleRenditions.js';
+import { producingRungs } from '../../../../../src/store/videoRenditions.js';
+import {
+  streamLadder, streamQuality,
+} from '../../../../../src/domain/quality.js';
 import { fail } from '../../../../../src/web/http.js';
 
 export const dynamic = 'force-dynamic';
@@ -70,18 +76,54 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
   const multiAudio = account ? hasExtra(account, 'multi-audio') : false;
 
   const wire = streamQuality();
+  const ladder = streamLadder();
+  const producing = await producingRungs(channel.id);
   const text = masterPlaylist(
     renditions(channel.station, { multiAudio }, await producingAudio(channel.id)),
     {
       variant: `/api/channels/${channel.id}/playlist`,
       audio: (language) => `/api/channels/${channel.id}/audio/${language}/playlist`,
+      subtitles: (language) =>
+        `/api/channels/${channel.id}/subtitles/${language}/playlist`,
     },
     {
       bitsPerSecond: wire.videoBitsPerSecond + wire.audioBitsPerSecond,
       codecs: CODECS,
+      width: wire.width,
+      height: wire.height,
     },
+    /*
+     * CAPTIONS NEED NO EXTRA AND SO NEED NO ACCOUNT. The audio
+     * renditions above are gated on `multi-audio` because a
+     * second language is a second audience a broadcaster is
+     * reaching; a product that charged a station for its deaf
+     * audience would be charging for access to itself. One
+     * directory listing, and the same *is it being written*
+     * rule. [station.ts `subtitles`]
+     */
+    subtitleRendition(channel.station, await producingSubtitles(channel.id)),
+    /*
+     * AND THE RUNGS THE ENGINE IS ACTUALLY WRITING.  [§23]
+     *
+     * The deployment's ladder says what it MEANT to transmit;
+     * the directory says what is on the disk. A master naming
+     * a 360p variant whose segments 404 is worse than naming
+     * none — a player drops to it when the line gets tight and
+     * finds nothing, so the stream fails at exactly the moment
+     * the ladder existed to rescue it. [D-21, U-19]
+     *
+     * NO ACCOUNT CHECK. A ladder is not a feature a
+     * broadcaster buys; it is how a viewer on a train sees the
+     * channel at all, and the cost is the installation's.
+     */
+    ladder.filter((rung) => producing.includes(rung.id)).map((rung) => ({
+      bitsPerSecond: rung.videoBitsPerSecond + rung.audioBitsPerSecond,
+      width: rung.width,
+      height: rung.height,
+      uri: `/api/channels/${channel.id}/q/${rung.id}/playlist`,
+    })),
   );
-  if (!text) return fail(404, 'no alternate audio');
+  if (!text) return fail(404, 'nothing beyond the one rendition');
 
   return new Response(text, {
     headers: {

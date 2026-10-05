@@ -121,23 +121,54 @@ describe('taking part without an invitation', () => {
    */
   it('requires the author to have opened it to anyone, and listed it', () => {
     /*
-     * `anyone` IS ASKED FOR ALL THREE KINDS, WHERE THE MINTING IS.
-     * `listed` IS ASKED HERE, BECAUSE IT IS THIS DOOR'S ALONE: an
-     * unlisted item a stranger reached by guessing an id is not a
-     * thing to let them write to, and a campaign page IS a
-     * listing in its own right. [GO-VIRAL V-4]
+     * ONCE, NOW, AND NOT THREE TIMES — WHICH IS A STRONGER CLAIM
+     * THAN THE ONE THIS TEST USED TO MAKE.
+     *
+     * It counted three copies of each condition, one per kind,
+     * because that is how `claim` was written. The call page then
+     * needed to ask the same question without minting anything —
+     * it was drawing an ENTER button from the CALL's clock while
+     * the route refused on the TRACK's conditions — and a fourth
+     * copy on the page would have been the copy that goes stale.
+     * The conditions moved into `openness`, which `claim` calls
+     * three times and `claimable` calls once.
+     *
+     * So the assertion is now that there is ONE of each, and that
+     * every kind goes through it. Three copies would pass the old
+     * test and fail this one, which is the right way round.
+     *
+     * `listed` IS ASKED AT THE DOOR, BECAUSE IT IS THAT DOOR'S
+     * ALONE: an unlisted item a stranger reached by guessing an id
+     * is not a thing to let them write to, and a campaign page IS
+     * a listing in its own right. [GO-VIRAL V-4]
      */
     const opened = MINT.match(
-      /if \(!maySubmit\(publication, 'anyone', now\)\) return \{ refused: 'closed' \};/g);
-    expect(opened).toHaveLength(3);
+      /if \(!maySubmit\(publication, 'anyone', now\)\) return 'closed';/g);
+    expect(opened).toHaveLength(1);
     expect(CLAIM).toMatch(/also: \(publication\) => isListed\(publication as never\)/);
+  });
+
+  /* Every kind goes through the one gate, and so does the page. */
+  it('sends all three kinds, and the page, through one gate', () => {
+    /*
+     * SIX ASKINGS OF ONE QUESTION: three kinds at the door that
+     * mints, and the same three at the one that only looks. A
+     * seventh would be somebody having written the conditions
+     * out again. [D-19]
+     */
+    const asked = MINT.match(/await openness\(/g);
+    expect(asked).toHaveLength(6);
+    /* Three of them mint; the other three only answer. */
+    const shut = MINT.match(/if \(shut !== 'open'\) return \{ refused: shut \};/g);
+    expect(shut).toHaveLength(3);
+    expect(MINT).toMatch(/export async function claimable\(/);
   });
 
   /* Unpublished or withdrawn is refused before anything else. */
   it('refuses anything unpublished or withdrawn', () => {
     const guards = MINT.match(
-      /if \(!publication \|\| publication\.unpublishedAt\) return \{ refused: 'missing' \};/g);
-    expect(guards).toHaveLength(3);
+      /if \(!publication \|\| publication\.unpublishedAt\) return 'missing';/g);
+    expect(guards).toHaveLength(1);
   });
 
   /*
@@ -176,10 +207,16 @@ describe('taking part without an invitation', () => {
     expect(MINT).not.toMatch(/saveCampaign|savePerformance|saveConversation/);
   });
 
-  /* A conversation is judged by the predicate that already exists. */
+  /*
+   * A conversation is judged by the predicate that already
+   * exists — and it is HANDED TO the shared gate rather than
+   * asked beside it, which is what keeps the gate one gate.
+   */
   it('uses isRespondable for a conversation', () => {
-    expect(MINT).toMatch(
-      /if \(!isRespondable\(conversation\)\) return \{ refused: 'closed' \};/);
+    expect(MINT).toMatch(/isRespondable\(conversation\)\);/);
+    /* And nowhere else: the other two kinds have no such
+       condition and pass `true`. */
+    expect(MINT.match(/isRespondable\(/g)).toHaveLength(2);
   });
 });
 
@@ -383,11 +420,21 @@ describe('the ceiling on claims', () => {
    * both doors. [GO-VIRAL V-4]
    */
   it('bounds every kind, against its own holder', () => {
+    /*
+     * ONCE, IN THE GATE, AND THE HOLDER IS STILL BUILT FROM THE
+     * KIND. The ceiling used to be written out three times; the
+     * count it reads was already shared, which is what made it
+     * possible to ask the same question at both doors — and now
+     * the asking is shared too.
+     */
     const bounds = MINT.match(
-      /if \(!mayClaim\(publication, await claimsSoFar\(holder\), now\)\) \{/g);
-    expect(bounds).toHaveLength(3);
-    expect(MINT).toMatch(
-      /const holder: RequestHolder = \{ kind: holderKind\(kind\), id \};/);
+      /if \(!mayClaim\(publication, await claimsSoFar\(holder\), now\)\) return 'closed';/g);
+    expect(bounds).toHaveLength(1);
+    const built = MINT.match(
+      /const holder: RequestHolder = \{ kind: holderKind\(kind\), id \};/g);
+    /* One in `claim`, one in `claimable` — the page counts the
+       same strangers the door does. */
+    expect(built).toHaveLength(2);
     expect(MINT).toMatch(/one\.holder\.kind === holder\.kind && one\.holder\.id === holder\.id/);
   });
 

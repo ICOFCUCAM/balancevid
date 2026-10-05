@@ -368,3 +368,75 @@ export function streamQuality(
 ): Quality {
   return qualityFor(env['STREAM_QUALITY']);
 }
+
+/**
+ * THE RUNGS A CHANNEL TRANSMITS, BEST FIRST.  [§7, §23, D-21]
+ *
+ * ONE WIRE WAS A DECISION AND IT WAS THE WRONG ONE FOR A
+ * VIEWER ON A TRAIN. Every segment on the wire must have
+ * identical codec parameters *within a rendition* or a player
+ * stalls at the boundary — that is what `streamQuality` is read
+ * once at import for. It does not follow that there can only be
+ * one rendition: HLS exists so a player can move between
+ * ladders mid-stream, and a channel that transmits only 720p
+ * is a channel that buffers for everybody whose line cannot
+ * carry 330 kB/s. The constancy rule is per rung, and each rung
+ * keeps it.
+ *
+ * THE DEFAULT IS THE WIRE AND ONE RUNG BELOW IT, which is the
+ * cheapest ladder that is a ladder: 360p at 600 kbps is about a
+ * fifth of the encode the house rung costs, and it is the
+ * difference between a viewer on mobile data watching and a
+ * viewer on mobile data leaving.
+ *
+ * AND IT IS THE OPERATOR'S COST, SO IT IS THE OPERATOR'S KNOB.
+ * `STREAM_LADDER` names the rungs below the wire, worst first,
+ * or `off` for the single rendition this product transmitted
+ * before. A rung at or above the wire is dropped rather than
+ * refused: a ladder is a way DOWN, and an installation that
+ * mistyped one should lose a rung, not a channel.
+ */
+export function streamLadder(
+  env: Record<string, string | undefined> = process.env,
+): Quality[] {
+  const wire = streamQuality(env);
+  const said = (env['STREAM_LADDER'] ?? '').trim().toLowerCase();
+  if (said === 'off') return [];
+  const want = said === ''
+    ? belowOne(wire)
+    : said.split(/[\s,]+/).filter((one) => one !== '');
+  const seen = new Set<string>();
+  return want
+    .filter((one) => Object.hasOwn(QUALITIES, one))
+    .map((one) => QUALITIES[one as QualityId])
+    .filter((one) => pixelRate(one) < pixelRate(wire))
+    .filter((one) => {
+      if (seen.has(one.id)) return false;
+      seen.add(one.id);
+      return true;
+    })
+    .sort((a, b) => pixelRate(b) - pixelRate(a));
+}
+
+/** The one rung immediately below this one, or none. */
+function belowOne(wire: Quality): string[] {
+  const at = LIVE_QUALITY_ORDER.indexOf(wire.id);
+  return at > 0 ? [LIVE_QUALITY_ORDER[at - 1]!] : [];
+}
+
+function pixelRate(one: Quality): number {
+  return one.width * one.height * one.fps;
+}
+
+/**
+ * What a rung is called where a viewer sees it.
+ *
+ * THE HEIGHT, NOT THE WORD. `label` reads *Standard — 720p*,
+ * which is written for the broadcaster choosing what their
+ * machine can carry; a viewer picking a picture size wants
+ * `720p`, and *Standard* means nothing to them because they
+ * cannot see what it is standard relative to. [D-04]
+ */
+export function rungSays(one: Quality): string {
+  return `${one.height}p${one.fps > 30 ? String(one.fps) : ''}`;
+}

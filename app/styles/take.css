@@ -14,6 +14,65 @@
  *  who has never heard of this software.
  * ------------------------------------------------------------------ */
 
+/*
+ * A COLOUR OVER A PHOTOGRAPH IS NOT A THEME COLOUR.
+ *
+ * Most of the raw values left in this sheet are the scrims on
+ * the hero bands and the white type that sits on them. They
+ * look like the thing a relit page has to re-decide and they
+ * are not: a gradient from transparent to black over somebody's
+ * photograph, with white text on the dark end, is the same
+ * gradient whichever ground the page is on — the surface
+ * underneath is a picture, not a panel. Converting them to
+ * tokens would make them follow the ground and ruin them.
+ *
+ * What DOES have to be relit is anything whose backdrop is a
+ * surface this product draws, and those are below.
+ */
+
+/*
+ * WHAT A CALL IS ABOUT, AS A COLOUR.  [GO-VIRAL V-4, V-8; D-19, U-19]
+ *
+ * Music, Video and Programme are the three things a call can be
+ * about, and the kicker on a card carries the word as well as
+ * the colour — nobody is asked to tell them apart by hue alone.
+ * Music takes the product's own accent; the other two needed
+ * two colours and were written inline, in four places each,
+ * which is how one of them comes to be a different purple from
+ * the others. [D-19]
+ *
+ * AND THEY ARE RELIT, which is the second reason they are here.
+ * A value written inline cannot have a second ground, and both
+ * of these fail on one: #5bbf8a is 8.47:1 on the dark page and
+ * 2.27:1 on a white card — the green that reads cleanly in a
+ * studio is invisible in a lobby.
+ *
+ * MEASURED, against the darkest page and the lightest card:
+ *
+ *   dark   --kind-video      #b07ae8  → 6.21:1 on #0b0f16
+ *          --kind-programme  #5bbf8a  → 8.47:1
+ *   lit    --kind-video      #7a3fc4  → 6.30:1 on #ffffff
+ *          --kind-programme  #1b6e4a  → 6.22:1
+ *
+ * THE FILLS ARE THE SAME ON BOTH GROUNDS, because a filled
+ * badge carries WHITE text and so is measured against white
+ * either way. #2f8a5f was one of them at 4.27:1 — under the bar
+ * for the small bold capitals it holds, on both grounds, found
+ * by measuring rather than by looking. It is #1f7a43 now, at
+ * 5.35:1.
+ */
+:root {
+  --kind-video: #b07ae8;
+  --kind-programme: #5bbf8a;
+  --kind-video-fill: #7b44bd;
+  --kind-programme-fill: #1f7a43;
+}
+
+[data-ground='light'] {
+  --kind-video: #7a3fc4;
+  --kind-programme: #1b6e4a;
+}
+
 .tk-page {
   min-height: 100dvh;
   background: var(--bg);
@@ -563,6 +622,31 @@
   font-size: var(--text-base);
 }
 
+/*
+ * AND WHAT STANDS WHERE IT WOULD HAVE BEEN.
+ *
+ * The same footprint as the button, so the page does not jump a
+ * row shorter when a call stops taking entries, but plainly not
+ * a control: no fill, no border a thumb reads as pressable,
+ * centred text at the muted weight. [D-21]
+ */
+.go-shut {
+  width: 100%;
+  min-height: 50px;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  color: var(--ink-300);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+
 /* ------------------------------------------------------------------ *
  *  The recording page.  [TAKE-APP T3, T4; GO-VIRAL V-7]
  * ------------------------------------------------------------------ */
@@ -970,8 +1054,8 @@
   color: var(--accent);
 }
 
-.tk-call-kind[data-about='conversation'] { color: #b07ae8; }
-.tk-call-kind[data-about='channel'] { color: #5bbf8a; }
+.tk-call-kind[data-about='conversation'] { color: var(--kind-video); }
+.tk-call-kind[data-about='channel'] { color: var(--kind-programme); }
 
 .tk-call-foot { display: flex; align-items: center; margin-top: 7px; }
 
@@ -1003,11 +1087,13 @@
   letter-spacing: 0.06em;
 }
 
+/* Inside the LIVE pill, so it is the pill's own ink and not a
+   white of its own. [--text-on-accent] */
 .tk-tile-dot {
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--text-on-accent);
 }
 
 /* Two lines, because what is on is a title somebody wrote. */
@@ -1105,8 +1191,8 @@
   color: var(--accent);
 }
 
-.go-kind[data-about='conversation'] { color: #b07ae8; }
-.go-kind[data-about='channel'] { color: #5bbf8a; }
+.go-kind[data-about='conversation'] { color: var(--kind-video); }
+.go-kind[data-about='channel'] { color: var(--kind-programme); }
 
 /*
  * THE THREE THINGS A COMPETITION IS, SIDE BY SIDE WHERE THERE
@@ -1138,13 +1224,13 @@
 }
 
 .go-said-mark[data-mark='judge'] {
-  background: color-mix(in srgb, #5bbf8a 18%, transparent);
-  color: #5bbf8a;
+  background: color-mix(in srgb, var(--kind-programme) 18%, transparent);
+  color: var(--kind-programme);
 }
 
 .go-said-mark[data-mark='prize'] {
-  background: color-mix(in srgb, #b07ae8 20%, transparent);
-  color: #b07ae8;
+  background: color-mix(in srgb, var(--kind-video) 20%, transparent);
+  color: var(--kind-video);
 }
 
 /* ------------------------------------------------------------------ *
@@ -1408,8 +1494,8 @@
   white-space: nowrap;
 }
 
-.go-call-badge[data-about='conversation'] { background: #7b44bd; }
-.go-call-badge[data-about='channel'] { background: #2f8a5f; }
+.go-call-badge[data-about='conversation'] { background: var(--kind-video-fill); }
+.go-call-badge[data-about='channel'] { background: var(--kind-programme-fill); }
 
 .go-call-said {
   flex: 1 1 auto;

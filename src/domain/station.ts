@@ -160,6 +160,35 @@ export interface Station {
    */
   audio?: AudioTrack[];
   /**
+   * WHETHER THIS CHANNEL PUTS ITS CAPTIONS ON THE WIRE.  [§17, N-10]
+   *
+   * THE WORDS ALREADY EXIST AND NEVER LEFT THE DISK. Every
+   * render this product finishes is written with a WebVTT
+   * sidecar beside it — INV-07, the sidecars ship whatever the
+   * burn-in setting — and a channel scheduling that render
+   * broadcast the picture and the sound and left the captions
+   * where they lay. Turning this on makes the playout engine cut
+   * those cues on the segment grid and serve them as an HLS
+   * subtitle rendition. [D-18]
+   *
+   * NOT AN EXTRA, AND THAT IS A DECISION RATHER THAN AN
+   * OVERSIGHT. `audio` above is priced, because a second
+   * language is a second audience a broadcaster is reaching.
+   * Captions are how a deaf viewer watches at all, and a product
+   * that charged a station for its deaf audience would be
+   * charging for access to itself. The gate here is one flag and
+   * no account lookup. [account.ts `EXTRAS`]
+   *
+   * A FLAG AND NOT A LIST, because a render's captions are in
+   * whatever language was spoken into it. `language` above is
+   * the honest label for them, and a channel claiming a
+   * translated caption track it has no translation for would be
+   * the same fault `renditions` refuses for audio. A second
+   * caption language arrives when something in this product
+   * translates one. [D-21]
+   */
+  subtitles?: boolean;
+  /**
    * A HOST THIS STATION ALSO ANSWERS ON: `tv.redemption.example`.
    *
    * > *"The channel owner can eventually have a custom domain, but

@@ -30,6 +30,8 @@ let listRequests: typeof import('../../src/store/requests.js').listRequests;
 let paths: typeof import('../../src/store/paths.js').paths;
 let write: typeof import('node:fs/promises').writeFile;
 let mkdir: typeof import('node:fs/promises').mkdir;
+let claimable: typeof import('../../src/web/claim.js').claimable;
+let readFile: typeof import('node:fs/promises').readFile;
 
 const SONG = 'perf_v2call0000000000';
 
@@ -42,6 +44,8 @@ beforeAll(async () => {
   ({ paths } = await import('../../src/store/paths.js'));
   ({ writeFile: write, mkdir } = await import('node:fs/promises'));
   ({ POST } = await import('../../app/api/participate/[kind]/[id]/route.js'));
+  ({ claimable } = await import('../../src/web/claim.js'));
+  ({ readFile } = await import('node:fs/promises'));
 });
 
 afterAll(async () => {
@@ -234,5 +238,91 @@ describe('a stranger pressing "Take this song"', () => {
     await saveCampaign(elsewhere);
     expect((await press()).status).toBe(201);
     expect((await listRequests())[0]!.campaign).toBeUndefined();
+  });
+});
+
+/**
+ * THE BUTTON AND THE DOOR, ASKED SEPARATELY AND REQUIRED TO
+ * AGREE.  [GO-VIRAL V-4; D-19, D-21]
+ *
+ * The call page drew ENTER from `callRow` — the CALL's clock and
+ * state — and the route refused on the TRACK's conditions, which
+ * only `claim` knew. A campaign whose song had been unpublished,
+ * or withdrawn from strangers, or filled to the producer's
+ * ceiling showed a live call with a working-looking button and
+ * answered *that is not open for anybody to take part in* when
+ * somebody pressed it. Advertising what you do not have.
+ *
+ * `claimable` is that gate, extracted and exported so the page
+ * can ask it. What these tests hold up is the AGREEMENT: a
+ * second copy of the conditions on the page would pass a test
+ * of the page and fail this one the first time a condition
+ * changed on one side only.
+ */
+describe('what the page is told and what the door does', () => {
+  const ask = () => claimable({
+    kind: 'music', id: SONG, now: new Date().toISOString(),
+  });
+
+  /** The published song, edited where it stands. */
+  async function amend(change: (doc: Record<string, unknown>) => void) {
+    const at = paths.performanceDocument(SONG);
+    const doc = JSON.parse(await readFile(at, 'utf8')) as Record<string, unknown>;
+    change(doc);
+    await write(at, JSON.stringify(doc), 'utf8');
+  }
+
+  it('says open, and the door opens', async () => {
+    await openCall();
+    expect(await ask()).toBe('open');
+    expect((await press()).status).toBe(201);
+  });
+
+  /*
+   * TAKEN DOWN. The organiser's call is still live and still
+   * worth reading; there is simply nothing behind it to answer.
+   */
+  it('says missing when the track was unpublished, and the door refuses',
+    async () => {
+      await openCall();
+      await amend((doc) => {
+        (doc['publication'] as Record<string, unknown>)['unpublishedAt']
+          = '2026-06-01T10:00:00.000Z';
+      });
+      expect(await ask()).toBe('missing');
+      expect((await press()).status).toBe(404);
+    });
+
+  /*
+   * STILL PUBLISHED, NO LONGER OPEN TO STRANGERS. This is the
+   * one the page got most wrong: everything a reader can see
+   * says the competition is running.
+   */
+  it('says closed when the producer shut the door, and the door refuses',
+    async () => {
+      await openCall();
+      await amend((doc) => {
+        (doc['publication'] as Record<string, unknown>)['access'] = 'invited';
+      });
+      expect(await ask()).toBe('closed');
+      expect((await press()).status).toBe(404);
+    });
+
+  /*
+   * AND AT THE CEILING. `claimsAllowed` is the producer's own
+   * bound and `claimsSoFar` counts what came through, so the
+   * hundred-and-first stranger is told before they record
+   * rather than after. [V-2]
+   */
+  it('says closed once the producer\u2019s ceiling is full', async () => {
+    await openCall();
+    await amend((doc) => {
+      (doc['publication'] as Record<string, unknown>)['claims'] = 2;
+    });
+    expect((await press()).status).toBe(201);
+    expect(await ask()).toBe('open');
+    expect((await press()).status).toBe(201);
+    expect(await ask()).toBe('closed');
+    expect((await press()).status).toBe(404);
   });
 });

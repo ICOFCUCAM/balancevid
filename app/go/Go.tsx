@@ -25,6 +25,7 @@ import { useEffect, useState } from 'react';
 
 import type { CallRow } from '../../src/domain/campaign.js';
 import Icon, { type IconName } from '../Icon.js';
+import { GroundToggle } from '../Ground.js';
 import { shelfFor } from '../tv/art.js';
 
 /**
@@ -54,7 +55,21 @@ export function GoFrame({ children, here = 'calls' }: {
   here?: 'calls' | 'tv' | 'take';
 }) {
   return (
-    <div className="tk-page go-page">
+    /*
+     * LIT, LIKE THE LOBBY, AND FOR THE SAME REASON.  [D-24, D-04]
+     *
+     * Go is read: the rules of a call, a wall of entries, a
+     * standing. It is a page a stranger opens on a phone in
+     * daylight, having followed a link from a message — the
+     * furthest thing in this product from a broadcast desk in a
+     * dark room, which is the one place the dark ground was ever
+     * argued for. The hero bands keep their scrims, because a
+     * colour over a photograph is not a theme colour.
+     *
+     * AND THE PERSON CAN SAY OTHERWISE. One switch, one stored
+     * key, every surface that is not a dark room. [Ground.tsx]
+     */
+    <div className="tk-page go-page" data-ground="light" data-ground-host>
       {/*
         * THE SAME IDENT AS THE TAKE APP, AND THAT IS THE POINT.
         * Go is the door somebody walks through before they have
@@ -83,6 +98,7 @@ export function GoFrame({ children, here = 'calls' }: {
           <Icon name="broadcast" size={14} />
           TV
         </Link>
+        <GroundToggle />
       </header>
 
       {/*

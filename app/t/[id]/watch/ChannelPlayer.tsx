@@ -45,6 +45,7 @@ export interface Track {
 
 export default function ChannelPlayer({
   channelId, poster, onAir = false, compact = false, onVideo, onAudio,
+  onSubtitles, onQuality,
 }: {
   channelId: string;
   poster?: string;
@@ -79,6 +80,30 @@ export default function ChannelPlayer({
   onAudio?: (audio: {
     tracks: Track[]; chosen: number; pick: (id: number) => void;
   }) => void;
+  /**
+   * The caption tracks this stream turned out to have, once it
+   * has been read. [§17, N-10]
+   *
+   * THE SAME SHAPE AS `onAudio` AND ONE DIFFERENCE: `chosen` of
+   * `-1` means OFF, which is a state audio does not have. A
+   * viewer always hears something; a viewer does not always
+   * want words on their picture, and off is where they start.
+   */
+  onSubtitles?: (subs: {
+    tracks: Track[]; chosen: number; pick: (id: number) => void;
+  }) => void;
+  /**
+   * The picture sizes this stream turned out to carry. [§23]
+   *
+   * THE SAME SHAPE AGAIN, AND `-1` MEANS AUTO rather than off.
+   * A ladder's whole point is that the player measures the
+   * line and chooses; the menu exists for the viewer who knows
+   * better than the measurement — on a metered connection, or
+   * on a screen where 360p is plenty.
+   */
+  onQuality?: (levels: {
+    tracks: Track[]; chosen: number; pick: (id: number) => void;
+  }) => void;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [video, setVideo] = useState<HTMLVideoElement | null>(null);
@@ -98,6 +123,16 @@ export default function ChannelPlayer({
   const [tracks, setTracks] = useState<Track[]>([]);
   const [chosen, setChosen] = useState(-1);
   const pick = useRef<(id: number) => void>(() => undefined);
+  /* And the captions, discovered the same way and for the same
+     reason: the document says what a broadcaster intended, the
+     playlist says what is being written. [D-21] */
+  const [subs, setSubs] = useState<Track[]>([]);
+  const [showing, setShowing] = useState(-1);
+  const pickSub = useRef<(id: number) => void>(() => undefined);
+  /* And the rungs, for the same reason again. */
+  const [levels, setLevels] = useState<Track[]>([]);
+  const [level, setLevel] = useState(-1);
+  const pickLevel = useRef<(id: number) => void>(() => undefined);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -149,8 +184,36 @@ export default function ChannelPlayer({
         for (let at = 0; at < held.length; at += 1) held[at]!.enabled = at === id;
         setChosen(id);
       };
+      /*
+       * AND THE CAPTIONS, WHICH SAFARI PUTS ON `textTracks`.
+       * The element draws them itself once a track's `mode` is
+       * `showing`, which is the operating system's own renderer
+       * rather than a second one in this file.
+       */
+      const texts = video.textTracks;
+      const syncText = () => {
+        const held = Array.from({ length: texts.length }, (_, at) => texts[at]!)
+          .filter((one) => one.kind === 'subtitles' || one.kind === 'captions');
+        setSubs(held.map((one, at) => ({
+          id: at, label: one.label || one.language || 'Captions',
+          language: one.language ?? '',
+        })));
+        setShowing(held.findIndex((one) => one.mode === 'showing'));
+      };
+      pickSub.current = (id) => {
+        const held = Array.from({ length: texts.length }, (_, at) => texts[at]!)
+          .filter((one) => one.kind === 'subtitles' || one.kind === 'captions');
+        held.forEach((one, at) => { one.mode = at === id ? 'showing' : 'disabled'; });
+        setShowing(id);
+      };
+      texts.addEventListener?.('addtrack', syncText);
       video.addEventListener('loadedmetadata', sync);
-      destroy = () => video.removeEventListener('loadedmetadata', sync);
+      video.addEventListener('loadedmetadata', syncText);
+      destroy = () => {
+        video.removeEventListener('loadedmetadata', sync);
+        video.removeEventListener('loadedmetadata', syncText);
+        texts.removeEventListener?.('addtrack', syncText);
+      };
       setReady(true);
     } else {
       void (async () => {
@@ -172,6 +235,15 @@ export default function ChannelPlayer({
             liveSyncDurationCount: 3,
             lowLatencyMode: false,
             enableWorker: true,
+            /*
+             * `hls.js` RENDERS THE CUES ITSELF, into the
+             * element's own text tracks. Left off, a channel's
+             * captions would be fetched, parsed and never
+             * drawn — which is the one failure a viewer reads
+             * as *this product has no captions*.
+             */
+            enableWebVTT: true,
+            renderTextTracksNatively: true,
           });
           /*
            * THE MASTER WHERE THERE IS ONE. `hls.js` reads a
@@ -198,11 +270,68 @@ export default function ChannelPlayer({
               })));
               setChosen(hls.audioTrack);
             }
+            /*
+             * ONE CAPTION TRACK IS STILL A CHOICE, unlike one
+             * audio track. The question a subtitle control
+             * answers is *do you want words*, which has two
+             * answers however many languages there are — so
+             * `> 0` here where the audio above wants `> 1`.
+             * [D-04]
+             */
+            /*
+             * THE LADDER, IF THERE IS ONE. `levels` holds one
+             * entry for a master with a single variant, which
+             * is not a choice — the same `> 1` rule the audio
+             * picker uses, and for the same reason. [D-21]
+             */
+            if (hls.levels.length > 1) {
+              setLevels(hls.levels.map((one, at) => ({
+                id: at,
+                label: one.height ? `${one.height}p` : `${Math.round(
+                  (one.bitrate ?? 0) / 1000)}k`,
+                language: '',
+              })));
+              /* Auto, until somebody says otherwise. */
+              setLevel(hls.autoLevelEnabled ? -1 : hls.currentLevel);
+            }
+            const words = hls.subtitleTracks;
+            if (words.length > 0) {
+              setSubs(words.map((one, at) => ({
+                id: at,
+                label: one.name || one.lang || `Captions ${at + 1}`,
+                language: one.lang ?? '',
+              })));
+              /* Off until somebody asks. [D-21] */
+              hls.subtitleDisplay = false;
+              hls.subtitleTrack = -1;
+              setShowing(-1);
+            }
           });
           hls.on(Hls.Events.AUDIO_TRACK_SWITCHED, () => {
             setChosen(hls.audioTrack);
           });
+          hls.on(Hls.Events.SUBTITLE_TRACK_SWITCH, () => {
+            setShowing(hls.subtitleTrack);
+          });
+          /*
+           * THE MENU FOLLOWS THE MEASUREMENT. On Auto the
+           * player moves between rungs by itself, and a
+           * control that went on saying *720p* while the
+           * stream had stepped down would be a control that
+           * lies about what you are watching. [D-21]
+           */
+          hls.on(Hls.Events.LEVEL_SWITCHED, () => {
+            setLevel(hls.autoLevelEnabled ? -1 : hls.currentLevel);
+          });
           pick.current = (id) => { hls.audioTrack = id; };
+          pickLevel.current = (id) => {
+            hls.currentLevel = id;
+            setLevel(id);
+          };
+          pickSub.current = (id) => {
+            hls.subtitleDisplay = id >= 0;
+            hls.subtitleTrack = id;
+          };
           hls.on(Hls.Events.ERROR, (_event, data) => {
             if (!data.fatal) return;
             /*
@@ -248,6 +377,18 @@ export default function ChannelPlayer({
   useEffect(() => {
     onAudio?.({ tracks, chosen, pick: (id: number) => pick.current(id) });
   }, [onAudio, tracks, chosen]);
+
+  useEffect(() => {
+    onSubtitles?.({
+      tracks: subs, chosen: showing, pick: (id: number) => pickSub.current(id),
+    });
+  }, [onSubtitles, subs, showing]);
+
+  useEffect(() => {
+    onQuality?.({
+      tracks: levels, chosen: level, pick: (id: number) => pickLevel.current(id),
+    });
+  }, [onQuality, levels, level]);
 
   return (
     <>

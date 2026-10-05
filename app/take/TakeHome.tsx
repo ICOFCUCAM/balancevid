@@ -9,6 +9,7 @@ import {
 import { type HomeCall, type Row, homeFrom } from './home.js';
 import { Standing } from '../go/Go.js';
 import Icon, { type IconName } from '../Icon.js';
+import { GroundToggle } from '../Ground.js';
 import { NETWORK_ART, identityFor, shelfFor } from '../tv/art.js';
 
 /**
@@ -276,7 +277,20 @@ export default function TakeHome() {
   }, []);
 
   return (
-    <div className="tk-page" data-testid="take-home">
+    /*
+     * LIT, LIKE THE LOBBY AND LIKE GO.  [D-24, D-04]
+     *
+     * This page is READ: what a church or a school is being
+     * asked to record, what their channels are showing, which
+     * call is open. It is opened on a phone, in a hall, in
+     * daylight — the furthest thing from a broadcast desk in a
+     * dark room, which is the one place the dark ground was
+     * argued for. The RECORDER is a different room again and
+     * stays dark, because a camera preview is a picture being
+     * judged. [TakeApp.tsx]
+     */
+    <div className="tk-page" data-ground="light" data-ground-host
+         data-testid="take-home">
       {/*
         * AN IDENT, NOT A SPLASH SCREEN. The page opened with the
         * product's name centred in large letters over nothing,
@@ -301,6 +315,7 @@ export default function TakeHome() {
           <Icon name="broadcast" size={14} />
           TV
         </a>
+        <GroundToggle />
       </header>
 
       {/*
@@ -325,8 +340,29 @@ export default function TakeHome() {
           <h1 className="tk-hero-lead">
             {whereIAm?.name ?? 'BalanceVid'}
           </h1>
+          {/*
+            * WHO THIS IS FOR, SAID IN ONE LINE.
+            *
+            * > *"institutions, churches and many organization
+            * > would use this take mobile to record their
+            * > services and programs, being light wieghts, send
+            * > to the balancevid for production."*
+            *
+            * The line said *watch what is on, and take part in
+            * what is open*, which describes a viewer who
+            * wandered in. The person this page is most often
+            * opened by is a volunteer at the back of a hall who
+            * was sent a link that morning and is about to
+            * record a service on a phone — and nothing on the
+            * screen told them they were in the right place.
+            *
+            * RECORD BEFORE WATCH, because that is the order of
+            * the two things and the second one is the one
+            * people already know how to do.
+            */}
           <p className="tk-hero-under">
-            Watch what is on, and take part in what is open.
+            Record a service, a programme or a song on your phone and send it
+            straight to the studio. Watch what is on while you wait.
           </p>
           {/*
             * THE FIELD NARROWS WHAT IS ALREADY HERE RATHER THAN

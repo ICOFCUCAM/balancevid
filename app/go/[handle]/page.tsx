@@ -8,6 +8,7 @@ import {
 import { resultsFor, saidAbout } from '../../../src/domain/judging.js';
 import { listCampaigns } from '../../../src/store/campaigns.js';
 import { listRequests } from '../../../src/store/requests.js';
+import { claimable, doorFor } from '../../../src/web/claim.js';
 import { GoFrame, Standing } from '../Go.js';
 import { Deadline, EnterButton, Loop, Results, Wall } from './Call.js';
 import Icon, { type IconName } from '../../Icon.js';
@@ -48,6 +49,22 @@ export const dynamic = 'force-dynamic';
  * and the fix was to share the function rather than the fetch.
  * [D-19]
  */
+/**
+ * The track's own answer, or `open` where there is no door at
+ * all to ask.
+ *
+ * A CALL ABOUT A KIND THIS INSTALLATION DOES NOT KNOW is a call
+ * from a newer installation, and the page draws it rather than
+ * refusing it — the same decision `aboutSays` makes two
+ * screens up. The route is the one that refuses, and it does.
+ * [V-8, U-19]
+ */
+async function openDoor(call: Campaign): Promise<'open' | 'closed' | 'missing'> {
+  const kind = doorFor(call.track.kind);
+  if (!kind) return 'open';
+  return claimable({ kind, id: call.track.id, now: new Date().toISOString() });
+}
+
 async function found(handle: string) {
   const campaigns = await listCampaigns().catch(() => [] as Campaign[]);
   const call = bySlugOrId(campaigns, handle);
@@ -67,9 +84,32 @@ async function found(handle: string) {
    * second answer to a question about somebody's face. [D-19]
    */
   const announced = call.state === 'results' || call.state === 'completed';
+  /*
+   * WHETHER THE DOOR WOULD ACTUALLY OPEN.  [V-4; D-21, D-19]
+   *
+   * `callRow` answers the CALL's own clock and state, which is
+   * what this page has always drawn the button from. The TRACK
+   * has conditions of its own — published, not withdrawn from
+   * strangers, under the producer's ceiling — and they are the
+   * ones `/api/go/<handle>/enter` actually applies. A campaign
+   * whose song had been unpublished drew a live call with a
+   * working-looking ENTER and answered *that is not open for
+   * anybody to take part in* when somebody pressed it.
+   *
+   * ASKED THROUGH THE DOOR'S OWN FUNCTION so the two cannot
+   * disagree, and asked only while the call's own gate is open,
+   * because a finished competition's button is already gone and
+   * `claimable` costs a scan of the requests. [D-19]
+   */
+  const row = callRow(call, now);
+  const shut = row.clock !== 'over' && row.state !== 'completed'
+      && row.state !== 'judging' && row.state !== 'results'
+    ? await openDoor(call)
+    : 'open';
   return {
+    entry: shut,
     call,
-    row: callRow(call, now),
+    row,
     wall,
     numbers: loopNumbers(call, requests),
     panel: panelOf(call).map((one) => one.name),
@@ -149,7 +189,7 @@ export default async function CallPage(
   const { handle } = await params;
   const it = await found(handle);
   if (!it) notFound();
-  const { call, row, wall, numbers, panel, standings } = it;
+  const { call, row, wall, numbers, panel, standings, entry } = it;
   const shownWall = wall.map((one) => ({
     submissionId: one.submissionId,
     kind: one.kind,
@@ -255,8 +295,40 @@ export default async function CallPage(
         {/* The way in, where there still is one. */}
         {row.clock !== 'over' && row.state !== 'completed'
           && row.state !== 'judging' && row.state !== 'results' && (
-          <EnterButton handle={handle}
-                       asksConsent={(call.terms?.length ?? 0) > 0} />
+          entry === 'open'
+            ? (
+              <EnterButton handle={handle}
+                           asksConsent={(call.terms?.length ?? 0) > 0} />
+            )
+            : (
+              /*
+                * A SENTENCE WHERE THE BUTTON WOULD HAVE BEEN,
+                * AND NOT A DISABLED BUTTON. [D-21, U-19]
+                *
+                * A greyed-out ENTER is a control a person tries
+                * to press and then wonders whether their phone
+                * is broken. The call is still worth reading —
+                * the rules, the wall, the standing are all here
+                * — so the page says what is true about entering
+                * and leaves the rest alone.
+                *
+                * TWO SENTENCES, BECAUSE THEY ARE TWO FACTS AND
+                * THE ORGANISER PUBLISHED BOTH. The door
+                * collapses them into one 404 because there an
+                * id came off a URL a stranger could have
+                * guessed; here the organiser listed this call
+                * and named what it is about, so *the thing is
+                * gone* and *it is not taking entries* are
+                * theirs already. [D-03]
+                */
+              <p className="go-shut" data-testid="go-shut"
+                 data-why={entry}>
+                {entry === 'missing'
+                  ? 'What this call is about is no longer available, '
+                    + 'so nothing more can be entered.'
+                  : 'This call is not taking entries just now.'}
+              </p>
+            )
         )}
 
         {/*

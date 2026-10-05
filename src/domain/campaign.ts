@@ -209,13 +209,19 @@ export function mayMoveCampaign(from: CampaignState, to: CampaignState): boolean
 /**
  * What the organiser said, in their own words.
  *
+ * > *"rules a participant can read before they record"*
+ *
  * TEXT AND NOT A SCHEMA, which is a decision rather than
- * laziness. *"Sing the second verse, outdoors, phone held
- * sideways"* is a rule a person can follow and a machine cannot
- * check, and a product that offered `minDurationSeconds` and
- * `requiredHashtag` would be offering to enforce what it cannot.
- * What it can do is show the words to everybody who enters and
- * to everybody who judges, which is what makes them a rule.
+ * laziness. A rule like *sing the second verse, outdoors, phone
+ * held sideways* — the sort of thing an organiser actually
+ * writes — is something a person can follow and a machine
+ * cannot check, and a product that offered `minDurationSeconds`
+ * and `requiredHashtag` would be offering to enforce what it
+ * cannot. What it can do is show the words to everybody who
+ * enters and to everybody who judges, which is what makes them
+ * a rule. It is the decision `Assignment.asks` already made,
+ * one level up: *"What the producer is asking, in their own
+ * words. Shown as given."* [V-3]
  *
  * THE CRITERIA ARE PUBLISHED FOR THE SAME REASON. A competition
  * whose basis is announced after the entries is not one, and V-5

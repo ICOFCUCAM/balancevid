@@ -15,7 +15,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   DEFAULT_QUALITY, QUALITIES, QUALITY_ORDER, aboveTransmission, kbps,
-  qualityFor, rateSentence, rateVerdict, streamQuality, targetBytesPerSecond,
+  qualityFor, rateSentence, rateVerdict, rungSays, streamLadder, streamQuality,
+  targetBytesPerSecond,
 } from '../../src/domain/quality.js';
 
 describe('the default changes nothing', () => {
@@ -185,5 +186,94 @@ describe('recording above what you transmit', () => {
   it('counts frames per second, not only pixels per frame', () => {
     expect(aboveTransmission(QUALITIES.maximum, QUALITIES.high)).toBe(true);
     expect(QUALITIES.maximum.width).toBe(QUALITIES.high.width);
+  });
+});
+
+/**
+ * THE LADDER.  [CHANNEL §7, §23, D-21, U-19]
+ *
+ * A CHANNEL TRANSMITTED ONE SIZE AND THAT WAS A DECISION, not a
+ * law. The constancy rule the segmenter is built around —
+ * identical codec parameters on every segment — is per
+ * RENDITION; it never said a channel offers one. HLS exists so a
+ * player can move between rungs mid-stream, and a channel that
+ * transmits only 720p buffers for everybody whose line cannot
+ * carry 330 kB/s.
+ *
+ * AND IT IS THE INSTALLATION'S COST, so it is the installation's
+ * knob: a rung is a second encode per segment on a machine that
+ * has to keep up with real time.
+ */
+describe('the rungs a channel transmits (§23)', () => {
+  const at = (STREAM_QUALITY?: string, STREAM_LADDER?: string) =>
+    streamLadder({ ...(STREAM_QUALITY ? { STREAM_QUALITY } : {}),
+      ...(STREAM_LADDER !== undefined ? { STREAM_LADDER } : {}) })
+      .map((one) => one.id);
+
+  /*
+   * THE CHEAPEST LADDER THAT IS A LADDER. 360p at 600 kbps is
+   * about a fifth of the encode the house rung costs, and it is
+   * the difference between a viewer on mobile data watching and
+   * a viewer on mobile data leaving.
+   */
+  it('offers the one rung below the wire, by default', () => {
+    expect(at('standard')).toEqual(['low']);
+    expect(at('high')).toEqual(['standard']);
+  });
+
+  /* The bottom of the ladder has nothing under it, and that is
+     not a failure — it is a channel that was already as small
+     as this product goes. */
+  it('offers nothing below the smallest wire', () => {
+    expect(at('low')).toEqual([]);
+  });
+
+  /* An installation that cannot spare the second encode says so
+     and gets exactly what this product transmitted before. */
+  it('can be turned off', () => {
+    expect(at('high', 'off')).toEqual([]);
+  });
+
+  it('takes the rungs an installation names, best first', () => {
+    expect(at('maximum', 'low,standard,high')).toEqual(['high', 'standard', 'low']);
+    expect(at('maximum', 'low  high')).toEqual(['high', 'low']);
+  });
+
+  /*
+   * A RUNG AT OR ABOVE THE WIRE IS DROPPED RATHER THAN REFUSED.
+   * A ladder is a way DOWN: the variant above it is the house
+   * rendition every player has read since §7, and a second copy
+   * of it is a second encode of the same picture. An
+   * installation that mistyped one should lose a rung, not a
+   * channel. [U-19]
+   */
+  it('drops a rung that is not below the wire', () => {
+    expect(at('standard', 'standard,high,low')).toEqual(['low']);
+    expect(at('low', 'high,maximum')).toEqual([]);
+  });
+
+  /* And a word that is not a preset at all. */
+  it('ignores what is not a preset', () => {
+    expect(at('high', 'banana,low')).toEqual(['low']);
+    expect(at('high', 'constructor')).toEqual([]);
+  });
+
+  /* One rung once: a repeated name is a directory written twice
+     and a master naming the same variant twice. */
+  it('never names a rung twice', () => {
+    expect(at('high', 'low,low,standard,low')).toEqual(['standard', 'low']);
+  });
+
+  /*
+   * THE HEIGHT, NOT THE WORD. `label` reads *Standard — 720p*,
+   * which is written for a broadcaster choosing what their
+   * machine can carry; a viewer picking a picture size wants
+   * `720p`, because *Standard* means nothing to somebody who
+   * cannot see what it is standard relative to. [D-04]
+   */
+  it('names a rung the way a viewer reads one', () => {
+    expect(rungSays(QUALITIES.low)).toBe('360p');
+    expect(rungSays(QUALITIES.standard)).toBe('720p');
+    expect(rungSays(QUALITIES.maximum)).toBe('1080p60');
   });
 });

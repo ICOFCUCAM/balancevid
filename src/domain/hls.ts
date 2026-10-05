@@ -40,6 +40,8 @@ import { type AudioTrack, type Station, languageSays } from './station.js';
 
 /** What the audio group is called, in the playlist. */
 export const AUDIO_GROUP = 'aud';
+/** And the subtitle group. */
+export const SUBS_GROUP = 'subs';
 
 /** One audio rendition, as a player will see it. */
 export interface Rendition {
@@ -98,6 +100,53 @@ export function renditions(
 }
 
 /**
+ * The caption track a channel offers, or nothing.
+ *
+ * ONE OR NONE, WHICH IS NOT THE SHAPE `renditions` HAS. A
+ * channel's captions come from the transcript of whatever was
+ * scheduled, in whatever language was spoken; there is no second
+ * one to choose between until something in this product
+ * translates a caption file. Returning a list of one would be a
+ * player drawing a MENU over a single choice — the fault the
+ * audio note above spends a paragraph on. [D-21, D-04]
+ *
+ * `producing` IS WHAT THE ENGINE IS WRITING, exactly as for
+ * audio. A subtitle track advertised and not produced is a
+ * viewer pressing CC, seeing nothing, and deciding this product
+ * has no captions — which would be a false conclusion drawn from
+ * a true observation, and the worst kind.
+ */
+export function subtitleRendition(
+  station: Pick<Station, 'subtitles' | 'language' | 'audio'> | undefined,
+  producing: readonly string[] = [],
+): Rendition | null {
+  if (station?.subtitles !== true) return null;
+  const tracks = station.audio ?? [];
+  const spoken = tracks.find((one) => one.default === true) ?? tracks[0];
+  /*
+   * THE SAME THREE-STEP FALLBACK `subtitleOf` APPLIES IN THE
+   * ENGINE, and it has to be: the engine writes the directory
+   * this then has to find. Two answers to *which language are
+   * the captions in* is a playlist naming `fr` over a directory
+   * called `en`. [D-19, playout/subtitleRendition.ts]
+   */
+  const language = (station.language ?? spoken?.language ?? 'und').toLowerCase();
+  if (!producing.includes(language)) return null;
+  return {
+    language,
+    label: languageSays(language),
+    /*
+     * NEVER THE DEFAULT. `DEFAULT=YES` on a subtitle rendition
+     * turns captions on for every viewer who did not ask, which
+     * is a broadcaster's decision to make about their own
+     * channel and not this product's to make for them. A viewer
+     * who wants them has a button. [D-21]
+     */
+    isDefault: false,
+  };
+}
+
+/**
  * The master playlist, or nothing where there is no choice to
  * offer.
  *
@@ -111,7 +160,11 @@ export function renditions(
  */
 export function masterPlaylist(
   offered: readonly Rendition[],
-  where: { variant: string; audio: (language: string) => string },
+  where: {
+    variant: string;
+    audio: (language: string) => string;
+    subtitles?: (language: string) => string;
+  },
   /**
    * WHAT THE ENCODER IS ACTUALLY PRODUCING, handed in rather
    * than guessed at. A `BANDWIDTH` or a `CODECS` string invented
@@ -119,17 +172,117 @@ export function masterPlaylist(
    * nobody measured, and it goes wrong silently — the picture
    * just never starts on the device that believed it.
    */
-  wire: { bitsPerSecond: number; codecs: string },
+  wire: { bitsPerSecond: number; codecs: string; width?: number; height?: number },
+  /**
+   * THE CAPTION TRACK, WHICH ON ITS OWN IS REASON ENOUGH FOR A
+   * MASTER.
+   *
+   * The `offered.length < 2` line below is about AUDIO — one
+   * audio track needs no master, because `/playlist` already
+   * answers it. A subtitle rendition cannot be expressed in a
+   * media playlist at all: `EXT-X-MEDIA` lives in a master, so a
+   * single-language channel that captions its programmes needs
+   * one for that alone. [RFC 8216 §4.3.4]
+   */
+  captions: Rendition | null = null,
+  /**
+   * THE LOWER RUNGS, BEST FIRST AND NOT INCLUDING THE WIRE.
+   *   [§23]
+   *
+   * A ladder is a way DOWN from what the channel transmits:
+   * the variant above is the house rendition every player has
+   * read since §7, and these are the sizes a player may step
+   * to when the line will not carry it. Handed in measured,
+   * for the reason `wire` is — a `BANDWIDTH` invented in this
+   * file is a player choosing a rung on a number nobody
+   * measured, and it goes wrong silently.
+   */
+  rungs: readonly Rung[] = [],
 ): string | null {
-  if (offered.length < 2) return null;
+  if (offered.length < 2 && !captions && rungs.length === 0) return null;
   const lines = ['#EXTM3U', '#EXT-X-VERSION:4'];
-  for (const one of offered) {
-    lines.push(mediaLine(one, where.audio(one.language)));
+  /*
+   * AND A SINGLE-TRACK CHANNEL'S ONE AUDIO RENDITION IS NOT
+   * DECLARED AT ALL. With no alternate there is nothing for the
+   * group to be a choice between, and an `EXT-X-MEDIA` with no
+   * `URI` and no sibling is a line that tells a player what it
+   * already has. The variant then carries no `AUDIO=` either.
+   */
+  const group = offered.length > 1;
+  if (group) {
+    for (const one of offered) {
+      lines.push(mediaLine(one, where.audio(one.language)));
+    }
   }
-  lines.push(`#EXT-X-STREAM-INF:BANDWIDTH=${Math.round(wire.bitsPerSecond)},`
-    + `CODECS="${quoted(wire.codecs)}",AUDIO="${AUDIO_GROUP}"`);
+  if (captions && where.subtitles) {
+    lines.push(subtitleLine(captions, where.subtitles(captions.language)));
+  }
+  const tail = (group ? `,AUDIO="${AUDIO_GROUP}"` : '')
+    + (captions && where.subtitles ? `,SUBTITLES="${SUBS_GROUP}"` : '');
+  const inf = (one: { bitsPerSecond: number; width?: number; height?: number }) =>
+    `#EXT-X-STREAM-INF:BANDWIDTH=${Math.round(one.bitsPerSecond)},`
+    + (one.width && one.height ? `RESOLUTION=${one.width}x${one.height},` : '')
+    + `CODECS="${quoted(wire.codecs)}"${tail}`;
+
+  /*
+   * THE HOUSE RENDITION FIRST, which is not decoration. A
+   * player with no measurement yet starts on the FIRST variant
+   * in the master, and starting a viewer on 360p and letting
+   * them climb would make every channel look soft for the
+   * first ten seconds — the one impression a television gets
+   * to make. It steps DOWN in a second if the line cannot
+   * carry it, which is what a ladder is for. [D-21]
+   *
+   * EVERY RUNG CARRIES THE SAME `CODECS`, because every rung
+   * is the same encoder at a different size — H.264 main at
+   * 3.1 and AAC-LC, whatever the picture measures. A rung
+   * declaring a codec string of its own would be this file
+   * inventing a fact about an encoder it cannot see.
+   */
+  lines.push(inf(wire));
   lines.push(where.variant);
+  for (const rung of rungs) {
+    lines.push(inf(rung));
+    lines.push(rung.uri);
+  }
   return `${lines.join('\n')}\n`;
+}
+
+/** One lower rung, as the master describes it. */
+export interface Rung {
+  bitsPerSecond: number;
+  width: number;
+  height: number;
+  uri: string;
+}
+
+/**
+ * One `EXT-X-MEDIA` line for the caption track.
+ *
+ * `URI` ALWAYS, unlike the default audio rendition: there is no
+ * such thing as a subtitle track muxed into the variant here —
+ * the picture carries no closed captions, which is exactly why
+ * this rendition exists. [RFC 8216 §4.3.4.1]
+ *
+ * `AUTOSELECT=NO` BESIDE `DEFAULT=NO`. `AUTOSELECT=YES` lets a
+ * player turn captions on by itself from the viewer's system
+ * preferences, which is right for audio — where the question is
+ * *which language* — and wrong here, where it is *do you want
+ * words on your screen*. A viewer who wants them has a button,
+ * and one who does not should not have to find it to make them
+ * stop. [D-21]
+ */
+function subtitleLine(one: Rendition, uri: string): string {
+  const parts = [
+    'TYPE=SUBTITLES',
+    `GROUP-ID="${SUBS_GROUP}"`,
+    `NAME="${quoted(one.label)}"`,
+    `LANGUAGE="${quoted(one.language)}"`,
+    'DEFAULT=NO',
+    'AUTOSELECT=NO',
+    `URI="${quoted(uri)}"`,
+  ];
+  return `#EXT-X-MEDIA:${parts.join(',')}`;
 }
 
 /**

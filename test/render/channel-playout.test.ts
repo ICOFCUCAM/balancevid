@@ -18,7 +18,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { Channel, ProgrammeSource } from '../../src/domain/channel.js';
-import { newChannel, scheduleProgramme } from '../../src/domain/channelEdit.js';
+import { newChannel, scheduleProgramme, setStation } from '../../src/domain/channelEdit.js';
 /* eslint-disable @typescript-eslint/consistent-type-imports */
 import { SEGMENT_MS, segmentIndexAt } from '../../src/domain/playout.js';
 import { ffmpeg, ffprobe } from '../../src/render/ffmpeg.js';
@@ -46,9 +46,22 @@ afterAll(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
-/** A six-second film, in the studio that made it. Made once, referenced often. */
+/**
+ * A six-second film, in the studio that made it. Made once,
+ * referenced often.
+ *
+ * WHERE `pathFor` LOOKS, ASKED OF `pathFor`. This wrote the film
+ * to `<var>/performances/…` and the engine resolves
+ * `<var>/accounts/<account>/performances/…`, so every read in
+ * this file fell through to the OFF-AIR branch: the segments
+ * these tests counted were four seconds of generated black, and
+ * *produced from the referenced file where it already lives* was
+ * true of a file nothing opened. Found when the same mistake was
+ * made again in `audio-renditions.test.ts` and caught there by
+ * mutation. [D-06]
+ */
 async function makeFilm(documentId: string, planHash: string): Promise<string> {
-  const dir = join(root, 'performances', documentId, 'renders', planHash);
+  const dir = join(paths.performanceRenders(documentId), planHash);
   await mkdir(dir, { recursive: true });
   const file = join(dir, 'master.mp4');
   await ffmpeg([
@@ -90,8 +103,8 @@ describe('scheduling touches no disk (D-18, INV-17)', () => {
     const channel = newChannel('Six Showings', 'UTC', AT);
     await saveChannel(channel);
     const before = await filesUnder(root);
-    const filmSize = (await stat(
-      join(root, 'performances', 'perf_six', 'renders', 'hash_six', 'master.mp4'))).size;
+    const made = join(paths.performanceRenders('perf_six'), 'hash_six', 'master.mp4');
+    const filmSize = (await stat(made)).size;
 
     for (let showing = 0; showing < 6; showing += 1) {
       scheduleProgramme(channel, {
@@ -111,10 +124,9 @@ describe('scheduling touches no disk (D-18, INV-17)', () => {
     expect(channel.programmes).toHaveLength(6);
 
     // And the film is still exactly one file of exactly the same size.
-    const films = await filesUnder(join(root, 'performances', 'perf_six'));
+    const films = await filesUnder(paths.performance('perf_six'));
     expect(films).toEqual(['renders/hash_six/master.mp4']);
-    expect((await stat(join(root, 'performances', 'perf_six', 'renders',
-      'hash_six', 'master.mp4'))).size).toBe(filmSize);
+    expect((await stat(made)).size).toBe(filmSize);
 
     // The channel's own asset directory, which INV-17 is about, is empty.
     expect(await filesUnder(paths.channelAssets(channel.id))).toEqual([]);
@@ -148,7 +160,7 @@ describe('the playout engine reads the file where it lives (§7)', () => {
   });
 
   it('produces a segment of the house length, from the referenced render', async () => {
-    await produceSegment(channel, index, () => ({ durationMs: 6000, hasAudio: true }));
+    await produceSegment(channel, index, () => ({ durationMs: 6000, audioStreams: 1 }));
     const file = paths.channelSegment(channel.id, index);
     const info = await stat(file);
     expect(info.size).toBeGreaterThan(1000);
@@ -195,6 +207,104 @@ describe('the playout engine reads the file where it lives (§7)', () => {
       expect(left).not.toContain(`${old}.ts`);
     }
     /* What is left is the window and the run-ahead, not a broadcast day. */
+    expect(left.length).toBeLessThan(12);
+  }, 180_000);
+});
+
+/**
+ * THE ENGINE WRITES THE SECOND LANGUAGE, AND THE PROBE IS WHAT
+ * TELLS IT WHETHER IT CAN.  [CHANNEL §7, §17; TV-NETWORK N-10]
+ *
+ * `audio-renditions.test.ts` drives `produceRenditions` directly
+ * and hands it a measurement, which is the right way to test an
+ * encoder and proves nothing about two things only this file can
+ * reach: that `advance` CALLS it at all, and that `factsFor`
+ * counts the audio streams rather than testing for one.
+ *
+ * The second is the subtle one. Counting every stream instead of
+ * the audio ones makes an ordinary film — one picture, one
+ * microphone — report two, the engine maps `0:a:1`, ffmpeg
+ * refuses, and the language the viewer chose has no bytes. It
+ * fails only for media with ONE audio track, which is most media.
+ */
+describe('a channel in more than one language (N-10, §17)', () => {
+  /** An ordinary film: one picture, one microphone. Most media. */
+  function bilingualChannel(name: string, documentId: string, planHash: string) {
+    const channel = newChannel(name, 'UTC', AT);
+    setStation(channel, { audio: [
+      { language: 'en', default: true }, { language: 'fr' },
+    ] }, [], { multiAudio: true });
+    const now = Date.now();
+    scheduleProgramme(channel, {
+      startsAt: new Date(Math.floor(now / 1000) * 1000 - 60_000).toISOString(),
+      durationMs: 30 * MINUTE,
+      source: {
+        kind: 'render', document: 'performance', documentId, planHash,
+      },
+      title: 'The film',
+      loop: true,
+    }, AT);
+    return channel;
+  }
+
+  it('puts a French segment beside every picture it writes', async () => {
+    await makeFilm('perf_lang', 'hash_lang');
+    const channel = bilingualChannel('Two Languages', 'perf_lang', 'hash_lang');
+    await saveChannel(channel);
+
+    await advance(channel, Date.now());
+
+    const pictures = await filesUnder(paths.channelStream(channel.id));
+    const french = await filesUnder(paths.channelAudio(channel.id, 'fr'));
+    expect(pictures.length).toBeGreaterThan(0);
+    /*
+     * ONE PER PICTURE. A rendition that appeared for some
+     * segments and not others is a player stalling every few
+     * seconds on the language it chose, which is worse than not
+     * offering it. [§7, D-21]
+     */
+    expect(french).toEqual(pictures);
+
+    /* And they are real transport, not empty files. */
+    for (const one of french) {
+      const info = await stat(join(paths.channelAudio(channel.id, 'fr'), one));
+      expect(info.size).toBeGreaterThan(512);
+    }
+
+    /*
+     * THE DEFAULT HAS NO DIRECTORY. It is the track muxed into
+     * the picture, described by the master playlist with no
+     * `URI`, and writing it again would be the same audio on
+     * the disk twice. [D-18]
+     */
+    expect(await filesUnder(paths.channelAudio(channel.id, 'en'))).toEqual([]);
+  }, 180_000);
+
+  /*
+   * AND THE LANGUAGE DIRECTORIES ARE SWEPT TOO. The sweeper is
+   * what makes segments transport rather than an archive, and a
+   * channel in six languages that swept only the picture would
+   * grow six copies of the broadcast forever — the same D-18
+   * fault as the stream directory, multiplied by the feature.
+   */
+  it('sweeps the language directories, not only the picture', async () => {
+    await makeFilm('perf_sweep', 'hash_sweep');
+    const channel = bilingualChannel('Swept', 'perf_sweep', 'hash_sweep');
+    await saveChannel(channel);
+
+    const dir = paths.channelAudio(channel.id, 'fr');
+    await mkdir(dir, { recursive: true });
+    const index = segmentIndexAt(Date.now());
+    const stale = [index - 40, index - 30, index - 20];
+    for (const old of stale) {
+      await writeFile(join(dir, `${old}.ts`), 'stale', 'utf8');
+    }
+
+    await advance(channel, Date.now());
+
+    const left = await filesUnder(dir);
+    for (const old of stale) expect(left).not.toContain(`${old}.ts`);
+    expect(left.length).toBeGreaterThan(0);
     expect(left.length).toBeLessThan(12);
   }, 180_000);
 });
@@ -296,7 +406,7 @@ describe('the loop, on the wire (§4, §5)', () => {
 
   it('and the engine puts it on the wire, never off air', async () => {
     const index = segmentIndexAt(Date.now());
-    await produceSegment(channel, index, () => ({ durationMs: 6000, hasAudio: true }));
+    await produceSegment(channel, index, () => ({ durationMs: 6000, audioStreams: 1 }));
     const file = paths.channelSegment(channel.id, index);
     expect((await stat(file)).size).toBeGreaterThan(1000);
     const raw = await ffprobe([
@@ -383,9 +493,8 @@ describe('the pipe: camera bytes reach the wire (§7, §8)', () => {
    * appending real encoder output produces a file the playout engine can
    * read — and a mock would answer a different question.
    */
-  async function pushChunks(bufferPath: string, seconds: number): Promise<void> {
-    await mkdir(join(bufferPath, '..'), { recursive: true });
-    const piece = `${bufferPath}.chunk.webm`;
+  async function recordChunk(piece: string, seconds: number): Promise<void> {
+    await mkdir(join(piece, '..'), { recursive: true });
     await ffmpeg([
       '-y',
       '-f', 'lavfi', '-i', `testsrc=size=320x180:rate=15:duration=${seconds}`,
@@ -393,6 +502,11 @@ describe('the pipe: camera bytes reach the wire (§7, §8)', () => {
       '-c:v', 'libvpx', '-deadline', 'realtime', '-cpu-used', '8', '-b:v', '300k',
       '-c:a', 'libopus', '-b:a', '64k', '-shortest', piece,
     ]);
+  }
+
+  /** The bytes of a recorded chunk, onto the end of a buffer. */
+  async function appendChunk(bufferPath: string, piece: string): Promise<void> {
+    await mkdir(join(bufferPath, '..'), { recursive: true });
     const { readFile, appendFile } = await import('node:fs/promises');
     const bytes = await readFile(piece);
     /*
@@ -405,7 +519,35 @@ describe('the pipe: camera bytes reach the wire (§7, §8)', () => {
     await rm(piece, { force: true });
   }
 
+  async function pushChunks(bufferPath: string, seconds: number): Promise<void> {
+    const piece = `${bufferPath}.chunk.webm`;
+    await mkdir(join(bufferPath, '..'), { recursive: true });
+    await recordChunk(piece, seconds);
+    await appendChunk(bufferPath, piece);
+  }
+
   it('bytes appended to the buffer become a segment with a picture', async () => {
+    /*
+     * THE BYTES ARE MADE BEFORE THE CHANNEL IS ARMED, AND THAT ORDER IS
+     * THE TEST RATHER THAN A TIDINESS.
+     *
+     * Armed first, this read its offset from the wall clock — elapsed
+     * since the cut, less the twelve-second delay — while twenty-four
+     * seconds of VP8 were still being encoded underneath it. On a fast
+     * machine the encode took two seconds and the read landed eight
+     * seconds into the buffer, as the comment said. On a loaded one it
+     * took eighteen, the read landed at twenty-six seconds of a
+     * twenty-four-second buffer, and the segment came out three point two
+     * seconds long against a floor of three and a half. A test whose
+     * subject is *the bytes reach the wire* failed on how long its own
+     * fixture took to build.
+     *
+     * Recorded first and appended immediately after the cut, the offset
+     * is eight seconds whatever the machine is doing.
+     */
+    const piece = join(root, 'live-source.webm');
+    await recordChunk(piece, 24);
+
     channel = newChannel('Live Test', 'UTC', AT);
     /*
      * Armed twenty seconds ago, so the twelve-second delay has been met and
@@ -419,7 +561,7 @@ describe('the pipe: camera bytes reach the wire (§7, §8)', () => {
     const bufferPath = paths.channelLiveBuffer(
       channel.id, channel.ingests[0]!.bufferId);
     await mkdir(paths.channelLive(channel.id), { recursive: true });
-    await pushChunks(bufferPath, 24);
+    await appendChunk(bufferPath, piece);
     expect((await stat(bufferPath)).size).toBeGreaterThan(1000);
 
     const index = segmentIndexAt(Date.now());

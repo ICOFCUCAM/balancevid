@@ -37,7 +37,7 @@ import { marksFor } from '../domain/identity.js';
 import { intoProgramme, nextUp, onAirTitle } from '../domain/onAir.js';
 import { overlayNow } from '../render/overlay.js';
 import type { Mark } from '../domain/identity.js';
-import { kbps, streamQuality } from '../domain/quality.js';
+import { type Quality, kbps, streamQuality } from '../domain/quality.js';
 import { HOUSE } from '../render/ingest.js';
 import {
   FfmpegError, type RunOptions, canDrawText, ffmpeg,
@@ -65,13 +65,49 @@ import { libraryFile } from '../store/libraryMedia.js';
  * here as literals before there was a table. [quality.ts]
  */
 const WIRE = streamQuality();
-export const STREAM = {
-  width: WIRE.width,
-  height: WIRE.height,
-  fps: WIRE.fps,
-  videoBitrate: kbps(WIRE.videoBitsPerSecond),
-  audioBitrate: kbps(WIRE.audioBitsPerSecond),
-} as const;
+
+/**
+ * ONE SHAPE OF PICTURE, AND NOW MORE THAN ONE OF THEM.
+ *   [§7, §23, D-19]
+ *
+ * The paragraph above is still true of a RENDITION and was
+ * never true of the channel: every segment within one rendition
+ * must have identical codec parameters or a player stalls at
+ * the boundary, which is why this is read once at import. It
+ * does not follow that a channel transmits one rendition —
+ * HLS exists so a player can move between rungs mid-stream, and
+ * a channel transmitting only 720p buffers for everybody whose
+ * line cannot carry it.
+ *
+ * SO THE SHAPE IS A PARAMETER AND NOT A CONSTANT, carried
+ * through the compositor rather than read from the module. The
+ * alternative was a second encoder for the lower rungs, and a
+ * second encoder is a second set of answers about scaling,
+ * padding, the station's marks, how long a still is held and
+ * how a programme boundary fades — which would drift from the
+ * first the week after it was written. One compositor, one
+ * argument. [D-19]
+ */
+export interface Wire {
+  width: number;
+  height: number;
+  fps: number;
+  videoBitrate: string;
+  audioBitrate: string;
+}
+
+export function wireOf(quality: Quality): Wire {
+  return {
+    width: quality.width,
+    height: quality.height,
+    fps: quality.fps,
+    videoBitrate: kbps(quality.videoBitsPerSecond),
+    audioBitrate: kbps(quality.audioBitsPerSecond),
+  };
+}
+
+/** What the house rendition looks like — `stream/`, and the as-run. */
+export const STREAM: Wire = wireOf(WIRE);
 
 /**
  * Produce the segment with this index, if it is not already there.
@@ -82,7 +118,28 @@ export const STREAM = {
  */
 export interface SourceFacts {
   durationMs: number;
-  hasAudio: boolean;
+  /**
+   * HOW MANY AUDIO STREAMS, NOT WHETHER THERE IS ONE.
+   *
+   * This was `hasAudio: boolean`, which answers the only question
+   * the picture asks — *is there a microphone on this file* — and
+   * cannot answer the one an ALTERNATE RENDITION asks, which is
+   * *is there a THIRD*. A channel carrying three languages
+   * schedules media that has one, because most media has one, and
+   * the engine has to know that before it tries to map a stream
+   * that is not there. [D-19]
+   *
+   * IT COSTS NOTHING TO KNOW. The probe that measures the
+   * duration already asks for `stream=codec_type` on every
+   * stream and already walks the list; counting the audio ones
+   * instead of stopping at the first is the same walk.
+   */
+  audioStreams: number;
+}
+
+/** Whether there is a microphone on it at all. */
+export function hasAudio(facts: SourceFacts | undefined): boolean {
+  return (facts?.audioStreams ?? 0) > 0;
 }
 
 export async function produceSegment(
@@ -91,6 +148,20 @@ export async function produceSegment(
   /** What each file plays at, measured elsewhere. [C-33] */
   gainOf: (path: string) => number | undefined = () => undefined,
   opts: RunOptions = {},
+  /**
+   * WHICH RUNG OF THE LADDER, or the house one.  [§7, §23]
+   *
+   * The same walk, the same marks, the same fades, the same
+   * stills — a different size and a different directory. A
+   * second function for the lower rungs would be a second set
+   * of answers about every one of those, and the two would
+   * drift the week after it was written. [D-19]
+   *
+   * THE HOUSE RUNG KEEPS `stream/`, because a set-top box is
+   * already reading that address and a ladder must not move
+   * what was already there. [D-18]
+   */
+  rung?: Quality,
 /**
  * WHAT IT ACTUALLY PUT OUT, for the as-run.  [§5, C-32]
  *
@@ -103,7 +174,10 @@ export async function produceSegment(
 ): Promise<Aired> {
   const fromAt = segmentStart(index);
   const toAt = fromAt + SEGMENT_MS;
-  const target = paths.channelSegment(channel.id, index);
+  const wire = rung ? wireOf(rung) : STREAM;
+  const target = rung
+    ? paths.channelRungSegment(channel.id, rung.id, index)
+    : paths.channelSegment(channel.id, index);
   await mkdir(dirname(target), { recursive: true });
 
   /*
@@ -139,7 +213,17 @@ export async function produceSegment(
    * paused for a browser to start would stutter every time its
    * caption changed.
    */
-  const overlay = overlayNow(marks, STREAM, paths.overlays(),
+  /*
+   * DRAWN AT THIS RUNG'S SIZE, which is what makes the ladder
+   * one compositor rather than two. The marks are composited
+   * with `overlay=0:0` at the END of the chain, after the
+   * scale and the pad — so a 1280×720 PNG over a 640×360
+   * picture would put the station's bug across the middle of
+   * the frame and the lower third off the bottom of it.
+   * `overlayKey` already includes the frame, so the two rungs
+   * cache separately rather than racing for one file. [C-40]
+   */
+  const overlay = overlayNow(marks, wire, paths.overlays(),
     /* A logo names a library asset; the store turns it into a file. */
     (assetId) => libraryFile(assetId, { moving: false })?.path);
 
@@ -204,7 +288,7 @@ export async function produceSegment(
       }).outMs : 0,
     };
     if (await encodePiece(channel, read, piece, factsOf, read.atMs - fromAt,
-      marks, canText, overlay, level, dip, opts)) {
+      marks, canText, overlay, level, dip, opts, wire, rung)) {
       fellBackHere = true;
     }
     pieces.push(piece);
@@ -246,7 +330,7 @@ export async function produceSegment(
   const made = await stat(temp).catch(() => null);
   if (!made || made.size < 1024) {
     await rm(temp, { force: true });
-    await black((SEGMENT_MS / 1000).toFixed(3), temp, 0, marks, opts);
+    await black((SEGMENT_MS / 1000).toFixed(3), temp, 0, marks, opts, wire);
     /*
      * AND THIS COUNTS. ffmpeg exiting successfully having written no
      * packets is the commonest way a channel goes quietly black —
@@ -340,7 +424,9 @@ export function videoChain(
     + '[bv_bg][bv_marks]overlay=0:0';
 }
 
-export function markFilters(marks: Mark[], canDrawText: boolean): string[] {
+export function markFilters(
+  marks: Mark[], canDrawText: boolean, wire: Wire = STREAM,
+): string[] {
   /*
    * NOTHING, WHEN THE BINARY CANNOT DRAW TEXT.  [C-24]
    *
@@ -372,7 +458,7 @@ export function markFilters(marks: Mark[], canDrawText: boolean): string[] {
   let lowerLeft = 0;
   let inRegion = 0;
   return marks.map((mark) => {
-    const size = Math.round((mark.size / 720) * STREAM.height);
+    const size = Math.round((mark.size / 720) * wire.height);
     const box = mark.plate
       ? `:box=1:boxcolor=black@0.55:boxborderw=${Math.round(size * 0.45)}`
       : '';
@@ -398,8 +484,8 @@ export function markFilters(marks: Mark[], canDrawText: boolean): string[] {
      * corner are not in each other's way.
      */
     if (mark.at) {
-      const left = Math.round(mark.at.x * STREAM.width);
-      const floor = Math.round((mark.at.y + mark.at.h) * STREAM.height);
+      const left = Math.round(mark.at.x * wire.width);
+      const floor = Math.round((mark.at.y + mark.at.h) * wire.height);
       x = `${left}`;
       y = `${floor - inRegion}-th`;
       inRegion += size * 2;
@@ -451,6 +537,10 @@ async function encodePiece(
   /** How to dip in and out of this piece, if either end is a join. [C-34] */
   dip: Dip,
   opts: RunOptions,
+  /** Which rung of the ladder this piece is for. [§23] */
+  wire: Wire,
+  /** The rung itself, where this is not the house rendition. */
+  rung: Quality | undefined,
 /**
  * TRUE WHEN IT PUT BLACK OUT INSTEAD OF WHAT WAS ASKED FOR.
  *
@@ -476,7 +566,7 @@ async function encodePiece(
   if (path && read.source.kind === 'media' && read.source.form === 'image') {
     await ffmpeg([
       '-y',
-      '-loop', '1', '-framerate', String(STREAM.fps), '-i', path,
+      '-loop', '1', '-framerate', String(wire.fps), '-i', path,
       '-f', 'lavfi', '-i',
       `anullsrc=channel_layout=stereo:sample_rate=${HOUSE.audioSampleRate}`,
       '-t', seconds,
@@ -490,18 +580,18 @@ async function encodePiece(
        * written before the identity existed and never caught up.
        */
       '-vf', videoChain([
-        `scale=${STREAM.width}:${STREAM.height}`
+        `scale=${wire.width}:${wire.height}`
           + ':force_original_aspect_ratio=decrease',
-        `pad=${STREAM.width}:${STREAM.height}:(ow-iw)/2:(oh-ih)/2`,
+        `pad=${wire.width}:${wire.height}:(ow-iw)/2:(oh-ih)/2`,
         'setsar=1',
-        ...markFilters(marks, canText),
+        ...markFilters(marks, canText, wire),
       ], overlay),
       '-map', '0:v:0', '-map', '1:a:0',
-      ...encodeArgs(offsetMs),
+      ...encodeArgs(offsetMs, wire),
       out,
     ], opts).catch(async (error: unknown) => {
-      await fellBack(channel.id, error);
-      await black(seconds, out, offsetMs, marks, opts);
+      await fellBack(channel.id, error, rung);
+      await black(seconds, out, offsetMs, marks, opts, wire);
       broke = true;
     });
     return broke;
@@ -536,7 +626,7 @@ async function encodePiece(
      * every gap between two programmes. The other kind — a source
      * that existed and could not be rendered — is below. [C-24]
      */
-    await black(seconds, out, offsetMs, marks, opts);
+    await black(seconds, out, offsetMs, marks, opts, wire);
     return false;
   }
 
@@ -564,12 +654,12 @@ async function encodePiece(
     '-t', seconds,
     '-i', path,
     /* A live feed always carries the microphone; a file says whether it does. */
-    ...((facts?.hasAudio ?? following) ? [] : silence),
+    ...((facts ? hasAudio(facts) : following) ? [] : silence),
     '-vf',
     videoChain([
-      `scale=${STREAM.width}:${STREAM.height}:force_original_aspect_ratio=decrease`,
-      `pad=${STREAM.width}:${STREAM.height}:(ow-iw)/2:(oh-ih)/2`,
-      `fps=${STREAM.fps}`,
+      `scale=${wire.width}:${wire.height}:force_original_aspect_ratio=decrease`,
+      `pad=${wire.width}:${wire.height}:(ow-iw)/2:(oh-ih)/2`,
+      `fps=${wire.fps}`,
       'setsar=1',
       /*
        * THE DIP, BEFORE THE MARKS AND NOT AFTER.  [§13, D-16, C-34]
@@ -584,10 +674,10 @@ async function encodePiece(
        */
       ...fadeFilters(dip, read.durationMs),
       /* The identity, over the picture and never inside it. [§13, D-16] */
-      ...markFilters(marks, canText),
+      ...markFilters(marks, canText, wire),
     ], overlay),
     '-map', '0:v:0',
-    '-map', (facts?.hasAudio ?? following) ? '0:a:0' : '1:a:0',
+    '-map', (facts ? hasAudio(facts) : following) ? '0:a:0' : '1:a:0',
     /*
      * THE ITEM'S OWN LEVEL, CORRECTED.  [§5, §10, C-33]
      *
@@ -606,7 +696,7 @@ async function encodePiece(
       return sound.length ? ['-af', sound.join(',')] : [];
     })()),
     '-t', seconds,
-    ...encodeArgs(offsetMs),
+    ...encodeArgs(offsetMs, wire),
     out,
   ], opts).catch(async (error: unknown) => {
     /*
@@ -618,8 +708,8 @@ async function encodePiece(
      * seconds at a time read as healthy for as long as it did it.
      * [C-24]
      */
-    await fellBack(channel.id, error);
-    await black(seconds, out, offsetMs, marks, opts);
+    await fellBack(channel.id, error, rung);
+    await black(seconds, out, offsetMs, marks, opts, wire);
     broke = true;
   });
   return broke;
@@ -632,23 +722,44 @@ async function encodePiece(
  * scheduled is black by design and `whyDark` already explains that.
  * This is the other kind, and it had no signal at all.
  */
-async function fellBack(channelId: string, error: unknown): Promise<void> {
+async function fellBack(
+  channelId: string, error: unknown, rung?: Quality,
+): Promise<void> {
+  /*
+   * A LOWER RUNG'S FAILURE IS NOT THE CHANNEL'S HEALTH.
+   *   [§7, §23, D-20]
+   *
+   * `noteFailure` is what the control room's lamp and the
+   * health card read: it means *this channel is putting black
+   * on the wire*. A 360p encode that failed while the house
+   * rendition went out perfectly is a player staying on the
+   * rung above, which is what a ladder is for — and reporting
+   * it as a fallback would put a red light on a channel that
+   * is broadcasting correctly. The commonest cause would be a
+   * loaded machine, which is exactly when an operator most
+   * needs the lamp to mean what it says. [U-19]
+   *
+   * The piece still falls back to black so the rung stays
+   * playable; only the HEALTH NOTE is withheld.
+   */
+  if (rung) return;
   const said = error instanceof FfmpegError ? error.stderr : String(error);
   await noteFailure(channelId, reasonFrom(said));
 }
 
 /** Four seconds of nothing, which is what a channel shows when it has none. */
 async function black(
-  seconds: string, out: string, offsetMs: number, marks: Mark[], opts: RunOptions,
+  seconds: string, out: string, offsetMs: number, marks: Mark[],
+  opts: RunOptions, wire: Wire,
 ): Promise<void> {
   await ffmpeg([
     '-y',
     '-f', 'lavfi', '-i',
-    `color=c=black:s=${STREAM.width}x${STREAM.height}:r=${STREAM.fps}`,
+    `color=c=black:s=${wire.width}x${wire.height}:r=${wire.fps}`,
     '-f', 'lavfi', '-i',
     `anullsrc=channel_layout=stereo:sample_rate=${HOUSE.audioSampleRate}`,
     '-t', seconds,
-    ...encodeArgs(offsetMs),
+    ...encodeArgs(offsetMs, wire),
     out,
   ], opts);
 }
@@ -660,7 +771,7 @@ async function black(
  * `-force_key_frames` at zero) so a player joining mid-window can start
  * decoding immediately rather than showing grey until the next one.
  */
-function encodeArgs(offsetMs = 0): string[] {
+function encodeArgs(offsetMs: number, wire: Wire): string[] {
   return [
     /*
      * Where this piece sits inside its segment. Without it two appended
@@ -670,16 +781,46 @@ function encodeArgs(offsetMs = 0): string[] {
      */
     '-output_ts_offset', (offsetMs / 1000).toFixed(3),
     '-c:v', HOUSE.videoCodec, '-profile:v', 'main', '-preset', 'veryfast',
-    '-b:v', STREAM.videoBitrate, '-maxrate', STREAM.videoBitrate,
+    '-b:v', wire.videoBitrate, '-maxrate', wire.videoBitrate,
     '-bufsize', '5000k', '-pix_fmt', HOUSE.pixelFormat,
-    '-g', String(STREAM.fps * (SEGMENT_MS / 1000)),
+    '-g', String(wire.fps * (SEGMENT_MS / 1000)),
     '-force_key_frames', 'expr:eq(n,0)',
-    '-c:a', HOUSE.audioCodec, '-b:a', STREAM.audioBitrate,
+    '-c:a', HOUSE.audioCodec, '-b:a', wire.audioBitrate,
     '-ar', String(HOUSE.audioSampleRate), '-ac', String(HOUSE.audioChannels),
     '-muxdelay', '0', '-muxpreload', '0',
     '-f', 'mpegts',
   ];
 }
+
+/**
+ * THE PTS A SEGMENT'S FIRST FRAME ACTUALLY CARRIES, in 90 kHz
+ * ticks.  [§7, §17]
+ *
+ * NOT ZERO, AND NOT 1.4 SECONDS EITHER. ffmpeg's MPEG-TS muxer
+ * normally starts a stream at 1.4 seconds — `muxpreload` plus
+ * `muxdelay` — and `encodeArgs` above sets both to zero, so
+ * that is not where this comes from. What is left is the VIDEO
+ * ENCODER's own delay: libx264 reorders around B-frames and
+ * hands the muxer its first picture two frames late, which at
+ * the wire's frame rate is this many ticks.
+ *
+ * IT MATTERS BECAUSE THE CAPTIONS ARE TIMED AGAINST IT. A
+ * WebVTT segment carries `X-TIMESTAMP-MAP`, which ties its own
+ * clock to the transport stream's; wrong, every line is early
+ * or late by a fixed amount on every player that honours it.
+ * Sixty-seven milliseconds is imperceptible and 1.4 seconds is
+ * not, which is exactly why this was worth measuring rather
+ * than assuming — the first guess was the 1.4.
+ *
+ * DERIVED FROM TWO THINGS THIS FILE KNOWS and measured in
+ * `subtitles-on-air.test.ts`, which produces a real segment and
+ * probes its `start_pts`. A change of preset, of frame rate or
+ * of ffmpeg that moves it fails there rather than sliding a
+ * broadcaster's captions.
+ */
+const ENCODER_DELAY_FRAMES = 2;
+export const SEGMENT_START_PTS = Math.round(
+  (ENCODER_DELAY_FRAMES / STREAM.fps) * 90_000);
 
 /** Where the stream's files live, for the sweeper and the route. */
 export function streamDir(channelId: string): string {
