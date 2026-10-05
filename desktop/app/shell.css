@@ -613,3 +613,125 @@ main {
 }
 
 .bar-fill { height: 100%; background: var(--accent); }
+
+/* ------------------------------------------------------------------ *
+ *  A CAPTURE STATION LOOKS LIKE ONE.  [T-1]
+ *
+ *  The window was a wizard centred in a flat rectangle. A
+ *  station stands in a room with cameras in it, and the
+ *  photograph behind the work says so before a word is read.
+ *
+ *  SHIPPED, NOT FETCHED. `img-src` is `'self' data: blob:` and
+ *  `connect-src` is `'none'` — this file is in `desktop/app/`
+ *  and travels with the application, which is the only kind of
+ *  picture this window is allowed to have. [T-1]
+ * ------------------------------------------------------------------ */
+
+main {
+  position: relative;
+  background-image:
+    linear-gradient(180deg, rgba(14, 15, 17, 0.62) 0%,
+                    rgba(14, 15, 17, 0.84) 50%, var(--bg) 100%),
+    url('station.webp');
+  background-size: cover;
+  background-position: 50% 30%;
+  background-attachment: fixed;
+}
+
+/* ------------------------------------------------------------------ *
+ *  The flow becomes a rail.
+ *
+ *  The six steps were a wrapping row of grey pills above the
+ *  work — which at 1100px broke five-and-one, putting SEND on a
+ *  line of its own. They are a JOURNEY, and a journey is drawn
+ *  as one: down the side where there is room for it, with the
+ *  line between the steps that says they are in an order.
+ *
+ *  `position: fixed`, BECAUSE EACH SCREEN RENDERS ITS OWN. The
+ *  renderer replaces `#app` on every step and builds the flow
+ *  inside it, so there is no page-level element to put a rail
+ *  in — and adding one would mean every screen module drawing
+ *  it. One rule here moves all six. [D-19]
+ * ------------------------------------------------------------------ */
+
+@media (min-width: 1000px) {
+  main { padding-left: 252px; }
+
+  .flow {
+    position: fixed;
+    top: 53px;
+    left: 0;
+    bottom: 0;
+    width: 220px;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: stretch;
+    gap: 0;
+    margin: 0;
+    padding: 18px 16px;
+    border-right: 1px solid var(--line);
+    background: rgba(14, 15, 17, 0.86);
+    backdrop-filter: blur(10px);
+    text-align: left;
+  }
+
+  .step {
+    position: relative;
+    padding: 11px 13px 11px 40px;
+    border: 0;
+    border-radius: var(--radius);
+    font-size: 13px;
+    letter-spacing: 0.02em;
+    text-transform: capitalize;
+  }
+
+  /* The dot, and the line to the next one. */
+  .step::before {
+    content: '';
+    position: absolute;
+    left: 15px;
+    top: 50%;
+    width: 9px;
+    height: 9px;
+    margin-top: -4px;
+    border-radius: 50%;
+    border: 1px solid currentColor;
+  }
+
+  .step:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    left: 19px;
+    top: calc(50% + 7px);
+    bottom: -7px;
+    width: 1px;
+    background: var(--line);
+  }
+
+  .step.on::before { background: currentColor; }
+
+  .step[data-next='true'] {
+    background: var(--accent-deep);
+    border-color: transparent;
+    color: var(--on-accent);
+  }
+
+  .step[data-next='true']::before { background: currentColor; }
+}
+
+/* ------------------------------------------------------------------ *
+ *  The code, which is the whole of this screen.
+ * ------------------------------------------------------------------ */
+
+.typed {
+  font: 600 27px/1.1 ui-monospace, 'DejaVu Sans Mono', monospace;
+  letter-spacing: 0.22em;
+  padding: 16px 22px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  color: #f3f5f7;
+  /* A code is read aloud down a telephone, so it is selectable
+     even though nothing else on this window is. */
+  user-select: all;
+}

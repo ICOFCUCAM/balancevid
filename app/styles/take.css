@@ -418,8 +418,6 @@
 }
 
 .go-body {
-  max-width: 900px;
-  margin: 0 auto;
   padding: var(--space-5) var(--space-6) var(--space-6);
   display: flex;
   flex-direction: column;
@@ -1229,4 +1227,246 @@
   border-radius: 50%;
   background: var(--state-live);
   box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.22);
+}
+
+/* ------------------------------------------------------------------ *
+ *  Go, on a screen wide enough for a rail.  [GO-VIRAL V-4, D-04]
+ *
+ *  At 1440 this page was a 900px column in the middle of a
+ *  window with six hundred pixels of nothing either side — a
+ *  phone layout that had been allowed to grow. A rail is what a
+ *  desktop does with the width.
+ *
+ *  AND IT IS HIDDEN BELOW 1000px RATHER THAN STACKED. A nav
+ *  that becomes six rows above the content is a page that
+ *  starts with its own menu; the header already carries the two
+ *  links a phone needs.
+ *
+ *  WHAT IS DELIBERATELY ABSENT, for the third time. The design
+ *  puts a stack of faces and *+1.2K creators participating* on
+ *  every row. This product counts entries, which are documents
+ *  it holds, and it counts nothing else — it has no record of
+ *  who looked, and no faces to show. [D-21]
+ * ------------------------------------------------------------------ */
+
+.go-frame { flex: 1 1 auto; display: flex; min-width: 0; }
+
+.go-rail {
+  display: none;
+  flex: 0 0 216px;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--space-5) var(--space-4);
+  border-right: 1px solid var(--line);
+  background: var(--ink-900);
+}
+
+.go-rail-way {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 10px 13px;
+  border-radius: var(--radius-md);
+  color: var(--ink-300);
+  text-decoration: none;
+  font-size: var(--text-sm);
+}
+
+.go-rail-way:hover { background: var(--surface-float); color: var(--ink-000); }
+
+.go-rail-way[aria-current='page'] {
+  background: var(--accent-deep);
+  color: var(--text-on-accent);
+  font-weight: var(--weight-semi);
+}
+
+.go-work { flex: 1 1 auto; min-width: 0; }
+
+/* ------------------------------------------------------------------ *
+ *  The band over the calls.
+ * ------------------------------------------------------------------ */
+
+.go-hero {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-5);
+  flex-wrap: wrap;
+  min-height: 230px;
+  padding: var(--space-5) var(--space-6);
+  overflow: hidden;
+  border-bottom: 1px solid var(--line);
+  background: var(--screen-bed);
+}
+
+.go-hero img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.go-hero-wash {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    110deg, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.72) 48%,
+    rgba(0, 0, 0, 0.45) 100%);
+}
+
+.go-hero-said { position: relative; flex: 1 1 320px; min-width: 0; }
+
+.go-hero-lead {
+  margin: 0;
+  font-size: clamp(1.9rem, 5vw, 3rem);
+  font-weight: var(--weight-bold);
+  letter-spacing: -0.03em;
+  color: #fff;
+}
+
+.go-hero-under {
+  margin: 8px 0 0;
+  font-size: var(--text-base);
+  color: rgba(255, 255, 255, 0.84);
+  line-height: 1.5;
+}
+
+/* The one number on the page that is a fact. */
+.go-hero-stat {
+  position: relative;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 18px;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(10px);
+}
+
+.go-hero-stat-mark {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: var(--accent-deep);
+  color: var(--text-on-accent);
+}
+
+.go-hero-stat strong {
+  display: block;
+  font-size: var(--text-base);
+  color: #fff;
+}
+
+.go-hero-stat span span {
+  display: block;
+  font-size: var(--text-2xs);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* ------------------------------------------------------------------ *
+ *  A call, as a row with a face.
+ * ------------------------------------------------------------------ */
+
+.go-call {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  min-width: 0;
+}
+
+.go-call-art {
+  position: relative;
+  flex: 0 0 200px;
+  align-self: stretch;
+  min-height: 112px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+
+.go-call-badge {
+  position: absolute;
+  top: 9px;
+  left: 9px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: var(--accent-deep);
+  color: var(--text-on-accent);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.go-call-badge[data-about='conversation'] { background: #7b44bd; }
+.go-call-badge[data-about='channel'] { background: #2f8a5f; }
+
+.go-call-said {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.go-call-name {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  letter-spacing: -0.01em;
+  color: var(--ink-000);
+}
+
+.go-call-asks {
+  font-size: var(--text-sm);
+  color: var(--ink-300);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.go-call-meta {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.go-call-fact {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  font-size: var(--text-xs);
+  color: var(--ink-400);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.go-call-foot { display: flex; align-items: center; margin-top: 2px; }
+
+.go-call-go { flex: 0 0 auto; display: flex; align-items: center; }
+
+@media (min-width: 1000px) { .go-rail { display: flex; } }
+
+@media (max-width: 760px) {
+  .go-hero { min-height: 180px; padding: var(--space-4); }
+  .go-call { flex-direction: column; gap: 11px; }
+  .go-call-art { flex: 0 0 auto; min-height: 96px; }
+  .go-call-go { align-self: stretch; }
+  .go-call-go .tk-go { flex: 1 1 auto; justify-content: center; }
 }

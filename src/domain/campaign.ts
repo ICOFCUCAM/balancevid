@@ -864,6 +864,20 @@ export interface CallRow {
    * module. [`asksFor`]
    */
   about: RequestHolder['kind'];
+  /**
+   * WHAT IT WILL BE JUDGED ON, where the organiser said.
+   *   [V-2, V-5]
+   *
+   * > *"A competition whose basis is announced after the
+   * > entries is not one."*
+   *
+   * On the ROW and not only on the call's own page, because a
+   * directory is where somebody decides which of three to
+   * enter — and the basis is half of that decision. Absent
+   * where none was given rather than empty, so a card draws
+   * nothing instead of a heading over a blank. [D-21]
+   */
+  criteria?: string;
 }
 
 export function callRow(campaign: Campaign, now: string): CallRow {
@@ -882,6 +896,7 @@ export function callRow(campaign: Campaign, now: string): CallRow {
     open: takingEntries(campaign, now),
     at: `/go/${campaign.slug ?? campaign.id}`,
     about: campaign.track.kind,
+    ...(campaign.rules.criteria ? { criteria: campaign.rules.criteria } : {}),
   };
 }
 
