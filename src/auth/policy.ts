@@ -57,6 +57,30 @@ const PUBLIC_EXACT = new Set([
   '/api/version',
   '/api/published',   // the list of things whose author asked for an audience
   /*
+   * WHAT THIS INSTALLATION HAS TO DOWNLOAD, and whether it is open.
+   *   [TAKE-PLATFORM P6; D-21, D-03]
+   *
+   * Nobody downloading the Take App or Take Desktop has an account
+   * — that is the whole premise of both — so a download centre
+   * behind the sign-in gate is a download centre for one person.
+   *
+   * THE LISTING IS NOT THE FILES. This answers which platforms a
+   * release exists for and how big each is, which is what somebody
+   * needs to decide whether to ask for the code at all. The BYTES
+   * are behind the code, at `/api/downloads/<file>`, which is
+   * public in the same sense and refuses without a pass.
+   */
+  '/api/downloads',
+  /*
+   * AND THE PAGE THAT SHOWS IT. `/downloads` is reached from the
+   * gateway's own band, which a stranger is reading — so a
+   * download centre behind the sign-in gate is a download centre
+   * nobody downloading anything can see. It renders the LIST and
+   * the state of the gate; the bytes are a separate route and
+   * refuse without the code. [P6, D-25]
+   */
+  '/downloads',
+  /*
    * What this installation offers to take part in.
    *   [TAKE-PLATFORM U5, P24; D-03, U-31]
    *
@@ -398,6 +422,20 @@ const PUBLIC_PATTERNS: RegExp[] = [
    */
   /^\/api\/tv\/playlist\.m3u$/,
   /^\/api\/tv\/guide\.xml$/,
+  /*
+   * ONE RELEASE, TO SOMEBODY HOLDING THE CODE.  [P6]
+   *
+   * Public in the sense this list means: reachable without a
+   * SESSION. It is not open — the route refuses every request
+   * without an activation pass, and refuses identically for a name
+   * that exists and one that does not, so the gate cannot be used
+   * to enumerate the releases.
+   *
+   * The alphabet is the release-name alphabet and nothing else: a
+   * path that could carry a slash or a dot-dot has no business in
+   * a list whose job is to let requests past the gate.
+   */
+  /^\/api\/downloads\/[A-Za-z0-9_.+-]+$/,
 ];
 
 /** Next's own assets, and the favicon. Never application data. */
@@ -623,6 +661,16 @@ const GUEST_WRITABLE: { method: string; path: RegExp }[] = [
    * route without naming what may be done to it is not a rule about
    * anything.
    */
+  /*
+   * TYPING THE ACTIVATION CODE.  [P6]
+   *
+   * A POST from somebody with no account, which is everybody this
+   * surface is for. It writes nothing on this installation — it
+   * reads one environment variable and hands back a cookie — and
+   * it is the only way to send the code without putting it in a
+   * URL.
+   */
+  { method: 'POST', path: /^\/api\/downloads\/unlock$/ },
   { method: 'POST', path: /^\/api\/conversations\/[A-Za-z0-9_-]+\/interventions$/ },
   { method: 'POST', path: /^\/api\/conversations\/[A-Za-z0-9_-]+\/takes\/[A-Za-z0-9_-]+\/chunks$/ },
   { method: 'POST', path: /^\/api\/conversations\/[A-Za-z0-9_-]+\/takes\/[A-Za-z0-9_-]+\/finalize$/ },

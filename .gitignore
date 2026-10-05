@@ -37,3 +37,6 @@ tsconfig.tsbuildinfo
 # already covered above; this is what esbuild and electron-builder write.
 /desktop/out/
 /desktop/release/
+# The launcher icon, copied from `public/take-app/` by `build.mjs`
+# so the mark lives in one place. Generated, like `out/`.
+/desktop/build/

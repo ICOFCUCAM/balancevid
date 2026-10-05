@@ -68,4 +68,33 @@ await build({
 });
 
 await cp('app', OUT, { recursive: true });
+
+/*
+ * THE ICON, WHICH THE INSTALLER WANTED AND NOBODY HAD GIVEN IT.
+ *   [T-1; Doctrine D-19, D-21]
+ *
+ * Packaging the application printed one line and it was easy to
+ * read past:
+ *
+ *   • default Electron icon is used  reason=application icon is not set
+ *
+ * So every build so far would have installed under Electron's own
+ * logo — in the launcher, in the dock, in the window list and in
+ * the `.deb`'s desktop entry. A capture station that looks like a
+ * sample application is one somebody is not sure they installed.
+ *
+ * COPIED FROM THE ONE THE PRODUCT ALREADY HAS, not drawn again.
+ * `public/take-app/icon-512.png` is the Take mark at the size
+ * electron-builder asks for, and Take Desktop is the same product
+ * on a different machine. A second PNG in this directory would be
+ * the mark in two places, and the one nobody looks at is the one
+ * that goes stale. [D-19]
+ *
+ * It is NOT a step towards sharing the web application's code with
+ * this one: T-1 is about `app/styles` and the engines behind it,
+ * and a picture is a picture.
+ */
+await mkdir('build', { recursive: true });
+await cp('../public/take-app/icon-512.png', 'build/icon.png');
+
 console.log('built');
