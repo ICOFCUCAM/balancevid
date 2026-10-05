@@ -1,0 +1,1140 @@
+/**
+ * Online TV's own stylesheet — Studio Three.
+ *   [CHANNEL §2, §12, §13; TV-NETWORK; Doctrine D-19, D-24]
+ *
+ *     RUNDOWN → PROGRAM → TRANSMISSION
+ *
+ * EVERY DECLARATION IN THIS FILE IS THE ONE THAT WAS WRITTEN.
+ * `Studio3.html` carries 130 rules; all 130 are here with their
+ * declarations byte-identical, checked with a parser and
+ * checked again on every run by `studio-three-shell.test.ts`.
+ * Only the selectors changed.
+ *
+ * EVERY SELECTOR IS UNDER `.s3`, in both directions, for the
+ * reasons the other two sheets set out: this one declares
+ * `--line`, `--text` and `--muted`, which the console's ramp
+ * also declares, and `controls.css` styles bare `button`.
+ *
+ * AND THE RESET NAMES THE BRIEF'S CONTROLS, NOT THE ELEMENT.
+ * Studio One's first attempt said `.s1 button` — (0,1,1)
+ * against `.ctl`'s (0,1,0) — and flattened the console's own
+ * lit controls inside every component rendered in the frame.
+ * This room renders more of them than either of the others:
+ * the whole control room is built from `.ctl`, and
+ * `console.test.ts` holds `app/t` to that in every file.
+ *
+ * THE BRIEF HAD ZERO CLASS COLLISIONS with what this room
+ * already renders, which is the one piece of luck in three
+ * integrations. Nothing needed renaming.
+ */
+
+
+.s3{
+  --bg:#05070a;
+  --panel:#0a0d11;
+  --panel2:#0e1217;
+  --panel3:#12171d;
+  --line:#1d252d;
+  --line2:#29343f;
+  --text:#eef2f5;
+  --muted:#7b8792;
+  --dim:#505c67;
+  --blue:#328bff;
+  --cyan:#4bd7ff;
+  --green:#36d29a;
+  --red:#ff565c;
+  --amber:#e7ad48;
+}
+
+.s3, .s3 *{
+  box-sizing:border-box;
+}
+
+.s3{
+  width:100%;
+  height:100%;
+  margin:0;
+  overflow:hidden;
+  background:var(--bg);
+  color:var(--text);
+  font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+
+.s3 button,.s3 input{
+  font:inherit;
+}
+
+.s3 button{
+  color:inherit;
+}
+
+.s3 .app{
+  height:100vh;
+  display:grid;
+  grid-template-rows:52px 1fr 48px;
+}
+
+/* --------------------------------------------------
+   TOP BAR
+-------------------------------------------------- */
+
+.s3 .topbar{
+  display:flex;
+  align-items:center;
+  gap:18px;
+  padding:0 16px;
+  background:#06080b;
+  border-bottom:1px solid var(--line);
+}
+
+.s3 .brand{
+  display:flex;
+  align-items:center;
+  gap:9px;
+  min-width:145px;
+  font-size:13px;
+  font-weight:750;
+}
+
+.s3 .brandmark{
+  width:25px;
+  height:25px;
+  border-radius:7px;
+  display:grid;
+  place-items:center;
+  background:linear-gradient(145deg,#3998ff,#1559b7);
+}
+
+.s3 .brandmark:after{
+  content:"";
+  width:0;
+  height:0;
+  border-top:5px solid transparent;
+  border-bottom:5px solid transparent;
+  border-left:8px solid white;
+  margin-left:2px;
+}
+
+.s3 .product{
+  font-size:10px;
+  text-transform:uppercase;
+  letter-spacing:.16em;
+  color:#8b96a1;
+  font-weight:800;
+}
+
+.s3 .channel{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding-left:18px;
+  border-left:1px solid var(--line);
+  font-size:12px;
+}
+
+.s3 .channel-dot{
+  width:7px;
+  height:7px;
+  border-radius:50%;
+  background:var(--red);
+}
+
+.s3 .channel-name{
+  font-weight:700;
+}
+
+.s3 .channel-id{
+  color:#596570;
+  font-family:ui-monospace,monospace;
+  font-size:9px;
+}
+
+.s3 .spacer{
+  flex:1;
+}
+
+.s3 .clock{
+  color:#7d8994;
+  font-family:ui-monospace,monospace;
+  font-size:10px;
+}
+
+.s3 .top-button{
+  height:30px;
+  padding:0 12px;
+  border-radius:6px;
+  border:1px solid var(--line2);
+  background:#0d1116;
+  font-size:10px;
+  font-weight:700;
+  cursor:pointer;
+}
+
+.s3 .top-button:hover{
+  background:#141a20;
+}
+
+.s3 .top-button.primary{
+  border-color:#2e78d7;
+  background:#155bb9;
+}
+
+/* --------------------------------------------------
+   MAIN CONTROL ROOM
+-------------------------------------------------- */
+
+.s3 .main{
+  min-height:0;
+  display:grid;
+  grid-template-columns:260px minmax(600px,1fr) 280px;
+  background:#080b0f;
+}
+
+/* --------------------------------------------------
+   LEFT — RUNDOWN
+-------------------------------------------------- */
+
+.s3 .left{
+  min-height:0;
+  display:flex;
+  flex-direction:column;
+  border-right:1px solid var(--line);
+  background:#090c10;
+}
+
+.s3 .left-tabs{
+  height:43px;
+  display:flex;
+  border-bottom:1px solid var(--line);
+}
+
+.s3 .left-tab{
+  flex:1;
+  border:0;
+  background:transparent;
+  color:#68747f;
+  font-size:9px;
+  font-weight:800;
+  letter-spacing:.12em;
+  cursor:pointer;
+}
+
+.s3 .left-tab.active{
+  color:#edf2f5;
+  border-bottom:2px solid var(--blue);
+}
+
+.s3 .rundown-head{
+  padding:12px;
+  border-bottom:1px solid var(--line);
+}
+
+.s3 .rundown-title{
+  font-size:9px;
+  color:#77828d;
+  text-transform:uppercase;
+  letter-spacing:.14em;
+  font-weight:800;
+}
+
+.s3 .rundown-date{
+  margin-top:5px;
+  font-size:11px;
+  color:#c7d0d8;
+}
+
+.s3 .rundown-actions{
+  display:grid;
+  grid-template-columns:1fr 34px;
+  gap:6px;
+  margin-top:10px;
+}
+
+.s3 .action{
+  height:31px;
+  border:1px solid #222c35;
+  background:#10151a;
+  border-radius:6px;
+  font-size:9px;
+  cursor:pointer;
+}
+
+.s3 .action:hover{
+  background:#171d24;
+}
+
+.s3 .schedule{
+  overflow:auto;
+  flex:1;
+  padding:8px;
+}
+
+.s3 .schedule-item{
+  min-height:75px;
+  margin-bottom:7px;
+  padding:9px;
+  border:1px solid #1b232b;
+  border-radius:7px;
+  background:#0e1217;
+  cursor:pointer;
+  position:relative;
+}
+
+.s3 .schedule-item:hover{
+  border-color:#33404c;
+}
+
+.s3 .schedule-item.onair{
+  border-color:#8c3135;
+  box-shadow:inset 2px 0 0 var(--red);
+}
+
+.s3 .item-time{
+  color:#66727d;
+  font-family:ui-monospace,monospace;
+  font-size:8px;
+}
+
+.s3 .item-title{
+  margin-top:6px;
+  font-size:11px;
+  font-weight:700;
+}
+
+.s3 .item-meta{
+  margin-top:5px;
+  color:#596570;
+  font-size:9px;
+}
+
+.s3 .item-status{
+  position:absolute;
+  right:8px;
+  top:9px;
+  font-size:7px;
+  letter-spacing:.08em;
+  color:#68747f;
+}
+
+.s3 .onair .item-status{
+  color:var(--red);
+}
+
+.s3 .left-footer{
+  border-top:1px solid var(--line);
+  padding:10px;
+}
+
+.s3 .loop-status{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  font-size:9px;
+}
+
+.s3 .loop-status span:first-child{
+  color:#68747f;
+}
+
+.s3 .loop-status span:last-child{
+  color:var(--green);
+}
+
+/* --------------------------------------------------
+   CENTER
+-------------------------------------------------- */
+
+.s3 .center{
+  min-width:0;
+  min-height:0;
+  display:grid;
+  grid-template-rows:48px minmax(280px,1fr) 200px;
+}
+
+.s3 .center-head{
+  display:flex;
+  align-items:center;
+  gap:18px;
+  padding:0 15px;
+  border-bottom:1px solid var(--line);
+}
+
+.s3 .center-tab{
+  font-size:9px;
+  text-transform:uppercase;
+  letter-spacing:.13em;
+  color:#68747f;
+  cursor:pointer;
+}
+
+.s3 .center-tab.active{
+  color:#edf2f5;
+}
+
+.s3 .center-spacer{
+  flex:1;
+}
+
+.s3 .signal{
+  display:flex;
+  align-items:center;
+  gap:7px;
+  font-size:9px;
+  color:#697580;
+}
+
+.s3 .signal-dot{
+  width:6px;
+  height:6px;
+  border-radius:50%;
+  background:var(--red);
+}
+
+/* PROGRAM / PREVIEW */
+
+.s3 .output{
+  min-height:0;
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 270px;
+  gap:8px;
+  padding:10px;
+}
+
+.s3 .program{
+  min-width:0;
+  min-height:0;
+  display:flex;
+  flex-direction:column;
+  border:1px solid var(--line);
+  background:#050608;
+}
+
+.s3 .output-head{
+  height:35px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:0 10px;
+  border-bottom:1px solid var(--line);
+}
+
+.s3 .output-label{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  font-size:9px;
+  text-transform:uppercase;
+  letter-spacing:.13em;
+  font-weight:800;
+}
+
+.s3 .live-dot{
+  width:6px;
+  height:6px;
+  border-radius:50%;
+  background:var(--red);
+}
+
+.s3 .output-state{
+  color:#6a7681;
+  font-size:8px;
+}
+
+.s3 .program-screen{
+  flex:1;
+  position:relative;
+  display:grid;
+  place-items:center;
+  overflow:hidden;
+  background:
+    radial-gradient(circle at 50% 42%,rgba(38,58,80,.22),transparent 40%),
+    #020304;
+}
+
+.s3 .program-screen:after{
+  content:"";
+  position:absolute;
+  inset:0;
+  background:
+    linear-gradient(90deg,transparent 49.9%,rgba(255,255,255,.025) 50%,transparent 50.1%),
+    linear-gradient(transparent 49.9%,rgba(255,255,255,.025) 50%,transparent 50.1%);
+  pointer-events:none;
+}
+
+.s3 .program-message{
+  text-align:center;
+  position:relative;
+  z-index:2;
+}
+
+.s3 .program-kicker{
+  font-size:9px;
+  text-transform:uppercase;
+  letter-spacing:.2em;
+  color:#68747f;
+}
+
+.s3 .program-title{
+  margin-top:11px;
+  font-size:24px;
+  font-weight:500;
+  letter-spacing:-.035em;
+}
+
+.s3 .program-sub{
+  margin-top:8px;
+  color:#5e6974;
+  font-size:10px;
+}
+
+.s3 .station{
+  position:absolute;
+  right:12px;
+  bottom:11px;
+  z-index:3;
+  font-size:8px;
+  color:#9da8b2;
+  letter-spacing:.08em;
+}
+
+.s3 .tx{
+  position:absolute;
+  left:11px;
+  top:11px;
+  z-index:3;
+  padding:5px 7px;
+  background:rgba(0,0,0,.65);
+  border:1px solid #2b333b;
+  border-radius:4px;
+  font-size:8px;
+  color:#bfc8cf;
+}
+
+.s3 .preview-column{
+  min-height:0;
+  display:grid;
+  grid-template-rows:1fr 1fr;
+  gap:8px;
+}
+
+.s3 .preview-box{
+  min-height:0;
+  border:1px solid var(--line);
+  background:#050608;
+}
+
+.s3 .preview-screen{
+  height:calc(100% - 34px);
+  display:grid;
+  place-items:center;
+  color:#4d5863;
+  font-size:9px;
+}
+
+.s3 .preview-title{
+  height:34px;
+  padding:0 9px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  border-bottom:1px solid var(--line);
+  font-size:8px;
+  text-transform:uppercase;
+  letter-spacing:.12em;
+  color:#798590;
+  font-weight:800;
+}
+
+/* --------------------------------------------------
+   MULTIVIEW
+-------------------------------------------------- */
+
+.s3 .multiview{
+  border-top:1px solid var(--line);
+  min-height:0;
+  display:grid;
+  grid-template-rows:38px 1fr;
+  background:#090c10;
+}
+
+.s3 .multi-head{
+  display:flex;
+  align-items:center;
+  padding:0 10px;
+  gap:15px;
+}
+
+.s3 .multi-title{
+  font-size:9px;
+  text-transform:uppercase;
+  letter-spacing:.13em;
+  color:#77838e;
+  font-weight:800;
+}
+
+.s3 .multi-spacer{
+  flex:1;
+}
+
+.s3 .multi-mode{
+  font-size:8px;
+  color:#697580;
+}
+
+.s3 .multi-grid{
+  min-height:0;
+  display:grid;
+  grid-template-columns:repeat(6,1fr);
+  gap:5px;
+  padding:0 10px 10px;
+}
+
+.s3 .source{
+  min-width:0;
+  position:relative;
+  border:1px solid #202933;
+  border-radius:4px;
+  overflow:hidden;
+  background:
+    radial-gradient(circle at 50% 40%,rgba(53,76,100,.25),transparent 35%),
+    #06080a;
+}
+
+.s3 .source.program{
+  border-color:#7c3034;
+}
+
+.s3 .source.ready{
+  border-color:#246c59;
+}
+
+.s3 .source-number{
+  position:absolute;
+  left:6px;
+  top:5px;
+  font-family:ui-monospace,monospace;
+  font-size:7px;
+  color:#8c98a2;
+}
+
+.s3 .source-label{
+  position:absolute;
+  left:7px;
+  right:7px;
+  bottom:7px;
+}
+
+.s3 .source-name{
+  font-size:8px;
+  font-weight:700;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+.s3 .source-state{
+  margin-top:3px;
+  color:#5f6b76;
+  font-size:7px;
+}
+
+.s3 .source-tally{
+  position:absolute;
+  right:5px;
+  top:5px;
+  font-size:6px;
+  color:#65717c;
+}
+
+.s3 .source.program .source-tally{
+  color:var(--red);
+}
+
+.s3 .source.ready .source-tally{
+  color:var(--green);
+}
+
+/* --------------------------------------------------
+   RIGHT — LIVE STUDIO
+-------------------------------------------------- */
+
+.s3 .right{
+  min-height:0;
+  border-left:1px solid var(--line);
+  background:#090c10;
+  display:flex;
+  flex-direction:column;
+}
+
+.s3 .right-head{
+  height:43px;
+  padding:0 13px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  border-bottom:1px solid var(--line);
+}
+
+.s3 .right-title{
+  font-size:9px;
+  text-transform:uppercase;
+  letter-spacing:.14em;
+  font-weight:800;
+  color:#7d8994;
+}
+
+.s3 .engine{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  font-size:7px;
+  color:#64717c;
+}
+
+.s3 .engine-dot{
+  width:5px;
+  height:5px;
+  border-radius:50%;
+  background:var(--green);
+}
+
+.s3 .live-actions{
+  padding:10px;
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:7px;
+}
+
+.s3 .go-live{
+  height:35px;
+  border-radius:6px;
+  border:1px solid #2881e0;
+  background:#155db7;
+  font-size:9px;
+  font-weight:800;
+  cursor:pointer;
+}
+
+.s3 .end-live{
+  border:1px solid #222b34;
+  background:#10151a;
+  color:#56616b;
+  border-radius:6px;
+  font-size:9px;
+  cursor:pointer;
+}
+
+.s3 .studio-tabs{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  border-top:1px solid var(--line);
+  border-bottom:1px solid var(--line);
+}
+
+.s3 .studio-tab{
+  height:34px;
+  border:0;
+  background:transparent;
+  color:#697580;
+  font-size:8px;
+  cursor:pointer;
+}
+
+.s3 .studio-tab.active{
+  color:#edf2f5;
+  box-shadow:inset 0 -2px 0 var(--blue);
+}
+
+.s3 .live-panel{
+  padding:11px;
+  overflow:auto;
+}
+
+.s3 .panel-title{
+  color:#717d88;
+  font-size:8px;
+  text-transform:uppercase;
+  letter-spacing:.13em;
+  font-weight:800;
+  margin-bottom:10px;
+}
+
+.s3 .library-search{
+  width:100%;
+  height:31px;
+  border-radius:5px;
+  border:1px solid #202933;
+  background:#0d1217;
+  color:#d7dfe5;
+  padding:0 9px;
+  outline:none;
+  font-size:9px;
+}
+
+.s3 .media-item{
+  margin-top:7px;
+  padding:9px;
+  border:1px solid #1e2730;
+  border-radius:6px;
+  background:#0e1318;
+  cursor:pointer;
+}
+
+.s3 .media-item:hover{
+  border-color:#34414d;
+}
+
+.s3 .media-name{
+  font-size:9px;
+  font-weight:700;
+}
+
+.s3 .media-meta{
+  margin-top:4px;
+  font-size:8px;
+  color:#606c77;
+}
+
+.s3 .media-controls{
+  display:grid;
+  grid-template-columns:1fr 1fr 1fr;
+  gap:5px;
+  margin-top:8px;
+}
+
+.s3 .small-button{
+  height:28px;
+  border:1px solid #222c35;
+  background:#10151a;
+  border-radius:5px;
+  color:#697580;
+  font-size:8px;
+  cursor:pointer;
+}
+
+.s3 .small-button:hover{
+  background:#171d23;
+}
+
+.s3 .now{
+  margin-top:auto;
+  border-top:1px solid var(--line);
+  padding:11px;
+}
+
+.s3 .now-label{
+  font-size:8px;
+  color:#707b86;
+  text-transform:uppercase;
+  letter-spacing:.13em;
+}
+
+.s3 .now-title{
+  margin-top:7px;
+  font-size:12px;
+  font-weight:700;
+}
+
+.s3 .now-progress{
+  height:3px;
+  background:#202931;
+  border-radius:5px;
+  overflow:hidden;
+  margin-top:10px;
+}
+
+.s3 .now-progress div{
+  width:43%;
+  height:100%;
+  background:var(--blue);
+}
+
+.s3 .now-time{
+  display:flex;
+  justify-content:space-between;
+  margin-top:6px;
+  color:#5d6873;
+  font-family:ui-monospace,monospace;
+  font-size:8px;
+}
+
+/* --------------------------------------------------
+   BOTTOM MASTER BAR
+-------------------------------------------------- */
+
+.s3 .bottom{
+  border-top:1px solid var(--line);
+  background:#080b0e;
+  display:flex;
+  align-items:center;
+  gap:15px;
+  padding:0 14px;
+}
+
+.s3 .transport-status{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  min-width:180px;
+}
+
+.s3 .transport-record{
+  width:9px;
+  height:9px;
+  border-radius:50%;
+  border:2px solid #5c6873;
+}
+
+.s3 .bottom-state{
+  color:#7b8792;
+  font-size:9px;
+}
+
+.s3 .bottom-time{
+  font-family:ui-monospace,monospace;
+  color:#dce4ea;
+  font-size:14px;
+  font-weight:600;
+}
+
+.s3 .bottom-divider{
+  width:1px;
+  height:22px;
+  background:var(--line);
+}
+
+.s3 .bottom-message{
+  color:#697580;
+  font-size:9px;
+  flex:1;
+}
+
+.s3 .bottom-message strong{
+  color:#aeb8c0;
+}
+
+.s3 .bottom-button{
+  height:30px;
+  border:1px solid #252e37;
+  background:#0e1318;
+  border-radius:6px;
+  padding:0 11px;
+  font-size:8px;
+  cursor:pointer;
+}
+
+.s3 .bottom-button:hover{
+  background:#151b21;
+}
+
+.s3 .emergency{
+  color:#ff7a7e;
+  border-color:#54292c;
+}
+
+/* --------------------------------------------------
+   TOAST
+-------------------------------------------------- */
+
+.s3 .toast{
+  position:fixed;
+  right:20px;
+  bottom:65px;
+  padding:11px 14px;
+  background:#141a20;
+  border:1px solid #303b46;
+  border-radius:7px;
+  font-size:10px;
+  color:#dce4ea;
+  opacity:0;
+  transform:translateY(15px);
+  transition:.2s;
+  pointer-events:none;
+  box-shadow:0 20px 50px rgba(0,0,0,.45);
+}
+
+.s3 .toast.show{
+  opacity:1;
+  transform:translateY(0);
+}
+
+/* --------------------------------------------------
+   RESPONSIVE
+-------------------------------------------------- */
+
+@media(max-width:1150px){
+
+  .s3 .main{
+    grid-template-columns:220px minmax(550px,1fr) 245px;
+  }
+
+  .s3 .output{
+    grid-template-columns:minmax(0,1fr) 220px;
+  }
+}
+
+@media(max-width:900px){
+
+  .s3{
+    overflow:auto;
+  }
+
+  .s3 .app{
+    min-width:1000px;
+  }
+}
+
+@media(prefers-reduced-motion:reduce){
+
+  .s3, .s3 *{
+    transition:none!important;
+  }
+}
+
+
+/* =========================================================
+   THE CONSOLE'S CONTROL RULES, UNDONE ON THE BRIEF'S CONTROLS
+   ========================================================= */
+
+.s3 .top-button,
+.s3 .left-tab,
+.s3 .center-tab,
+.s3 .studio-tab,
+.s3 .action,
+.s3 .small-button,
+.s3 .bottom-button,
+.s3 .go-live,
+.s3 .end-live {
+  display: inline-block;
+  align-items: normal;
+  justify-content: normal;
+  gap: normal;
+  min-height: 0;
+  margin: 0;
+  box-shadow: none;
+  font-weight: inherit;
+  line-height: normal;
+  letter-spacing: normal;
+  user-select: auto;
+}
+
+.s3 .top-button:hover:not(:disabled),
+.s3 .left-tab:hover:not(:disabled),
+.s3 .center-tab:hover:not(:disabled),
+.s3 .studio-tab:hover:not(:disabled),
+.s3 .action:hover:not(:disabled),
+.s3 .small-button:hover:not(:disabled),
+.s3 .bottom-button:hover:not(:disabled),
+.s3 .go-live:hover:not(:disabled),
+.s3 .end-live:hover:not(:disabled) {
+  box-shadow: none;
+  transform: none;
+}
+
+/* The brief's own reset, which its standalone document only
+   needed against the browser's defaults. */
+.s3 button,
+.s3 input,
+.s3 select {
+  font: inherit;
+}
+
+/* =========================================================
+   WHAT THE BRIEF DREW ONCE AND ONLINE TV HAS MORE OF
+   =========================================================
+
+   Addition, not alteration.  */
+
+/* THE BAR MUST BE ABLE TO GROW RATHER THAN CLIP.
+
+   The brief fixes the first grid row at 52px because its bar
+   holds seven things. This one also carries `StudioBar` — the
+   six places every studio shares, and the on-air lamp — so it
+   wraps on a narrow window. Both of the other two studios
+   taught this the same way: a fixed row does not grow with a
+   wrapped bar, it hides whatever wrapped. */
+.s3 .app {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.s3 .topbar {
+  height: auto;
+  min-height: 52px;
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+
+/* A rail or a panel that holds an existing component keeps its
+   own scrolling, so the room itself never scrolls. [§40] */
+.s3 .s3-slot {
+  min-height: 0;
+  overflow: auto;
+  flex: 1 1 auto;
+}
+
+.s3 .s3-slot > :first-child {
+  margin-top: 0;
+}
+
+/* THE CENTRE IS THE PROGRAM, THE PREVIEW AND THE MULTIVIEW,
+   and in this room all three are components that bring their
+   own layout. The brief's three rows are the frame; what sits
+   in them measures itself. */
+.s3 .center > .s3-region {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* EIGHT STUDIO TABS, AND THIS ROOM HAS THEM ALL. The brief
+   draws eight in a fixed row; the count comes from the markup
+   so that a ninth shares the width rather than falling out of
+   the bar — the lesson Studio One's fourth control tab taught
+   when it landed 23px below its own row. */
+.s3 .studio-tabs {
+  flex-wrap: wrap;
+}
+
+.s3 .studio-tab {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* THE CENTRE KEEPS THE SPLIT THIS GALLERY ALREADY HAD.
+
+   This is the one place the brief is overridden rather than
+   extended, and it is named here rather than excused. The
+   brief's centre is three rows — a head, the program-and-
+   preview output, then the multiview. This gallery's centre is
+   two: the programme above and the day below, which is the
+   split a gallery has (you watch the top half and plan in the
+   bottom), with the multiview inside the top row beside the
+   preview. Re-cutting it into the brief's three rows would
+   move the schedule deck out of the centre entirely, and the
+   schedule is half of what this room is for.
+
+   The brief's frame — the backgrounds, the hairlines, the
+   widths of the two rails — is kept exactly. [CHANNEL §12] */
+.s3 .center {
+  display: grid;
+  gap: 10px;
+  padding: 10px 12px;
+  grid-template-rows: minmax(0, 1.3fr) minmax(0, 1fr);
+}
+
+/* The two rails hold `Frame`s, which bring their own border
+   and fill. The brief's rail IS that border and fill, so the
+   outer one would be a second box around the first. */
+.s3 .left,
+.s3 .right {
+  min-width: 0;
+  padding: 10px 0 10px 12px;
+  background: transparent;
+  border: 0;
+  display: grid;
+  min-height: 0;
+}
+
+.s3 .right {
+  padding: 10px 12px 10px 0;
+}
