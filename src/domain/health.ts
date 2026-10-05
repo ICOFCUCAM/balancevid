@@ -37,6 +37,41 @@ import type { Pacing } from './pace.js';
 export const ENGINE_STALE_MS = 15_000;
 
 /**
+ * How often the engine says it is alive.  [§18, D-19, U-02]
+ *
+ * A PASS IS NOT A TICK, AND THAT COST THIS PRODUCT ITS OWN
+ * DIAGNOSIS. The heartbeat was written at the END of each pass,
+ * for a reason that reads well:
+ *
+ *   *"At the start it would say 'alive' and then spend thirty
+ *   seconds wedged on a broken encode, which is the failure a
+ *   heartbeat exists to catch."*
+ *
+ * The hole in it is that a pass LEGITIMATELY takes thirty seconds.
+ * Measured on seventeen channels, a healthy engine beat every 31
+ * to 34 seconds — so against a fifteen-second threshold it read
+ * as dead for most of every cycle, and the control room alternated
+ * between a clean board, *"The playout engine stopped
+ * responding"* and *"No playout engine has run since this instance
+ * started"* while the engine was encoding perfectly throughout.
+ *
+ * A liveness signal cannot be gated on the work finishing, because
+ * then it measures the work and not the life. The pulse is a timer
+ * now, and the thing it was protecting against is caught better
+ * elsewhere: a wedged engine keeps beating and its channels'
+ * streams go stale, which `streamState` already notices per channel
+ * and `healthSentence` already has the sentence for — *"The engine
+ * is running but this channel's stream has stopped"* — which is
+ * more use to an operator than being told it crashed when it has
+ * not.
+ *
+ * FIVE SECONDS, SO THREE MAY BE LOST before the engine is called
+ * dead. `engine-pulse.test.ts` fails if the two ever drift into
+ * agreeing that a healthy engine is a stopped one.
+ */
+export const ENGINE_PULSE_MS = 5_000;
+
+/**
  * How long a channel's newest segment may age before it has stopped.
  *
  * Three segments. The engine keeps two ahead of the playhead (AHEAD_SEGMENTS)
@@ -79,7 +114,14 @@ export type StreamState =
   | 'silent';
 
 export interface Heartbeat {
-  /** When the engine last finished a pass, as an instant. */
+  /**
+   * When the engine last said it was alive, as an instant.
+   *
+   * NOT "when it last finished a pass", which is what this meant
+   * until a pass was measured at thirty-four seconds against a
+   * fifteen-second patience. The counts below are still the last
+   * pass's; this is the pulse. [ENGINE_PULSE_MS]
+   */
   at: string;
   /** Which process, so two engines on one directory are visible. [D-20] */
   pid: number;

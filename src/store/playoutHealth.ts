@@ -25,6 +25,9 @@ import { VAR_ROOT, paths, safe } from './paths.js';
 
 const BEAT_FILE = join(VAR_ROOT, 'playout.json');
 
+/** Counts the writes of this process, so two in flight cannot share a name. */
+let writes = 0;
+
 /** The engine says it is still here. Called at the end of every pass. */
 export async function beat(
   what: {
@@ -43,7 +46,17 @@ export async function beat(
     ...(what.load === undefined ? {} : { load: what.load }),
   };
   await mkdir(VAR_ROOT, { recursive: true });
-  const temp = `${BEAT_FILE}.${process.pid}.tmp`;
+  /*
+   * A NAME PER WRITE, NOT PER PROCESS.  [§18]
+   *
+   * The pulse is a timer now and a pass still beats when it ends,
+   * so two writes from the SAME pid can be in flight at once — and
+   * with one temp name between them, the second `writeFile` lands
+   * in the file the first is about to rename. A reader then gets
+   * whichever half won. Unique per write, so the rename is always
+   * of a file this call finished writing.
+   */
+  const temp = `${BEAT_FILE}.${process.pid}.${writes += 1}.tmp`;
   await writeFile(temp, JSON.stringify(body), 'utf8');
   await rename(temp, BEAT_FILE);
 }
