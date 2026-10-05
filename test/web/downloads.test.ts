@@ -422,6 +422,45 @@ describe('what the desktop build is called', () => {
   });
 });
 
+describe('what the desktop build looks like once installed', () => {
+  /*
+   * THE INSTALLER PRINTED ONE LINE AND IT WAS EASY TO READ PAST:
+   *
+   *   • default Electron icon is used  reason=application icon is not set
+   *
+   * So every build would have installed under Electron's own logo —
+   * in the launcher, in the dock, in the window list and in the
+   * `.deb`'s desktop entry. A capture station that looks like a
+   * sample application is one somebody is not sure they installed.
+   * Found by running the packager, not by reading its config. [U-02]
+   */
+  const BUILD = readFileSync('desktop/build.mjs', 'utf8');
+
+  it('puts an icon where the packager looks for one', () => {
+    const where = /await cp\('([^']+)',\s*'build\/icon\.png'\)/.exec(BUILD);
+    expect(where, 'build.mjs copies no launcher icon').not.toBeNull();
+
+    /* AND THE ONE IT COPIES IS THERE, at the size the packager
+       asks for — a missing or small source is the same silent
+       fallback in a different costume. */
+    const from = where![1]!.replace(/^\.\.\//, '');
+    const png = readFileSync(from);
+    expect(png.subarray(1, 4).toString()).toBe('PNG');
+    expect(png.readUInt32BE(16), `${from} is too small`)
+      .toBeGreaterThanOrEqual(512);
+    expect(png.readUInt32BE(20)).toBeGreaterThanOrEqual(512);
+  });
+
+  /*
+   * AND IT IS COPIED RATHER THAN KEPT. A second PNG committed under
+   * `desktop/` would be the product's mark in two places, and the
+   * one nobody looks at is the one that goes stale. [D-19]
+   */
+  it('keeps the mark in one place', () => {
+    expect(readFileSync('.gitignore', 'utf8')).toMatch(/^\/desktop\/build\/$/m);
+  });
+});
+
 describe('the download centre page', () => {
   const PAGE = readFileSync('app/downloads/DownloadCentre.tsx', 'utf8');
 
