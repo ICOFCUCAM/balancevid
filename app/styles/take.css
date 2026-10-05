@@ -162,6 +162,80 @@
 .tk-bar-way:hover { border-color: var(--accent); color: var(--ink-000); }
 
 /*
+ * THE OFFER TO INSTALL, IN THE BAR.  [TAKE-PLATFORM P6]
+ *
+ * Beside the way to the network rather than in a band across the
+ * page, because a banner over the thing somebody is already using
+ * is an advertisement for it. It is absent entirely on a browser
+ * that cannot install and on a phone that already has, so this
+ * costs the bar nothing most of the time. [Tv.tsx, D-04]
+ *
+ * IT TAKES THE FREE SPACE AND THE NETWORK LINK FOLLOWS IT. Both
+ * carry `margin-left: auto`; the first one in the row wins it, so
+ * the pair sits together at the end wherever the ident stops.
+ */
+.tk-bar-install {
+  margin-left: auto;
+  flex: 0 1 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.tk-bar-install .tk-bar-way {
+  margin-left: 0;
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-sm);
+}
+
+/*
+ * NOT NOW IS A WORD, NOT A BUTTON. It is the thing that happens if
+ * the offer is ignored, so it is drawn like a sentence and not
+ * like a second choice of equal weight.
+ */
+.tk-bar-not {
+  flex: 0 0 auto;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--ink-400);
+  font: inherit;
+  font-size: var(--text-2xs);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tk-bar-not:hover { color: var(--ink-200); }
+
+/* Safari has Add to Home Screen and no API for it, so it is told. */
+.tk-bar-teach {
+  margin-left: auto;
+  flex: 0 1 auto;
+  font-size: var(--text-2xs);
+  color: var(--ink-400);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/*
+ * A PHONE IS 412 PIXELS AND THIS BAR ALREADY CLIPPED ONCE.
+ *   [the `min-width: 0` note below]
+ *
+ * Ident, install, dismiss, the network and the ground toggle do
+ * not fit across a phone, and the one that is a courtesy rather
+ * than a door is the one that goes: the offer is dismissed by
+ * installing it, by ignoring it, or on the next screen up. The
+ * two DOORS both stay.
+ */
+@media (max-width: 560px) {
+  .tk-bar-not { display: none; }
+  .tk-bar-install .tk-bar-way { padding-inline: 11px; }
+}
+
+/*
  * `min-width: 0` ON THE COLUMN, which is a fault a browser run
  * found rather than a precaution. An installation names ITSELF,
  * so *"The Redemption Records Recording Company of Greater

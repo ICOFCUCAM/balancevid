@@ -12,6 +12,8 @@ import Icon, { type IconName } from '../Icon.js';
 import { GroundToggle } from '../Ground.js';
 import { NETWORK_ART, identityFor, shelfFor } from '../tv/art.js';
 import { type Mine, keepMine, readMine } from './mine.js';
+import { installWorker } from './[link]/queue.js';
+import { useInstallOffer } from '../useInstallOffer.js';
 
 /**
  * The Take App's home.  [TAKE-PLATFORM P1, P2, P3, P4, P5, P6, U5]
@@ -88,6 +90,77 @@ const SECTIONS: { kind: Row['kind']; title: string; empty: string }[] = [
     empty: 'No programmes here are taking part yet.',
   },
 ];
+
+/* ------------------------------------------------------------------ *
+ *  The app, as something that installs.  [TAKE-PLATFORM P6; installs.ts]
+ * ------------------------------------------------------------------ */
+
+/**
+ * The service worker, registered from the home as well as the recorder.
+ *
+ * WITHOUT ONE NOTHING INSTALLS. A browser's install criteria are a
+ * manifest, icons AND a worker with a fetch handler, and this
+ * product had the worker and the icons for a year while registering
+ * the worker only from `/take/<link>` — so the application was
+ * installable mid-assignment and not from its own front door.
+ *
+ * IT IS THE SAME WORKER, BY IMPORT.  [D-19] `installWorker` is the
+ * recorder's own function, scoped to the root for the reason it
+ * states, and registering is idempotent: a phone that arrives here
+ * with the app already installed re-registers the same file and
+ * nothing happens.
+ */
+function TakeWorker() {
+  useEffect(() => {
+    /* A registration failure is not worth telling anybody about: the
+       network works, and saying so only ever added an apology. */
+    void installWorker();
+  }, []);
+  return null;
+}
+
+/**
+ * "Install" — the Take App itself, not one assignment.
+ *
+ * THE WORDING IS THIS FILE'S AND THE MACHINERY IS NOT.
+ * `useInstallOffer` holds every subtle line of it — the standalone
+ * check, the Chromium event, the Safari exception, the spent prompt
+ * — and three surfaces now share all of it and none of the words.
+ * [D-19, N-9, InstallBar.tsx]
+ *
+ * AND IT IS THE HONEST TEST OF WHETHER ANY OF THIS WORKED. Chromium
+ * fires `beforeinstallprompt` only when the page genuinely qualifies,
+ * so this button appearing is the browser's own verdict on the
+ * manifest, the icons and the worker. It is absent on a browser that
+ * cannot install and on a phone that already has. [U-19, D-21]
+ */
+function InstallTake() {
+  const { offered, teach, gone, install, dismiss } = useInstallOffer();
+  if (gone || (!offered && !teach)) return null;
+  if (teach && !offered) {
+    /* Safari has Add to Home Screen and no API for it, so it is told
+       rather than left out — in the share sheet's own words. */
+    return (
+      <span className="tk-bar-teach" data-testid="take-home-install-teach">
+        Share → Add to Home Screen
+      </span>
+    );
+  }
+  return (
+    <span className="tk-bar-install">
+      <button type="button" className="tk-bar-way"
+              data-testid="take-home-install"
+              onClick={() => void install()}>
+        <Icon name="plus" size={13} />
+        Install
+      </button>
+      <button type="button" className="tk-bar-not"
+              data-testid="take-home-install-no" onClick={dismiss}>
+        Not now
+      </button>
+    </span>
+  );
+}
 
 export default function TakeHome() {
   const [rows, setRows] = useState<Row[] | null>(null);
@@ -279,6 +352,7 @@ export default function TakeHome() {
         * saying what this is; this is the same product and a
         * person may arrive at either one first. [N-4]
         */}
+      <TakeWorker />
       <header className="tk-bar">
         <span className="tk-ident">
           <span aria-hidden="true" className="tk-ident-mark">
@@ -289,6 +363,7 @@ export default function TakeHome() {
             <span className="tk-ident-says">Watch · Listen · Take part</span>
           </span>
         </span>
+        <InstallTake />
         {/* THE WAY TO THE NETWORK, because somebody who arrives
             here to record may well want to watch. [D-04] */}
         <a className="tk-bar-way" href="/tv">
