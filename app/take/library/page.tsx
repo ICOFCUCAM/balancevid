@@ -1,8 +1,21 @@
+import type { Metadata } from 'next';
+
 import Library from './Library.js';
+import { GROUND, INSTALLS } from '../installs.js';
 
 export const dynamic = 'force-dynamic';
 
-export const metadata = {
+/* The status bar, which `metadata` cannot carry. [installs.ts] */
+export const viewport = GROUND;
+
+export const metadata: Metadata = {
+  /*
+   * THE SAME APP, SO THE SAME MANIFEST. A person who opened the
+   * Library first and was offered an install there would otherwise
+   * get nothing, or — worse — a second icon. Imported rather than
+   * repeated: two spellings of one app is two apps. [D-19]
+   */
+  ...INSTALLS,
   title: 'Library — BalanceVid',
   description: 'What you have made, and what you have sent.',
   /*

@@ -1,10 +1,16 @@
 import type { Metadata } from 'next';
 
+import { GROUND, INSTALLS } from './installs.js';
 import TakeHome from './TakeHome.js';
 
 export const dynamic = 'force-dynamic';
 
+/* The status bar, which `metadata` cannot carry. [installs.ts] */
+export const viewport = GROUND;
+
 export const metadata: Metadata = {
+  /* What makes this an app and not a page. [installs.ts] */
+  ...INSTALLS,
   title: 'BalanceVid — take part',
   description: 'Watch, listen, and take part.',
 };

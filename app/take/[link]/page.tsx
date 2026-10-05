@@ -1,8 +1,22 @@
 import type { Metadata } from 'next';
 
+import { GROUND } from '../installs.js';
 import TakeApp from './TakeApp.js';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * THE PAGE'S OWN GROUND, so a phone that has installed this paints the
+ * status bar to match instead of flashing white on launch.
+ *
+ * IT WAS A FIELD OF THE METADATA AND SO IT WAS NEVER THERE. Next
+ * accepts `themeColor` in a `Metadata` object, builds it without a
+ * word, and emits nothing — found by reading the head of the served
+ * page. The colour is shared with the application's own pages
+ * because it is the same ground; nothing else about the manifest is.
+ * [installs.ts, U-02, D-19]
+ */
+export const viewport = GROUND;
 
 /**
  * What a phone needs to install this.  [TAKE-APP T2c, T13a]
@@ -22,11 +36,6 @@ export function generateMetadata(
 ): Metadata {
   return {
     title: 'Your take · BalanceVid',
-    /*
-     * THE PAGE'S OWN GROUND, so a phone that has installed it paints
-     * the status bar to match instead of flashing white on launch.
-     */
-    themeColor: '#0e0f11',
     appleWebApp: {
       capable: true,
       title: 'Your take',

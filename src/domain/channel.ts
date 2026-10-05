@@ -30,6 +30,7 @@
  * product that keeps running when nobody is looking at it. [§2]
  */
 
+import { civilDay } from './calendar.js';
 import type { TakeAccess } from './availability.js';
 import type { Id } from './ids.js';
 import type { ChannelIdentity } from './identity.js';
@@ -1052,20 +1053,19 @@ export function orderedBlocks(channel: Channel): ChannelBlock[] {
  * breakfast, and a channel whose morning block started at five for one day
  * every spring would be a channel with a bug nobody could reproduce in
  * summer. [§2]
+ *
+ * THE DAY IS COUNTED, NOT RECOGNISED. This read the weekday by asking
+ * `Intl` for its short name and finding that name in a list, and a miss
+ * gave -1, which `Math.max(0, …)` made Sunday. The names are locale
+ * data and locale data is a version — the browser and the server in
+ * this very product already disagree about whether British English puts
+ * a comma after `Mon`. `calendar.ts` counts the weekday off the date.
  */
 export function localDay(channel: Channel, at: number): {
   minute: number; weekday: number;
 } {
-  const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone: channel.timezone,
-    hour: '2-digit', minute: '2-digit', weekday: 'short', hour12: false,
-  }).formatToParts(new Date(at));
-  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? '0';
-  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  return {
-    minute: Number(get('hour')) * 60 + Number(get('minute')),
-    weekday: Math.max(0, days.indexOf(get('weekday'))),
-  };
+  const { minuteOfDay, weekday } = civilDay(at, channel.timezone);
+  return { minute: minuteOfDay, weekday };
 }
 
 /**
