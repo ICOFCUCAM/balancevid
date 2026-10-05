@@ -331,8 +331,17 @@ describe('what the controls say', () => {
    * is granted and a menu of "Camera 1, Camera 2" helps nobody.
    */
   it('waits for real labels before offering a camera menu', () => {
-    expect(STUDIO).toMatch(/camera\.devices\.named && camera\.devices\.cameras\.length > 1/);
-    expect(TAKE).toMatch(/camera\.devices\.named && camera\.devices\.cameras\.length > 1/);
+    /*
+     * MATCHED ACROSS A LINE BREAK, because the claim is the
+     * CONDITION and not where the formatter put it. The Take
+     * App's viewfinder redesign wrapped this one and the test
+     * failed on a newline while the guard was exactly where it
+     * had always been — which is a test of the layout of the
+     * source, not of the product. [T-1]
+     */
+    const waits = /camera\.devices\.named\s*\n?\s*&& camera\.devices\.cameras\.length > 1/;
+    expect(STUDIO).toMatch(waits);
+    expect(TAKE).toMatch(waits);
   });
 });
 

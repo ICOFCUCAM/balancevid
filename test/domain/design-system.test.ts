@@ -559,6 +559,21 @@ describe('a chosen control', () => {
         const open = body.lastIndexOf('<button', match.index);
         if (open < 0) continue;
         const tag = body.slice(open, body.indexOf('>', match.index));
+        /*
+         * AND IT HAS TO BE IN THE BUTTON'S OWN TAG.
+         *
+         * `lastIndexOf('<button')` finds the nearest button
+         * BEFORE the attribute, which is not the same as the
+         * element carrying it. The Take App's new level meter
+         * puts `data-on` on twelve `<span>`s, and every one of
+         * them was attributed to a withdraw button forty lines
+         * above — a real button, correctly written, reported
+         * as an offender twelve times.
+         *
+         * A tag that has already closed cannot be carrying
+         * this attribute, and that is the whole check.
+         */
+        if (tag.includes('>')) continue;
         if (!/aria-(pressed|selected|expanded)=/.test(tag)) {
           offenders.push(`${file.slice(file.indexOf('app/'))}: ${
             /data-testid="([^"]+)"/.exec(tag)?.[1] ?? 'a button'}`);

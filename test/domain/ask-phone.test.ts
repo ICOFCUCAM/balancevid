@@ -232,10 +232,23 @@ describe('the phone, with no song to record against', () => {
    * [U-04]
    */
   it('does not draw a camera for a request that has none', () => {
-    expect(app).toMatch(/\{!soundOnly && \(\s*\n\s*<video/);
+    /*
+     * THE VIEWFINDER REDESIGN MOVED EVERY ONE OF THESE AND
+     * CHANGED NONE OF THEM. The picture is the page now and the
+     * chrome sits on the glass, so the branch is a ternary
+     * rather than two guards and the empty-rectangle case has a
+     * class of its own — but the claim is the same claim: a
+     * request that may not send video gets no camera, no
+     * phone-sized hole, and a sentence saying which it is.
+     */
+    expect(app).toMatch(/soundOnly\s*\n?\s*\?/);
+    expect(app).toMatch(/<video\s*\n\s*data-testid="take-camera"/);
     expect(app).toMatch(/recording\.phase === 'idle' && !soundOnly/);
-    expect(app).toMatch(/\? \{ minHeight: 132, display: 'grid', placeItems: 'center' \}/);
-    expect(app).toMatch(/'Sound only \\u2014 nothing is filmed'/);
+    /* The sound-only frame is its own thing with its own
+       height, rather than a camera-shaped box with nothing in
+       it. [take.css `.rec[data-sound='true']`] */
+    expect(app).toContain('className="rec-sound"');
+    expect(app).toContain('Sound only — nothing is filmed');
   });
 
   /*
@@ -243,6 +256,42 @@ describe('the phone, with no song to record against', () => {
    * denominator of nothing is a progress bar that is always full.
    */
   it('shows no total when there is no song to be through', () => {
-    expect(app).toMatch(/\{reference && \(\s*\n\s*<span style=\{\{ color: 'var\(--ink-400\)' \}\}>/);
+    /* The tone moved to a class when the clock moved onto the
+       glass; the condition did not. [take.css `.rec-clock-of`] */
+    expect(app).toMatch(
+      /\{reference && \(\s*\n\s*<span className="rec-clock-of">/);
+  });
+
+  /*
+   * AND THE VIEWFINDER DID NOT ACQUIRE A METER THAT LIES.
+   *   [T3, U-19, D-19]
+   *
+   * A church recording a service on a phone at the back of a
+   * hall has one way to discover the microphone was muted and
+   * it is afterwards, so the glass carries a level. What it
+   * must not be is a second loudness calculation: the control
+   * room's meters already answer *is anybody talking*, and two
+   * answers would disagree on exactly the quiet sentence where
+   * it matters.
+   */
+  it('reads the level off the meter the control room already uses', () => {
+    expect(app).toContain('useFeedLevels');
+    expect(app).toMatch(/useFeedLevels\(tapped, recording\.stream !== null\)/);
+    /* And no analyser of its own. */
+    expect(app).not.toContain('AnalyserNode');
+    expect(app).not.toContain('new AudioContext');
+  });
+
+  /*
+   * THE FLIP IS DRAWN ONLY WHERE THERE IS SOMETHING TO FLIP
+   * BETWEEN. Singing to the phone and filming the room are the
+   * two things this app is for, and the difference between them
+   * was three taps inside a disclosure. A flip button over one
+   * camera is a button that does nothing. [D-21]
+   */
+  it('offers a flip only when the browser has named two cameras', () => {
+    expect(app).toMatch(
+      /camera\.devices\.named\s*\n?\s*&& camera\.devices\.cameras\.length > 1/);
+    expect(app).toContain('data-testid="take-flip"');
   });
 });
