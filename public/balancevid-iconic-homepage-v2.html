@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BalanceVid — Video should not end at play.</title>
+<meta name="description" content="BalanceVid is the complete video production, broadcasting and participation platform.">
+<style>
+:root{
+  --bg:#07111f;
+  --bg2:#0b1728;
+  --paper:#f5f7fa;
+  --white:#fff;
+  --ink:#09111d;
+  --muted:#6d7887;
+  --line:rgba(9,17,29,.12);
+  --line-dark:rgba(255,255,255,.14);
+  --blue:#1677ff;
+  --blue2:#4ca2ff;
+  --cyan:#65c7ff;
+  --max:1440px;
+  --pad:clamp(22px,4vw,64px);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;
+  font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  background:var(--paper);
+  color:var(--ink);
+  -webkit-font-smoothing:antialiased;
+}
+a{color:inherit;text-decoration:none}
+button{font:inherit}
+.wrap{width:min(var(--max),calc(100% - var(--pad)*2));margin:auto}
+.eyebrow{
+  font-size:11px;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  font-weight:800;
+  color:var(--muted);
+}
+.dark .eyebrow{color:#8f9daf}
+h1,h2,h3,p{margin:0}
+.display{
+  font-size:clamp(56px,9.4vw,152px);
+  line-height:.88;
+  letter-spacing:-.075em;
+  font-weight:800;
+}
+.section-title{
+  font-size:clamp(42px,6.8vw,94px);
+  line-height:.91;
+  letter-spacing:-.065em;
+  font-weight:780;
+}
+.body{
+  font-size:clamp(16px,1.4vw,20px);
+  line-height:1.5;
+  color:var(--muted);
+}
+.dark .body{color:#aab5c5}
+
+/* NAV */
+.nav{
+  position:fixed;z-index:50;top:0;left:0;right:0;
+  height:64px;
+  background:rgba(4,12,23,.76);
+  border-bottom:1px solid rgba(255,255,255,.1);
+  backdrop-filter:blur(20px);
+}
+.nav-inner{
+  height:100%;width:min(var(--max),calc(100% - 36px));margin:auto;
+  display:flex;align-items:center;gap:30px;
+}
+.logo{display:flex;align-items:center;gap:9px;color:#fff;font-weight:800;letter-spacing:-.03em}
+.logo-mark{
+  width:25px;height:25px;border-radius:7px;
+  display:grid;place-items:center;
+  background:linear-gradient(135deg,#1d8cff,#63c8ff);
+  color:#07111f;font-size:11px;font-weight:900;
+}
+.navlinks{display:flex;gap:23px;margin-left:auto}
+.navlinks a{font-size:12px;color:#c8d0dc}
+.navlinks a:hover{color:#fff}
+.nav-actions{display:flex;gap:9px}
+.btn{
+  border:1px solid rgba(255,255,255,.18);
+  background:transparent;color:#fff;
+  border-radius:5px;padding:9px 14px;
+  font-size:11px;font-weight:750;
+  cursor:pointer;
+}
+.btn.primary{background:#fff;color:#07111f;border-color:#fff}
+.btn.blue{background:var(--blue);border-color:var(--blue);color:#fff}
+@media(max-width:900px){
+  .navlinks{display:none}
+  .nav-inner{justify-content:space-between}
+}
+
+/* HERO */
+.hero{
+  min-height:100svh;
+  background:
+    radial-gradient(circle at 70% 35%,rgba(32,122,255,.2),transparent 35%),
+    linear-gradient(90deg,rgba(4,12,23,.98) 0%,rgba(4,12,23,.84) 37%,rgba(4,12,23,.18) 76%,rgba(4,12,23,.55)),
+    url("https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?auto=format&fit=crop&w=2200&q=88") center/cover;
+  color:#fff;
+  position:relative;display:flex;align-items:center;
+  overflow:hidden;
+}
+.hero:after{
+  content:"";position:absolute;inset:0;
+  background:linear-gradient(0deg,#07111f 0%,transparent 23%);
+  pointer-events:none;
+}
+.hero-inner{position:relative;z-index:2;padding-top:80px;width:min(var(--max),calc(100% - var(--pad)*2));margin:auto}
+.hero-copy{max-width:900px}
+.hero .eyebrow{color:#a9b8ca;margin-bottom:24px}
+.hero h1{max-width:980px}
+.hero h1 span{color:var(--cyan)}
+.hero-sub{
+  max-width:560px;margin-top:30px;
+  color:#c6cfdb;font-size:17px;line-height:1.55;
+}
+.hero-actions{display:flex;gap:12px;margin-top:30px;flex-wrap:wrap}
+.hero-system{
+  margin-top:82px;
+  display:grid;grid-template-columns:repeat(4,1fr);
+  border-top:1px solid rgba(255,255,255,.2);
+  max-width:920px;
+}
+.hero-stage{
+  padding:18px 18px 10px 0;
+  border-right:1px solid rgba(255,255,255,.14);
+  margin-right:18px;
+}
+.hero-stage:last-child{border-right:0}
+.stage-no{font-size:10px;color:#7e8da0;letter-spacing:.12em}
+.stage-name{font-size:17px;font-weight:800;margin-top:7px}
+.stage-desc{font-size:10px;color:#94a2b4;margin-top:4px}
+@media(max-width:650px){
+  .hero-system{grid-template-columns:1fr 1fr}
+  .hero-stage{margin-bottom:12px}
+}
+
+/* STATEMENT */
+.statement{
+  min-height:76vh;background:#fff;
+  display:flex;align-items:center;
+}
+.statement .wrap{display:grid;grid-template-columns:1.3fr .7fr;gap:10vw;align-items:end}
+.statement-copy{max-width:1000px}
+.statement-mark{
+  border-top:1px solid var(--line);
+  padding-top:18px;
+  font-size:13px;line-height:1.5;color:var(--muted);
+}
+@media(max-width:800px){.statement .wrap{grid-template-columns:1fr}}
+
+/* FOUR WORLDS */
+.worlds{background:#07111f;color:#fff}
+.world{
+  min-height:82vh;
+  border-top:1px solid var(--line-dark);
+  display:grid;grid-template-columns:42% 58%;
+}
+.world-copy{
+  padding:clamp(55px,8vw,120px) var(--pad);
+  display:flex;flex-direction:column;justify-content:center;
+}
+.world-copy .num{font-size:12px;color:#728096;letter-spacing:.15em;margin-bottom:25px}
+.world h2{font-size:clamp(48px,6.5vw,102px);line-height:.88;letter-spacing:-.07em}
+.world h2 span{color:#6ac9ff}
+.world-code{
+  margin-top:34px;font-size:13px;color:#9ba8b8;letter-spacing:.03em;
+}
+.world-desc{max-width:440px;margin-top:24px;color:#9ba8b8;line-height:1.6;font-size:15px}
+.world-link{margin-top:30px;font-size:12px;font-weight:800;color:#fff}
+.world-visual{
+  min-height:82vh;position:relative;overflow:hidden;
+  background:#0d1a2b;
+}
+.world-visual:before{
+  content:"";position:absolute;inset:8% 8%;
+  border:1px solid rgba(255,255,255,.12);
+  background:
+    linear-gradient(145deg,rgba(255,255,255,.05),rgba(255,255,255,.01)),
+    url("https://images.unsplash.com/photo-1492724441997-5dc865305da7?auto=format&fit=crop&w=1500&q=85") center/cover;
+  box-shadow:0 40px 100px rgba(0,0,0,.35);
+}
+.world:nth-child(3) .world-visual:before{
+  background:
+    linear-gradient(145deg,rgba(20,119,255,.18),rgba(0,0,0,.08)),
+    url("https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=1500&q=85") center/cover;
+}
+.world:nth-child(4) .world-visual:before{
+  background:
+    linear-gradient(145deg,rgba(13,43,76,.12),rgba(0,0,0,.08)),
+    url("https://images.unsplash.com/photo-1598387993281-cecf8b71a8f8?auto=format&fit=crop&w=1500&q=85") center/cover;
+}
+.world:nth-child(5) .world-visual:before{
+  background:
+    linear-gradient(145deg,rgba(15,123,255,.22),rgba(0,0,0,.1)),
+    url("https://images.unsplash.com/photo-1521737711867-e3b97375f902?auto=format&fit=crop&w=1500&q=85") center/cover;
+}
+.visual-ui{
+  position:absolute;left:11%;right:11%;bottom:10%;
+  padding:14px 16px;
+  background:rgba(5,14,25,.83);
+  border:1px solid rgba(255,255,255,.18);
+  backdrop-filter:blur(12px);
+  display:flex;align-items:center;justify-content:space-between;
+  font-size:10px;color:#dce5ef;
+}
+.visual-ui strong{font-size:11px;color:#fff}
+.tally{display:flex;gap:6px;align-items:center}
+.dot{width:7px;height:7px;border-radius:50%;background:#ff405c;box-shadow:0 0 14px rgba(255,64,92,.7)}
+@media(max-width:800px){
+  .world{grid-template-columns:1fr}
+  .world-visual{min-height:55vh}
+}
+
+/* PLATFORM */
+.platform{background:#fff;padding:clamp(100px,13vw,190px) 0}
+.platform-head{display:grid;grid-template-columns:1fr 1fr;gap:8vw;align-items:end}
+.platform-grid{margin-top:80px;display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line)}
+.platform-card{
+  background:#fff;min-height:480px;padding:clamp(30px,4vw,60px);
+  position:relative;overflow:hidden;
+}
+.platform-card h3{font-size:clamp(32px,4vw,58px);letter-spacing:-.055em;line-height:.95}
+.platform-card p{max-width:420px;margin-top:18px;color:var(--muted);line-height:1.6}
+.platform-art{
+  position:absolute;right:0;bottom:0;width:62%;height:52%;
+  background:linear-gradient(135deg,#102239,#06101d);
+  overflow:hidden;
+}
+.platform-art.cloud:after{
+  content:"";position:absolute;inset:15%;
+  border:1px solid rgba(101,199,255,.35);
+  box-shadow:0 0 80px rgba(22,119,255,.3);
+}
+.platform-art.server{
+  background:
+    linear-gradient(90deg,transparent 49%,rgba(255,255,255,.08) 50%,transparent 51%),
+    repeating-linear-gradient(0deg,#0b1a2b 0 24px,#10243b 25px 27px);
+}
+.platform-tag{
+  position:absolute;left:28px;bottom:28px;z-index:2;
+  color:#fff;font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;
+}
+@media(max-width:750px){
+  .platform-head,.platform-grid{grid-template-columns:1fr}
+}
+
+/* NETWORK */
+.network{
+  background:#07111f;color:#fff;padding:clamp(110px,14vw,190px) 0;
+}
+.network-head{max-width:1000px}
+.network-head h2{margin-top:20px}
+.network-board{
+  margin-top:80px;
+  display:grid;grid-template-columns:1.3fr .7fr;
+  min-height:600px;border:1px solid var(--line-dark);
+}
+.network-screen{
+  padding:clamp(25px,4vw,55px);
+  background:
+    linear-gradient(135deg,rgba(19,111,255,.14),rgba(5,14,25,.9)),
+    url("https://images.unsplash.com/photo-1522869635100-9f4c5e86aa37?auto=format&fit=crop&w=1800&q=85") center/cover;
+  display:flex;flex-direction:column;justify-content:flex-end;
+}
+.network-screen h3{font-size:clamp(48px,7vw,92px);letter-spacing:-.07em;line-height:.85}
+.network-screen p{max-width:440px;color:#b8c4d2;margin-top:20px;line-height:1.55}
+.epg{background:#0c1829;padding:24px}
+.epg-head{display:flex;justify-content:space-between;border-bottom:1px solid var(--line-dark);padding-bottom:15px}
+.epg-row{
+  display:grid;grid-template-columns:65px 1fr 60px;
+  gap:12px;padding:18px 0;border-bottom:1px solid var(--line-dark);
+  font-size:11px;
+}
+.epg-row b{color:#fff}.epg-row span{color:#8190a4}.epg-row.live b{color:#69caff}
+@media(max-width:850px){.network-board{grid-template-columns:1fr}.network-screen{min-height:480px}}
+
+/* PARTICIPATION LOOP */
+.loop{background:#f5f7fa;padding:clamp(100px,13vw,180px) 0}
+.loop-head{display:grid;grid-template-columns:1fr .65fr;gap:8vw}
+.loop-diagram{
+  margin-top:90px;
+  display:grid;grid-template-columns:repeat(5,1fr);
+  border-top:1px solid var(--ink);border-bottom:1px solid var(--ink);
+}
+.loop-step{min-height:300px;padding:24px 20px;border-right:1px solid var(--line);display:flex;flex-direction:column;justify-content:space-between}
+.loop-step:last-child{border-right:0}
+.loop-step .n{font-size:11px;color:var(--muted)}
+.loop-step h3{font-size:clamp(27px,3vw,45px);letter-spacing:-.055em;line-height:.95}
+.loop-step p{font-size:12px;color:var(--muted);line-height:1.5}
+.loop-arrow{font-size:20px;color:var(--blue)}
+@media(max-width:850px){
+  .loop-head{grid-template-columns:1fr}
+  .loop-diagram{grid-template-columns:1fr}
+  .loop-step{border-right:0;border-bottom:1px solid var(--line);min-height:210px}
+}
+
+/* CONFIGURATOR */
+.configure{background:#fff;padding:clamp(100px,13vw,170px) 0;border-top:1px solid var(--line)}
+.config-grid{display:grid;grid-template-columns:.85fr 1.15fr;gap:8vw;margin-top:70px}
+.config-panel{border-top:1px solid var(--ink)}
+.config-row{
+  display:grid;grid-template-columns:170px 1fr;
+  padding:23px 0;border-bottom:1px solid var(--line);gap:20px;
+}
+.config-row label{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.13em}
+.options{display:flex;flex-wrap:wrap;gap:8px}
+.option{
+  border:1px solid #ccd3dc;background:#fff;padding:10px 13px;
+  font-size:11px;cursor:pointer;
+}
+.option.active{border-color:var(--blue);background:#edf5ff;color:#075fcb}
+.config-summary{
+  background:#07111f;color:#fff;padding:clamp(30px,4vw,55px);
+  min-height:440px;position:relative;
+}
+.summary-top{display:flex;justify-content:space-between;border-bottom:1px solid var(--line-dark);padding-bottom:20px}
+.summary-list{margin-top:30px;display:grid;gap:15px}
+.summary-item{display:flex;justify-content:space-between;color:#b4c0cf;font-size:13px}
+.summary-item strong{color:#fff}
+.summary-total{position:absolute;left:clamp(30px,4vw,55px);right:clamp(30px,4vw,55px);bottom:35px;border-top:1px solid var(--line-dark);padding-top:18px}
+@media(max-width:850px){.config-grid{grid-template-columns:1fr}.config-row{grid-template-columns:1fr}}
+
+/* DOWNLOADS */
+.downloads{background:#e9edf2;padding:clamp(90px,11vw,150px) 0}
+.download-head{display:flex;justify-content:space-between;align-items:end;gap:30px}
+.download-grid{margin-top:60px;display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#cfd5dc}
+.download-card{background:#f5f7fa;padding:28px;min-height:230px;display:flex;flex-direction:column}
+.download-card .icon{font-size:26px;margin-bottom:auto}
+.download-card h3{font-size:22px;letter-spacing:-.04em}
+.download-card p{font-size:12px;color:var(--muted);line-height:1.5;margin-top:8px}
+.download-card a{font-size:11px;font-weight:800;margin-top:18px;color:#075fcb}
+@media(max-width:900px){.download-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:550px){.download-grid{grid-template-columns:1fr}}
+
+/* RESOURCES */
+.resources{background:#fff}
+.resource-grid{display:grid;grid-template-columns:repeat(4,1fr)}
+.resource{padding:42px 30px;border-right:1px solid var(--line);min-height:190px}
+.resource:last-child{border-right:0}
+.resource h3{font-size:20px;letter-spacing:-.03em;margin-top:35px}
+.resource p{font-size:11px;color:var(--muted);line-height:1.5;margin-top:8px}
+@media(max-width:800px){.resource-grid{grid-template-columns:1fr 1fr}.resource{border-bottom:1px solid var(--line)}}
+@media(max-width:500px){.resource-grid{grid-template-columns:1fr}.resource{border-right:0}}
+
+/* FOOTER */
+.footer{background:#050d18;color:#fff;padding:70px 0 30px}
+.footer-main{display:grid;grid-template-columns:1.4fr repeat(4,1fr);gap:35px}
+.footer-brand p{font-size:12px;color:#7f8da0;max-width:220px;margin-top:15px;line-height:1.6}
+.footer-col h4{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:#68778b;margin:0 0 16px}
+.footer-col a{display:block;font-size:11px;color:#b1bdcb;margin:9px 0}
+.footer-bottom{margin-top:60px;padding-top:18px;border-top:1px solid var(--line-dark);display:flex;justify-content:space-between;font-size:10px;color:#657488}
+@media(max-width:800px){.footer-main{grid-template-columns:1fr 1fr}.footer-brand{grid-column:1/-1}}
+@media(max-width:500px){.footer-main{grid-template-columns:1fr}.footer-bottom{display:block}.footer-bottom span{display:block;margin-top:8px}}
+
+/* MICRO INTERACTION */
+.reveal{opacity:0;transform:translateY(18px);transition:opacity .8s ease,transform .8s ease}
+.reveal.show{opacity:1;transform:none}
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <div class="nav-inner">
+    <a class="logo" href="#"><span class="logo-mark">B</span>BalanceVid</a>
+    <nav class="navlinks">
+      <a href="#products">Products</a>
+      <a href="#platform">Platform</a>
+      <a href="#network">TV Network</a>
+      <a href="#configure">Build</a>
+      <a href="#downloads">Downloads</a>
+      <a href="#company">Company</a>
+    </nav>
+    <div class="nav-actions">
+      <button class="btn">Sign in</button>
+      <button class="btn primary">Get started</button>
+    </div>
+  </div>
+</header>
+
+<main>
+
+<section class="hero">
+  <div class="hero-inner">
+    <div class="hero-copy reveal">
+      <div class="eyebrow">The complete video platform</div>
+      <h1 class="display">Video should not <span>end at play.</span></h1>
+      <p class="hero-sub">Create conversations. Produce performances. Broadcast channels. Let audiences participate. BalanceVid connects the entire journey in one production system.</p>
+      <div class="hero-actions">
+        <a class="btn blue" href="#products">Explore BalanceVid</a>
+        <a class="btn" href="#configure">Build your system</a>
+      </div>
+      <div class="hero-system">
+        <div class="hero-stage"><div class="stage-no">01</div><div class="stage-name">Create</div><div class="stage-desc">Studio One</div></div>
+        <div class="hero-stage"><div class="stage-no">02</div><div class="stage-name">Produce</div><div class="stage-desc">Studio Two</div></div>
+        <div class="hero-stage"><div class="stage-no">03</div><div class="stage-name">Broadcast</div><div class="stage-desc">Online TV</div></div>
+        <div class="hero-stage"><div class="stage-no">04</div><div class="stage-name">Participate</div><div class="stage-desc">Take</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="statement">
+  <div class="wrap">
+    <div class="statement-copy reveal">
+      <div class="eyebrow">A different model for video</div>
+      <h2 class="section-title">Watch is only<br>the beginning.</h2>
+    </div>
+    <div class="statement-mark reveal">
+      Video becomes conversation.<br>
+      Conversation becomes performance.<br>
+      Performance becomes television.<br>
+      Television becomes participation.
+    </div>
+  </div>
+</section>
+
+<section id="products" class="worlds dark">
+
+  <article class="world">
+    <div class="world-copy reveal">
+      <div class="num">01 / STUDIO ONE</div>
+      <h2>Source.<br><span>Response.</span></h2>
+      <div class="world-code">WATCH → PAUSE → RESPOND</div>
+      <p class="world-desc">Turn source material into structured conversations. Capture, interrupt, explain, challenge and publish the finished response.</p>
+      <a class="world-link" href="#">Explore Studio One →</a>
+    </div>
+    <div class="world-visual">
+      <div class="visual-ui"><span><strong>STUDIO ONE</strong> / CONVERSATION PRODUCTION</span><span class="tally"><i class="dot"></i> LIVE PREVIEW</span></div>
+    </div>
+  </article>
+
+  <article class="world">
+    <div class="world-copy reveal">
+      <div class="num">02 / STUDIO TWO</div>
+      <h2>Takes.<br><span>Master.</span></h2>
+      <div class="world-code">TAKES → TIMELINE → MASTER</div>
+      <p class="world-desc">Bring multiple performances together. Align takes to a master clock, edit timing, shape the composition and create one finished performance.</p>
+      <a class="world-link" href="#">Explore Studio Two →</a>
+    </div>
+    <div class="world-visual">
+      <div class="visual-ui"><span><strong>STUDIO TWO</strong> / PERFORMANCE PRODUCTION</span><span>MASTER 01:42:18</span></div>
+    </div>
+  </article>
+
+  <article class="world">
+    <div class="world-copy reveal">
+      <div class="num">03 / ONLINE TV</div>
+      <h2>Programme.<br><span>Live.</span></h2>
+      <div class="world-code">PROGRAMME → PLAYOUT → LIVE</div>
+      <p class="world-desc">Operate a real internet television channel with scheduling, live production, graphics, playout, recording and public distribution.</p>
+      <a class="world-link" href="#">Explore Online TV →</a>
+    </div>
+    <div class="world-visual">
+      <div class="visual-ui"><span><strong>ONLINE TV</strong> / CHANNEL CONTROL</span><span class="tally"><i class="dot"></i> ON AIR</span></div>
+    </div>
+  </article>
+
+  <article class="world">
+    <div class="world-copy reveal">
+      <div class="num">04 / TAKE</div>
+      <h2>Audience.<br><span>Inside.</span></h2>
+      <div class="world-code">DISCOVER → PARTICIPATE → SUBMIT</div>
+      <p class="world-desc">Let viewers become contributors. Take connects mobile and desktop participants to BalanceVid production systems without turning participation into an afterthought.</p>
+      <a class="world-link" href="#">Explore Take →</a>
+    </div>
+    <div class="world-visual">
+      <div class="visual-ui"><span><strong>TAKE</strong> / AUDIENCE PARTICIPATION</span><span>3 PARTICIPANTS READY</span></div>
+    </div>
+  </article>
+
+</section>
+
+<section id="platform" class="platform">
+  <div class="wrap">
+    <div class="platform-head">
+      <div class="reveal">
+        <div class="eyebrow">The platform</div>
+        <h2 class="section-title">One system.<br>Two deployments.</h2>
+      </div>
+      <p class="body reveal">Use BalanceVid as managed infrastructure in the cloud, or operate the production system on your own hardware. The product remains the same; the deployment boundary changes.</p>
+    </div>
+
+    <div class="platform-grid">
+      <article class="platform-card reveal">
+        <div class="eyebrow">01 / Cloud</div>
+        <h3>We operate<br>the infrastructure.</h3>
+        <p>Managed storage, compute, channels, distribution and production services. Start quickly and scale without building the underlying system yourself.</p>
+        <div class="platform-art cloud"><span class="platform-tag">Managed infrastructure</span></div>
+      </article>
+      <article class="platform-card reveal">
+        <div class="eyebrow">02 / Self-hosted</div>
+        <h3>Your hardware.<br>Your environment.</h3>
+        <p>Install BalanceVid where you need it. Your storage, network, distribution and operational policies remain under your control.</p>
+        <div class="platform-art server"><span class="platform-tag">Customer-controlled infrastructure</span></div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section id="network" class="network dark">
+  <div class="wrap">
+    <div class="network-head reveal">
+      <div class="eyebrow">BalanceVid TV Network</div>
+      <h2 class="section-title">Your video can<br>become television.</h2>
+      <p class="body" style="max-width:620px;margin-top:28px">Channels become discoverable services with identities, schedules, live output and programme guides — not just isolated video players.</p>
+    </div>
+
+    <div class="network-board reveal">
+      <div class="network-screen">
+        <div class="eyebrow">BALANCEVID TV / LIVE</div>
+        <h3>Redemption<br>TV</h3>
+        <p>Live now · Conversation Hour<br>Next · Evening News · 20:00</p>
+      </div>
+      <div class="epg">
+        <div class="epg-head"><strong>TV GUIDE</strong><span style="color:#7f8da0;font-size:10px">TODAY</span></div>
+        <div class="epg-row live"><span>18:00</span><b>Conversation Hour</b><span>LIVE</span></div>
+        <div class="epg-row"><span>19:00</span><b>Studio Two</b><span>01:00</span></div>
+        <div class="epg-row"><span>20:00</span><b>Evening News</b><span>00:30</span></div>
+        <div class="epg-row"><span>20:30</span><b>Music House</b><span>01:30</span></div>
+        <div class="epg-row"><span>22:00</span><b>Documentary</b><span>01:00</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="loop">
+  <div class="wrap">
+    <div class="loop-head">
+      <div class="reveal">
+        <div class="eyebrow">The BalanceVid loop</div>
+        <h2 class="section-title">The audience is<br>part of the medium.</h2>
+      </div>
+      <p class="body reveal">A performance can become a Take. A Take can become a production. A production can become television. Television can send the next audience back into the system.</p>
+    </div>
+
+    <div class="loop-diagram">
+      <div class="loop-step reveal"><span class="n">01</span><h3>Watch</h3><p>Discover a channel, programme or performance.</p><span class="loop-arrow">→</span></div>
+      <div class="loop-step reveal"><span class="n">02</span><h3>Respond</h3><p>Pause, comment, contribute or answer through Take.</p><span class="loop-arrow">→</span></div>
+      <div class="loop-step reveal"><span class="n">03</span><h3>Perform</h3><p>Capture new material and bring it into production.</p><span class="loop-arrow">→</span></div>
+      <div class="loop-step reveal"><span class="n">04</span><h3>Broadcast</h3><p>Assemble programmes and put them on air.</p><span class="loop-arrow">→</span></div>
+      <div class="loop-step reveal"><span class="n">05</span><h3>Return</h3><p>The new programme becomes the next invitation.</p><span class="loop-arrow">↺</span></div>
+    </div>
+  </div>
+</section>
+
+<section id="configure" class="configure">
+  <div class="wrap">
+    <div class="reveal">
+      <div class="eyebrow">System architect</div>
+      <h2 class="section-title">Build your<br>BalanceVid.</h2>
+      <p class="body" style="max-width:650px;margin-top:25px">Choose the production capabilities, deployment model and capacity that fit your operation. This is the platform — not a collection of disconnected subscriptions.</p>
+    </div>
+
+    <div class="config-grid">
+      <div class="config-panel reveal">
+        <div class="config-row">
+          <label>Products</label>
+          <div class="options">
+            <button class="option active">Studio One</button>
+            <button class="option active">Studio Two</button>
+            <button class="option active">Online TV</button>
+            <button class="option active">Take</button>
+          </div>
+        </div>
+        <div class="config-row">
+          <label>Deployment</label>
+          <div class="options">
+            <button class="option active">Cloud</button>
+            <button class="option">Self-hosted</button>
+          </div>
+        </div>
+        <div class="config-row">
+          <label>Capacity</label>
+          <div class="options">
+            <button class="option active">Production</button>
+            <button class="option">Broadcast</button>
+            <button class="option">Enterprise</button>
+          </div>
+        </div>
+        <div class="config-row">
+          <label>Add-ons</label>
+          <div class="options">
+            <button class="option">Translation</button>
+            <button class="option">Distribution</button>
+            <button class="option">Additional storage</button>
+          </div>
+        </div>
+      </div>
+
+      <aside class="config-summary reveal">
+        <div class="summary-top"><span class="eyebrow" style="color:#8f9daf">Your system</span><span style="font-size:11px;color:#718095">CONFIGURED</span></div>
+        <div class="summary-list">
+          <div class="summary-item"><span>Studio One</span><strong>Included</strong></div>
+          <div class="summary-item"><span>Studio Two</span><strong>Included</strong></div>
+          <div class="summary-item"><span>Online TV</span><strong>Included</strong></div>
+          <div class="summary-item"><span>Take</span><strong>Included</strong></div>
+          <div class="summary-item"><span>Deployment</span><strong>Cloud</strong></div>
+          <div class="summary-item"><span>Capacity</span><strong>Production</strong></div>
+        </div>
+        <div class="summary-total">
+          <div style="font-size:10px;color:#718095;text-transform:uppercase;letter-spacing:.12em">Commercial configuration</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px"><strong style="font-size:22px">Choose a plan</strong><a class="btn primary" href="#">Continue →</a></div>
+        </div>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<section id="downloads" class="downloads">
+  <div class="wrap">
+    <div class="download-head">
+      <div class="reveal"><div class="eyebrow">Take it with you</div><h2 class="section-title">One platform.<br>Every endpoint.</h2></div>
+      <p class="body reveal" style="max-width:400px">Use BalanceVid where production happens: mobile, desktop, server or managed cloud.</p>
+    </div>
+
+    <div class="download-grid">
+      <article class="download-card reveal"><div class="icon">↗</div><h3>Take for Android</h3><p>Audience participation and capture on Android devices.</p><a href="#">Google Play →</a></article>
+      <article class="download-card reveal"><div class="icon">◉</div><h3>Take for iOS</h3><p>Capture, participate and submit from iPhone and iPad.</p><a href="#">App Store →</a></article>
+      <article class="download-card reveal"><div class="icon">▣</div><h3>BalanceVid Desktop</h3><p>Windows and Linux capture, production and station workflows.</p><a href="#">Download desktop →</a></article>
+      <article class="download-card reveal"><div class="icon">⌘</div><h3>Self-hosted</h3><p>Install the platform in your own environment and operate it yourself.</p><a href="#">Installation guide →</a></article>
+    </div>
+  </div>
+</section>
+
+<section class="resources" id="company">
+  <div class="wrap">
+    <div class="resource-grid">
+      <a class="resource reveal" href="#"><div class="eyebrow">01</div><h3>System requirements</h3><p>Hardware, browser, network and production requirements.</p></a>
+      <a class="resource reveal" href="#"><div class="eyebrow">02</div><h3>Documentation</h3><p>Build, operate and understand BalanceVid.</p></a>
+      <a class="resource reveal" href="#"><div class="eyebrow">03</div><h3>Specifications</h3><p>Architecture, media, channels and platform contracts.</p></a>
+      <a class="resource reveal" href="#"><div class="eyebrow">04</div><h3>Developers</h3><p>APIs, integrations, deployment and technical resources.</p></a>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="footer">
+  <div class="wrap">
+    <div class="footer-main">
+      <div class="footer-brand">
+        <a class="logo" href="#"><span class="logo-mark">B</span>BalanceVid</a>
+        <p>Video. Production. Television. Participation.</p>
+      </div>
+      <div class="footer-col"><h4>Products</h4><a href="#">Studio One</a><a href="#">Studio Two</a><a href="#">Online TV</a><a href="#">Take</a></div>
+      <div class="footer-col"><h4>Platform</h4><a href="#">Cloud</a><a href="#">Self-hosted</a><a href="#">TV Network</a><a href="#">Distribution</a></div>
+      <div class="footer-col"><h4>Resources</h4><a href="#">Documentation</a><a href="#">Specifications</a><a href="#">Developers</a><a href="#">Downloads</a></div>
+      <div class="footer-col"><h4>Company</h4><a href="#">About</a><a href="#">Contact</a><a href="#">Trust</a><a href="#">Legal</a></div>
+    </div>
+    <div class="footer-bottom"><span>© 2026 BalanceVid</span><span>Privacy · Terms · Security</span></div>
+  </div>
+</footer>
+
+<script>
+document.querySelectorAll('.option').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    const row=btn.closest('.config-row');
+    if(!row) return;
+    if(btn.textContent.trim()!=='Studio One' && btn.textContent.trim()!=='Studio Two' && btn.textContent.trim()!=='Online TV' && btn.textContent.trim()!=='Take'){
+      row.querySelectorAll('.option').forEach(x=>x.classList.remove('active'));
+    }
+    btn.classList.toggle('active');
+  });
+});
+const observer=new IntersectionObserver(entries=>{
+  entries.forEach(e=>{if(e.isIntersecting)e.target.classList.add('show')});
+},{threshold:.08});
+document.querySelectorAll('.reveal').forEach(el=>observer.observe(el));
+</script>
+</body>
+</html>
