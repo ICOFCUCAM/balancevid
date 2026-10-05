@@ -1293,21 +1293,22 @@ export default function SwitchingStage({
   );
 
   return (
-    <div data-testid="switching-stage" style={{
-      /*
-       * Three panels in one row, then the timeline under all three, then the
-       * transport under that. Named areas rather than nested flexboxes: the
-       * timeline has to span the full width, and a timeline nested inside the
-       * middle column cannot — which is exactly what it did when this was two
-       * columns with the stage and the panel inside one of them.
-       */
-      display: 'grid', minHeight: 0, gap: 12,
-      gridTemplateColumns: 'minmax(250px, 330px) minmax(0, 1fr) minmax(290px, 360px)',
-      gridTemplateAreas: '"takes stage panel" "timeline timeline timeline" '
-        + '"inspector inspector inspector" "notes notes notes" '
-        + '"transport transport transport"',
-      alignItems: 'start',
-    }}>
+    /*
+     * Three panels in one row, then the timeline under all three. Named
+     * areas rather than nested flexboxes: the timeline has to span the
+     * full width, and a timeline nested inside the middle column cannot
+     * — which is exactly what it did when this was two columns with the
+     * stage and the panel inside one of them.
+     *
+     * THE GRID MOVED INTO THE STYLESHEET, where the brief's room is
+     * drawn. The one thing it changes is that the TRANSPORT is now a
+     * row of the centre column rather than a band under everything:
+     * the brief puts it under the stage, between the two rails, which
+     * is where the keys are reached from. Moving it there by name
+     * rather than by moving 1,800 lines of JSX is why the areas are
+     * named at all. [STUDIO-TWO §12]
+     */
+    <div data-testid="switching-stage" className="workspace">
       {confirmDialog}
       {menu}
       {/*
