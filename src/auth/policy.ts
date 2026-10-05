@@ -30,6 +30,22 @@ import type { StudioId } from '../domain/account.js';
  * nobody can audit. Anything not matched here needs a session, so a route
  * added tomorrow is private by default rather than accidentally open.
  */
+/**
+ * Where an anonymous request for `/` is rewritten.
+ *   [TV-NETWORK N-1; Doctrine D-19]
+ *
+ * ONE SPELLING, BECAUSE TWO WOULD BE A PRIVATE MARKETING SITE.
+ * `middleware.ts` rewrites to this path and the line below
+ * makes it reachable; written out twice, the day one of them
+ * changed the gateway would answer 302-to-sign-in to the whole
+ * internet and nothing in the product would look wrong.
+ *
+ * IT LIVES HERE RATHER THAN BESIDE `STATION_PATH`, which is the
+ * other rewrite target, only because `hosting.ts` imports this
+ * file for `isAssetPath` and the reverse would be a cycle.
+ */
+export const GATEWAY_PATH = '/gateway';
+
 const PUBLIC_EXACT = new Set([
   '/api/health',      // the deployment's health check, which has no session
   /*
@@ -70,6 +86,26 @@ const PUBLIC_EXACT = new Set([
   '/signin',
   '/api/auth/signin',
   '/api/auth/signout',
+  /*
+   * THE FRONT DOOR, AND THE PAGE BEHIND IT.
+   *   [TV-NETWORK N-1; D-21, D-24]
+   *
+   * > *"keep `balancevid.com` → public BalanceVid/product
+   * > gateway"*
+   *
+   * `/` WAS A REDIRECT TO A PASSWORD PROMPT. A stranger who
+   * typed the installation's address was asked to sign in
+   * before being told what they would be signing in to — and
+   * the three public surfaces this product already has (`/tv`,
+   * `/take`, `/go`) were unreachable from it. The root is the
+   * one address everybody tries first; it answered nobody.
+   *
+   * READ ONLY, which `mayBePublic` enforces a few lines down:
+   * a POST to `/` is still refused, so nothing about this opens
+   * a write to a stranger.
+   */
+  '/',
+  GATEWAY_PATH,
 ]);
 
 const PUBLIC_PATTERNS: RegExp[] = [
@@ -433,6 +469,17 @@ const ASSET_PATTERNS: RegExp[] = [
    * caught it.
    */
   /^\/rooms\/[A-Za-z0-9_.-]+\.(webp|png|jpg|jpeg|avif|svg)$/,
+  /*
+   * AND THE GATEWAY'S NINE.  [N-1]
+   *
+   * The same argument as the three above it, with the stakes
+   * raised: every one of these is a full-bleed background on
+   * the page a stranger lands on, so a session wall in front of
+   * them is not a broken thumbnail — it is a product gateway
+   * made of black rectangles. `public/images/balancevid-*.jpg`
+   * are files in the repository and carry nothing.
+   */
+  /^\/images\/[A-Za-z0-9_.-]+\.(webp|png|jpg|jpeg|avif|svg)$/,
 ];
 
 export function isAssetPath(pathname: string): boolean {
