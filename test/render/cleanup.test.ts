@@ -49,7 +49,10 @@ beforeAll(async () => {
     '-y',
     '-f', 'lavfi', '-i', `sine=frequency=440:duration=${SECONDS}:sample_rate=${RATE}`,
     '-f', 'lavfi', '-i', `sine=frequency=50:duration=${SECONDS}:sample_rate=${RATE}`,
-    '-f', 'lavfi', '-i', `anoisesrc=d=${SECONDS}:c=white:a=0.06:r=${RATE}`,
+    /* Seeded, for the reason `sound.test.ts` gives: the default is a
+       random bed, and this measures what it is handed. */
+    '-f', 'lavfi',
+    '-i', `anoisesrc=d=${SECONDS}:c=white:a=0.06:r=${RATE}:seed=20261006`,
     '-filter_complex',
     '[0:a]volume=0.5[v];[1:a]volume=0.4[r];[v][r][2:a]amix=inputs=3:normalize=0[out]',
     '-map', '[out]', '-ac', '1', '-ar', String(RATE), noisy,
