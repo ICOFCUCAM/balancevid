@@ -13,7 +13,7 @@
 
 import { NextResponse, type NextRequest } from 'next/server';
 
-import { isAssetPath, mayBePublic } from './src/auth/policy.js';
+import { GATEWAY_PATH, isAssetPath, mayBePublic } from './src/auth/policy.js';
 import { SESSION_COOKIE, verifySession } from './src/auth/session.js';
 import { landingFor } from './src/web/hosting.js';
 
@@ -87,8 +87,36 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     return NextResponse.next();
   }
 
-  if (mayBePublic(pathname, request.method)) return NextResponse.next();
-  return deny(request, 'sign in to see this');
+  if (!mayBePublic(pathname, request.method)) {
+    return deny(request, 'sign in to see this');
+  }
+
+  /*
+   * THE PUBLIC SITE, AT THE PUBLIC ADDRESS.  [TV-NETWORK N-1]
+   *
+   * > *"keep `balancevid.com` → public BalanceVid/product
+   * > gateway and `balancevid.com/app/...` → authenticated
+   * > production environment."*
+   *
+   * SIGNED OUT GETS THE GATEWAY; SIGNED IN GETS THE BUILDING —
+   * and the branch is here because this is where the session
+   * already is. A page that asked the question a second time
+   * would be a second opinion about who is signed in, and the
+   * day the two disagreed one of them would be showing the
+   * marketing site to the owner or the control room to a
+   * stranger. [D-19, D-24]
+   *
+   * A REWRITE AND NOT A REDIRECT. The address of the public site
+   * is `/`, which is what gets printed on things, shared, and
+   * indexed; `/gateway` is where the page happens to live.
+   * `mayBePublic` has already refused anything that is not a GET
+   * or a HEAD, so this cannot swallow a POST.
+   */
+  if (pathname === '/') {
+    return NextResponse.rewrite(new URL(GATEWAY_PATH, request.url));
+  }
+
+  return NextResponse.next();
 }
 
 /**

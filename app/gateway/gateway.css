@@ -1,0 +1,1116 @@
+/**
+ * The gateway's own stylesheet.
+ *   [TV-NETWORK N-1; Doctrine D-19, D-24]
+ *
+ * > *"keep `balancevid.com` → public BalanceVid/product gateway and
+ * > `balancevid.com/app/...` → authenticated production environment."*
+ *
+ * EVERY VALUE IN THIS FILE IS THE ONE THAT WAS WRITTEN, to the
+ * digit: the ramp, the clamps, the tracking, the gradients and
+ * the breakpoints are transcribed rather than interpreted. What
+ * changed is where the rules point, and only where they had to.
+ *
+ * EVERY SELECTOR IS UNDER `.bv-site`, AND THAT IS NOT TIDINESS.
+ * This page is served by the same application as the control
+ * room, so the two stylesheets meet in one document —
+ *
+ *   OUT  `:root` here declares `--line` and `--muted`, which the
+ *        console's token ramp also declares. Unscoped, a marketing
+ *        page's hairline colour would be the desk's hairline
+ *        colour on every surface in the product.
+ *   IN   `globals.css` styles bare `a`, `h2`, `h3`, `button` and
+ *        `img`. Unscoped, the shop window would inherit the desk's
+ *        type scale and its link colour, and `h2 { font-size:
+ *        var(--text-lg) }` would flatten a 92px headline to 15.
+ *
+ * A prefix answers both directions at once: `.bv-site h2` is
+ * (0,1,1) against globals' (0,0,1), and nothing in here matches
+ * an element the gateway did not draw.
+ *
+ * `.hero` ALREADY EXISTED, in `app/styles/`, which is the leak
+ * that would not have been theoretical.
+ *
+ * AND IT IS NOT IN `app/styles/`, which is deliberate. That
+ * directory is the one stylesheet the whole application loads,
+ * and `design-system.test.ts` holds it to exactly that: every
+ * file in it must be imported by `globals.css`. A sheet that
+ * must NOT load everywhere does not belong in the directory
+ * whose contract is that everything loads everywhere. It sits
+ * with the route that owns it, and `gateway.test.ts` holds it to
+ * being imported there.
+ *
+ * THE CONSOLE'S BAN ON GLASS AND GLOW IS THE CONSOLE'S. A blurred
+ * navigation bar and a haloed LIVE dot are in here because the
+ * brief draws them, and because the reason for the ban does not
+ * reach this page: nothing here is a readout a director judges a
+ * programme by, and nothing here repaints thirty times a second.
+ * `design-system.test.ts` measures components, not this file, so
+ * the boundary is stated rather than discovered.
+ */
+
+.bv-site{
+  --ink:#071018;
+  --navy:#0a1724;
+  --navy2:#102638;
+  --blue:#2563ff;
+  --cyan:#4ed9ff;
+  --red:#ff3d3d;
+  --paper:#f4f3ef;
+  --white:#fff;
+  --muted:#8995a1;
+  --line:rgba(255,255,255,.14);
+  --darkline:rgba(7,16,24,.14);
+  --max:1480px;
+  --pad:clamp(22px,4vw,72px);
+  /*
+   * THE ONE TOKEN THE SOURCE DID NOT NAME. The four plan cards
+   * each carry `style="color:#8fa0ae"`, and an inline hex in a
+   * component is the thing `design-system.test.ts` ratchets
+   * down. The value is the author's, unchanged; only its home
+   * moved, so the markup can name it instead of repeating it
+   * four times. [D-19]
+   */
+  --plan-note:#8fa0ae;
+}
+
+.bv-site *{box-sizing:border-box}
+
+/*
+ * THE CONSOLE'S OWN ELEMENT RULES, UNDONE INSIDE THE SHOP
+ * WINDOW.  [Doctrine D-19, D-24]
+ *
+ * The header above names two directions and the prefix only
+ * closed one of them. A prefixed selector stops this sheet
+ * reaching the product; it does nothing about the product
+ * reaching this page, because `controls.css` styles bare
+ * `button` and `globals.css` styles bare `h1, h2, h3` — and a
+ * declaration this sheet never makes is a declaration the
+ * console still owns.
+ *
+ * FOUND IN A SCREENSHOT OF THE PRODUCT TABS. `.product-tab`
+ * says `text-align:left`, and all four tabs rendered centred:
+ * `button, .btn` makes every button an `inline-flex` with
+ * `justify-content:center`, so the alignment the brief asked
+ * for was being applied to a flex container that does not read
+ * it. Travelling with it, unasked: a 34px minimum height, a
+ * 4px corner radius, an inset highlight, a surface colour, a
+ * border, and a hover that repaints the tab in the control
+ * room's grey.
+ *
+ * AND THE HEADLINES WERE NOT THE WEIGHT THEY LOOK. `h1, h2, h3`
+ * sets `font-weight: var(--weight-bold)`, which is 640 — so a
+ * display face the brief draws at the browser's 700 was coming
+ * out a step light, uniformly, across every heading on the
+ * page. Nothing about that is visible without a second page to
+ * compare it to.
+ *
+ * SO THIS IS A RESET AND NOT A RESTYLE: every value below is
+ * the browser's own default, put back, so that the rules after
+ * it are the only opinion in the document. It sits here, before
+ * the first of them, because a reset after the thing it resets
+ * is a reset of the wrong file.
+ *
+ * THE INTERACTION STATES CARRY `:not(:disabled)` FOR ONE
+ * REASON: that is how `controls.css` spells them, and a plain
+ * `:hover` ties on specificity — which makes the winner the
+ * load order of two stylesheets, and the first version of this
+ * tied.
+ */
+.bv-site h1,
+.bv-site h2,
+.bv-site h3{
+  font-weight:bold;
+  line-height:normal;
+  letter-spacing:normal;
+  margin:0;
+}
+
+.bv-site button{
+  display:inline-block;
+  align-items:normal;
+  justify-content:normal;
+  gap:normal;
+  min-height:0;
+  padding:0;
+  margin:0;
+  color:inherit;
+  background:none;
+  border:0;
+  border-radius:0;
+  box-shadow:none;
+  transition:none;
+  font-weight:inherit;
+  line-height:normal;
+  letter-spacing:normal;
+  user-select:auto;
+}
+
+.bv-site button:hover:not(:disabled),
+.bv-site button:active:not(:disabled),
+.bv-site button:disabled{
+  background:none;
+  border-color:transparent;
+  box-shadow:none;
+  transform:none;
+  opacity:1;
+}
+
+.bv-site img,
+.bv-site video{
+  background-color:transparent;
+}
+
+/*
+ * SMOOTH SCROLLING BELONGS TO THE SCROLLER, which is the document
+ * and not this element — the whole navigation is in-page anchors.
+ * `:has()` is the only way to say *the document that contains the
+ * gateway* from a sheet that must not touch any other page, and
+ * where it is not understood the anchors jump instead of gliding,
+ * which is the behaviour every browser had until 2021. [U-19]
+ */
+html:has(.bv-site){scroll-behavior:smooth}
+
+.bv-site{
+  margin:0;
+  background:var(--paper);
+  color:var(--ink);
+  font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  /*
+   * AND IT FILLS THE WINDOW. `body` carried the paper colour in
+   * the source; here the application's own dark `body` is
+   * underneath, so a short page would end in a black band.
+   */
+  min-height:100vh;
+}
+
+.bv-site a{color:inherit;text-decoration:none}
+.bv-site button{font:inherit}
+.bv-site img{display:block;max-width:100%}
+
+.bv-site .container{
+  width:min(var(--max),calc(100% - var(--pad)*2));
+  margin:auto;
+}
+
+.bv-site .eyebrow{
+  font-size:11px;
+  letter-spacing:.18em;
+  text-transform:uppercase;
+  font-weight:800;
+}
+
+.bv-site .display{
+  font-size:clamp(58px,9vw,148px);
+  line-height:.86;
+  letter-spacing:-.075em;
+  font-weight:800;
+}
+
+.bv-site h2{
+  font-size:clamp(42px,6vw,92px);
+  line-height:.9;
+  letter-spacing:-.06em;
+  margin:0;
+}
+
+.bv-site h3{
+  font-size:clamp(28px,3vw,48px);
+  line-height:.95;
+  letter-spacing:-.045em;
+  margin:0;
+}
+
+.bv-site p{
+  line-height:1.65;
+  color:#55616b;
+}
+
+/* NAVIGATION */
+
+.bv-site .site-nav{
+  position:fixed;
+  top:0;
+  left:0;
+  right:0;
+  z-index:100;
+  height:76px;
+  color:white;
+  background:rgba(5,13,20,.72);
+  backdrop-filter:blur(18px);
+  border-bottom:1px solid rgba(255,255,255,.1);
+}
+
+.bv-site .nav-inner{
+  height:100%;
+  width:min(var(--max),calc(100% - 40px));
+  margin:auto;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:30px;
+}
+
+.bv-site .logo{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  font-size:19px;
+  font-weight:900;
+  letter-spacing:-.04em;
+}
+
+.bv-site .logo-mark{
+  width:28px;
+  height:28px;
+  border:2px solid white;
+  border-radius:50%;
+  position:relative;
+}
+
+.bv-site .logo-mark:after{
+  content:"";
+  position:absolute;
+  width:12px;
+  height:2px;
+  background:white;
+  right:-5px;
+  top:11px;
+  transform:rotate(-45deg);
+}
+
+.bv-site .nav-links{
+  display:flex;
+  align-items:center;
+  gap:26px;
+  font-size:13px;
+  color:#dce4eb;
+}
+
+.bv-site .nav-links a:hover{color:white}
+
+.bv-site .nav-actions{
+  display:flex;
+  gap:10px;
+  align-items:center;
+}
+
+.bv-site .nav-btn{
+  padding:11px 17px;
+  border:1px solid rgba(255,255,255,.25);
+  border-radius:2px;
+  font-size:12px;
+  font-weight:800;
+}
+
+.bv-site .nav-btn.primary{
+  background:white;
+  color:var(--ink);
+  border-color:white;
+}
+
+.bv-site .menu{
+  display:none;
+  background:none;
+  border:0;
+  color:white;
+  font-size:26px;
+}
+
+/* HERO */
+
+.bv-site .hero{
+  min-height:100svh;
+  background:
+    linear-gradient(90deg,
+      rgba(3,10,16,.97) 0%,
+      rgba(3,10,16,.84) 35%,
+      rgba(3,10,16,.32) 72%,
+      rgba(3,10,16,.52) 100%),
+    url("/images/balancevid-hero.jpg") center/cover;
+  color:white;
+  display:flex;
+  align-items:flex-end;
+  padding:150px 0 90px;
+}
+
+.bv-site .hero-grid{
+  display:grid;
+  grid-template-columns:minmax(0,1.2fr) minmax(300px,.55fr);
+  gap:80px;
+  align-items:end;
+}
+
+.bv-site .hero-copy{
+  max-width:920px;
+}
+
+.bv-site .hero .eyebrow{
+  color:var(--cyan);
+  margin-bottom:25px;
+}
+
+.bv-site .hero h1{
+  margin:0;
+  font-size:clamp(62px,9vw,148px);
+  line-height:.84;
+  letter-spacing:-.08em;
+  max-width:1000px;
+}
+
+.bv-site .hero-lead{
+  max-width:650px;
+  color:#d5dde4;
+  font-size:clamp(17px,1.5vw,22px);
+  margin:34px 0;
+}
+
+.bv-site .hero-actions{
+  display:flex;
+  gap:12px;
+  flex-wrap:wrap;
+}
+
+.bv-site .button{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-height:48px;
+  padding:0 20px;
+  border:1px solid currentColor;
+  font-size:12px;
+  font-weight:850;
+  letter-spacing:.04em;
+  text-transform:uppercase;
+}
+
+.bv-site .button.blue{
+  background:var(--blue);
+  border-color:var(--blue);
+  color:white;
+}
+
+.bv-site .button.light{
+  background:white;
+  color:var(--ink);
+  border-color:white;
+}
+
+.bv-site .hero-spine{
+  border-left:1px solid rgba(255,255,255,.25);
+  padding-left:28px;
+}
+
+.bv-site .spine-item{
+  display:flex;
+  gap:16px;
+  padding:16px 0;
+  border-bottom:1px solid rgba(255,255,255,.15);
+}
+
+.bv-site .spine-number{
+  color:var(--cyan);
+  font-weight:900;
+  font-size:11px;
+}
+
+.bv-site .spine-title{
+  font-size:13px;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+}
+
+/* SECTION FRAME */
+
+.bv-site .section{
+  padding:clamp(80px,10vw,170px) 0;
+}
+
+.bv-site .section-dark{
+  background:var(--navy);
+  color:white;
+}
+
+.bv-site .section-blue{
+  background:#071b35;
+  color:white;
+}
+
+.bv-site .section-header{
+  display:grid;
+  grid-template-columns:180px minmax(0,1fr);
+  gap:30px;
+  margin-bottom:70px;
+}
+
+.bv-site .section-header p{
+  max-width:650px;
+  margin:25px 0 0;
+}
+
+.bv-site .section-dark p,
+.bv-site .section-blue p{
+  color:#aebbc6;
+}
+
+/* PRODUCT ATLAS */
+
+.bv-site .product-nav{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  border-top:1px solid var(--darkline);
+  border-bottom:1px solid var(--darkline);
+  margin-bottom:0;
+}
+
+.bv-site .product-tab{
+  padding:25px 18px;
+  background:none;
+  border:0;
+  border-right:1px solid var(--darkline);
+  text-align:left;
+  cursor:pointer;
+  transition:.25s;
+}
+
+.bv-site .product-tab:last-child{border-right:0}
+
+.bv-site .product-tab.active{
+  background:var(--ink);
+  color:white;
+}
+
+.bv-site .product-tab small{
+  display:block;
+  font-size:10px;
+  font-weight:900;
+  letter-spacing:.15em;
+  margin-bottom:12px;
+  opacity:.55;
+}
+
+.bv-site .product-tab strong{
+  font-size:18px;
+  letter-spacing:-.03em;
+}
+
+.bv-site .product-panel{
+  display:none;
+  grid-template-columns:1fr 1fr;
+  min-height:650px;
+  background:var(--ink);
+  color:white;
+}
+
+.bv-site .product-panel.active{display:grid}
+
+.bv-site .product-image{
+  min-height:650px;
+  background-size:cover;
+  background-position:center;
+}
+
+.bv-site .product-copy{
+  padding:clamp(40px,6vw,90px);
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+}
+
+.bv-site .product-copy .eyebrow{
+  color:var(--cyan);
+  margin-bottom:22px;
+}
+
+.bv-site .product-copy h3{
+  font-size:clamp(40px,5vw,76px);
+}
+
+.bv-site .product-copy p{
+  color:#b7c1ca;
+  max-width:590px;
+  font-size:17px;
+}
+
+.bv-site .feature-list{
+  list-style:none;
+  padding:0;
+  margin:30px 0;
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:0;
+  border-top:1px solid var(--line);
+}
+
+.bv-site .feature-list li{
+  padding:13px 0;
+  border-bottom:1px solid var(--line);
+  color:#e2e7eb;
+  font-size:13px;
+}
+
+.bv-site .feature-list li:before{
+  content:"—";
+  color:var(--cyan);
+  margin-right:10px;
+}
+
+/* SYSTEM STRIP */
+
+.bv-site .system-strip{
+  background:#02080d;
+  color:white;
+  border-top:1px solid #23323f;
+  border-bottom:1px solid #23323f;
+}
+
+.bv-site .system-line{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+}
+
+.bv-site .system-step{
+  padding:30px 20px;
+  border-right:1px solid #23323f;
+}
+
+.bv-site .system-step:last-child{border-right:0}
+
+.bv-site .system-step span{
+  display:block;
+  color:#5a6975;
+  font-size:10px;
+  font-weight:900;
+  margin-bottom:8px;
+}
+
+.bv-site .system-step strong{
+  font-size:18px;
+}
+
+/* TV */
+
+.bv-site .tv-section{
+  background:#090b0d;
+  color:white;
+}
+
+.bv-site .tv-stage{
+  min-height:680px;
+  background:
+    linear-gradient(90deg,rgba(4,8,12,.88),rgba(4,8,12,.2)),
+    url("/images/balancevid-online-tv.jpg") center/cover;
+  display:flex;
+  align-items:flex-end;
+  padding:clamp(30px,5vw,80px);
+}
+
+.bv-site .tv-copy{
+  max-width:700px;
+}
+
+.bv-site .live-pill{
+  display:inline-flex;
+  gap:8px;
+  align-items:center;
+  padding:8px 12px;
+  background:#111;
+  border:1px solid #343434;
+  font-size:10px;
+  font-weight:900;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+}
+
+.bv-site .live-dot{
+  width:7px;
+  height:7px;
+  border-radius:50%;
+  background:var(--red);
+  box-shadow:0 0 12px var(--red);
+}
+
+.bv-site .tv-copy h2{margin-top:20px}
+
+/* TAKE */
+
+.bv-site .take-section{
+  background:#f7f8fa;
+}
+
+.bv-site .take-grid{
+  display:grid;
+  grid-template-columns:.8fr 1.2fr;
+  min-height:650px;
+  background:#07111b;
+  color:white;
+}
+
+.bv-site .take-copy{
+  padding:clamp(40px,6vw,90px);
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+}
+
+.bv-site .take-image{
+  background:
+    linear-gradient(90deg,rgba(7,17,27,.1),rgba(7,17,27,0)),
+    url("/images/balancevid-take.jpg") center/cover;
+  min-height:650px;
+}
+
+/* GO VIRAL */
+
+.bv-site .campaign{
+  background:#05070a;
+  color:white;
+}
+
+/*
+ * THE ONE PHOTOGRAPH WITH ONLY HALF A SCRIM.
+ *
+ * Every other picture on this page carries two: the television
+ * stage darkens from the left at .88, the deployment cards
+ * darken from the bottom at .92, the closing section darkens
+ * from the left at .9. This one had a single bottom wash at .7
+ * fading out at 55% — and the copy on it is the tallest on the
+ * page, a 125px headline in three lines that reaches well
+ * above where the wash has gone. Over a neon stage, *Turn
+ * music* was white type on stage lights.
+ *
+ * THE LAYER ADDED IS THE TELEVISION STAGE'S, UNCHANGED, because
+ * the two blocks are the same problem: copy at the left edge of
+ * a bright picture. The bottom wash the brief wrote is kept
+ * underneath it, so the corner the button sits in is darkened
+ * twice and the right-hand side of the photograph — the half
+ * with the world map and the phone on it — is still a
+ * photograph. [U-19]
+ */
+.bv-site .campaign-stage{
+  min-height:720px;
+  background:
+    linear-gradient(90deg,rgba(4,8,12,.88),rgba(4,8,12,.2)),
+    linear-gradient(0deg,rgba(0,0,0,.7),transparent 55%),
+    url("/images/balancevid-go-viral.jpg") center/cover;
+  display:flex;
+  align-items:flex-end;
+}
+
+.bv-site .campaign-copy{
+  padding:clamp(40px,6vw,90px);
+  max-width:900px;
+}
+
+.bv-site .campaign-copy h2{
+  font-size:clamp(58px,8vw,125px);
+}
+
+/* DEPLOYMENT */
+
+.bv-site .deploy-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+}
+
+.bv-site .deploy-card{
+  min-height:650px;
+  padding:clamp(40px,5vw,80px);
+  color:white;
+  display:flex;
+  flex-direction:column;
+  justify-content:flex-end;
+  background-size:cover;
+  background-position:center;
+}
+
+.bv-site .deploy-card.cloud{
+  background:
+    linear-gradient(0deg,rgba(4,12,20,.92),rgba(4,12,20,.12)),
+    url("/images/balancevid-cloud.jpg") center/cover;
+}
+
+.bv-site .deploy-card.self{
+  background:
+    linear-gradient(0deg,rgba(4,12,20,.92),rgba(4,12,20,.15)),
+    url("/images/balancevid-self-hosted.jpg") center/cover;
+}
+
+.bv-site .deploy-card p{
+  color:#d0d8df;
+  max-width:560px;
+}
+
+/* COMPARISON */
+
+.bv-site .spec{
+  background:#fff;
+}
+
+.bv-site .spec-table{
+  width:100%;
+  border-collapse:collapse;
+  font-size:14px;
+}
+
+.bv-site .spec-table th,
+.bv-site .spec-table td{
+  padding:18px 12px;
+  border-bottom:1px solid var(--darkline);
+  text-align:left;
+}
+
+.bv-site .spec-table th{
+  font-size:11px;
+  text-transform:uppercase;
+  letter-spacing:.1em;
+}
+
+.bv-site .spec-table th:not(:first-child),
+.bv-site .spec-table td:not(:first-child){
+  text-align:center;
+}
+
+.bv-site .check{
+  font-weight:900;
+  color:var(--blue);
+}
+
+/*
+ * THE TICK IS AN SVG AND AN SVG IS A BLOCK, so the cell's
+ * `text-align:center` has nothing to centre. `margin:0 auto` is
+ * what centres a block of known width, and the icon takes its
+ * blue from `currentColor` — which is `.check`'s, so the
+ * colour is still declared once.
+ */
+.bv-site .spec-table td.check svg{
+  margin:0 auto;
+}
+
+/*
+ * READ BUT NOT SEEN. The same four declarations `surfaces.css`
+ * uses to hide the studio bar's labels on a narrow window; a
+ * cell holding only a drawing is a cell a screen reader passes
+ * over in silence, and *Online TV: (nothing), (nothing)* is a
+ * worse answer than the character this replaced.
+ */
+.bv-site .off-screen{
+  position:absolute;
+  width:1px;
+  height:1px;
+  overflow:hidden;
+  clip-path:inset(50%);
+  white-space:nowrap;
+}
+
+/* DOWNLOADS */
+
+.bv-site .downloads{
+  background:#07111a;
+  color:white;
+}
+
+.bv-site .download-grid{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  border-top:1px solid var(--line);
+}
+
+.bv-site .download{
+  padding:30px;
+  min-height:180px;
+  border-right:1px solid var(--line);
+  border-bottom:1px solid var(--line);
+  transition:.25s;
+}
+
+.bv-site .download:hover{
+  background:#0e2232;
+}
+
+.bv-site .download-number{
+  color:var(--cyan);
+  font-size:11px;
+  font-weight:900;
+}
+
+.bv-site .download h3{
+  font-size:28px;
+  margin:20px 0 10px;
+}
+
+.bv-site .download p{
+  color:#91a0ac;
+  margin:0;
+}
+
+/* FINAL */
+
+.bv-site .final{
+  min-height:85vh;
+  background:
+    linear-gradient(90deg,rgba(3,9,14,.9),rgba(3,9,14,.35)),
+    url("/images/balancevid-final.jpg") center/cover;
+  color:white;
+  display:flex;
+  align-items:flex-end;
+  padding:100px 0;
+}
+
+.bv-site .final h2{
+  max-width:1100px;
+  font-size:clamp(60px,9vw,145px);
+}
+
+.bv-site .final p{
+  color:#d2d9de;
+  max-width:650px;
+  font-size:19px;
+}
+
+/* FOOTER */
+
+.bv-site footer{
+  background:#03080d;
+  color:white;
+  padding:80px 0 35px;
+}
+
+.bv-site .footer-grid{
+  display:grid;
+  grid-template-columns:2fr repeat(4,1fr);
+  gap:50px;
+  padding-bottom:70px;
+  border-bottom:1px solid var(--line);
+}
+
+.bv-site .footer-brand{
+  font-size:30px;
+  font-weight:900;
+  letter-spacing:-.05em;
+}
+
+.bv-site .footer-tag{
+  color:#778590;
+  margin-top:10px;
+}
+
+.bv-site .footer-column strong{
+  display:block;
+  margin-bottom:18px;
+  font-size:11px;
+  letter-spacing:.15em;
+  text-transform:uppercase;
+  color:#75838d;
+}
+
+.bv-site .footer-column a{
+  display:block;
+  color:#c8d0d6;
+  font-size:13px;
+  margin:10px 0;
+}
+
+.bv-site .footer-bottom{
+  display:flex;
+  justify-content:space-between;
+  gap:20px;
+  padding-top:25px;
+  color:#61707b;
+  font-size:11px;
+}
+
+/* MOBILE */
+
+@media(max-width:900px){
+  .bv-site .nav-links,
+  .bv-site .nav-actions{display:none}
+
+  .bv-site .menu{display:block}
+
+  .bv-site .hero-grid,
+  .bv-site .product-panel,
+  .bv-site .take-grid,
+  .bv-site .deploy-grid{
+    grid-template-columns:1fr;
+  }
+
+  .bv-site .hero-spine{
+    display:none;
+  }
+
+  .bv-site .section-header{
+    grid-template-columns:1fr;
+  }
+
+  .bv-site .product-image,
+  .bv-site .take-image{
+    min-height:420px;
+  }
+
+  .bv-site .product-nav{
+    grid-template-columns:1fr 1fr;
+  }
+
+  .bv-site .product-tab:nth-child(2){
+    border-right:0;
+  }
+
+  .bv-site .system-line{
+    grid-template-columns:1fr 1fr;
+  }
+
+  .bv-site .system-step:nth-child(2){
+    border-right:0;
+  }
+
+  .bv-site .download-grid{
+    grid-template-columns:1fr 1fr;
+  }
+
+  .bv-site .footer-grid{
+    grid-template-columns:1fr 1fr;
+  }
+
+  .bv-site .footer-grid > :first-child{
+    grid-column:1/-1;
+  }
+
+  /*
+   * AND THE DRAWER THE BUTTON OPENS. The source assembled this
+   * in JavaScript, nine inline styles at a time, on a nav that
+   * `display:none` had already removed — so the first tap set
+   * `display:flex` and the rule above took it away again on the
+   * next render. It is a class now, in the sheet that owns the
+   * breakpoint it belongs to, and the button says `aria-expanded`
+   * instead of the page saying nothing. [D-19]
+   */
+  .bv-site .nav-links[data-open='yes']{
+    display:flex;
+    position:absolute;
+    top:76px;
+    left:0;
+    right:0;
+    padding:25px;
+    background:#071018;
+    flex-direction:column;
+    align-items:flex-start;
+  }
+}
+
+@media(max-width:560px){
+  .bv-site .hero{
+    padding-top:120px;
+  }
+
+  .bv-site .hero h1{
+    font-size:56px;
+  }
+
+  .bv-site .product-nav{
+    grid-template-columns:1fr;
+  }
+
+  .bv-site .product-tab{
+    border-right:0;
+    border-bottom:1px solid var(--darkline);
+  }
+
+  .bv-site .feature-list{
+    grid-template-columns:1fr;
+  }
+
+  .bv-site .system-line,
+  .bv-site .download-grid,
+  .bv-site .footer-grid{
+    grid-template-columns:1fr;
+  }
+
+  .bv-site .footer-grid > :first-child{
+    grid-column:auto;
+  }
+
+  .bv-site .spec{
+    overflow-x:auto;
+  }
+
+  .bv-site .spec-table{
+    min-width:720px;
+  }
+}
+
+/*
+ * THREE PARAGRAPHS THAT WERE RENDERING AT 2.99 : 1.
+ *   [Doctrine U-20, D-04; WCAG 2.1 1.4.3]
+ *
+ * `p { color:#55616b }` is the body colour for the paper
+ * ground, and it beats inheritance — so inside `.tv-copy`,
+ * `.campaign-copy` and `.take-copy`, every one of which sits on
+ * a section that declared `color:white` for exactly this
+ * reason, the paragraph came out dark grey. On the Take
+ * grid's own `#07111b` that measures 2.99 : 1, which is below
+ * the 4.5 : 1 floor for body text; over the two photographs it
+ * measures 3.06 : 1 and is worse than the number suggests,
+ * because a photograph is not a flat ground.
+ *
+ * THE AUTHOR SOLVED THIS FOUR TIMES AND MISSED THREE. The
+ * product panels get `#b7c1ca`, the dark and blue sections get
+ * `#aebbc6`, the deployment cards get `#d0d8df` and the closing
+ * section gets `#d2d9de`. This is the deployment cards' value,
+ * because these are the same thing: a copy block at the edge of
+ * a photograph. It measures 13.18 : 1 on the Take grid.
+ *
+ * FOUND IN A SCREENSHOT, not by reading — the rule that causes
+ * it is four lines long and looks correct, and the rules that
+ * would have prevented it are elsewhere in the file.
+ */
+.bv-site .tv-copy p,
+.bv-site .campaign-copy p,
+.bv-site .take-copy p{
+  color:#d0d8df;
+}
+
+/*
+ * AND FOUR EYEBROWS THAT WERE TOUCHING THEIR HEADLINE.
+ *
+ * Measured, each of these is a gap of exactly 0px between the
+ * eyebrow's box and the heading's — and a heading at
+ * `line-height:.9` overflows its own box, so 0px of gap is a
+ * collision: on the campaign stage the words GO VIRAL / MUSIC
+ * CAMPAIGNS run underneath the C of *Turn music*.
+ *
+ * AGAIN THE AUTHOR SOLVED IT TWICE: the hero's eyebrow carries
+ * `margin-bottom:25px` and the product panel's carries 22px.
+ * These four were missed, and they take the product panel's
+ * value because that is the one on a card rather than a page.
+ */
+.bv-site .take-copy .eyebrow,
+.bv-site .campaign-copy .eyebrow,
+.bv-site .deploy-card .eyebrow,
+.bv-site .final .eyebrow{
+  margin-bottom:22px;
+}
+
+/*
+ * A REQUEST FOR LESS MOTION IS ANSWERED HERE, NOT IN A SCRIPT.
+ *   [Doctrine D-04]
+ *
+ * The source answered it by walking every element in the document
+ * and setting `transition:none` on each — which runs after the
+ * first paint, so the animation it suppresses has already played
+ * once, and which reaches the whole document rather than this
+ * page. A media query is the mechanism that existed for the
+ * question: it applies before the first frame and it cannot
+ * escape this sheet.
+ */
+@media(prefers-reduced-motion:reduce){
+  html:has(.bv-site){scroll-behavior:auto}
+
+  .bv-site *,
+  .bv-site *:before,
+  .bv-site *:after{
+    transition-duration:.01ms !important;
+    animation-duration:.01ms !important;
+    animation-iteration-count:1 !important;
+  }
+}

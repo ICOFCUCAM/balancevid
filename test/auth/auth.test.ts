@@ -452,7 +452,25 @@ describe('what a stranger may reach', () => {
   });
 
   it('keeps the studio, the drafts list and the job queue private', () => {
-    expect(mayBePublic('/', 'GET')).toBe(false);
+    /*
+     * `/` IS NOT IN THIS LIST ANY MORE, AND THE REASON IS A
+     * CHANGE RATHER THAN A CONCESSION.  [TV-NETWORK N-1]
+     *
+     * The root used to be the building, so a stranger reaching
+     * it had to be refused. It is the public product gateway
+     * now — the building is what a SESSION gets there — so the
+     * address is open and what it serves is `middleware.ts`'s
+     * decision, held by `gateway.test.ts`.
+     *
+     * WHAT THIS FILE STILL OWNS IS THAT OPENING IT OPENED
+     * NOTHING ELSE: no write to the root, and not one of the
+     * lists below, every one of which would reveal the contents
+     * of a building a stranger is only being shown the outside
+     * of. [D-03]
+     */
+    for (const method of ['POST', 'PUT', 'PATCH', 'DELETE']) {
+      expect(mayBePublic('/', method), method).toBe(false);
+    }
     expect(mayBePublic('/c/conv_abc', 'GET')).toBe(false);
     expect(mayBePublic('/api/conversations', 'GET')).toBe(false);
     expect(mayBePublic('/api/conversations/conv_abc', 'GET')).toBe(false);
@@ -781,7 +799,10 @@ describe('the television network is public, and adds no access (N-4)', () => {
    * and every other channel route stay shut.
    */
   it('opens nothing a broadcaster works with', () => {
-    for (const shut of ['/', '/t/chan_abc', '/api/channels',
+    /* `/` left this list when it became the public gateway; `/t`
+       takes its place, and is the same claim about the same
+       application — the broadcaster's own channel list. */
+    for (const shut of ['/t', '/t/chan_abc', '/api/channels',
       '/api/channels/chan_abc', '/api/library', '/settings',
       '/television', '/tvx', '/api/tvx/channels']) {
       expect(mayBePublic(shut, 'GET'), shut).toBe(false);
