@@ -10,6 +10,27 @@ import { listCampaigns } from '../../../src/store/campaigns.js';
 import { listRequests } from '../../../src/store/requests.js';
 import { GoFrame, Standing } from '../Go.js';
 import { Deadline, EnterButton, Loop, Results, Wall } from './Call.js';
+import Icon, { type IconName } from '../../Icon.js';
+
+/**
+ * A CALL'S SUBJECT, AS A READER'S WORD FOR IT.
+ *
+ * The same three the Take App draws, and for the same reason:
+ * `about` is the track's kind, which is a word about how this
+ * product stores things. The mapping lives on the surface
+ * because the domain must not acquire an opinion about
+ * English. [D-19]
+ */
+const ABOUT: Record<string, { says: string; mark: IconName }> = {
+  performance: { says: 'Music', mark: 'music' },
+  conversation: { says: 'Video', mark: 'play' },
+  channel: { says: 'Programme', mark: 'broadcast' },
+};
+
+/* A call from a newer installation still draws. [V-8, U-19] */
+function aboutSays(kind: string): { says: string; mark: IconName } {
+  return ABOUT[kind] ?? { says: 'Open', mark: 'live' };
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -152,6 +173,17 @@ export default async function CallPage(
       <div className="go-head">
         <div className="go-head-row">
           <div style={{ minWidth: 0 }}>
+            {/*
+              * THE SUBJECT, AS A KICKER. `about` is the track's
+              * own kind rather than a label somebody typed, so
+              * a reader arriving from a shared link knows what
+              * sort of thing is being asked of them before
+              * reading a word of the brief. [V-4, D-19]
+              */}
+            <p className="go-kind" data-about={row.about}>
+              <Icon name={aboutSays(row.about).mark} size={12} />
+              {aboutSays(row.about).says} campaign
+            </p>
             <h1 className="go-title" data-testid="go-title">{call.title}</h1>
             <p className="go-lede" data-testid="go-says">{row.says}</p>
             <p className="go-lede" style={{ marginTop: 4 }}>
@@ -165,7 +197,11 @@ export default async function CallPage(
       <article className="go-body">
 
         {/* WHAT TO DO, in the organiser's own words. [V-2] */}
+        <div className="go-cards">
         <section className="go-said">
+          <span aria-hidden="true" className="go-said-mark" data-mark="do">
+            <Icon name="list" size={15} />
+          </span>
           <h2 className="go-h">What to do</h2>
           <p data-testid="go-asks" className="go-prose">
             {call.rules.asks}
@@ -179,6 +215,9 @@ export default async function CallPage(
           */}
         {call.rules.criteria && (
           <section className="go-said">
+            <span aria-hidden="true" className="go-said-mark" data-mark="judge">
+              <Icon name="passed" size={15} />
+            </span>
             <h2 className="go-h">Judged on</h2>
             <p data-testid="go-criteria" className="go-prose">
               {call.rules.criteria}
@@ -195,12 +234,23 @@ export default async function CallPage(
           */}
         {call.rules.prize && (
           <section className="go-said">
+            {/* NOT THE TICK AGAIN. `passed` marks *judged on*,
+                and two cards wearing one glyph is a set that
+                has stopped distinguishing anything. There is no
+                trophy in this icon set and inventing one for a
+                single card is a thirteenth glyph nobody
+                maintains. [Icon.tsx] */}
+            <span aria-hidden="true" className="go-said-mark" data-mark="prize">
+              <Icon name="sun" size={15} />
+            </span>
             <h2 className="go-h">Prize</h2>
             <p data-testid="go-prize" className="go-prose">
               {call.rules.prize}
             </p>
           </section>
         )}
+
+        </div>
 
         {/* The way in, where there still is one. */}
         {row.clock !== 'over' && row.state !== 'completed'

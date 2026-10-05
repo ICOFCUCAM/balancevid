@@ -355,6 +355,17 @@
      spreadsheet. */
   .tk-main { max-width: 680px; padding-inline: var(--space-6); }
   .tk-bar { padding-inline: var(--space-6); }
+
+  /*
+   * AND NO BOTTOM BAR, BECAUSE A MOUSE IS NOT A THUMB. The bar
+   * exists so the five places a phone can go are reachable
+   * without scrolling back to a header; on a laptop the header
+   * is always in view and a phone chrome pinned across a
+   * fifteen-hundred-pixel window is a web page wearing an
+   * app's costume.
+   */
+  .tk-bottom { display: none; }
+  .tk-main { padding-bottom: var(--space-6); }
 }
 
 /* ------------------------------------------------------------------ *
@@ -853,3 +864,369 @@
 }
 
 .tk-more:hover { border-color: var(--accent); }
+
+/* ------------------------------------------------------------------ *
+ *  The app shell: tabs at the top, a bar at the bottom.
+ *
+ *  WHAT IS DELIBERATELY ABSENT. The design this was built
+ *  against puts a viewer count on every card — *2.4K*, *620
+ *  watching*, *1.2K Tracks*. This product counts nobody: there
+ *  is no watch record and no view tally, which is the same
+ *  reason `/tv/channels` offers no *Popular* sort. A number
+ *  invented to fill a space is the one thing on a page that
+ *  cannot be corrected later, because nobody can tell it is
+ *  wrong. [D-21]
+ * ------------------------------------------------------------------ */
+
+.tk-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 11px var(--space-5);
+  border-bottom: 1px solid var(--line);
+  background: var(--ink-900);
+}
+
+.tk-tabs::-webkit-scrollbar { display: none; }
+
+.tk-tab {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 15px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--console-control);
+  color: var(--ink-300);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tk-tab[aria-pressed='true'] {
+  background: var(--accent-deep);
+  border-color: var(--accent-deep);
+  color: var(--text-on-accent);
+  font-weight: var(--weight-semi);
+}
+
+.tk-hero-kicker {
+  margin: 0 0 2px;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* ------------------------------------------------------------------ *
+ *  A call, as a card.
+ * ------------------------------------------------------------------ */
+
+.tk-calls {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tk-call {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  min-width: 0;
+}
+
+.tk-call-art {
+  flex: 0 0 auto;
+  width: 62px;
+  height: 62px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line);
+}
+
+.tk-call-said { flex: 1 1 auto; min-width: 0; }
+
+/*
+ * THE SUBJECT, AS A KICKER. `about` is the track's own kind,
+ * so a reader can tell a song from a film before reading
+ * either — and the colour is per kind, which is what makes a
+ * column of them scannable rather than three identical rows.
+ */
+.tk-call-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 3px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.tk-call-kind[data-about='conversation'] { color: #b07ae8; }
+.tk-call-kind[data-about='channel'] { color: #5bbf8a; }
+
+.tk-call-foot { display: flex; align-items: center; margin-top: 7px; }
+
+.tk-call-go { flex: 0 0 auto; align-self: center; }
+
+/* ------------------------------------------------------------------ *
+ *  A channel tile that says what is on it.
+ * ------------------------------------------------------------------ */
+
+.tk-tile-top {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin-bottom: auto;
+}
+
+.tk-tile-live {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--state-live);
+  color: var(--text-on-accent);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.tk-tile-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #fff;
+}
+
+/* Two lines, because what is on is a title somebody wrote. */
+.tk-tile-go {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  white-space: normal;
+}
+
+/* ------------------------------------------------------------------ *
+ *  The bottom bar.
+ * ------------------------------------------------------------------ */
+
+.tk-bottom {
+  position: sticky;
+  bottom: 0;
+  z-index: 6;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-around;
+  gap: 4px;
+  /* THE HOME INDICATOR IS NOT A PLACE TO PUT A TAB. */
+  padding: 9px var(--space-4) calc(9px + env(safe-area-inset-bottom));
+  background: color-mix(in srgb, var(--ink-900) 94%, transparent);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid var(--line);
+}
+
+.tk-bottom-way,
+.tk-bottom-go {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 2px;
+  text-decoration: none;
+  color: var(--ink-400);
+  font-size: 10px;
+  letter-spacing: 0.01em;
+}
+
+.tk-bottom-way[aria-current='page'] { color: var(--accent); }
+.tk-bottom-way:hover { color: var(--ink-100); }
+
+/* The verb the application is named for, raised. */
+.tk-bottom-go { color: var(--ink-200); }
+
+.tk-bottom-go-mark {
+  width: 46px;
+  height: 46px;
+  margin-top: -18px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(150deg, var(--accent) 0%, var(--accent-deep) 100%);
+  color: var(--text-on-accent);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+}
+
+/*
+ * THE BAR SITS OVER THE END OF THE PAGE, SO THE PAGE ENDS
+ * ABOVE IT — and by the bar's own height, not by a guess. The
+ * first number here was eighteen pixels and the last card was
+ * still half under the bar, found in a screenshot: a sticky
+ * footer takes its height out of the scroll, and the content
+ * has to give it back.
+ */
+.tk-main { padding-bottom: calc(var(--space-6) + 78px); }
+
+/* ------------------------------------------------------------------ *
+ *  A call, read before deciding to record.
+ *
+ *  WHAT IS DELIBERATELY ABSENT, again. The design carries
+ *  *1.2K creators participating* over the artwork and a green
+ *  *+32%* beside every number. This product counts entries,
+ *  which are documents it holds — and it counts nothing else.
+ *  It has no record of who looked, and no history to take a
+ *  percentage against. The four numbers below are real and the
+ *  deltas would not be. [D-21]
+ * ------------------------------------------------------------------ */
+
+.go-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 5px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.go-kind[data-about='conversation'] { color: #b07ae8; }
+.go-kind[data-about='channel'] { color: #5bbf8a; }
+
+/*
+ * THE THREE THINGS A COMPETITION IS, SIDE BY SIDE WHERE THERE
+ * IS ROOM. What to do, what it is judged on and what the winner
+ * gets are one decision taken together, and stacking them down
+ * a phone-width column on a laptop made a reader scroll between
+ * the halves of one thought.
+ */
+.go-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-4);
+}
+
+/* The brief is the long one and takes the whole row. */
+.go-cards > .go-said:first-child { grid-column: 1 / -1; }
+
+.go-said { position: relative; }
+
+.go-said-mark {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 11px;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+}
+
+.go-said-mark[data-mark='judge'] {
+  background: color-mix(in srgb, #5bbf8a 18%, transparent);
+  color: #5bbf8a;
+}
+
+.go-said-mark[data-mark='prize'] {
+  background: color-mix(in srgb, #b07ae8 20%, transparent);
+  color: #b07ae8;
+}
+
+/* ------------------------------------------------------------------ *
+ *  The two steps recording is the first of.  [T4, U-19]
+ *
+ *  TWO, BECAUSE THERE ARE TWO. The design this was built
+ *  against draws a bar; a five-step bar with three greyed is a
+ *  progress indicator inventing a process. What a performer
+ *  needs to know before pressing record is that recording is
+ *  not the end of it.
+ * ------------------------------------------------------------------ */
+
+.tk-steps {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tk-step {
+  flex: 1 1 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: var(--text-xs);
+  color: var(--ink-400);
+}
+
+/* The rule between them is the journey, drawn once. */
+.tk-step + .tk-step::before {
+  content: '';
+  flex: 1 1 auto;
+  height: 1px;
+  background: var(--line);
+}
+
+.tk-step[aria-current='step'] { color: var(--ink-000); font-weight: var(--weight-semi); }
+
+.tk-step-no {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  background: var(--console-control);
+  color: var(--ink-400);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.tk-step[aria-current='step'] .tk-step-no {
+  background: var(--accent-deep);
+  border-color: var(--accent-deep);
+  color: var(--text-on-accent);
+}
+
+.tk-count {
+  margin: 0;
+  width: 100%;
+  font-size: var(--text-xs);
+  color: var(--ink-400);
+}
+
+.tk-wide { width: 100%; justify-content: center; min-height: 50px; }
+
+/*
+ * THE DOT IS WHAT THE BUTTON STARTS, and it is drawn rather
+ * than written: *Turn the camera on* is four words and a red
+ * circle is the thing every camera in the world puts there.
+ */
+.tk-rec {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--state-live);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.22);
+}

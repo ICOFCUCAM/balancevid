@@ -670,6 +670,16 @@ export default function TakeApp({ link }: { link: string }) {
             <span className="tk-ident-says">Recording</span>
           </span>
         </a>
+        {/*
+          * A WAY OUT. This page is opened from a link in a
+          * message, so the browser's back button goes to the
+          * message and not to anything of this product's — and
+          * a page with no exit is a page somebody closes the
+          * tab on rather than coming back to.
+          */}
+        <a href="/take" className="tk-bar-way" aria-label="Leave this take">
+          <Icon name="close" size={15} />
+        </a>
       </header>
       <main className="tk-stage">
 
@@ -697,6 +707,27 @@ export default function TakeApp({ link }: { link: string }) {
 
         {/* WHAT IS BEING ASKED, in the producer's own words. [T3] */}
         {/*
+          * THE TWO STEPS, SAID BEFORE THE FIRST ONE.  [T4, U-19]
+          *
+          * Recording is not the end of this: what you record is
+          * reviewed and then sent, and a performer who did not
+          * know that is one who stops after the first take
+          * thinking they have finished. Two, because there are
+          * two — not a five-step bar with three greyed, which
+          * is a progress indicator inventing a process.
+          */}
+        <ol className="tk-steps" data-testid="take-steps">
+          <li className="tk-step" aria-current="step">
+            <span className="tk-step-no">1</span>
+            Your take
+          </li>
+          <li className="tk-step">
+            <span className="tk-step-no">2</span>
+            Review and send
+          </li>
+        </ol>
+
+        {/*
           * THE ASK READS AS A SENTENCE, NOT A TITLE CARD. It was
           * letter-spaced uppercase and centred — which is how a
           * film's opening credit is set, and this is an
@@ -719,7 +750,7 @@ export default function TakeApp({ link }: { link: string }) {
           * sent a moment ago moves from one to the other when
           * the view is refreshed above.
           */}
-        <p data-testid="take-number" className="small muted" style={{ margin: 0 }}>
+        <p data-testid="take-number" className="tk-count">
           {reference ? 'Take' : 'Answer'}{' '}
           {(view?.submitted ?? 0)
             + kept.filter((one) => one.state === 'kept' || one.state === 'sending').length
@@ -867,7 +898,16 @@ export default function TakeApp({ link }: { link: string }) {
             <summary className="tk-setup-head">
               <Icon name="faders" size={14} />
               Camera and quality
-              <span className="tk-setup-now">{grade.quality.label}</span>
+              <span className="tk-setup-now">
+                {/* WHICH CAMERA AS WELL AS WHICH QUALITY, where
+                    there is more than one to be wrong about. */}
+                {camera.devices.named && camera.devices.cameras.length > 1
+                  && camera.cameraId
+                  ? `${camera.devices.cameras.find(
+                    (one) => one.deviceId === camera.cameraId)?.label
+                    ?? 'Camera'} · ${grade.quality.label}`
+                  : grade.quality.label}
+              </span>
               <span aria-hidden="true" className="tk-setup-mark">
                 <Icon name="chevron" size={14} />
               </span>
@@ -925,17 +965,23 @@ export default function TakeApp({ link }: { link: string }) {
 
         {/* ONE BUTTON AT A TIME, because there is one thing to do next. */}
         {recording.phase === 'idle' && (
-          <button className="ctl lg" data-testid="take-arm" style={wide}
+          <button type="button" className="tk-go tk-wide"
+                  data-testid="take-arm"
                   onClick={() => void recording.arm()}>
+            <span aria-hidden="true" className="tk-rec" />
             {soundOnly ? 'Turn the microphone on' : 'Turn the camera on'}
           </button>
         )}
         {recording.phase === 'arming' && (
-          <button className="ctl lg" disabled style={wide}>Preparing…</button>
+          <button type="button" className="tk-go tk-wide" disabled>
+            Preparing…
+          </button>
         )}
         {recording.phase === 'ready' && (
-          <button className="ctl lg primary" data-testid="take-start" style={wide}
+          <button type="button" className="tk-go tk-wide"
+                  data-testid="take-start"
                   onClick={() => void begin()}>
+            <span aria-hidden="true" className="tk-rec" />
             {reference ? 'Start recording' : 'Start answering'}
           </button>
         )}

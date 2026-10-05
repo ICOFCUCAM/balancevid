@@ -7,6 +7,7 @@ import { listCampaigns } from '../../../src/store/campaigns.js';
 import { listConversations } from '../../../src/store/repository.js';
 import { listPerformances } from '../../../src/store/performances.js';
 import { listChannels } from '../../../src/store/channels.js';
+import { nowAndNext } from '../../../src/domain/onAir.js';
 import { theAccount } from '../../../src/store/accounts.js';
 import { originOf } from '../../../src/web/share.js';
 import { json } from '../../../src/web/http.js';
@@ -64,6 +65,11 @@ export async function GET(request: Request): Promise<Response> {
      * colours. [N-4, D-19]
      */
     slug?: string;
+    /** What it is showing at this instant, where it is showing
+     *  anything. Only a channel has one. [N-7] */
+    now?: string;
+    /** It is taking a live feed right now. */
+    live?: true;
     /**
      * Whether somebody arriving with nothing but this listing may take
      * part, which is the only question the browsing surface can answer
@@ -169,6 +175,42 @@ export async function GET(request: Request): Promise<Response> {
        * another in the Take App, which reads as two channels.
        */
       ...(channel.station?.slug ? { slug: channel.station.slug } : {}),
+      /*
+       * AND WHAT IS ON IT.  [N-7, D-19]
+       *
+       * A browsing surface that can show a channel's name and
+       * not what it is showing is a surface withholding the
+       * network's own answer — `nowAndNext` is the function the
+       * guide, the directory, the station page and favourites
+       * all read, and this is the fifth. A card with a title and
+       * nothing under it is a card nobody can choose between.
+       *
+       * ABSENT RATHER THAN EMPTY where a channel is off air, so
+       * a surface draws nothing instead of the words this
+       * product wrote for dead air. [D-21]
+       *
+       * AGAINST `now`, WHICH IS TAKEN ONCE FOR THE WHOLE
+       * ANSWER. A listing whose first row was computed a
+       * millisecond before its last is a listing that can
+       * disagree with itself about a programme boundary.
+       */
+      ...(() => {
+        const on = nowAndNext(channel, Date.parse(now));
+        /*
+         * `Off air` IS A TITLE AND IS NOT WHAT IS ON.
+         * `viewerTitle` writes those two words for dead air, so
+         * testing `on.title` alone sent them down the wire and
+         * every tile in the Take App read *Off air* — found in
+         * a screenshot. `kind` is the field that tells them
+         * apart, which is the same thing the guide's slot
+         * learned. [D-21, N-10]
+         */
+        const showing = on.kind !== null || on.live;
+        return {
+          ...(showing && on.title ? { now: on.title } : {}),
+          ...(on.live ? { live: true as const } : {}),
+        };
+      })(),
       publishedAt: publication.publishedAt,
       respondable: publication.respondable === true,
       access: publication.respondable === true ? publication.access ?? 'anyone' : null,

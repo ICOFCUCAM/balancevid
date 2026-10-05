@@ -849,6 +849,21 @@ export interface CallRow {
   open: boolean;
   /** Where it lives, which is the thing a person shares. */
   at: string;
+  /**
+   * WHAT KIND OF THING THIS CALL IS ABOUT.  [V-4, D-21]
+   *
+   * A call is a call ABOUT something — a performance, a
+   * conversation, a channel — and a browsing surface that can
+   * say which is a surface somebody can scan. It is the
+   * TRACK's kind and not a field of the campaign's own,
+   * because a second field could disagree with the document
+   * the call is for. [D-19]
+   *
+   * The names are the holder's: a reader's word for each is a
+   * decision for the surface drawing it, not for this
+   * module. [`asksFor`]
+   */
+  about: RequestHolder['kind'];
 }
 
 export function callRow(campaign: Campaign, now: string): CallRow {
@@ -866,6 +881,7 @@ export function callRow(campaign: Campaign, now: string): CallRow {
     msLeft: msLeft(campaign, now),
     open: takingEntries(campaign, now),
     at: `/go/${campaign.slug ?? campaign.id}`,
+    about: campaign.track.kind,
   };
 }
 
