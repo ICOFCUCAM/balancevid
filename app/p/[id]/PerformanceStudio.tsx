@@ -10,6 +10,7 @@ import { describeCalibration } from '../../../src/domain/calibration.js';
 import { describeDrift } from '../../../src/domain/drift.js';
 import { HOUSE_SAMPLE_RATE, formatMasterPosition } from '../../../src/domain/time.js';
 import { useConfirm } from '../../Confirm.js';
+import { NO_WORKER } from '../../../src/domain/health.js';
 import { useCamera } from '../../useCamera.js';
 import { useQuality } from '../../useQuality.js';
 import { cameraConstraints } from '../../useDevices.js';
@@ -93,9 +94,23 @@ export default function PerformanceStudio(
   /** A room has been measured, so a matte can be made. [§4, S-6, INV-16] */
   const measured = performance.plates.length > 0;
 
+  /*
+   * WHETHER ANYTHING IS GOING TO DO THE WORK.  [D-13, D-21; health.ts]
+   *
+   * The header said "Preparing the song\u2026" until the master had been
+   * measured \u2014 which is a job, and a job is run by the WORKER, a
+   * separate process from this web tier. On an installation with
+   * nothing draining the queue it said "Preparing" for ever, which
+   * is a spinner with nothing behind it.
+   */
+  const [unattended, setUnattended] = useState(false);
+
   const refresh = useCallback(async () => {
     const response = await fetch(`/api/performances/${id}`, { cache: 'no-store' });
-    if (response.ok) setPerformance((await response.json()).performance);
+    if (!response.ok) return;
+    const said = await response.json();
+    setPerformance(said.performance);
+    setUnattended(Boolean(said.unattended));
   }, [id]);
 
   /**
@@ -418,8 +433,24 @@ export default function PerformanceStudio(
 
         <div className="top-spacer" />
 
-        <div className="status" data-testid="s2-status">
-          {ready ? songLength : 'Preparing the song\u2026'}
+        {/*
+          * AND IT SAYS SO RATHER THAN SPINNING.  [D-13, D-21, U-19]
+          *
+          * > *"music get stuck in studio 2 and show preparing and
+          * > never complete preparing"*
+          *
+          * It was not stuck: nothing had picked it up. The worker is
+          * a separate process and on that installation none was
+          * running, so the one word the room had for it was the one
+          * word that could never come true. [health.ts, unattended]
+          */}
+        <div className="status" data-testid="s2-status"
+             data-unattended={!ready && unattended ? 'yes' : 'no'}
+             title={!ready && unattended ? NO_WORKER : undefined}
+             style={!ready && unattended
+               ? { color: 'var(--state-live)' } : undefined}>
+          {ready ? songLength
+            : unattended ? 'Nothing is preparing it' : 'Preparing the song\u2026'}
         </div>
 
         <a className="top-button" data-testid="s2-preview"

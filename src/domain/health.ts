@@ -37,6 +37,41 @@ import type { Pacing } from './pace.js';
 export const ENGINE_STALE_MS = 15_000;
 
 /**
+ * How often the engine says it is alive.  [§18, D-19, U-02]
+ *
+ * A PASS IS NOT A TICK, AND THAT COST THIS PRODUCT ITS OWN
+ * DIAGNOSIS. The heartbeat was written at the END of each pass,
+ * for a reason that reads well:
+ *
+ *   *"At the start it would say 'alive' and then spend thirty
+ *   seconds wedged on a broken encode, which is the failure a
+ *   heartbeat exists to catch."*
+ *
+ * The hole in it is that a pass LEGITIMATELY takes thirty seconds.
+ * Measured on seventeen channels, a healthy engine beat every 31
+ * to 34 seconds — so against a fifteen-second threshold it read
+ * as dead for most of every cycle, and the control room alternated
+ * between a clean board, *"The playout engine stopped
+ * responding"* and *"No playout engine has run since this instance
+ * started"* while the engine was encoding perfectly throughout.
+ *
+ * A liveness signal cannot be gated on the work finishing, because
+ * then it measures the work and not the life. The pulse is a timer
+ * now, and the thing it was protecting against is caught better
+ * elsewhere: a wedged engine keeps beating and its channels'
+ * streams go stale, which `streamState` already notices per channel
+ * and `healthSentence` already has the sentence for — *"The engine
+ * is running but this channel's stream has stopped"* — which is
+ * more use to an operator than being told it crashed when it has
+ * not.
+ *
+ * FIVE SECONDS, SO THREE MAY BE LOST before the engine is called
+ * dead. `engine-pulse.test.ts` fails if the two ever drift into
+ * agreeing that a healthy engine is a stopped one.
+ */
+export const ENGINE_PULSE_MS = 5_000;
+
+/**
  * How long a channel's newest segment may age before it has stopped.
  *
  * Three segments. The engine keeps two ahead of the playhead (AHEAD_SEGMENTS)
@@ -79,7 +114,14 @@ export type StreamState =
   | 'silent';
 
 export interface Heartbeat {
-  /** When the engine last finished a pass, as an instant. */
+  /**
+   * When the engine last said it was alive, as an instant.
+   *
+   * NOT "when it last finished a pass", which is what this meant
+   * until a pass was measured at thirty-four seconds against a
+   * fifteen-second patience. The counts below are still the last
+   * pass's; this is the pulse. [ENGINE_PULSE_MS]
+   */
   at: string;
   /** Which process, so two engines on one directory are visible. [D-20] */
   pid: number;
@@ -148,8 +190,120 @@ export function streamState(
  * The viewer's version says less: a stranger is owed an honest "this channel
  * is not transmitting", not a diagnosis of the broadcaster's server.
  */
+/* ------------------------------------------------------------------------ *
+ *  Is anything draining the queue?  [D-13, D-21, U-19, U-23]
+ * ------------------------------------------------------------------------ */
+
+/**
+ * How long a job may sit untouched before nothing is consuming them.
+ *
+ * The worker polls every 400ms (`POLL_MS`), so a job that has not been
+ * CLAIMED after half a minute has not been seen by anybody — seventy-five
+ * polls late. Generous on purpose: this sentence says an installation is
+ * misconfigured and must never say it about a worker that was briefly
+ * busy.
+ */
+export const UNATTENDED_MS = 30_000;
+
+/**
+ * Nothing has picked the work up.  [D-13, D-21]
+ *
+ * THE FAULT THIS ANSWERS, reported from a running installation:
+ *
+ * > *"music get stuck in studio 2 and show preparing and never
+ * > complete preparing"*
+ *
+ * Studio Two shows *"Preparing the song…"* until the master has been
+ * normalised and measured, which is a job, and a job is run by the
+ * WORKER — a separate process, like the playout engine. On an
+ * installation where nothing is draining the queue the song is never
+ * prepared, and the one word the room says about it is "Preparing",
+ * for ever. A spinner with nothing behind it is the thing D-13 is
+ * about.
+ *
+ * `serve.sh` says it in its own header — *"a container running a web
+ * tier with no worker looks healthy and quietly accepts recordings it
+ * will never render"* — and that is exactly what it looked like.
+ *
+ * NEVER CLAIMED IS THE SIGNAL, not "waiting a long time". A worker
+ * chewing through a long render leaves everything behind it pending
+ * for minutes, and that is a queue working. What cannot happen while
+ * anything is consuming is a job that has never been STARTED going
+ * stale: claiming takes one poll.
+ *
+ * AND THE WHOLE QUEUE IS ASKED, not this document's. A worker busy
+ * with somebody else's render has this document's job pending and
+ * nothing of this document's running — which, judged on one
+ * document, looks exactly like no worker at all. [U-02]
+ */
+export function unattended(
+  jobs: readonly {
+    state: string; createdAt: string; startedAt?: string | undefined;
+  }[],
+  now: number,
+): boolean {
+  /* Something is being worked on, so something is working. */
+  if (jobs.some((job) => job.state === 'running')) return false;
+  return jobs.some((job) => {
+    if (job.state !== 'pending' || job.startedAt) return false;
+    const made = Date.parse(job.createdAt);
+    return Number.isFinite(made) && now - made > UNATTENDED_MS;
+  });
+}
+
+/** What to tell the operator of an installation with no worker. */
+export const NO_WORKER =
+  'Nothing is preparing this. Work is queued and no worker has claimed it '
+  + 'for half a minute, which means no worker process is running on this '
+  + 'installation — it is a separate process from the web tier. Start one '
+  + 'with ROLE=all or ROLE=worker.';
+
+/**
+ * Was this container ever going to transmit?  [§18, D-20, D-21, U-19]
+ *
+ * THE ADVICE WAS SOMETHING THE PROCESS COULD HAVE TAKEN ITSELF.
+ * The control room told an operator *"check that it is started
+ * (ROLE=all or ROLE=playout)"* — and `ROLE` is an environment
+ * variable this very process can read. It sent somebody to a
+ * terminal to look up a fact it was sitting on.
+ *
+ * Worse, it is the difference between two completely different
+ * situations wearing the same sentence:
+ *
+ *   ROLE=web      no engine was ever started here. Nothing is
+ *                 wrong with the channel, the schedule or the
+ *                 media; this container does not do that job and
+ *                 no amount of correcting things in the room will
+ *                 change it.
+ *   ROLE=all      an engine WAS started here, by `serve.sh`, and
+ *                 it is not beating. It died, and its reason is in
+ *                 this container's log.
+ *
+ * An operator who has "corrected everything" and is still dark
+ * needs to be told which of those two it is, because only one of
+ * them has anything to correct. [D-21]
+ *
+ * THE DEFAULT IS `all`, because `scripts/serve.sh` says so and this
+ * must not be a second opinion about that. An absent role means
+ * nobody set one, which is the same as setting `all`.
+ */
+export function engineExpected(role: string | undefined | null): boolean {
+  const named = (role ?? '').trim() || 'all';
+  return named === 'all' || named === 'playout';
+}
+
 export function healthSentence(
   engine: EngineState, stream: StreamState, audience: 'operator' | 'viewer',
+  /*
+   * WHAT THIS CONTAINER WAS TOLD TO RUN, where the caller knows.
+   *
+   * Optional because two of the three callers genuinely do not know
+   * — the viewer's page is served by whatever tier answered and has
+   * no business reading deployment configuration, and a test asking
+   * what a state SOUNDS like is not asking about a container. Left
+   * out, the sentences are the ones that do not claim to know.
+   */
+  role?: string | undefined,
 ): string | null {
   if (engine === 'running' && stream === 'transmitting') return null;
 
@@ -159,14 +313,38 @@ export function healthSentence(
       : 'This channel is not transmitting right now.';
   }
 
+  /*
+   * THE ONE THING WORTH SAYING FIRST when nothing is beating and we
+   * know this container was never asked to beat. It is not a fault
+   * to be chased: it is the deployment, and it outranks every other
+   * sentence below because none of them can be acted on until it is
+   * settled. [D-21]
+   */
+  if (engine !== 'running' && role !== undefined && !engineExpected(role)) {
+    return `Nothing here was ever going to transmit: this container runs `
+      + `ROLE=${role.trim() || '(empty)'}, which starts no playout engine. `
+      + 'The channel, the schedule and the media are not the problem. Run a '
+      + 'container with ROLE=all, or one with ROLE=playout against the same '
+      + 'storage.';
+  }
+
   if (engine === 'stopped') {
     return 'The playout engine is not running — nothing is being written. '
       + 'Start it with: npm run start:playout';
   }
   if (engine === 'earlier') {
-    return 'No playout engine has run since this instance started — the '
-      + 'heartbeat on disk is from an earlier one. The engine is a separate '
-      + 'process: check that it is started (ROLE=all or ROLE=playout).';
+    /*
+     * AND WHERE WE KNOW IT WAS MEANT TO RUN HERE, say that rather
+     * than asking the operator to go and check what we just read.
+     */
+    return role !== undefined
+      ? `This container runs ROLE=${role.trim() || 'all'}, so it started a `
+        + 'playout engine — and nothing has beaten since this instance came '
+        + 'up. It stopped. Why it stopped is in this container’s log, '
+        + 'alongside the line that says "serve: playout engine".'
+      : 'No playout engine has run since this instance started — the '
+        + 'heartbeat on disk is from an earlier one. The engine is a separate '
+        + 'process: check that it is started (ROLE=all or ROLE=playout).';
   }
   if (engine === 'stale') {
     return 'The playout engine stopped responding. It may have crashed; '

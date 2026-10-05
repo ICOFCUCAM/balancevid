@@ -30,7 +30,15 @@
 
 set -uo pipefail
 
-ROLE="${ROLE:-all}"
+# EXPORTED, SO THE PROCESSES IT STARTS KNOW WHAT THEY ARE.
+#
+# This was a plain shell variable, which meant a `ROLE=web` container told
+# the web tier nothing: the variable the PLATFORM set was exported and
+# visible, but the default was not, so the one process that can show an
+# operator anything could not tell "nobody set a role" from "somebody set
+# web" — and the control room's advice was therefore to go and check a
+# thing the process was sitting on. [health.ts, engineExpected]
+export ROLE="${ROLE:-all}"
 PORT="${PORT:-3000}"
 
 # ------------------------------------------------------------------ ffmpeg

@@ -41,6 +41,7 @@ import { paths } from '../store/paths.js';
 import { pathFor } from '../store/playoutSources.js';
 import { ffprobe } from '../render/ffmpeg.js';
 import { beat } from '../store/playoutHealth.js';
+import { ENGINE_PULSE_MS } from '../domain/health.js';
 import { produceRenditions } from './audioRendition.js';
 import { produceSubtitle } from './subtitleRendition.js';
 import { produceSegment, type SourceFacts } from './segment.js';
@@ -487,11 +488,23 @@ export async function pass(
    * demonstrably completed something.
    */
   if (announce) {
-    await beat({ channels: channels.length, made, ...how })
-      .catch(() => undefined);
+    latest = { channels: channels.length, made, ...how };
+    await beat(latest).catch(() => undefined);
   }
   return made;
 }
+
+/*
+ * WHAT THE PULSE SAYS WHILE A PASS IS STILL RUNNING.
+ *
+ * The counts belong to the last pass that finished, which is what
+ * they have always meant — `made` is a number of segments, and a
+ * pass halfway through has not made them yet. The pulse carries
+ * them forward so the file never loses them between passes.
+ */
+let latest: { channels: number; made: number; pacing?: Pacing; load?: number } = {
+  channels: 0, made: 0,
+};
 
 /* ------------------------------------------------------------------------ *
  *  The process.
@@ -507,6 +520,36 @@ async function main(): Promise<void> {
   process.on('exit', stopAllSenders);
 
   process.stdout.write('playout: on air\n');
+
+  /*
+   * THE PULSE IS A TIMER, NOT A PASS.  [§18, health.ts]
+   *
+   * It used to be written only at the END of a pass, so that the
+   * timestamp was the last moment the engine demonstrably finished
+   * something. The hole in that is that a pass legitimately takes
+   * thirty seconds on a handful of channels, and the reader calls
+   * the engine dead after fifteen — so a healthy engine spent most
+   * of every cycle being reported as crashed, or, in the first
+   * pass after a restart, as never having started at all.
+   *
+   * FIRST BEAT BEFORE ANY WORK, which is the half that the old
+   * arrangement could not do at all: with seventeen channels the
+   * first pass took forty seconds, and for forty seconds the
+   * control room told the operator to go and check that the engine
+   * was started. It was.
+   *
+   * A WEDGED ENGINE STILL BEATS, and that is the trade, taken
+   * deliberately: it is caught by its channels' streams going
+   * stale, which is measured per channel and says something an
+   * operator can act on. [health.ts, streamState]
+   */
+  await beat(latest).catch(() => undefined);
+  const pulse = setInterval(() => {
+    void beat(latest).catch(() => undefined);
+  }, ENGINE_PULSE_MS);
+  /* Never the reason the process stays up: the loop below decides that. */
+  pulse.unref();
+
   /* The last few passes, so one slow segment is not a verdict. [C-41] */
   let paces: Pace[] = [];
   while (running) {
@@ -531,7 +574,8 @@ async function main(): Promise<void> {
        * check is what notices that. [§18]
        */
       process.stderr.write(`playout: ${String(error).slice(0, 300)}\n`);
-      await beat({ channels: 0, made: 0 }).catch(() => undefined);
+      latest = { channels: 0, made: 0 };
+      await beat(latest).catch(() => undefined);
     }
     const spent = Date.now() - started;
     /*
@@ -563,6 +607,7 @@ async function main(): Promise<void> {
    * missing the programme that was on when the engine was stopped is
    * an as-run missing the thing somebody is most likely to ask about.
    */
+  clearInterval(pulse);
   await closeRuns();
   process.stdout.write('playout: off air\n');
 }
