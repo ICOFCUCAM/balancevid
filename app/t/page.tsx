@@ -4,7 +4,9 @@ import {
 } from '../../src/domain/channel.js';
 import type { Channel } from '../../src/domain/channel.js';
 import { airState, engineState, healthSentence, streamState } from '../../src/domain/health.js';
-import { newestSegmentAt, readBeat } from '../../src/store/playoutHealth.js';
+import {
+  INSTANCE_STARTED_AT, newestSegmentAt, readBeat,
+} from '../../src/store/playoutHealth.js';
 import { PLATFORMS, type DestinationKind } from '../../src/domain/distribution.js';
 import { roomFor } from '../../src/domain/rooms.js';
 import Room from '../Room.js';
@@ -46,7 +48,8 @@ export default async function OnlineTvPage() {
    * whole installation, so a channel that says "the engine is stopped" and
    * another that says it is running would be reporting on one thing twice.
    */
-  const engine = engineState(beat ? Date.parse(beat.at) : null, now);
+  const engine = engineState(beat ? Date.parse(beat.at) : null, now,
+    INSTANCE_STARTED_AT);
 
   const onAir: OnTheAir[] = await Promise.all(channels.map(async (one) => {
     const on = whatIsOn(one, now);

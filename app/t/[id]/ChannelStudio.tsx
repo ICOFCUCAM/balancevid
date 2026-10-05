@@ -106,6 +106,7 @@ import {
 } from '../../../src/domain/quality.js';
 import { bodyOf } from '../../../src/domain/saidBy.js';
 import { asked } from '../../answered.js';
+import type { EngineState, StreamState } from '../../../src/domain/health.js';
 import './studio-three.css';
 
 /**
@@ -251,9 +252,20 @@ export default function ChannelStudio({
   const [seen, setSeen] = useState<
     { says: string; tone: 'fault' | 'note' } | null>(null);
 
+  /*
+   * THE TWO STATES ARE THE DOMAIN'S, NOT A COPY OF THEM.
+   *
+   * This wrote the unions out by hand, and a hand-written copy
+   * of a union is a copy that does not grow with it: when
+   * `EngineState` gained `earlier` — the state that tells an
+   * old heartbeat on the volume from a fresh corpse — the room
+   * could not be given the new reading, because its own type
+   * said no such thing existed. The compiler caught it, which
+   * is the only reason this is a comment and not a bug. [D-19]
+   */
   const [health, setHealth] = useState<{
-    engine: 'running' | 'stale' | 'stopped';
-    stream: 'transmitting' | 'stalled' | 'silent';
+    engine: EngineState;
+    stream: StreamState;
     says: string | null;
     /*
      * WHY A HEALTHY CHANNEL IS STILL DARK. Not a fault, and that is the
@@ -3246,13 +3258,26 @@ export default function ChannelStudio({
                       : 'var(--state-ok)'}
             />
             <span className="muted">
+              {/*
+                * FOUR ANSWERS, BECAUSE THERE ARE FOUR FAULTS.
+                *
+                * `not responding` used to cover two of them, and
+                * the advice under it — check its output and
+                * restart it — was wrong for the commoner one.
+                * The heartbeat lives on the data volume, so a
+                * deployment that once ran the engine leaves a
+                * file behind and every later one inherits it:
+                * the room reported a crash where no engine had
+                * ever been started. [§18, D-20]
+                */}
               {!health ? 'Engine: \u2026'
                 : health.engine === 'stopped' ? 'Engine: not running'
-                  : health.engine === 'stale' ? 'Engine: not responding'
-                    : health.stream !== 'transmitting' ? 'Engine: no output'
-                      : violations.length > 0 || missing.length > 0
-                        ? `On air \u00b7 ${missing.length || violations.length} to fix`
-                        : 'On air'}
+                  : health.engine === 'earlier' ? 'Engine: not started here'
+                    : health.engine === 'stale' ? 'Engine: not responding'
+                      : health.stream !== 'transmitting' ? 'Engine: no output'
+                        : violations.length > 0 || missing.length > 0
+                          ? `On air \u00b7 ${missing.length || violations.length} to fix`
+                          : 'On air'}
             </span>
           </span>
 
