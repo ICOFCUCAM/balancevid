@@ -106,6 +106,7 @@ import {
 } from '../../../src/domain/quality.js';
 import { bodyOf } from '../../../src/domain/saidBy.js';
 import { asked } from '../../answered.js';
+import './studio-three.css';
 
 /**
  * The control room.  [Doctrine CHANNEL §1–§9, §15, D-18, D-19, INV-17]
@@ -1329,7 +1330,25 @@ export default function ChannelStudio({
       * `useRowMenu` rather than through four intermediate props. [D-19]
       */
     <MenuHost>
-    <div className="shell">
+    {/*
+     * THE CONTROL ROOM, AS THE BRIEF DRAWS IT.
+     *   [CHANNEL §2, §12, §13]
+     *
+     *     RUNDOWN → PROGRAM → TRANSMISSION
+     *
+     * NOTHING BELOW IS NEW MACHINERY. The playout engine, the
+     * schedule, the switcher, the ingest and the destinations
+     * are untouched; what changed is the frame they sit in.
+     *
+     * THE SHAPE WAS ALREADY THIS SHAPE, which is why the
+     * integration is a change of dress rather than of plan: a
+     * bar, a rail, a gallery, a live studio and a master
+     * control strip along the bottom. The brief named the same
+     * five regions this room already had.
+     */}
+    <div className="s3">
+      <div className="app">
+      <header className="topbar">
       <StudioBar
         current="online-tv"
         studioOneId={studioOneId}
@@ -1351,30 +1370,59 @@ export default function ChannelStudio({
             <span className="mono" style={{ fontSize: 'var(--text-sm)' }}>{hms(elapsedMs)}</span>
           </span>
         )}
-        trailing={(
-          <span className="small muted" style={{
-            minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}>
-            {channel.name}
-            {' · '}
-            {new Date(now).toLocaleTimeString('en-GB', { timeZone: channel.timezone })}
-            {' '}
-            {channel.timezone}
-          </span>
-        )}
       />
+
+      {/*
+        * THE CHANNEL AND THE CLOCK, ONCE. `StudioBar` printed
+        * the name, the time and the zone in its trailing slot;
+        * the brief draws the same three things as a channel
+        * block and a clock, which is what a gallery has on the
+        * wall. Two readouts of one fact are two places it can
+        * disagree, and a control room is the last place to
+        * have two clocks. [D-19]
+        */}
+      <div className="channel" data-testid="channel-ident">
+        <span className="channel-dot" data-on={on.kind} />
+        <span className="channel-name">{channel.name}</span>
+        {/*
+          * THE SHORT IDENTITY, WHERE THERE IS ONE. The brief
+          * prints `#BAL-01` beside the name, and this network's
+          * equivalent is the station's callsign — optional, by
+          * `station.ts`, because a channel is identified by its
+          * slug and a callsign is a second, shorter name its
+          * owner may not have chosen. Absent rather than
+          * invented. [TV-NETWORK, D-21]
+          */}
+        {channel.station?.callsign && (
+          <span className="channel-id">#{channel.station.callsign}</span>
+        )}
+      </div>
+
+      <div className="spacer" />
+
+      <div className="clock" data-testid="channel-clock">
+        {new Date(now).toLocaleTimeString('en-GB', { timeZone: channel.timezone })}
+        {' · '}
+        {channel.timezone.toUpperCase()}
+      </div>
+
+      <a className="top-button" data-testid="view-channel"
+         href={`/t/${channel.id}/watch`}>
+        View Channel
+      </a>
+      </header>
 
       {/*
         * THREE COLUMNS AND A FOOTER, at fixed widths, because a control room
         * is a place before it is a page: the playlist is always in the same
         * corner and the transport is always under your hand, whatever is on.
+        *
+        * The widths are the brief's now and they live in the
+        * stylesheet with the rest of the room.
         */}
-      <div className="shell-body" style={{
-        display: 'grid', gap: 10, padding: '10px 12px', minHeight: 0,
-        gridTemplateColumns: 'minmax(260px, 330px) minmax(0, 1fr) minmax(280px, 330px)',
-      }}>
+      <main className="main">
         {/* ============ LEFT RAIL ======================================= */}
+        <aside className="left">
         <Frame testid="channel-rail">
           <Strip
             testid="rail-tabs"
@@ -1708,9 +1756,10 @@ export default function ChannelStudio({
             </span>
           </div>
         </Frame>
+        </aside>
 
         {/* ============ CENTRE ========================================== */}
-        <div style={{
+        <section className="center" style={{
           display: 'grid', gap: 10, minHeight: 0, minWidth: 0,
           /*
             * The programme above, the day below, and the split is the one a
@@ -2276,10 +2325,11 @@ export default function ChannelStudio({
               )}
             </div>
           </Frame>
-        </div>
+        </section>
 
         {/* ============ RIGHT COLUMN — LIVE STUDIO ====================== */}
         <div id="live" style={{ display: 'contents' }} />
+        <aside className="right">
         <Frame testid="live-studio">
           <Head
             text="Live Studio"
@@ -2639,7 +2689,8 @@ export default function ChannelStudio({
             </div>
           </div>
         </Frame>
-      </div>
+        </aside>
+      </main>
 
       {/* ============ THE TRANSPORT =================================== */}
       {/*
@@ -2660,7 +2711,7 @@ export default function ChannelStudio({
         * hand knows it has reached the part where pressing something is
         * consequential, before the eye has read a single label.
         */}
-      <footer className="shell-foot" data-testid="channel-transport" style={{
+      <footer className="bottom" data-testid="channel-transport" style={{
         display: 'grid', alignItems: 'center', gap: 'var(--space-5)',
         padding: 'var(--space-4) var(--space-6)',
         /*
@@ -3442,6 +3493,7 @@ export default function ChannelStudio({
         * for a confirmation to fail. [Confirm.tsx]
         */}
       {confirmDialog}
+    </div>
     </div>
     </MenuHost>
   );
