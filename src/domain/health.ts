@@ -49,8 +49,24 @@ export const STREAM_STALE_MS = 3 * SEGMENT_MS;
 export type EngineState =
   /** A heartbeat, recently. */
   | 'running'
-  /** A heartbeat, but an old one: the process died without saying so. */
+  /** A heartbeat since this web tier booted, but not lately: it died beside us. */
   | 'stale'
+  /**
+   * A HEARTBEAT OLDER THAN THIS INSTANCE.  [§18, D-20]
+   *
+   * Nothing has beaten since this process came up, so no engine is
+   * running HERE — whatever wrote that file belongs to an earlier
+   * run. This is a different fault from `stale` and it has a
+   * different fix, and until it was separated out the room said
+   * *"it may have crashed; check its output and restart it"* about
+   * an engine that had never been started in this deployment.
+   *
+   * It is the common one, because the heartbeat lives on the data
+   * VOLUME: a deploy that once ran `ROLE=all` leaves a file behind,
+   * and every later deploy that does not run the engine inherits
+   * it and reports a crash for ever.
+   */
+  | 'earlier'
   /** No heartbeat at all. It has never run, or the var directory is new. */
   | 'stopped';
 
@@ -89,8 +105,14 @@ export interface Heartbeat {
   load?: number;
 }
 
+/**
+ * @param since when THIS process started, so an old heartbeat can be
+ *   told from a fresh corpse. Required rather than optional: a caller
+ *   that cannot say when it booted would silently get the old answer,
+ *   and the old answer is the one that was wrong. [D-19]
+ */
 export function engineState(
-  beatAtMs: number | null | undefined, now: number,
+  beatAtMs: number | null | undefined, now: number, since: number,
 ): EngineState {
   if (beatAtMs === null || beatAtMs === undefined) return 'stopped';
   /*
@@ -98,7 +120,15 @@ export function engineState(
    * two machines a few seconds apart, which D-20 explicitly leaves room for.
    * Treating it as stale would take a healthy channel off the board.
    */
-  return now - beatAtMs <= ENGINE_STALE_MS ? 'running' : 'stale';
+  if (now - beatAtMs <= ENGINE_STALE_MS) return 'running';
+  /*
+   * NOTHING HAS BEATEN SINCE WE BOOTED. The engine is not running
+   * beside this web tier; the file is from an earlier run. The
+   * comparison is against the beat rather than against a duration,
+   * so it is right whether this instance came up a minute ago or a
+   * month ago.
+   */
+  return beatAtMs < since ? 'earlier' : 'stale';
 }
 
 export function streamState(
@@ -132,6 +162,11 @@ export function healthSentence(
   if (engine === 'stopped') {
     return 'The playout engine is not running — nothing is being written. '
       + 'Start it with: npm run start:playout';
+  }
+  if (engine === 'earlier') {
+    return 'No playout engine has run since this instance started — the '
+      + 'heartbeat on disk is from an earlier one. The engine is a separate '
+      + 'process: check that it is started (ROLE=all or ROLE=playout).';
   }
   if (engine === 'stale') {
     return 'The playout engine stopped responding. It may have crashed; '

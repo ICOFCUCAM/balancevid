@@ -26,7 +26,7 @@ import {
 import { channelOwns } from '../../../../src/domain/deletion.js';
 import { missingSources, resolves } from '../../../../src/store/playoutSources.js';
 import {
-  newestSegmentAt, readBeat, readFailure,
+  INSTANCE_STARTED_AT, newestSegmentAt, readBeat, readFailure,
 } from '../../../../src/store/playoutHealth.js';
 import {
   controlRoomNote, engineState, healthSentence, stillFailing, streamState,
@@ -103,7 +103,7 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
     readBeat(), newestSegmentAt(id),
   ]);
   const engine = engineState(
-    heartbeat ? Date.parse(heartbeat.at) : null, now);
+    heartbeat ? Date.parse(heartbeat.at) : null, now, INSTANCE_STARTED_AT);
   const stream = streamState(newestSegment, now);
   /* Once, and given to both the page and the sentence below it: two calls
      a microsecond apart could straddle a programme boundary and disagree

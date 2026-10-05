@@ -189,3 +189,31 @@ export async function readFailure(
     return null;
   }
 }
+
+/**
+ * When THIS process started.  [§18, D-19, D-20]
+ *
+ * The other half of the heartbeat question. A beat tells you an
+ * engine was alive at some instant; only this tells you whether
+ * that instant was in the life of the web tier reading it.
+ *
+ * WHY IT MATTERS MORE THAN IT LOOKS: the heartbeat lives on the
+ * data volume, which outlives the container. A deployment that
+ * once ran the engine leaves a file behind, and every later one
+ * that does not run it inherits that file — so the control room
+ * reported a crashed engine, with the advice to check its output
+ * and restart it, in deployments where the engine had never been
+ * started at all. The advice was wrong and the operator had
+ * nothing to check.
+ *
+ * COMPUTED ONCE, AT MODULE LOAD, which is as close to the start
+ * of the process as this module can be. `process.uptime()` is
+ * seconds of CPU wall-clock since the runtime came up, so this is
+ * the instant it did.
+ *
+ * ONE SPELLING, because the channel route and the channel list
+ * both ask, and two answers a few milliseconds apart would make
+ * one page say the engine is dead and the other that it is
+ * missing. [D-19]
+ */
+export const INSTANCE_STARTED_AT = Date.now() - Math.round(process.uptime() * 1000);

@@ -17,15 +17,63 @@ import { SEGMENT_MS } from '../../src/domain/playout.js';
 
 const NOW = Date.parse('2026-04-20T20:00:00.000Z');
 
+/*
+ * WHEN THIS WEB TIER BOOTED, which is the other half of the
+ * heartbeat question: a beat says an engine was alive at some
+ * instant, and only this says whether that instant was in the
+ * life of the process reading it. An hour ago, so a beat can be
+ * placed on either side of it.
+ */
+const BOOTED = NOW - 60 * 60_000;
+
 describe('the engine', () => {
   it('is running while its heartbeat is fresh', () => {
-    expect(engineState(NOW, NOW)).toBe('running');
-    expect(engineState(NOW - ENGINE_STALE_MS, NOW)).toBe('running');
+    expect(engineState(NOW, NOW, BOOTED)).toBe('running');
+    expect(engineState(NOW - ENGINE_STALE_MS, NOW, BOOTED)).toBe('running');
   });
 
-  it('is stale once the heartbeat has aged past the threshold', () => {
-    expect(engineState(NOW - ENGINE_STALE_MS - 1, NOW)).toBe('stale');
-    expect(engineState(NOW - 10 * 60_000, NOW)).toBe('stale');
+  /*
+   * STALE MEANS IT DIED BESIDE US, which is what the word was
+   * always taken to mean and what the advice under it assumes:
+   * *check its output and restart it*. That only holds for an
+   * engine that beat during the life of this process.
+   */
+  it('is stale once a heartbeat of ours has aged past the threshold', () => {
+    expect(engineState(NOW - ENGINE_STALE_MS - 1, NOW, BOOTED)).toBe('stale');
+    expect(engineState(NOW - 10 * 60_000, NOW, BOOTED)).toBe('stale');
+  });
+
+  /*
+   * AND A BEAT FROM BEFORE WE BOOTED IS A DIFFERENT FAULT.
+   *   [§18, D-20]
+   *
+   * The heartbeat lives on the data VOLUME, which outlives the
+   * container. A deployment that once ran the engine leaves a
+   * file behind, and every later one that does not run it
+   * inherits that file — so the room reported a crashed engine,
+   * with advice to check output that does not exist, in
+   * deployments where the engine had never been started.
+   *
+   * The two are a millisecond apart and they are not the same
+   * question, which is the whole of why this state exists.
+   */
+  it('is earlier when nothing has beaten since this instance started', () => {
+    expect(engineState(BOOTED - 1, NOW, BOOTED)).toBe('earlier');
+    expect(engineState(NOW - 78 * 60 * 60_000, NOW, BOOTED)).toBe('earlier');
+  });
+
+  it('is stale, not earlier, for a beat from the moment we booted', () => {
+    expect(engineState(BOOTED, NOW, BOOTED)).toBe('stale');
+  });
+
+  /*
+   * AND FRESHNESS WINS OVER BOTH. An engine beating now is
+   * running, whenever this web tier happened to start — a
+   * container restarted a second ago beside a healthy engine
+   * must not report it missing.
+   */
+  it('is running even when the web tier booted after the engine', () => {
+    expect(engineState(NOW, NOW, NOW + 5_000)).toBe('running');
   });
 
   /*
@@ -33,8 +81,8 @@ describe('the engine', () => {
    * had an engine pointed at it, which needs different advice.
    */
   it('is stopped when there has never been a heartbeat', () => {
-    expect(engineState(null, NOW)).toBe('stopped');
-    expect(engineState(undefined, NOW)).toBe('stopped');
+    expect(engineState(null, NOW, BOOTED)).toBe('stopped');
+    expect(engineState(undefined, NOW, BOOTED)).toBe('stopped');
   });
 
   /*
@@ -43,7 +91,7 @@ describe('the engine', () => {
    * board for a clock disagreement.
    */
   it('accepts a heartbeat from slightly in the future', () => {
-    expect(engineState(NOW + 4000, NOW)).toBe('running');
+    expect(engineState(NOW + 4000, NOW, BOOTED)).toBe('running');
   });
 });
 
@@ -266,6 +314,53 @@ describe('the one line the control room shows (§6, §18)', () => {
           expect(note.says === dark || note.says === other).toBe(true);
         }
       }
+    }
+  });
+});
+
+/**
+ * THE FOUR FAULTS ARE FOUR SENTENCES.  [§18, D-20, D-21]
+ *
+ * The point of separating `earlier` from `stale` is that the
+ * advice differs: one says restart the process you can see, the
+ * other says start a process that was never there. A state with
+ * no sentence of its own would have been a rename.
+ */
+describe('the operator is told which fault it is', () => {
+  const NOTHING = 'silent' as const;
+
+  it('gives each engine state its own advice', () => {
+    const said = (['running', 'stale', 'earlier', 'stopped'] as const)
+      .map((engine) => healthSentence(engine, NOTHING, 'operator'));
+    /* Every one is a sentence, and no two are the same one. */
+    expect(said.every((one) => typeof one === 'string' && one.length > 0))
+      .toBe(true);
+    expect(new Set(said).size).toBe(said.length);
+  });
+
+  /*
+   * AND EACH NAMES ITS OWN REMEDY. `stale` sends an operator to
+   * the engine's output; `earlier` sends them to whether it is
+   * started at all. Told the wrong one, they go looking for logs
+   * that do not exist.
+   */
+  it('sends a crashed engine to its output and a missing one to its start', () => {
+    expect(healthSentence('stale', NOTHING, 'operator')).toMatch(/output/i);
+    expect(healthSentence('earlier', NOTHING, 'operator')).toMatch(/ROLE|start/i);
+    expect(healthSentence('stopped', NOTHING, 'operator')).toMatch(/start/i);
+  });
+
+  /*
+   * THE VIEWER IS TOLD NONE OF IT. A stranger is owed an honest
+   * "not transmitting", not a diagnosis of somebody's server —
+   * and a new engine state must not leak a ROLE variable onto a
+   * public page. [D-21]
+   */
+  it('tells a viewer nothing about the server', () => {
+    for (const engine of ['running', 'stale', 'earlier', 'stopped'] as const) {
+      const said = healthSentence(engine, NOTHING, 'viewer');
+      expect(said).toBe('This channel is not transmitting right now.');
+      expect(said).not.toMatch(/ROLE|engine|heartbeat/i);
     }
   });
 });
