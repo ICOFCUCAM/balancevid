@@ -10,6 +10,7 @@ import { enqueue } from '../../../src/store/queue.js';
 import { ConsentError, assertRespondable, lineageFor } from '../../../src/domain/publish.js';
 import { audit, listConversations, loadConversation, saveConversation } from '../../../src/store/repository.js';
 import { fail, json } from '../../../src/web/http.js';
+import { MOST_BODY_BYTES, MOST_BODY_LABEL } from '../../../src/web/body.js';
 
 export const dynamic = 'force-dynamic';
 
@@ -79,6 +80,35 @@ export async function POST(request: Request): Promise<Response> {
   const form = await request.formData();
   const file = form.get('file');
   if (!(file instanceof File) || file.size === 0) return fail(400, 'a source video file is required');
+  /*
+   * THE UPLOAD IS BOUNDED, AND SAYS SO.  [U-02, D-21, U-19; src/web/body.ts]
+   *
+   * This route had no ceiling at all: it read whatever arrived
+   * with `arrayBuffer()` and would have tried to hold a two
+   * gigabyte file in memory. What saved it was an accident —
+   * Next truncating the body at 10 MB — and the accident is
+   * what made a 31 MB video fail as *"the server failed on
+   * that"*. With the transport limit raised, the ceiling has to
+   * be stated rather than inherited from a bug.
+   *
+   * MEASURED, NOT BELIEVED. The first version of this refused on
+   * `Content-Length` first, as a cheap early-out before reading
+   * the body. Two things were wrong with it. This product's rule
+   * is that a size is counted from the artefact and never read
+   * off a header — the fetch path a few lines down counts bytes
+   * as it streams for exactly that reason, and
+   * `studio-one.test.ts` holds this file to it. And it bought
+   * nothing: a client that understates the header is read by
+   * `formData()` anyway, so the only request it ever turned away
+   * was an honest one.
+   *
+   * 413, which is the code for exactly this.
+   */
+  if (file.size > MOST_BODY_BYTES) {
+    return fail(413, `that file is ${Math.round(file.size / (1024 * 1024))} MB `
+      + `and this installation takes up to ${MOST_BODY_LABEL} in one upload. `
+      + 'Add it by link instead, or shorten it.');
+  }
 
   const rightsBasis = String(form.get('rightsBasis') ?? '').trim();
   if (!rightsBasis) return fail(400, 'a rights basis is required before a source can be added');
