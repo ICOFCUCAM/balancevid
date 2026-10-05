@@ -19,6 +19,22 @@ directories:
   output: release
   buildResources: build
 
+# WHAT THE FILE IS CALLED, BECAUSE THE NAME IS THE DECLARATION.
+#
+# The download centre reads `var/downloads` and offers what it finds;
+# there is no manifest beside the files saying what they are, because
+# a manifest is a second place to be wrong — somebody replaces a
+# release, forgets to edit it, and the page hands people the old
+# build. The name carries the product, the version and the platform,
+# and a file whose name does not say those things is not offered.
+#
+# electron-builder's own defaults do not say them. It writes
+# `Take-0.1.0.AppImage`, `take_0.1.0_amd64.deb` and `Take Setup
+# 0.1.0.exe` — three spellings of one product, one of them with a
+# space in it — so the convention is stated here rather than
+# renamed by hand after every build. [src/domain/downloads.ts]
+artifactName: take-desktop-${version}-${os}-${arch}.${ext}
+
 files:
   - out/**/*
 

@@ -161,23 +161,50 @@ interface Card {
 }
 
 /*
- * THE DOWNLOAD CENTRE. Take installs from `/take` — it is a
- * progressive web application, which is how it reaches both
- * phones, and the page offers the installation itself. The four
- * below it are built and not yet served from anywhere, so they
- * keep the brief's `#`.
+ * THE DOWNLOAD CENTRE, AND WHAT EACH CARD ACTUALLY LEADS TO.
+ *   [TAKE-PLATFORM P6; D-21, D-24]
+ *
+ * FOUR OF THESE SIX WENT TO `#`. The brief drew the band and the
+ * band was kept whole, which was right — but a card that cannot
+ * be followed is the building advertising a room it has not
+ * built, and four of them is the fault D-24 names.
+ *
+ * TAKE INSTALLS FROM `/take` AND NEEDS NO FILE: it is a
+ * progressive web application, which is how it reaches a phone
+ * with no store account and no signed binary. That is one card
+ * now rather than two, because "Take for Android" and "Take for
+ * iOS" were the same door drawn twice — and on iOS it is the
+ * ONLY door, since Safari has Add to Home Screen and no store
+ * build exists.
+ *
+ * THE DESKTOP CARDS SAID THE WRONG PRODUCT. "BalanceVid Windows
+ * — Desktop production environment" is not what `desktop/`
+ * builds: Take Desktop is a multi-camera CAPTURE STATION that
+ * records to its own disk and submits here. Naming it after the
+ * studios would be somebody downloading three hundred megabytes
+ * to find out it is not the thing they wanted. [D-21]
+ *
+ * AND THE THREE RELEASE CARDS GO TO ONE PLACE, because what is
+ * actually available is read off this installation's own disk at
+ * `/downloads` rather than guessed at here. A card per platform
+ * on a page that cannot know which platforms have a build is
+ * four more chances to be wrong. [U-02]
  */
 const DOWNLOADS: Card[] = [
-  { number: '01 / MOBILE', name: 'Take for Android',
-    says: 'Audience participation.', href: '/take' },
-  { number: '02 / MOBILE', name: 'Take for iOS',
-    says: 'Audience participation.', href: '/take' },
-  { number: '03 / DESKTOP', name: 'BalanceVid Windows',
-    says: 'Desktop production environment.', href: '#' },
-  { number: '04 / DESKTOP', name: 'BalanceVid Linux',
-    says: 'Desktop production environment.', href: '#' },
-  { number: '05 / SERVER', name: 'Self-hosted Installation',
-    says: 'Deploy BalanceVid on your infrastructure.', href: '#' },
+  { number: '01 / MOBILE', name: 'Take App',
+    says: 'Open calls, live channels and your own library. '
+      + 'Installs to a home screen from the app itself.', href: '/take' },
+  { number: '02 / MOBILE', name: 'BalanceVid TV',
+    says: 'The network, as an app on your phone.', href: '/tv' },
+  { number: '03 / DESKTOP', name: 'Take Desktop',
+    says: 'A multi-camera capture station for Windows and Linux.',
+    href: '/downloads' },
+  { number: '04 / SERVER', name: 'Self-hosted Installation',
+    says: 'Run the whole system on your own infrastructure.',
+    href: '/downloads' },
+  { number: '05 / RELEASES', name: 'Download Center',
+    says: 'Every release this installation offers, behind its '
+      + 'activation code.', href: '/downloads' },
   { number: '06 / TECHNICAL', name: 'System Requirements',
     says: 'Current supported environments.', href: '#' },
 ];

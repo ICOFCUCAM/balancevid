@@ -1114,3 +1114,23 @@ html:has(.bv-site){scroll-behavior:smooth}
     animation-iteration-count:1 !important;
   }
 }
+
+/*
+ * A PAGE THAT IS ONE DARK BAND, AND NOTHING UNDER IT.
+ *   [TAKE-PLATFORM P6; the download centre]
+ *
+ * `.bv-site` paints itself `--paper`, which is right for the
+ * gateway: eleven sections alternate over it and the last one is
+ * dark, so the paper is never the thing at the bottom of the
+ * window. `/downloads` is ONE section, and on any screen taller
+ * than it the paper showed as a band of near-white below the
+ * page — found in a browser run, where it looked like the dark
+ * band had simply stopped.
+ *
+ * The section's own `#07111a`, so the two cannot disagree, and
+ * the whole viewport whatever the window is.
+ */
+.bv-site.bv-one-band{
+  min-height:100vh;
+  background:#07111a;
+}
