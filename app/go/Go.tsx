@@ -24,27 +24,41 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
 import type { CallRow } from '../../src/domain/campaign.js';
+import Icon from '../Icon.js';
 
 export function GoFrame({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
-      <header className="row" style={{
-        gap: 'var(--space-5)', alignItems: 'center', flexWrap: 'wrap',
-        padding: '14px var(--space-6)', borderBottom: '1px solid var(--line)',
-      }}>
-        <Link href="/go" style={{
-          fontWeight: 700, letterSpacing: '0.06em', textDecoration: 'none',
-          color: 'var(--text)',
-        }}>BalanceVid <span style={{ color: 'var(--accent)' }}>Go</span></Link>
-        <span className="grow" />
-        <Link href="/take" className="small muted"
-              style={{ textDecoration: 'none' }}>Take App</Link>
-        <Link href="/tv" className="small muted"
-              style={{ textDecoration: 'none' }}>TV</Link>
+    <div className="tk-page">
+      {/*
+        * THE SAME IDENT AS THE TAKE APP, AND THAT IS THE POINT.
+        * Go is the door somebody walks through before they have
+        * ever used this product, and the Take App is where they
+        * land afterwards. Two front doors that looked like two
+        * different products would make the second one feel like
+        * a sign-up. [D-19]
+        */}
+      <header className="tk-bar">
+        <Link href="/go" className="tk-ident">
+          <span aria-hidden="true" className="tk-ident-mark">
+            <Icon name="live" size={16} />
+          </span>
+          <span style={{ minWidth: 0 }}>
+            <span className="tk-ident-name">
+              BalanceVid <span style={{ color: 'var(--accent)' }}>Go</span>
+            </span>
+            <span className="tk-ident-says">Open calls · Anyone can enter</span>
+          </span>
+        </Link>
+        <Link href="/take" className="tk-bar-way">
+          <Icon name="mic" size={14} />
+          Take App
+        </Link>
+        <Link href="/tv" className="tk-bar-way" style={{ marginLeft: 0 }}>
+          <Icon name="broadcast" size={14} />
+          TV
+        </Link>
       </header>
-      <main style={{
-        padding: 'var(--space-6)', maxWidth: 900, margin: '0 auto',
-      }}>{children}</main>
+      {children}
     </div>
   );
 }
@@ -122,19 +136,27 @@ export function howLong(ms: number): string {
 
 export function CallCard({ call }: { call: CallRow }) {
   return (
-    <Link href={call.at} data-testid="go-call-card" style={{
-      display: 'block', textDecoration: 'none', color: 'var(--text)',
-      padding: 'var(--space-4)', border: '1px solid var(--line)',
-      borderRadius: 'var(--radius-md)', background: 'var(--console-control)',
-    }}>
-      <div className="row" style={{ gap: 'var(--space-3)', alignItems: 'baseline' }}>
-        <span style={{
-          fontSize: 'var(--text-lg)', fontWeight: 'var(--weight-bold)',
-        }}>{call.title}</span>
-        <span className="grow" />
+    <Link href={call.at} data-testid="go-call-card" className="go-call"
+          data-standing={standingSays(call)}>
+      <span className="go-call-top">
+        <span className="go-call-name">{call.title}</span>
+      </span>
+      {/*
+        * THE ORGANISER'S OWN INSTRUCTION, WHOLE. This is the
+        * text somebody reads before deciding to record, and it
+        * is the only thing on the page that has to be read
+        * rather than scanned — so it is not clamped, the way a
+        * row in a list is. [V-8]
+        */}
+      <p className="go-call-asks">{call.asks}</p>
+      <span className="go-call-foot">
         <Standing call={call} />
-      </div>
-      <p className="small muted" style={{ margin: '6px 0 0' }}>{call.asks}</p>
+        <span className="grow" />
+        <span className="tk-go tk-go-quiet">
+          Look
+          <Icon name="chevron" size={13} />
+        </span>
+      </span>
     </Link>
   );
 }
@@ -148,30 +170,26 @@ export function CallCard({ call }: { call: CallRow }) {
  * ago is the failure `clockSays` exists to prevent. The state is
  * what the page itself says in the organiser's own sentence.
  */
-export function Standing({ call }: { call: CallRow }) {
+/** What a call's chip says, which the card also colours by. */
+export function standingSays(call: CallRow): string {
   const closing = call.clock === 'closing' && call.msLeft !== null;
-  const says = call.state === 'results' ? 'Results'
+  return call.state === 'results' ? 'Results'
     : call.state === 'judging' ? 'Judging'
       : call.clock === 'scheduled' ? 'Opens soon'
         : call.clock === 'over' ? 'Closed'
           : closing ? 'Ending soon' : 'Open';
+}
+
+export function Standing({ call }: { call: CallRow }) {
+  const says = standingSays(call);
   return (
-    <span className="small" data-testid="go-standing" data-standing={says}
-          style={{
-            padding: '2px 8px', borderRadius: 'var(--radius-sm)',
-            border: '1px solid var(--line)',
-            color: closing ? 'var(--warn)' : 'var(--ink-300)',
-            /*
-             * ONE LINE, WHICH A PHONE DECIDES AND THIS DOES NOT.
-             * Found in a screenshot of the Take App home at 420px:
-             * *Open · 6d 23h* broke after the dot and the chip
-             * became a two-line box half the width of the row. A
-             * standing is four words at most; it wraps or it is
-             * shortened, and shortening it would lose the
-             * countdown. [GO-VIRAL V-8]
-             */
-            whiteSpace: 'nowrap', flexShrink: 0,
-          }}>
+    <span className="go-standing" data-testid="go-standing" data-standing={says}>
+      {/* A live dot on the one that is actually open, and on
+          nothing else: a chip that always has one is a chip
+          whose dot means nothing. [D-21] */}
+      {(says === 'Open' || says === 'Ending soon') && (
+        <span aria-hidden="true" className="go-standing-dot" />
+      )}
       {says}
       {call.msLeft !== null && call.msLeft > 0
         && (call.clock === 'live' || call.clock === 'closing') && (

@@ -1,0 +1,855 @@
+/* ------------------------------------------------------------------ *
+ *  The Take App.  [Doctrine TAKE-DESKTOP, GO-VIRAL, D-04, U-19]
+ *
+ *  THE SHELL THE TELEVISION PAGES ALREADY HAVE, APPLIED TO THE
+ *  ONE SURFACE MOST PEOPLE WILL ACTUALLY TOUCH. The network
+ *  pages gained an ident, a band and a shelf; this one was still
+ *  a centred `<h1>` over a stack of inline-styled boxes — which
+ *  is what the whole product looked like before the redesign and
+ *  now looks like only here.
+ *
+ *  PHONE FIRST, AND THAT IS NOT A SLOGAN. Every measurement
+ *  below was taken at 390x844 and widened upwards. A take page
+ *  is opened from a link in a message, on a phone, by somebody
+ *  who has never heard of this software.
+ * ------------------------------------------------------------------ */
+
+.tk-page {
+  min-height: 100dvh;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+}
+
+/*
+ * AN IDENT, NOT A SPLASH SCREEN.  [N-4, applied here]
+ *
+ * The page opened with the product's name centred in large
+ * letters over nothing, which is what a loading screen looks
+ * like. A mark, a name and a line saying what this is — the
+ * same three the television header carries, because it is the
+ * same product and a person may arrive at either one first.
+ */
+.tk-bar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 11px var(--space-5);
+  background: color-mix(in srgb, var(--ink-900) 92%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line);
+}
+
+.tk-ident {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  text-decoration: none;
+  color: inherit;
+}
+
+.tk-ident-mark {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(150deg, var(--accent) 0%, var(--accent-deep) 100%);
+  color: var(--text-on-accent);
+}
+
+.tk-ident-name {
+  display: block;
+  font-weight: var(--weight-semi);
+  letter-spacing: -0.01em;
+  color: var(--ink-000);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tk-ident-says {
+  display: block;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tk-bar-way {
+  margin-left: auto;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 13px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--console-control);
+  color: var(--ink-200);
+  text-decoration: none;
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+
+.tk-bar-way:hover { border-color: var(--accent); color: var(--ink-000); }
+
+/*
+ * `min-width: 0` ON THE COLUMN, which is a fault a browser run
+ * found rather than a precaution. An installation names ITSELF,
+ * so *"The Redemption Records Recording Company of Greater
+ * Manchester Limited"* is a label this page is HANDED — and with
+ * it the column and every card in it measured 492px inside a
+ * 412px phone. The page did not even scroll; it clipped, so the
+ * action was simply not there.
+ *
+ * NOT `.shell`, WHICH IS THE EDITOR'S FRAME. `.shell` is
+ * `height: 100dvh; overflow: hidden` with a three-row grid,
+ * because *"a workspace is not a document… the page itself never
+ * scrolls."* Right for the studio and wrong for every page here:
+ * a take page measured 892 pixels of content inside an
+ * 844-pixel box that could not scroll, so forty-eight pixels
+ * were simply unreachable. [GO-VIRAL V-8, U-19]
+ */
+.tk-main {
+  flex: 1 1 auto;
+  width: 100%;
+  max-width: 560px;
+  min-width: 0;
+  margin: 0 auto;
+  padding: var(--space-5) var(--space-5) var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+/* ------------------------------------------------------------------ *
+ *  A shelf: a heading, a count, and the rows under it.
+ * ------------------------------------------------------------------ */
+
+.tk-shelf { min-width: 0; }
+
+.tk-shelf-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.tk-shelf-title {
+  margin: 0;
+  font-size: var(--text-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-400);
+}
+
+.tk-shelf-count {
+  margin-left: auto;
+  font-size: var(--text-2xs);
+  color: var(--ink-400);
+}
+
+.tk-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  overflow: hidden;
+}
+
+/*
+ * A ROW IS A FLEX CONTAINER AND `min-width: 0` IS LOAD-BEARING
+ * ON EVERY ONE OF THEM. A flex item cannot shrink below its
+ * min-content width without it, and one unbreakable label
+ * anywhere inside pushes the whole page wider than the phone.
+ */
+.tk-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 11px var(--space-4);
+  border-top: 1px solid var(--line-soft);
+  min-width: 0;
+}
+
+.tk-row:first-child { border-top: 0; }
+
+.tk-row-mark {
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: var(--surface-float);
+  border: 1px solid var(--line);
+  color: var(--ink-200);
+}
+
+/* An installation that is not answering says so in its mark as
+   well as in its words, because a list of names is scanned. */
+.tk-row-mark[data-asleep='true'] { opacity: 0.5; }
+
+.tk-row-said { flex: 1 1 auto; min-width: 0; }
+
+.tk-row-name {
+  display: block;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semi);
+  color: var(--ink-000);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * THE SECOND LINE WRAPS TO TWO AND THEN STOPS. An organiser's
+ * instruction is a sentence they wrote, and one truncated to
+ * `Sing the second verse of "The L…` is a brief nobody can
+ * follow — found on a phone. Two lines is a brief; three is the
+ * row becoming a card. [V-8]
+ */
+.tk-row-under {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-top: 2px;
+  font-size: var(--text-xs);
+  color: var(--ink-300);
+}
+
+/*
+ * A CALL STACKS, BECAUSE A PHONE IS 390 PIXELS WIDE.
+ *   [GO-VIRAL V-8, U-19]
+ *
+ * One row held the title, the organiser's ask, the standing
+ * chip and the button, so the ask was cut to *Sing the second
+ * verse of "The L…* and the chip took a third of the screen.
+ * The ask is the reason somebody presses it, so it gets two
+ * whole lines rather than whatever is left beside a chip; the
+ * chip and the button go underneath, where a thumb is.
+ */
+.tk-row-stack { flex-direction: column; align-items: stretch; gap: 11px; }
+
+.tk-row-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  min-width: 0;
+}
+
+.tk-row-foot {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.tk-row-go { flex: 0 0 auto; }
+
+.tk-row-quiet {
+  flex: 0 0 auto;
+  font-size: var(--text-2xs);
+  color: var(--ink-400);
+  white-space: nowrap;
+}
+
+/*
+ * THE ACTION IS A PILL AND IT NEVER SHRINKS. `max-width` on the
+ * button could not fix the overflow this page had: a percentage
+ * resolves against a container that has already grown. The row
+ * gives way; the thing you press does not.
+ */
+.tk-go {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 15px;
+  border-radius: 999px;
+  border: 0;
+  background: var(--accent-deep);
+  color: var(--text-on-accent);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semi);
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tk-go[disabled] { opacity: 0.55; cursor: default; }
+
+.tk-go-quiet {
+  background: var(--console-control);
+  border: 1px solid var(--line);
+  color: var(--ink-100);
+  font-weight: 400;
+}
+
+.tk-go-quiet:hover { border-color: var(--accent); }
+
+.tk-empty {
+  margin: 0;
+  padding: var(--space-5) var(--space-4);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-lg);
+  font-size: var(--text-sm);
+  color: var(--ink-300);
+  text-align: center;
+}
+
+.tk-say {
+  margin: 0;
+  padding: 11px var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--state-bad);
+  background: color-mix(in srgb, var(--state-bad) 12%, transparent);
+  color: var(--ink-000);
+  font-size: var(--text-sm);
+}
+
+.tk-note {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--ink-400);
+  text-align: center;
+}
+
+/* Where a second installation is typed in. */
+.tk-field {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  min-width: 0;
+}
+
+.tk-field input { flex: 1 1 auto; min-width: 0; font-size: var(--text-sm); }
+
+.tk-quiet {
+  flex: 0 0 auto;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink-400);
+  border-radius: 999px;
+  padding: 5px 11px;
+  font-size: var(--text-2xs);
+  cursor: pointer;
+}
+
+.tk-quiet:hover { color: var(--ink-000); border-color: var(--accent); }
+
+@media (min-width: 760px) {
+  /* Wider, but never a desktop layout: this is a phone app that
+     a laptop sometimes opens, and a 1180px column of rows is a
+     spreadsheet. */
+  .tk-main { max-width: 680px; padding-inline: var(--space-6); }
+  .tk-bar { padding-inline: var(--space-6); }
+}
+
+/* ------------------------------------------------------------------ *
+ *  BalanceVid Go: the public competition network.  [GO-VIRAL]
+ *
+ *  THE SAME SHELL AS THE TAKE APP, AND THAT IS THE POINT. Go is
+ *  the door somebody walks through before they have ever used
+ *  this product — a link in a message, a competition they heard
+ *  about — and the Take App is where they land afterwards. Two
+ *  front doors that looked like two different products would
+ *  make the second one feel like a sign-up. [D-19]
+ *
+ *  Rows, marks, pills and empty states are `tk-*` and are not
+ *  drawn again here. What is Go's own is the band at the top
+ *  and the call, which carries a countdown nothing else has.
+ * ------------------------------------------------------------------ */
+
+.go-head {
+  border-bottom: 1px solid var(--line);
+  background: var(--ink-900);
+}
+
+.go-head-row {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: var(--space-5) var(--space-6);
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.go-title {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  letter-spacing: -0.02em;
+  color: var(--ink-000);
+}
+
+.go-lede { margin: 6px 0 0; font-size: var(--text-sm); color: var(--ink-300); }
+
+.go-count {
+  margin-left: auto;
+  font-size: var(--text-sm);
+  color: var(--ink-300);
+  white-space: nowrap;
+}
+
+.go-body {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: var(--space-5) var(--space-6) var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+/*
+ * A CALL IS A CARD AND NOT A ROW, which is the one place Go
+ * departs from the Take App's list. A call carries an
+ * organiser's whole instruction — the thing somebody reads
+ * before deciding to record — and a two-line clamp in a row is
+ * the wrong shape for the only text on the page that matters.
+ */
+.go-call {
+  display: block;
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  text-decoration: none;
+  color: inherit;
+  min-width: 0;
+}
+
+.go-call:hover { border-color: var(--accent); }
+
+/* The one that is ending gets the colour, and only that one. */
+.go-call[data-standing='Ending soon'] { border-color: var(--state-warn); }
+
+.go-call-top {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.go-call-name {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  letter-spacing: -0.01em;
+  color: var(--ink-000);
+  min-width: 0;
+}
+
+.go-call-asks {
+  margin: 8px 0 0;
+  font-size: var(--text-sm);
+  color: var(--ink-300);
+}
+
+.go-call-foot {
+  margin-top: var(--space-4);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+
+/*
+ * ONE LINE, WHICH A PHONE DECIDES AND THIS DOES NOT. Found in a
+ * screenshot of the Take App home at 420px: *Open · 6d 23h*
+ * broke after the dot and the chip became a two-line box half
+ * the width of the row. A standing is four words at most; it
+ * wraps or it is shortened, and shortening it would lose the
+ * countdown. [GO-VIRAL V-8]
+ */
+.go-standing {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--console-control);
+  font-size: var(--text-2xs);
+  color: var(--ink-300);
+  white-space: nowrap;
+}
+
+.go-standing[data-standing='Open'] { color: var(--ink-100); }
+.go-standing[data-standing='Ending soon'] {
+  color: var(--state-warn);
+  border-color: var(--state-warn);
+}
+.go-standing[data-standing='Closed'] { opacity: 0.7; }
+
+.go-standing-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--state-live);
+}
+
+@media (max-width: 760px) {
+  .go-head-row, .go-body { padding: var(--space-4); }
+  .go-count { margin-left: 0; }
+}
+
+/* ------------------------------------------------------------------ *
+ *  One call, read before deciding to record.  [GO-VIRAL V-2]
+ * ------------------------------------------------------------------ */
+
+.go-h {
+  margin: 0 0 7px;
+  font-size: var(--text-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-400);
+}
+
+/*
+ * THE ORGANISER'S WORDS IN A PANEL OF THEIR OWN. *"What to do"*
+ * and *"Judged on"* are the two things a competition is, and
+ * running them as plain paragraphs down a page made them
+ * indistinguishable from the furniture around them — found in a
+ * screenshot where the brief, the criteria and the prize read
+ * as one undifferentiated column. [V-2, V-5]
+ */
+.go-said {
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+}
+
+.go-prose {
+  margin: 0;
+  /* THE LINE BREAKS AN ORGANISER TYPED ARE THEIR OWN. A brief
+     written as three numbered steps is three steps. */
+  white-space: pre-wrap;
+  font-size: var(--text-base);
+  color: var(--ink-100);
+  line-height: 1.55;
+}
+
+/* The way in, which is what the call page is for. */
+.go-enter {
+  width: 100%;
+  min-height: 50px;
+  justify-content: center;
+  font-size: var(--text-base);
+}
+
+/* ------------------------------------------------------------------ *
+ *  The recording page.  [TAKE-APP T3, T4; GO-VIRAL V-7]
+ * ------------------------------------------------------------------ */
+
+.tk-stage {
+  flex: 1 1 auto;
+  width: 100%;
+  max-width: 520px;
+  min-width: 0;
+  margin: 0 auto;
+  padding: var(--space-5) var(--space-5) var(--space-6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+/*
+ * THE ASK READS AS A SENTENCE, NOT A TITLE CARD. It was
+ * letter-spaced uppercase and centred, which is how a film's
+ * opening credit is set — and this is an instruction somebody
+ * has to follow while holding a phone at arm's length. [T3]
+ */
+.tk-ask {
+  margin: 0;
+  width: 100%;
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  letter-spacing: -0.01em;
+  color: var(--ink-000);
+}
+
+.tk-ask-said {
+  margin: 0;
+  width: 100%;
+  font-size: var(--text-sm);
+  color: var(--ink-200);
+  line-height: 1.5;
+}
+
+/*
+ * THE SETTINGS, SHUT.  [D-04, U-19]
+ *
+ * A camera picker, a quality picker and a sentence about
+ * megabytes a minute stood between the viewfinder and the only
+ * button on the page, so on a 390x844 phone *Turn the camera
+ * on* was at the very bottom of the screen — measured in a
+ * screenshot. Almost nobody changes either, and the one who
+ * does will look.
+ */
+.tk-setup {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  overflow: hidden;
+}
+
+.tk-setup-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 11px var(--space-4);
+  cursor: pointer;
+  list-style: none;
+  font-size: var(--text-sm);
+  color: var(--ink-200);
+  user-select: none;
+}
+
+.tk-setup-head::-webkit-details-marker { display: none; }
+.tk-setup-head:hover { background: var(--surface-float); }
+
+/* WHAT IT IS SET TO, ON THE CLOSED ROW. A disclosure that hides
+   a setting without saying its value is one you have to open to
+   find out nothing changed. [D-21] */
+.tk-setup-now {
+  margin-left: auto;
+  font-size: var(--text-2xs);
+  color: var(--ink-400);
+}
+
+.tk-setup-mark {
+  display: flex;
+  color: var(--ink-400);
+  transform: rotate(90deg);
+  transition: transform 120ms ease;
+}
+
+.tk-setup[open] .tk-setup-mark { transform: rotate(-90deg); }
+
+.tk-setup-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: var(--space-4);
+  border-top: 1px solid var(--line-soft);
+}
+
+/* ------------------------------------------------------------------ *
+ *  The front of the Take App.  [N-4, applied here]
+ *
+ *  > *"See how the tv channels of take mobile fill the screen,
+ *  > no drop cap, no search, no design, no flesh."*
+ *
+ *  The page opened straight onto a column of rows: the first
+ *  thing a stranger met was seventeen channel names, with
+ *  nothing saying what this was and no way to cut it down. The
+ *  television pages solved both with a band and a field.
+ * ------------------------------------------------------------------ */
+
+.tk-hero {
+  position: relative;
+  min-height: 210px;
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+  border-bottom: 1px solid var(--line);
+  background: var(--screen-bed);
+}
+
+.tk-hero img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/*
+ * THE WASH IS WHAT MAKES THE WORDS READABLE OVER A PHOTOGRAPH
+ * NOBODY HAS SEEN. The artwork is swappable — a broadcaster
+ * will put their own there — so the band cannot assume a dark
+ * corner to sit in.
+ */
+.tk-hero-wash {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg, rgba(0, 0, 0, 0.52) 0%, rgba(0, 0, 0, 0.62) 40%,
+    rgba(0, 0, 0, 0.92) 100%);
+}
+
+.tk-hero-said {
+  position: relative;
+  width: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+  padding: var(--space-5);
+}
+
+.tk-hero-lead {
+  margin: 0;
+  font-size: clamp(1.4rem, 6vw, 1.9rem);
+  font-weight: var(--weight-bold);
+  letter-spacing: -0.02em;
+  color: #fff;
+}
+
+.tk-hero-under {
+  margin: 4px 0 0;
+  font-size: var(--text-sm);
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.tk-find {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: var(--space-4);
+  padding: 2px 6px 2px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(8px);
+  color: rgba(255, 255, 255, 0.78);
+  min-width: 0;
+}
+
+.tk-find:focus-within { border-color: var(--accent); }
+
+.tk-find input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  padding: 10px 0;
+  color: #fff;
+  font-size: var(--text-base);
+}
+
+.tk-find input::placeholder { color: rgba(255, 255, 255, 0.55); }
+.tk-find input:focus { outline: none; }
+
+.tk-find-clear {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  cursor: pointer;
+}
+
+/* ------------------------------------------------------------------ *
+ *  Channels as tiles.
+ *
+ *  Seventeen channel names down one column was the whole of
+ *  this page below the fold — a directory rendered as a
+ *  receipt. A channel has a face: the television pages give one
+ *  to a station with no logo, deterministically from its
+ *  address, and the same function answers here. [D-19, U-19]
+ * ------------------------------------------------------------------ */
+
+.tk-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.tk-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-height: 118px;
+  padding: 11px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  overflow: hidden;
+  text-decoration: none;
+  color: inherit;
+  min-width: 0;
+}
+
+.tk-tile:hover { border-color: var(--accent); }
+
+.tk-tile-wash {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    170deg, rgba(0, 0, 0, 0.05) 30%, rgba(0, 0, 0, 0.62) 100%);
+}
+
+.tk-tile-mark {
+  position: relative;
+  margin-bottom: auto;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  font-size: var(--text-2xs);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.tk-tile-name {
+  position: relative;
+  margin-top: 10px;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semi);
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tk-tile-go {
+  position: relative;
+  margin-top: 2px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--text-2xs);
+  color: rgba(255, 255, 255, 0.78);
+}
+
+/* The way to the whole directory, where a shelf has been cut. */
+.tk-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 10px;
+  padding: 8px 15px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--console-control);
+  color: var(--ink-100);
+  text-decoration: none;
+  font-size: var(--text-sm);
+}
+
+.tk-more:hover { border-color: var(--accent); }

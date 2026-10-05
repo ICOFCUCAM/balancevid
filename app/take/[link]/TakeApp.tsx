@@ -650,9 +650,28 @@ export default function TakeApp({ link }: { link: string }) {
   }
 
   return (
-    <main data-testid="take-app" style={page}>
-      <div style={card}>
-        <h1 style={brand}>BalanceVid</h1>
+    <div className="tk-page" data-testid="take-app">
+      {/*
+        * AN IDENT, NOT A WORDMARK.  [N-4, applied here]
+        *
+        * The page opened with the product's name centred in
+        * letter-spaced caps over the ask, which is a title card.
+        * The same mark the Take home and Go carry, so somebody
+        * who arrived from either one is plainly still in the
+        * same place.
+        */}
+      <header className="tk-bar">
+        <a href="/take" className="tk-ident">
+          <span aria-hidden="true" className="tk-ident-mark">
+            <Icon name="mic" size={16} />
+          </span>
+          <span style={{ minWidth: 0 }}>
+            <span className="tk-ident-name">BalanceVid</span>
+            <span className="tk-ident-says">Recording</span>
+          </span>
+        </a>
+      </header>
+      <main className="tk-stage">
 
         {/*
           * WHAT HAPPENED, WHERE ANYTHING HAS.  [GO-VIRAL V-7]
@@ -677,13 +696,18 @@ export default function TakeApp({ link }: { link: string }) {
         )}
 
         {/* WHAT IS BEING ASKED, in the producer's own words. [T3] */}
-        <p data-testid="take-title" style={{
-          margin: 0, fontSize: 'var(--text-lg)', fontWeight: 'var(--weight-bold)',
-          letterSpacing: '0.04em', textTransform: 'uppercase', textAlign: 'center',
-        }}>{reference?.title ?? (view ? asksFor(view.assignment.kind) : '…')}</p>
-        <p data-testid="take-asks" className="small" style={{
-          margin: 0, textAlign: 'center', color: 'var(--ink-100)', maxWidth: 340,
-        }}>{view?.assignment.asks ?? ''}</p>
+        {/*
+          * THE ASK READS AS A SENTENCE, NOT A TITLE CARD. It was
+          * letter-spaced uppercase and centred — which is how a
+          * film's opening credit is set, and this is an
+          * instruction somebody has to follow. [T3]
+          */}
+        <p data-testid="take-title" className="tk-ask">
+          {reference?.title ?? (view ? asksFor(view.assignment.kind) : '…')}
+        </p>
+        <p data-testid="take-asks" className="tk-ask-said">
+          {view?.assignment.asks ?? ''}
+        </p>
 
         {/*
           * WHICH TAKE THIS IS, COUNTING THE ONES ALREADY SENT.
@@ -828,8 +852,27 @@ export default function TakeApp({ link }: { link: string }) {
           */}
         {!soundOnly
           && (recording.phase === 'idle' || recording.phase === 'ready') && (
-          <div data-testid="take-setup" className="row"
-               style={{ gap: 6, width: '100%', flexWrap: 'wrap' }}>
+          /*
+            * SHUT UNTIL IT IS ASKED FOR.  [D-04, U-19]
+            *
+            * A camera picker, a quality picker and a sentence
+            * about megabytes a minute stood between the
+            * viewfinder and the only button on the page, so on
+            * a 390x844 phone *Turn the camera on* was at the
+            * very bottom of the screen — measured in a
+            * screenshot. Almost nobody changes either setting,
+            * and the one who does will look for them.
+            */
+          <details data-testid="take-setup" className="tk-setup">
+            <summary className="tk-setup-head">
+              <Icon name="faders" size={14} />
+              Camera and quality
+              <span className="tk-setup-now">{grade.quality.label}</span>
+              <span aria-hidden="true" className="tk-setup-mark">
+                <Icon name="chevron" size={14} />
+              </span>
+            </summary>
+            <div className="tk-setup-body">
             {camera.devices.named && camera.devices.cameras.length > 1 && (
               <label className="grow" style={{ margin: 0, minWidth: 130 }}>
                 <span className="module-sub">Camera</span>
@@ -876,7 +919,8 @@ export default function TakeApp({ link }: { link: string }) {
                 {camera.lost} is no longer connected — using the default.
               </p>
             )}
-          </div>
+            </div>
+          </details>
         )}
 
         {/* ONE BUTTON AT A TIME, because there is one thing to do next. */}
@@ -1111,8 +1155,8 @@ export default function TakeApp({ link }: { link: string }) {
         )}
 
         <InstallBar />
-      </div>
-    </main>
+      </main>
+    </div>
   );
 }
 

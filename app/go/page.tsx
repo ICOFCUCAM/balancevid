@@ -2,6 +2,7 @@ import { callRow, publicCalls } from '../../src/domain/campaign.js';
 import { listCampaigns } from '../../src/store/campaigns.js';
 import { theAccount } from '../../src/store/accounts.js';
 import { CallCard, GoFrame } from './Go.js';
+import Icon from '../Icon.js';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,24 +42,34 @@ export default async function GoPage() {
 
   return (
     <GoFrame>
-      <h1 style={{ margin: '0 0 var(--space-2)', fontSize: 'var(--text-xl)' }}>
-        Calls
-      </h1>
-      <p className="small muted" style={{ margin: '0 0 var(--space-5)' }}>
-        What {name} is asking for right now. Anyone can enter — no account.
-      </p>
-      {calls.length === 0 ? (
-        <p className="small muted" data-testid="go-empty">
-          Nothing is open at the moment. A call appears here when its
-          organiser opens one and lists it.
-        </p>
-      ) : (
-        <div data-testid="go-calls" style={{
-          display: 'flex', flexDirection: 'column', gap: 'var(--space-3)',
-        }}>
-          {calls.map((call) => <CallCard key={call.id} call={call} />)}
+      <div className="go-head">
+        <div className="go-head-row">
+          <div style={{ minWidth: 0 }}>
+            <h1 className="go-title">
+              <Icon name="live" size={24} />
+              Open calls
+            </h1>
+            <p className="go-lede">
+              What {name} is asking for right now. Anyone can enter — no
+              account, no sign-up.
+            </p>
+          </div>
+          {calls.length > 0 && (
+            <span className="go-count" data-testid="go-count">
+              {calls.length === 1 ? '1 call' : `${calls.length} calls`}
+            </span>
+          )}
         </div>
-      )}
+      </div>
+
+      <div className="go-body" data-testid="go-calls">
+        {calls.length === 0 ? (
+          <p className="tk-empty" data-testid="go-empty">
+            Nothing is open at the moment. A call appears here when its
+            organiser opens one and lists it.
+          </p>
+        ) : calls.map((call) => <CallCard key={call.id} call={call} />)}
+      </div>
     </GoFrame>
   );
 }

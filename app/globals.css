@@ -15,6 +15,7 @@
 @import './styles/console.css';
 @import './styles/building.css';
 @import './styles/network.css';
+@import './styles/take.css';
 
 :root {
   /*

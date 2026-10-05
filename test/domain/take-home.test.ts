@@ -191,7 +191,7 @@ describe('the four sections', () => {
   it('fetches once and groups', () => {
     const fetches = HOME.match(/fetch\('\/api\/participate'/g);
     expect(fetches).toHaveLength(1);
-    expect(HOME).toMatch(/rows\.filter\(\(row\) => row\.kind === section\.kind\)/);
+    expect(HOME).toMatch(/\.filter\(\(row\) => row\.kind === section\.kind\)/);
     for (const id of ['music', 'video', 'programme']) {
       expect(HOME).toContain(`kind: '${id}'`);
     }
@@ -662,9 +662,37 @@ describe('a name somebody else chose', () => {
     expect(button).toMatch(/display: 'block', overflow: 'hidden',\s*\n\s*textOverflow: 'ellipsis'/);
   });
 
-  it('lets the column and its cards shrink below min-content', () => {
-    expect(HOME).toMatch(/width: '100%', maxWidth: 480, minWidth: 0,/);
-    expect(HOME).toMatch(/minWidth: 0, overflow: 'hidden',\n\};/);
+  /*
+   * AND THE NAME ON A ROW IS CLIPPED BY THE SHEET, which is the
+   * other half of the same fault: a title is as long as whoever
+   * wrote it decided, and a row that grew to fit one took the
+   * page with it.
+   */
+  it('clips a name rather than letting it widen the page', () => {
+    const sheet = code('app/styles/take.css');
+    const block = sheet.slice(sheet.indexOf('.tk-row-name {'),
+      sheet.indexOf('}', sheet.indexOf('.tk-row-name {')));
+    expect(block).toContain('text-overflow: ellipsis');
+    expect(block).toContain('white-space: nowrap');
+  });
+
+  /*
+   * THE LESSON MOVED TO THE STYLESHEET AND SO DID THE TEST.
+   *
+   * These were inline style objects in `TakeHome.tsx` and this
+   * assertion matched their literal text; the redesign gave the
+   * Take App a sheet of its own, so the rule now lives in
+   * `take.css` and is asserted where it lives. A test that kept
+   * reading the component would have passed for as long as a
+   * dead constant stayed in the file. [T-1]
+   */
+  it('lets the column and its rows shrink below min-content', () => {
+    const sheet = code('app/styles/take.css');
+    for (const rule of ['.tk-main', '.tk-row', '.tk-row-said']) {
+      const block = sheet.slice(sheet.indexOf(`${rule} {`),
+        sheet.indexOf('}', sheet.indexOf(`${rule} {`)));
+      expect(block, rule).toContain('min-width: 0');
+    }
   });
 
   /* The name is also capped where it arrives, so nothing stores a novel. */

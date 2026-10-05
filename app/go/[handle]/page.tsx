@@ -142,32 +142,32 @@ export default async function CallPage(
 
   return (
     <GoFrame>
-      <article style={{
-        display: 'flex', flexDirection: 'column', gap: 'var(--space-5)',
-      }}>
-        <header style={{
-          display: 'flex', flexDirection: 'column', gap: 'var(--space-2)',
-        }}>
-          <div className="row" style={{ gap: 'var(--space-3)', alignItems: 'baseline' }}>
-            <h1 data-testid="go-title" style={{
-              margin: 0, fontSize: 'var(--text-xl)',
-            }}>{call.title}</h1>
-            <span className="grow" />
-            <Standing call={row} />
+      {/*
+        * THE CALL'S OWN BAND, the same shape the directory and
+        * every television page carries: what this is, in one
+        * line, with the one fact that decides whether to enter
+        * — how long is left — beside it rather than buried in
+        * the prose. [D-04]
+        */}
+      <div className="go-head">
+        <div className="go-head-row">
+          <div style={{ minWidth: 0 }}>
+            <h1 className="go-title" data-testid="go-title">{call.title}</h1>
+            <p className="go-lede" data-testid="go-says">{row.says}</p>
+            <p className="go-lede" style={{ marginTop: 4 }}>
+              <Deadline call={row} />
+            </p>
           </div>
-          <p data-testid="go-says" className="small muted" style={{ margin: 0 }}>
-            {row.says}
-          </p>
-          <Deadline call={row} />
-        </header>
+          <span className="go-count"><Standing call={row} /></span>
+        </div>
+      </div>
+
+      <article className="go-body">
 
         {/* WHAT TO DO, in the organiser's own words. [V-2] */}
-        <section>
-          <h2 className="small muted" style={{
-            margin: '0 0 6px', textTransform: 'uppercase',
-            letterSpacing: '0.08em',
-          }}>What to do</h2>
-          <p data-testid="go-asks" style={{ margin: 0, whiteSpace: 'pre-wrap' }}>
+        <section className="go-said">
+          <h2 className="go-h">What to do</h2>
+          <p data-testid="go-asks" className="go-prose">
             {call.rules.asks}
           </p>
         </section>
@@ -178,12 +178,9 @@ export default async function CallPage(
           * entries is not one."* [V-2, V-5]
           */}
         {call.rules.criteria && (
-          <section>
-            <h2 className="small muted" style={{
-              margin: '0 0 6px', textTransform: 'uppercase',
-              letterSpacing: '0.08em',
-            }}>Judged on</h2>
-            <p data-testid="go-criteria" style={{ margin: 0, whiteSpace: 'pre-wrap' }}>
+          <section className="go-said">
+            <h2 className="go-h">Judged on</h2>
+            <p data-testid="go-criteria" className="go-prose">
               {call.rules.criteria}
             </p>
           </section>
@@ -197,12 +194,9 @@ export default async function CallPage(
           * recorded speech. [V-2, §17]
           */}
         {call.rules.prize && (
-          <section>
-            <h2 className="small muted" style={{
-              margin: '0 0 6px', textTransform: 'uppercase',
-              letterSpacing: '0.08em',
-            }}>Prize</h2>
-            <p data-testid="go-prize" style={{ margin: 0, whiteSpace: 'pre-wrap' }}>
+          <section className="go-said">
+            <h2 className="go-h">Prize</h2>
+            <p data-testid="go-prize" className="go-prose">
               {call.rules.prize}
             </p>
           </section>
@@ -226,18 +220,12 @@ export default async function CallPage(
         )}
 
         <section>
-          <h2 className="small muted" style={{
-            margin: '0 0 6px', textTransform: 'uppercase',
-            letterSpacing: '0.08em',
-          }}>Entries</h2>
+          <h2 className="go-h">Entries</h2>
           <Wall entries={shownWall} />
         </section>
 
         <section>
-          <h2 className="small muted" style={{
-            margin: '0 0 6px', textTransform: 'uppercase',
-            letterSpacing: '0.08em',
-          }}>How it is going</h2>
+          <h2 className="go-h">How it is going</h2>
           <Loop numbers={numbers} />
         </section>
       </article>
