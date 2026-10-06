@@ -16,6 +16,7 @@ import {
   stopWatching, takeQueue,
 } from './queue.js';
 import InstallBar from './InstallBar.js';
+import GetTheApp from '../GetTheApp.js';
 import { useCamera } from '../../useCamera.js';
 import { useFeedLevels } from '../../t/[id]/useFeedLevels.js';
 import { useQuality } from '../../useQuality.js';
@@ -1319,6 +1320,14 @@ export default function TakeApp({ link }: { link: string }) {
         )}
 
         <InstallBar />
+        {/*
+          * AND THE SMALL ONE UNDER IT, for every browser the bar
+          * above cannot help. An invitation opened inside WhatsApp
+          * or Messenger — which is how most of them are opened —
+          * fires no install event and gets no bar, so without this
+          * row the page offers no way to the app at all. [U-19]
+          */}
+        <GetTheApp />
       </main>
     </div>
   );

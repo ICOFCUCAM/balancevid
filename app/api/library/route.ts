@@ -6,7 +6,7 @@ import { newId } from '../../../src/domain/ids.js';
 import { paths, safe } from '../../../src/store/paths.js';
 /* One table, read by the route that enforces it and by the picker
    that offers it. Typed twice, they drift. [D-19, C-14, C-48] */
-import { ACCEPTS, MOST_UPLOAD_BYTES } from '../../../src/domain/libraryUpload.js';
+import { MOST_UPLOAD_BYTES, accepted } from '../../../src/domain/libraryUpload.js';
 import { isStill } from '../../../src/store/libraryMedia.js';
 import { fail, json } from '../../../src/web/http.js';
 
@@ -61,7 +61,17 @@ export async function GET(request: Request): Promise<Response> {
 export async function POST(request: Request): Promise<Response> {
   if (!(await isOwner(request))) return fail(404, 'not found');
   const type = request.headers.get('content-type') ?? '';
-  const kind = ACCEPTS[type.split(';')[0]!.trim()];
+  /*
+   * THE NAME IS EVIDENCE WHEN THE TYPE IS NOT.  [libraryUpload.accepted]
+   *
+   * Android's picker reports `application/octet-stream` for real
+   * videos it has not indexed, and the browser sending this strips
+   * the extension off before it reaches `x-label` — a label is
+   * somebody's words, not a path. So the name travels in its own
+   * header, used for one thing: deciding the container when the
+   * declared type declined to say.
+   */
+  const kind = accepted(type, request.headers.get('x-filename'));
   if (!kind) {
     return fail(415, 'that is not a picture, a video or a song this can hold');
   }

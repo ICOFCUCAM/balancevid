@@ -24,7 +24,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
-  ACCEPTS, acceptsAttribute,
+  ACCEPTS, accepted, acceptsAttribute,
 } from '../../src/domain/libraryUpload.js';
 import { CONTAINERS } from '../../src/store/libraryMedia.js';
 
@@ -115,14 +115,46 @@ describe('an upload is stored under a name that tells the truth', () => {
    * showed them, waits for it to go up, and is told 415.
    */
   it('offers the picker exactly the list the route enforces', () => {
-    expect(acceptsAttribute().split(',').sort())
+    const offered = acceptsAttribute().split(',');
+    /*
+     * THE TYPES, AND THE EXTENSIONS BESIDE THEM. The attribute was
+     * the MIME list alone, which is the right answer only for a
+     * picker that knows what its own files are — and the pickers
+     * that do not are exactly the ones this gate had to grow a
+     * name fallback for. A phone that cannot name its `.3gp` hides
+     * it from a types-only dialog, and the person concludes the
+     * file is gone rather than unoffered.
+     */
+    expect(offered.filter((one) => !one.startsWith('.')).sort())
       .toEqual(Object.keys(ACCEPTS).sort());
+    expect(offered.filter((one) => one.startsWith('.')).sort())
+      .toEqual([...new Set(Object.values(ACCEPTS).map((one) => `.${one.ext}`))].sort());
+    /* Nothing is listed twice: `.avi` has three MIME spellings and
+       one extension, and a dialog does not need it three times. */
+    expect(new Set(offered).size).toBe(offered.length);
+  });
+
+  /*
+   * AND EVERY EXTENSION IT OFFERS IS ONE THE SERVER WILL TAKE on
+   * the evidence of the name alone — which is the whole point of
+   * listing extensions. Offering `.3gp` to a picker whose phone
+   * then declares `application/octet-stream`, and refusing it on
+   * arrival, is the 415-after-waiting this file exists to prevent,
+   * reached by a longer road.
+   */
+  it('takes every extension it offered, from a picker that said nothing', () => {
+    for (const one of acceptsAttribute().split(',').filter((x) => x.startsWith('.'))) {
+      expect(accepted('application/octet-stream', `whatever${one}`), one)
+        .toBeTruthy();
+      expect(accepted('', `whatever${one}`), one).toBeTruthy();
+    }
   });
 
   /* And the route reads the table rather than keeping its own. */
   it('leaves the upload route with no list of its own', () => {
     const source = readFileSync(LISTINGS['the library API'], 'utf8');
-    expect(source).toContain('ACCEPTS');
+    expect(source).toContain('accepted(');
     expect(source).not.toContain('image/jpeg');
+    expect(source).not.toContain('video/mp4');
   });
 });

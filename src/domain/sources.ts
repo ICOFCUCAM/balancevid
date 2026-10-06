@@ -109,7 +109,21 @@ export const ACCEPTS_MEDIA = 'video/*,audio/*';
  */
 export const FETCHABLE = [
   'mp4', 'm4v', 'mov', 'webm', 'mkv', 'avi', 'mpg', 'mpeg',
-  'mp3', 'm4a', 'aac', 'wav', 'flac', 'ogg', 'oga', 'opus',
+  /*
+   * AND WHAT A PHONE WRITES. `.3gp` is what most handsets in most
+   * of the markets this product is for record, and `.ogv` is
+   * Firefox for Android. They are here because the UPLOAD gate
+   * takes them: a product that will go and download a `.3gp` from
+   * a link and refuse the same file from the person holding it is
+   * two answers to one question, which is the C-14 shape this
+   * repository keeps finding. [libraryUpload.ACCEPTS, D-03]
+   *
+   * It widens nothing that matters. This list governs what a link
+   * may CLAIM before an outbound request is made; `NEVER_FETCHED`
+   * below is the wall, and it is second on purpose.
+   */
+  '3gp', '3g2', 'ogv',
+  'mp3', 'm4a', 'aac', 'wav', 'flac', 'ogg', 'oga', 'opus', 'amr',
 ];
 
 /**

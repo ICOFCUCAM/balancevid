@@ -39,6 +39,21 @@ export interface InstallOffer {
   teach: boolean;
   /** Already installed, just installed, or dismissed. Show nothing. */
   gone: boolean;
+  /**
+   * Running from the home-screen icon, so the app is already here.
+   *
+   * SEPARATE FROM `gone`, which three different things set. A
+   * surface that offers another WAY IN — a store, a download page
+   * — must disappear when the app is installed and stay when the
+   * person merely waved the install bar away: dismissing a banner
+   * is not saying they never want the app, and it is the one case
+   * where the small link is the only thing left. [U-19]
+   *
+   * False until the effect runs, which is one frame of a link that
+   * is about to vanish and never the reverse. Asking during render
+   * would be a `window` read on the server.
+   */
+  installed: boolean;
   install: () => Promise<void>;
   dismiss: () => void;
 }
@@ -47,6 +62,7 @@ export function useInstallOffer(): InstallOffer {
   const [offer, setOffer] = useState<InstallEvent | null>(null);
   const [teach, setTeach] = useState(false);
   const [gone, setGone] = useState(false);
+  const [installed, setInstalled] = useState(false);
 
   useEffect(() => {
     /*
@@ -57,7 +73,7 @@ export function useInstallOffer(): InstallOffer {
      */
     const standalone = window.matchMedia?.('(display-mode: standalone)').matches
       || (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
-    if (standalone) return undefined;
+    if (standalone) { setInstalled(true); return undefined; }
 
     /*
      * Prevented, because the browser's own bar appears at the
@@ -67,9 +83,9 @@ export function useInstallOffer(): InstallOffer {
       event.preventDefault();
       setOffer(event as InstallEvent);
     };
-    const installed = () => setGone(true);
+    const onInstalled = () => setGone(true);
     window.addEventListener('beforeinstallprompt', caught);
-    window.addEventListener('appinstalled', installed);
+    window.addEventListener('appinstalled', onInstalled);
 
     /*
      * SAFARI FIRES NOTHING AND HAS NO API FOR THIS. It does
@@ -84,7 +100,7 @@ export function useInstallOffer(): InstallOffer {
 
     return () => {
       window.removeEventListener('beforeinstallprompt', caught);
-      window.removeEventListener('appinstalled', installed);
+      window.removeEventListener('appinstalled', onInstalled);
     };
   }, []);
 
@@ -99,5 +115,5 @@ export function useInstallOffer(): InstallOffer {
 
   const dismiss = useCallback(() => setGone(true), []);
 
-  return { offered: Boolean(offer), teach, gone, install, dismiss };
+  return { offered: Boolean(offer), teach, gone, installed, install, dismiss };
 }

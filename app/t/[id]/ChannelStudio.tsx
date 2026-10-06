@@ -763,6 +763,10 @@ export default function ChannelStudio({
         headers: {
           'content-type': file.type,
           'x-label': file.name.replace(/\.[^.]+$/, '').slice(0, 120),
+          /* The name as well as the label: on a phone whose picker
+             could not say what the file is, its extension is the
+             only evidence left. [libraryUpload.accepted] */
+          'x-filename': file.name.slice(-120),
         },
         body: file,
       });
@@ -6772,14 +6776,7 @@ function Thumb({ source }: { source: ProgrammeSource }) {
         * texture rather than as a pattern demanding attention, and the
         * word sits on top of it saying which kind of nothing this is.
         */
-      <span aria-hidden="true" style={{
-        position: 'absolute', inset: 0, display: 'grid', placeItems: 'center',
-        fontSize: 'var(--text-2xs)',
-        fontWeight: 'var(--weight-bold)', letterSpacing: '0.08em',
-        color: 'var(--ink-400)',
-        background: 'repeating-linear-gradient(45deg,'
-          + ' var(--ink-800) 0 3px, var(--ink-750) 3px 6px)',
-      }}>{source.kind === 'live' ? 'LIVE' : 'EVENT'}</span>
+      <Hatch says={source.kind === 'live' ? 'LIVE' : 'EVENT'} />
     );
   }
   if (source.kind === 'media' && source.form === 'image') {
@@ -6788,9 +6785,62 @@ function Thumb({ source }: { source: ProgrammeSource }) {
            style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
     );
   }
+  /*
+   * AND IF THIS BROWSER CANNOT DRAW IT, SAY SO.  [D-21, U-19, D-04]
+   *
+   * The library takes the containers the world's phones record —
+   * `.3gp`, `.mkv`, `.avi`, `.mpg`, `.amr` — because the playout
+   * engine is ffmpeg and reads all of them. A `<video>` element is
+   * not ffmpeg, and most of them it will not decode. Nor will it
+   * decode `.mov`, which this library has accepted since long
+   * before the rest: a Chromium built without proprietary codecs
+   * declines QuickTime, which is the same reason the take route
+   * keeps a VP9 proxy beside every mezzanine.
+   *
+   * SO THE TILE WAS A BLACK RECTANGLE, which is what a broken
+   * upload looks like. The file is there, it is correct, and it
+   * will go to air — the only thing that cannot happen is this
+   * browser drawing a frame of it, and that is a sentence rather
+   * than a void. The element's own `error` is the evidence: no
+   * guess about which container this browser likes, asked of the
+   * one party that knows. [U-02]
+   */
+  return <MovingThumb url={url} />;
+}
+
+/**
+ * The "nothing to show here" slab, drawn once.
+ *
+ * A FLAT SLAB WITH A WORD ON IT IS WHAT A BROKEN IMAGE LOOKS LIKE;
+ * fine diagonal hatching is what an EMPTY SLOT looks like, and
+ * broadcast tools have used exactly that to mean "no signal here"
+ * for as long as there have been racks.
+ *
+ * The hatch is drawn in CSS at 4px, faint enough to read as
+ * texture rather than as a pattern demanding attention, and the
+ * word sits on top of it saying which kind of nothing this is.
+ */
+function Hatch({ says }: { says: string }) {
+  return (
+    <span aria-hidden="true" data-testid="thumb-hatch" style={{
+      position: 'absolute', inset: 0, display: 'grid', placeItems: 'center',
+      fontSize: 'var(--text-2xs)',
+      fontWeight: 'var(--weight-bold)', letterSpacing: '0.08em',
+      color: 'var(--ink-400)',
+      background: 'repeating-linear-gradient(45deg,'
+        + ' var(--ink-800) 0 3px, var(--ink-750) 3px 6px)',
+    }}>{says}</span>
+  );
+}
+
+/** A poster frame, or the honest absence of one. [Thumb] */
+function MovingThumb({ url }: { url: string }) {
+  const [undrawable, setUndrawable] = useState(false);
+  if (undrawable) return <Hatch says="NO PREVIEW" />;
   return (
     <video
       data-testid="thumb" src={`${url}#t=1`} preload="metadata" muted playsInline
+      onError={() => setUndrawable(true)}
       style={{ width: '100%', height: '100%', objectFit: 'cover' }}
     />
   );
