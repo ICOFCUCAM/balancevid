@@ -81,6 +81,45 @@ export const CONTAINERS: readonly Container[] = [
    */
   { ext: 'webm', type: 'video/webm', still: false },
   { ext: 'mov', type: 'video/quicktime', still: false },
+  /*
+   * AND THE CONTAINERS THE REST OF THE WORLD'S PHONES WRITE.
+   *   [D-03, U-02, §25; libraryUpload.ACCEPTS]
+   *
+   * The upload gate was mp4, WebM and QuickTime, which is a list of
+   * what a laptop records. A handset that writes `.3gp` — most of
+   * them, in most of the markets this product is for — was told
+   * *"that is not a picture, a video or a song this can hold"*
+   * about a video, by a system whose ffmpeg decodes H.263 without
+   * being asked twice.
+   *
+   * THEY ARE HERE AND NOT ONLY IN THE GATE because this table is
+   * what lets the library SERVE one back, and a file this can
+   * store but not return is the `.mp3`-as-`.mp4` fault wearing a
+   * new container. `library-listings.test.ts` fails if the two
+   * ever disagree, which is how this entry came to be written: the
+   * gate was widened first and that test refused it.
+   *
+   * NOT EVERY ONE OF THEM PLAYS IN EVERY BROWSER, and that is not
+   * new. `video/quicktime` sits two lines above and Chromium
+   * declines it; what the type does is tell the browser the truth
+   * so it can decline honestly, rather than be handed WebM bytes
+   * labelled MP4 and fail somewhere stranger. The playout engine
+   * is ffmpeg and reads all of them.
+   */
+  { ext: '3gp', type: 'video/3gpp', still: false },
+  { ext: '3g2', type: 'video/3gpp2', still: false },
+  { ext: 'mkv', type: 'video/x-matroska', still: false },
+  { ext: 'avi', type: 'video/x-msvideo', still: false },
+  /* An `.m4v` IS an MP4 — Apple's name for one — so the truthful
+     type is also the one a browser will play. */
+  { ext: 'm4v', type: 'video/mp4', still: false },
+  { ext: 'mpg', type: 'video/mpeg', still: false },
+  { ext: 'ogv', type: 'video/ogg', still: false },
+  /* A voice note from a low-end recorder. AMR narrowband and
+     wideband both decode here; no browser plays it, and ffmpeg
+     gives it the black picture `ingest` gives anything with no
+     video stream. */
+  { ext: 'amr', type: 'audio/amr', still: false },
 ];
 
 /** The container a stored filename is, or nothing if it is not one. */

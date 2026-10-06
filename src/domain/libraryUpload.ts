@@ -55,6 +55,38 @@ export const ACCEPTS: Readonly<Record<string, Accepted>> = {
   'video/webm': { ext: 'webm', form: 'video' },
   'video/quicktime': { ext: 'mov', form: 'video' },
   /*
+   * AND THE REST OF THE WORLD'S PHONES.  [D-03, U-02, §25]
+   *
+   * THREE VIDEO CONTAINERS WAS A LIST OF WHAT A LAPTOP RECORDS.
+   * `src/render/ingest.ts` puts every upload through ffmpeg and out
+   * the other side as H.264/AAC at the house rate, and the ffmpeg
+   * this product ships decodes HEVC, H.263, MPEG-2, MPEG-4 part 2,
+   * VP8, VP9, AV1, Theora, ProRes and VC-1 out of mov, mp4, 3gp,
+   * 3g2, Matroska, AVI, Ogg and ASF. The engine was ready; the door
+   * was three types wide — the same finding `sources.ts` records
+   * about `video/*`, one floor down.
+   *
+   * WHAT IT COST, said concretely rather than as a worry: a phone
+   * that writes `.3gp` is most of the phones in the markets this
+   * product is for, and its owner met *"that is not a picture, a
+   * video or a song this can hold"* — about a video.
+   *
+   * EVERY LINE BELOW WAS INGESTED BEFORE IT WAS WRITTEN. A fixture
+   * per container went through the real `ingest()` and came out in
+   * house format; a type nobody had put through is a type this
+   * product only believes it supports. [U-02]
+   */
+  'video/3gpp': { ext: '3gp', form: 'video' },
+  'video/3gpp2': { ext: '3g2', form: 'video' },
+  'video/x-matroska': { ext: 'mkv', form: 'video' },
+  'video/x-msvideo': { ext: 'avi', form: 'video' },
+  /* What some Android pickers and older servers call the same thing. */
+  'video/avi': { ext: 'avi', form: 'video' },
+  'video/msvideo': { ext: 'avi', form: 'video' },
+  'video/x-m4v': { ext: 'm4v', form: 'video' },
+  'video/mpeg': { ext: 'mpg', form: 'video' },
+  'video/ogg': { ext: 'ogv', form: 'video' },
+  /*
    * THE SOUNDS keep their own containers, which is C-14's finding:
    * an `.mp3` stored as `.mp4` is a file that lies. `form` stays
    * `video` because that is what a `ProgrammeSource` can say today;
@@ -70,7 +102,72 @@ export const ACCEPTS: Readonly<Record<string, Accepted>> = {
   'audio/x-wav': { ext: 'wav', form: 'video' },
   'audio/flac': { ext: 'flac', form: 'video' },
   'audio/x-flac': { ext: 'flac', form: 'video' },
+  /*
+   * A VOICE NOTE FROM A CHEAP HANDSET. AMR is what a low-end
+   * Android recorder writes, and both narrowband and wideband
+   * decode here — a `.amr` comes out as a black 1280x720 picture
+   * with the voice on it, which is what `ingest` does for anything
+   * with no video stream. Measured, like the rest. [§25]
+   */
+  'audio/amr': { ext: 'amr', form: 'video' },
+  'audio/3gpp': { ext: '3gp', form: 'video' },
 };
+
+/**
+ * THE SAME TABLE, ASKED BY FILE NAME.  [U-02, D-21]
+ *
+ * NOT A SECOND LIST — derived from the one above, so it cannot
+ * drift from it. C-14's whole finding was three places each knowing
+ * their own containers; a hand-typed extension table beside the
+ * MIME table would be that again.
+ *
+ * Where the first key wins: `video/avi` and `video/x-msvideo` both
+ * say `avi`, and either is a correct answer to "what is an .avi".
+ */
+const BY_EXTENSION: Readonly<Record<string, Accepted>> = Object.freeze(
+  Object.fromEntries(
+    Object.values(ACCEPTS).map((one) => [one.ext, one]).reverse(),
+  ) as Record<string, Accepted>,
+);
+
+/**
+ * The declared types that are not a claim about anything.
+ *
+ * ANDROID'S FILE PICKER SAYS THIS ABOUT REAL VIDEOS, routinely —
+ * for a file on an SD card, one saved by a messaging app, or
+ * anything outside MediaStore's index. The browser is not claiming
+ * the file is binary; it is declining to say what it is, and
+ * refusing a video because the picker shrugged is refusing it for
+ * the phone's filing habits.
+ */
+const SAYS_NOTHING = new Set(['', 'application/octet-stream', 'binary/octet-stream']);
+
+/**
+ * May this file become a library item?
+ *
+ * THE TYPE FIRST AND THE NAME ONLY IF THE TYPE SAID NOTHING, which
+ * is the narrow version of this on purpose. A browser that declares
+ * `image/gif` has made a positive claim and this refuses it; one
+ * that declares `application/octet-stream` has made none, and the
+ * name is then the only evidence there is.
+ *
+ * It is not a wider hole than it looks. The extension decides the
+ * container this is STORED as, and `ingest` still has to read the
+ * bytes — a file called `.mp4` that is not one fails there, with a
+ * sentence about the file rather than a silent 415 about its name.
+ */
+export function accepted(
+  type: string | null | undefined,
+  filename?: string | null,
+): Accepted | undefined {
+  const mime = (type ?? '').split(';')[0]!.trim().toLowerCase();
+  const byType = ACCEPTS[mime];
+  if (byType) return byType;
+  if (!SAYS_NOTHING.has(mime)) return undefined;
+  const dot = (filename ?? '').toLowerCase().trim().lastIndexOf('.');
+  if (dot < 0) return undefined;
+  return BY_EXTENSION[(filename ?? '').toLowerCase().trim().slice(dot + 1)];
+}
 
 /**
  * The same list, as a file picker's `accept` attribute.
@@ -82,7 +179,19 @@ export const ACCEPTS: Readonly<Record<string, Accepted>> = {
  * is told 415.
  */
 export function acceptsAttribute(): string {
-  return Object.keys(ACCEPTS).join(',');
+  /*
+   * AND THE EXTENSIONS BESIDE THEM, because `accept` is matched
+   * against what the PICKER believes a file is, and the pickers
+   * that get this wrong are exactly the ones `SAYS_NOTHING` is
+   * about. A phone that cannot name its own `.3gp` hides it from a
+   * dialog listing MIME types only, and the person concludes the
+   * file is gone rather than unoffered. Listing both is what the
+   * attribute is for.
+   */
+  return [
+    ...Object.keys(ACCEPTS),
+    ...Object.values(ACCEPTS).map((one) => `.${one.ext}`),
+  ].filter((one, at, all) => all.indexOf(one) === at).join(',');
 }
 
 /**

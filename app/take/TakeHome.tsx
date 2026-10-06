@@ -14,6 +14,7 @@ import { NETWORK_ART, identityFor, shelfFor } from '../tv/art.js';
 import { type Mine, keepMine, readMine } from './mine.js';
 import { installWorker } from './[link]/queue.js';
 import { useInstallOffer } from '../useInstallOffer.js';
+import GetTheApp from './GetTheApp.js';
 
 /**
  * The Take App's home.  [TAKE-PLATFORM P1, P2, P3, P4, P5, P6, U5]
@@ -911,6 +912,17 @@ export default function TakeHome() {
           one of them stays with them, and this list is on your device
           alone.
         </p>
+
+        {/*
+          * AND THE WAY TO HAVE THIS AS AN APP, for the browsers
+          * `InstallTake` cannot offer in. The button in the header
+          * needs `beforeinstallprompt`, which a chat app's own
+          * browser never fires — so somebody who reached this page
+          * from a shared link sees no install control at all. One
+          * quiet line at the foot, where it is found by looking
+          * rather than by being interrupted. [U-19, GetTheApp.tsx]
+          */}
+        <GetTheApp />
       </main>
 
       {/*
