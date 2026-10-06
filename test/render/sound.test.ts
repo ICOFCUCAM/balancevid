@@ -41,6 +41,9 @@ const SECONDS = 4;
  * `sine` comes out of lavfi at about -18 dBFS, not full scale, so the
  * gain here is above 1 for a loud take. Measured, not assumed.
  */
+/** One bed of noise, the same one, every run. */
+const SEED = 20261006;
+
 async function record(
   name: string, gain: number, bed: number,
 ): Promise<string> {
@@ -49,7 +52,18 @@ async function record(
     '-y',
     '-f', 'lavfi', '-i', `sine=frequency=220:r=48000:d=${SECONDS}`,
     '-f', 'lavfi',
-    '-i', `anoisesrc=color=white:r=48000:amplitude=${bed}:d=${SECONDS}`,
+    /*
+     * SEEDED, BECAUSE A TEST MUST NOT CONSUME RANDOM INPUT.
+     *
+     * `anoisesrc` defaults to `seed=-1`, which is "pick one" — so every
+     * run of this suite measured a different recording and compared it
+     * against fixed thresholds. The spread is small here (eight runs,
+     * 8.05 ± 0.07 dB of headroom against a threshold of 16) and that is
+     * not the point: a measurement test whose input changes is a test
+     * that can only be trusted on the runs where it passed. [U-02]
+     */
+    '-i', `anoisesrc=color=white:seed=${SEED}:r=48000:amplitude=${bed}`
+      + `:d=${SECONDS}`,
     '-filter_complex',
     `[0:a]volume='${gain}*(lt(mod(t,2),1))':eval=frame[v];`
       + '[v][1:a]amix=inputs=2:duration=shortest:normalize=0[a]',

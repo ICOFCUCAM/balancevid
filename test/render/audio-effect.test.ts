@@ -48,7 +48,9 @@ beforeAll(async () => {
   dir = await mkdtemp(join(tmpdir(), 'balancevid-effect-'));
   await run(FFMPEG, [
     '-y', '-f', 'lavfi',
-    '-i', `anoisesrc=r=48000:d=${SECONDS}:c=white:a=0.5`,
+    /* Seeded: `anoisesrc` defaults to a random bed, and a test that
+       measures one should not be handed a different one each run. */
+    '-i', `anoisesrc=r=48000:d=${SECONDS}:c=white:a=0.5:seed=20261006`,
     '-ac', '2', '-c:a', 'libopus', '-f', 'webm', join(dir, 'song.webm'),
   ]);
 }, 180_000);
