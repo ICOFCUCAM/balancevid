@@ -20,7 +20,7 @@
 import { readFile, rename, stat, writeFile, readdir, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Heartbeat } from '../domain/health.js';
-import type { Pacing } from '../domain/pace.js';
+import type { Pacing, Reach } from '../domain/pace.js';
 import { VAR_ROOT, paths, safe } from './paths.js';
 
 const BEAT_FILE = join(VAR_ROOT, 'playout.json');
@@ -34,6 +34,21 @@ export async function beat(
     channels: number; made: number;
     /** Whether it is keeping up, when the pass produced anything. [C-41] */
     pacing?: Pacing; load?: number;
+    /**
+     * AND HOW LONG IT TAKES TO COME BACK.  [§15, pace.ts `reach`]
+     *
+     * The fact the web tier had to guess at and guessed wrong:
+     * every patience in `health.ts` assumed the engine returned
+     * within three segments, which is true of one channel and was
+     * 20.1 seconds on a measured seventeen. It travels in the
+     * heartbeat because the heartbeat is the only thing the two
+     * processes share.
+     */
+    roundTripMs?: number;
+    /** Whether the lead outlasts that round trip. [pace.ts] */
+    reach?: Reach;
+    /** How much television was written ahead, for the sentence. */
+    leadMs?: number;
   },
   at = new Date(),
 ): Promise<void> {
@@ -44,6 +59,9 @@ export async function beat(
     made: what.made,
     ...(what.pacing ? { pacing: what.pacing } : {}),
     ...(what.load === undefined ? {} : { load: what.load }),
+    ...(what.roundTripMs === undefined ? {} : { roundTripMs: what.roundTripMs }),
+    ...(what.reach ? { reach: what.reach } : {}),
+    ...(what.leadMs === undefined ? {} : { leadMs: what.leadMs }),
   };
   await mkdir(VAR_ROOT, { recursive: true });
   /*

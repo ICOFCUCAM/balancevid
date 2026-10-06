@@ -56,15 +56,49 @@ import { type Aired, type Ran, fold } from '../domain/asRun.js';
 import { recordRan } from '../store/asRun.js';
 
 /**
- * How far ahead of the playhead to keep the stream.
+ * HOW FAR AHEAD OF THE PLAYHEAD TO KEEP THE STREAM.
+ *   [CHANNEL §15, §18; Doctrine D-19, D-21, U-02, C-41]
  *
- * Two segments — eight seconds. Enough that a slow encode does not starve the
- * playlist, short enough that an edit to the schedule reaches the wire within
- * ten seconds. A channel that ran a minute ahead would ignore a correction
- * made at 20:59 for a programme at 21:00, which is the one moment corrections
- * are made.
+ * THIS WAS A CONSTANT AND THE CONSTANT WAS A GUESS AT A CADENCE
+ * THE LOOP DOES NOT GUARANTEE. It read, and the reasoning is
+ * sound as far as it goes:
+ *
+ *   *"Two segments — eight seconds. Enough that a slow encode does
+ *   not starve the playlist, short enough that an edit to the
+ *   schedule reaches the wire within ten seconds. A channel that
+ *   ran a minute ahead would ignore a correction made at 20:59 for
+ *   a programme at 21:00, which is the one moment corrections are
+ *   made."*
+ *
+ * It is right about one channel and wrong about seventeen, because
+ * a pass visits every channel IN TURN and the lead is per channel.
+ * The engine writes eight seconds for a channel and then walks away
+ * for as long as all the others take. Measured on a live
+ * seventeen-channel installation:
+ *
+ *     segments written for one channel, seconds apart:
+ *       0.4   0.4   [ 20.1 ]   0.4   0.5
+ *       └── twelve seconds of television ──┘ then a twenty-second wait
+ *
+ * Every one of the seventeen ran out of playlist, several times a
+ * minute, while `load` reported 0.18 and `pacing` reported `easy` —
+ * because those divide by the SUM of all channels' output and are
+ * structurally unable to see one channel starve. [pace.ts, `reach`]
+ *
+ * SO THE LEAD FOLLOWS THE ROUND TRIP. `leadSegments` derives it,
+ * floored at the two this held (so one channel behaves exactly as
+ * before) and capped, because an installation that needs more than
+ * the cap needs another engine and should be told so rather than
+ * quietly handed two minutes of committed television.
+ *
+ * AND RESPONSIVENESS WAS NEVER THE BINDING CONSTRAINT. A channel
+ * whose engine returns every twenty seconds is already twenty
+ * seconds from reacting to any correction; matching the lead to the
+ * round trip costs nothing the round trip had not already cost.
  */
-const AHEAD_SEGMENTS = 2;
+import {
+  LEAST_LEAD, covered, leadSegments, reach, type Reach,
+} from '../domain/pace.js';
 
 /** How long to wait between passes when there is nothing to do. */
 const IDLE_MS = 1000;
@@ -184,7 +218,19 @@ async function factsFor(path: string): Promise<SourceFacts | undefined> {
  * sweeps everything older than the playlist's window. Returns how many it
  * made, so a caller can tell a busy pass from an idle one.
  */
-export async function advance(channel: Channel, nowMs = Date.now()): Promise<number> {
+export async function advance(
+  channel: Channel, nowMs = Date.now(),
+  /**
+   * How many segments beyond the playhead to write this visit.
+   *
+   * Passed in rather than read from a constant, because only the
+   * caller knows how long it will be before it comes back here:
+   * that is a property of how many channels there are, not of this
+   * channel. Defaults to the floor so a test driving one channel
+   * gets exactly the old behaviour. [leadSegments]
+   */
+  lead: number = LEAST_LEAD,
+): Promise<number> {
   const current = segmentIndexAt(nowMs);
   /*
    * Everything the schedule can possibly ask for in this pass, measured
@@ -206,7 +252,7 @@ export async function advance(channel: Channel, nowMs = Date.now()): Promise<num
   }
 
   let made = 0;
-  for (let index = current; index <= current + AHEAD_SEGMENTS; index += 1) {
+  for (let index = current; index <= current + lead; index += 1) {
     const target = paths.channelSegment(channel.id, index);
     try {
       await access(target);
@@ -280,7 +326,10 @@ export async function advance(channel: Channel, nowMs = Date.now()): Promise<num
    * after the video's had gone would be the archive D-18
    * forbids, one track at a time.
    */
-  await sweep(channel.id, current - WINDOW_SEGMENTS - AHEAD_SEGMENTS);
+  /* Swept behind the same lead that was written ahead: a sweeper
+     working from a different number than the writer would delete
+     what the writer still counts as the window. [D-19] */
+  await sweep(channel.id, current - WINDOW_SEGMENTS - lead);
   return made;
 }
 
@@ -443,9 +492,20 @@ async function sweepDir(dir: string, before: number): Promise<void> {
 export async function pass(
   nowMs = Date.now(), announce = false,
   /** What the LAST few passes said about keeping up. [C-41] */
-  how: { pacing?: Pacing; load?: number } = {},
+  how: { pacing?: Pacing; load?: number; roundTripMs?: number } = {},
 ): Promise<number> {
   const channels = await listChannels();
+  /*
+   * HOW FAR AHEAD TO WRITE, decided once for the whole pass from
+   * how long the last one took to come back round. [leadSegments]
+   *
+   * Once rather than per channel, because the round trip is a
+   * property of the pass and not of any channel in it — and
+   * because two channels writing different leads would sweep each
+   * other's windows to different depths.
+   */
+  const lead = leadSegments(how.roundTripMs ?? 0, SEGMENT_MS,
+    { behind: how.pacing === 'behind' });
   let made = 0;
   for (const channel of channels) {
     /*
@@ -461,7 +521,7 @@ export async function pass(
      * second one would be a second thing that can stop.
      */
     await watchTheFeed(fresh, nowMs);
-    made += await advance(fresh, nowMs).catch(() => 0);
+    made += await advance(fresh, nowMs, lead).catch(() => 0);
     /*
      * AND THEN THE SENDERS, AFTER the segments, because a sender
      * started before there is anything to read spends its first
@@ -488,7 +548,22 @@ export async function pass(
    * demonstrably completed something.
    */
   if (announce) {
-    latest = { channels: channels.length, made, ...how };
+    /*
+     * AND WHETHER THE LEAD IT JUST WROTE WILL LAST.  [pace.ts]
+     *
+     * Computed here because this is the only place both numbers
+     * exist: the round trip came in from the loop, and the lead is
+     * what this pass actually used. The web tier can hold neither
+     * — which is exactly why it spent this product's life assuming
+     * a cadence instead.
+     */
+    const what = how.roundTripMs === undefined
+      ? null
+      : { roundTripMs: how.roundTripMs, leadMs: lead * SEGMENT_MS };
+    latest = {
+      channels: channels.length, made, ...how,
+      ...(what ? { reach: reach(what), leadMs: what.leadMs } : {}),
+    };
     await beat(latest).catch(() => undefined);
   }
   return made;
@@ -502,7 +577,10 @@ export async function pass(
  * pass halfway through has not made them yet. The pulse carries
  * them forward so the file never loses them between passes.
  */
-let latest: { channels: number; made: number; pacing?: Pacing; load?: number } = {
+let latest: {
+  channels: number; made: number; pacing?: Pacing; load?: number;
+  roundTripMs?: number; reach?: Reach; leadMs?: number;
+} = {
   channels: 0, made: 0,
 };
 
@@ -552,6 +630,18 @@ async function main(): Promise<void> {
 
   /* The last few passes, so one slow segment is not a verdict. [C-41] */
   let paces: Pace[] = [];
+  /**
+   * HOW LONG THE LAST CYCLE TOOK TO COME BACK HERE.  [§15, C-41]
+   *
+   * The whole pass plus whatever it then slept: the time a channel
+   * waits between visits, which is the number the lead has to cover
+   * and the number the web tier's patience has to exceed. Zero until
+   * a pass has finished, which `leadSegments` reads as "not known"
+   * and answers with the floor.
+   */
+  let roundTripMs = 0;
+  let cycles: Pace[] = [];
+  let cycleStarted = Date.now();
   while (running) {
     const started = Date.now();
     let made = 0;
@@ -559,6 +649,7 @@ async function main(): Promise<void> {
       made = await pass(Date.now(), true, {
         ...(pacing(paces) === 'unknown' ? {} : { pacing: pacing(paces) }),
         ...(worstLoad(paces) === null ? {} : { load: worstLoad(paces)! }),
+        ...(roundTripMs > 0 ? { roundTripMs } : {}),
       });
     } catch (error) {
       /*
@@ -594,13 +685,43 @@ async function main(): Promise<void> {
      * of grace to make it in.
      */
     if (made > 0) {
-      paces = keep(paces, { spentMs: spent, coveredMs: made * SEGMENT_MS });
+      /*
+       * PER CHANNEL, WHICH IS THE WHOLE OF THE MEASUREMENT.  [pace.ts]
+       *
+       * This was `made * SEGMENT_MS` — every channel's television
+       * added together and handed over as if one channel had
+       * produced it. Correct for one channel and wrong by the
+       * channel count for any other: a seventeen-channel engine
+       * running at 1.15 of real time reported 0.11 and `easy`,
+       * which is 89% of the clock to spare on a box that was
+       * falling behind every cycle. `covered` does the division
+       * now, so no caller can forget it again.
+       */
+      paces = keep(paces, {
+        spentMs: spent, coveredMs: covered(made, latest.channels, SEGMENT_MS),
+      });
     }
     if (made === 0) {
       await new Promise((resolve) => { setTimeout(resolve, IDLE_MS); });
     } else if (spent < SEGMENT_MS / 4) {
       await new Promise((resolve) => { setTimeout(resolve, 200); });
     }
+    /*
+     * AND THE CYCLE IS TIMED HERE, after the sleep, because the
+     * sleep is part of the wait a channel does. Measured from the
+     * top of one cycle to the top of the next rather than taken as
+     * `spent`: an idle engine sleeps a second between passes and a
+     * lead that ignored it would be a second short every time.
+     *
+     * THE WORST OF THE LAST FEW, not the latest, and for the same
+     * reason `pacing` takes the worst: a lead sized by a lucky fast
+     * cycle starves on the next ordinary one, and under-writing is
+     * the failure that puts black on the wire.
+     */
+    const ended = Date.now();
+    cycles = keep(cycles, { spentMs: ended - cycleStarted, coveredMs: SEGMENT_MS });
+    cycleStarted = ended;
+    roundTripMs = Math.max(...cycles.map((one) => one.spentMs));
   }
   /*
    * THE OPEN STRETCHES GO DOWN BEFORE THE PROCESS DOES. An as-run

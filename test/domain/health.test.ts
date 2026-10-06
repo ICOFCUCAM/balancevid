@@ -11,7 +11,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   ENGINE_STALE_MS, STREAM_STALE_MS,
-  controlRoomNote, engineState, healthSentence, streamState, whyDark,
+  controlRoomNote, engineState, healthSentence, streamPatience, streamState,
+  whyDark,
 } from '../../src/domain/health.js';
 import { SEGMENT_MS } from '../../src/domain/playout.js';
 
@@ -82,23 +83,78 @@ describe('the engine', () => {
 });
 
 describe('the stream', () => {
+  /* No round trip known: the floor, which is what this did everywhere
+     before the engine began reporting one. */
+  const UNTIMED = null;
+
   /*
-   * The engine keeps two segments AHEAD of the playhead, so the newest file
+   * The engine keeps segments AHEAD of the playhead, so the newest file
    * is normally in the future. A check that called that stale would report
    * every healthy channel as dead.
    */
   it('is transmitting while segments are arriving, including from ahead', () => {
-    expect(streamState(NOW, NOW)).toBe('transmitting');
-    expect(streamState(NOW + 2 * SEGMENT_MS, NOW)).toBe('transmitting');
-    expect(streamState(NOW - STREAM_STALE_MS, NOW)).toBe('transmitting');
+    expect(streamState(NOW, NOW, UNTIMED)).toBe('transmitting');
+    expect(streamState(NOW + 2 * SEGMENT_MS, NOW, UNTIMED)).toBe('transmitting');
+    expect(streamState(NOW - STREAM_STALE_MS, NOW, UNTIMED)).toBe('transmitting');
   });
 
   it('has stalled once the newest segment is older than the window', () => {
-    expect(streamState(NOW - STREAM_STALE_MS - 1, NOW)).toBe('stalled');
+    expect(streamState(NOW - STREAM_STALE_MS - 1, NOW, UNTIMED)).toBe('stalled');
   });
 
   it('is silent when nothing has ever been written', () => {
-    expect(streamState(null, NOW)).toBe('silent');
+    expect(streamState(null, NOW, UNTIMED)).toBe('silent');
+  });
+
+  /*
+   * AND THE PATIENCE FOLLOWS THE ENGINE'S OWN CADENCE.  [§15, §18]
+   *
+   * THE FLOOR WAS A GUESS AT A CADENCE THE LOOP DOES NOT GUARANTEE,
+   * and on the installation this product actually runs it was wrong
+   * every cycle. A pass visits every channel in turn, so the engine
+   * comes back to any one of them once per pass — measured at 20.1
+   * seconds across seventeen channels, against twelve seconds of
+   * patience. With the engine healthy and every channel on air:
+   *
+   *     17 of 17 channels read "stalled" at least once in 70s,
+   *     the worst for 33 of those 70 seconds.
+   *
+   * A lamp that is wrong a third of the time is a lamp an operator
+   * learns to ignore, and then it is worth nothing on the day it is
+   * right. [D-04, D-21]
+   */
+  it('waits out a cadence longer than the floor, rather than crying wolf', () => {
+    const ROUND_TRIP = 20_100;
+    /* The measured case: written 15s ago by an engine that returns
+       every 20.1s is a channel being served exactly as designed. */
+    expect(streamState(NOW - 15_000, NOW, UNTIMED)).toBe('stalled');
+    expect(streamState(NOW - 15_000, NOW, ROUND_TRIP)).toBe('transmitting');
+  });
+
+  /*
+   * AND IT STILL CATCHES A STREAM THAT REALLY STOPPED. Patience that
+   * grew without limit would be a lamp that never lights, which is
+   * the same uselessness from the other end.
+   */
+  it('still calls a stream stopped once it outlasts even that', () => {
+    const ROUND_TRIP = 20_100;
+    expect(streamState(NOW - (ROUND_TRIP + 2 * SEGMENT_MS), NOW, ROUND_TRIP))
+      .toBe('transmitting');
+    expect(streamState(NOW - (ROUND_TRIP + 2 * SEGMENT_MS) - 1, NOW, ROUND_TRIP))
+      .toBe('stalled');
+  });
+
+  /*
+   * A FAST ENGINE DOES NOT GET LESS PATIENCE THAN THE FLOOR. One
+   * channel on an idle box has a round trip near zero, and patience
+   * derived from it alone would call a healthy channel stalled
+   * between two consecutive passes.
+   */
+  it('never grows less patient than it was before any of this', () => {
+    for (const trip of [null, undefined, 0, -1, NaN, 1, 100, 1000]) {
+      expect(streamPatience(trip), String(trip))
+        .toBeGreaterThanOrEqual(STREAM_STALE_MS);
+    }
   });
 });
 

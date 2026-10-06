@@ -28,6 +28,7 @@ import { missingSources, resolves } from '../../../../src/store/playoutSources.j
 import {
   newestSegmentAt, readBeat, readFailure,
 } from '../../../../src/store/playoutHealth.js';
+import { engineNote } from '../../../../src/domain/pace.js';
 import {
   controlRoomNote, engineState, healthSentence, stillFailing, streamState,
   whyDark,
@@ -103,7 +104,11 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
     readBeat(), newestSegmentAt(id),
   ]);
   const engine = engineState(heartbeat ? Date.parse(heartbeat.at) : null, now);
-  const stream = streamState(newestSegment, now);
+  /* The engine's own round trip, so the patience matches the cadence
+     this installation actually runs at rather than a guess at it. A
+     healthy seventeen-channel channel read `stalled` for a third of
+     every minute against the old fixed three segments. [streamPatience] */
+  const stream = streamState(newestSegment, now, heartbeat?.roundTripMs ?? null);
   /* Once, and given to both the page and the sentence below it: two calls
      a microsecond apart could straddle a programme boundary and disagree
      about whether the channel is off air. [§4] */
@@ -199,8 +204,21 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
       /* A render failure outranks the rest, because it is the only
          fault here that a green dashboard and a healthy-looking
          control room both hide. [C-24] */
+      /*
+       * AND WHAT THE ENGINE SAYS ABOUT ITSELF, which until now
+       * reached no surface at all. `paceSays` had no callers:
+       * the heartbeat carried `pacing` and `load` across and
+       * nothing turned either into a sentence, so an operator
+       * whose engine could not keep up — or whose channels ran
+       * out of playlist between visits — was told nothing while
+       * every lamp stayed green. [D-13, pace.ts `engineNote`]
+       */
       note: controlRoomNote(engine, stream, dark,
-        stillFailing(failure, now) ? failure : null),
+        stillFailing(failure, now) ? failure : null,
+        (() => {
+          const says = engineNote(heartbeat);
+          return says ? { says } : null;
+        })()),
       /*
        * AND THE FAILURE ITSELF, because the confidence monitor has to
        * rank it against what it can see. Two instruments on one desk
