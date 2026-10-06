@@ -38,8 +38,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import {
-  ENGINE_PULSE_MS, ENGINE_STALE_MS, engineExpected, engineState,
-  healthSentence,
+  ENGINE_PULSE_MS, ENGINE_STALE_MS, engineState, healthSentence,
 } from '../../src/domain/health.js';
 
 /**
@@ -68,34 +67,34 @@ describe('the pulse and the reader’s patience', () => {
 
   it('keeps a healthy engine running right across a pass', () => {
     /* The old cadence: one beat per pass. This is what the room saw. */
-    expect(engineState(NOW - A_MEASURED_PASS_MS, NOW, NOW - 600_000))
-      .not.toBe('running');
+    expect(engineState(NOW - A_MEASURED_PASS_MS, NOW)).not.toBe('running');
 
     /* The new one: a beat every pulse, whatever the pass is doing. */
     for (let late = 0; late <= ENGINE_PULSE_MS * 2; late += 500) {
-      expect(engineState(NOW - late, NOW, NOW - 600_000),
-        `a beat ${late}ms old`).toBe('running');
+      expect(engineState(NOW - late, NOW), `a beat ${late}ms old`)
+        .toBe('running');
     }
   });
 
   /*
-   * AND THE WORST SENTENCE OF THE TWO is the one that fires in the
-   * first seconds after a restart, when the only beat on disk is
-   * from the container before: it does not say "stopped responding",
-   * it says the engine was never started, and sends the operator to
-   * check `ROLE`. With seventeen channels the first pass took forty
-   * seconds, so that is forty seconds of confident, wrong advice.
+   * AND THE ONE IT USED TO SAY IN THE FIRST SECONDS AFTER A
+   * RESTART, when the only beat on disk was from the pass before:
+   * not "stopped responding" but "never started", with instructions
+   * to go and check `ROLE`. With seventeen channels the first pass
+   * took forty seconds, so that was forty seconds of confident,
+   * wrong advice — and the engine is judged by its pulse now, which
+   * lands within `ENGINE_PULSE_MS` of the process starting, before
+   * any channel has been looked at.
    */
-  it('no longer accuses a just-started engine of never having started', () => {
-    const booted = NOW - 2_000;
-    const beforeTheFix = engineState(NOW - A_MEASURED_PASS_MS, NOW, booted);
-    expect(beforeTheFix).toBe('earlier');
-    expect(healthSentence(beforeTheFix, 'transmitting', 'operator'))
-      .toMatch(/has run since this instance started/);
-
-    /* A pulse lands within `ENGINE_PULSE_MS` of the process starting,
-       before any channel has been looked at. */
-    expect(engineState(NOW - ENGINE_PULSE_MS, NOW, booted)).toBe('running');
+  it('calls an engine alive from its first pulse, before any work', () => {
+    expect(engineState(NOW - ENGINE_PULSE_MS, NOW)).toBe('running');
+    /* And nothing it can say mentions this instance's own lifetime:
+       the sentence has no way to know it, and on a split deployment
+       the engine routinely predates the tier reading the beat. */
+    for (const state of ['stopped', 'stale'] as const) {
+      expect(healthSentence(state, 'silent', 'operator'), state)
+        .not.toMatch(/since this instance started/);
+    }
   });
 
   /*
@@ -199,88 +198,147 @@ describe('a pulse and a pass beating at the same moment', () => {
 });
 
 /* ------------------------------------------------------------------ *
- *  "Why is this channel not broadcasting when I have corrected
- *  everything?"  [D-21, U-19, §18]
+ *  The engine is judged by the volume, not by the container.
+ *  [D-20, D-21, U-02, §11, §18]
  * ------------------------------------------------------------------ */
 
-describe('a container that was never going to transmit', () => {
+/**
+ * THE SECOND WRONG DIAGNOSIS, which this product shipped itself.
+ *
+ * The sentence here used to read the web container's own `ROLE`, and
+ * on finding `web` told the operator, with complete confidence, that
+ * *"nothing here was ever going to transmit"*. The reasoning was
+ * sound in one topology and catastrophic in the other, and BalanceVid
+ * runs the other:
+ *
+ * > *"On DeployPro, BalanceVid runs split: the web containers are
+ * > ROLE=web; DeployPro workers run env ROLE=worker ./scripts/serve.sh
+ * > and env ROLE=playout ./scripts/serve.sh; all share the /data
+ * > volume. The diagnosis must judge the engine by the heartbeat in
+ * > /data/playout.json, not by the web container's own ROLE."*
+ *
+ * So the one surface that exists to tell an operator the truth about
+ * their installation told a CORRECTLY configured one that it was
+ * broken, and named the environment variable to go and change. A
+ * confident wrong diagnosis is worse than a vague one: a vague one
+ * sends somebody to look, and this one sent them to break a working
+ * deployment.
+ *
+ * `ROLE=web` MEANS "THIS CONTAINER IS NOT THE ENGINE". It says
+ * nothing whatever about whether an engine exists beside it, and the
+ * web tier has no way to find out — which is exactly why the pulse is
+ * on the shared volume rather than in the container. These hold the
+ * diagnosis to the one fact both topologies agree on.
+ */
+describe('a web tier that is not the engine, and is not supposed to be', () => {
+  /** The shape the fault was reported from: web here, engine beside. */
+  const SPLIT = { booted: NOW - 2_000, engineUpSince: NOW - 9 * 60 * 60_000 };
+
   /*
-   * THE ADVICE WAS SOMETHING THE PROCESS COULD HAVE TAKEN ITSELF.
-   * The room said *"check that it is started (ROLE=all or
-   * ROLE=playout)"* — and `ROLE` is an environment variable that
-   * very process can read. It sent somebody to a terminal to look
-   * up a fact it was sitting on, and the same sentence covered two
-   * situations only one of which has anything to correct.
+   * THE CASE THAT WAS CALLED BROKEN. A web container two seconds old,
+   * a playout service that has been up nine hours, one volume between
+   * them. The beat is older than this process has existed and the
+   * engine is perfectly alive.
    */
-  it('knows which roles start an engine', () => {
-    expect(engineExpected('all')).toBe(true);
-    expect(engineExpected('playout')).toBe(true);
-    expect(engineExpected('web')).toBe(false);
-    expect(engineExpected('worker')).toBe(false);
-    /* Absent means nobody set one, which `serve.sh` treats as `all`.
-       This must not be a second opinion about that. */
-    expect(engineExpected(undefined)).toBe(true);
-    expect(engineExpected('')).toBe(true);
-    expect(engineExpected('  ')).toBe(true);
+  it('reads a fresh beat from an engine far older than itself as running', () => {
+    expect(SPLIT.engineUpSince).toBeLessThan(SPLIT.booted);
+    expect(engineState(NOW - 1_000, NOW)).toBe('running');
+    /* And says nothing at all, which is the only correct output for a
+       healthy split deployment. */
+    expect(healthSentence('running', 'transmitting', 'operator')).toBeNull();
   });
 
   /*
-   * AND IT OUTRANKS EVERY OTHER SENTENCE, because none of them can
-   * be acted on until this one is settled: an operator correcting
-   * the schedule on a web-only container is correcting a thing that
-   * was never the problem.
+   * AND THE CASE THAT IS GENUINELY BROKEN, read from the same web
+   * container: the sentence must still be useful, and must not reach
+   * for the one fact it is not allowed to use.
    */
-  it('says so plainly instead of sending somebody to check', () => {
-    for (const state of ['stopped', 'earlier', 'stale'] as const) {
-      const says = healthSentence(state, 'silent', 'operator', 'web')!;
-      expect(says, state).toMatch(/Nothing here was ever going to transmit/);
-      expect(says, state).toMatch(/ROLE=web/);
-      /* It does not send them hunting through the channel. */
-      expect(says, state).toMatch(/not the problem/);
+  it('blames the engine and never the container reading the beat', () => {
+    const cold = healthSentence(
+      engineState(NOW - 10 * 60_000, NOW), 'silent', 'operator')!;
+    expect(engineState(NOW - 10 * 60_000, NOW)).toBe('stale');
+    expect(cold).toMatch(/engine has stopped/i);
+    /* It points at the engine's OWN log, which is where the reason is
+       on a split deployment and on a single container alike. */
+    expect(cold).toMatch(/log/);
+    /* The accusations it is no longer allowed to make. */
+    expect(cold).not.toMatch(/Nothing here was ever going to transmit/);
+    expect(cold).not.toMatch(/ROLE=web/);
+    expect(cold).not.toMatch(/since this instance started/);
+  });
+
+  it('says a never-written heartbeat is a never-written heartbeat', () => {
+    expect(engineState(null, NOW)).toBe('stopped');
+    expect(engineState(undefined, NOW)).toBe('stopped');
+    const never = healthSentence('stopped', 'silent', 'operator')!;
+    /* ABOUT THE STORAGE, not about this container: the claim it can
+       support is that nothing has ever beaten on this volume. */
+    expect(never).toMatch(/has ever written to this storage/i);
+    expect(never).toMatch(/ROLE=playout/);
+    expect(never).not.toMatch(/ROLE=web/);
+    expect(never).not.toMatch(/Nothing here was ever going to transmit/);
+  });
+
+  /*
+   * NEITHER SENTENCE MAY ADVISE A CORRECTLY CONFIGURED DEPLOYMENT TO
+   * CHANGE ITSELF. Both are allowed to say where an engine comes from
+   * — `ROLE=playout` as its own service, or `ROLE=all` in one
+   * container — because an installation with no engine at all needs
+   * to be told one exists. Neither may say the container showing the
+   * sentence is the thing that is wrong.
+   */
+  it('offers both topologies and condemns neither', () => {
+    for (const state of ['stopped', 'stale'] as const) {
+      const says = healthSentence(state, 'silent', 'operator')!;
+      expect(says, state).toMatch(/separate process/);
+      expect(says, state).toMatch(/ROLE=all/);
+      expect(says, state).not.toMatch(/misconfigur/i);
+    }
+  });
+
+  /* A viewer is told nothing about any of it: they cannot act on a
+     deployment topology, and it is not theirs to read. [D-03] */
+  it('tells a viewer none of this', () => {
+    for (const state of ['stopped', 'stale', 'running'] as const) {
+      expect(healthSentence(state, 'silent', 'viewer'), state)
+        .toBe('This channel is not transmitting right now.');
     }
   });
 
   /*
-   * WHERE THE ENGINE WAS MEANT TO RUN HERE, the opposite: it did
-   * start, by `serve.sh`, and it stopped — so the sentence points
-   * at the log rather than at the configuration.
+   * AND THE ROOM MUST NOT HAND IT THE FACT BACK. A sentence that
+   * cannot read `ROLE` is only half the fix while the caller is still
+   * passing one in — the signature would take it as an extra
+   * argument and typescript would not care in a `.js` consumer. The
+   * call site is asserted because it is the thing that regressed.
    */
-  it('points at the log when the engine was started here', () => {
-    const says = healthSentence('earlier', 'silent', 'operator', 'all')!;
-    expect(says).toMatch(/ROLE=all/);
-    expect(says).toMatch(/It stopped/);
-    expect(says).toMatch(/log/);
-    expect(says).not.toMatch(/check that it is started/);
-  });
-
-  /* And a caller that does not know keeps the sentence that does
-     not claim to. */
-  it('claims nothing when the caller cannot say', () => {
-    expect(healthSentence('earlier', 'silent', 'operator'))
-      .toMatch(/check that it is started/);
-  });
-
-  /* A viewer is told nothing about roles: they cannot act on any
-     of it, and a deployment detail is not theirs to read. [D-03] */
-  it('tells a viewer none of this', () => {
-    expect(healthSentence('earlier', 'silent', 'viewer', 'web'))
-      .toBe('This channel is not transmitting right now.');
+  it('is not passed the container’s role by the room that shows it', () => {
+    const route = readFileSync('app/api/channels/[id]/route.ts', 'utf8');
+    expect(route).toMatch(/healthSentence\(engine, stream, 'operator'\)/);
+    expect(route).not.toMatch(/healthSentence\([^)]*process\.env/);
+    expect(route).not.toMatch(/INSTANCE_STARTED_AT/);
   });
 
   /*
-   * AND THE WEB TIER CAN ONLY READ IT BECAUSE THE ENTRYPOINT
-   * EXPORTS IT. `ROLE="${ROLE:-all}"` is a plain shell variable:
-   * the platform's own setting would be visible, the default would
-   * not, and the one process that can show an operator anything
-   * could not tell "nobody set a role" from "somebody set web".
+   * NOR BY THE LIST. `app/t/page.tsx` asks the same question once for
+   * the whole installation, and a second opinion there would have one
+   * page calling the engine dead while the other called it alive.
    */
-  it('is exported by the entrypoint so the processes can read it', () => {
-    const serve = readFileSync('scripts/serve.sh', 'utf8');
-    expect(serve).toMatch(/^export ROLE="\$\{ROLE:-all\}"$/m);
+  it('is not passed this process’s boot time by the channel list', () => {
+    const page = readFileSync('app/t/page.tsx', 'utf8');
+    expect(page).toMatch(/engineState\(beat \? Date\.parse\(beat\.at\) : null, now\)/);
+    expect(page).not.toMatch(/INSTANCE_STARTED_AT/);
   });
 
-  it('is read by the room that shows the sentence', () => {
-    const route = readFileSync('app/api/channels/[id]/route.ts', 'utf8');
-    expect(route).toMatch(/healthSentence\(engine, stream, 'operator', process\.env\['ROLE'\]\)/);
+  /*
+   * AND THE LAMP AGREES WITH THE SENTENCE. The control room had a
+   * fourth label — `Engine: not started here` — for the state that is
+   * gone, and a lamp contradicting the line under it is worse than
+   * either being wrong alone. [§6, D-04]
+   */
+  it('has no label left for a state the diagnosis cannot reach', () => {
+    const studio = readFileSync('app/t/[id]/ChannelStudio.tsx', 'utf8');
+    expect(studio).not.toMatch(/'Engine: not started here'/);
+    expect(studio).not.toMatch(/engine === 'earlier'/);
   });
 });

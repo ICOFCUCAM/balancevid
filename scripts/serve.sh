@@ -30,15 +30,13 @@
 
 set -uo pipefail
 
-# EXPORTED, SO THE PROCESSES IT STARTS KNOW WHAT THEY ARE.
-#
-# This was a plain shell variable, which meant a `ROLE=web` container told
-# the web tier nothing: the variable the PLATFORM set was exported and
-# visible, but the default was not, so the one process that can show an
-# operator anything could not tell "nobody set a role" from "somebody set
-# web" — and the control room's advice was therefore to go and check a
-# thing the process was sitting on. [health.ts, engineExpected]
-export ROLE="${ROLE:-all}"
+# WHAT THIS CONTAINER IS. Read below to decide what to start, and nothing
+# else reads it: `scripts/healthcheck.mjs` gets its own copy from the
+# container environment, and the control room judges the engine by the
+# heartbeat on the shared volume rather than by any one container's role —
+# because on a split deployment the container showing the sentence is never
+# the one running the engine. [health.ts, engineState]
+ROLE="${ROLE:-all}"
 PORT="${PORT:-3000}"
 
 # ------------------------------------------------------------------ ffmpeg

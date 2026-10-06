@@ -3257,25 +3257,30 @@ export default function ChannelStudio({
             />
             <span className="muted">
               {/*
-                * FOUR ANSWERS, BECAUSE THERE ARE FOUR FAULTS.
+                * THE HEARTBEAT, AND NOTHING ELSE.  [§18, D-20]
                 *
-                * `not responding` used to cover two of them, and
-                * the advice under it — check its output and
-                * restart it — was wrong for the commoner one.
-                * The heartbeat lives on the data volume, so a
-                * deployment that once ran the engine leaves a
-                * file behind and every later one inherits it:
-                * the room reported a crash where no engine had
-                * ever been started. [§18, D-20]
+                * A fourth answer lived here — `not started here`,
+                * for a beat older than this web tier's own boot —
+                * and it was wrong on the deployment it mattered
+                * on. BalanceVid runs SPLIT: the web containers are
+                * one service, the engine another, and they share
+                * the volume. The engine outlives any one web
+                * container by design, so its beat is routinely
+                * older than the reader's boot, and this label
+                * called a working transmitter unstarted.
+                *
+                * The lamp beside it is read from across a room. It
+                * gets the question the shared volume can actually
+                * answer: is the pulse fresh, is it cold, or was
+                * there never one.
                 */}
               {!health ? 'Engine: \u2026'
                 : health.engine === 'stopped' ? 'Engine: not running'
-                  : health.engine === 'earlier' ? 'Engine: not started here'
-                    : health.engine === 'stale' ? 'Engine: not responding'
-                      : health.stream !== 'transmitting' ? 'Engine: no output'
-                        : violations.length > 0 || missing.length > 0
-                          ? `On air \u00b7 ${missing.length || violations.length} to fix`
-                          : 'On air'}
+                  : health.engine === 'stale' ? 'Engine: not responding'
+                    : health.stream !== 'transmitting' ? 'Engine: no output'
+                      : violations.length > 0 || missing.length > 0
+                        ? `On air \u00b7 ${missing.length || violations.length} to fix`
+                        : 'On air'}
             </span>
           </span>
 

@@ -204,6 +204,32 @@ COPY --chown=node:node --from=build /app/next.config.mjs ./next.config.mjs
 COPY --chown=node:node --from=build /app/src ./src
 COPY --chown=node:node --from=build /app/app ./app
 COPY --chown=node:node --from=build /app/scripts ./scripts
+# AND WHAT `src/` IS A DOOR ONTO.  [TAKE-DESKTOP T-1]
+#
+# `src/domain/time.ts`, `align.ts` and `pairing.ts` are three lines each:
+# `export * from '../../shared/src/…'`. The arithmetic moved out so Take
+# Software for desktop could depend on it rather than paste it, and the
+# doors were left behind so a hundred and twenty-one importers did not have
+# to move.
+#
+# THE WEB TIER NEVER NOTICED, which is why this shipped. Next RESOLVES those
+# doors at build time and bundles what is behind them into `.next`, so the
+# web tier carries its copy and comes up perfectly on an image with no
+# `shared/` in it at all. The worker and the playout engine run the
+# TypeScript directly through `tsx`, resolve `../../shared/src/time.js`
+# against the disk, and find nothing:
+#
+#     Error [ERR_MODULE_NOT_FOUND]: Cannot find module
+#     '/app/shared/src/time.js' imported from /app/src/domain/time.ts
+#
+# `serve.sh` ends on `wait -n`, so the container then stops — and on a split
+# deployment, where the web tier is its own service, the only symptom is two
+# worker services crash-looping while the site looks perfect: Online TV
+# transmits nothing and no song ever finishes preparing.
+#
+# The `roles` job in `.github/workflows/ci.yml` starts the built image as
+# each role and fails if it does not survive, so this cannot pass again.
+COPY --chown=node:node --from=build /app/shared ./shared
 COPY --chown=node:node --from=build /app/tsconfig.json ./tsconfig.json
 
 # The volume. Everything a user made lives here and nothing else does.

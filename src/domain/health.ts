@@ -86,22 +86,6 @@ export type EngineState =
   | 'running'
   /** A heartbeat since this web tier booted, but not lately: it died beside us. */
   | 'stale'
-  /**
-   * A HEARTBEAT OLDER THAN THIS INSTANCE.  [§18, D-20]
-   *
-   * Nothing has beaten since this process came up, so no engine is
-   * running HERE — whatever wrote that file belongs to an earlier
-   * run. This is a different fault from `stale` and it has a
-   * different fix, and until it was separated out the room said
-   * *"it may have crashed; check its output and restart it"* about
-   * an engine that had never been started in this deployment.
-   *
-   * It is the common one, because the heartbeat lives on the data
-   * VOLUME: a deploy that once ran `ROLE=all` leaves a file behind,
-   * and every later deploy that does not run the engine inherits
-   * it and reports a crash for ever.
-   */
-  | 'earlier'
   /** No heartbeat at all. It has never run, or the var directory is new. */
   | 'stopped';
 
@@ -148,29 +132,47 @@ export interface Heartbeat {
 }
 
 /**
- * @param since when THIS process started, so an old heartbeat can be
- *   told from a fresh corpse. Required rather than optional: a caller
- *   that cannot say when it booted would silently get the old answer,
- *   and the old answer is the one that was wrong. [D-19]
+ * Is the engine alive, judged ONLY by its pulse.  [§18, §11, D-20]
+ *
+ * THERE WAS A THIRD ANSWER HERE AND IT WAS WRONG. `engineState` took
+ * when THIS process booted, and called a heartbeat older than that
+ * boot `earlier` — *"the engine has not been started in this
+ * instance"*. The reasoning read well: the heartbeat lives on the
+ * data volume, the volume outlives the container, so a stale file
+ * can be inherited from a deployment that did run one.
+ *
+ * It is wrong because the engine is a SEPARATE SERVICE (§11, D-20),
+ * and separate means it has its own lifetime. On the deployment this
+ * product actually runs — web containers one service, a worker and a
+ * playout service beside them, all on the same volume — the engine
+ * is normally OLDER than the web container reading its beat: a web
+ * redeploy restarts the web tier and leaves the engine running. So
+ * the one state meant to catch a dead installation fired hardest on
+ * a healthy one, and told the operator to go and check a `ROLE` that
+ * was already correct.
+ *
+ * A FRESH PULSE IS A LIVE ENGINE, whoever wrote it and whenever this
+ * reader booted. That is the whole of what the shared volume can
+ * honestly say, so it is the whole of what this asks.
  */
 export function engineState(
-  beatAtMs: number | null | undefined, now: number, since: number,
+  beatAtMs: number | null | undefined, now: number,
 ): EngineState {
   if (beatAtMs === null || beatAtMs === undefined) return 'stopped';
   /*
-   * A heartbeat from the future is a clock disagreement, not a dead engine —
-   * two machines a few seconds apart, which D-20 explicitly leaves room for.
-   * Treating it as stale would take a healthy channel off the board.
+   * A HEARTBEAT FROM THE FUTURE IS A CLOCK DISAGREEMENT, not a dead
+   * engine, and on a split deployment the engine and this reader are
+   * two machines — which is exactly the case D-20 leaves room for.
+   * Treating it as stale would take a healthy channel off the board
+   * because somebody's NTP drifted.
+   *
+   * TOLERATED WITHOUT LIMIT, deliberately, which is why this is
+   * `now - beatAtMs` and not `Math.abs(...)`. There is no honest
+   * bound to pick: a skew is as large as it is, and the alternative
+   * reading — "the engine is dead" — is the one thing we know is
+   * false, because something wrote that file.
    */
-  if (now - beatAtMs <= ENGINE_STALE_MS) return 'running';
-  /*
-   * NOTHING HAS BEATEN SINCE WE BOOTED. The engine is not running
-   * beside this web tier; the file is from an earlier run. The
-   * comparison is against the beat rather than against a duration,
-   * so it is right whether this instance came up a minute ago or a
-   * month ago.
-   */
-  return beatAtMs < since ? 'earlier' : 'stale';
+  return now - beatAtMs <= ENGINE_STALE_MS ? 'running' : 'stale';
 }
 
 export function streamState(
@@ -180,16 +182,6 @@ export function streamState(
   return now - newestSegmentMs <= STREAM_STALE_MS ? 'transmitting' : 'stalled';
 }
 
-/**
- * What to tell somebody, in one sentence.
- *
- * Written here rather than in a component because the control room and the
- * viewer must not describe the same condition two different ways, and
- * because a sentence is the part of this that gets tested for being true.
- *
- * The viewer's version says less: a stranger is owed an honest "this channel
- * is not transmitting", not a diagnosis of the broadcaster's server.
- */
 /* ------------------------------------------------------------------------ *
  *  Is anything draining the queue?  [D-13, D-21, U-19, U-23]
  * ------------------------------------------------------------------------ */
@@ -259,51 +251,17 @@ export const NO_WORKER =
   + 'with ROLE=all or ROLE=worker.';
 
 /**
- * Was this container ever going to transmit?  [§18, D-20, D-21, U-19]
+ * What to tell somebody, in one sentence.
  *
- * THE ADVICE WAS SOMETHING THE PROCESS COULD HAVE TAKEN ITSELF.
- * The control room told an operator *"check that it is started
- * (ROLE=all or ROLE=playout)"* — and `ROLE` is an environment
- * variable this very process can read. It sent somebody to a
- * terminal to look up a fact it was sitting on.
+ * Written here rather than in a component because the control room and the
+ * viewer must not describe the same condition two different ways, and
+ * because a sentence is the part of this that gets tested for being true.
  *
- * Worse, it is the difference between two completely different
- * situations wearing the same sentence:
- *
- *   ROLE=web      no engine was ever started here. Nothing is
- *                 wrong with the channel, the schedule or the
- *                 media; this container does not do that job and
- *                 no amount of correcting things in the room will
- *                 change it.
- *   ROLE=all      an engine WAS started here, by `serve.sh`, and
- *                 it is not beating. It died, and its reason is in
- *                 this container's log.
- *
- * An operator who has "corrected everything" and is still dark
- * needs to be told which of those two it is, because only one of
- * them has anything to correct. [D-21]
- *
- * THE DEFAULT IS `all`, because `scripts/serve.sh` says so and this
- * must not be a second opinion about that. An absent role means
- * nobody set one, which is the same as setting `all`.
+ * The viewer's version says less: a stranger is owed an honest "this channel
+ * is not transmitting", not a diagnosis of the broadcaster's server.
  */
-export function engineExpected(role: string | undefined | null): boolean {
-  const named = (role ?? '').trim() || 'all';
-  return named === 'all' || named === 'playout';
-}
-
 export function healthSentence(
   engine: EngineState, stream: StreamState, audience: 'operator' | 'viewer',
-  /*
-   * WHAT THIS CONTAINER WAS TOLD TO RUN, where the caller knows.
-   *
-   * Optional because two of the three callers genuinely do not know
-   * — the viewer's page is served by whatever tier answered and has
-   * no business reading deployment configuration, and a test asking
-   * what a state SOUNDS like is not asking about a container. Left
-   * out, the sentences are the ones that do not claim to know.
-   */
-  role?: string | undefined,
 ): string | null {
   if (engine === 'running' && stream === 'transmitting') return null;
 
@@ -314,41 +272,38 @@ export function healthSentence(
   }
 
   /*
-   * THE ONE THING WORTH SAYING FIRST when nothing is beating and we
-   * know this container was never asked to beat. It is not a fault
-   * to be chased: it is the deployment, and it outranks every other
-   * sentence below because none of them can be acted on until it is
-   * settled. [D-21]
+   * THE HEARTBEAT IS THE ONLY THING THAT KNOWS.  [§18, U-23, D-21]
+   *
+   * THE SENTENCE THAT WAS HERE READ THE WEB CONTAINER'S OWN `ROLE`
+   * and told the operator, when it found `web`, that *"nothing here
+   * was ever going to transmit"*. On a SPLIT deployment — web
+   * containers at `ROLE=web`, the worker and the engine their own
+   * services, all sharing `/data` — that is the correct
+   * configuration, and the sentence called it a misconfiguration
+   * with complete confidence. Exactly the failure it was written to
+   * replace, pointed the other way.
+   *
+   * THE WEB TIER CANNOT TELL THE TWO APART AND MUST NOT TRY.
+   * `ROLE=web` means "this container is not the engine"; it says
+   * nothing whatever about whether an engine exists beside it. The
+   * only thing that does is the pulse the engine leaves on the
+   * shared volume, which is the one fact both topologies agree on
+   * — and the reason `playout.json` is on `/data` rather than in
+   * the channel document. The engine is judged by its heartbeat and
+   * by nothing else.
    */
-  if (engine !== 'running' && role !== undefined && !engineExpected(role)) {
-    return `Nothing here was ever going to transmit: this container runs `
-      + `ROLE=${role.trim() || '(empty)'}, which starts no playout engine. `
-      + 'The channel, the schedule and the media are not the problem. Run a '
-      + 'container with ROLE=all, or one with ROLE=playout against the same '
-      + 'storage.';
-  }
-
   if (engine === 'stopped') {
-    return 'The playout engine is not running — nothing is being written. '
-      + 'Start it with: npm run start:playout';
-  }
-  if (engine === 'earlier') {
-    /*
-     * AND WHERE WE KNOW IT WAS MEANT TO RUN HERE, say that rather
-     * than asking the operator to go and check what we just read.
-     */
-    return role !== undefined
-      ? `This container runs ROLE=${role.trim() || 'all'}, so it started a `
-        + 'playout engine — and nothing has beaten since this instance came '
-        + 'up. It stopped. Why it stopped is in this container’s log, '
-        + 'alongside the line that says "serve: playout engine".'
-      : 'No playout engine has run since this instance started — the '
-        + 'heartbeat on disk is from an earlier one. The engine is a separate '
-        + 'process: check that it is started (ROLE=all or ROLE=playout).';
+    return 'No playout engine has ever written to this storage, so nothing '
+      + 'is being made for any channel. The engine is a separate process '
+      + 'from this web tier: start a service with ROLE=playout against the '
+      + 'same volume, run one container with ROLE=all, or '
+      + 'npm run start:playout beside it.';
   }
   if (engine === 'stale') {
-    return 'The playout engine stopped responding. It may have crashed; '
-      + 'check its output and restart it.';
+    return 'The playout engine has stopped responding. It last reported a '
+      + 'while ago and nothing has been written since. It is a separate '
+      + 'process, so its own log is where the reason is — the service '
+      + 'running ROLE=playout, or the container running ROLE=all.';
   }
   /* The engine is up, so this is about this channel rather than the process. */
   return stream === 'silent'
