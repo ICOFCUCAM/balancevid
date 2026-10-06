@@ -391,7 +391,21 @@ describe('the chooser T2c was waiting for', () => {
      the app you are inside is the product not knowing where it is. */
   it('shows nothing to somebody who has already installed it', () => {
     expect(OFFER).toMatch(/\(display-mode: standalone\)/);
-    expect(OFFER).toMatch(/if \(standalone\) return undefined/);
+    /*
+     * THE EARLY RETURN IS WHAT MAKES THE BAR SHOW NOTHING: no
+     * listener is registered, so `offered` and `teach` stay
+     * false and `InstallBar` renders null.
+     *
+     * IT NOW REPORTS THE FACT AS WELL AS ACTING ON IT. A surface
+     * that offers another WAY IN rather than an install — the
+     * "Get the Take App" row, which must appear on the browsers
+     * this hook can do nothing for — needs to know the app is
+     * already here, and the alternative was a second copy of the
+     * standalone check in a component, which `keeps the
+     * machinery in one place` below forbids. [D-19, getTheApp]
+     */
+    expect(OFFER)
+      .toMatch(/if \(standalone\) \{ setInstalled\(true\); return undefined; \}/);
   });
 
   /*
