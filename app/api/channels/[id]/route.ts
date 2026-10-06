@@ -26,7 +26,7 @@ import {
 import { channelOwns } from '../../../../src/domain/deletion.js';
 import { missingSources, resolves } from '../../../../src/store/playoutSources.js';
 import {
-  INSTANCE_STARTED_AT, newestSegmentAt, readBeat, readFailure,
+  newestSegmentAt, readBeat, readFailure,
 } from '../../../../src/store/playoutHealth.js';
 import {
   controlRoomNote, engineState, healthSentence, stillFailing, streamState,
@@ -102,8 +102,7 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
   const [heartbeat, newestSegment] = await Promise.all([
     readBeat(), newestSegmentAt(id),
   ]);
-  const engine = engineState(
-    heartbeat ? Date.parse(heartbeat.at) : null, now, INSTANCE_STARTED_AT);
+  const engine = engineState(heartbeat ? Date.parse(heartbeat.at) : null, now);
   const stream = streamState(newestSegment, now);
   /* Once, and given to both the page and the sentence below it: two calls
      a microsecond apart could straddle a programme boundary and disagree
@@ -165,12 +164,14 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
       /* One sentence, written in the domain so the control room and the
          viewer cannot describe the same condition two different ways. */
       /*
-       * AND WHAT THIS CONTAINER WAS TOLD TO RUN, because the
-       * sentence about a missing engine used to send the operator
-       * to look up an environment variable this process can read.
-       * `serve.sh` exports it. [health.ts, engineExpected]
+       * AND NOT WHAT THIS CONTAINER WAS TOLD TO RUN. The `ROLE` this
+       * process can read was passed here, and on a split deployment —
+       * web containers at `ROLE=web`, the engine its own service, both
+       * on the same volume — it made the sentence call a correct
+       * configuration a broken one. The heartbeat on the shared volume
+       * is the only thing that knows. [health.ts, healthSentence]
        */
-      says: healthSentence(engine, stream, 'operator', process.env['ROLE']),
+      says: healthSentence(engine, stream, 'operator'),
       /*
        * AND THE TWO REASONS A HEALTHY CHANNEL IS STILL DARK. [§6, §9]
        *

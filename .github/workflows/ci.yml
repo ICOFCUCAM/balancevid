@@ -89,3 +89,86 @@ jobs:
 
       - name: Test
         run: npm test
+
+  # ---- the image, started as each of the things it claims to be ----------
+  #
+  # THE CHECK THIS PRODUCT SHIPPED A PRODUCTION OUTAGE WITHOUT.
+  #
+  # Three `src/domain/` modules are doors: `export * from
+  # '../../shared/src/…'`. The runtime stage copied `src`, `app` and
+  # `scripts` and not `shared`, and NOTHING NOTICED — because Next resolves
+  # those doors at build time and bundles what is behind them, so the web
+  # tier comes up perfectly on an image that cannot run either of the other
+  # two roles:
+  #
+  #     Error [ERR_MODULE_NOT_FOUND]: Cannot find module
+  #     '/app/shared/src/time.js' imported from /app/src/domain/time.ts
+  #
+  # Typecheck passed. Four thousand three hundred tests passed. The image
+  # built. The site answered. Online TV transmitted nothing and no song ever
+  # finished preparing, and on a split deployment the only visible symptom
+  # was two worker services restarting out of sight.
+  #
+  # EVERY TEST ABOVE RUNS IN A CHECKOUT, where `shared/` is simply there.
+  # The only thing that can catch a file missing from the IMAGE is starting
+  # the image, so that is what this does — as each role that has to run on
+  # its own, which on a split deployment is all of them.
+  roles:
+    name: The image runs as each role
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build the image
+        # The defaults, which is what a deployment gets. No browser: it adds
+        # minutes and a Chromium download to a check about module
+        # resolution, and nothing here opens a page.
+        run: docker build --build-arg WITH_BROWSER=0 -t balancevid:ci .
+
+      # `ensure_models` fetches ~600 MB on a worker's first boot and this
+      # check is not about that. One file with the name it looks for makes
+      # it return immediately — see `ensure_models` in `scripts/serve.sh`.
+      - name: Stand in for the speech models
+        run: mkdir -p ci-models && touch ci-models/silero_vad.onnx
+
+      - name: Start as each role, and see that it survives
+        run: |
+          set -u
+          fail=0
+          for role in web worker playout; do
+            echo "::group::ROLE=$role"
+            name="bv-$role"
+            docker run -d --name "$name" \
+              -e ROLE="$role" \
+              -e BALANCEVID_PASSWORD=ci-only-not-a-secret \
+              -e BALANCEVID_SECRET=ci-only-not-a-secret-either-but-long \
+              -v "$PWD/ci-models:/models:ro" \
+              balancevid:ci >/dev/null
+
+            # Long enough for the module graph to load and the first pass to
+            # start. The fault this exists for kills the process in under a
+            # second, so this is generous rather than fine-tuned.
+            sleep 25
+
+            logs="$(docker logs "$name" 2>&1 || true)"
+            running="$(docker inspect -f '{{.State.Running}}' "$name" 2>/dev/null || echo false)"
+            echo "$logs" | tail -40
+
+            if [ "$running" != "true" ]; then
+              echo "::error::ROLE=$role did not stay up."
+              fail=1
+            fi
+            # Named explicitly as well as caught by the exit: a container
+            # that happens to still be up while a child is restarting is
+            # still a broken image, and this is the error that put one in
+            # production.
+            if echo "$logs" | grep -q ERR_MODULE_NOT_FOUND; then
+              echo "::error::ROLE=$role is missing a module at runtime."
+              fail=1
+            fi
+
+            docker rm -f "$name" >/dev/null 2>&1 || true
+            echo "::endgroup::"
+          done
+          exit "$fail"
