@@ -129,6 +129,10 @@ export async function produceRenditions(
   factsOf: (path: string) => SourceFacts | undefined,
   gainOf: (path: string) => number | undefined = () => undefined,
   opts: RunOptions = {},
+  /* The same measurement the picture walks with, so the alternate
+     audio cannot be reading a different instant of the same live
+     buffer. [segment.ts, playout.ts `liveReachMs`] */
+  liveReachMs?: number,
 ): Promise<string[]> {
   const alternates = alternatesOf(channel);
   if (alternates.length === 0) return [];
@@ -138,7 +142,7 @@ export async function produceRenditions(
   const reads = playoutWindow(channel, fromAt, toAt, (source) => {
     const path = pathFor(channel, source);
     return path ? factsOf(path)?.durationMs : undefined;
-  });
+  }, () => liveReachMs);
 
   const made: string[] = [];
   for (const alternate of alternates) {

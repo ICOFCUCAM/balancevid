@@ -123,6 +123,41 @@ export interface Read {
 export function playoutWindow(
   channel: Channel, fromAt: number, toAt: number,
   assetLengthMs?: (source: ProgrammeSource) => number | undefined,
+  /**
+   * HOW MUCH MEDIA THE LIVE BUFFER ACTUALLY HOLDS.  [§7, §9, U-02]
+   *
+   * THE DELAY WAS A GUESS, AND `LIVE_DELAY_MS`'s OWN HEADER SAYS
+   * WHAT IT IS GUESSING ABOUT: *"ffmpeg reads past the end of the
+   * growing file and puts out a fraction of a second of picture
+   * followed by nothing."* Twelve seconds is the margin chosen so
+   * that never happens. It holds only while the buffer gains a
+   * second of media for every second on the clock.
+   *
+   * IT DOES NOT, AND THE SHORTFALL IS PERMANENT. The browser
+   * uploads two-second chunks and counts the ones it fails to
+   * deliver — `useLiveEncoder`'s own `dropped`. Every dropped
+   * chunk is two seconds the buffer will never contain while the
+   * clock keeps running, and the camera takes a second or two to
+   * start after the operator presses the button. Nothing gives any
+   * of it back. Six dropped chunks across a broadcast and the read
+   * point is past the end of the buffer for the rest of it.
+   *
+   * MEASURED, READING PAST THE END PRODUCES A ZERO-BYTE SEGMENT —
+   * not black, not a held frame, nothing. The player stalls on the
+   * last picture it decoded and the channel is frozen, with every
+   * instrument green: the feed is arriving, the engine is beating,
+   * bytes are landing. `watchTheFeed` asks whether the file is
+   * GROWING. Nothing asked whether it had reached the place the
+   * engine was about to read from.
+   *
+   * SO THE READ FOLLOWS THE BUFFER RATHER THAN THE CLOCK. Given
+   * this, the live read is never placed past what the buffer holds;
+   * when the buffer is behind, the delay grows and the picture
+   * stays continuous, which is the trade live television has always
+   * made. Asked of a measurer rather than measured, exactly as
+   * `assetLengthMs` is: this file does not open files. [D-14]
+   */
+  liveReachMs?: (source: ProgrammeSource) => number | undefined,
 ): Read[] {
   if (toAt <= fromAt) return [];
   const reads: Read[] = [];
@@ -171,17 +206,41 @@ export function playoutWindow(
        */
       const behind = on.kind === 'live' && on.source.kind === 'live'
         ? LIVE_DELAY_MS : 0;
+      const need = toAt - cursor;
+      /*
+       * WHERE THE CLOCK SAYS, AND WHERE THE BUFFER ALLOWS.
+       *
+       * The clock's answer is the twelve-second delay. The buffer's
+       * answer is how much media is actually in it, less the piece
+       * about to be taken — read any later than that and ffmpeg
+       * runs off the end, which is the zero-byte segment.
+       *
+       * The EARLIER of the two, always. Later is a frozen picture;
+       * earlier is a viewer further behind live, which is a thing
+       * nobody can see without a second screen to compare against.
+       * A buffer nobody has measured keeps the old behaviour
+       * exactly, so a reach of `undefined` changes nothing. [§7]
+       */
+      const wanted = Math.max(0, on.fromMs - behind);
+      const reach = behind ? liveReachMs?.(on.source) : undefined;
+      const allowed = reach === undefined || !Number.isFinite(reach)
+        ? wanted : Math.max(0, Math.min(wanted, reach - need));
+      /*
+       * AND A BUFFER WITH LESS THAN ONE PIECE IN IT HAS NOTHING TO
+       * GIVE. Before the measurement existed this could only be the
+       * first twelve seconds of a broadcast; now it is also a feed
+       * that has fallen too far behind to fill the slot, and the
+       * answer is the same slate rather than a segment with no
+       * frames in it.
+       */
+      const nothingYet = reach === undefined || !Number.isFinite(reach)
+        ? on.fromMs < behind : reach < need;
       reads.push({
         atMs: cursor,
-        durationMs: toAt - cursor,
+        durationMs: need,
         source: on.source,
-        fromMs: Math.max(0, on.fromMs - behind),
-        /*
-         * Before the delay has elapsed there is nothing in the buffer yet.
-         * Saying so lets the encoder put a slate up rather than read past the
-         * end of a file that is still being written.
-         */
-        ...(on.fromMs < behind ? { notYet: true as const } : {}),
+        fromMs: allowed,
+        ...(nothingYet ? { notYet: true as const } : {}),
       });
       cursor = toAt;
       continue;
