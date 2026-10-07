@@ -4801,6 +4801,65 @@ somebody asked for, counted and named before the question is put.
 
 ---
 
+### The desk that makes D-23 true
+
+D-23 says *"every record in every studio has a delete"*. That was true of
+the routes and false of the product: `DELETE /api/channels/<id>` existed,
+guarded and correct, and **no page had ever called it**. An operator could
+make a channel and never remove one.
+
+Worse, the product was telling them to. A control room at 111% of real time
+offers *"fewer channels"* as its first remedy — addressed to somebody with
+no way to remove one and no inventory to choose from.
+
+**BalanceVid Admin is a ledger before it is a control panel.** One row per
+thing the installation holds — channel, conversation, performance — with
+what it is doing, what it weighs, when it last changed, and how many
+entries its audit trail has. On air first, then heaviest first, because the
+question this answers is *what is costing me* and an alphabetical list
+answers that for nobody.
+
+**The verbs are the routes that already existed.** Suspend is `unpublish`;
+retire is the same `DELETE` the record's own room sends. There is no
+`/api/admin/*`. A second way to delete a channel would be the thing D-19
+exists to prevent.
+
+**And it finally reads the audit trail.** `readAudit` and
+`readChannelAudit` have been exported and correct since the beginning,
+appended to on every channel edit, every lost feed and every recovered one
+— and called by no surface in this product. `repository.ts` writes the word
+*accountability* in the line above `audit()`. A record nobody can read is
+not accountability. It was the **sixth** capability found in one session
+built, documented, and pointed at by nothing, after `RotationEntry.loop`,
+`paceSays`, `channel.filler`, `deadAir()` and the delete route itself.
+
+**One installation, not a tier above one.** GO-VIRAL V-8 lists *"the
+absence of a registry"* under MUST NOT TOUCH and records a
+cross-installation index as not built twice, from two briefs. This desk is
+behind the same `isOwner` as every other page; a stranger gets
+`/signin?next=/admin`, asserted by a test against `mayBePublic` because the
+cost of being wrong is a stranger with a delete button.
+
+**What is deliberately absent, and said on the page rather than only in a
+comment:**
+
+- **Pause.** A channel is a clock — `whatIsOn` answers from the wall clock,
+  not a cursor — so holding one still would put every viewer on a different
+  programme when it resumed. The honest controls are **Suspend** (the
+  public link stops; it keeps transmitting) and **Emergency** (it cuts to a
+  slide and says why). Both already exist.
+- **Accounts and seats.** There is one account per installation, so there
+  is nobody to suspend. Multi-user administration is a product decision that
+  belongs in a brief, not in a page that quietly grows a user table.
+
+A control panel's most expensive failure is a button that does not do what
+its label says; the second is a section of headings with nothing under them
+— which `app/settings` already states as a rule.
+
+**Measured on the author's installation:** 191 records, 9.5 GB, gathered in
+0.8–1.8s. Opening it writes nothing — not a timestamp, not a lock — because
+it runs over a volume with a broadcast going out.
+
 ## D-24 · The workspace is the building
 
 A studio is one room, and its bar says which room you are in. The home page is
