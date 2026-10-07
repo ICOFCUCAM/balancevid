@@ -24,7 +24,7 @@
  */
 
 import { SEGMENT_MS } from './playout.js';
-import type { Pacing } from './pace.js';
+import type { Pacing, Reach } from './pace.js';
 
 /**
  * How long a heartbeat may go unrefreshed before the engine is presumed gone.
@@ -72,14 +72,56 @@ export const ENGINE_STALE_MS = 15_000;
 export const ENGINE_PULSE_MS = 5_000;
 
 /**
- * How long a channel's newest segment may age before it has stopped.
+ * The least patience worth having, when nothing has been timed.
  *
- * Three segments. The engine keeps two ahead of the playhead (AHEAD_SEGMENTS)
- * so the newest file is normally in the future; by the time it is three
- * segments old, nothing has been written for at least that long and the
- * viewer's player has run out of playlist.
+ * THREE SEGMENTS WAS THE WHOLE RULE AND IT ASSUMED A CADENCE THE
+ * LOOP DOES NOT GUARANTEE. The reasoning read well — the engine
+ * keeps two segments ahead, so a newest file three segments old
+ * means nothing has been written for that long — and it is true of
+ * an engine with ONE channel to visit.
+ *
+ * A pass visits every channel in turn. Measured on a live
+ * seventeen-channel installation the engine came back to each
+ * channel every 20.1 seconds, against twelve seconds of patience,
+ * so a PERFECTLY HEALTHY channel read `stalled` for most of every
+ * cycle:
+ *
+ *     with the engine running and every channel on air —
+ *     17 of 17 channels read "stalled" at least once in 70s,
+ *     the worst for 33 of those 70 seconds.
+ *
+ * That is the fault this module exists to prevent, committed by
+ * this module: a lamp that answers the question wrongly rather than
+ * declining to answer it. An operator who sees `stalled` on a third
+ * of their channels at any moment learns to ignore the word, and
+ * then it is worth nothing on the day it is true.
+ *
+ * SO THE PATIENCE FOLLOWS THE ROUND TRIP, which only the engine
+ * knows and which it now puts in its heartbeat. This is the floor
+ * for a reader that has not been told one. [streamPatience]
  */
 export const STREAM_STALE_MS = 3 * SEGMENT_MS;
+
+/**
+ * How long to wait before calling a stream stopped.
+ *
+ * THE ROUND TRIP PLUS TWO SEGMENTS. A channel is written once per
+ * round trip by construction, so patience shorter than the round
+ * trip is a guaranteed false alarm; the two segments on top are the
+ * slack for a pass that ran long, which is the same headroom
+ * argument `CROWDED` makes one module over.
+ *
+ * A reader with no round trip — an old heartbeat from before the
+ * engine recorded one, or none at all — gets the floor, which is
+ * what this product did everywhere until it was measured.
+ */
+export function streamPatience(
+  roundTripMs: number | null | undefined,
+): number {
+  if (roundTripMs === null || roundTripMs === undefined) return STREAM_STALE_MS;
+  if (!Number.isFinite(roundTripMs) || roundTripMs <= 0) return STREAM_STALE_MS;
+  return Math.max(STREAM_STALE_MS, roundTripMs + 2 * SEGMENT_MS);
+}
 
 export type EngineState =
   /** A heartbeat, recently. */
@@ -129,6 +171,38 @@ export interface Heartbeat {
   pacing?: Pacing;
   /** The worst recent pass, as a fraction of real time. */
   load?: number;
+  /**
+   * HOW LONG UNTIL THE ENGINE COMES BACK TO A CHANNEL.  [§15, C-41]
+   *
+   * The fact the web tier could not have and had to assume. Every
+   * patience in this file was a guess at it, and the guess was
+   * three segments — right for one channel and wrong for
+   * seventeen, where it was measured at 20.1 seconds.
+   *
+   * Absent on a heartbeat from an engine that has not completed a
+   * pass yet, and on every heartbeat written before this existed:
+   * readers fall back to the floor rather than to a number they
+   * made up.
+   */
+  roundTripMs?: number;
+  /**
+   * WHETHER THE LEAD OUTLASTS THAT ROUND TRIP.  [pace.ts `reach`]
+   *
+   * The question `load` and `pacing` are structurally unable to
+   * answer, because they divide by the SUM of every channel's
+   * output: a seventeen-channel engine reported 0.18 and `easy`
+   * while all seventeen ran out of playlist. Computed by the
+   * engine, which is the only process holding both numbers.
+   */
+  reach?: Reach;
+  /**
+   * How much television it wrote ahead on the last pass.
+   *
+   * The other half of `reach`: without it the sentence can say a
+   * channel is starving and not by how much, and a measurement
+   * with one number missing reads as an opinion. [pace.ts]
+   */
+  leadMs?: number;
 }
 
 /**
@@ -175,11 +249,22 @@ export function engineState(
   return now - beatAtMs <= ENGINE_STALE_MS ? 'running' : 'stale';
 }
 
+/**
+ * @param roundTripMs how long the engine takes to come back to this
+ *   channel, from its heartbeat. Required rather than optional: a
+ *   caller that cannot say would silently get the three-segment
+ *   floor, and the floor is the answer that was wrong on every
+ *   installation with more than a handful of channels. Pass `null`
+ *   to mean "not known", which is a different thing from forgetting
+ *   to pass it. [D-19]
+ */
 export function streamState(
   newestSegmentMs: number | null | undefined, now: number,
+  roundTripMs: number | null | undefined,
 ): StreamState {
   if (newestSegmentMs === null || newestSegmentMs === undefined) return 'silent';
-  return now - newestSegmentMs <= STREAM_STALE_MS ? 'transmitting' : 'stalled';
+  return now - newestSegmentMs <= streamPatience(roundTripMs)
+    ? 'transmitting' : 'stalled';
 }
 
 /* ------------------------------------------------------------------------ *

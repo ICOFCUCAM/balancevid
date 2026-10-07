@@ -80,12 +80,19 @@ export const BLACK_FLOOR = 0.04;
 /**
  * How long black has to last before it is a fault rather than a cut.
  *
- * THREE SEGMENTS, which is the same patience `STREAM_STALE_MS` uses and
- * for the same reason: a channel is allowed to go to black between two
- * things. A dissolve through black, the gap at the end of a programme
- * and the moment an operator takes a source down are all black and all
- * correct, and an alarm that fired on them is an alarm nobody reads.
- * [D-04]
+ * THREE SEGMENTS, because a channel is allowed to go to black between
+ * two things. A dissolve through black, the gap at the end of a
+ * programme and the moment an operator takes a source down are all
+ * black and all correct, and an alarm that fired on them is an alarm
+ * nobody reads. [D-04]
+ *
+ * NOT THE SAME QUESTION AS `STREAM_STALE_MS`, though this read as
+ * "the same patience for the same reason" while that was also a flat
+ * three segments. It no longer is: how long the engine takes to come
+ * back to a channel decides when a MISSING segment is a fault, and it
+ * has nothing to say about how long BLACK is allowed to last. Black
+ * for twelve seconds is wrong however often the engine visits —
+ * this is measured off the picture itself, not off the cadence.
  */
 export const BLACK_FOR_MS = 12_000;
 

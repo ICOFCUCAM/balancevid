@@ -4,7 +4,7 @@ import {
 } from '../../../../../src/domain/channel.js';
 import type { Channel, OnAir } from '../../../../../src/domain/channel.js';
 import { loadChannel } from '../../../../../src/store/channels.js';
-import { newestSegmentAt } from '../../../../../src/store/playoutHealth.js';
+import { newestSegmentAt, readBeat } from '../../../../../src/store/playoutHealth.js';
 import { healthSentence, streamState } from '../../../../../src/domain/health.js';
 /* The viewer's answer to "what is on", which lived here and is
    needed by the directory, the guide, the station page and every
@@ -38,7 +38,13 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
    * somebody else's server: "not transmitting right now" is true, useful,
    * and says nothing about which process died.
    */
-  const stream = streamState(await newestSegmentAt(id), at);
+  /* The engine's round trip comes from its heartbeat: patience shorter
+     than the cadence is a guaranteed false alarm, and this is the one
+     surface a stranger reads. [streamPatience] */
+  const [newest, beat] = await Promise.all([
+    newestSegmentAt(id), readBeat().catch(() => null),
+  ]);
+  const stream = streamState(newest, at, beat?.roundTripMs ?? null);
   const on = whatIsOn(channel, at);
   const coming = nextAfter(channel, at);
 

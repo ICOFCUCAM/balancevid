@@ -65,7 +65,11 @@ export default async function OnlineTvPage() {
      * that "the control room and the viewer must not describe the same
      * condition two different ways" — supplies the operator's wording.
      */
-    const stream = streamState(await newestSegmentAt(one.id), now);
+    /* Patience from the engine's own round trip, not a constant: on a
+       seventeen-channel installation the fixed one called a healthy
+       channel stalled for a third of every minute. [streamPatience] */
+    const stream = streamState(
+      await newestSegmentAt(one.id), now, beat?.roundTripMs ?? null);
     return {
       id: one.id,
       name: one.name,
