@@ -2222,6 +2222,77 @@ file is measured again and an unchanged one never is. **Both** are checked:
 a re-render of the same plan keeps the length and changes the time; a file
 restored from a backup keeps the time and can change the length.
 
+### The slot still took whatever the browser sent
+
+The section above gave the library a duration. It did not make anything
+USE one. Measured on the author's own channel, three releases later:
+
+| item | slot | file |
+|---|---|---|
+| Music Video — Everlasting Love | 4 min | 5.0s |
+| Station Ident | 16 min | 5.0s |
+| Morning Music | 25 min | 5.0s |
+| *…eight of them, every file 5.0s* | | |
+
+The loop claimed **116 minutes** over **40 seconds** of media. The
+operator read the diagnosis and answered:
+
+> *"HOW IS MY BUSINESS? AM I NOT SUPPOSE TO JUST LOAD MEDIA AND PLAY?
+> HOW IS IT NOW I HAVE TO DO THE WORK THE SYSTEM SUPPOSE TO AUTOMATE?"*
+
+They were right, and the code had been agreeing with them in writing the
+whole time. `addToRotation`'s header said *"the route reads it off the
+library, which measured it once"*. The route read
+`Number(body['durationMs'])` — three times over, once per way of putting
+media on a channel — and the browser sent `item.durationMs ?? 15 * MINUTE`
+from the library menu and whichever of `5 15 30 60 90 120 min` was lit in
+the scheduler, which opened on sixty. **Between the file and the document
+there was no step that opened the file**, while the playout engine opened
+it on every single pass to trim four seconds out of it.
+
+**The default is the measurement; the exception is typed.**
+`slotLength(asked, measured)` is the whole rule, and it is pure:
+
+| asked for | slot becomes |
+|---|---|
+| nothing | the media's own length |
+| `durationMs` | exactly that — a bed under a block is a real intention |
+| `toMs` / `fromMs` | the trim, which is a length somebody already stated |
+| nothing, and nothing measurable | **refused with a sentence** |
+
+That last row is the one that matters. A number invented at this point is
+a number that goes into a document and out on a wire; the refusal is read
+by somebody standing at the screen. [D-21, U-19]
+
+**The one source that is not measured** is an ingest still recording.
+`pathFor` resolves it to the buffer being written into at this instant, so
+measuring it answers *"how much has arrived in the last few seconds"* and
+a slot taking that answer would be seconds long for a broadcast that has
+not finished happening. Once the session ends and somebody keeps it, it is
+an asset with a real length and it is measured like anything else.
+
+**And the eight already written down are not retyped either.**
+`slotsOverrunning` was already computing the exact list the control room
+shows; `retimeSlots` is given that list and sets all of them, as one
+action behind one button marked **Match the media**. It only ever
+shortens — which is what makes it safe to run without asking, since
+shortening a programme cannot collide with the one after it — and it
+leaves alone anything marked `loop`, because that is somebody saying *"I
+know it is shorter and I want the time anyway"*.
+
+Measured through the browser, on that channel, after the change:
+
+```
+add to the loop, nothing typed   →   5 000 ms      (was 900 000)
+Match the media                  →   8 slots set, 0 left to report
+the loop                         →   116 min claimed  becomes  40s real
+what a viewer sees in an hour    →   6 items  becomes  all 8, 90 times round
+```
+
+Before, an hour of that channel was six items, each one the same
+five-second clip repeated between 48 and 300 times. After, the whole loop
+comes round every forty seconds.
+
 ### A song could not be put in, served, or found
 
 Three lists of containers, in three files, all saying the same three

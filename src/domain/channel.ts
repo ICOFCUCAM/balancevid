@@ -755,7 +755,78 @@ export function overlaps(channel: Channel): { a: Programme; b: Programme }[] {
  * reported: a guess here would be a number somebody schedules
  * against. [D-14]
  */
+/**
+ * HOW LONG A SLOT IS — WHICH IS THE MEDIA'S QUESTION, NOT THE
+ * OPERATOR'S.  [§3, §4, §25, C-14, D-14, U-02]
+ *
+ * *"AM I NOT SUPPOSE TO JUST LOAD MEDIA AND PLAY? HOW IS IT NOW I
+ * HAVE TO DO THE WORK THE SYSTEM SUPPOSE TO AUTOMATE?"*
+ *
+ * THEY ARE, AND IT WAS NOT AUTOMATED. `addToRotation` has promised
+ * since the day it was written that *"the route reads it off the
+ * library, which measured it once"*. The route read
+ * `Number(body['durationMs'])` — whatever the browser sent — and
+ * the browser sent `item.durationMs ?? 15 * MINUTE` from the
+ * library menu and a number off a row of buttons marked
+ * `5 15 30 60 90 120 min` from the scheduler. Nothing between the
+ * file and the schedule ever consulted the file. The promise was
+ * not slightly optimistic; it described a step that did not exist.
+ *
+ * SO THE DEFAULT IS THE MEASUREMENT AND THE EXCEPTION IS TYPED.
+ * Ask for no length and the slot is exactly as long as the media,
+ * which is what "load it and play it" has to mean. Ask for one and
+ * you get it, because a four-minute ident bed under a sixty-minute
+ * block is a real thing somebody means — but it is now something
+ * somebody MEANT, and `slotsOverrunning` says so in the control
+ * room either way.
+ *
+ * TRIM WINS OVER THE WHOLE FILE, because a trim is a length
+ * somebody already stated: `toMs` of 90 000 on a four-minute file
+ * is a ninety-second slot, and reaching past it to the container
+ * would schedule two and a half minutes nobody asked to see.
+ *
+ * PURE, AND GIVEN THE MEASUREMENT RATHER THAN TAKING IT. This file
+ * does not decode — the rule `mediaLengthMs` and `slotsOverrunning`
+ * both keep. The route is where the probe cache is read. [D-14]
+ */
+export interface Asked {
+  /** A length the caller stated, or nothing at all. */
+  durationMs?: number | undefined;
+  fromMs?: number | undefined;
+  toMs?: number | undefined;
+}
+
+export function slotLength(
+  asked: Asked, mediaMs: number | undefined,
+): number | undefined {
+  const said = asked.durationMs;
+  if (typeof said === 'number' && Number.isFinite(said) && said > 0) {
+    return Math.round(said);
+  }
+  const from = typeof asked.fromMs === 'number' && Number.isFinite(asked.fromMs)
+    ? Math.max(0, asked.fromMs) : 0;
+  const until = typeof asked.toMs === 'number' && Number.isFinite(asked.toMs)
+    ? asked.toMs : mediaMs;
+  /*
+   * Narrowing, not a guard — `undefined - from` is `NaN` and the
+   * last line already refuses that. A `mediaMs > 0` test stood
+   * beside it, survived its mutation, and was deleted rather than
+   * defended: zero, negative and `NaN` all arrive at the same
+   * `own > 0` below, so nothing could tell the two versions
+   * apart. [U-02]
+   */
+  if (until === undefined) return undefined;
+  const own = Math.round(until - from);
+  return own > 0 ? own : undefined;
+}
+
 export interface Overrun {
+  /**
+   * WHICH ENTRY, so that the thing that REPORTS the fault and the
+   * thing that FIXES it are one computation rather than two that
+   * can disagree. `retimeSlots` takes this list and nothing else.
+   */
+  id: string;
   title: string;
   /** How long the listing says the item runs for. */
   slotMs: number;
@@ -771,7 +842,7 @@ export function slotsOverrunning(
 ): Overrun[] {
   const found: Overrun[] = [];
   const look = (
-    title: string | undefined, slotMs: number,
+    id: string, title: string | undefined, slotMs: number,
     source: ProgrammeSource, fromMs?: number, toMs?: number, loop?: boolean,
   ) => {
     /* A slot somebody asked to repeat is doing what it was told. */
@@ -781,18 +852,18 @@ export function slotsOverrunning(
     const own = Math.max(0, (toMs ?? measured) - (fromMs ?? 0));
     if (own <= 0 || own >= slotMs) return;
     found.push({
-      title: title ?? 'an item', slotMs, mediaMs: own,
+      id, title: title ?? 'an item', slotMs, mediaMs: own,
       /* How many times it will play. Two is a long film in a double
          slot; two hundred is a duration nobody meant to type. */
       repeats: Math.ceil(slotMs / own),
     });
   };
   for (const programme of channel.programmes) {
-    look(programme.title, programme.durationMs, programme.source,
+    look(programme.id, programme.title, programme.durationMs, programme.source,
       programme.fromMs, programme.toMs, programme.loop);
   }
   for (const entry of channel.rotation) {
-    look(entry.title, entry.durationMs, entry.source,
+    look(entry.id, entry.title, entry.durationMs, entry.source,
       entry.fromMs, entry.toMs, entry.loop);
   }
   return found;
@@ -815,8 +886,9 @@ export function overrunSays(found: readonly Overrun[]): string | null {
       + 'shorter than the slot too.';
   return `“${worst.title}” is ${secs(worst.mediaMs)} long and is scheduled for `
     + `${secs(worst.slotMs)}, so it repeats about ${worst.repeats} times to fill `
-    + `the slot.${others} Set the slot to the length of the media, or trim the `
-    + 'listing — before this, the time it could not fill went out as black.';
+    + `the slot.${others} Anything added from now on takes the length of its own `
+    + 'media; these were written before that. “Match the media” sets each one to '
+    + 'what it actually is.';
 }
 
 export function gaps(
