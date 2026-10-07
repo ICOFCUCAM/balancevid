@@ -49,14 +49,38 @@
 
 set -uo pipefail
 
-# WHAT THIS CONTAINER IS. Read below to decide what to start, and nothing
-# else reads it: `scripts/healthcheck.mjs` gets its own copy from the
-# container environment, and the control room judges the engine by the
-# heartbeat on the shared volume rather than by any one container's role —
-# because on a split deployment the container showing the sentence is never
-# the one running the engine. [health.ts, engineState]
+# WHAT THIS CONTAINER IS. Read below to decide what to start, and written
+# down afterwards so the health check cannot disagree about it.
+#
+# IT USED TO SAY `healthcheck.mjs` "gets its own copy from the container
+# environment", and that was the bug. On DeployPro the workers run
+# `env ROLE=playout ./scripts/serve.sh` inside a container whose own
+# environment still says `ROLE=web`: this script sees playout and starts the
+# engine, the health check sees web and asks for a web tier that was never
+# started, and the platform restarts a working broadcast encoder every few
+# minutes, for ever. Two copies of one fact, and they were not the same fact.
+#
+# The control room is unaffected and always was: it judges the engine by the
+# heartbeat on the shared volume rather than by any container's role, because
+# on a split deployment the container showing the sentence is never the one
+# running the engine. [health.ts, engineState]
 ROLE="${ROLE:-all}"
 PORT="${PORT:-3000}"
+
+# WHAT WE ACTUALLY STARTED, for the health check to read.
+#
+# CONTAINER-LOCAL, NEVER THE SHARED VOLUME. Every container mounts the same
+# /data, so a role written there would be four containers overwriting one
+# answer — the same fault in a new place. The shard travels with it: a check
+# asking "is ANY engine beating" would call a dead shard healthy because
+# another one is alive. [healthcheck.mjs, shard.ts]
+#
+# Best effort. A container that cannot write its own temp directory still
+# starts, and the health check falls back to the environment as before.
+SERVING="${BALANCEVID_RUN:-${TMPDIR:-/tmp}/balancevid-serving.json}"
+printf '{"role":"%s","shard":%s,"shards":%s}\n' \
+  "$ROLE" "${PLAYOUT_SHARD:-0}" "${PLAYOUT_SHARDS:-1}" > "$SERVING" 2>/dev/null \
+  || echo "serve: could not record the role at $SERVING"
 
 # ------------------------------------------------------------------ ffmpeg
 # WHICH BINARY DRAWS THE CHANNEL'S OWN NAME, AND PUSHES IT ANYWHERE.

@@ -156,6 +156,41 @@ describe('moving an instance that already has work', () => {
     expect(await readdir(join(root, 'conversations'))).toContain('conv_old');
     expect(await readdir(paths.conversations())).toContain('marker');
   });
+
+  /*
+   * AND IT SAYS WHICH ONE IS LIVE.
+   *
+   * Refusing to choose is right. Refusing to choose and then
+   * saying only *"merge them by hand"* leaves an operator in front
+   * of two directories on a volume holding hours of recorded
+   * speech, with no way to tell which one the product is reading —
+   * and the wrong guess is not recoverable. There is no ambiguity
+   * in the code: every path is built on `owned()`. Saying so is
+   * free, and not saying it was the whole of the difficulty this
+   * caused on a real deployment. [D-21, U-25]
+   */
+  it('and says which copy the product is actually reading', async () => {
+    const said: string[] = [];
+    const was = console.warn;
+    console.warn = (...parts: unknown[]) => { said.push(parts.join(' ')); };
+    try {
+      await oldWork(root, 'channels', 'chan_old');
+      await mkdir(paths.channels(), { recursive: true });
+      await writeFile(join(paths.channels(), 'marker'), 'new', 'utf8');
+      await ensureDirs();
+    } finally {
+      console.warn = was;
+    }
+    const warning = said.join('\n');
+    /* Which address is served, in words an operator can act on. */
+    expect(warning).toMatch(/THE ACCOUNT COPY IS THE LIVE ONE/);
+    /* And that the other one is ignored rather than lost, which is
+       the thing somebody about to delete it needs to hear. */
+    expect(warning).toMatch(/being ignored, not lost/);
+    expect(warning).toMatch(/[Nn]othing has been deleted/);
+    /* And where to look before touching anything. */
+    expect(warning).toMatch(/storage-report/);
+  });
 });
 
 /**

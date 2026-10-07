@@ -219,3 +219,197 @@ describe('the health check asks each role what it can answer', () => {
     expect(mine).toBeGreaterThan(lamp * 4);
   });
 });
+
+/* ------------------------------------------------------------------ *
+ *  And it is RUN, not just read.
+ * ------------------------------------------------------------------ */
+
+/**
+ * THE SAME BUG A THIRD TIME, AND THE TESTS ABOVE COULD NOT SEE IT.
+ *   [U-02, D-21]
+ *
+ * Everything above reads these two files as text, and every one of
+ * those assertions still passed while production looked like this:
+ *
+ *     deploypro-balancevid-playout-0   Up 4 minutes (unhealthy)
+ *
+ * TWO INDEPENDENT REASONS, both invisible to a source-text test.
+ *
+ * ONE: the check read `var/playout.json`. `playoutHealth.beat()`
+ * has written `var/playout/<shard>.json` since sharding arrived —
+ * the legacy path is READ by the store for an installation
+ * mid-upgrade and never WRITTEN. So the check opened a file that
+ * does not exist, got ENOENT, and called a perfectly healthy
+ * encoder dead. For ever.
+ *
+ * TWO: it took the role from `process.env.ROLE`. On DeployPro the
+ * workers run `env ROLE=playout ./scripts/serve.sh` inside a
+ * container whose own environment still says `ROLE=web`, so the
+ * check asked the web tier's question of a container that has no
+ * web tier. Also for ever.
+ *
+ * Either one restarts a working broadcast encoder every few
+ * minutes, which is a channel that stops while every line of code
+ * involved is correct in isolation. So these RUN the script. [U-02]
+ */
+describe('the health check, run against a real volume', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { execFileSync } = require('node:child_process') as
+    typeof import('node:child_process');
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const fs = require('node:fs') as typeof import('node:fs');
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const os = require('node:os') as typeof import('node:os');
+
+  /** A volume with the given engines beating however long ago. */
+  function volume(beats: Record<string, number>): string {
+    const dir = fs.mkdtempSync(join(os.tmpdir(), 'bv-health-'));
+    fs.mkdirSync(join(dir, 'var', 'playout'), { recursive: true });
+    for (const [shard, agoMs] of Object.entries(beats)) {
+      fs.writeFileSync(
+        join(dir, 'var', 'playout', `${shard}.json`),
+        JSON.stringify({
+          at: new Date(Date.now() - agoMs).toISOString(),
+          channels: 1, made: 1, shard: Number(shard),
+        }));
+    }
+    return dir;
+  }
+
+  /** What the container would be told it is, by whom. */
+  function ran(
+    dir: string,
+    env: Record<string, string>,
+    serving?: { role: string; shard?: number },
+  ): number {
+    const note = join(dir, 'serving.json');
+    if (serving) fs.writeFileSync(note, JSON.stringify(serving));
+    try {
+      execFileSync(process.execPath, [join(ROOT, 'scripts', 'healthcheck.mjs')], {
+        env: {
+          ...process.env,
+          BALANCEVID_VAR: join(dir, 'var'),
+          BALANCEVID_RUN: note,
+          ...env,
+        },
+        stdio: 'pipe',
+      });
+      return 0;
+    } catch (error) {
+      return (error as { status?: number }).status ?? 1;
+    }
+  }
+
+  /*
+   * THE DEPLOYPRO CASE, EXACTLY. The container's environment says
+   * `web` because that is what the image was configured with; the
+   * command said `playout` and that is what is running. A healthy
+   * engine must come out healthy.
+   */
+  it('believes what serve.sh started, not what the environment says', () => {
+    const dir = volume({ 0: 1_000 });
+    expect(ran(dir, { ROLE: 'web' }, { role: 'playout', shard: 0 })).toBe(0);
+  });
+
+  /*
+   * AND IT READS THE FILE THE ENGINE WRITES. A beat at
+   * `var/playout/0.json` and nothing at `var/playout.json`, which
+   * is every installation since sharding.
+   */
+  it('reads the sharded heartbeat the engine actually writes', () => {
+    const dir = volume({ 0: 1_000 });
+    expect(fs.existsSync(join(dir, 'var', 'playout.json'))).toBe(false);
+    expect(ran(dir, { ROLE: 'playout' })).toBe(0);
+  });
+
+  /*
+   * A DEAD ENGINE IS STILL DEAD. The check must not have become so
+   * forgiving that it passes everything — which is the obvious way
+   * to "fix" an unhealthy container and the useless one.
+   */
+  it('still fails when the engine has genuinely stopped', () => {
+    const dir = volume({ 0: 30 * 60_000 });
+    expect(ran(dir, { ROLE: 'playout' })).toBe(1);
+  });
+
+  it('and when there is no heartbeat at all', () => {
+    const dir = volume({});
+    expect(ran(dir, { ROLE: 'playout' })).toBe(1);
+  });
+
+  /*
+   * EACH CONTAINER BY ITS OWN PULSE. On a sharded deployment "is
+   * SOMETHING beating" is the wrong question: shard 1 can be dead
+   * with its channels off the air while shard 0 beats happily, and
+   * a check reading the freshest file anywhere would call the dead
+   * container healthy and never restart it. [shard.ts]
+   */
+  it('judges a sharded container by its own engine, not by its neighbour', () => {
+    const dir = volume({ 0: 1_000, 1: 30 * 60_000 });
+    expect(ran(dir, { ROLE: 'web' }, { role: 'playout', shard: 0 })).toBe(0);
+    expect(ran(dir, { ROLE: 'web' }, { role: 'playout', shard: 1 })).toBe(1);
+  });
+
+  /*
+   * AND AN INSTALLATION MID-UPGRADE IS NOT CALLED DEAD. A new
+   * image's health check beside an engine still running the old
+   * one must accept the legacy file, exactly as the store does.
+   */
+  it('still accepts the legacy single heartbeat', () => {
+    const dir = volume({});
+    fs.writeFileSync(join(dir, 'var', 'playout.json'),
+      JSON.stringify({ at: new Date().toISOString(), channels: 1, made: 1 }));
+    expect(ran(dir, { ROLE: 'playout' })).toBe(0);
+  });
+
+  /* The web tier is unchanged: it answers for itself, and a
+     container with no web tier on that port still fails. */
+  it('leaves the web tier asking the web tier', () => {
+    const dir = volume({ 0: 1_000 });
+    expect(ran(dir, { ROLE: 'web', PORT: '59997' }, { role: 'web' })).toBe(1);
+  });
+});
+
+/**
+ * AND `serve.sh` WRITES DOWN WHAT IT STARTED, or the check above
+ * has nothing to read and silently falls back to the environment —
+ * which is the bug.
+ */
+describe('the entrypoint records the role it chose', () => {
+  it('writes the role and the shard where the health check looks', () => {
+    expect(SERVE).toMatch(/SERVING="\$\{BALANCEVID_RUN:-\$\{TMPDIR:-\/tmp\}/);
+    expect(CHECK).toMatch(/BALANCEVID_RUN/);
+    /*
+     * THE WHOLE STATEMENT, not a fragment of it. A first version
+     * of this asserted only the argument line, and a mutation
+     * that emptied the format string — writing nothing at all —
+     * sailed through: the arguments were still there, attached to
+     * a `printf ''`. What matters is that a role and a shard are
+     * WRITTEN to the file, so that is what is read. [U-02]
+     */
+    const writes = SERVE.slice(SERVE.indexOf('SERVING='),
+      SERVE.indexOf('\n\n', SERVE.indexOf('SERVING=')));
+    expect(writes).toMatch(/"role":"%s"/);
+    expect(writes).toMatch(/"shard":%s/);
+    expect(writes).toMatch(/"\$ROLE" "\$\{PLAYOUT_SHARD:-0\}"/);
+    expect(writes).toMatch(/> "\$SERVING"/);
+  });
+
+  /*
+   * CONTAINER-LOCAL, NEVER THE SHARED VOLUME. Every container
+   * mounts the same /data, so a role written there would be four
+   * containers overwriting one answer — the same fault in a new
+   * place.
+   */
+  it('and never onto the volume every container shares', () => {
+    const line = SERVE.slice(SERVE.indexOf('SERVING='), SERVE.indexOf('\n\n',
+      SERVE.indexOf('SERVING=')));
+    expect(line).not.toMatch(/\/data|BALANCEVID_VAR|\bvar\b/);
+  });
+
+  /* It records it before it starts anything, or a check racing a
+     slow boot reads the environment and asks the wrong question. */
+  it('and records it before it starts any of them', () => {
+    expect(SERVE.indexOf('SERVING=')).toBeLessThan(SERVE.indexOf('case "$ROLE"'));
+  });
+});
