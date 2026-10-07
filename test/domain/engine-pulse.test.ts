@@ -176,6 +176,13 @@ describe('a pulse and a pass beating at the same moment', () => {
    * flight together from the same pid, and with one name between
    * them the second write lands in the file the first is about to
    * rename. A reader gets whichever half won.
+   *
+   * THE FILE MOVED AND THE HAZARD DID NOT. An installation can run
+   * several engines now, so each writes `playout/<index>.json`
+   * rather than one shared `playout.json` — two engines on one
+   * file would overwrite each other and the control room would
+   * show whichever wrote last. Same atomicity question, asked of
+   * the file this engine actually writes. [shard.ts]
    */
   it('never leaves half a heartbeat on disk', async () => {
     for (let round = 0; round < 40; round += 1) {
@@ -191,7 +198,7 @@ describe('a pulse and a pass beating at the same moment', () => {
     }
     /* And nothing is left behind: a temp file per write that is
        always renamed away. */
-    const left = (await readFile(join(root, 'playout.json'), 'utf8')).trim();
+    const left = (await readFile(join(root, 'playout', '0.json'), 'utf8')).trim();
     expect(left.startsWith('{')).toBe(true);
     expect(left.endsWith('}')).toBe(true);
   });

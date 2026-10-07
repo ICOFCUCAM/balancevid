@@ -3,9 +3,11 @@ import {
   nextAfter, orderedProgrammes, programmeStart, whatIsOn,
 } from '../../src/domain/channel.js';
 import type { Channel } from '../../src/domain/channel.js';
-import { airState, engineState, healthSentence, streamState } from '../../src/domain/health.js';
 import {
-  newestSegmentAt, readBeat,
+  airState, enginesMissing, enginesSay, engineState, healthSentence, streamState,
+} from '../../src/domain/health.js';
+import {
+  newestSegmentAt, readBeats,
 } from '../../src/store/playoutHealth.js';
 import { PLATFORMS, type DestinationKind } from '../../src/domain/distribution.js';
 import { roomFor } from '../../src/domain/rooms.js';
@@ -38,10 +40,13 @@ export const dynamic = 'force-dynamic';
  * own route already read.
  */
 export default async function OnlineTvPage() {
-  const [channels, building, beat] = await Promise.all([
-    listChannels().catch(() => []), theBuilding(), readBeat().catch(() => null),
+  const [channels, building, beats] = await Promise.all([
+    listChannels().catch(() => []), theBuilding(), readBeats().catch(() => []),
   ]);
   const now = Date.now();
+  /* The freshest, for "is anything running"; all of them, for "is
+     every engine still here". [§18, shard.ts] */
+  const beat = beats[0] ?? null;
 
   /*
    * THE ENGINE IS ASKED ONCE, NOT PER CHANNEL. It is one process for the
@@ -120,7 +125,8 @@ export default async function OnlineTvPage() {
 
   return (
     <Room room={roomFor('online-tv')} {...building} head="plain" start={null}>
-      <ControlRoom channels={onAir} make={<StartChannel />} />
+      <ControlRoom channels={onAir} make={<StartChannel />}
+                   enginesGone={enginesSay(enginesMissing(beats, now))} />
     </Room>
   );
 }

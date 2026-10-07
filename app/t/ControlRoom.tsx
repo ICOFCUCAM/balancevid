@@ -42,8 +42,23 @@ export interface OnTheAir {
  * thing an operator does once.
  */
 export default function ControlRoom({
-  channels, make,
-}: { channels: OnTheAir[]; make: React.ReactNode }) {
+  channels, make, enginesGone = null,
+}: {
+  channels: OnTheAir[]; make: React.ReactNode;
+  /**
+   * AN ENGINE HAS STOPPED AND ITS CHANNELS ARE DARK.
+   *   [health.ts `enginesSay`, shard.ts]
+   *
+   * ABOVE THE DESK AND NOT ON A CARD, because it is the one fault
+   * here that belongs to no single channel. On a scaled-out
+   * installation each engine serves its own share, so the rows an
+   * operator is looking at may all be perfectly healthy while
+   * another engine's share is off the air — and a warning shown
+   * per channel would appear on none of the channels it is about.
+   * [D-04, D-21]
+   */
+  enginesGone?: string | null;
+}) {
   const front = channels[0];
 
   if (!front) {
@@ -63,6 +78,11 @@ export default function ControlRoom({
 
   return (
     <>
+      {enginesGone && (
+        <p className="room-alarm" data-testid="engines-gone" role="status">
+          {enginesGone}
+        </p>
+      )}
       <ChannelDesk channel={front} />
 
       {/*

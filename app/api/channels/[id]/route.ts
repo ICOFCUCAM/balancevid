@@ -26,11 +26,12 @@ import {
 import { channelOwns } from '../../../../src/domain/deletion.js';
 import { missingSources, resolves } from '../../../../src/store/playoutSources.js';
 import {
-  newestSegmentAt, readBeat, readFailure,
+  newestSegmentAt, readBeats, readFailure,
 } from '../../../../src/store/playoutHealth.js';
 import { engineNote } from '../../../../src/domain/pace.js';
 import {
-  controlRoomNote, engineState, healthSentence, stillFailing, streamState,
+  controlRoomNote, enginesMissing, enginesSay,
+  engineState, healthSentence, stillFailing, streamState,
   whyDark,
 } from '../../../../src/domain/health.js';
 import { discardBuffer, keepBuffer } from '../../../../src/store/liveBuffer.js';
@@ -100,9 +101,13 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
    * this channel's newest segment. Two facts, two questions, and a control
    * room full of green lamps over a dead encoder is the fault they prevent.
    */
-  const [heartbeat, newestSegment] = await Promise.all([
-    readBeat(), newestSegmentAt(id),
+  const [beats, newestSegment] = await Promise.all([
+    readBeats(), newestSegmentAt(id),
   ]);
+  /* The freshest, for "is anything running and how fast does it come
+     round"; all of them, for "is every engine still here". Two
+     questions, and an average would answer neither. [§18, shard.ts] */
+  const heartbeat = beats[0] ?? null;
   const engine = engineState(heartbeat ? Date.parse(heartbeat.at) : null, now);
   /* The engine's own round trip, so the patience matches the cadence
      this installation actually runs at rather than a guess at it. A
@@ -216,7 +221,17 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
       note: controlRoomNote(engine, stream, dark,
         stillFailing(failure, now) ? failure : null,
         (() => {
-          const says = engineNote(heartbeat);
+          /*
+           * A MISSING ENGINE OUTRANKS EVERYTHING THE LIVE ONES SAY.
+           *
+           * On a scaled-out installation the engines that are still
+           * up are healthy by every measure — `engineState` finds a
+           * fresh beat, `pacing` and `reach` come from processes
+           * with nothing wrong — while a share of the channels is
+           * off the air with nothing else able to notice. [shard.ts]
+           */
+          const says = enginesSay(enginesMissing(beats, now))
+            ?? engineNote(heartbeat);
           return says ? { says } : null;
         })()),
       /*
