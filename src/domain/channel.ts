@@ -645,6 +645,102 @@ export function isPublished(channel: Channel): boolean {
   return Boolean(channel.publication && !channel.publication.unpublishedAt);
 }
 
+/**
+ * HOW LONG A CHANNEL NOBODY CAN RECEIVE STAYS WARM AFTER SOMEBODY
+ * LOOKS AT IT.
+ *
+ * Ninety seconds: nine of the control room's ten-second polls. Long
+ * enough that a studio left open through a phone call keeps its
+ * monitor alive, short enough that a channel closed and forgotten
+ * stops costing anything within two minutes. A number small enough
+ * to be wrong cheaply in both directions. [D-20]
+ */
+export const KEEP_WARM_MS = 90_000;
+
+/** Whether this channel needs segments made for it right now, and why. */
+export interface Needs {
+  encode: boolean;
+  why: 'live' | 'published' | 'watched' | 'idle';
+}
+
+/**
+ * DOES ANYBODY NEED THIS CHANNEL ENCODED RIGHT NOW?
+ *   [§7, §17, §18, D-18, D-21, U-02, U-16]
+ *
+ * THE WORD "published" APPEARED NOWHERE IN THE ENGINE. It encoded
+ * every channel it owned — reachable or not, looked at or not —
+ * for ever. An unpublished channel's segments are refused to
+ * everyone but its owner by the segment route, so for a draft
+ * channel the bytes were made and then declined at the door, four
+ * seconds at a time, until somebody deleted it.
+ *
+ * WHAT THIS IS *NOT*. It was written while chasing a control room
+ * reporting 111% of real time on seventeen channels, on the theory
+ * that they were unpublished and the engine was working for
+ * nobody. **They were all published**, and the first count that
+ * said otherwise had read the wrong field. So this saves that
+ * installation nothing, and the honest remedy for a box with
+ * seventeen LIVE channels on it is the one `paceSays` now names:
+ * a second playout service. [shard.ts, pace.ts]
+ *
+ * It is kept because the draft case is real and arrives the moment
+ * anybody builds a channel before publishing it — but it is not
+ * the answer to a crowded engine, and saying so here is cheaper
+ * than somebody rediscovering it under load. [U-02]
+ *
+ * THE RULE, IN THE ORDER IT MATTERS.
+ *
+ *   live       The red button is on. Whatever else is true, this
+ *              is going out now.
+ *   published  The public can tune in at any instant, so it is
+ *              encoded at every instant. This is what "a channel
+ *              runs whether anybody is watching or not" means, and
+ *              it is not weakened here: the obvious cheaper rule —
+ *              count the viewers — would take a channel off the
+ *              air between two of them. [§7]
+ *   watched    Somebody has the control room open on it. An
+ *              unpublished channel still has to show its owner a
+ *              picture, because that preview is how anybody
+ *              decides it is ready to publish.
+ *   idle       Not reachable, not live, nobody looking. There is
+ *              no viewer this could ever reach. Skipped — and SAID,
+ *              never silently, because a channel quietly not being
+ *              encoded is exactly the kind of invisible behaviour
+ *              that costs this product whole releases. [D-21]
+ *
+ * PURE, AND TOLD WHEN IT WAS LAST LOOKED AT RATHER THAN FINDING
+ * OUT. The same rule every measurement in this file follows. [D-14]
+ */
+export function needsSegments(
+  channel: Channel, nowMs: number, seenAtMs?: number,
+): Needs {
+  if (channel.live && channel.live.phase !== 'ended') {
+    return { encode: true, why: 'live' };
+  }
+  if (isPublished(channel)) return { encode: true, why: 'published' };
+  if (seenAtMs !== undefined && Number.isFinite(seenAtMs)
+    && nowMs - seenAtMs <= KEEP_WARM_MS) {
+    return { encode: true, why: 'watched' };
+  }
+  return { encode: false, why: 'idle' };
+}
+
+/**
+ * What to tell the operator about the ones being skipped.
+ *
+ * NAMED AS A SAVING AND NOT AS A FAULT, because it is one: these
+ * are channels that could not be watched by anybody. But it is
+ * said out loud, with the count, so nobody ever has to wonder why
+ * a channel they have not published is not transmitting.
+ */
+export function idleSays(idle: number, total: number): string | null {
+  if (idle <= 0) return null;
+  return `${idle} of ${total} channels ${idle === 1 ? 'is' : 'are'} not `
+    + 'published and nobody has them open, so no segments are being made '
+    + 'for them. Publishing one, or opening its control room, starts it '
+    + 'within a pass.';
+}
+
 /* ------------------------------------------------------------------------ *
  *  Derivations. Nothing below is stored.
  * ------------------------------------------------------------------------ */

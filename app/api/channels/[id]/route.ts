@@ -42,6 +42,7 @@ import {
   whyDark,
 } from '../../../../src/domain/health.js';
 import { discardBuffer, keepBuffer } from '../../../../src/store/liveBuffer.js';
+import { noteWatching } from '../../../../src/store/watching.js';
 import { isSendable } from '../../../../src/domain/rtmp.js';
 import { forgetKey, keyNote, putKey } from '../../../../src/store/streamKeys.js';
 import { forgetSender, readSenders } from '../../../../src/store/senderHealth.js';
@@ -156,6 +157,22 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
   }
 
   const now = Date.now();
+  /*
+   * SOMEBODY IS LOOKING AT THIS CHANNEL.  [watching.ts, channel.ts
+   *   `needsSegments`, §7, §18]
+   *
+   * The engine skips a channel no viewer can reach — not
+   * published, not live — because encoding television nobody can
+   * be shown is what put a measured installation at 111% of real
+   * time with seventeen unpublished channels on it. The one person
+   * who still needs a picture from such a channel is the owner
+   * deciding whether to publish it, and this poll is how the
+   * engine knows they are there.
+   *
+   * NOT AWAITED. It is bookkeeping beside a read, and a control
+   * room must not wait on it or fail for it.
+   */
+  void noteWatching(id);
   const missing = await missingSources(channel, referencedAssets(channel));
   /*
    * AND WHICH ITEMS ARE SHORTER THAN THE SLOTS THEY SIT IN.

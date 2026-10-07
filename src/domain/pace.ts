@@ -149,20 +149,63 @@ export function keep(
 }
 
 /**
+ * HOW MANY ENGINES THIS WOULD TAKE.  [shard.ts, §11, §15, D-20]
+ *
+ * THE ADVICE NAMED EVERY REMEDY BUT THE PRODUCT'S OWN. *"Fewer
+ * channels, a simpler source, or a bigger box"* — three things the
+ * operator must give up or pay for, and not one mention of
+ * `PLAYOUT_SHARDS`, which exists for exactly this and was measured
+ * on exactly this installation: seventeen channels on one engine
+ * ran at **2.36 of real time** and every channel ran out of
+ * playlist; a third of them on one engine ran at **0.66** and none
+ * did. [serve.sh]
+ *
+ * Load scales with the number of channels an engine is given, so
+ * this is arithmetic rather than hope: to bring each engine under
+ * `COMFORTABLE`, divide the channels among enough of them.
+ *
+ * NEVER FEWER THAN THERE ARE. This answers "how many would it
+ * take", and an installation already running three must not be
+ * told to run two — removing an engine mid-broadcast takes its
+ * channels off the air.
+ */
+export const COMFORTABLE = 0.7;
+
+export function enginesNeeded(worst: number | null, shards = 1): number {
+  const now = Number.isInteger(shards) && shards >= 1 ? shards : 1;
+  if (worst === null || !Number.isFinite(worst) || worst <= 0) return now;
+  return Math.max(now, Math.ceil((now * worst) / COMFORTABLE));
+}
+
+/**
  * What to tell the operator, in one line they can act on.
  *
  * AND THE SENTENCE FOR `behind` NAMES THE CONSEQUENCE, because
  * "slow" is not a thing anybody acts on and "the picture will start
  * arriving late" is. [D-21]
+ *
+ * AND NOW IT NAMES THE REMEDY THE PRODUCT ALREADY HAS, first,
+ * because it is the only one of the four that costs the operator
+ * no television. It was missing, and `RotationEntry.loop` is what
+ * happens to a capability nothing points at. [D-13]
  */
-export function paceSays(state: Pacing, worst: number | null): string {
+export function paceSays(
+  state: Pacing, worst: number | null, shards = 1,
+): string {
   const percent = worst === null ? '' : ` (${Math.round(worst * 100)}% of real time)`;
   switch (state) {
-    case 'behind':
+    case 'behind': {
+      const want = enginesNeeded(worst, shards);
+      const split = want > shards
+        ? `Split the channels across ${want} playout services `
+          + `(PLAYOUT_SHARDS=${want}${shards > 1 ? `, up from ${shards}` : ''}) `
+          + '— each one then encodes its share and no channel changes. '
+        : '';
       return 'The engine is taking longer to make the broadcast than the '
         + `broadcast lasts${percent}. The picture will start arriving late `
-        + 'and players will stall. Fewer channels, a simpler source, or a '
-        + 'bigger box.';
+        + `and players will stall. ${split}Or fewer channels, a simpler `
+        + 'source, or a bigger box.';
+    }
     case 'crowded':
       return `Little headroom left${percent}. It is keeping up, and a `
         + 'longer programme or a second channel would not.';
@@ -391,9 +434,24 @@ export function reachSays(
       return 'Each channel runs out of playlist before the engine comes '
         + `back to it${numbers}. Viewers see the picture stop and start. `
         + (behind
-          ? 'It cannot make the television fast enough either, so this is '
-            + 'not a matter of rearranging: fewer channels, a simpler '
-            + 'source, or a bigger box.'
+          /*
+           * AND SPLITTING STILL HELPS WHEN IT IS BEHIND, which
+           * this used to deny in so many words: *"this is not a
+           * matter of rearranging"*. It is. An engine's load is
+           * the work of the channels it was GIVEN, so handing
+           * half of them to a second service halves it —
+           * measured, 2.36 of real time on seventeen channels and
+           * 0.66 on a third of them. Telling an operator at 111%
+           * that the product's own scaling will not help them is
+           * worse than saying nothing: it sends them to buy a
+           * bigger box for a problem an environment variable solves.
+           * [shard.ts, serve.sh, D-21, U-02]
+           */
+          ? 'It cannot make the television fast enough on its own either, '
+            + 'so rearranging the channels between MORE engines is the fix '
+            + 'rather than rearranging them between these: add a playout '
+            + 'service. Fewer channels, a simpler source or a bigger box '
+            + 'do it too.'
           : 'The engine is not slow — it has too many channels to get '
             + 'round, so split them across a second playout service or '
             + 'run fewer.');
@@ -437,6 +495,11 @@ export function engineNote(
   how: {
     pacing?: Pacing; load?: number;
     reach?: Reach; roundTripMs?: number; leadMs?: number;
+    /* How many engines are already running, so the advice says how
+       many it would TAKE rather than restating what there is. It
+       travels in the heartbeat beside everything else the two
+       processes share. [shard.ts, playoutHealth.ts] */
+    shards?: number;
   } | null | undefined,
 ): string | null {
   if (!how) return null;
@@ -444,9 +507,11 @@ export function engineNote(
     ? { roundTripMs: how.roundTripMs, leadMs: how.leadMs } : null;
   const behind = how.pacing === 'behind';
   if (how.reach === 'starving') return reachSays('starving', what, behind);
-  if (behind) return paceSays('behind', how.load ?? null);
+  if (behind) return paceSays('behind', how.load ?? null, how.shards ?? 1);
   if (how.reach === 'thin') return reachSays('thin', what);
-  if (how.pacing === 'crowded') return paceSays('crowded', how.load ?? null);
+  if (how.pacing === 'crowded') {
+    return paceSays('crowded', how.load ?? null, how.shards ?? 1);
+  }
   /*
    * NOTHING, WHICH IS THE COMMON CASE AND HAS TO STAY SILENT. A
    * control room that says "keeping up comfortably" on every
