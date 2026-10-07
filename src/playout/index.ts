@@ -32,7 +32,10 @@ import type { Channel } from '../domain/channel.js';
 import {
   LIVE_DELAY_MS, SEGMENT_MS, WINDOW_SEGMENTS, livePlaylist, segmentIndexAt,
 } from '../domain/playout.js';
-import { referencedAssets, whatIsOn } from '../domain/channel.js';
+import {
+  idleSays, needsSegments, referencedAssets, whatIsOn,
+} from '../domain/channel.js';
+import { watchedAt } from '../store/watching.js';
 import { bufferReachMs } from '../store/liveBuffer.js';
 import {
   auditChannel, listChannels, loadChannel, saveChannel,
@@ -523,8 +526,51 @@ export async function pass(
    * first one is already encoding, for twice the cost and not one
    * channel served sooner. [shard.ts]
    */
-  const channels = (await listChannels())
+  const mine = (await listChannels())
     .filter((one) => ownsChannel(one.id, shard));
+
+  /*
+   * AND ONLY THE ONES SOMEBODY CAN ACTUALLY RECEIVE.
+   *   [channel.ts `needsSegments`, watching.ts, §7, §17, U-16]
+   *
+   * THE MEASUREMENT THAT FORCED THIS, off a real control room:
+   * *"the engine is taking longer to make the broadcast than the
+   * broadcast lasts (111% of real time)"* — on an installation
+   * with SEVENTEEN channels and NOT ONE of them published. The
+   * segment route refuses an unpublished channel to anyone but
+   * its owner, so every one of those encodes was declined at the
+   * door after it had been paid for.
+   *
+   * The sentence offered three remedies and all three were the
+   * operator's: fewer channels, a simpler source, a bigger box.
+   * The one it could not offer was the system's own, because
+   * nothing here had ever asked the question.
+   *
+   * A PUBLISHED CHANNEL IS STILL ENCODED WHETHER ANYBODY IS
+   * WATCHING OR NOT. That is what a channel IS, and the cheaper
+   * rule — count the viewers — would take one off the air between
+   * two of them. What is skipped is only what no viewer could
+   * reach at all. [§7]
+   */
+  const warm = await Promise.all(mine.map(async (one) => ({
+    channel: one,
+    needs: needsSegments(one, nowMs, await watchedAt(one.id)),
+  })));
+  const channels = warm.filter((one) => one.needs.encode).map((one) => one.channel);
+  const idle = warm.length - channels.length;
+  /*
+   * AND IT IS SAID, NEVER SILENT. A channel quietly not being
+   * encoded is precisely the shape of fault this codebase keeps
+   * paying for — the operator must never have to wonder why an
+   * unpublished channel shows nothing. Once per pass that changes
+   * it, not once every four seconds for ever. [D-21]
+   */
+  if (idle !== lastIdle) {
+    lastIdle = idle;
+    const says = idleSays(idle, warm.length);
+    if (says) console.log(`playout: ${says}`);
+    else console.log(`playout: all ${warm.length} channels are being made`);
+  }
   /*
    * HOW FAR AHEAD TO WRITE, decided once for the whole pass from
    * how long the last one took to come back round. [leadSegments]
@@ -825,6 +871,9 @@ const watched = new Map<string, { size: number; at: number }>();
 
 /** How far into the live buffer we last proved we could read. */
 const reached = new Map<string, { ms: number; at: number }>();
+
+/** How many channels were idle last pass, so the log says it once. */
+let lastIdle = -1;
 
 /**
  * HOW MUCH MEDIA THE LIVE BUFFER HOLDS, for this pass.

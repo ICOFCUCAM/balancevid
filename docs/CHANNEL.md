@@ -2222,6 +2222,142 @@ file is measured again and an unchanged one never is. **Both** are checked:
 a re-render of the same plan keeps the length and changes the time; a file
 restored from a backup keeps the time and can change the length.
 
+### "Fewer channels" — with no way to remove one
+
+The control room's first remedy at 111% of real time is *fewer channels*.
+There was no way to remove a channel.
+
+`DELETE /api/channels/<id>` has existed the whole time. It is guarded, it
+counts what it would take, and its own comment says the count goes back
+*"so the page can say how many before asking, rather than after."* **There
+was no page.** The only way to act on the product's own first
+recommendation was `curl`.
+
+That is the fifth capability in one session built, correct, documented and
+pointed at by nothing — after `RotationEntry.loop`, `paceSays`,
+`channel.filler` and `deadAir()`. It is the most expensive version of the
+pattern, because the product was actively instructing the operator to use
+the thing they could not reach.
+
+**What makes it safe to offer at all** is the rule the whole product is
+built on: a channel points at renders and never owns them. Retiring one
+takes six months of programming off the air and deletes nothing anybody
+made — except the two things a channel does own, saved live sessions and
+requested recordings, which is exactly what the route counts. The dialog
+says both halves, because an operator who believes retiring a channel
+deletes six months of renders will never press it, and one who presses it
+believing that will never trust the product again.
+
+It is last in the settings panel, behind a fold, painted as a hazard, and
+it asks for the channel's name to be typed — the one irreversible control
+on a desk whose channel may be on air.
+
+**Measured on one machine, same volume, same engine, before and after
+retiring sixteen fixture channels:**
+
+| channels | load | round trip | playlist |
+|---|---|---|---|
+| 17 | **623% of real time** | 74.7 s | starving |
+| 1 | **163% of real time** | 19.5 s | starving |
+
+A 3.8× improvement from removing 16 of 17 channels — not 17×, because a
+large part of each pass is fixed cost and a thrashing engine is slower per
+channel than a calm one. Note the second row honestly: this container
+cannot keep up with **one** channel, which is this container and not the
+product. An installation reporting 111% is on much faster hardware than
+this measurement was taken on, and removing channels there will take it
+comfortably under.
+
+**And `deleteChannel` leaves the lineup naming the channel it removed.**
+That looked like a bug and is not: `lineup.ts` says so in its own header —
+*"a stale row reserves a number, which is the conservative direction"* —
+and every consumer passes the real channel list and uses the lineup only
+as a lookup. Nothing iterates its keys, so nothing renders a dead row.
+Checked rather than assumed, because a delete button is exactly what would
+have exposed it.
+
+### 111% of real time, and the advice named every remedy but ours
+
+What the control room said on a real installation:
+
+> *"The engine is taking longer to make the broadcast than the broadcast
+> lasts (111% of real time). The picture will start arriving late and
+> players will stall. Fewer channels, a simpler source, or a bigger box."*
+
+Three remedies, all of them the operator's, and **not one of them the
+product's own.** `PLAYOUT_SHARDS` exists for exactly this and was measured
+on exactly this shape of installation: seventeen channels on one engine ran
+at **2.36 of real time** and every channel ran out of playlist; a third of
+them on one engine ran at **0.66** and none did. The sentence an operator
+reads at 111% did not mention it.
+
+**And one line of the advice was worse than silent.** `reachSays`, for a
+starving channel on an engine that is also behind, said:
+
+> *"It cannot make the television fast enough either, so this is not a
+> matter of rearranging: fewer channels, a simpler source, or a bigger
+> box."*
+
+Rearranging is precisely what fixes it. An engine's load is the work of the
+channels it was **given**, so handing half of them to a second service
+halves it. That sentence sent an operator at 111% to buy a bigger box for
+something an environment variable solves.
+
+So `enginesNeeded(worst, shards)` does the arithmetic and the advice names
+the setting and the number to type:
+
+| measured | engines running | advice |
+|---|---|---|
+| 1.11 | 1 | `PLAYOUT_SHARDS=2` |
+| 2.36 | 1 | `PLAYOUT_SHARDS=4` |
+| 1.2 | 3 | `PLAYOUT_SHARDS=6, up from 3` |
+| 0.66 | 1 | nothing — it is keeping up |
+
+It never advises **fewer** engines than are running: an engine that stops is
+not replaced by its neighbours, and removing one takes its channels off the
+air. And once a channel is behind there is always a split worth offering —
+`pacing` only says `behind` at a load of 1 or more, and one engine at its
+limit is always past `COMFORTABLE`, so the old line could not have been
+right for any installation.
+
+### A channel no viewer can reach was still being encoded
+
+The word `published` appeared **nowhere in the playout engine**. It encoded
+every channel it owned — reachable or not, looked at or not, for ever. An
+unpublished channel's segments are refused to everyone but its owner by the
+segment route, so a draft channel had H.264 made for it every four seconds
+and declined at the door, until somebody deleted it.
+
+`needsSegments` asks first, in this order:
+
+| | |
+|---|---|
+| **live** | the red button is on; whatever else is true, this is going out now |
+| **published** | the public can tune in at any instant, so it is encoded at every instant |
+| **watched** | somebody has the control room open on it — a draft still has to show its owner a picture, because that preview is how anybody decides it is ready |
+| **idle** | not reachable, not live, nobody looking. Skipped, and **said** |
+
+A published channel is still encoded whether anybody is watching or not.
+That line does not move: the cheaper rule — count the viewers — would take a
+channel off the air between two of them, and a channel that runs only while
+observed is not a channel.
+
+The warm window is ninety seconds, nine of the control room's ten-second
+polls, recorded as an empty file whose mtime is the clock. Not in the
+channel document: a document rewritten every ten seconds per open studio
+would put a lock and a full schedule rewrite on the path of a page doing
+nothing but looking, while the engine is reading it.
+
+**What this is not, recorded because it was nearly shipped as a lie.** It
+was written while chasing the 111% above, on the theory that those
+seventeen channels were unpublished and the engine was working for nobody.
+**All seventeen were published.** The count that said otherwise had read
+`channel.published`; the field is `channel.publication`. So it saves that
+installation nothing, and the remedy for a box with seventeen live channels
+is the one above. It is kept because the draft case is real and arrives the
+moment anybody builds a channel before publishing it — but it is not the
+answer to a crowded engine.
+
 ### A dropped chunk is permanent, and nothing tried twice
 
 `useLiveEncoder`'s header stated a principle rather than a measurement:
