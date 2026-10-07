@@ -7,6 +7,25 @@
 # ROLE=worker   the worker only
 # ROLE=playout  the broadcast encoder only
 #
+# PLAYOUT_SHARD / PLAYOUT_SHARDS divide the channels between several
+# playout services. Unset is one engine serving every channel, which is
+# what every installation had before this existed. To run three:
+#
+#   service A:  ROLE=playout PLAYOUT_SHARD=0 PLAYOUT_SHARDS=3
+#   service B:  ROLE=playout PLAYOUT_SHARD=1 PLAYOUT_SHARDS=3
+#   service C:  ROLE=playout PLAYOUT_SHARD=2 PLAYOUT_SHARDS=3
+#
+# all on the same volume. Each takes a third of the channels and ignores
+# the rest; no engine talks to another. Measured: one engine serving all
+# seventeen channels of a test installation ran at 2.36 of real time and
+# every channel ran out of playlist, while one engine serving a third of
+# them ran at 0.66 and none did. [src/domain/shard.ts]
+#
+# AN ENGINE THAT DIES TAKES ITS OWN CHANNELS OFF THE AIR and no other
+# engine picks them up. That is the price of having no coordinator, and
+# the control room says so by name — each engine writes its own
+# heartbeat and a missing one is reported. [src/domain/health.ts]
+#
 # They are separate processes in every case. U-23's rule is that the web tier
 # never invokes ffmpeg, and that holds whether the others are beside it or on
 # another machine — so scaling them apart later is a ROLE change, not a code

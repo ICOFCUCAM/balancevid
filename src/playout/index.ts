@@ -99,6 +99,9 @@ import { recordRan } from '../store/asRun.js';
 import {
   LEAST_LEAD, covered, leadSegments, reach, type Reach,
 } from '../domain/pace.js';
+import {
+  ALONE, ownsChannel, readShard, shardSays, type Shard,
+} from '../domain/shard.js';
 
 /** How long to wait between passes when there is nothing to do. */
 const IDLE_MS = 1000;
@@ -493,8 +496,25 @@ export async function pass(
   nowMs = Date.now(), announce = false,
   /** What the LAST few passes said about keeping up. [C-41] */
   how: { pacing?: Pacing; load?: number; roundTripMs?: number } = {},
+  /**
+   * WHICH ENGINE THIS IS.  [shard.ts, §11, D-20]
+   *
+   * Defaults to the only one, so a test driving a pass — and an
+   * installation that configured nothing — gets exactly the
+   * behaviour this had before engines could be multiplied.
+   */
+  shard: Shard = ALONE,
 ): Promise<number> {
-  const channels = await listChannels();
+  /*
+   * ONLY MY OWN CHANNELS. `listChannels` answers with every
+   * channel in the installation, which is right for the control
+   * room and wrong for an engine that is one of several: without
+   * this line a second playout service encodes everything the
+   * first one is already encoding, for twice the cost and not one
+   * channel served sooner. [shard.ts]
+   */
+  const channels = (await listChannels())
+    .filter((one) => ownsChannel(one.id, shard));
   /*
    * HOW FAR AHEAD TO WRITE, decided once for the whole pass from
    * how long the last one took to come back round. [leadSegments]
@@ -563,6 +583,9 @@ export async function pass(
     latest = {
       channels: channels.length, made, ...how,
       ...(what ? { reach: reach(what), leadMs: what.leadMs } : {}),
+      /* Named, so several engines do not overwrite one file and so
+         the control room can see one of them stop. [D-21] */
+      shard: shard.index, shards: shard.of,
     };
     await beat(latest).catch(() => undefined);
   }
@@ -580,6 +603,7 @@ export async function pass(
 let latest: {
   channels: number; made: number; pacing?: Pacing; load?: number;
   roundTripMs?: number; reach?: Reach; leadMs?: number;
+  shard?: number; shards?: number;
 } = {
   channels: 0, made: 0,
 };
@@ -597,7 +621,20 @@ async function main(): Promise<void> {
      nothing is supervising any more. */
   process.on('exit', stopAllSenders);
 
-  process.stdout.write('playout: on air\n');
+  /*
+   * WHICH ENGINE THIS IS, READ BEFORE ANYTHING STARTS.
+   *
+   * A bad `PLAYOUT_SHARD` throws here and the container does not
+   * come up, which is the loud failure and the right one: read as
+   * "serve nothing" a typo takes channels off the air with every
+   * process healthy, and read as "serve everything" two engines
+   * silently duplicate the installation. [shard.ts, D-21]
+   */
+  const shard = readShard({
+    PLAYOUT_SHARD: process.env['PLAYOUT_SHARD'],
+    PLAYOUT_SHARDS: process.env['PLAYOUT_SHARDS'],
+  });
+  process.stdout.write(`playout: on air, ${shardSays(shard)}\n`);
 
   /*
    * THE PULSE IS A TIMER, NOT A PASS.  [§18, health.ts]
@@ -621,6 +658,19 @@ async function main(): Promise<void> {
    * stale, which is measured per channel and says something an
    * operator can act on. [health.ts, streamState]
    */
+  /*
+   * NAMED BEFORE THE FIRST BEAT, NOT AT THE FIRST PASS.
+   *
+   * `latest` starts as a module-level default with no shard in it,
+   * and the beat below is written before any pass has run — so
+   * every engine's opening heartbeat, and every pulse until its
+   * first pass finishes, would land in `playout/0.json`. On a
+   * single-engine installation that is simply the right file; with
+   * three engines they would spend their first pass overwriting
+   * one another there, and two of the three would appear to have
+   * never started. [shard.ts, D-21]
+   */
+  latest = { ...latest, shard: shard.index, shards: shard.of };
   await beat(latest).catch(() => undefined);
   const pulse = setInterval(() => {
     void beat(latest).catch(() => undefined);
@@ -650,7 +700,7 @@ async function main(): Promise<void> {
         ...(pacing(paces) === 'unknown' ? {} : { pacing: pacing(paces) }),
         ...(worstLoad(paces) === null ? {} : { load: worstLoad(paces)! }),
         ...(roundTripMs > 0 ? { roundTripMs } : {}),
-      });
+      }, shard);
     } catch (error) {
       /*
        * A pass that threw is a pass, not the end of the channel. The most
@@ -665,7 +715,11 @@ async function main(): Promise<void> {
        * check is what notices that. [§18]
        */
       process.stderr.write(`playout: ${String(error).slice(0, 300)}\n`);
-      latest = { channels: 0, made: 0 };
+      /* Still named: an engine whose every pass throws must keep
+         writing ITS OWN heartbeat, or `enginesMissing` reports it
+         gone and sends somebody to start a process that is already
+         running. [D-21] */
+      latest = { channels: 0, made: 0, shard: shard.index, shards: shard.of };
       await beat(latest).catch(() => undefined);
     }
     const spent = Date.now() - started;

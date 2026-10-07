@@ -203,6 +203,23 @@ export interface Heartbeat {
    * with one number missing reads as an opinion. [pace.ts]
    */
   leadMs?: number;
+  /**
+   * WHICH ENGINE THIS IS, AND HOW MANY THERE ARE.  [shard.ts, §11]
+   *
+   * Self-describing, so the web tier needs no configuration of its
+   * own to know how many engines to expect. An installation that
+   * scales out by adding a service and two environment variables
+   * would otherwise need the same two set a third time, on a tier
+   * that has no other reason to know them — and the day they
+   * disagreed, the control room would report engines that were
+   * never meant to exist. [D-19]
+   *
+   * Absent on a heartbeat from before this existed, which reads as
+   * one engine serving everything: exactly what such an
+   * installation had.
+   */
+  shard?: number;
+  shards?: number;
 }
 
 /**
@@ -265,6 +282,79 @@ export function streamState(
   if (newestSegmentMs === null || newestSegmentMs === undefined) return 'silent';
   return now - newestSegmentMs <= streamPatience(roundTripMs)
     ? 'transmitting' : 'stalled';
+}
+
+/* ------------------------------------------------------------------------ *
+ *  Are all the engines there?  [shard.ts, §11, §15, D-20, D-21, U-19]
+ * ------------------------------------------------------------------------ */
+
+/**
+ * HOW MANY ENGINES ARE MISSING, AND THEREFORE HOW MANY CHANNELS
+ * ARE DARK WITH EVERYTHING ELSE GREEN.
+ *
+ * THE ONE FAULT SCALING OUT INTRODUCES. An installation runs
+ * several playout engines, each serving its own share of the
+ * channels and none of them aware of the others — no leases, no
+ * coordinator, nothing to go wrong between them. The price of that
+ * is this: an engine that dies takes its channels off the air and
+ * no other engine picks them up.
+ *
+ * AND EVERY EXISTING SIGNAL WOULD STAY GREEN. `engineState` reads
+ * the freshest beat and finds one, because the other engines are
+ * perfectly healthy; `pacing` and `reach` come from engines with
+ * nothing wrong. A viewer on an orphaned channel sees the picture
+ * stop and the control room, asked the questions it knew how to
+ * ask, would answer that everything is fine. A fault that no
+ * instrument on the desk can see is the shape this product keeps
+ * finding in itself, and the answer is always the same: measure
+ * the thing nobody is measuring. [C-24, C-28, U-02]
+ *
+ * COUNTED FROM THE HEARTBEATS THEMSELVES and not from a setting,
+ * because each engine records how many there are supposed to be.
+ * The web tier needs no configuration it could disagree with.
+ */
+export function enginesMissing(
+  beats: readonly Heartbeat[], now: number,
+): { expected: number; running: number; missing: number } {
+  const alive = beats.filter(
+    (one) => engineState(Date.parse(one.at), now) === 'running');
+  /*
+   * THE LARGEST ANY LIVE ENGINE CLAIMS. A dead engine's file is
+   * still on disk saying `shards: 3`, and counting it would hold
+   * the expectation at three for ever after a deliberate scale
+   * DOWN to two — a permanent alarm about an engine nobody wants.
+   * Taken from the living, which is what the deployment currently
+   * is. [D-21]
+   */
+  const expected = Math.max(1, ...alive.map((one) => one.shards ?? 1));
+  /* By index, so two files from one engine cannot look like two. */
+  const running = new Set(alive.map((one) => one.shard ?? 0)).size;
+  return { expected, running, missing: Math.max(0, expected - running) };
+}
+
+/**
+ * What to tell the operator when an engine has gone.
+ *
+ * NAMING THE CONSEQUENCE, which here is the only thing that
+ * matters: not "an engine is missing" but "a share of your
+ * channels is off the air, and it is not the ones you are looking
+ * at". An operator checking a healthy channel would otherwise find
+ * nothing wrong and conclude the report was mistaken. [D-21, D-04]
+ */
+export function enginesSay(
+  { expected, running, missing }: { expected: number; running: number; missing: number },
+): string | null {
+  if (missing <= 0) return null;
+  const share = `about ${Math.round((missing / expected) * 100)}% of your channels`;
+  /* One engine or several, said in the same sentence without
+     reading as though it were written for the other case. */
+  const one = missing === 1;
+  return `${missing} of ${expected} playout engines ${one ? 'is' : 'are'} not `
+    + `reporting. The channels ${one ? 'it serves' : 'they serve'} — ${share} — `
+    + `are off the air, and the ${running} still running cannot take them over: `
+    + 'each engine serves its own share and does not watch the others. Start '
+    + `the missing ${one ? 'service' : 'services'}, or lower PLAYOUT_SHARDS on `
+    + 'the rest so the channels are shared out again.';
 }
 
 /* ------------------------------------------------------------------------ *

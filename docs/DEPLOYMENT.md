@@ -251,6 +251,47 @@ Only one machine may run `playout` for a given channel: the engine assumes it
 is the sole writer of that channel's stream directory. It holds no state of
 its own, so moving it is a restart rather than a migration.
 
+### Several playout engines
+
+That rule is per *channel*, not per installation, and `PLAYOUT_SHARD` /
+`PLAYOUT_SHARDS` are what keep it true while more than one engine runs. Each
+engine is told its own index and how many there are, and serves only the
+channels whose id hashes to it:
+
+```
+service A:  ROLE=playout PLAYOUT_SHARD=0 PLAYOUT_SHARDS=3
+service B:  ROLE=playout PLAYOUT_SHARD=1 PLAYOUT_SHARDS=3
+service C:  ROLE=playout PLAYOUT_SHARD=2 PLAYOUT_SHARDS=3
+```
+
+Unset is one engine serving everything, which is what every installation had
+before this existed. Adding capacity is a service and two variables — the
+same argument `ROLE` makes, one level further out.
+
+**Without them a second engine does everything twice.** `listChannels()`
+answers with every channel in the installation, so two unsharded engines
+encode the same channels: twice the cost, not one channel served sooner, and
+nothing anywhere reporting it. Segments are written to a temp name and
+renamed, so it does not corrupt — it quietly wastes a machine.
+
+Measured on a seventeen-channel test installation, one box:
+
+| engines | channels each | load | channels running dry |
+| --- | --- | --- | --- |
+| 1 | 17 | 2.36 — **behind** | all 17 |
+| 1 of 3 | 6 | 0.66 — keeping up | none |
+
+**An engine that dies takes its own channels off the air** and no other
+engine picks them up. That is the price of having no coordinator — no
+leases, no claims, nothing between the engines to go wrong — and it is not
+silent: each engine writes its own heartbeat to `/data/playout/<index>.json`
+and the control room names a missing one, because every other signal stays
+green while a share of the channels is dark.
+
+Changing `PLAYOUT_SHARDS` moves channels between engines, so roll it out
+across all of them together. Two engines briefly disagreeing about a channel
+both skip it, which is a hole in the picture for whoever is watching.
+
 ### The health check follows the role
 
 A split deployment is where the image's health check first has to be right,

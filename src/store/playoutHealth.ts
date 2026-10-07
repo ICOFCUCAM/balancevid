@@ -23,7 +23,36 @@ import type { Heartbeat } from '../domain/health.js';
 import type { Pacing, Reach } from '../domain/pace.js';
 import { VAR_ROOT, paths, safe } from './paths.js';
 
-const BEAT_FILE = join(VAR_ROOT, 'playout.json');
+/**
+ * WHERE THE LEGACY SINGLE ENGINE BEAT.  [§18, D-19]
+ *
+ * One file for one engine, which was right while there could only
+ * be one. Kept as a READ fallback so an installation mid-upgrade —
+ * the old engine still running, the new web tier already deployed
+ * — does not read as having no engine at all. Nothing writes it
+ * any more.
+ */
+const LEGACY_BEAT_FILE = join(VAR_ROOT, 'playout.json');
+
+/**
+ * A FILE PER ENGINE, BECAUSE THERE CAN NOW BE SEVERAL.
+ *   [shard.ts, §11, §15, D-20]
+ *
+ * One file could only ever hold one engine's view. Two engines
+ * sharing it would alternately overwrite each other, and the
+ * control room would show whichever wrote last — each of them
+ * claiming the whole installation, with no way to tell a healthy
+ * pair from one engine flapping.
+ *
+ * So each writes its own, named for its index, and the reader adds
+ * them up. That also makes the one fault sharding introduces
+ * VISIBLE: an engine that dies stops writing its file, and the
+ * channels it served go dark while every other engine stays
+ * perfectly healthy. A missing file is the only evidence of that
+ * anywhere in the system. [D-21]
+ */
+const BEATS_DIR = join(VAR_ROOT, 'playout');
+const beatFile = (shard: number) => join(BEATS_DIR, `${Math.max(0, Math.floor(shard))}.json`);
 
 /** Counts the writes of this process, so two in flight cannot share a name. */
 let writes = 0;
@@ -49,6 +78,9 @@ export async function beat(
     reach?: Reach;
     /** How much television was written ahead, for the sentence. */
     leadMs?: number;
+    /** Which engine this is, and how many there are. [shard.ts] */
+    shard?: number;
+    shards?: number;
   },
   at = new Date(),
 ): Promise<void> {
@@ -62,8 +94,10 @@ export async function beat(
     ...(what.roundTripMs === undefined ? {} : { roundTripMs: what.roundTripMs }),
     ...(what.reach ? { reach: what.reach } : {}),
     ...(what.leadMs === undefined ? {} : { leadMs: what.leadMs }),
+    ...(what.shard === undefined ? {} : { shard: what.shard }),
+    ...(what.shards === undefined ? {} : { shards: what.shards }),
   };
-  await mkdir(VAR_ROOT, { recursive: true });
+  await mkdir(BEATS_DIR, { recursive: true });
   /*
    * A NAME PER WRITE, NOT PER PROCESS.  [§18]
    *
@@ -74,9 +108,45 @@ export async function beat(
    * whichever half won. Unique per write, so the rename is always
    * of a file this call finished writing.
    */
-  const temp = `${BEAT_FILE}.${process.pid}.${writes += 1}.tmp`;
+  const mine = beatFile(what.shard ?? 0);
+  const temp = `${mine}.${process.pid}.${writes += 1}.tmp`;
   await writeFile(temp, JSON.stringify(body), 'utf8');
-  await rename(temp, BEAT_FILE);
+  await rename(temp, mine);
+}
+
+/**
+ * Every engine's heartbeat, newest first.
+ *
+ * THE LEGACY FILE COUNTS ONLY WHEN THERE ARE NO OTHERS, which is
+ * the whole of the upgrade story. While the old single engine is
+ * still running it is the only beat there is and must be read; the
+ * moment a new engine writes its own, the old file is a leftover
+ * on disk and reading it would report a dead engine for ever —
+ * the kind of permanent false alarm this product has spent two
+ * releases removing. [D-21]
+ */
+export async function readBeats(): Promise<Heartbeat[]> {
+  let names: string[] = [];
+  try {
+    names = (await readdir(BEATS_DIR)).filter((name) => /^\d+\.json$/.test(name));
+  } catch { /* no directory yet: nothing sharded has ever beaten. */ }
+
+  const found = (await Promise.all(names.map(async (name) => {
+    try {
+      return JSON.parse(await readFile(join(BEATS_DIR, name), 'utf8')) as Heartbeat;
+    } catch {
+      return null;
+    }
+  }))).filter((one): one is Heartbeat => one !== null);
+
+  if (found.length > 0) {
+    return found.sort((a, b) => b.at.localeCompare(a.at));
+  }
+  try {
+    return [JSON.parse(await readFile(LEGACY_BEAT_FILE, 'utf8')) as Heartbeat];
+  } catch {
+    return [];
+  }
 }
 
 /**
@@ -86,12 +156,20 @@ export async function beat(
  * that it is running" — because they lead to the same advice and telling
  * them apart would only give the page a third state nobody can act on.
  */
+/**
+ * The freshest engine's heartbeat, for a reader asking "is anything
+ * running at all".
+ *
+ * THE FRESHEST AND NOT A MERGE, deliberately. Callers use this to
+ * judge whether an engine is alive and how fast the one serving
+ * them comes round, and an average across engines would answer
+ * neither question about any of them. Whether EVERY engine is
+ * reporting is a different question with a different answer, and
+ * `readBeats` plus `enginesMissing` is where it is asked. [§18]
+ */
 export async function readBeat(): Promise<Heartbeat | null> {
-  try {
-    return JSON.parse(await readFile(BEAT_FILE, 'utf8')) as Heartbeat;
-  } catch {
-    return null;
-  }
+  const beats = await readBeats();
+  return beats[0] ?? null;
 }
 
 /**

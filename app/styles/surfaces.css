@@ -967,6 +967,33 @@ dialog::backdrop {
  * where it goes. Making a channel is folded away at the bottom.
  */
 
+/*
+ * AN ENGINE HAS STOPPED AND A SHARE OF THE CHANNELS IS DARK.
+ *   [health.ts `enginesSay`, shard.ts; D-04]
+ *
+ * ABOVE THE DESK AND ACROSS IT, because on a scaled-out
+ * installation this fault belongs to no single channel: the rows
+ * an operator is reading may all be healthy while another
+ * engine's share is off the air. A warning drawn on the cards
+ * would appear on none of the channels it is about.
+ *
+ * It uses the fault colour and a rule rather than a filled slab:
+ * a solid red band across a control room is read once and
+ * resented afterwards, and this is a sentence to act on rather
+ * than an alarm to silence.
+ */
+.room-alarm {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--bad);
+  border-left-width: 3px;
+  border-radius: var(--radius-sm);
+  background: var(--console-control);
+  color: var(--ink-100);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+
 .room-section {
   margin: 0;
   font-size: var(--text-2xs);
