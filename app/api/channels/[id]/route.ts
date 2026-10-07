@@ -15,6 +15,7 @@ import {
 import {
   gaps, nextAfter, onAirAt, orderedProgrammes, overlaps, referencedAssets,
   blockAt, orderedBlocks, rotationLengthMs, rotationOffsets, whatIsOn,
+  slotsOverrunning,
 } from '../../../../src/domain/channel.js';
 import {
   assertChannelOwnsNoScheduledMedia, assertScheduleResolves,
@@ -24,7 +25,10 @@ import {
   mutateChannel,
 } from '../../../../src/store/channels.js';
 import { channelOwns } from '../../../../src/domain/deletion.js';
-import { missingSources, resolves } from '../../../../src/store/playoutSources.js';
+import {
+  missingSources, pathFor, resolves,
+} from '../../../../src/store/playoutSources.js';
+import { factsFor } from '../../../../src/store/mediaFacts.js';
 import {
   newestSegmentAt, readBeats, readFailure,
 } from '../../../../src/store/playoutHealth.js';
@@ -92,6 +96,30 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
 
   const now = Date.now();
   const missing = await missingSources(channel, referencedAssets(channel));
+  /*
+   * AND WHICH ITEMS ARE SHORTER THAN THE SLOTS THEY SIT IN.
+   *   [channel.ts `slotsOverrunning`, §3, §4, D-21]
+   *
+   * `missingSources` asks whether the file EXISTS. This asks
+   * whether what is behind it is long enough for the time it was
+   * given — a question nothing in this product asked, while a
+   * channel played five seconds of each item and was black for the
+   * other 99%.
+   *
+   * Read from the same probe cache the engine fills, so it costs a
+   * file read per item and never a decode. [U-16, mediaFacts.ts]
+   */
+  const lengths = new Map<string, number>();
+  await Promise.all(referencedAssets(channel).map(async (source) => {
+    const file = pathFor(channel, source);
+    if (!file || lengths.has(file)) return;
+    const facts = await factsFor(file).catch(() => null);
+    if (facts) lengths.set(file, facts.durationMs);
+  }));
+  const overrunning = slotsOverrunning(channel, (source) => {
+    const file = pathFor(channel, source);
+    return file ? lengths.get(file) : undefined;
+  });
   /*
    * IS ANYTHING ACTUALLY GOING OUT?  [§18]
    *
@@ -167,6 +195,10 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
     /** Distinct references, which is the number D-18 is about. */
     assets: referencedAssets(channel).length,
     missing,
+    /* Items whose media cannot fill the slot they were given. They loop
+       now rather than going black, which is better and is still not what
+       anybody meant to schedule. [channel.ts `slotsOverrunning`, D-21] */
+    overrunning,
     violations,
     health: {
       engine,

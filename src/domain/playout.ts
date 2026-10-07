@@ -196,13 +196,79 @@ export function playoutWindow(
     const trimFrom = (on.kind === 'programme' ? on.programme.fromMs : on.entry.fromMs)
       ?? 0;
     const trimTo = on.kind === 'programme' ? on.programme.toMs : on.entry.toMs;
-    const asset = assetLengthMs?.(on.source);
+    /*
+     * A LENGTH THAT IS NOT A NUMBER IS NOT A LENGTH.  [U-02, D-14]
+     *
+     * `assetLengthMs` reads a probe, and a probe of a truncated or
+     * malformed file answers `NaN`. Carried through, `NaN` loses
+     * every comparison below — it is neither `> 0` nor `>=
+     * intoSlot` — so it slipped past both guards and came out as
+     * `Math.min(want, NaN)`: a read of `NaN` milliseconds, handed
+     * to the encoder as `-t NaN`.
+     *
+     * Found by a test written for something else, which is the
+     * only way anything finds this. Not-a-number means not known,
+     * which this already has an answer for. [D-21]
+     */
+    const probed = assetLengthMs?.(on.source);
+    const asset = probed !== undefined && Number.isFinite(probed) && probed >= 0
+      ? probed : undefined;
     const own = trimTo !== undefined ? Math.max(0, trimTo - trimFrom) : asset;
     const programmeId = on.kind === 'programme' ? on.programme.id : on.entry.id;
     /* How far into the slot this instant is, which `whatIsOn` already worked out. */
     const intoSlot = on.fromMs - trimFrom;
 
-    if (loops && own !== undefined && own > 0) {
+    /*
+     * IT WILL RUN OUT BEFORE THE SLOT DOES.  [§4, D-21, U-02]
+     *
+     * MEASURED ON A REAL CHANNEL, and it is the whole of why it was
+     * dark. Every item in its loop was a five-second file sitting in
+     * a slot of four to twenty-five minutes:
+     *
+     *     Station Ident    slot 960s    file 5.0s    black for 99.5%
+     *     Morning Music    slot 1500s   file 5.0s    black for 99.7%
+     *     ────────────────────────────────────────────────────────
+     *     the loop ran 116 minutes and was black for 115 of them
+     *
+     * The viewer heard five seconds of each item and then nothing —
+     * *"music plays and cuts while video does not display"* — and
+     * every signal in the control room stayed green, because the
+     * engine was running perfectly and writing exactly what it was
+     * asked for.
+     *
+     * THE PRODUCT HAD TWO ANSWERS FOR THIS AND NEITHER WAS REACHABLE.
+     * `loop` on the entry does precisely this, and its own comment
+     * names the fault: *"for a short film in a long slot. Without it
+     * a ten-minute programme in a thirty-minute slot is twenty
+     * minutes of black, and black is the one thing a channel must
+     * never broadcast by accident."* It was built, correct, accepted
+     * by the API — and no surface in this product can set it, so
+     * nought of eight entries had it. `filler` covers the hole
+     * instead, and that channel had none.
+     *
+     * SO IT LOOPS WHEN THE ALTERNATIVE IS DEAD AIR. Not whenever it
+     * is short: a channel WITH a filler has an operator who chose
+     * what covers a hole, and overriding that would be this module
+     * deciding it knows better. With no filler the only other answer
+     * is black, and the flag's own sentence says what to do about
+     * that.
+     *
+     * IT IS STILL WORTH TELLING SOMEBODY. An ident repeating
+     * a hundred and ninety-two times is better than silence and
+     * is nobody's intention either — `slotsOverrunning` reports it
+     * so the duration can be fixed rather than papered over. [D-21]
+     */
+    /*
+     * NO `runsShort` TEST, BECAUSE IT CHANGED NOTHING. This read
+     * `intoSlot + want > own` first — "only loop once it would run
+     * past the end" — and a mutation deleting it passed every
+     * test, rightly: the branch below wraps with `intoSlot % own`,
+     * and for media LONGER than the slot that is `intoSlot`
+     * itself, producing exactly the read the ordinary path would.
+     * A condition whose two sides cannot be told apart is not a
+     * guard. Deleted rather than defended. [U-02]
+     */
+    if ((loops || !channel.filler) && own !== undefined && own > 0) {
       /*
        * Ten minutes of film in a thirty-minute slot. The arithmetic that lets
        * something short hold a long turn without anybody cutting anything.

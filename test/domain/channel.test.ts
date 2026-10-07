@@ -21,7 +21,7 @@ import {
   type Channel, type ProgrammeSource,
   gaps, nextAfter, onAirAt, orderedProgrammes, overlaps, programmeEnd,
   isPublished, referencedAssets, rotationAt, rotationLengthMs, rotationOffsets,
-  sourceKey, whatIsOn,
+  slotsOverrunning, sourceKey, whatIsOn,
 } from '../../src/domain/channel.js';
 import {
   ChannelEditError,
@@ -357,19 +357,48 @@ describe('the playout engine reads, and produces nothing (§7, D-18)', () => {
   });
 
   /*
-   * The fault an editor has to be shown before it happens, not after: a
-   * ten-minute film in an hour slot is fifty minutes of something, and the
-   * engine says what.
+   * THE FAULT AN EDITOR HAS TO BE SHOWN BEFORE IT HAPPENS, not
+   * after: a ten-minute film in an hour slot is fifty minutes of
+   * something, and the engine says what.
+   *
+   * IT USED TO BE FIFTY MINUTES OF BLACK, and this asserted it.
+   * That was deliberate and it was wrong in the one way that
+   * mattered: nothing told the editor. `deadAir` was written to —
+   * *"named before it is broadcast"* — and has no caller outside
+   * this file; it also only knows about holes in the SCHEDULE,
+   * never about a slot whose media is too short to fill it. So on
+   * a real channel every item was five seconds in a slot of
+   * minutes, the loop ran 116 minutes and 115 of them were black,
+   * and the operator's report was *"music plays and cuts while
+   * video does not display"*.
+   *
+   * `RotationEntry.loop` says what the answer was meant to be —
+   * *"black is the one thing a channel must never broadcast by
+   * accident"* — and no surface in this product could set it.
+   * With no filler the slot now repeats its own media rather than
+   * going dark, and `slotsOverrunning` is what shows the editor
+   * the duration to fix. The fifty minutes is still named; it is
+   * no longer named in black. [playout.ts, D-21]
    */
-  it('a programme shorter than its slot runs out, and the engine says so', () => {
+  it('a programme shorter than its slot repeats rather than going dark', () => {
     const c = channel();
     scheduleProgramme(c, { startsAt: at(20), durationMs: HOUR, source: FILM }, AT);
     const reads = playoutWindow(
       c, Date.parse(at(20)), Date.parse(at(21)), lengths);
-    expect(reads).toHaveLength(2);
-    expect(reads[0]!.durationMs).toBe(10 * MINUTE);
-    expect(reads[1]!.offAir).toBe(true);
-    expect(reads[1]!.durationMs).toBe(50 * MINUTE);
+    /* Six turns of a ten-minute film, and not one second off air. */
+    expect(reads).toHaveLength(6);
+    expect(reads.every((read) => read.offAir === undefined)).toBe(true);
+    expect(reads.every((read) => read.durationMs === 10 * MINUTE)).toBe(true);
+    expect(distinctAssetsRead(reads)).toBe(1);
+  });
+
+  /* And the editor is told, which is the half that was missing. */
+  it('and the editor is shown the duration that caused it', () => {
+    const c = channel();
+    scheduleProgramme(c, { startsAt: at(20), durationMs: HOUR, source: FILM }, AT);
+    const found = slotsOverrunning(c, (source) => lengths(source));
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatchObject({ slotMs: HOUR, mediaMs: 10 * MINUTE, repeats: 6 });
   });
 
   it('unless there is filler, which covers the hole and loops itself', () => {
