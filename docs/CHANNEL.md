@@ -2222,6 +2222,81 @@ file is measured again and an unchanged one never is. **Both** are checked:
 a re-render of the same plan keeps the length and changes the time; a file
 restored from a backup keeps the time and can change the length.
 
+### The live picture froze while every instrument stayed green
+
+> *"IMAGE SHOWS BUT FREEZES TO ALMOST STANDSTILL"*
+> *"THIS IS AN ONLINE LIVE TV AND IMAGES MUST BE CONTINUOUS"*
+
+A live feed is **read on the clock and written on a connection**.
+`LIVE_DELAY_MS` is twelve seconds, and its own header says what the twelve
+is for: *"ffmpeg reads past the end of the growing file and puts out a
+fraction of a second of picture followed by nothing."* The margin holds
+only while the buffer gains a second of media for every second on the
+clock.
+
+**It does not, and nothing gives it back.** The browser uploads two-second
+chunks and counts the ones it fails to deliver — `useLiveEncoder` has a
+`dropped` counter on the screen. Every dropped chunk is two seconds the
+clock keeps and the file never gets; the camera takes a second or two to
+start. None of it is recoverable, so the deficit only grows. Six dropped
+chunks across a broadcast put the read point past the end of the buffer
+for the rest of it.
+
+**Measured, with the engine's own command, against a sixty-second live
+WebM:**
+
+| the engine reads at | segment | playlist says | passed the old guard |
+|---|---|---|---|
+| 40s — inside the buffer | 1 098 484 bytes, **4.02s** | 4.00s | yes |
+| 58s — straddling the end | 511 360 bytes, **2.02s** | 4.00s | **yes** |
+| 62s — past the end | 0 bytes | — | no → black |
+
+The middle row is the fault. Two seconds of picture published into a
+playlist that says four, every four seconds: the player is handed half of
+what it was promised and the channel crawls. The guard tested
+`size >= 1024`, which 511KB passes, so it went out as a good segment and
+the as-run recorded a programme that played.
+
+**And nothing could have seen it.** `watchTheFeed` watches the file's SIZE
+and asks *is it still growing* — which it must, since a connection that is
+up and sending nothing is a failure with a green light on it. Nothing
+anywhere asked whether the buffer had reached the place the engine was
+about to read from.
+
+**So the read follows the buffer, not the clock.** `playoutWindow` gains
+`liveReachMs`, a measurer handed in exactly as `assetLengthMs` is, and the
+live read is placed at the *earlier* of what the clock wants and what the
+buffer holds. When the feed is keeping up nothing changes at all. When it
+is behind, the delay grows and the picture stays continuous — the trade
+live television has always made, and the only one that answers *"images
+must be continuous"*.
+
+```
+            -ss 58s   what the clock asks for   ->  2.02s of a 4s slot
+            -ss 56s   what the buffer allows    ->  4.02s of a 4s slot
+```
+
+**Demuxed, never decoded.** `bufferReachMs` walks the container with
+`-c copy -f null -` and reads ffmpeg's own clock: **0.32s against 6.2s**
+for the same answer to the millisecond on a twenty-minute buffer. Not
+`ffprobe -show_format` either — a browser writes its header before it
+knows the duration and never goes back, so the field is absent for exactly
+the files this is about.
+
+**And almost never measured at all.** A stale reading is always
+conservative, because media can only fall further behind the clock and
+never catch up. While the read point is short of the last known end the
+clamp cannot bind, the old answer stands, and nothing is scanned. The scan
+happens only as the read point approaches the end — precisely when the
+answer decides whether the picture continues.
+
+**Finally, the engine now looks at what it made.** `produceSegment` wrote,
+renamed, and reported what it *intended*; it had never read its own
+output. A segment measurably shorter than its slot is filled rather than
+rejected — the picture that exists still goes out, and the hole after it
+is black — and it is counted as a fallback, so the as-run stops saying a
+programme played when half of it did not.
+
 ### The slot still took whatever the browser sent
 
 The section above gave the library a duration. It did not make anything

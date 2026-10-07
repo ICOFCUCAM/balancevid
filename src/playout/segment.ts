@@ -41,6 +41,7 @@ import { type Quality, kbps, streamQuality } from '../domain/quality.js';
 import { HOUSE } from '../render/ingest.js';
 import {
   FfmpegError, type RunOptions, canDrawText, ffmpeg,
+  ffprobe,
 } from '../render/ffmpeg.js';
 import { noteFailure, reasonFrom } from '../store/playoutHealth.js';
 import type { Aired } from '../domain/asRun.js';
@@ -142,6 +143,35 @@ export function hasAudio(facts: SourceFacts | undefined): boolean {
   return (facts?.audioStreams ?? 0) > 0;
 }
 
+/**
+ * HOW MUCH SLACK A SEGMENT IS ALLOWED.  [§7]
+ *
+ * A quarter of a second. Encoders land a frame or two either side
+ * of the mark — the measured full segment above is 4.021s, not
+ * 4.000 — and a check tight enough to call that short would append
+ * black to every segment on the channel for ever. Loose enough to
+ * ignore an encoder, far too tight to ignore half a slot.
+ */
+const SHORT_MS = 250;
+
+/**
+ * How long the segment we just wrote actually is.
+ *
+ * ASKED OF THE FILE, which is the only thing that knows. The
+ * engine has never looked at its own output: `produceSegment`
+ * writes, renames and reports what it INTENDED. That is how two
+ * seconds of picture went out in a four-second slot with an as-run
+ * saying the programme played. [U-02, C-32]
+ */
+async function segmentMs(file: string): Promise<number | undefined> {
+  const said = await ffprobe([
+    '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', file,
+  ]).catch(() => '');
+  const seconds = Number.parseFloat(said.trim());
+  return Number.isFinite(seconds) && seconds >= 0
+    ? Math.round(seconds * 1000) : undefined;
+}
+
 export async function produceSegment(
   channel: Channel, index: number,
   factsOf: (path: string) => SourceFacts | undefined,
@@ -162,6 +192,21 @@ export async function produceSegment(
    * what was already there. [D-18]
    */
   rung?: Quality,
+  /**
+   * HOW MUCH MEDIA THE LIVE BUFFER HOLDS, measured by the caller.
+   *   [playout.ts `liveReachMs`, liveBuffer.ts `bufferReachMs`]
+   *
+   * Handed in rather than measured here, for the reason every
+   * measurement in this engine is handed in: the pass measures
+   * once and the three readers of the walk — picture, alternate
+   * audio, subtitles — all get the same answer, instead of three
+   * processes asking the same growing file the same question four
+   * seconds apart and getting three.
+   *
+   * Absent means "nobody asked", and the delay behaves exactly as
+   * it did before this existed.
+   */
+  liveReachMs?: number,
 /**
  * WHAT IT ACTUALLY PUT OUT, for the as-run.  [§5, C-32]
  *
@@ -230,7 +275,7 @@ export async function produceSegment(
   const reads = playoutWindow(channel, fromAt, toAt, (source) => {
     const path = pathFor(channel, source);
     return path ? factsOf(path)?.durationMs : undefined;
-  });
+  }, () => liveReachMs);
 
   /*
    * ONE PIECE PER READ, then joined. The common case is one read and one
@@ -327,7 +372,43 @@ export async function produceSegment(
    * between the engine and the wire, and it is the one place that can promise
    * every segment is playable.
    */
+  /*
+   * AND A SEGMENT THAT IS SHORT IS THE SAME FAULT, QUIETER.
+   *   [§7, U-02, playout.ts `liveReachMs`]
+   *
+   * The byte test above catches the empty case and was written for
+   * it. It does not catch the one that actually reaches viewers.
+   * Measured, reading a sixty-second live buffer at fifty-eight
+   * seconds produces a segment of 511KB and **2.02 seconds** —
+   * over the threshold, under the slot, and published into a
+   * playlist that says four. The player is handed half the picture
+   * it was promised, every four seconds, and the channel crawls:
+   * *"IMAGE SHOWS BUT FREEZES TO ALMOST STANDSTILL."*
+   *
+   * SO THE LENGTH IS MEASURED, NOT INFERRED FROM THE SIZE. Bytes
+   * are a proxy for duration only at a fixed bitrate, and a still
+   * frame compresses to nothing — the control room says so in as
+   * many words. 9ms with `ffprobe` on a four-second segment, which
+   * is nothing beside the encode it is checking. [U-16]
+   *
+   * SHORT IS FILLED, NOT REJECTED. Throwing the segment away would
+   * replace two seconds of the presenter with four of black; the
+   * picture that exists goes out and the hole after it is filled,
+   * so the player stays fed and the viewer sees everything there
+   * was to see.
+   */
   const made = await stat(temp).catch(() => null);
+  const held = made && made.size >= 1024 ? await segmentMs(temp) : 0;
+  const wantMs = toAt - fromAt;
+  if (held !== undefined && held > 0 && held + SHORT_MS < wantMs) {
+    const gap = `${((wantMs - held) / 1000).toFixed(3)}`;
+    const tail = `${target}.pad.ts`;
+    await black(gap, tail, 0, marks, opts, wire).catch(() => undefined);
+    await appendAll([temp, tail], `${temp}.full`).catch(() => undefined);
+    await rm(tail, { force: true });
+    await rename(`${temp}.full`, temp).catch(() => undefined);
+    fellBackHere = true;
+  }
   if (!made || made.size < 1024) {
     await rm(temp, { force: true });
     await black((SEGMENT_MS / 1000).toFixed(3), temp, 0, marks, opts, wire);

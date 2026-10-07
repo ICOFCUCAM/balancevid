@@ -30,9 +30,10 @@ import {
 import { dirname, join } from 'node:path';
 import type { Channel } from '../domain/channel.js';
 import {
-  SEGMENT_MS, WINDOW_SEGMENTS, livePlaylist, segmentIndexAt,
+  LIVE_DELAY_MS, SEGMENT_MS, WINDOW_SEGMENTS, livePlaylist, segmentIndexAt,
 } from '../domain/playout.js';
-import { referencedAssets } from '../domain/channel.js';
+import { referencedAssets, whatIsOn } from '../domain/channel.js';
+import { bufferReachMs } from '../store/liveBuffer.js';
 import {
   auditChannel, listChannels, loadChannel, saveChannel,
 } from '../store/channels.js';
@@ -254,6 +255,14 @@ export async function advance(
     if ((measured?.audioStreams ?? 0) > 0) wantLoudness(path);
   }
 
+  /*
+   * ONCE FOR THE PASS, BEFORE THE SEGMENTS. Inside the loop it
+   * would be measured up to `lead` times for one answer, and on
+   * the critical path of a segment that has four seconds to be
+   * ready. [U-16]
+   */
+  const reach = await liveReach(channel, nowMs);
+
   let made = 0;
   for (let index = current; index <= current + lead; index += 1) {
     const target = paths.channelSegment(channel.id, index);
@@ -262,7 +271,7 @@ export async function advance(
       continue;
     } catch { /* not there yet, which is why we are here. */ }
     const aired = await produceSegment(
-      channel, index, (path) => facts.get(path), gainOf);
+      channel, index, (path) => facts.get(path), gainOf, {}, undefined, reach);
     await logAired(channel.id, aired);
     /*
      * AND THE ALTERNATE LANGUAGES, AFTER THE PICTURE AND NEVER
@@ -302,10 +311,11 @@ export async function advance(
      */
     for (const rung of LADDER) {
       await produceSegment(
-        channel, index, (path) => facts.get(path), gainOf, {}, rung)
+        channel, index, (path) => facts.get(path), gainOf, {}, rung, reach)
         .catch(() => undefined);
     }
-    await produceRenditions(channel, index, (path) => facts.get(path), gainOf);
+    await produceRenditions(
+      channel, index, (path) => facts.get(path), gainOf, {}, reach);
     /*
      * AND THE WORDS, LAST OF THE THREE.  [§17, N-10]
      *
@@ -812,6 +822,56 @@ const STALE_MS = 10_000;
 
 /** The last size we saw each live buffer at, and when. */
 const watched = new Map<string, { size: number; at: number }>();
+
+/** How far into the live buffer we last proved we could read. */
+const reached = new Map<string, { ms: number; at: number }>();
+
+/**
+ * HOW MUCH MEDIA THE LIVE BUFFER HOLDS, for this pass.
+ *   [liveBuffer.ts `bufferReachMs`, playout.ts `liveReachMs`, §7, §9]
+ *
+ * MEASURED HERE AND HANDED DOWN, so the picture, the alternate
+ * audio and every rung of the ladder read the same instant of the
+ * same growing file. Three readers asking the same question four
+ * seconds apart would get three answers and cut between them.
+ *
+ * AND ALMOST NEVER MEASURED AT ALL, which is what makes it
+ * affordable on a broadcast that runs for hours. A stale reading
+ * is ALWAYS CONSERVATIVE — media can only ever fall further behind
+ * the clock, never catch up, so a buffer measured a minute ago
+ * holds at least what it held then. While the read point is
+ * comfortably short of the last known end the clamp does not bind,
+ * the old reading is good enough, and nothing is measured. The
+ * scan happens only as the read point approaches the end, which is
+ * precisely when the answer decides whether the picture continues.
+ *
+ * Measured on a twenty-minute buffer: 0.39s for the scan, against
+ * roughly 0.6s to encode the segment it protects. [U-16]
+ */
+async function liveReach(
+  channel: Channel, nowMs: number,
+): Promise<number | undefined> {
+  const live = channel.live;
+  if (!live || live.phase !== 'on_air') { reached.delete(channel.id); return undefined; }
+  const on = whatIsOn(channel, nowMs);
+  /* Only a live FEED is followed. A film rolled in over a live show
+     is an ordinary file with an ordinary length. [§7] */
+  if (on.kind !== 'live' || on.source.kind !== 'live') return undefined;
+  const ingest = channel.ingests.find((entry) => entry.id === live.ingestId);
+  if (!ingest) return undefined;
+
+  const wanted = Math.max(0, on.fromMs - LIVE_DELAY_MS);
+  const seen = reached.get(channel.id);
+  if (seen && wanted + 2 * SEGMENT_MS < seen.ms) return seen.ms;
+
+  const path = paths.channelLiveBuffer(channel.id, ingest.bufferId);
+  const ms = await bufferReachMs(path);
+  /* A scan that failed says nothing, and nothing is not zero: the
+     last thing we actually proved stands. [D-21] */
+  if (ms === undefined) return seen?.ms;
+  reached.set(channel.id, { ms, at: nowMs });
+  return ms;
+}
 
 /**
  * Is the feed still arriving?
