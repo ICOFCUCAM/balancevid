@@ -205,8 +205,13 @@ export function setFiller(channel: Channel, source: ProgrammeSource | null): voi
  * edits a clock. That is what makes the brief's listing editable rather than
  * a column of numbers to keep in agreement.
  *
- * `durationMs` still has to be given, because the domain does not decode. The
- * route reads it off the library, which measured it once.
+ * `durationMs` still has to be given, because the domain does not decode —
+ * and for a long time that sentence ended *"the route reads it off the
+ * library, which measured it once"*, which was not true of any route. It is
+ * now: the route resolves the reference to a file, reads the probe cache
+ * beside it, and passes `slotLength(asked, measured)`. A caller that states
+ * a length still gets it; a caller that states none gets the media's own.
+ * [channel.ts `slotLength`, mediaFacts.ts, §25, C-14]
  */
 export function addToRotation(
   channel: Channel,
@@ -269,6 +274,55 @@ export function removeFromRotation(channel: Channel, entryId: string): void {
   if (channel.rotation.length === before) {
     fail(`no rotation entry ${entryId} on this channel`);
   }
+}
+
+/**
+ * SET EVERY SLOT TO THE LENGTH OF WHAT IS IN IT.  [§3, §4, U-02, D-21]
+ *
+ * THE REPAIR FOR WHAT WAS WRITTEN BEFORE THE RULE. From now on a
+ * slot takes its media's length because the route measures
+ * (`slotLength`). That does nothing for the eight entries already
+ * in a document, written when the browser's answer was fifteen
+ * minutes or whichever button was last pressed — on the
+ * installation this was found on, eight items of five seconds in
+ * slots of four to twenty-five minutes.
+ *
+ * ONE ACTION, NOT EIGHT EDITS. The operator was told to go and
+ * correct each one by hand and answered *"HOW IS MY BUSINESS?"*,
+ * which was the right answer: a duration the system can measure is
+ * not a thing to type. This is given the list the control room is
+ * already showing and sets each of them.
+ *
+ * IT ONLY EVER SHORTENS, which is what makes it safe without
+ * asking. Shortening a programme cannot collide with the one after
+ * it — `assertNoClash` has nothing to find — and shortening a turn
+ * in the loop moves everything after it earlier, which the
+ * rotation does on every edit anyway. Lengthening would do both
+ * the other things, so it is not offered: a slot SHORTER than its
+ * media is a trim, and a trim is a decision. [§2]
+ *
+ * NOT GIVEN A MEASURER, GIVEN THE MEASUREMENTS. Same rule as the
+ * rest of this file: it does not decode and does not read a disk.
+ */
+export function retimeSlots(
+  channel: Channel, to: readonly { id: string; durationMs: number }[],
+): number {
+  const wanted = new Map<string, number>();
+  for (const one of to) {
+    if (!Number.isFinite(one.durationMs)) continue;
+    const length = Math.round(one.durationMs);
+    if (length < MINIMUM_SLOT_MS) continue;
+    wanted.set(one.id, length);
+  }
+  let changed = 0;
+  for (const slot of [...channel.programmes, ...channel.rotation]) {
+    const length = wanted.get(slot.id);
+    /* Only shorter, and only if it is a change at all. */
+    if (length === undefined || length >= slot.durationMs) continue;
+    slot.durationMs = length;
+    changed += 1;
+  }
+  return changed;
 }
 
 /* ------------------------------------------------------------------------ *

@@ -1564,11 +1564,20 @@ export default function ChannelStudio({
           {adding && pickedItem && (
             <div style={{ padding: '7px 10px 0' }}>
               <Scheduler
-                now={now}
+                now={now} ownMs={pickedItem.durationMs}
+                /*
+                  * AND WHEN NO LENGTH IS CHOSEN, NONE IS SENT. An
+                  * omitted `durationMs` is the route's instruction to
+                  * measure the file the reference resolves to; a
+                  * `durationMs: undefined` in the body would be the
+                  * same thing, but saying it this way makes the two
+                  * cases visible at the call. [route.ts `lengthFor`]
+                  */
                 onSchedule={(startsAt, durationMs, loop) => {
                   void patch({
                     action: 'schedule', source: pickedItem.source,
-                    startsAt, durationMs, title: pickedItem.title,
+                    startsAt, title: pickedItem.title,
+                    ...(durationMs === undefined ? {} : { durationMs }),
                     ...(loop ? { loop } : {}),
                   });
                   setAdding(false);
@@ -1577,7 +1586,9 @@ export default function ChannelStudio({
                 onRotate={(durationMs, loop) => {
                   void patch({
                     action: 'rotate', source: pickedItem.source,
-                    durationMs, title: pickedItem.title, ...(loop ? { loop } : {}),
+                    title: pickedItem.title,
+                    ...(durationMs === undefined ? {} : { durationMs }),
+                    ...(loop ? { loop } : {}),
                   });
                   setAdding(false);
                   setRailTab('playlist');
@@ -1617,24 +1628,27 @@ export default function ChannelStudio({
                   {
                     label: 'Add to the loop',
                     /*
-                     * ITS OWN LENGTH, NOW THAT THE LIBRARY KNOWS IT.
+                     * ITS OWN LENGTH, AND NOBODY SENDS A NUMBER.
                      *
-                     * Fifteen minutes was never a choice, it was the
-                     * absence of one: `BroadcastItem` had no duration,
-                     * so every slot was the same guess and an author
-                     * scheduling a 34-second ident got a quarter of an
-                     * hour of it. A file that still cannot be measured
-                     * keeps the old default, and the hint says which of
-                     * the two happened. [§25, C-14]
+                     * This read `item.durationMs ?? 15 * MINUTE`, and
+                     * the fifteen was never a choice — it was the
+                     * absence of one. `BroadcastItem` had no duration,
+                     * so every slot was the same guess, and a 5-second
+                     * ident went into a quarter of an hour of black.
+                     * The library can measure now, but so can the
+                     * route, and the route is the one that cannot be
+                     * wrong: it opens the file this reference actually
+                     * resolves to. So no length is sent at all, and
+                     * the slot becomes exactly as long as the media.
+                     * [route.ts `lengthFor`, channel.ts `slotLength`]
                      */
                     hint: item.durationMs
                       ? `${runsFor(item.durationMs)}, adjustable afterwards`
-                      : 'Fifteen minutes \u2014 this one could not be measured',
+                      : 'As long as the media is \u2014 measured when it goes in',
                     onSelect: () => {
                       setPicked(sourceKey(item.source));
                       void patch({
                         action: 'rotate', source: item.source,
-                        durationMs: item.durationMs ?? 15 * MINUTE,
                         title: item.title,
                       });
                       setRailTab('playlist');
@@ -2338,10 +2352,13 @@ export default function ChannelStudio({
                       setError('Pick something in the Library first.');
                       return;
                     }
+                    /* No length: the route measures the file. The
+                       fifteen-minute default that stood here is what
+                       put five seconds into a twenty-five minute
+                       slot. [route.ts `lengthFor`] */
                     void patch({
                       action: 'add-to-block', blockId: block.id,
                       source: pickedItem.source,
-                      durationMs: pickedItem.durationMs ?? 15 * MINUTE,
                       title: pickedItem.title,
                     });
                   }}
@@ -3320,12 +3337,34 @@ export default function ChannelStudio({
             * duration somebody should fix.
             */}
           {overrunning.length > 0 && (
-            <span className="small" data-testid="overrunning"
-                  style={{ color: 'var(--state-warn)' }}
-                  title={overrunSays(overrunning) ?? ''}>
-              {overrunning.length === 1
-                ? '1 item is shorter than its slot'
-                : `${overrunning.length} items are shorter than their slots`}
+            <span className="row"
+                  style={{ gap: 6, flex: '0 0 auto', whiteSpace: 'nowrap' }}>
+              <span className="small" data-testid="overrunning"
+                    style={{ color: 'var(--state-warn)', whiteSpace: 'nowrap' }}
+                    title={overrunSays(overrunning) ?? ''}>
+                {overrunning.length === 1
+                  ? '1 item is shorter than its slot'
+                  : `${overrunning.length} items are shorter than their slots`}
+              </span>
+              {/*
+                * AND THE WAY OUT IS A BUTTON, NOT A CHORE.
+                *
+                * The notice beside it used to end *"Set the slot to
+                * the length of the media"*, which is a sentence
+                * telling somebody to open eight items and type eight
+                * numbers that are sitting in the files. It is one
+                * `slotsOverrunning` call on the server — the same one
+                * that produced this count — so it is one action.
+                * [route.ts `retime`, channelEdit.ts `retimeSlots`]
+                */}
+              <button className="small" data-testid="retime"
+                      onClick={() => void patch({ action: 'retime' })}
+                      title={'Set each of these slots to the length of the '
+                        + 'media in it. Nothing is lengthened and no media '
+                        + 'is touched.'}
+                      style={{ padding: '2px 8px', whiteSpace: 'nowrap' }}>
+                Match the media
+              </button>
             </span>
           )}
 
@@ -6932,19 +6971,55 @@ function studioOf(source: ProgrammeSource): string {
  * asking for an ISO instant is a text field somebody gets a zone wrong in.
  */
 function Scheduler({
-  now, onSchedule, onRotate,
+  now, ownMs, onSchedule, onRotate,
 }: {
   now: number;
-  onSchedule: (startsAt: string, durationMs: number, loop: boolean) => void;
-  onRotate: (durationMs: number, loop: boolean) => void;
+  /** How long the picked item actually is, when anything knows. */
+  ownMs?: number | undefined;
+  onSchedule: (
+    startsAt: string, durationMs: number | undefined, loop: boolean) => void;
+  onRotate: (durationMs: number | undefined, loop: boolean) => void;
 }) {
-  const [minutes, setMinutes] = useState(60);
+  /*
+   * `null` IS "AS LONG AS IT IS", AND IT IS THE DEFAULT.
+   *   [route.ts `lengthFor`, channel.ts `slotLength`]
+   *
+   * This opened on sixty. Six buttons marked `5 15 30 60 90 120
+   * min` over a file whose length the panel was ALREADY SHOWING
+   * two rows up, and whichever one was lit went into the document
+   * as the truth about the programme. That is how eight items of
+   * five seconds came to be scheduled for four to twenty-five
+   * minutes — and the operator was then told to go and correct
+   * them one at a time.
+   *
+   * So the row opens on the item's own length and the minutes are
+   * the override. Choosing one is choosing a slot LONGER than the
+   * thing in it, which is a real intention — a bed under a block,
+   * a trailer in a half-hour — so that is the only case where the
+   * repeat checkbox appears at all. When the slot IS the media
+   * there is nothing to repeat, and nothing to ask.
+   */
+  const [minutes, setMinutes] = useState<number | null>(ownMs ? null : 60);
   const [loop, setLoop] = useState(false);
   const topOfHour = Math.ceil(now / HOUR) * HOUR;
+  const chosenMs = minutes === null ? undefined : minutes * MINUTE;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 5 }}>
+        {ownMs !== undefined && (
+          <button
+            type="button" data-testid="slot-own-length"
+            data-chosen={minutes === null ? 'true' : 'false'}
+            aria-pressed={minutes === null}
+            onClick={() => { setMinutes(null); setLoop(false); }}
+            className={`ctl${minutes === null ? ' is-on' : ''}`}
+            style={{
+              gridColumn: '1 / -1', padding: '5px 4px',
+              fontSize: 'var(--text-2xs)',
+            }}
+          >Its own length {'\u2014'} {hms(ownMs)}</button>
+        )}
         {SLOTS.map((option) => (
           <button
             key={option} type="button" data-testid="slot-length"
@@ -6957,11 +7032,14 @@ function Scheduler({
           >{option} min</button>
         ))}
       </div>
-      <label className="row muted" style={{ gap: 6, fontSize: 'var(--text-xs)', margin: 0 }}>
-        <input type="checkbox" data-testid="loop-it" checked={loop}
-               onChange={(event) => setLoop(event.target.checked)} />
-        Play it again until the slot is over
-      </label>
+      {minutes !== null && (
+        <label className="row muted"
+               style={{ gap: 6, fontSize: 'var(--text-xs)', margin: 0 }}>
+          <input type="checkbox" data-testid="loop-it" checked={loop}
+                 onChange={(event) => setLoop(event.target.checked)} />
+          Play it again until the slot is over
+        </label>
+      )}
       {/*
         * TWO WAYS ON, and the loop is the first because it is the one that
         * keeps the channel online. Adding to the loop asks for no time at
@@ -6970,14 +7048,14 @@ function Scheduler({
         * for the thing that has to be at nine. [§2, §4]
         */}
       <button className="ctl" data-testid="add-to-loop"
-              onClick={() => onRotate(minutes * MINUTE, loop)}
+              onClick={() => onRotate(chosenMs, loop)}
               style={{ width: '100%', padding: '6px 10px' }}>
         Add to the loop
       </button>
       <div className="row" style={{ gap: 5 }}>
         <button className="small" data-testid="schedule-next-hour"
                 onClick={() => onSchedule(
-                  new Date(topOfHour).toISOString(), minutes * MINUTE, loop)}
+                  new Date(topOfHour).toISOString(), chosenMs, loop)}
                 style={{ flex: '1 1 0', padding: '6px 8px' }}>
           At {new Date(topOfHour).toLocaleTimeString('en-GB', {
             hour: '2-digit', minute: '2-digit',
@@ -6985,7 +7063,7 @@ function Scheduler({
         </button>
         <button className="small" data-testid="schedule-tomorrow"
                 onClick={() => onSchedule(
-                  new Date(topOfHour + DAY).toISOString(), minutes * MINUTE, loop)}
+                  new Date(topOfHour + DAY).toISOString(), chosenMs, loop)}
                 style={{ flex: '1 1 0', padding: '6px 8px' }}>
           Tomorrow
         </button>

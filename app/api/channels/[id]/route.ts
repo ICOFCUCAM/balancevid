@@ -7,15 +7,18 @@ import {
   addBlock, addToBlock, addToRotation, bookLiveEvent, closeIngest, endLive,
   goLive, keepLive, moveInRotation, moveProgramme, openIngest, removeBlock,
   removeFromBlock, removeFromRotation, removeProgramme, requestRecording,
-  cite, retitleProgramme, rollIn, scheduleProgramme, setEmergency, setFiller,
+  cite, retimeSlots, retitleProgramme, rollIn, scheduleProgramme,
+  setEmergency, setFiller,
   addDestination, removeDestination, setBackup, setDestination, setIdentity,
   setStation,
   skipToNext, takeLive, publishChannel, unpublishChannel, attachRoom,
 } from '../../../../src/domain/channelEdit.js';
 import {
-  gaps, nextAfter, onAirAt, orderedProgrammes, overlaps, referencedAssets,
+  type Channel, type ProgrammeSource,
+  gaps, ingestById, nextAfter, onAirAt, orderedProgrammes, overlaps,
+  referencedAssets,
   blockAt, orderedBlocks, rotationLengthMs, rotationOffsets, whatIsOn,
-  slotsOverrunning,
+  slotLength, slotsOverrunning,
 } from '../../../../src/domain/channel.js';
 import {
   assertChannelOwnsNoScheduledMedia, assertScheduleResolves,
@@ -84,6 +87,64 @@ async function sendersFor(channel: { id: string;
   return out;
 }
 
+/**
+ * HOW LONG EACH OF A CHANNEL'S REFERENCES ACTUALLY IS.
+ *   [§25, C-14, U-16, mediaFacts.ts]
+ *
+ * THE ROUTE IS WHERE THIS CAN BE ASKED AT ALL. The domain does not
+ * decode and the engine finds out too late — by the time it probes,
+ * it is nine o'clock and the slot is on the wire. Here, somebody is
+ * looking at the screen. Same rule as `resolves`, one question
+ * further on: that one asks whether the file EXISTS, this one asks
+ * how much of it there is.
+ *
+ * READ FROM THE PROBE CACHE THE ENGINE ALREADY FILLS, so a listing
+ * costs one small file read per distinct asset and never a decode.
+ * A file nobody has measured yet is measured once and the answer is
+ * written beside it for ever after.
+ */
+async function mediaLengths(channel: Channel): Promise<
+  (source: ProgrammeSource) => number | undefined> {
+  const lengths = new Map<string, number>();
+  await Promise.all(referencedAssets(channel).map(async (source) => {
+    const file = pathFor(channel, source);
+    if (!file || lengths.has(file)) return;
+    const facts = await factsFor(file).catch(() => null);
+    if (facts) lengths.set(file, facts.durationMs);
+  }));
+  return (source) => {
+    const file = pathFor(channel, source);
+    return file ? lengths.get(file) : undefined;
+  };
+}
+
+/**
+ * The same question about one reference, for the moment it is added.
+ *
+ * EXCEPT OF A FEED THAT IS STILL RUNNING, which is the one source
+ * whose file has a length that means nothing. `pathFor` resolves an
+ * open ingest to the buffer being written into RIGHT NOW, so
+ * measuring it answers "how much has been recorded in the last few
+ * seconds" and a slot taking that answer would be seconds long —
+ * for a broadcast that has not finished happening. When the session
+ * ends and somebody keeps it, it becomes an asset with a real
+ * length and this measures it like anything else. [§7, §8]
+ */
+async function mediaLength(
+  channel: Channel, source: ProgrammeSource,
+): Promise<number | undefined> {
+  if (source?.kind === 'live' && !ingestById(channel, source.ingestId)?.assetId) {
+    return undefined;
+  }
+  const file = pathFor(channel, source);
+  if (!file) return undefined;
+  const facts = await factsFor(file).catch(() => null);
+  if (!facts || !Number.isFinite(facts.durationMs) || facts.durationMs <= 0) {
+    return undefined;
+  }
+  return facts.durationMs;
+}
+
 export async function GET(request: Request, { params }: Params): Promise<Response> {
   const { id } = await params;
   if (!(await isOwner(request))) return fail(404, 'channel not found');
@@ -109,17 +170,7 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
    * Read from the same probe cache the engine fills, so it costs a
    * file read per item and never a decode. [U-16, mediaFacts.ts]
    */
-  const lengths = new Map<string, number>();
-  await Promise.all(referencedAssets(channel).map(async (source) => {
-    const file = pathFor(channel, source);
-    if (!file || lengths.has(file)) return;
-    const facts = await factsFor(file).catch(() => null);
-    if (facts) lengths.set(file, facts.durationMs);
-  }));
-  const overrunning = slotsOverrunning(channel, (source) => {
-    const file = pathFor(channel, source);
-    return file ? lengths.get(file) : undefined;
-  });
+  const overrunning = slotsOverrunning(channel, await mediaLengths(channel));
   /*
    * IS ANYTHING ACTUALLY GOING OUT?  [§18]
    *
@@ -320,6 +371,48 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
   const body = await request.json().catch(() => ({})) as Record<string, any>;
   const at = new Date().toISOString();
 
+  /**
+   * HOW LONG THE NEW SLOT IS, WHICH NOBODY SHOULD HAVE TO TYPE.
+   *   [channel.ts `slotLength`, §3, §4, §25, C-14, U-02]
+   *
+   * WHAT STOOD HERE WAS `Number(body['durationMs'])`, three times
+   * over, and it is the whole of the fault the operator reported as
+   * *"music plays and cuts while video does not display"*. The
+   * browser sent fifteen minutes when the library had no duration
+   * and whichever of `5 15 30 60 90 120` was last pressed when it
+   * did; the route wrote it down; the engine played five seconds
+   * and went black for the rest. Nothing in that chain ever opened
+   * the file — while the engine probed it on every single pass.
+   *
+   * ASK FOR NOTHING AND GET THE MEDIA'S OWN LENGTH. That is the
+   * automation that was promised in `addToRotation`'s header and
+   * never written. A caller that DOES state a length still gets it,
+   * because a short bed under a long block is a real intention —
+   * but it is now an intention somebody had, not a default nobody
+   * chose.
+   *
+   * AND IF IT CANNOT BE MEASURED, IT SAYS SO rather than inventing
+   * a number. An unmeasurable file with no stated length is refused
+   * with a sentence, where somebody is standing. Guessing is what
+   * put five seconds in a twenty-five minute slot. [D-21, U-19]
+   */
+  const lengthFor = async (draft: Channel, what: string): Promise<number> => {
+    const length = slotLength({
+      ...(body['durationMs'] !== undefined
+        ? { durationMs: Number(body['durationMs']) } : {}),
+      ...(body['fromMs'] !== undefined ? { fromMs: Number(body['fromMs']) } : {}),
+      ...(body['toMs'] !== undefined ? { toMs: Number(body['toMs']) } : {}),
+    }, await mediaLength(draft, body['source']));
+    if (length === undefined) {
+      throw new ChannelEditError(
+        `nothing here can measure how long that is, so ${what} needs a length`);
+    }
+    return length;
+  };
+
+  /** How many slots the last `retime` corrected, for the answer. */
+  let retimed = 0;
+
   /** What to do with the live buffer once the document has been written. */
   let afterwards:
     | { bufferId: string; keep: false }
@@ -353,7 +446,7 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
           }
           scheduleProgramme(draft, {
             startsAt: body['startsAt'],
-            durationMs: Number(body['durationMs']),
+            durationMs: await lengthFor(draft, 'the programme'),
             source: body['source'],
             title: body['title'],
             ...(body['fromMs'] !== undefined ? { fromMs: Number(body['fromMs']) } : {}),
@@ -383,7 +476,7 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
           }
           addToRotation(draft, {
             source: body['source'],
-            durationMs: Number(body['durationMs']),
+            durationMs: await lengthFor(draft, 'the turn'),
             title: body['title'],
             ...(body['fromMs'] !== undefined ? { fromMs: Number(body['fromMs']) } : {}),
             ...(body['toMs'] !== undefined ? { toMs: Number(body['toMs']) } : {}),
@@ -396,6 +489,23 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
           break;
         case 'unrotate':
           removeFromRotation(draft, body['entryId']);
+          break;
+        /*
+         * MAKE THE LISTING AGREE WITH THE MEDIA. [channelEdit.ts
+         * `retimeSlots`, channel.ts `slotsOverrunning`]
+         *
+         * For what was written down before the route measured. The
+         * control room is already showing this exact list — the
+         * same `slotsOverrunning` call the listing uses — so the
+         * button under it does not need to say which ones, and the
+         * operator does not need to open eight items and type eight
+         * numbers the system can read off the files.
+         */
+        case 'retime':
+          retimed = retimeSlots(
+            draft,
+            slotsOverrunning(draft, await mediaLengths(draft))
+              .map((one) => ({ id: one.id, durationMs: one.mediaMs })));
           break;
         /* ---- the day's shape (§5) ------------------------------------- */
         case 'add-block':
@@ -414,7 +524,7 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
           }
           addToBlock(draft, body['blockId'], {
             source: body['source'],
-            durationMs: Number(body['durationMs']),
+            durationMs: await lengthFor(draft, 'the turn'),
             title: body['title'],
             ...(body['loop'] ? { loop: true } : {}),
           }, at);
@@ -660,6 +770,7 @@ export async function PATCH(request: Request, { params }: Params): Promise<Respo
     onAir: onAirAt(channel, Date.now()) ?? null,
     rotationOffsets: rotationOffsets(channel),
     assets: referencedAssets(channel).length,
+    retimed,
   });
 }
 

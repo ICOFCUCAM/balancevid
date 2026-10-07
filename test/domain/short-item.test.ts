@@ -283,20 +283,20 @@ describe('telling the operator their durations are wrong', () => {
    */
   it('names the worst offender and counts the others', () => {
     const says = overrunSays([
-      { title: 'Station Ident', slotMs: SLOT_MS, mediaMs: MEDIA_MS, repeats: 192 },
-      { title: 'Morning Music', slotMs: 1_500_000, mediaMs: MEDIA_MS, repeats: 300 },
+      { id: 'rot_a', title: 'Station Ident', slotMs: SLOT_MS, mediaMs: MEDIA_MS, repeats: 192 },
+      { id: 'rot_b', title: 'Morning Music', slotMs: 1_500_000, mediaMs: MEDIA_MS, repeats: 300 },
     ])!;
     /* The worst is the one that shows what kind of mistake it is. */
     expect(says).toContain('Morning Music');
     expect(says).toContain('300 times');
     expect(says).toMatch(/1 other item is/);
     /* And what to do about it. */
-    expect(says).toMatch(/Set the slot to the length of the media/);
+    expect(says).toMatch(/Match the media/);
   });
 
   it('reads as one sentence for one item', () => {
     const says = overrunSays([
-      { title: 'Station Ident', slotMs: SLOT_MS, mediaMs: MEDIA_MS, repeats: 192 },
+      { id: 'rot_a', title: 'Station Ident', slotMs: SLOT_MS, mediaMs: MEDIA_MS, repeats: 192 },
     ])!;
     expect(says).toContain('Station Ident');
     expect(says).not.toMatch(/other item/);
