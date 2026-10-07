@@ -2222,6 +2222,60 @@ file is measured again and an unchanged one never is. **Both** are checked:
 a re-render of the same plan keeps the length and changes the time; a file
 restored from a backup keeps the time and can change the length.
 
+### A dropped chunk is permanent, and nothing tried twice
+
+`useLiveEncoder`'s header stated a principle rather than a measurement:
+
+> *"There is no retry and no queue: a chunk that arrives late has missed the
+> broadcast, and inserting it would corrupt a file being read right now.
+> Live is the one place in this product where 'later' means 'never'."*
+
+**Both halves fail against the same file.** There has always been a queue —
+`queue` serialises every post, and its own comment says why: *"chunk two
+cannot overtake chunk one on a flaky connection. Appending them out of
+order would splice the broadcast."* A second attempt inside that chain is
+not an insertion; the chunk holds the place it already held. And *late*
+has a number: the engine reads twelve seconds behind, so a chunk landing
+two seconds after its first attempt is **ten seconds early**.
+
+**The cost is not symmetric.** The clock does not stop for a failed
+upload, so a dropped chunk is two seconds of media the buffer will never
+hold while the broadcast ages two seconds. It never comes back and it does
+not average out — the feed is permanently further behind, per drop. The
+`liveReachMs` clamp above absorbs that by growing the delay instead of
+freezing the picture; absorbing it is better than freezing, and not
+needing to is better still.
+
+**Aged from the recording, never from the attempt.** This is the whole
+safety of it. A chunk waits behind the one in front of it and grows old
+doing so; a window measured per attempt would never notice, and a
+connection failing every post would have the chain falling further behind
+for ever, retrying things nobody can still use. Measured from the
+recording, the backlog is bounded by one window.
+
+| failure | retried? |
+|---|---|
+| the connection dropped (no status) | yes — the common case on a phone, and the one that recovers |
+| 408, 429, any 5xx | yes — the channel is saying *not now* |
+| 400, 413, 415, 401/403 | **no** — the channel has declined these bytes and will again |
+| 409 | the broadcast ended; the encoder stops |
+
+Retrying a refusal is worse than dropping it, because the chunk behind
+waits out a window spent on something already lost.
+
+**And the failure now says what it was.** `catch {}` threw the reason
+away, so a studio could see twelve chunks lost and not know whether its
+own uplink had died or the channel had answered 500 — one is the
+presenter's to fix and one is ours, and they send different people to
+look. The control room reads `Feed · 142 sent · 3 resent · 1 lost — the
+channel answered 503`, with **resent counted apart from both**: folded
+into `sent` a struggling uplink looks perfect, folded into `lost` it
+mourns two seconds that went out on the wire.
+
+The decision lives in `liveChunk.ts`, not in the hook, because it is a
+decision and not a fetch — a number, a status and a clock, testable
+without a browser. [D-19]
+
 ### The live picture froze while every instrument stayed green
 
 > *"IMAGE SHOWS BUT FREEZES TO ALMOST STANDSTILL"*

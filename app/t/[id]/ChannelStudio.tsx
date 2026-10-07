@@ -6146,7 +6146,10 @@ function CameraTab({
   levels: Record<string, { energy: number; speech: number }>;
   onAir: boolean;
   armed: boolean;
-  encoder: { running: boolean; sent: number; dropped: number; rate: number; error: string | null };
+  encoder: {
+    running: boolean; sent: number; dropped: number; retried: number;
+    why: string | null; rate: number; error: string | null;
+  };
 }) {
   const feed = mixer ?? camera;
   /*
@@ -6332,10 +6335,25 @@ function CameraTab({
         <div className="row" style={{ gap: 8 }}>
           <Dot on colour={encoder.running && encoder.dropped === 0 ? 'var(--state-ok)'
             : encoder.running ? 'var(--state-warn)' : 'var(--state-live-dim)'} />
-          <span className="grow muted">
+          {/*
+            * RETRIED IS NOT LOST, AND SAYING SO IS THE POINT.
+            *
+            * A chunk that needed a second attempt and got there
+            * cost the viewer nothing; one that did not is two
+            * seconds the broadcast is permanently further behind.
+            * Printing them as one number would have the presenter
+            * either ignoring a real problem or chasing one that
+            * the retry already solved. And when something IS
+            * lost, the reason goes beside the count, because "12
+            * lost" and "12 lost — the channel answered 500" send
+            * two different people to look. [D-21]
+            */}
+          <span className="grow muted" data-testid="feed-note">
             {encoder.running
               ? `Feed · ${encoder.sent} sent`
+                + (encoder.retried ? ` · ${encoder.retried} resent` : '')
                 + (encoder.dropped ? ` · ${encoder.dropped} lost` : '')
+                + (encoder.dropped && encoder.why ? ` — ${encoder.why}` : '')
               : encoder.error ?? 'No camera'}
           </span>
           {encoder.running && (
