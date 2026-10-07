@@ -564,10 +564,26 @@ async function moveOwnedUnderAccount(): Promise<void> {
     let already: string[] = [];
     try { already = await readdir(to); } catch { /* not there: the normal case. */ }
     if (already.length > 0) {
+      /*
+       * AND IT SAYS WHICH ONE IS LIVE, which the first version of
+       * this warning did not. "Merge them by hand" leaves an
+       * operator standing in front of two directories with no way
+       * to tell which one the product is reading — and the wrong
+       * guess, on a volume holding hours of recorded speech, is
+       * not recoverable. There is no ambiguity in the code: every
+       * path in this file is built on `owned()`, so the account
+       * copy is what runs and the old one is invisible to the
+       * product until somebody moves it. Saying so is free.
+       * [U-25, D-21]
+       */
       console.warn(
-        `balancevid: ${root} exists at both var/${root} and `
-        + `var/accounts/${OWNER_ACCOUNT_ID}/${root}. Leaving both alone — `
-        + 'merge them by hand; nothing has been deleted.');
+        `balancevid: ${root} exists at both var/${root} (${held.length}) and `
+        + `var/accounts/${OWNER_ACCOUNT_ID}/${root} (${already.length}). `
+        + `THE ACCOUNT COPY IS THE LIVE ONE — everything this product reads `
+        + `and writes goes through var/accounts/${OWNER_ACCOUNT_ID}/. The `
+        + `var/${root} copy is being ignored, not lost. Nothing has been `
+        + `deleted and nothing will be: run \`tsx scripts/storage-report.ts\` `
+        + `to see what is in each before you move anything by hand.`);
       continue;
     }
     /* An empty directory at the old address is worth removing, not moving. */
