@@ -2222,6 +2222,60 @@ file is measured again and an unchanged one never is. **Both** are checked:
 a re-render of the same plan keeps the length and changes the time; a file
 restored from a backup keeps the time and can change the length.
 
+### "Fewer channels" — with no way to remove one
+
+The control room's first remedy at 111% of real time is *fewer channels*.
+There was no way to remove a channel.
+
+`DELETE /api/channels/<id>` has existed the whole time. It is guarded, it
+counts what it would take, and its own comment says the count goes back
+*"so the page can say how many before asking, rather than after."* **There
+was no page.** The only way to act on the product's own first
+recommendation was `curl`.
+
+That is the fifth capability in one session built, correct, documented and
+pointed at by nothing — after `RotationEntry.loop`, `paceSays`,
+`channel.filler` and `deadAir()`. It is the most expensive version of the
+pattern, because the product was actively instructing the operator to use
+the thing they could not reach.
+
+**What makes it safe to offer at all** is the rule the whole product is
+built on: a channel points at renders and never owns them. Retiring one
+takes six months of programming off the air and deletes nothing anybody
+made — except the two things a channel does own, saved live sessions and
+requested recordings, which is exactly what the route counts. The dialog
+says both halves, because an operator who believes retiring a channel
+deletes six months of renders will never press it, and one who presses it
+believing that will never trust the product again.
+
+It is last in the settings panel, behind a fold, painted as a hazard, and
+it asks for the channel's name to be typed — the one irreversible control
+on a desk whose channel may be on air.
+
+**Measured on one machine, same volume, same engine, before and after
+retiring sixteen fixture channels:**
+
+| channels | load | round trip | playlist |
+|---|---|---|---|
+| 17 | **623% of real time** | 74.7 s | starving |
+| 1 | **163% of real time** | 19.5 s | starving |
+
+A 3.8× improvement from removing 16 of 17 channels — not 17×, because a
+large part of each pass is fixed cost and a thrashing engine is slower per
+channel than a calm one. Note the second row honestly: this container
+cannot keep up with **one** channel, which is this container and not the
+product. An installation reporting 111% is on much faster hardware than
+this measurement was taken on, and removing channels there will take it
+comfortably under.
+
+**And `deleteChannel` leaves the lineup naming the channel it removed.**
+That looked like a bug and is not: `lineup.ts` says so in its own header —
+*"a stale row reserves a number, which is the conservative direction"* —
+and every consumer passes the real channel list and uses the lineup only
+as a lookup. Nothing iterates its keys, so nothing renders a dead row.
+Checked rather than assumed, because a delete button is exactly what would
+have exposed it.
+
 ### 111% of real time, and the advice named every remedy but ours
 
 What the control room said on a real installation:

@@ -66,6 +66,9 @@ import {
 } from '../../useDevices.js';
 import { useQuality } from '../../useQuality.js';
 import { useConfirm } from '../../Confirm.js';
+/* What a channel actually owns, from the function DELETE uses, so
+   the dialog's number and the route's are one number. [deletion.ts] */
+import { channelOwns } from '../../../src/domain/deletion.js';
 import { useShot } from './useShot.js';
 import {
   type Tone,
@@ -1315,6 +1318,77 @@ export default function ChannelStudio({
     setError(null);
     await refreshLibrary();
   }, [refreshLibrary]);
+
+  /**
+   * RETIRE THE CHANNEL.  [§19, §1, D-13, D-18, D-21, C-49]
+   *
+   * THE ROUTE HAS ALWAYS BEEN THERE AND NO PAGE EVER CALLED IT.
+   * `DELETE /api/channels/<id>` is written, guarded, and returns
+   * `recordingsLost` and `wasLive` — its own comment says the
+   * count goes back *"so the page can say how many before asking,
+   * rather than after"*. There was no page. It is the fifth
+   * capability this product built, documented, and pointed at
+   * with nothing. [D-13]
+   *
+   * AND THE OPERATOR WAS BEING TOLD TO USE IT. A control room at
+   * 111% of real time says *"fewer channels, a simpler source, or
+   * a bigger box"* — the first of three remedies, offered to
+   * somebody with no way to remove a channel short of `curl`.
+   *
+   * ASKED TWICE, AND THE SECOND ASK CARRIES THE NUMBER. A channel
+   * holds no media it did not make, so retiring one takes six
+   * months of programming off the air and deletes nothing anybody
+   * rendered — except the two things it does own: saved live
+   * sessions and recordings somebody asked for. That count is
+   * what the route returns, so the question is asked with it in
+   * hand rather than discovered afterwards. [§19, D-18, INV-17]
+   *
+   * THE NAME IS TYPED. Not because a dialog is weak, but because
+   * this is the one irreversible button on the desk and the
+   * channel beside it may be on air. Typing its name is three
+   * seconds against something that cannot be undone.
+   */
+  const retireChannel = useCallback(() => {
+    /*
+     * THE SAME COUNT THE ROUTE WILL ACT ON, from the same
+     * function. This first asked the server for the channel again
+     * and counted `recordings` — one more request, and the wrong
+     * number: `channelOwns` is what DELETE uses, and it counts
+     * saved live sessions as well. A dialog promising to delete
+     * two things and a route deleting three is how a confirmation
+     * stops being worth reading. [deletion.ts, §19]
+     */
+    const owned = channelOwns(channel);
+    confirm({
+      question: `Retire “${channel.name}”? Everything it was scheduled to `
+        + 'play stays exactly where it is — a channel points at renders, it '
+        + 'never owns them. '
+        + (owned > 0
+          ? `What does go is this channel's own media: ${owned} saved `
+            + `${owned === 1 ? 'session or recording' : 'sessions and recordings'}. `
+          : 'It owns no recordings or saved sessions of its own. ')
+        + (onAir ? 'IT IS ON AIR RIGHT NOW. ' : '')
+        + 'This cannot be undone.',
+      field: { label: `Type the channel's name to confirm`, initial: '' },
+      verb: 'Retire the channel',
+      danger: true,
+      go: (typed) => {
+        if ((typed ?? '').trim() !== channel.name.trim()) {
+          setError('That is not the channel\u2019s name — nothing was deleted.');
+          return;
+        }
+        void (async () => {
+          const { ok, says } = await asked(
+            await fetch(`/api/channels/${id}`, { method: 'DELETE' }),
+            'could not retire the channel');
+          if (!ok) { setError(says); return; }
+          /* Back to the lineup: this page is about a channel that
+             no longer exists. */
+          window.location.href = '/t';
+        })();
+      },
+    });
+  }, [channel, confirm, id, onAir]);
 
   const railRows = useMemo(() => {
     const needle = (filter ?? '').trim().toLowerCase();
@@ -3563,6 +3637,46 @@ export default function ChannelStudio({
                 <span className="grow muted">Referenced files</span>
                 <span className="mono">{assets}</span>
               </div>
+              {/*
+                * AND A WAY TO RETIRE IT, which this product has never
+                * had. `DELETE /api/channels/<id>` is written, guarded,
+                * and returns the count of recordings it would take "so
+                * the page can say how many before asking" — and no page
+                * ever asked. Meanwhile a control room at 111% of real
+                * time offers "fewer channels" as its first remedy to
+                * somebody who cannot remove one without curl. [D-13]
+                *
+                * LAST, BEHIND A FOLD, AND NOT STYLED TO BE PRESSED.
+                * The one irreversible control on the desk sits at the
+                * bottom of a panel somebody opened on purpose, under
+                * everything they are more likely to want.
+                */}
+              <div className="row" style={{
+                borderTop: '1px solid var(--line)', paddingTop: 7,
+              }}>
+                <span className="grow muted" style={{ fontSize: 'var(--text-xs)' }}>
+                  Retire this channel
+                </span>
+                <button
+                  className="small" data-testid="retire-channel"
+                  onClick={() => { void retireChannel(); }}
+                  style={{
+                    fontSize: 'var(--text-xs)',
+                    borderColor: 'var(--state-bad)', color: 'var(--state-bad)',
+                  }}
+                >
+                  Retire…
+                </button>
+              </div>
+              <p className="small muted" style={{ margin: 0, fontSize: 'var(--text-xs)' }}>
+                {/* The thing that makes this safe to offer at all, said
+                    before it is pressed rather than in the dialog alone:
+                    a channel points at renders and never owns them.
+                    [§19, D-18, INV-17] */}
+                Nothing it was scheduled to play is deleted — a channel
+                points at renders, it never owns them. Only its own saved
+                sessions and recordings go with it.
+              </p>
             </div>
           </details>
         </div>
