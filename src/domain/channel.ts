@@ -714,6 +714,111 @@ export function overlaps(channel: Channel): { a: Programme; b: Programme }[] {
  * a gap in it looks exactly like a schedule without one until the moment it
  * goes out.
  */
+/**
+ * ITEMS WHOSE MEDIA IS SHORTER THAN THE SLOT THEY SIT IN.
+ *   [§3, §4, D-21, U-02, INV-17]
+ *
+ * THE FAULT THIS ANSWERS, measured on a channel its operator
+ * described as *"music plays and cuts while video does not
+ * display"*:
+ *
+ *     Station Ident    slot 960s    file 5.0s
+ *     Morning Music    slot 1500s   file 5.0s
+ *     ───────────────────────────────────────
+ *     eight items, every one five seconds, in slots of four to
+ *     twenty-five minutes. The loop ran 116 minutes and 115 of
+ *     them were black.
+ *
+ * NOTHING ANYWHERE SAID SO. `missingSources` asks whether the file
+ * EXISTS and INV-17 is about references with nothing behind them;
+ * neither asks whether what is behind one is long enough for the
+ * slot it was given. The engine probes every one of these files to
+ * cut four seconds out of them, so the number was in its hand
+ * every pass and compared to nothing. [U-02]
+ *
+ * THE SLOT IS SUPPOSED TO COME FROM THE MEASUREMENT —
+ * `addToRotation` says *"the route reads it off the library, which
+ * measured it once"* — so a slot that disagrees with its media is
+ * either a duration somebody typed or a file that changed under
+ * it. Either way it is the operator's to fix, and they cannot fix
+ * what nothing tells them.
+ *
+ * IT IS NOT THE SAME AS BLACK ANY MORE, which is why this reports
+ * rather than alarms: `playoutWindow` now loops a short item
+ * instead of going dark. An ident repeating a hundred and
+ * ninety-two times is better than silence and is nobody's
+ * intention either.
+ *
+ * ASKED OF A MEASURER RATHER THAN MEASURING, because this file
+ * does not decode — the same rule `mediaLengthMs` follows one
+ * function above. An item whose length nobody has measured is not
+ * reported: a guess here would be a number somebody schedules
+ * against. [D-14]
+ */
+export interface Overrun {
+  title: string;
+  /** How long the listing says the item runs for. */
+  slotMs: number;
+  /** How long its media actually is, after any trim. */
+  mediaMs: number;
+  /** How many times it must play to fill the slot. */
+  repeats: number;
+}
+
+export function slotsOverrunning(
+  channel: Channel,
+  mediaLengthOf: (source: ProgrammeSource) => number | undefined,
+): Overrun[] {
+  const found: Overrun[] = [];
+  const look = (
+    title: string | undefined, slotMs: number,
+    source: ProgrammeSource, fromMs?: number, toMs?: number, loop?: boolean,
+  ) => {
+    /* A slot somebody asked to repeat is doing what it was told. */
+    if (loop) return;
+    const measured = mediaLengthOf(source);
+    if (measured === undefined || measured <= 0) return;
+    const own = Math.max(0, (toMs ?? measured) - (fromMs ?? 0));
+    if (own <= 0 || own >= slotMs) return;
+    found.push({
+      title: title ?? 'an item', slotMs, mediaMs: own,
+      /* How many times it will play. Two is a long film in a double
+         slot; two hundred is a duration nobody meant to type. */
+      repeats: Math.ceil(slotMs / own),
+    });
+  };
+  for (const programme of channel.programmes) {
+    look(programme.title, programme.durationMs, programme.source,
+      programme.fromMs, programme.toMs, programme.loop);
+  }
+  for (const entry of channel.rotation) {
+    look(entry.title, entry.durationMs, entry.source,
+      entry.fromMs, entry.toMs, entry.loop);
+  }
+  return found;
+}
+
+/**
+ * What to tell the operator about them, in one line.
+ *
+ * NAMING THE WORST ONE AND THE COUNT, not listing eight. A control
+ * room line that scrolls is a line nobody reads, and the worst
+ * offender is the one that shows them what kind of mistake it is.
+ */
+export function overrunSays(found: readonly Overrun[]): string | null {
+  if (found.length === 0) return null;
+  const worst = [...found].sort((a, b) => b.repeats - a.repeats)[0]!;
+  const secs = (ms: number) => (ms >= 60_000
+    ? `${Math.round(ms / 60_000)} min` : `${(ms / 1000).toFixed(0)}s`);
+  const others = found.length === 1 ? ''
+    : ` ${found.length - 1} other ${found.length === 2 ? 'item is' : 'items are'} `
+      + 'shorter than the slot too.';
+  return `“${worst.title}” is ${secs(worst.mediaMs)} long and is scheduled for `
+    + `${secs(worst.slotMs)}, so it repeats about ${worst.repeats} times to fill `
+    + `the slot.${others} Set the slot to the length of the media, or trim the `
+    + 'listing — before this, the time it could not fill went out as black.';
+}
+
 export function gaps(
   channel: Channel, fromAt: number, toAt: number,
 ): { fromAt: number; toAt: number }[] {

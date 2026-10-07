@@ -4,9 +4,11 @@ import AvailabilityFields from '../../AvailabilityFields.js';
 import type { TakeAvailability } from '../../../src/domain/availability.js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
-  Channel, ChannelBlock, OnAir, Programme, ProgrammeSource, RotationEntry,
+  Channel, ChannelBlock, OnAir, Overrun, Programme, ProgrammeSource,
+  RotationEntry,
 } from '../../../src/domain/channel.js';
 import {
+  overrunSays,
   blockAt, nextAfter, onAirAt, orderedBlocks, orderedProgrammes, programmeEnd,
   programmeStart, referencedAssets, rotationLengthMs, rotationOffsets,
   sourceKey, whatIsOn,
@@ -223,6 +225,16 @@ export default function ChannelStudio({
   const [picked, setPicked] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [missing, setMissing] = useState<ProgrammeSource[]>([]);
+  /**
+   * ITEMS SHORTER THAN THE SLOTS THEY SIT IN.
+   *   [channel.ts `slotsOverrunning`, §3, §4, D-21]
+   *
+   * Not a missing reference and not a violation: the file is there
+   * and the schedule is legal. It is a duration that disagrees
+   * with its media, which until now went out as black for the
+   * difference — on one measured channel, 99.4% of every loop.
+   */
+  const [overrunning, setOverrunning] = useState<Overrun[]>([]);
   const [violations, setViolations] = useState<string[]>([]);
   /**
    * WHETHER ANYTHING IS ACTUALLY GOING OUT.  [§18]
@@ -551,6 +563,7 @@ export default function ChannelStudio({
     const data = bodyOf(await response.text());
     setChannel(data.channel);
     setMissing(data.missing ?? []);
+    setOverrunning(data.overrunning ?? []);
     setViolations(data.violations ?? []);
     setHealth(data.health ?? null);
     setSenders(data.senders ?? {});
@@ -3287,6 +3300,34 @@ export default function ChannelStudio({
                         : 'On air'}
             </span>
           </span>
+
+          {/*
+            * AND WHETHER THE LISTING CAN FILL ITS OWN SLOTS.
+            *   [channel.ts `overrunSays`, D-21, D-04]
+            *
+            * THE FAULT THAT COST A CHANNEL 99% OF ITS OUTPUT and
+            * showed up on no instrument: every item five seconds
+            * long in a slot of minutes, so the viewer heard five
+            * seconds and then nothing. The engine was perfect
+            * throughout, which is exactly why nothing caught it —
+            * every signal in this bar asks about the transmitter,
+            * and this is about what the transmitter was asked to
+            * play.
+            *
+            * It loops now rather than going black, so this is a
+            * note and not an alarm: something is on the wire, and
+            * an ident repeating two hundred times is still a
+            * duration somebody should fix.
+            */}
+          {overrunning.length > 0 && (
+            <span className="small" data-testid="overrunning"
+                  style={{ color: 'var(--state-warn)' }}
+                  title={overrunSays(overrunning) ?? ''}>
+              {overrunning.length === 1
+                ? '1 item is shorter than its slot'
+                : `${overrunning.length} items are shorter than their slots`}
+            </span>
+          )}
 
           {/*
             * WHAT THE CONFIDENCE MONITOR CAN SEE.  [§18, C-28]
