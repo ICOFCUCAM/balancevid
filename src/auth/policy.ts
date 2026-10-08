@@ -49,6 +49,21 @@ export const GATEWAY_PATH = '/gateway';
 const PUBLIC_EXACT = new Set([
   '/api/health',      // the deployment's health check, which has no session
   /*
+   * THE DOCUMENT THAT TAKES THE BROWSER BAR OFF THE ANDROID APP.
+   *   [androidApp.ts, TAKE-APP T13a]
+   *
+   * Android fetches it with no session, before anybody has signed
+   * in — on first launch of an app installed from a file. Behind
+   * the sign-in wall it is never read, and the only symptom is an
+   * app that keeps its address bar for ever with nothing
+   * anywhere saying why.
+   *
+   * There is nothing here to protect: a package name and the
+   * fingerprint of a public certificate, both of which are inside
+   * the APK that anybody can download.
+   */
+  '/.well-known/assetlinks.json',
+  /*
    * WHICH BUILD IS LIVE, which a person asks from a phone that is not
    * signed in, and a deploy probe asks with no session at all. A
    * stranger gets the commit and nothing else; the route itself keeps
