@@ -3,8 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import {
-  addConnection, asOrigin, askInstance, readConnections, removeConnection,
-  type Connection,
+  askInstance, readConnections, type Connection,
 } from './connections.js';
 import { type HomeCall, type Row, homeFrom } from './home.js';
 import { Standing } from '../go/Go.js';
@@ -15,6 +14,7 @@ import { type Mine, keepMine, readMine } from './mine.js';
 import { installWorker } from './[link]/queue.js';
 import { useInstallOffer } from '../useInstallOffer.js';
 import GetTheApp from './GetTheApp.js';
+import BottomBar from './BottomBar.js';
 
 /**
  * The Take App's home.  [TAKE-PLATFORM P1, P2, P3, P4, P5, P6, U5]
@@ -72,6 +72,18 @@ import GetTheApp from './GetTheApp.js';
  */
 const MARKS: Record<Row['kind'], IconName> = {
   music: 'music', video: 'play', programme: 'broadcast',
+};
+
+/**
+ * THE KIND, AS A READER'S WORD FOR IT.
+ *
+ * `kind` is how this product stores a track; Music, Video and
+ * Programme are what a person calls them. The mapping lives on
+ * the surface because the domain must not acquire an opinion
+ * about English — the same decision `/go` already made. [D-19]
+ */
+const KINDS: Record<Row['kind'], string> = {
+  music: 'Music', video: 'Video', programme: 'Programme',
 };
 
 const SECTIONS: { kind: Row['kind']; title: string; empty: string }[] = [
@@ -239,7 +251,6 @@ export default function TakeHome() {
    */
   const [connections, setConnections] = useState<Connection[]>([]);
   const [asleep, setAsleep] = useState<string[]>([]);
-  const [adding, setAdding] = useState('');
   /*
    * WHAT IS BEING LOOKED FOR, which narrows every shelf at once
    * rather than only the one it sits over. Somebody typing
@@ -299,26 +310,13 @@ export default function TakeHome() {
     return () => { alive = false; };
   }, [loaded]);
 
-  /* Adding one is asking it what it is called; a place that cannot
-     answer is not one to put in a list. */
-  const add = useCallback(async () => {
-    setSaid(null);
-    const origin = asOrigin(adding);
-    if (!origin) { setSaid('that does not look like a BalanceVid address'); return; }
-    const answer = await askInstance(origin);
-    if (!answer) {
-      setSaid('nothing answered there, or it is not open to this app');
-      return;
-    }
-    setConnections(addConnection({ ...answer.instance, addedAt: new Date().toISOString() }));
-    setAdding('');
-    setLoaded((was) => was + 1);
-  }, [adding]);
-
-  const forget = useCallback((origin: string) => {
-    setConnections(removeConnection(origin));
-    setLoaded((was) => was + 1);
-  }, []);
+  /*
+   * ADDING AND FORGETTING AN INSTALLATION LEFT WITH THE LIST.
+   * They are `Connections.tsx`'s now, which is the only place
+   * that draws them — a second copy of "ask it what it is
+   * called, and refuse a place that cannot answer" is the copy
+   * that quietly loses somebody's studio. [D-19]
+   */
 
   /*
    * TAKING PART, WHICH MINTS THE SAME OBJECT A PRODUCER MINTS.
@@ -350,6 +348,18 @@ export default function TakeHome() {
      closed while the page was open — falls back rather than
      leaving a page with nothing on it. [U-19] */
   const chosen = tabs.some((one) => one.id === showing) ? showing : 'all';
+  /*
+   * THE FOUR NEWEST THINGS, newest first. `publishedAt` is an
+   * ISO string on every row, so the comparison is the string's
+   * — and a row without one sorts last rather than throwing,
+   * because an older installation that never sent the field is
+   * a row this app still has to draw. [V-8]
+   */
+  const latest = [...(rows ?? [])]
+    .filter((row) => row.kind !== 'programme')
+    .sort((a, b) => (b.publishedAt ?? '').localeCompare(a.publishedAt ?? ''))
+    .slice(0, 4);
+
   const shows = (kind: string) => {
     const tab = TABS.find((one) => one.id === chosen)!;
     return tab.kinds === null || (tab.kinds as readonly string[]).includes(kind);
@@ -600,7 +610,18 @@ export default function TakeHome() {
         * [D-21]
         */}
       <nav className="tk-tabs" data-testid="take-tabs" aria-label="What to show">
-        {tabs.filter((one) => one.id !== 'all').map((one) => {
+        {/*
+          * MUSIC · VIDEO · ONLINE TV · GO VIRAL, which is the
+          * uploaded design's four exactly.
+          *
+          * `all` is not a tile because it is the page you are
+          * already on, and `calls` is not one because Take Part
+          * is the raised tab in the bar below — a row of five
+          * with two of them saying what the bar says is a row
+          * nobody reads. [D-04]
+          */}
+        {tabs.filter((one) => one.id !== 'all' && one.id !== 'calls')
+          .map((one) => {
           /*
            * THE LINK IS CHECKED FIRST, and that order is the
            * whole of it: a renderer that returns the button
@@ -789,6 +810,49 @@ export default function TakeHome() {
           <p className="tk-note">Looking…</p>
         )}
 
+        {/*
+          * THE NEWEST THINGS TO TAKE PART IN.
+          *   [the uploaded homepage; U-19, D-21]
+          *
+          * Where the uploaded design has *Trending Takes*, with
+          * four thumbnails under "3.2K views". This product
+          * counts no views anywhere — there is no counter, no
+          * event, no column — so the row is the same shape with
+          * the one thing it can say truthfully: what was
+          * published most recently, and by whom. Inventing the
+          * numbers would be the single most quotable lie on the
+          * page. [U-19]
+          *
+          * SORTED BY `publishedAt`, which every row carries, and
+          * four of them, which is what the design draws.
+          */}
+        {rows !== null && chosen === 'all' && latest.length > 0 && (
+          <section className="tk-shelf" data-testid="section-latest">
+            <div className="tk-shelf-head">
+              <h2 className="tk-shelf-title">Latest</h2>
+            </div>
+            <div className="tk-fresh">
+              {latest.map((row) => (
+                <a key={row.id} className="tk-fresh-one"
+                   data-testid="participate-row" data-kind={row.kind}
+                   data-state={row.state}
+                   href={`${isElsewhere(row) ? row.from!.origin : ''}${row.watch}`}>
+                  <span aria-hidden="true" className="tk-fresh-art"
+                        style={identityFor(row.slug ?? row.id)} />
+                  <span className="tk-call-kind" data-about={row.kind}>
+                    <Icon name={MARKS[row.kind]} size={11} />
+                    {KINDS[row.kind]}
+                  </span>
+                  <span className="tk-fresh-name">{row.title}</span>
+                  <span className="tk-fresh-under">
+                    {row.author ?? (row.respondable ? 'Open for takes' : 'Published')}
+                  </span>
+                </a>
+              ))}
+            </div>
+          </section>
+        )}
+
         {rows !== null && SECTIONS.filter((section) => shows(section.kind))
           /*
            * AND AN EMPTY KIND IS NOT A HEADING.  [D-04, D-21]
@@ -807,6 +871,22 @@ export default function TakeHome() {
            */
           .filter((section) => chosen !== 'all'
             || (rows ?? []).some((row) => row.kind === section.kind))
+          /*
+           * AND ON THE EVERYTHING VIEW, MUSIC AND VIDEO ARE ONE
+           * SHELF.  [the uploaded homepage; D-04]
+           *
+           * The uploaded design has no per-kind sections on its
+           * home at all — it has Live Now and a row of recent
+           * work, and the kinds are the four tiles above. Two
+           * half-empty shelves headed Music and Video said less
+           * than one shelf of the four newest things, and said
+           * it twice as far down the page.
+           *
+           * ASKED FOR BY NAME, THE SHELF COMES BACK. Pressing
+           * Music still gives the music shelf with its own
+           * heading and its own empty sentence.
+           */
+          .filter((section) => chosen !== 'all' || section.kind === 'programme')
           .map((section) => {
           const found = rows
             .filter((row) => row.kind === section.kind)
@@ -1037,72 +1117,16 @@ export default function TakeHome() {
         })}
 
         {/*
-          * THE INSTALLATIONS THIS DEVICE KNOWS.  [U3, P22, P23, P25]
+          * THE INSTALLATIONS THIS DEVICE KNOWS HAVE MOVED TO THE
+          * PROFILE.  [Connections.tsx; D-04]
           *
-          * Last, because a first-time visitor is here to find a song
-          * and not to manage a list — and the list is empty for them
-          * anyway. A musician with three production companies is the
-          * person this section is for, and they will come looking.
+          * Both uploaded designs put them on a fifth screen, and
+          * both are right: somebody opening this page for the
+          * first time is looking for something to sing, and the
+          * list is empty for them anyway. It is one tap away in
+          * the bar, which is where a musician with three
+          * production companies will go looking for it.
           */}
-        {chosen === 'all' && (
-        <section className="tk-shelf" data-testid="section-instances">
-          <div className="tk-shelf-head">
-            <h2 className="tk-shelf-title">Where you take part</h2>
-          </div>
-          <ul className="tk-rows">
-            <li className="tk-row" data-testid="instance-here">
-              <span aria-hidden="true" className="tk-row-mark">
-                <Icon name="home" size={16} />
-              </span>
-              <span className="tk-row-said">
-                <span className="tk-row-name">
-                  {whereIAm?.name ?? 'This installation'}
-                </span>
-                <span className="tk-row-under">you are here</span>
-              </span>
-            </li>
-            {connections
-              .filter((one) => one.origin !== origin)
-              .map((one) => (
-                <li key={one.origin} data-testid="instance-row"
-                    className="tk-row">
-                  <span aria-hidden="true" className="tk-row-mark"
-                        data-asleep={asleep.includes(one.origin) ? 'true' : 'false'}>
-                    <Icon name="link" size={16} />
-                  </span>
-                  <div className="tk-row-said">
-                    <div className="tk-row-name">{one.name}</div>
-                    <div className="tk-row-under">
-                      {asleep.includes(one.origin)
-                        ? 'not answering just now'
-                        : one.origin.replace(/^https?:\/\//, '')}
-                    </div>
-                  </div>
-                  <button type="button" className="tk-quiet"
-                          data-testid="instance-forget"
-                          title="Forget this installation on this device"
-                          onClick={() => forget(one.origin)}>
-                    Forget
-                  </button>
-                </li>
-              ))}
-          </ul>
-          <div className="tk-field">
-            <input data-testid="instance-add"
-                   placeholder="Add another BalanceVid"
-                   aria-label="The address of another BalanceVid"
-                   value={adding}
-                   onChange={(event) => setAdding(event.target.value)}
-                   onKeyDown={(event) => { if (event.key === 'Enter') void add(); }} />
-            <button type="button" className="tk-go"
-                    data-testid="instance-add-go"
-                    disabled={!adding.trim()}
-                    onClick={() => void add()}>
-              Add
-            </button>
-          </div>
-        </section>
-        )}
 
         {/*
           * AND THE WAY TO PUT THIS ON A WEBSITE.
@@ -1151,17 +1175,8 @@ export default function TakeHome() {
           </section>
         )}
 
-        <p className="tk-note">
-          {/*
-            * WHOSE INSTALLATION THIS IS, said plainly. One Take App
-            * speaks to many independent BalanceVid installations, and a
-            * person who has taken part in three of them should never be
-            * unsure which one they are looking at. [P13, P22]
-            */}
-          Every BalanceVid keeps its own productions. What you record for
-          one of them stays with them, and this list is on your device
-          alone.
-        </p>
+        {/* The line about whose productions these are went with
+            the list it was about, to the Profile. [P13, P22] */}
 
         {/*
           * AND THE WAY TO HAVE THIS AS AN APP, for the browsers
@@ -1175,78 +1190,7 @@ export default function TakeHome() {
         <GetTheApp />
       </main>
 
-      {/*
-        * A BOTTOM BAR, WHICH IS WHAT AN APP HAS.  [D-04]
-        *
-        * EVERY TAB GOES SOMEWHERE THAT EXISTS. The design this
-        * was built against carries Home, Discover, Take Part, My
-        * Takes and Library; three of those are pages this
-        * product has and two are not, so three are drawn. A bar
-        * with a dead tab in it is worse than a bar with three
-        * live ones. [D-21]
-        *
-        * TAKE PART IS THE RAISED ONE because it is the verb the
-        * whole application is named for — and it goes to the
-        * calls, which is where taking part starts.
-        */}
-      <nav className="tk-bottom" aria-label="Where to go"
-           data-testid="take-bottom">
-        <a className="tk-bottom-way" href="/take" aria-current="page">
-          <Icon name="home" size={19} />
-          Home
-        </a>
-        {/*
-          * "DISCOVER", WHICH IS WHAT THE DESTINATION ALREADY
-          * WAS. `/tv` is the network's directory — every channel
-          * this installation and its connections can see — and
-          * the uploaded design calls that tab Discover. "Watch"
-          * described one thing you can do there; Discover
-          * describes why you would go.
-          */}
-        <a className="tk-bottom-way" href="/tv">
-          <Icon name="search" size={19} />
-          Discover
-        </a>
-        {/*
-          * A CAMERA, NOT A PLUS. The uploaded design puts a
-          * video camera in the raised tab, and it is the better
-          * mark: `+` is what a page says when it is about to ask
-          * you to fill in a form, and this is the button that
-          * leads to pointing a phone at yourself.
-          */}
-        <a className="tk-bottom-go" href="/go">
-          <span aria-hidden="true" className="tk-bottom-go-mark">
-            <Icon name="camera" size={20} />
-          </span>
-          Take Part
-        </a>
-        <a className="tk-bottom-way" href="/tv/guide">
-          <Icon name="calendar" size={19} />
-          Guide
-        </a>
-        {/*
-          * LIBRARY, WHERE *MINE* WAS.  [T16]
-          *
-          * The last slot pointed at `/tv/favorites`, which is
-          * the television's list of channels somebody follows
-          * — a useful page and not this person's own work. The
-          * word under it was *Mine*, which is what the Library
-          * is: the finished pieces a studio made with their
-          * take in them, and every link this phone holds. The
-          * favourites are one tap away on the television pages
-          * where they belong. [D-04]
-          */}
-        {/*
-          * "MY TAKES", which is the uploaded design's name for
-          * it and also the truer one: the page holds this
-          * device's own work on four shelves. "Library" is where
-          * the shelves live; My Takes is what is on them.
-          */}
-        <a className="tk-bottom-way" href="/take/library">
-          <Icon name="library" size={19} />
-          My Takes
-        </a>
-      </nav>
+      <BottomBar here="/take" />
     </div>
   );
 }

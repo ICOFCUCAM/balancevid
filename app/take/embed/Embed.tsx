@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react';
 import Link from 'next/link';
 
 import Icon from '../../Icon.js';
+import BottomBar from '../BottomBar.js';
 import { GroundToggle } from '../../Ground.js';
 import type { EmbedWay } from '../../../src/domain/embed.js';
 import { hostOf } from '../../../src/domain/embed.js';
@@ -188,6 +189,8 @@ export default function Embed(
           </>
         )}
       </main>
+    
+      <BottomBar here="/take/embed" />
     </div>
   );
 }

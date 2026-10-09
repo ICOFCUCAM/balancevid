@@ -253,6 +253,17 @@ const PUBLIC_PATTERNS: RegExp[] = [
    */
   /^\/take\/embed\/?$/,
   /*
+   * THE PROFILE.  [TAKE-PLATFORM P13, P22; D-03, D-25]
+   *
+   * PUBLIC FOR THE REASON THE LIBRARY IS, AND IT CARRIES EVEN
+   * LESS. There is no account on the Take App by construction,
+   * so a profile page behind a sign-in would be a profile page
+   * for the one person who does not need it. What it shows is
+   * the list of installations in THIS browser's storage, which
+   * the server has never heard of and cannot hand to anybody.
+   */
+  /^\/take\/profile\/?$/,
+  /*
    * SPENDING A PAIRING CODE.  [TAKE-DESKTOP T-2, D-25]
    *
    * PUBLIC FOR THE SAME REASON `/api/take/<link>` IS: the

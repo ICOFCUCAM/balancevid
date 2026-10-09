@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 
 import Icon from '../../Icon.js';
+import BottomBar from '../BottomBar.js';
 import { GroundToggle } from '../../Ground.js';
 import { type Mine, forgetMine, readMine } from '../mine.js';
 import type { RequestState } from '../../../src/domain/participation.js';
@@ -462,6 +463,8 @@ export default function Library() {
           </p>
         </section>
       </main>
+    
+      <BottomBar here="/take/library" />
     </div>
   );
 }

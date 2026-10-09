@@ -3082,3 +3082,58 @@
 /* The "see all" at the end of a shelf head, in the design's gold. */
 .tk-page[data-ground='light'] .tk-more { color: #8a6418; }
 .tk-page .tk-more { font-weight: var(--weight-semi); }
+
+/* ---- "Latest": the row that would have been Trending ------------- */
+
+/*
+ * TWO UP, NOT FOUR ACROSS. The uploaded design puts four cards
+ * in one row on a phone, which gives each of them 78px of width
+ * — enough for a thumbnail and a number, which is what it shows,
+ * and not enough for a title somebody can read. This shows four
+ * as well, in two rows of two, because what is under each one
+ * here is a name rather than a view count.
+ */
+.tk-page .tk-fresh {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.tk-page .tk-fresh-one {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: inherit;
+  text-decoration: none;
+}
+
+.tk-page .tk-fresh-art {
+  display: block;
+  aspect-ratio: 16 / 10;
+  border-radius: 5px;
+  border: 1px solid var(--line);
+}
+
+.tk-page .tk-fresh-name {
+  font-size: var(--text-base);
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.tk-page .tk-fresh-under {
+  font-size: var(--text-xs);
+  color: var(--ink-400);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
