@@ -16,6 +16,10 @@
 import Icon, { type IconName } from './Icon.js';
 import Brand from './Brand.js';
 import type { StudioId } from '../src/domain/account.js';
+/* Each studio's own front door, from the one place that names it,
+   so the bar and the home page cannot point at different lists.
+   [rooms.ts, D-19] */
+import { roomFor } from '../src/domain/rooms.js';
 
 export type StudioTab =
   | 'conversations' | 'studio-one' | 'studio-two' | 'online-tv'
@@ -77,7 +81,14 @@ export default function StudioBar({
       href: '/#conversations',
     },
     studioOneId
-      ? { id: 'studio-one', label: 'Studio One', icon: 'conversation', href: `/c/${studioOneId}` }
+      ? {
+        id: 'studio-one', label: 'Studio One', icon: 'conversation',
+        /* The same rule, for the same reason: inside one
+           conversation, this goes to the list that can start
+           another. [rooms.ts] */
+        href: current === 'studio-one'
+          ? roomFor('studio-one').href : `/c/${studioOneId}`,
+      }
       : {
         id: 'studio-one', label: 'Studio One', icon: 'conversation',
         hint: 'No conversations yet — start one from the library',
@@ -85,7 +96,26 @@ export default function StudioBar({
     studioTwoId || current === 'studio-two'
       ? {
         id: 'studio-two', label: 'Studio Two', icon: 'music',
-        ...(current === 'studio-two' ? {} : { href: `/p/${studioTwoId}` }),
+        /*
+         * AND IT STILL GOES SOMEWHERE WHILE YOU ARE IN IT.
+         *   [rooms.ts, D-13, D-21]
+         *
+         * This was inert on the studio you were already in —
+         * `current === 'studio-two' ? {} : …` — on the reasonable
+         * sounding ground that a link to where you already are is
+         * no link at all. But you are NOT where it goes: you are
+         * inside ONE performance, and the tab's destination is the
+         * LIST of them, which is where `StartPerformance` lives.
+         *
+         * So from inside a song there was no way to begin another
+         * one, or to reach the others, without going out to the
+         * home page first — reported as *"studio two suppose to
+         * have add project or New project"*. The intake was built
+         * and reachable from exactly one place that nothing on
+         * this bar pointed at. [D-13]
+         */
+        href: current === 'studio-two'
+          ? roomFor('studio-two').href : `/p/${studioTwoId}`,
       }
       : {
         id: 'studio-two', label: 'Studio Two', icon: 'music',
@@ -100,7 +130,11 @@ export default function StudioBar({
     studioThreeId || current === 'online-tv'
       ? {
         id: 'online-tv', label: 'Online TV', icon: 'broadcast',
-        ...(current === 'online-tv' ? {} : { href: `/t/${studioThreeId}` }),
+        /* And Online TV, whose list IS its control room — the one
+           studio where this already worked, because `/t` is where
+           `StartChannel` has always been. [rooms.ts] */
+        href: current === 'online-tv'
+          ? roomFor('online-tv').href : `/t/${studioThreeId}`,
       }
       : {
         id: 'online-tv', label: 'Online TV', icon: 'broadcast',
@@ -199,10 +233,33 @@ export default function StudioBar({
             transition: 'color var(--motion-fast) var(--ease-out),'
               + ' border-color var(--motion-fast) var(--ease-out)',
           };
-          if (on) {
+          /*
+           * THE CURRENT TAB IS STILL A LINK IF IT HAS ANYWHERE TO
+           * GO. [D-13, D-21]
+           *
+           * This returned a `<span>` for the tab you were on,
+           * before looking at whether it had an `href` — so
+           * giving one to the current studio changed nothing on
+           * the screen, which is how the first attempt at this
+           * fix came to be inert and was caught by opening the
+           * page rather than by the tests. [U-02]
+           *
+           * `aria-current="page"` stays either way: it says which
+           * section you are in, which is true of a link as much
+           * as of a label. What changes is that STUDIO TWO, while
+           * you are inside a song, now reaches the list of songs
+           * — where another one can be started.
+           */
+          if (on && !tab.href) {
             return (
               <span key={tab.id} data-testid={`tab-${tab.id}`} aria-current="page"
                     style={style}>{body}</span>
+            );
+          }
+          if (on && tab.href) {
+            return (
+              <a key={tab.id} data-testid={`tab-${tab.id}`} href={tab.href}
+                 aria-current="page" style={style}>{body}</a>
             );
           }
           if (tab.href) {

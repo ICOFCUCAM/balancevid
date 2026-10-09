@@ -232,6 +232,29 @@ export default function PerformersPanel({
                   disabled={busy} onClick={() => void invite()}>
             {busy ? 'Making a link…' : 'Make a link to send'}
           </button>
+          {/*
+            * WHAT A LINK IS, BEFORE ONE IS MADE AND SENT TO FORTY
+            * PEOPLE. [participation.ts `takesLeft`, D-21]
+            *
+            * The allowance is on the REQUEST, not on the person,
+            * and the three goes it already carries are therefore
+            * three goes IN TOTAL. A producer who reads "anybody
+            * with the link" and sends one to a choir has given
+            * the whole choir three takes between them; the fourth
+            * singer is told the link is full, having done
+            * nothing, and the producer finds out from the
+            * complaints.
+            *
+            * Said here, where the link is made, because that is
+            * the moment the decision is taken — and it costs one
+            * line against a mistake that is only discovered
+            * socially.
+            */}
+          <p className="small muted" data-testid="one-link-one-performer"
+             style={{ margin: 0, fontSize: 'var(--text-xs)' }}>
+            One link, one performer, three goes. Whoever opens it first uses
+            them — so make a link each rather than sending one to everybody.
+          </p>
 
           {error && (
             <p className="small" data-testid="performers-error"
@@ -355,7 +378,27 @@ export default function PerformersPanel({
                   <span className="grow" style={{
                     fontSize: 'var(--text-sm)',
                     fontWeight: 'var(--weight-semi)',
-                  }}>{row.participant ?? 'Anybody with the link'}</span>
+                  /*
+                   * "ANYBODY WITH THE LINK" WAS TRUE AND
+                   * DANGEROUSLY INCOMPLETE. [participation.ts
+                   * `takesLeft`, D-21]
+                   *
+                   * It is a bearer token, so whoever holds it can
+                   * use it — which reads as *"send this to the
+                   * choir"*, and was read that way: *"one Take
+                   * link could be sent to multiple people who
+                   * will send 3 each"*. They would not. The
+                   * allowance is on the REQUEST and not on the
+                   * person, so five people holding one link share
+                   * three goes between them and the first three
+                   * to sing use them all. The other two are told
+                   * the link is full, having done nothing.
+                   *
+                   * One link, one performer, is what this is. The
+                   * sentence under the list says so and this says
+                   * which row has no name on it.
+                   */
+                  }}>{row.participant ?? 'Unnamed performer'}</span>
                   <span className="small muted">{row.state}</span>
                 </div>
                 <p className="small muted" style={{ margin: 0 }}>
