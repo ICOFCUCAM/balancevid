@@ -6,6 +6,8 @@ import Link from 'next/link';
 import Icon from '../../Icon.js';
 import { GroundToggle } from '../../Ground.js';
 import { type Mine, forgetMine, readMine } from '../mine.js';
+import type { RequestState } from '../../../src/domain/participation.js';
+import { type Standing, shelvesWith, standingOf } from '../../../src/domain/takeShelf.js';
 
 /**
  * The Library.  [TAKE-APP T16, P5; Doctrine D-04, D-19, D-25]
@@ -45,6 +47,18 @@ interface Entry {
   mine: Mine;
   /** What came back, where anything did. */
   title?: string;
+  /**
+   * WHOSE MOVE IT IS, which this page fetched and discarded.
+   *   [takeShelf.ts, U-02]
+   *
+   * `/api/take/<link>` has answered with `state` and `submitted`
+   * on every row since the recorder existed, and this page asked
+   * for them on every row and kept neither — so nine takes sent
+   * to four studios sat in one undifferentiated list and nobody
+   * could tell which ones were still waiting on them.
+   */
+  state?: RequestState;
+  submitted?: number;
   outcome?: { state: string; says: string };
   collection?: { title: string; watch: string; file: string };
   /** The link could not be read at all. */
@@ -84,6 +98,8 @@ async function ask(mine: Mine): Promise<Entry> {
     const said = await answer.json() as {
       request?: {
         assignment?: { asks?: string };
+        state?: RequestState;
+        submitted?: number;
         outcome?: { state: string; says: string };
         collection?: { title: string; watch: string; file: string };
       };
@@ -92,6 +108,9 @@ async function ask(mine: Mine): Promise<Entry> {
     return {
       mine,
       ...(request?.assignment?.asks ? { title: request.assignment.asks } : {}),
+      ...(request?.state ? { state: request.state } : {}),
+      ...(typeof request?.submitted === 'number'
+        ? { submitted: request.submitted } : {}),
       ...(request?.outcome ? { outcome: request.outcome } : {}),
       ...(request?.collection ? { collection: request.collection } : {}),
     };
@@ -140,6 +159,59 @@ function useShare(): (title: string, url: string) => Promise<string | null> {
   }, []);
 }
 
+/**
+ * WHERE EACH TAKE STANDS, AND WHICH SHELVES HAVE ANYTHING ON
+ * THEM.  [takeShelf.ts, U-02, U-19]
+ *
+ * A ROW WHOSE ANSWER HAS NOT ARRIVED stands where it stood
+ * before anybody asked — on the performer's own shelf — rather
+ * than jumping between groups as the fetches land one by one.
+ *
+ * LIFTED OUT OF THE COMPONENT AND EXPORTED, which is a testing
+ * decision and worth stating as one. Everything on this page
+ * arrives through an effect reading the device's own storage,
+ * and effects do not run in a server render — so a mutation
+ * that passed an empty list here instead of the person's takes
+ * emptied the Library and the whole suite still passed. That is
+ * the shape of fault this product has been bitten by twice.
+ * Pulling the derivation out leaves exactly one expression
+ * between the device and the shelves, and puts the rest where a
+ * test can reach it.
+ */
+export interface Shelved {
+  mine: Mine;
+  /** Worked out ONCE, here, and carried to the row that shows it. */
+  standing: Standing;
+}
+
+export function shelvesFor(
+  held: Mine[] | null, rows: Record<string, Entry>,
+): ReturnType<typeof shelvesWith<Shelved>> {
+  /*
+   * THE STANDING TRAVELS WITH THE ROW rather than being worked
+   * out again where it is drawn. It was computed twice for one
+   * frame — once to choose the shelf, once to write the line
+   * under the name — and the two could not be told apart by any
+   * test: a mutation that stopped reading `collection` here put
+   * every row on the right shelf and silently dropped the one
+   * sentence that tells somebody their work has been PUBLISHED
+   * and can be watched. Two computations of one fact is two
+   * answers waiting to disagree. [D-19, U-02]
+   */
+  const shelved = (held ?? []).map((mine): Shelved => {
+    const row = rows[mine.link];
+    return {
+      mine,
+      standing: standingOf({
+        state: row?.state,
+        submitted: row?.submitted,
+        published: row?.collection !== undefined,
+      }),
+    };
+  });
+  return shelvesWith(shelved, (one) => one.standing);
+}
+
 export default function Library() {
   const [held, setHeld] = useState<Mine[] | null>(null);
   const [rows, setRows] = useState<Record<string, Entry>>({});
@@ -161,6 +233,8 @@ export default function Library() {
   const drop = useCallback((link: string) => {
     setHeld(forgetMine(link));
   }, []);
+
+  const shelves = shelvesFor(held, rows);
 
   const collection = (held ?? [])
     .map((one) => rows[one.link])
@@ -273,8 +347,21 @@ export default function Library() {
         </section>
 
         {/*
-          * AND EVERYTHING THIS DEVICE HOLDS, open or decided.
-          * [P5]
+          * AND EVERYTHING THIS DEVICE HOLDS, ON THE SHELF IT
+          * BELONGS ON.  [P5, takeShelf.ts]
+          *
+          * > *"My Takes. Drafts … Sent to studio … Published."*
+          *
+          * ONE LIST BECAME FOUR, OUT OF DATA THIS PAGE WAS
+          * ALREADY FETCHING AND THROWING AWAY. `state` and
+          * `submitted` come back on every row; neither was kept,
+          * so a person with nine takes across four studios could
+          * not tell which were still waiting on them. [U-02]
+          *
+          * THE GROUPING IS THE DOMAIN'S AND THE WORDS ARE THIS
+          * FILE'S — except the standing line, which is a fact
+          * about a request rather than a sentence about a page,
+          * and belongs beside the rule that decides it. [D-19]
           */}
         <section className="tk-shelf" data-testid="section-mine">
           <div className="tk-shelf-head">
@@ -290,9 +377,15 @@ export default function Library() {
                 sends you a link; everything you open is kept here.
               </p>
             )
-            : (
-              <ul className="tk-rows">
-                {(held ?? []).map((one) => {
+            : shelves.map((shelf) => (
+              <div key={shelf.shelf} data-testid="mine-shelf"
+                   data-shelf={shelf.shelf} className="tk-stack">
+                <p className="tk-stack-head">
+                  <span className="tk-stack-name">{shelf.says}</span>
+                  <span className="tk-stack-under">{shelf.under}</span>
+                </p>
+                <ul className="tk-rows">
+                {shelf.rows.map(({ mine: one, standing }) => {
                   const row = rows[one.link];
                   return (
                     <li key={one.link} className="tk-row" data-testid="mine-row">
@@ -303,10 +396,19 @@ export default function Library() {
                         <span className="tk-row-name">
                           {row?.title ?? one.title}
                         </span>
-                        <span className="tk-row-under">
+                        <span className="tk-row-under"
+                              data-testid="mine-standing">
+                          {/*
+                            * THE STUDIO'S OWN WORD FIRST where
+                            * it has said one — `outcome` is the
+                            * organiser's sentence about this
+                            * entry and outranks anything this
+                            * page could work out. The standing
+                            * is what to say when nobody has.
+                            */}
                           {row === undefined ? 'Checking…'
                             : row.lost ? 'That link is closed.'
-                              : row.outcome?.says ?? 'Still open.'}
+                              : row.outcome?.says ?? standing.says}
                         </span>
                       </span>
                       <span className="tk-row-go tk-row-keep">
@@ -332,8 +434,9 @@ export default function Library() {
                     </li>
                   );
                 })}
-              </ul>
-            )}
+                </ul>
+              </div>
+            ))}
         </section>
 
         {/*

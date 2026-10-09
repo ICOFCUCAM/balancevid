@@ -232,6 +232,27 @@ const PUBLIC_PATTERNS: RegExp[] = [
    */
   /^\/take\/library\/?$/,
   /*
+   * EMBED TAKE.  [TAKE-PLATFORM P6, P13; D-03, D-21]
+   *
+   * PUBLIC FOR THE REASON `/take` IS, AND IT CARRIES LESS THAN
+   * ANY OF THEM. The page holds one fact — the address this
+   * installation is being reached on — which the person reading
+   * it typed into their own browser to get here. There is no
+   * store read, no list, and nothing about anybody's work.
+   *
+   * AND THE PEOPLE IT IS FOR HAVE NO ACCOUNT HERE BY
+   * CONSTRUCTION. A community, an artist or a publisher putting
+   * Take on their own website is not a user of this
+   * installation; a snippet page behind the sign-in gate is a
+   * snippet page for the one person who already has the link.
+   *
+   * ANCHORED EXACTLY. `embed` has no dot in it and so cannot be
+   * mistaken for the `<id>.<secret>` pattern above, but that
+   * pattern is matched first either way and anchoring both is
+   * what keeps that an accident rather than a dependency.
+   */
+  /^\/take\/embed\/?$/,
+  /*
    * SPENDING A PAIRING CODE.  [TAKE-DESKTOP T-2, D-25]
    *
    * PUBLIC FOR THE SAME REASON `/api/take/<link>` IS: the

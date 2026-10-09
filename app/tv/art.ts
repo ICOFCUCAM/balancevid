@@ -41,6 +41,25 @@ export const NETWORK_ART = {
   /** The band over the open calls. [GO-VIRAL V-4] */
   calls: '/rooms/performance.webp',
   callsFocus: '50% 42%',
+  /**
+   * THE TAKE APP'S OWN BAND, AND IT IS A PERFORMER.
+   *   [TAKE-APP; D-04]
+   *
+   * Every other picture here is a ROOM, because the television
+   * network's subject is a network of studios. The Take App's
+   * subject is the person holding the phone, and it had been
+   * borrowing the Online TV control room — a wall of monitors
+   * and two presenters at a desk, which is the thing this
+   * audience is NOT. The uploaded design leads on somebody
+   * singing into a microphone, and it is right to.
+   *
+   * 1200px WIDE AND 72KB, converted from the 2.1MB upload. The
+   * page it opens is reached from a message, on a phone, often
+   * on a hall's wifi; two megabytes of hero is the picture
+   * arriving after the person has given up.
+   */
+  take: '/rooms/take-hero.webp',
+  takeFocus: '62% 35%',
 } as const;
 
 /**
