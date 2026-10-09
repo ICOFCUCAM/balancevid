@@ -35,7 +35,8 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 
 import {
-  APP_STORE_LISTING, DOWNLOADS_PATH, PLAY_LISTING, storeWays, wayTo,
+  APP_STORE_LISTING, DOWNLOADS_PATH, PLAY_LISTING, TAKE_APP_PATH,
+  installWay, storeWays, takeAppAddress, wayTo,
 } from '../../src/domain/getTheApp.js';
 import { mayBePublic } from '../../src/auth/policy.js';
 
@@ -247,4 +248,163 @@ describe('the row stands where the install bar cannot', () => {
   it('does not disappear when the install bar is dismissed', () => {
     expect(COMPONENT).not.toMatch(/\bgone\b/);
   });
+});
+
+
+/**
+ * A browser that will never offer to install, and what it is told.
+ *   [TAKE-APP T13a; TAKE-PLATFORM P6; Doctrine U-02, U-19, D-21]
+ *
+ * THE CIRCLE THESE CLOSE WAS WALKED, NOT IMAGINED. An Android
+ * phone with a chat app's browser was driven through the built
+ * product: `/take` offered no install control, its only remaining
+ * door was "Get the Take App", that door led to `/downloads`, and
+ * the download centre's first card led straight back to `/take`
+ * saying the app "installs to your home screen from the app
+ * itself". Three screens, no instruction, nobody installs
+ * anything. [U-02]
+ */
+
+/* Real strings, taken from the browsers people actually hold. */
+const CHAT = 'Mozilla/5.0 (Linux; Android 13; SM-A135F) AppleWebKit/537.36 '
+  + '(KHTML, like Gecko) Chrome/119.0.0.0 Mobile Safari/537.36 '
+  + '[FB_IAB/FB4A;FBAV/447.0.0.0;]';
+const ANDROID_CHROME = 'Mozilla/5.0 (Linux; Android 14; Pixel 7) '
+  + 'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36';
+const ANDROID_FIREFOX = 'Mozilla/5.0 (Android 13; Mobile; rv:120.0) '
+  + 'Gecko/120.0 Firefox/120.0';
+const IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_1 like Mac OS X) '
+  + 'AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Mobile/15E148 Safari/604.1';
+const IPHONE_IN_APP = 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) '
+  + 'AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 '
+  + '[FBAN/FBIOS;FBAV/440.0.0.0;]';
+const LAPTOP = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) '
+  + 'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
+describe('how to install it by hand', () => {
+  /*
+   * THE ONE MOST INVITATIONS ARRIVE IN. A chat app's browser has
+   * no Add to Home screen of its own, because the menu belongs to
+   * the chat app — so the first motion is not installing at all,
+   * it is getting out. A page that skipped that step would be
+   * giving instructions for a menu that is not on the screen.
+   */
+  it('tells somebody inside a chat app to leave it first', () => {
+    const way = installWay(CHAT);
+    expect(way?.on).toBe('in-app');
+    expect(way?.steps[0]).toMatch(/⋮|⋯/);
+    expect(way?.steps[1]).toMatch(/Open in/i);
+    /* And only then the thing every other Android is told. */
+    expect(way?.steps.at(-1)).toMatch(/Add to Home screen/i);
+  });
+
+  it('names the Android menu for an ordinary Android browser', () => {
+    for (const ua of [ANDROID_CHROME, ANDROID_FIREFOX]) {
+      const way = installWay(ua);
+      expect(way?.on).toBe('android');
+      expect(way?.says).toMatch(/Add to Home screen/i);
+      expect(way?.steps.length).toBeGreaterThan(1);
+    }
+  });
+
+  /*
+   * EVERY BROWSER ON AN IPHONE IS WEBKIT, including the one
+   * inside Facebook, so the share sheet is the answer for all of
+   * them and the in-app test above must not steal this one.
+   */
+  it('sends an iPhone to the share sheet, whichever app it is in', () => {
+    for (const ua of [IPHONE, IPHONE_IN_APP]) {
+      const way = installWay(ua);
+      expect(way?.on).toBe('ios');
+      expect(way?.says).toMatch(/Share/);
+      expect(way?.steps.join(' ')).toMatch(/Add to Home Screen/);
+    }
+  });
+
+  /*
+   * A LAPTOP HAS NO HOME SCREEN. `null` is the honest answer and
+   * the surfaces draw nothing for it — a desktop browser that can
+   * install gets the browser's own prompt instead.
+   */
+  it('says nothing to a desktop browser', () => {
+    expect(installWay(LAPTOP)).toBeNull();
+    expect(installWay('')).toBeNull();
+  });
+
+  /* One line for a place with one line, not a paragraph. */
+  it('gives a short line as well as the steps', () => {
+    for (const ua of [CHAT, ANDROID_CHROME, IPHONE]) {
+      const way = installWay(ua);
+      expect(way).not.toBeNull();
+      expect(way!.says.length).toBeLessThanOrEqual(44);
+      expect(way!.steps.every((step) => step.length > 10)).toBe(true);
+    }
+  });
+});
+
+describe('the address somebody is told to type', () => {
+  it('is the app’s own path and the path the product links to', () => {
+    expect(TAKE_APP_PATH).toBe('/take');
+    expect(mayBePublic(TAKE_APP_PATH, 'GET')).toBe(true);
+  });
+
+  it('joins an origin without doubling the slash', () => {
+    expect(takeAppAddress('https://example.org')).toBe('https://example.org/take');
+    expect(takeAppAddress('https://example.org/')).toBe('https://example.org/take');
+  });
+});
+
+describe('the surfaces that had nothing to show', () => {
+  const HOOK = readFileSync('app/useInstallOffer.ts', 'utf8');
+
+  /*
+   * ONE OFFER AT A TIME, IN ORDER OF HOW GOOD IT IS. A real
+   * prompt beats the share sheet, the share sheet beats a list of
+   * taps, and an installed app beats all three with silence. The
+   * ordering lives in the hook so that three surfaces cannot come
+   * to three different answers. [D-19]
+   */
+  it('prefers a real prompt over a list of taps', () => {
+    expect(HOOK).toMatch(
+      /const way = Boolean\(offer\) \|\| gone \|\| installed \? null : manual/,
+    );
+  });
+
+  /*
+   * AND `teach` IS NOT IN THAT LIST, which an iPhone found by
+   * walking the built pages: hiding `way` wherever `teach` is
+   * true left the download centre — the one surface with no iOS
+   * wording of its own — showing an iPhone nothing while it gave
+   * an Android three steps. [U-02]
+   */
+  it('still has something to say to an iPhone on a page with no iOS words', () => {
+    expect(HOOK).not.toMatch(/const way = [^;]*teach/);
+    const centre = readFileSync('app/downloads/DownloadCentre.tsx', 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '');
+    expect(centre).not.toMatch(/\bteach\b/);
+    expect(installWay(IPHONE)).not.toBeNull();
+  });
+
+  /*
+   * AND IT WAITS BEFORE SPEAKING. `beforeinstallprompt` arrives
+   * after load, not at it; instructions that appear and are then
+   * replaced by an Install button read as a page that does not
+   * know what it is doing.
+   */
+  it('gives the browser its chance before explaining', () => {
+    expect(HOOK).toMatch(/setTimeout\(\s*\(\) => setManual\(installWay\(ua\)\), PATIENCE/);
+    expect(HOOK).toMatch(/clearTimeout\(later\)/);
+  });
+
+  /*
+   * WHAT EACH SURFACE DRAWS IS NOT ASSERTED HERE ANY MORE, and
+   * the reason is worth keeping. Three source-text claims used to
+   * stand where this comment is — that four files mention `way`,
+   * that the download centre carries the right `data-testid` —
+   * and two of them survived a mutation that switched the feature
+   * off at its call site (`{false && <HowToKeepIt />}` leaves
+   * every string in the file). They are now renders, in
+   * `install-by-hand.test.ts`, which read what a person would
+   * actually see. [U-02]
+   */
 });

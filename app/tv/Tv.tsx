@@ -204,8 +204,32 @@ export function Star(
  * the honest test of whether the network is installable at all.
  */
 function InstallTv() {
-  const { offered, teach, gone, install, dismiss } = useInstallOffer();
-  if (gone || (!offered && !teach)) return null;
+  const { offered, teach, gone, way, install, dismiss } = useInstallOffer();
+  if (gone || (!offered && !teach && !way)) return null;
+  /*
+   * AND THE BROWSERS THAT OFFER NOTHING, which the Take App's own
+   * header had to learn about first: Android Firefox and every
+   * chat app's browser fire no event and are not iOS, so this row
+   * rendered nothing for them. The same hole, in the same shape,
+   * on the other installable surface. [getTheApp.ts, U-19]
+   */
+  /*
+   * NO `!offered` HERE, AND THAT IS NOT AN OVERSIGHT. A mutation
+   * that removed it killed nothing, because the hook answers
+   * `null` for `way` the moment a prompt exists — the precedence
+   * lives there so that four surfaces cannot reach four
+   * conclusions. A guard that cannot be observed is a guard that
+   * is not there, and this product removes those rather than
+   * defending them in a comment. [D-19, U-02]
+   */
+  if (way && !teach) {
+    return (
+      <span className="small muted" data-testid="tv-install-way"
+            data-on={way.on} style={{ fontSize: 'var(--text-2xs)' }}>
+        {way.says}
+      </span>
+    );
+  }
   if (teach && !offered) {
     /* Safari has Add to Home Screen and no API for it, so it is
        told rather than left out — in the share sheet's own words. */

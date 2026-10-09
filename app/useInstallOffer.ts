@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
+import { type InstallWay, installWay } from '../src/domain/getTheApp.js';
+
 /**
  * Whether there is anything to offer, and the offering of it.
  *   [TAKE-APP T2c, T13a; TV-NETWORK N-9]
@@ -54,15 +56,52 @@ export interface InstallOffer {
    * would be a `window` read on the server.
    */
   installed: boolean;
+  /**
+   * The taps, where this browser will never offer a prompt.
+   *   [getTheApp.ts, U-19, U-02]
+   *
+   * THE STATE THAT WAS MISSING, and the one most people are
+   * actually in. `offered` is Chromium with the event; `teach` is
+   * iOS Safari; everything else — Android Firefox, and every
+   * invitation opened inside WhatsApp, Messenger or Instagram —
+   * got NEITHER, so three surfaces rendered nothing at all and
+   * the only door left was a quiet link to a download centre
+   * whose first card pointed back at the page they were already
+   * on. That circle was walked in a real browser before this was
+   * written.
+   *
+   * NULL UNTIL THE BROWSER HAS HAD ITS CHANCE. `beforeinstallprompt`
+   * can arrive a beat after load, and instructions that appear and
+   * are then replaced by an Install button read as a page that
+   * does not know what it is doing. Nothing is said until the
+   * browser has stayed silent for `PATIENCE`.
+   *
+   * AND NULL ON A DESKTOP, where there is no home screen to add
+   * to and a paragraph of telephone instructions is noise.
+   */
+  way: InstallWay | null;
   install: () => Promise<void>;
   dismiss: () => void;
 }
+
+/**
+ * How long a browser gets to offer before the page explains the
+ * manual way.
+ *
+ * Chromium fires `beforeinstallprompt` once the manifest, the
+ * icons and the worker have all been checked, which is after
+ * load and not at it. Long enough that the event wins where
+ * there is one; short enough that somebody holding a phone has
+ * not already given up.
+ */
+export const PATIENCE = 1500;
 
 export function useInstallOffer(): InstallOffer {
   const [offer, setOffer] = useState<InstallEvent | null>(null);
   const [teach, setTeach] = useState(false);
   const [gone, setGone] = useState(false);
   const [installed, setInstalled] = useState(false);
+  const [manual, setManual] = useState<InstallWay | null>(null);
 
   useEffect(() => {
     /*
@@ -98,7 +137,19 @@ export function useInstallOffer(): InstallOffer {
     const webkit = /^((?!chrome|android|crios|fxios).)*safari/i.test(ua);
     if (iOS && webkit) setTeach(true);
 
+    /*
+     * AND THE MANUAL WAY, AFTER WAITING TO BE WRONG ABOUT IT.
+     * The timer is cancelled by nothing — an event that arrives
+     * late still sets `offered`, and `way` below prefers it. What
+     * the timer buys is that a browser which WILL prompt is never
+     * seen giving instructions first. [getTheApp.ts]
+     */
+    const later = window.setTimeout(
+      () => setManual(installWay(ua)), PATIENCE,
+    );
+
     return () => {
+      window.clearTimeout(later);
       window.removeEventListener('beforeinstallprompt', caught);
       window.removeEventListener('appinstalled', onInstalled);
     };
@@ -115,5 +166,22 @@ export function useInstallOffer(): InstallOffer {
 
   const dismiss = useCallback(() => setGone(true), []);
 
-  return { offered: Boolean(offer), teach, gone, installed, install, dismiss };
+  /*
+   * A REAL PROMPT BEATS INSTRUCTIONS, and an app already
+   * installed beats both with silence. Those two the hook
+   * decides, because a surface that worked them out for itself
+   * would be a fourth place to get them wrong. [D-19]
+   *
+   * `teach` IS NOT IN THAT LIST, and that was found by driving an
+   * iPhone through the built pages rather than by reading this
+   * file. Suppressing `way` wherever `teach` is true assumes
+   * every surface has iOS wording of its own — two do, and the
+   * download centre does not, so an iPhone arriving there was
+   * shown nothing at all while an Android was given three steps.
+   * A surface with its own words checks `teach` first; one
+   * without draws `way` and is right on every phone. [U-02]
+   */
+  const way = Boolean(offer) || gone || installed ? null : manual;
+
+  return { offered: Boolean(offer), teach, gone, installed, way, install, dismiss };
 }

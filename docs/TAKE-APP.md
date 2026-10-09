@@ -994,3 +994,78 @@ production id.
   distribution channel, not a product change, and it is the only part of
   T13a that this repository cannot reach. Everything the row said such a
   client would *add* is built and verified above.
+
+## The fourth pass: the browser that offers nothing
+
+*Run 2026-10-09, after the question "I thought you want to give a better
+link to access the take app?" The answer to the question is one line —
+`<your installation>/take`, public, no account — and checking that the
+link actually works for the person it is for turned up a hole three
+screens wide.*
+
+### What was measured
+
+A chat app's browser on Android (`FB_IAB`, a Samsung A13, the phone and
+the browser most invitations are actually opened in) was driven through
+the built product with `beforeinstallprompt` suppressed, because that
+event never fires there:
+
+| Screen | What it offered |
+| --- | --- |
+| `/take` | no install control at all, and that is CORRECT — `InstallTake` renders nothing where the browser gives it nothing, because a control that cannot act looks like a fault |
+| the one door left | the quiet "Get the Take App" line at the foot of the page, which leads to `/downloads` |
+| `/downloads` | card 01, "Take App … installs to your home screen from the app itself", linking to `/take` |
+
+Three screens, no instruction, and the person is standing where they
+started. Every part of that circle was built correctly and defended by a
+test. The hole was between them.
+
+### What it is now
+
+`installWay(userAgent)` in `src/domain/getTheApp.ts` names the two or
+three motions that put the page on a home screen, in the words the
+phone's own menu uses: get out of the chat browser first, then the menu,
+then Add to Home screen; the share sheet on an iPhone; `null` on a
+laptop, where there is no home screen to add to. `useInstallOffer` hands
+it to a surface only after the browser has stayed silent for
+`PATIENCE` (1500 ms), so a browser that WILL prompt is never caught
+giving instructions first, and never where the app is already installed.
+
+Four surfaces draw it, each in its own form: the Take App's header and
+the television network's show the one line; the invitation page and the
+download centre show the steps.
+
+| Browser | `/take` | `/downloads` |
+| --- | --- | --- |
+| Android, inside a chat app | "Open this page in your browser first" | the same, with three steps |
+| Android Firefox | "Menu ⋮ → Add to Home screen" | the same, with three steps |
+| iPhone Safari | "Share → Add to Home Screen" | the share sheet, with three steps |
+| a laptop | nothing | nothing |
+
+**A SNIFF, DELIBERATELY, AND IT DOES NOT CONTRADICT THE RULE BESIDE IT.**
+`GetTheApp` is forbidden from guessing a phone, and still is: that rule
+is about offering a FILE the installation may not have, where being
+wrong is a dead link. This guesses a phone to name a MENU, where being
+wrong costs a sentence that does not match. The honest answer where it
+cannot tell is `null`.
+
+### Two things this pass changed about how it is tested
+
+**The iPhone found a second hole, which the first fix had made.** `way`
+was withheld wherever `teach` (iOS Safari) was true, on the assumption
+that every surface carried its own iOS sentence. Two do. The download
+centre — the page that exists to end the circle — does not, so an iPhone
+arriving there was shown nothing while an Android was given three steps.
+Found by driving an iPhone through the built pages, not by reading the
+hook.
+
+**Source-text tests could not see any of it.** Nine mutations were run
+against the first version, and two survived with the feature switched
+off at its call site: `{false && <HowToKeepIt />}` leaves every string
+in the file. `vitest.config.ts` now sets `esbuild: { jsx: 'automatic' }`,
+and `test/domain/install-by-hand.test.ts` RENDERS each of the four
+surfaces with `renderToStaticMarkup` and reads what came out. Of the
+twenty-two mutations run in all, the last round killed every one;
+three earlier survivors were resolved by DELETING a guard that no
+mutation could reach — each one re-asking a question the hook had
+already answered — rather than by writing a test around it.

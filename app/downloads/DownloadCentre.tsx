@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import SiteNav from '../gateway/SiteNav.js';
+import { useInstallOffer } from '../useInstallOffer.js';
 import Icon from '../Icon.js';
 import {
   type Download, type Platform, HOW_TO_NAME, sizeSays,
@@ -104,11 +105,60 @@ export default function DownloadCentre(
               </a>
             </div>
 
+            <HowToKeepIt />
+
             <Gate gate={gate} releases={releases} />
 
           </div>
         </section>
       </main>
+    </div>
+  );
+}
+
+/**
+ * THE TAPS, SAID HERE BECAUSE THIS IS WHERE THE CIRCLE CLOSED.
+ *   [TAKE-PLATFORM P6; Doctrine U-02, U-19, D-21]
+ *
+ * THE FAULT WAS WALKED IN A REAL BROWSER. An Android phone with
+ * an invitation open inside a chat app was driven through the
+ * product: `/take` offered no install control, because
+ * `beforeinstallprompt` never fires there and a control that
+ * cannot act is worse than none; its one remaining door was the
+ * quiet "Get the Take App" line; that line leads HERE; and the
+ * first card here says the app "installs to your home screen from
+ * the app itself" and links back to `/take`. Three screens, no
+ * instruction, and the person is standing where they started.
+ *
+ * THE CARD ABOVE STILL LINKS TO THE APP, which is right — the
+ * address IS the installer, and there is no file to hand over.
+ * What was missing is the sentence saying what to do once they
+ * are there.
+ *
+ * AND IT RENDERS NOTHING ON A LAPTOP. `installWay` answers `null`
+ * where there is no home screen to add to, and a paragraph of
+ * telephone instructions beside a desktop download list is the
+ * kind of noise that teaches people to skip the page. A desktop
+ * browser that CAN install gets Chromium's own prompt and needs
+ * no help from this. [getTheApp.ts]
+ */
+function HowToKeepIt() {
+  /*
+   * `way` ALONE, for the reason the other surfaces give: the hook
+   * withholds it from a phone that already has the app, from a
+   * browser with a real prompt, and from a laptop. Re-asking here
+   * was a guard no mutation could kill. [D-19, U-02]
+   */
+  const { way } = useInstallOffer();
+  if (!way) return null;
+
+  return (
+    <div className="download" data-testid="downloads-how" data-on={way.on}
+         style={{ cursor: 'default', marginBottom: 'var(--space-7)' }}>
+      <h3>{way.says}</h3>
+      <ol style={{ margin: '10px 0 0', paddingLeft: 20, lineHeight: 1.5 }}>
+        {way.steps.map((step) => <li key={step}>{step}</li>)}
+      </ol>
     </div>
   );
 }

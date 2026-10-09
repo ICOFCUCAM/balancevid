@@ -136,8 +136,32 @@ function TakeWorker() {
  * cannot install and on a phone that already has. [U-19, D-21]
  */
 function InstallTake() {
-  const { offered, teach, gone, install, dismiss } = useInstallOffer();
-  if (gone || (!offered && !teach)) return null;
+  const { offered, teach, gone, way, install, dismiss } = useInstallOffer();
+  if (gone || (!offered && !teach && !way)) return null;
+  /*
+   * AND THE BROWSERS THAT OFFER NOTHING AT ALL, which is most of
+   * them: Android Firefox, and every invitation opened inside
+   * WhatsApp, Messenger or Instagram. This header used to render
+   * nothing for them. One line, in the phone's own words, from
+   * the one place that knows them. [getTheApp.ts, U-19]
+   */
+  /*
+   * NO `!offered` HERE, AND THAT IS NOT AN OVERSIGHT. A mutation
+   * that removed it killed nothing, because the hook answers
+   * `null` for `way` the moment a prompt exists — the precedence
+   * lives there so that four surfaces cannot reach four
+   * conclusions. A guard that cannot be observed is a guard that
+   * is not there, and this product removes those rather than
+   * defending them in a comment. [D-19, U-02]
+   */
+  if (way && !teach) {
+    return (
+      <span className="tk-bar-teach" data-testid="take-home-install-way"
+            data-on={way.on}>
+        {way.says}
+      </span>
+    );
+  }
   if (teach && !offered) {
     /* Safari has Add to Home Screen and no API for it, so it is told
        rather than left out — in the share sheet's own words. */
