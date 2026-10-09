@@ -149,6 +149,22 @@ const PUBLIC_EXACT = new Set([
 
 const PUBLIC_PATTERNS: RegExp[] = [
   /*
+   * THE DOOR A PRODUCER SENDS TO EVERYBODY.
+   *   [app/participate/[kind]/[id], TAKE-PLATFORM P1, P39]
+   *
+   * One link for a song, opened by people with no account, each
+   * claiming their own three goes. `POST /api/participate/…` is
+   * already guest-writable for exactly this; the page that
+   * presses it has to be reachable by the same stranger or the
+   * button is behind a sign-in they will never have.
+   *
+   * IT LEAKS NOTHING BY EXISTING. The page renders no title until
+   * `claimable` has confirmed the author published it, and a
+   * closed song and a song that never existed are one answer —
+   * the id came off a URL somebody could have guessed. [D-03]
+   */
+  /^\/participate\/[a-z]{1,16}\/[A-Za-z0-9_-]{1,64}$/,
+  /*
    * The room.  [Doctrine ROOM §6, §12]
    *
    * These are not "public" in the sense the rest of this list means — they
@@ -215,6 +231,38 @@ const PUBLIC_PATTERNS: RegExp[] = [
    * what keeps that an accident rather than a dependency.
    */
   /^\/take\/library\/?$/,
+  /*
+   * EMBED TAKE.  [TAKE-PLATFORM P6, P13; D-03, D-21]
+   *
+   * PUBLIC FOR THE REASON `/take` IS, AND IT CARRIES LESS THAN
+   * ANY OF THEM. The page holds one fact — the address this
+   * installation is being reached on — which the person reading
+   * it typed into their own browser to get here. There is no
+   * store read, no list, and nothing about anybody's work.
+   *
+   * AND THE PEOPLE IT IS FOR HAVE NO ACCOUNT HERE BY
+   * CONSTRUCTION. A community, an artist or a publisher putting
+   * Take on their own website is not a user of this
+   * installation; a snippet page behind the sign-in gate is a
+   * snippet page for the one person who already has the link.
+   *
+   * ANCHORED EXACTLY. `embed` has no dot in it and so cannot be
+   * mistaken for the `<id>.<secret>` pattern above, but that
+   * pattern is matched first either way and anchoring both is
+   * what keeps that an accident rather than a dependency.
+   */
+  /^\/take\/embed\/?$/,
+  /*
+   * THE PROFILE.  [TAKE-PLATFORM P13, P22; D-03, D-25]
+   *
+   * PUBLIC FOR THE REASON THE LIBRARY IS, AND IT CARRIES EVEN
+   * LESS. There is no account on the Take App by construction,
+   * so a profile page behind a sign-in would be a profile page
+   * for the one person who does not need it. What it shows is
+   * the list of installations in THIS browser's storage, which
+   * the server has never heard of and cannot hand to anybody.
+   */
+  /^\/take\/profile\/?$/,
   /*
    * SPENDING A PAIRING CODE.  [TAKE-DESKTOP T-2, D-25]
    *

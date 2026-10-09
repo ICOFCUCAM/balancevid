@@ -28,6 +28,8 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
+import { installWay } from '../../src/domain/getTheApp.js';
+
 const ROOT = join(import.meta.dirname, '..', '..');
 const read = (file: string) => readFileSync(join(ROOT, file), 'utf8');
 /* Anchored, so a `https://` inside the source survives. */
@@ -365,6 +367,9 @@ describe('installing it', () => {
   });
 });
 
+const IPHONE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_1 like Mac OS X) '
+  + 'AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Mobile/15E148 Safari/604.1';
+
 describe('the chooser T2c was waiting for', () => {
   /*
    * "There is no app to open, so a chooser would offer one real door
@@ -384,7 +389,18 @@ describe('the chooser T2c was waiting for', () => {
    */
   it('shows nothing where it cannot install', () => {
     expect(OFFER).toMatch(/addEventListener\('beforeinstallprompt', caught\)/);
-    expect(BAR).toMatch(/if \(gone \|\| \(!offered && !teach\)\) return null/);
+    /*
+     * `teach` IS NO LONGER IN THIS CONDITION, and the bar shows
+     * MORE rather than less because of it. The iPhone sentence it
+     * used to carry in its own voice is now three steps from
+     * `installWay`, which also covers Android Firefox and every
+     * chat app's browser — the browsers this bar rendered nothing
+     * at all for, which is most of the ones invitations are
+     * opened in. The condition still refuses a browser with
+     * nothing to offer: no prompt and no way is still null.
+     * [getTheApp.ts, install-by-hand.test.ts]
+     */
+    expect(BAR).toMatch(/if \(gone \|\| \(!offered && !way\)\) return null/);
   });
 
   /* And never to somebody already running it: offering to install
@@ -413,8 +429,19 @@ describe('the chooser T2c was waiting for', () => {
    * holding, so it is told rather than left out.
    */
   it('tells an iPhone what to do instead', () => {
-    expect(BAR).toMatch(/Add to Home Screen/);
     expect(OFFER).toMatch(/iPad\|iPhone\|iPod/);
+    /*
+     * THE WORDS MOVED AND THE CLAIM DID NOT. They were a literal
+     * in this file; they are now the iOS answer of `installWay`,
+     * which is also how an Android and a chat browser get theirs.
+     * That the bar RENDERS them is asserted by rendering it, in
+     * `install-by-hand.test.ts` — a search of this source could
+     * not tell the difference between a surface that draws the
+     * steps and one with the feature switched off at its call
+     * site. [U-02]
+     */
+    expect(installWay(IPHONE_UA)?.steps.join(' ')).toMatch(/Add to Home Screen/);
+    expect(BAR).toMatch(/way\.steps\.map/);
   });
 
   /*

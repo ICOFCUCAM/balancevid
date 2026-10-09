@@ -30,8 +30,8 @@ import { useInstallOffer } from '../../useInstallOffer.js';
  */
 
 export default function InstallBar() {
-  const { offered, teach, gone, install, dismiss } = useInstallOffer();
-  if (gone || (!offered && !teach)) return null;
+  const { offered, gone, way, install, dismiss } = useInstallOffer();
+  if (gone || (!offered && !way)) return null;
 
   return (
     <div data-testid="take-install" style={{
@@ -40,11 +40,44 @@ export default function InstallBar() {
       border: '1px solid var(--line)', background: 'var(--console-control)',
     }}>
       <span className="small" style={{ lineHeight: 1.35 }}>
-        {teach && !offered
-          ? 'Add this to your home screen: tap Share, then “Add to Home Screen”.'
-          : 'Install this and it opens straight to your part — no browser bar, '
-            + 'and it finishes uploading after you lock your phone.'}
+        {offered
+          /* The browser has a real prompt to pass on. */
+          ? 'Install this and it opens straight to your part — no browser bar, '
+            + 'and it finishes uploading after you lock your phone.'
+          /*
+           * NOT "INSTALL THIS", WHICH NAMES A BUTTON THAT IS NOT
+           * THERE. Every other branch is a browser with no prompt
+           * to give, so the sentence promises what the steps below
+           * actually deliver and nothing more. The iPhone sentence
+           * this used to carry said the same thing in one line and
+           * now says it in three, from the one place that knows
+           * them. [U-19, getTheApp.ts]
+           */
+          : 'Keep this on your home screen and it opens straight to your '
+            + 'part, with no browser bar:'}
       </span>
+
+      {/*
+        * THE TAPS, FOR A BROWSER THAT WILL NOT PROMPT.
+        *   [getTheApp.ts, U-19, U-02]
+        *
+        * An invitation arrives in a message, and a message is
+        * opened in the chat app's own browser, which fires no
+        * install event and has no Add to Home screen of its own.
+        * This bar rendered nothing there. The steps are numbered
+        * because the first of them is getting OUT of that
+        * browser, and an unordered list would make that look
+        * optional.
+        */}
+      {way && (
+        <ol data-testid="take-install-way" data-on={way.on}
+            className="small" style={{
+              margin: '2px 0 0', paddingLeft: 18, lineHeight: 1.4,
+              opacity: 0.85,
+            }}>
+          {way.steps.map((step) => <li key={step}>{step}</li>)}
+        </ol>
+      )}
       {/*
         * TWO DOORS, AND THE SECOND ONE IS NOT A DISMISSAL DRESSED UP.
         * "Continue in browser" is what the brief calls it and what it

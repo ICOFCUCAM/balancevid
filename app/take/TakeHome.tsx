@@ -3,8 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import {
-  addConnection, asOrigin, askInstance, readConnections, removeConnection,
-  type Connection,
+  askInstance, readConnections, type Connection,
 } from './connections.js';
 import { type HomeCall, type Row, homeFrom } from './home.js';
 import { Standing } from '../go/Go.js';
@@ -15,6 +14,7 @@ import { type Mine, keepMine, readMine } from './mine.js';
 import { installWorker } from './[link]/queue.js';
 import { useInstallOffer } from '../useInstallOffer.js';
 import GetTheApp from './GetTheApp.js';
+import BottomBar from './BottomBar.js';
 
 /**
  * The Take App's home.  [TAKE-PLATFORM P1, P2, P3, P4, P5, P6, U5]
@@ -72,6 +72,18 @@ import GetTheApp from './GetTheApp.js';
  */
 const MARKS: Record<Row['kind'], IconName> = {
   music: 'music', video: 'play', programme: 'broadcast',
+};
+
+/**
+ * THE KIND, AS A READER'S WORD FOR IT.
+ *
+ * `kind` is how this product stores a track; Music, Video and
+ * Programme are what a person calls them. The mapping lives on
+ * the surface because the domain must not acquire an opinion
+ * about English — the same decision `/go` already made. [D-19]
+ */
+const KINDS: Record<Row['kind'], string> = {
+  music: 'Music', video: 'Video', programme: 'Programme',
 };
 
 const SECTIONS: { kind: Row['kind']; title: string; empty: string }[] = [
@@ -136,17 +148,24 @@ function TakeWorker() {
  * cannot install and on a phone that already has. [U-19, D-21]
  */
 function InstallTake() {
-  const { offered, teach, gone, install, dismiss } = useInstallOffer();
-  if (gone || (!offered && !teach)) return null;
-  if (teach && !offered) {
-    /* Safari has Add to Home Screen and no API for it, so it is told
-       rather than left out — in the share sheet's own words. */
-    return (
-      <span className="tk-bar-teach" data-testid="take-home-install-teach">
-        Share → Add to Home Screen
-      </span>
-    );
-  }
+  const { offered, gone, install, dismiss } = useInstallOffer();
+  if (gone || !offered) return null;
+  /*
+   * A CONTROL ONLY, AND THE SENTENCE SOMEWHERE ELSE.
+   *   [InstallSays below, U-02]
+   *
+   * THIS WAS FOUND BY LOOKING AT THE PAGE. The two text branches
+   * that used to live here — the iPhone's share-sheet line, and
+   * then the taps for every browser that will not prompt — are
+   * sentences, and a sentence in a 360px header is not a
+   * sentence: it squeezed the ident until the product's own name
+   * read "Bala…" above "WATCH…", with "Menu ⋮ → A…" wedged
+   * between them. The instruction was legible to nobody and it
+   * cost the name of the application.
+   *
+   * A BUTTON FITS A BAR BECAUSE IT IS TWO WORDS. Everything
+   * longer went to `InstallSays`, under the hero, at full width.
+   */
   return (
     <span className="tk-bar-install">
       <button type="button" className="tk-bar-way"
@@ -160,6 +179,37 @@ function InstallTake() {
         Not now
       </button>
     </span>
+  );
+}
+
+/**
+ * HOW TO KEEP THE APP, WHERE A SENTENCE FITS.
+ *   [getTheApp.ts; D-04, U-19, U-02]
+ *
+ * UNDER THE HERO AND ABOVE THE TABS, which is where a person
+ * looks after reading what this installation is and before
+ * choosing what to look at. It is one line on a page that has
+ * room for one, rather than three words of it in a bar that has
+ * room for none.
+ *
+ * AND IT IS STILL ABSENT WHEREVER THERE IS NOTHING TO SAY: a
+ * browser with a real prompt gets the button in the bar, a
+ * phone that already has the app gets neither, and a laptop
+ * gets nothing at all. The hook decides; this draws. [D-19]
+ */
+function InstallSays() {
+  const { teach, gone, way } = useInstallOffer();
+  if (gone || (!teach && !way)) return null;
+  const says = teach ? 'Share \u2192 Add to Home Screen' : way!.says;
+  return (
+    <p className="tk-keep" data-testid="take-home-install-way"
+       data-on={teach ? 'ios' : way!.on}>
+      <Icon name="plus" size={13} />
+      <span>
+        <span className="tk-keep-lead">Keep this app on your phone</span>
+        <span className="tk-keep-how">{says}</span>
+      </span>
+    </p>
   );
 }
 
@@ -178,6 +228,8 @@ export default function TakeHome() {
   const [mine, setMine] = useState<Mine[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [said, setSaid] = useState<string | null>(null);
+  /* Whether the bar's search icon has opened the field. */
+  const [seeking, setSeeking] = useState(false);
 
   useEffect(() => { setMine(readMine()); }, []);
 
@@ -199,7 +251,6 @@ export default function TakeHome() {
    */
   const [connections, setConnections] = useState<Connection[]>([]);
   const [asleep, setAsleep] = useState<string[]>([]);
-  const [adding, setAdding] = useState('');
   /*
    * WHAT IS BEING LOOKED FOR, which narrows every shelf at once
    * rather than only the one it sits over. Somebody typing
@@ -259,26 +310,13 @@ export default function TakeHome() {
     return () => { alive = false; };
   }, [loaded]);
 
-  /* Adding one is asking it what it is called; a place that cannot
-     answer is not one to put in a list. */
-  const add = useCallback(async () => {
-    setSaid(null);
-    const origin = asOrigin(adding);
-    if (!origin) { setSaid('that does not look like a BalanceVid address'); return; }
-    const answer = await askInstance(origin);
-    if (!answer) {
-      setSaid('nothing answered there, or it is not open to this app');
-      return;
-    }
-    setConnections(addConnection({ ...answer.instance, addedAt: new Date().toISOString() }));
-    setAdding('');
-    setLoaded((was) => was + 1);
-  }, [adding]);
-
-  const forget = useCallback((origin: string) => {
-    setConnections(removeConnection(origin));
-    setLoaded((was) => was + 1);
-  }, []);
+  /*
+   * ADDING AND FORGETTING AN INSTALLATION LEFT WITH THE LIST.
+   * They are `Connections.tsx`'s now, which is the only place
+   * that draws them — a second copy of "ask it what it is
+   * called, and refuse a place that cannot answer" is the copy
+   * that quietly loses somebody's studio. [D-19]
+   */
 
   /*
    * TAKING PART, WHICH MINTS THE SAME OBJECT A PRODUCER MINTS.
@@ -299,10 +337,29 @@ export default function TakeHome() {
   ]);
   const tabs = TABS.filter(
     (one) => one.kinds === null || one.kinds.some((kind) => held.has(kind)));
+  /*
+   * AND A CHIP THAT LEAVES THE PAGE IS NEVER THE ONE THE PAGE
+   * IS FILTERED BY. `chosen` falls back to `all` for anything
+   * not in the filter set, which the line below already does —
+   * this is the same rule said where somebody adding a sixth
+   * entry will read it.
+   */
   /* A tab that was chosen and then emptied — the last call
      closed while the page was open — falls back rather than
      leaving a page with nothing on it. [U-19] */
   const chosen = tabs.some((one) => one.id === showing) ? showing : 'all';
+  /*
+   * THE FOUR NEWEST THINGS, newest first. `publishedAt` is an
+   * ISO string on every row, so the comparison is the string's
+   * — and a row without one sorts last rather than throwing,
+   * because an older installation that never sent the field is
+   * a row this app still has to draw. [V-8]
+   */
+  const latest = [...(rows ?? [])]
+    .filter((row) => row.kind !== 'programme')
+    .sort((a, b) => (b.publishedAt ?? '').localeCompare(a.publishedAt ?? ''))
+    .slice(0, 4);
+
   const shows = (kind: string) => {
     const tab = TABS.find((one) => one.id === chosen)!;
     return tab.kinds === null || (tab.kinds as readonly string[]).includes(kind);
@@ -354,17 +411,52 @@ export default function TakeHome() {
         * person may arrive at either one first. [N-4]
         */}
       <TakeWorker />
+      {/*
+        * THE WORDMARK, AS THE UPLOADED HOMEPAGE DRAWS IT.
+        *   [the uploaded Take homepage; D-04]
+        *
+        * `Balance` in ink and `Vid` in gold, serif, with TAKE
+        * beneath it in wide capitals — and no square mark beside
+        * it. The mark was a microphone in a blue tile, which is
+        * the same idea the wordmark already carries and half the
+        * width of a 360px header spent saying it twice.
+        */}
       <header className="tk-bar">
         <span className="tk-ident">
-          <span aria-hidden="true" className="tk-ident-mark">
-            <Icon name="mic" size={16} />
-          </span>
           <span style={{ minWidth: 0 }}>
-            <span className="tk-ident-name">BalanceVid</span>
-            <span className="tk-ident-says">Watch · Listen · Take part</span>
+            <span className="tk-ident-name">
+              Balance<span className="tk-ident-vid">Vid</span>
+            </span>
+            {/*
+              * "TAKE", AND NOT A THREE-WORD STRAPLINE.
+              *   [the uploaded homepage; D-19, U-02]
+              *
+              * "Watch · Listen · Take part" wrapped onto a second
+              * line at 360px and made the header two rows tall —
+              * measured on the built page, not guessed. The
+              * uploaded design names the application the way its
+              * own audience does: BalanceVid, and under it TAKE.
+              * One word, which is also the one a person says when
+              * they tell somebody else what to open.
+              */}
+            <span className="tk-ident-says">Take</span>
           </span>
         </span>
         <InstallTake />
+        {/*
+          * SEARCH MOVES INTO THE BAR, where the uploaded design
+          * puts it, and out of the photograph. A field across the
+          * hero covers the picture it is drawn on and is the only
+          * control on the page a person touches by accident while
+          * scrolling. The icon opens it. [D-04]
+          */}
+        <button type="button" className="tk-bar-icon"
+                data-testid="take-find-open"
+                aria-expanded={finding !== '' || seeking}
+                aria-label="Find a channel or a song"
+                onClick={() => setSeeking((was) => !was)}>
+          <Icon name="search" size={17} />
+        </button>
         {/* THE WAY TO THE NETWORK, because somebody who arrives
             here to record may well want to watch. [D-04] */}
         <a className="tk-bar-way" href="/tv">
@@ -386,16 +478,51 @@ export default function TakeHome() {
         * way to cut it down. The television pages solved both
         * with a band and a field; this is the same two.
         */}
+      {(seeking || finding !== '') && (
+        <div className="tk-seek">
+          <label className="tk-find">
+            <Icon name="search" size={16} />
+            <input value={finding} data-testid="take-find"
+                   placeholder="Find a channel or a song"
+                   aria-label="Find a channel or a song"
+                   onChange={(event) => setFinding(event.target.value)} />
+            {finding && (
+              <button type="button" className="tk-find-clear"
+                      aria-label="Clear" onClick={() => setFinding('')}>
+                <Icon name="close" size={13} />
+              </button>
+            )}
+          </label>
+        </div>
+      )}
+
       <div className="tk-hero">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img alt="" src={NETWORK_ART.hero}
-             style={{ objectPosition: NETWORK_ART.heroFocus }} />
+        <img alt="" src={NETWORK_ART.take}
+             style={{ objectPosition: NETWORK_ART.takeFocus }} />
         <span aria-hidden="true" className="tk-hero-wash" />
         <div className="tk-hero-said">
-          <p className="tk-hero-kicker">Welcome to</p>
-          <h1 className="tk-hero-lead">
+          {/*
+            * THE INSTALLATION'S NAME IS THE KICKER NOW, AND THE
+            * HEADLINE IS A VERB.  [the uploaded design; P13, D-04]
+            *
+            * It read "WELCOME TO / Owner", which gives the
+            * largest words on the page to the name of a server.
+            * The uploaded homepage leads on *Start a Take* — an
+            * action, in the imperative — and that is right for
+            * a page most people reach from a message asking
+            * them to record something.
+            *
+            * THE NAME DOES NOT GO AWAY, because one Take App
+            * speaks to many independent installations and a
+            * person must never be unsure whose they are looking
+            * at. It moves to the line above, where it belongs:
+            * context, not headline. [P13, P22]
+            */}
+          <p className="tk-hero-kicker">
             {whereIAm?.name ?? 'BalanceVid'}
-          </h1>
+          </p>
+          <h1 className="tk-hero-lead">Start a Take</h1>
           {/*
             * WHO THIS IS FOR, SAID IN ONE LINE.
             *
@@ -417,9 +544,43 @@ export default function TakeHome() {
             * people already know how to do.
             */}
           <p className="tk-hero-under">
-            Record a service, a programme or a song on your phone and send it
-            straight to the studio. Watch what is on while you wait.
+            Record, respond, perform — a service, a programme or a song, on
+            your phone, sent straight to the studio.
           </p>
+
+          {/*
+            * AND THE BUTTON THE HEADLINE PROMISES.
+            *   [the uploaded homepage; D-21, U-19]
+            *
+            * A hero that says *Start a Take* over a page with
+            * nothing open to take part in is a shop window on
+            * an empty shop. So the button is drawn only when
+            * this installation actually has an open call, and
+            * what it does is take the reader to them — the
+            * shelf is already on this page, fetched, so it
+            * selects it rather than loading a second screen.
+            *
+            * NOT A LINK TO A RECORDER, because there is no
+            * recorder to go to without an invitation: `/take/
+            * <link>` needs a request the server issued. The
+            * honest first step is choosing something to take
+            * part in, and that is what this does. [T2a]
+            */}
+          {calls.length > 0 && (
+            <button type="button" className="tk-hero-go"
+                    data-testid="hero-start"
+                    onClick={() => {
+                      setShowing('calls');
+                      document.querySelector('[data-testid="section-calls"]')
+                        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }}>
+              <Icon name="camera" size={15} />
+              Start a Take
+              <span aria-hidden="true" className="tk-hero-go-on">
+                <Icon name="arrow" size={15} />
+              </span>
+            </button>
+          )}
           {/*
             * THE FIELD NARROWS WHAT IS ALREADY HERE RATHER THAN
             * ASKING THE SERVER AGAIN. Everything on this page has
@@ -428,19 +589,7 @@ export default function TakeHome() {
             * the filter and would not work on a bad connection,
             * which is the connection this app is for. [D-19]
             */}
-          <label className="tk-find">
-            <Icon name="search" size={16} />
-            <input value={finding} data-testid="take-find"
-                   placeholder="Find a channel or a song"
-                   aria-label="Find a channel or a song"
-                   onChange={(event) => setFinding(event.target.value)} />
-            {finding && (
-              <button type="button" className="tk-find-clear"
-                      aria-label="Clear" onClick={() => setFinding('')}>
-                <Icon name="close" size={13} />
-              </button>
-            )}
-          </label>
+{/* The field itself is below the bar now. [header] */}
         </div>
       </div>
 
@@ -461,16 +610,59 @@ export default function TakeHome() {
         * [D-21]
         */}
       <nav className="tk-tabs" data-testid="take-tabs" aria-label="What to show">
-        {tabs.map((one) => (
-          <button key={one.id} type="button" className="tk-tab"
-                  data-testid="take-tab"
-                  aria-pressed={chosen === one.id}
-                  onClick={() => setShowing(one.id)}>
-            <Icon name={one.mark} size={14} />
-            {one.says}
-          </button>
-        ))}
+        {/*
+          * MUSIC · VIDEO · ONLINE TV · GO VIRAL, which is the
+          * uploaded design's four exactly.
+          *
+          * `all` is not a tile because it is the page you are
+          * already on, and `calls` is not one because Take Part
+          * is the raised tab in the bar below — a row of five
+          * with two of them saying what the bar says is a row
+          * nobody reads. [D-04]
+          */}
+        {tabs.filter((one) => one.id !== 'all' && one.id !== 'calls')
+          .map((one) => {
+          /*
+           * THE LINK IS CHECKED FIRST, and that order is the
+           * whole of it: a renderer that returns the button
+           * before looking at `href` draws a control that does
+           * nothing, passes every test, and is found only by
+           * pressing it. [StudioBar.tsx, U-02]
+           */
+          const to = 'href' in one ? one.href : undefined;
+          if (to) {
+            return (
+              <a key={one.id} className="tk-tab" href={to}
+                 data-testid="take-tab" data-goes="away" data-of={one.id}>
+                <Icon name={one.mark} size={20} />
+                <span className="tk-tab-says">
+                  {one.says}
+                  <span aria-hidden="true" className="tk-tab-on">
+                    <Icon name="chevron" size={12} />
+                  </span>
+                </span>
+              </a>
+            );
+          }
+          return (
+            <button key={one.id} type="button" className="tk-tab"
+                    data-testid="take-tab" data-of={one.id}
+                    aria-pressed={chosen === one.id}
+                    onClick={() => setShowing(
+                      chosen === one.id ? 'all' : one.id)}>
+              <Icon name={one.mark} size={20} />
+              <span className="tk-tab-says">
+                {one.says}
+                <span aria-hidden="true" className="tk-tab-on">
+                  <Icon name="chevron" size={12} />
+                </span>
+              </span>
+            </button>
+          );
+        })}
       </nav>
+
+      <InstallSays />
 
       <main className="tk-main">
 
@@ -618,7 +810,83 @@ export default function TakeHome() {
           <p className="tk-note">Looking…</p>
         )}
 
+        {/*
+          * THE NEWEST THINGS TO TAKE PART IN.
+          *   [the uploaded homepage; U-19, D-21]
+          *
+          * Where the uploaded design has *Trending Takes*, with
+          * four thumbnails under "3.2K views". This product
+          * counts no views anywhere — there is no counter, no
+          * event, no column — so the row is the same shape with
+          * the one thing it can say truthfully: what was
+          * published most recently, and by whom. Inventing the
+          * numbers would be the single most quotable lie on the
+          * page. [U-19]
+          *
+          * SORTED BY `publishedAt`, which every row carries, and
+          * four of them, which is what the design draws.
+          */}
+        {rows !== null && chosen === 'all' && latest.length > 0 && (
+          <section className="tk-shelf" data-testid="section-latest">
+            <div className="tk-shelf-head">
+              <h2 className="tk-shelf-title">Latest</h2>
+            </div>
+            <div className="tk-fresh">
+              {latest.map((row) => (
+                <a key={row.id} className="tk-fresh-one"
+                   data-testid="participate-row" data-kind={row.kind}
+                   data-state={row.state}
+                   href={`${isElsewhere(row) ? row.from!.origin : ''}${row.watch}`}>
+                  <span aria-hidden="true" className="tk-fresh-art"
+                        style={identityFor(row.slug ?? row.id)} />
+                  <span className="tk-call-kind" data-about={row.kind}>
+                    <Icon name={MARKS[row.kind]} size={11} />
+                    {KINDS[row.kind]}
+                  </span>
+                  <span className="tk-fresh-name">{row.title}</span>
+                  <span className="tk-fresh-under">
+                    {row.author ?? (row.respondable ? 'Open for takes' : 'Published')}
+                  </span>
+                </a>
+              ))}
+            </div>
+          </section>
+        )}
+
         {rows !== null && SECTIONS.filter((section) => shows(section.kind))
+          /*
+           * AND AN EMPTY KIND IS NOT A HEADING.  [D-04, D-21]
+           *
+           * On the everything view, "Music — no songs are open
+           * for takes here yet" is a heading with nothing under
+           * it, and this product's own rule about those applies
+           * to its own app. It was also saying it directly under
+           * an open MUSIC call, which reads as a contradiction
+           * whatever the two sentences technically mean.
+           *
+           * ASKED FOR BY NAME, IT STILL ANSWERS. Somebody who
+           * presses Music is owed a reply even when the reply is
+           * "nothing yet" — they asked, and silence would look
+           * like a page that failed to load. [U-19]
+           */
+          .filter((section) => chosen !== 'all'
+            || (rows ?? []).some((row) => row.kind === section.kind))
+          /*
+           * AND ON THE EVERYTHING VIEW, MUSIC AND VIDEO ARE ONE
+           * SHELF.  [the uploaded homepage; D-04]
+           *
+           * The uploaded design has no per-kind sections on its
+           * home at all — it has Live Now and a row of recent
+           * work, and the kinds are the four tiles above. Two
+           * half-empty shelves headed Music and Video said less
+           * than one shelf of the four newest things, and said
+           * it twice as far down the page.
+           *
+           * ASKED FOR BY NAME, THE SHELF COMES BACK. Pressing
+           * Music still gives the music shelf with its own
+           * heading and its own empty sentence.
+           */
+          .filter((section) => chosen !== 'all' || section.kind === 'programme')
           .map((section) => {
           const found = rows
             .filter((row) => row.kind === section.kind)
@@ -627,7 +895,22 @@ export default function TakeHome() {
             <section key={section.kind} className="tk-shelf"
                      data-testid={`section-${section.kind}`}>
               <div className="tk-shelf-head">
-                <h2 className="tk-shelf-title">{section.title}</h2>
+                {/*
+                  * "LIVE NOW" WHEN SOMETHING IS, AND ONLY THEN.
+                  *   [the uploaded homepage; U-19, D-21]
+                  *
+                  * The uploaded design leads this shelf with
+                  * *Live Now*, which is the right words on a day
+                  * when a channel is taking a feed and a lie on
+                  * every other. The heading follows the fact:
+                  * the shelf is `Live now` while any row in it
+                  * is live and `Online TV` when none is.
+                  */}
+                <h2 className="tk-shelf-title">
+                  {section.kind === 'programme' && found.some((one) => one.live)
+                    ? 'Live now'
+                    : section.title}
+                </h2>
                 {found.length > 0 && (
                   <span className="tk-shelf-count">{found.length}</span>
                 )}
@@ -834,84 +1117,66 @@ export default function TakeHome() {
         })}
 
         {/*
-          * THE INSTALLATIONS THIS DEVICE KNOWS.  [U3, P22, P23, P25]
+          * THE INSTALLATIONS THIS DEVICE KNOWS HAVE MOVED TO THE
+          * PROFILE.  [Connections.tsx; D-04]
           *
-          * Last, because a first-time visitor is here to find a song
-          * and not to manage a list — and the list is empty for them
-          * anyway. A musician with three production companies is the
-          * person this section is for, and they will come looking.
+          * Both uploaded designs put them on a fifth screen, and
+          * both are right: somebody opening this page for the
+          * first time is looking for something to sing, and the
+          * list is empty for them anyway. It is one tap away in
+          * the bar, which is where a musician with three
+          * production companies will go looking for it.
+          */}
+
+        {/*
+          * AND THE WAY TO PUT THIS ON A WEBSITE.
+          *   [TAKE-PLATFORM P6, P13; embed.ts]
+          *
+          * > *"Bring participation to your website."*
+          *
+          * ON THE HOME SCREEN AND NOT ONLY IN A SETTINGS PAGE,
+          * which is the benchmark's own decision and the right
+          * one: the person who runs a choir, a station or a
+          * label is looking at this app on their phone when it
+          * occurs to them that their own site should carry it.
+          * A snippet page they have to go looking for is a
+          * snippet page nobody finds.
+          *
+          * ONE ROW, under the installations and above the line
+          * about what stays where, because it belongs to the
+          * same subject — which installation this is, and how
+          * other people reach it. [D-04]
           */}
         {chosen === 'all' && (
-        <section className="tk-shelf" data-testid="section-instances">
-          <div className="tk-shelf-head">
-            <h2 className="tk-shelf-title">Where you take part</h2>
-          </div>
-          <ul className="tk-rows">
-            <li className="tk-row" data-testid="instance-here">
-              <span aria-hidden="true" className="tk-row-mark">
-                <Icon name="home" size={16} />
+          <section className="tk-shelf" data-testid="section-embed">
+            {/*
+              * A BAND AND NOT A ROW, which the uploaded homepage
+              * gets right: this is the only thing on the page
+              * addressed to the person who RUNS something rather
+              * than to the person taking part, and a band is how
+              * a page says "this part is for somebody else".
+              */}
+            <div className="tk-band">
+              <span aria-hidden="true" className="tk-band-mark">
+                <Icon name="link" size={18} />
               </span>
-              <span className="tk-row-said">
-                <span className="tk-row-name">
-                  {whereIAm?.name ?? 'This installation'}
+              <span className="tk-band-said">
+                <span className="tk-band-name">Embed Take</span>
+                <span className="tk-band-under">
+                  Let your audience record and send from your own website.
                 </span>
-                <span className="tk-row-under">you are here</span>
               </span>
-            </li>
-            {connections
-              .filter((one) => one.origin !== origin)
-              .map((one) => (
-                <li key={one.origin} data-testid="instance-row"
-                    className="tk-row">
-                  <span aria-hidden="true" className="tk-row-mark"
-                        data-asleep={asleep.includes(one.origin) ? 'true' : 'false'}>
-                    <Icon name="link" size={16} />
-                  </span>
-                  <div className="tk-row-said">
-                    <div className="tk-row-name">{one.name}</div>
-                    <div className="tk-row-under">
-                      {asleep.includes(one.origin)
-                        ? 'not answering just now'
-                        : one.origin.replace(/^https?:\/\//, '')}
-                    </div>
-                  </div>
-                  <button type="button" className="tk-quiet"
-                          data-testid="instance-forget"
-                          title="Forget this installation on this device"
-                          onClick={() => forget(one.origin)}>
-                    Forget
-                  </button>
-                </li>
-              ))}
-          </ul>
-          <div className="tk-field">
-            <input data-testid="instance-add"
-                   placeholder="Add another BalanceVid"
-                   aria-label="The address of another BalanceVid"
-                   value={adding}
-                   onChange={(event) => setAdding(event.target.value)}
-                   onKeyDown={(event) => { if (event.key === 'Enter') void add(); }} />
-            <button type="button" className="tk-go"
-                    data-testid="instance-add-go"
-                    disabled={!adding.trim()}
-                    onClick={() => void add()}>
-              Add
-            </button>
-          </div>
-        </section>
+              <a className="tk-band-go" data-testid="embed-way"
+                 href="/take/embed">
+                Get embed code
+                <Icon name="arrow" size={14} />
+              </a>
+            </div>
+          </section>
         )}
 
-        <p className="tk-note">
-          {/*
-            * WHOSE INSTALLATION THIS IS, said plainly. One Take App
-            * speaks to many independent BalanceVid installations, and a
-            * person who has taken part in three of them should never be
-            * unsure which one they are looking at. [P13, P22]
-            */}
-          Every BalanceVid keeps its own productions. What you record for
-          one of them stays with them, and this list is on your device
-          alone.
-        </p>
+        {/* The line about whose productions these are went with
+            the list it was about, to the Profile. [P13, P22] */}
 
         {/*
           * AND THE WAY TO HAVE THIS AS AN APP, for the browsers
@@ -925,57 +1190,7 @@ export default function TakeHome() {
         <GetTheApp />
       </main>
 
-      {/*
-        * A BOTTOM BAR, WHICH IS WHAT AN APP HAS.  [D-04]
-        *
-        * EVERY TAB GOES SOMEWHERE THAT EXISTS. The design this
-        * was built against carries Home, Discover, Take Part, My
-        * Takes and Library; three of those are pages this
-        * product has and two are not, so three are drawn. A bar
-        * with a dead tab in it is worse than a bar with three
-        * live ones. [D-21]
-        *
-        * TAKE PART IS THE RAISED ONE because it is the verb the
-        * whole application is named for — and it goes to the
-        * calls, which is where taking part starts.
-        */}
-      <nav className="tk-bottom" aria-label="Where to go"
-           data-testid="take-bottom">
-        <a className="tk-bottom-way" href="/take" aria-current="page">
-          <Icon name="home" size={19} />
-          Home
-        </a>
-        <a className="tk-bottom-way" href="/tv">
-          <Icon name="broadcast" size={19} />
-          Watch
-        </a>
-        <a className="tk-bottom-go" href="/go">
-          <span aria-hidden="true" className="tk-bottom-go-mark">
-            <Icon name="plus" size={20} />
-          </span>
-          Take Part
-        </a>
-        <a className="tk-bottom-way" href="/tv/guide">
-          <Icon name="calendar" size={19} />
-          Guide
-        </a>
-        {/*
-          * LIBRARY, WHERE *MINE* WAS.  [T16]
-          *
-          * The last slot pointed at `/tv/favorites`, which is
-          * the television's list of channels somebody follows
-          * — a useful page and not this person's own work. The
-          * word under it was *Mine*, which is what the Library
-          * is: the finished pieces a studio made with their
-          * take in them, and every link this phone holds. The
-          * favourites are one tap away on the television pages
-          * where they belong. [D-04]
-          */}
-        <a className="tk-bottom-way" href="/take/library">
-          <Icon name="library" size={19} />
-          Library
-        </a>
-      </nav>
+      <BottomBar here="/take" />
     </div>
   );
 }
@@ -1039,12 +1254,34 @@ function aboutSays(kind: string): { says: string; mark: IconName } {
  * names the shelves it keeps, and a tab whose shelves are all
  * empty is not offered at all. [D-21]
  */
+/**
+ * THE ROW UNDER THE HERO.  [the uploaded homepage; D-04, D-21]
+ *
+ * > Music · Video · Online TV · Go Viral
+ *
+ * FOUR OF THE FIVE FILTER THIS PAGE and the fifth leaves it,
+ * which is the one thing the uploaded design does not have to
+ * think about and this row does. Go Viral is a separate service
+ * with its own page, its own deadlines and its own terms; a
+ * chip that pretended to filter it would filter nothing,
+ * because no campaign is listed here at all.
+ *
+ * SO `href` MARKS THE DIFFERENCE, and the renderer draws an
+ * anchor for it rather than a button. That distinction has bitten
+ * this product before: the studio bar's fix was inert for a day
+ * because the renderer returned a `<span>` before it ever looked
+ * at the link. It is checked in a browser below. [U-02]
+ */
 const TABS = [
   { id: 'all', says: 'For You', mark: 'home' as IconName, kinds: null },
   { id: 'calls', says: 'Take Part', mark: 'live' as IconName, kinds: ['calls'] },
-  { id: 'tv', says: 'Live TV', mark: 'broadcast' as IconName, kinds: ['programme'] },
   { id: 'music', says: 'Music', mark: 'music' as IconName, kinds: ['music'] },
   { id: 'video', says: 'Video', mark: 'play' as IconName, kinds: ['video'] },
+  { id: 'tv', says: 'Online TV', mark: 'broadcast' as IconName, kinds: ['programme'] },
+  {
+    id: 'go', says: 'Go Viral', mark: 'distribution' as IconName,
+    kinds: null, href: '/go',
+  },
 ] as const;
 type TabId = (typeof TABS)[number]['id'];
 

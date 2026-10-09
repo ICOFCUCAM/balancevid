@@ -36,6 +36,28 @@ const code = (file: string) => readFileSync(join(ROOT, file), 'utf8')
   .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/[^\n]*/gm, '');
 
 const HOME = code('app/take/TakeHome.tsx');
+/*
+ * THE INSTALLATIONS A DEVICE TAKES PART IN, WHICH LEFT THIS PAGE.
+ *   [Connections.tsx; D-04, D-19]
+ *
+ * Both uploaded designs put that list on a Profile screen, and
+ * both are right: somebody opening the Take App for the first
+ * time is looking for something to sing, and the list is empty
+ * for them anyway. The claims below did not change — a person
+ * must still be told whose installation this is, and a studio
+ * that is merely asleep must still be shown rather than dropped
+ * — so they follow the surface rather than being deleted with
+ * it.
+ */
+const CONNECTIONS = code('app/take/Connections.tsx');
+/*
+ * AND THE BAR, which is where every screen's way to every other
+ * screen now lives. It was written inline in the home, so the
+ * Library and the Profile had none — a person who opened their
+ * own work could get back only by the browser's button, and an
+ * installed app has no browser button. [D-19, BottomBar.tsx]
+ */
+const BAR = code('app/take/BottomBar.tsx');
 const PAGE = code('app/take/page.tsx');
 const CLAIM = code('app/api/participate/[kind]/[id]/route.ts');
 /*
@@ -427,9 +449,12 @@ describe('the page itself says nothing', () => {
      * tell a musician with three production companies that the three
      * are one place.
      */
-    expect(HOME).toMatch(/Every BalanceVid keeps its own productions/);
-    expect(HOME).toMatch(/this list is on your device/);
-    expect(HOME).not.toMatch(/one BalanceVid installation/);
+    expect(CONNECTIONS).toMatch(/Every BalanceVid keeps its own productions/);
+    expect(CONNECTIONS).toMatch(/this list is on your device/);
+    expect(CONNECTIONS).not.toMatch(/one BalanceVid installation/);
+    /* And the page that carries it is one tap from every screen. */
+    expect(BAR).toMatch(/href="\/take\/profile"/);
+    expect(HOME).toMatch(/<BottomBar here="\/take" \/>/);
   });
 });
 
@@ -721,9 +746,11 @@ describe('many installations, one app', () => {
    * imagined adding it. [U-19, P20]
    */
   it('says when an installation is not answering', () => {
-    expect(HOME).toMatch(/not answering just now/);
-    /* The list it draws comes from the merge, which answers for
-       itself in `take-network.test.ts`. [GO-VIRAL V-8] */
+    expect(CONNECTIONS).toMatch(/not answering just now/);
+    expect(CONNECTIONS).toMatch(/setAsleep\(/);
+    /* The home still merges what the others answered, which is a
+       different claim and answers for itself in
+       `take-network.test.ts`. [GO-VIRAL V-8] */
     expect(HOME).toMatch(/setAsleep\(all\.asleep\)/);
   });
 

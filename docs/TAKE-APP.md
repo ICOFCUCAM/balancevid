@@ -994,3 +994,190 @@ production id.
   distribution channel, not a product change, and it is the only part of
   T13a that this repository cannot reach. Everything the row said such a
   client would *add* is built and verified above.
+
+## The fourth pass: the browser that offers nothing
+
+*Run 2026-10-09, after the question "I thought you want to give a better
+link to access the take app?" The answer to the question is one line —
+`<your installation>/take`, public, no account — and checking that the
+link actually works for the person it is for turned up a hole three
+screens wide.*
+
+### What was measured
+
+A chat app's browser on Android (`FB_IAB`, a Samsung A13, the phone and
+the browser most invitations are actually opened in) was driven through
+the built product with `beforeinstallprompt` suppressed, because that
+event never fires there:
+
+| Screen | What it offered |
+| --- | --- |
+| `/take` | no install control at all, and that is CORRECT — `InstallTake` renders nothing where the browser gives it nothing, because a control that cannot act looks like a fault |
+| the one door left | the quiet "Get the Take App" line at the foot of the page, which leads to `/downloads` |
+| `/downloads` | card 01, "Take App … installs to your home screen from the app itself", linking to `/take` |
+
+Three screens, no instruction, and the person is standing where they
+started. Every part of that circle was built correctly and defended by a
+test. The hole was between them.
+
+### What it is now
+
+`installWay(userAgent)` in `src/domain/getTheApp.ts` names the two or
+three motions that put the page on a home screen, in the words the
+phone's own menu uses: get out of the chat browser first, then the menu,
+then Add to Home screen; the share sheet on an iPhone; `null` on a
+laptop, where there is no home screen to add to. `useInstallOffer` hands
+it to a surface only after the browser has stayed silent for
+`PATIENCE` (1500 ms), so a browser that WILL prompt is never caught
+giving instructions first, and never where the app is already installed.
+
+Four surfaces draw it, each in its own form: the Take App's header and
+the television network's show the one line; the invitation page and the
+download centre show the steps.
+
+| Browser | `/take` | `/downloads` |
+| --- | --- | --- |
+| Android, inside a chat app | "Open this page in your browser first" | the same, with three steps |
+| Android Firefox | "Menu ⋮ → Add to Home screen" | the same, with three steps |
+| iPhone Safari | "Share → Add to Home Screen" | the share sheet, with three steps |
+| a laptop | nothing | nothing |
+
+**A SNIFF, DELIBERATELY, AND IT DOES NOT CONTRADICT THE RULE BESIDE IT.**
+`GetTheApp` is forbidden from guessing a phone, and still is: that rule
+is about offering a FILE the installation may not have, where being
+wrong is a dead link. This guesses a phone to name a MENU, where being
+wrong costs a sentence that does not match. The honest answer where it
+cannot tell is `null`.
+
+### Two things this pass changed about how it is tested
+
+**The iPhone found a second hole, which the first fix had made.** `way`
+was withheld wherever `teach` (iOS Safari) was true, on the assumption
+that every surface carried its own iOS sentence. Two do. The download
+centre — the page that exists to end the circle — does not, so an iPhone
+arriving there was shown nothing while an Android was given three steps.
+Found by driving an iPhone through the built pages, not by reading the
+hook.
+
+**Source-text tests could not see any of it.** Nine mutations were run
+against the first version, and two survived with the feature switched
+off at its call site: `{false && <HowToKeepIt />}` leaves every string
+in the file. `vitest.config.ts` now sets `esbuild: { jsx: 'automatic' }`,
+and `test/domain/install-by-hand.test.ts` RENDERS each of the four
+surfaces with `renderToStaticMarkup` and reads what came out. Of the
+twenty-two mutations run in all, the last round killed every one;
+three earlier survivors were resolved by DELETING a guard that no
+mutation could reach — each one re-asking a question the hook had
+already answered — rather than by writing a test around it.
+
+## The fifth pass: measured against the uploaded Take Mobile
+
+*Run 2026-10-09, against `public/balancevid-take-premium-system(4).html`
+— an upgraded Take Mobile design uploaded to `main` as a benchmark, with
+the instruction: integrate the app system into it, do not alter the Take
+camera interface, and screenshot as you build.*
+
+### How it was read
+
+Every screen of the uploaded design was rendered at 360×740 and
+photographed: `home`, `discover`, `record`, `takes`, `viral`, `inbox`,
+`profile` and the `embed` band. Its stylesheet was read for the tokens
+(ivory `#f5f2eb`, ink `#111a24`, blue `#163f70`, gold `#d9b76e`, Georgia
+display at −0.055em, 5px radii) and its structure for the information
+architecture. Then each element was matched against what this product
+already has.
+
+### The table
+
+| The benchmark | Here | Evidence |
+| --- | --- | --- |
+| Bottom bar: Home · Discover · ◆Take · My Takes · Profile | **HAVE**, with this product's destinations: Home · Watch · ◆Take Part · Guide · Library | every tab goes to a page that exists, which is the rule the bar was built under |
+| Hero: photograph, kicker, serif headline, two actions | **HAVE** | `.tk-hero`, built in the Take App redesign |
+| Search across everything | **HAVE** | `tk-find`, filters the page rather than navigating |
+| Format chips (Music · Video · Online TV · Go Viral) | **PARTIAL** — For You · Take Part · Live TV | Go Viral is a bottom-bar destination here, not a chip |
+| Cards with a kind tag and a call to action | **HAVE** | `.tk-call`, with the kind colour measured on both grounds |
+| **Embed band on the home screen** | **BUILT THIS PASS** | `section-embed` |
+| **Embed page: public link, copy, embed code, preview** | **BUILT THIS PASS** | `/take/embed` |
+| Discover: many independent studios, manage connections | **HAVE** | `section-instances` — add, forget, and an installation that is not answering stays visible as asleep |
+| Record: camera control, choose an experience, before you send | **HAVE, AND NOT TOUCHED** | the benchmark's own screen says *"Prototype camera preview only. Recording and submission must be connected to the existing BalanceVid recording engine"* |
+| **My Takes: Drafts · Sent to studio · Published** | **BUILT THIS PASS** | four shelves, from data the page already fetched |
+| Go Viral: campaigns, and creator rights before submission | **HAVE** | `/go`, with consent recorded against a terms hash so an organiser improving their wording cannot invalidate an entry already made |
+| Inbox: submissions, requests, campaign updates | **DECLINED, with the reason on the record** | the benchmark's own screen says *"illustrative preview items until connected to the production notification service"*. There is no such service here. Three headings over invented rows is the gateway's four dead cards again |
+| Profile: connections, this installation, embed, privacy, status | **PARTIAL** — the pieces are on the home screen, there is no profile page | there is no account to have a profile of: the Take App has never had a sign-in |
+| Art direction: ivory, navy, gold, Georgia display, 5px radii | **DIFFERENT, AND NOT REPLACED** | this app's palette carries measured contrast on two grounds (`--kind-video` at 6.21:1 dark and 6.30:1 lit, among others). Re-skinning 2,137 lines of measured stylesheet is not an upgrade, and was not what was asked |
+
+### What was built
+
+**Embed Take** — `/take/embed`, public, reached from the home screen.
+Two ways, the one that always works offered first:
+
+* **A link.** One anchor and inline style, because it is pasted into a
+  page whose stylesheet this product has never seen. No class to collide
+  with somebody's `.button`, no `<style>` block to leak the other way.
+* **The app, inside your page.** An iframe with
+  `allow="camera; microphone; fullscreen"` — without which the record
+  button inside the frame silently does nothing.
+
+Neither is a script. A publisher pasting a `<script>` from another origin
+is handing that origin their page, and a product that asks for that when
+markup would do has not thought about who is pasting. It is also why the
+code is shown in full rather than behind a token.
+
+**What a frame costs is printed beside it**, because both failures are
+silent on somebody else's site: storage in a third-party frame is
+partitioned, so work saved inside the page is not the app's own list; and
+the camera is the embedding page's decision.
+
+**And the snippets were driven across an origin boundary.** Both were
+pasted into a record label's page served on a different port and opened
+in a browser: the link pointed at the app and opened in a new tab with
+`rel="noopener"`, and the frame loaded the real Take App —
+`data-testid="take-home"` and all — with its `allow` attribute intact.
+
+**My Takes, on four shelves** — out of data the Library was already
+fetching and discarding. `/api/take/<link>` has answered with `state` and
+`submitted` on every row since the recorder existed; the page asked for
+both on every row and kept neither, so nine takes across four studios sat
+in one undifferentiated list.
+
+| Shelf | What it means |
+| --- | --- |
+| Still yours | Not sent. Nobody has seen these but you |
+| Sent to the studio | With the installation that asked for them |
+| Used | Your take is in something they finished |
+| Not used | The studio decided not to use these |
+
+Measured in a browser, with five links in five real states:
+
+```
+mine    Started, not sent
+theirs  One take sent · waiting on the studio | 3 takes sent · being reviewed
+done    Published — you can watch and share it
+closed  Not used this time
+```
+
+Two decisions in that table are this product's and not the benchmark's.
+**"Still yours" is decided by `submitted` and not by the state**: a
+request moves to `recording` the moment somebody opens the recorder and
+points a camera at themselves, and calling that "sent to the studio"
+would tell a person their face had left the device when it had not.
+**And the fourth shelf is not in the benchmark at all**, because the
+benchmark has no word for a take a studio turned down. This product does.
+Folding it into "sent" would leave somebody waiting for an answer that
+has already come.
+
+### What the rigour cost, and what it found
+
+Thirty mutations across the two pieces; the final round of each killed
+every one. Three survivors were resolved by changing the CODE rather than
+the test:
+
+* Two unobservable guards deleted — each re-asking a question the hook or
+  the domain had already answered.
+* And one real duplication: the standing of a take was computed twice per
+  frame, once to choose its shelf and once to write the line under its
+  name. No test could tell the two apart, so a mutation that stopped
+  reading `collection` shelved every row correctly and silently dropped
+  the one sentence that tells somebody their work has been published. The
+  standing now travels with the row. Two computations of one fact are two
+  answers waiting to disagree.

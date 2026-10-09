@@ -2135,3 +2135,1005 @@
   color: rgba(255, 255, 255, 0.6);
   font-size: var(--text-sm);
 }
+
+/* ------------------------------------------------------------------ *
+ *  EMBED TAKE — participation on somebody else's website.
+ *    [TAKE-PLATFORM P6, P13; src/domain/embed.ts]
+ *
+ *  THE ONLY PAGE IN THIS APP A PUBLISHER READS AT A DESK rather
+ *  than a performer reads on a phone, and the one place a block
+ *  of code has to be legible. It still has to work at 390px,
+ *  because the person who shares the link and the person who
+ *  pastes the snippet are often the same person on the same
+ *  phone.
+ * ------------------------------------------------------------------ */
+
+/*
+ * LEFT, NOT CENTRED. `.tk-note` is centred because everywhere
+ * else it is one sentence under a shelf; here the paragraphs run
+ * to three lines and are read in order, and centred prose with a
+ * ragged left edge is read more slowly than it is written.
+ */
+.tk-embed-said,
+.tk-shelf[data-testid^='embed'] .tk-note {
+  text-align: left;
+  line-height: 1.55;
+  margin-bottom: var(--space-3);
+}
+
+/*
+ * THE ADDRESS, AT A SIZE SOMEBODY CAN READ ACROSS A ROOM. It is
+ * the single most copied string in this product and it is also
+ * read off a screen by somebody typing it into a phone, so it is
+ * larger than the prose around it rather than smaller.
+ *
+ * `overflow-wrap: anywhere` because a long host on a 320px
+ * screen is the one string that cannot be allowed to widen the
+ * page: everything else here wraps at spaces and a URL has none.
+ */
+.tk-embed-url {
+  margin: 0 0 var(--space-3);
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--console-control);
+  color: var(--ink-100);
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+.tk-embed-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+/*
+ * WHAT A WAY CANNOT DO. Marked as a list rather than run into
+ * the paragraph above it, because these are the two sentences a
+ * publisher must not skim: both describe a failure that is
+ * SILENT on their own site.
+ */
+.tk-embed-costs {
+  margin: 0 0 var(--space-3);
+  padding-left: 20px;
+  color: var(--ink-400);
+  font-size: var(--text-xs);
+  line-height: 1.55;
+}
+
+.tk-embed-costs li { margin-bottom: 5px; }
+
+/*
+ * THE CODE. `pre` with its own horizontal scroll, so a long
+ * attribute cannot push the page sideways — the one rule that
+ * matters on a phone and the one most code blocks get wrong.
+ */
+.tk-embed-code {
+  margin: 0 0 var(--space-3);
+  padding: 13px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--console-well, var(--console-control));
+  color: var(--ink-100);
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 11.5px;
+  line-height: 1.55;
+  overflow-x: auto;
+  white-space: pre;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.tk-embed-label {
+  margin: 0 0 8px;
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semi);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+}
+
+/*
+ * THE PREVIEW, ON A GROUND THAT IS NOT THIS PAGE'S. A snippet
+ * shown on the surface it was designed against always looks
+ * right; what a publisher needs to see is how it sits on a
+ * plain page of their own, so this is drawn on white with a
+ * dashed edge that says "this part is not our page".
+ */
+.tk-embed-show {
+  padding: var(--space-4);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-sm);
+  background: #ffffff;
+  color: #171b20;
+  overflow-x: auto;
+}
+
+.tk-embed-show iframe { max-width: 100%; }
+
+/*
+ * A SHELF INSIDE A SHELF.  [takeShelf.ts, D-04]
+ *
+ * "My takes" is one section with up to four groups in it —
+ * still yours, sent, used, not used — and the groups need to
+ * read as divisions of one list rather than as four more
+ * sections. So: no card, no border, no second background. A
+ * name, a sentence, and the rows under them.
+ */
+.tk-stack { margin-top: var(--space-4); }
+.tk-stack:first-of-type { margin-top: var(--space-2); }
+
+.tk-stack-head {
+  margin: 0 0 var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tk-stack-name {
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semi);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-200);
+}
+
+.tk-stack-under {
+  font-size: var(--text-xs);
+  color: var(--ink-400);
+}
+
+/* ================================================================== *
+ *  THE TAKE APP, IN THE UPLOADED BENCHMARK'S ART DIRECTION.
+ *    [`public/balancevid-take-premium-system(4).html`; D-04, U-02]
+ *
+ *  > *"see how you can integrate the app system into it … when you
+ *  > build with the benchmark in the app i uploaded"*
+ *
+ *  AN EDITORIAL PAGE, NOT AN APP CHROME. The benchmark's
+ *  argument is in four decisions, and three of them are applied
+ *  here: a serif display at a tight track instead of bold sans,
+ *  small radii instead of pills, and gold used once — on dark
+ *  ground — rather than a second accent everywhere.
+ *
+ *  THE FOURTH, ITS WARM IVORY PAPER, IS NOT TAKEN, because it was
+ *  asked not to be: *"use your color which is like white"*. That
+ *  is also the right call for a reason the design cannot see from
+ *  inside itself — this app shares its near-white ramp with the
+ *  television pages a person steps between, and a warm page in
+ *  one of the two would read as a different product rather than
+ *  as a design. The hue was never the argument; the type, the
+ *  edges and the restraint were.
+ *
+ *  SCOPED TO `.tk-page`, so it is the Take App that changes and
+ *  not the studios, the television pages or the gateway. The
+ *  benchmark is a design for this application; applying it to a
+ *  control room would be applying somebody's magazine to an
+ *  instrument panel.
+ *
+ *  ONE NUMBER OF THE BENCHMARK'S WAS CHECKED AND WOULD HAVE BEEN
+ *  CORRECTED HAD ITS PALETTE BEEN TAKEN: `--muted: #727a80`
+ *  carries every card description in that design and measures
+ *  3.90:1 on its own paper and 4.29:1 on its own card — under AA
+ *  for body text on both. A design uploaded as a benchmark is a
+ *  benchmark for the LOOK; it does not get to overrule a number.
+ *  This product's own muted greys were already measured and are
+ *  what the page keeps. [U-02]
+ *
+ *  MEASURED, on the benchmark's own palette, before it was set
+ *  aside:
+ *
+ *    ink    #111a24  15.69:1 paper / 17.26:1 card
+ *    muted  #727a80   3.90:1 /  4.29:1   — under AA, both
+ *    blue   #163f70   9.49:1 / 10.44:1
+ *    gold   #d9b76e   8.79:1 on hero dark #101e2d
+ *                     1.72:1 on paper — which is why gold never
+ *                     leaves the photograph, here or there
+ *
+ * ================================================================== */
+
+.tk-page[data-ground='light'] {
+  /*
+   * THE GROUND STAYS THIS PRODUCT'S OWN, which was asked for
+   * directly — *"use your color which is like white"* — and is
+   * also the right call for a reason the benchmark cannot see:
+   * this app's near-white ramp is measured, the Take App shares
+   * it with the television pages a person steps between, and a
+   * warm ivory in one of the two would read as a different
+   * product rather than as a design.
+   *
+   * SO WHAT IS TAKEN FROM THE BENCHMARK IS EVERYTHING BUT THE
+   * HUE: the serif display at a hard negative track, the wide
+   * letter-spaced kicker, small radii in place of pills, the
+   * near-flat shadow, and the diamond. Those are what make it
+   * read as editorial; the paper colour was never the argument.
+   */
+
+  /*
+   * THE SHADOW ALL BUT GOES. On a page this light a card is
+   * separated by its edge and a breath of shadow; the 12px blur
+   * the lit ground uses in the studios makes the same card look
+   * like it is hovering over a letter.
+   */
+  --elev-1: 0 1px 2px rgba(20, 38, 58, 0.04);
+  --elev-2: 0 3px 10px rgba(20, 38, 58, 0.05);
+  --elev-3: 0 5px 18px rgba(20, 38, 58, 0.06);
+}
+
+/*
+ * THE DARK GROUND KEEPS ITS OWN MEASUREMENTS and takes only the
+ * gold, so that a person who darkens the page is still in the
+ * same product rather than in the old one. The benchmark has no
+ * dark design to copy — it is a single-ground document — and
+ * inventing one by inverting its paper would undo every contrast
+ * figure in this sheet. [U-02]
+ */
+.tk-page { --gold: #d9b76e; }
+
+/* ---- the display face ------------------------------------------- */
+
+/*
+ * GEORGIA, AND NOT A WEBFONT. The benchmark sets its entire
+ * display in Georgia with a hard negative track, and Georgia is
+ * on every phone and desktop this product runs on. A Google font
+ * would be one more request on a connection already carrying
+ * video, on the page a stranger opens from a message — and the
+ * fallback they would see while it loaded is the face below.
+ */
+.tk-page {
+  --tk-display: Georgia, 'Times New Roman', 'Noto Serif', serif;
+}
+
+/* The one serif on the page, and the only place gold meets ink. */
+.tk-page .tk-ident-name { font-family: var(--tk-display); }
+
+/*
+ * SANS, BOLD AND TIGHT — AND THE SERIF KEPT FOR THE WORDMARK.
+ *
+ * THE FIRST UPLOADED DESIGN WAS SET IN GEORGIA THROUGHOUT and
+ * this sheet followed it. The second sets every heading in a
+ * heavy sans at a hard negative track — "Start a Take", "Live
+ * Now", "Trending Takes" — and keeps the serif for one thing
+ * only: the word BalanceVid. Two uploads disagreed; the later
+ * one is the brief, and it is also the one that reads as an
+ * application rather than as a magazine.
+ */
+.tk-page .tk-hero-lead,
+.tk-page .tk-shelf-title,
+.tk-page .tk-row-name,
+.tk-page .tk-tile-name,
+.tk-page .tk-band-name {
+  font-family: inherit;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+}
+
+.tk-page .tk-hero-lead {
+  font-size: clamp(38px, 11vw, 50px);
+  line-height: 0.98;
+  letter-spacing: -0.045em;
+}
+
+.tk-page .tk-shelf-title {
+  font-size: 23px;
+  line-height: 1.05;
+  text-transform: none;
+  color: var(--ink-050);
+}
+
+.tk-page .tk-row-name {
+  font-size: 17px;
+  line-height: 1.2;
+}
+
+.tk-page .tk-stack-name {
+  font-family: inherit;
+  letter-spacing: 0.17em;
+  color: var(--ink-300);
+}
+
+/*
+ * THE KICKER IS THE ONE PIECE OF SANS THAT GETS SMALLER AND
+ * WIDER. It is the benchmark's signature and the thing that
+ * makes a serif heading beneath it read as editorial rather
+ * than as a word processor.
+ */
+.tk-page .tk-hero-kicker,
+.tk-page .tk-call-kind,
+.tk-page .tk-shelf-count,
+.tk-page .tk-embed-label {
+  font-size: 9px;
+  letter-spacing: 0.19em;
+  text-transform: uppercase;
+  font-weight: 800;
+}
+
+/*
+ * GOLD, ON THE PHOTOGRAPH AND NOWHERE ELSE. It is the
+ * benchmark's one flourish and it measures 8.79:1 on the hero's
+ * dark end — and 1.72:1 on a light page, which is why it never
+ * leaves the picture. [U-02]
+ */
+.tk-page .tk-hero-kicker { color: #e0c58a; }
+
+/* ---- the edges --------------------------------------------------- */
+
+/*
+ * SMALL RADII, WHICH IS MOST OF THE CHANGE. Everything in this
+ * app was a pill or a 14px card; the benchmark's final pass puts
+ * every surface at 5px and every control at 4–7px. A pill says
+ * "app button"; a 5px rectangle says "printed".
+ */
+.tk-page .tk-call,
+.tk-page .tk-row,
+.tk-page .tk-shelf,
+.tk-page .tk-tile,
+.tk-page .tk-empty,
+.tk-page .tk-field,
+.tk-page .tk-embed-url,
+.tk-page .tk-embed-code,
+.tk-page .tk-embed-show {
+  border-radius: 5px;
+}
+
+.tk-page .tk-go,
+.tk-page .tk-tab,
+.tk-page .tk-bar-way,
+.tk-page .tk-quiet,
+.tk-page .tk-more {
+  border-radius: 5px;
+  letter-spacing: 0.01em;
+}
+
+.tk-page .tk-call-art,
+.tk-page .tk-row-mark { border-radius: 3px; }
+
+/* ---- the bottom bar --------------------------------------------- */
+
+.tk-page .tk-bottom {
+  border-top: 1px solid var(--line);
+}
+
+/*
+ * THE DIAMOND. The benchmark's centre tab is a square turned
+ * forty-five degrees with its mark turned back — the one piece
+ * of pure styling in the whole design that is also a signpost,
+ * because it is the only shape on the page that is not a
+ * rectangle and it marks the verb the application is named for.
+ */
+.tk-page .tk-bottom-go-mark {
+  border-radius: 4px;
+  transform: rotate(45deg);
+  background: var(--accent);
+  border: 4px solid var(--bg);
+  box-shadow: 0 5px 14px rgba(19, 45, 75, 0.22);
+}
+
+.tk-page .tk-bottom-go-mark > * { transform: rotate(-45deg); }
+
+/*
+ * HOW TO KEEP THE APP, AT FULL WIDTH.  [TakeHome InstallSays]
+ *
+ * THE ROW THAT USED TO BE IN THE HEADER, where it crushed the
+ * product's own name to "Bala…" on a 360px screen. A sentence
+ * needs a line; a bar has room for a control. Quiet, because
+ * the person is here to find something to sing and not to
+ * install software. [D-04]
+ */
+.tk-page .tk-keep {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: 0;
+  padding: 10px var(--space-5) 0;
+  color: var(--ink-400);
+}
+
+.tk-page .tk-keep > svg { flex: 0 0 auto; margin-top: 2px; }
+
+.tk-page .tk-keep-lead,
+.tk-page .tk-keep-how { display: block; }
+
+.tk-page .tk-keep-lead {
+  font-size: var(--text-xs);
+  color: var(--ink-300);
+}
+
+.tk-page .tk-keep-how {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semi);
+  color: var(--ink-200);
+}
+
+/*
+ * THE CARD, LAID OUT THE WAY THE BENCHMARK LAYS IT OUT.
+ *   [the uploaded design's `.feature-card` / `.card-bottom`]
+ *
+ * THE TITLE WAS BEING CLIPPED ON EVERY CARD and this is why:
+ * the art, the words and the button were three columns of one
+ * flex row, so on a 360px screen the words got whatever the
+ * button left — and the button is "Take Part ›". Measured on
+ * the built page, all three cards: *First Light*, *Open Mic
+ * Night* and *City in Sixty Seconds* all clipped. A list of
+ * things to take part in, with none of their names readable.
+ *
+ * THE BENCHMARK PUTS THE ACTION UNDER THE TEXT, on its own row,
+ * right-aligned, with the small print beside it. Two columns
+ * instead of three: the picture, and everything else. The title
+ * then has the full width of the card and the button stops
+ * competing with it. [D-04, U-02]
+ */
+.tk-page .tk-call {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+}
+
+.tk-page .tk-call-art {
+  width: 100%;
+  height: 76px;
+}
+
+/*
+ * The second column holds the words AND the action, stacked —
+ * so the action is a sibling of the text rather than a third
+ * column stealing from it.
+ */
+.tk-page .tk-call-said {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tk-page .tk-call-said .tk-row-name {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.tk-page .tk-call .tk-call-foot {
+  margin-top: 8px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tk-page .tk-call .tk-call-go {
+  grid-column: 2;
+  justify-self: start;
+  margin-top: 9px;
+}
+
+/*
+ * AND A LITTLE MORE ROOM ONCE THERE IS ANY. Above 420px the
+ * picture grows rather than the text column, because the text
+ * is already at a comfortable measure and a 300px-wide line of
+ * 19px serif is not better than a 260px one.
+ */
+@media (min-width: 420px) {
+  .tk-page .tk-call { grid-template-columns: 96px minmax(0, 1fr); }
+  .tk-page .tk-call-art { height: 96px; }
+}
+
+/*
+ * THE TWO CONTROLS THE FIRST PASS MISSED, found by looking at
+ * the built page rather than at this file: the chips and the
+ * search field were still pills at 999px while every surface
+ * around them had gone to 5px. A page half in one shape and
+ * half in another reads as unfinished, which is exactly what a
+ * benchmark is for catching. [U-02]
+ */
+.tk-page .tk-tabs .tk-tab { border-radius: 5px; }
+.tk-page .tk-hero .tk-find { border-radius: 7px; }
+.tk-page .tk-find-clear { border-radius: 4px; }
+
+/*
+ * AND THE STRAPLINE WRAPS INSTEAD OF BEING CUT. "WATCH · LISTEN
+ * · TAK…" is three words of which the third is the one that
+ * says what this application is for. At 9px with the benchmark's
+ * tracking the whole line fits; if a longer one ever does not,
+ * it takes a second line rather than losing its end.
+ */
+.tk-page .tk-ident-says {
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  line-height: 1.25;
+}
+
+/*
+ * AND THE SECOND LINE OF A ROW WRAPS TOO, for the reason the
+ * card titles did: "The public link, and the code for a page of
+ * your…" is a sentence cut off one word from its point. Two
+ * lines, then it stops — a row is still a row.
+ */
+.tk-page .tk-row .tk-row-under {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ================================================================== *
+ *  THE SECOND UPLOADED HOMEPAGE: a verb, a gold action, a band.
+ *    [the uploaded Take homepage mock; D-04, D-21, U-02, U-19]
+ *
+ *  WHAT WAS TAKEN FROM IT, and what could not be:
+ *
+ *    the hero photograph    TAKEN — the uploaded performer, 72KB
+ *    "Start a Take"         TAKEN — a verb where a server's name was
+ *    the gold action        TAKEN — measured below
+ *    the four entry chips   TAKEN — with Go Viral as a real link
+ *    the gold Take tab      TAKEN
+ *    the Embed band         TAKEN — dark, with the gold action
+ *    "Live Now"             ALREADY HERE, as the channels shelf, and
+ *                           it carries a LIVE badge only where a
+ *                           feed is actually live
+ *    "Trending Takes"       NOT BUILT, and not faked. It is four
+ *                           thumbnails under view counts — "3.2K
+ *                           views", "1.8K views" — and this product
+ *                           counts no views anywhere. A row of
+ *                           invented numbers is the one thing a
+ *                           benchmark must not talk anybody into.
+ *                           [U-19, D-21]
+ *
+ *  MEASURED, for the gold:
+ *
+ *    ink #14243a on gold #d9b76e      8.15:1
+ *    white on gold                    1.92:1  — which is why the
+ *                                     action carries dark type, as
+ *                                     the uploaded design does
+ *    gold on the band's navy #14283c  7.83:1
+ * ================================================================== */
+
+/*
+ * THE ACTION THE HEADLINE PROMISES. Gold, because it is the one
+ * control on the page that is not a filter or a shelf — and
+ * because on a photograph a gold pill is legible where a blue
+ * one disappears into the picture.
+ */
+.tk-page .tk-hero-go {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0 14px;
+  padding: 12px 18px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--gold);
+  color: #14243a;
+  font-size: var(--text-base);
+  font-weight: var(--weight-bold);
+  letter-spacing: -0.005em;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(20, 36, 58, 0.28);
+}
+
+.tk-page .tk-hero-go:hover { background: #e0c58a; }
+.tk-page .tk-hero-go-on { font-size: 15px; line-height: 1; }
+
+/*
+ * THE RAISED TAB IS GOLD AND ROUND, which is the newer upload's
+ * decision over the older one's navy diamond. Two uploaded
+ * designs disagreed about this; the later one wins, and it is
+ * also the better signpost — gold appears exactly twice on the
+ * page, on the two controls that start something.
+ */
+.tk-page .tk-bottom-go-mark {
+  border-radius: 50%;
+  transform: none;
+  background: var(--gold);
+  color: #14243a;
+  border: 4px solid var(--bg);
+  box-shadow: 0 6px 16px rgba(20, 36, 58, 0.22);
+}
+
+.tk-page .tk-bottom-go-mark > * { transform: none; }
+
+/*
+ * THE EMBED BAND. A row in a list is what it was; the uploaded
+ * design makes it a dark band with its own action, and it earns
+ * that — it is the only thing on this page addressed to the
+ * person who RUNS something rather than the person taking part
+ * in it, and a band is how a page says "this part is for
+ * somebody else".
+ */
+.tk-page .tk-band {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  padding: 18px;
+  border-radius: 5px;
+  background: #14283c;
+  color: #ffffff;
+}
+
+.tk-page .tk-band-mark {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: var(--gold);
+}
+
+.tk-page .tk-band-said { flex: 1 1 190px; min-width: 0; }
+
+.tk-page .tk-band-name {
+  display: block;
+  font-size: 21px;
+  letter-spacing: -0.04em;
+  line-height: 1.1;
+}
+
+.tk-page .tk-band-under {
+  display: block;
+  margin-top: 4px;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: #d2dbe4;
+}
+
+/*
+ * WHITE, NOT GOLD, which is what the uploaded design draws and
+ * is also the measured choice: white on the band's navy is
+ * 15.02:1 and the gold is 7.83:1 — and gold is already spoken
+ * for twice on this page, on the hero's action and the raised
+ * tab. A third gold would stop any of them meaning anything.
+ */
+.tk-page .tk-band-go {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 11px 16px;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #14243a;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  text-decoration: none;
+}
+
+.tk-page .tk-band-go:hover { background: #eef2f6; }
+
+/* ---- the header, as the uploaded homepage draws it ---------------- */
+
+.tk-page .tk-ident-name {
+  font-family: var(--tk-display);
+  font-size: 23px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  color: var(--ink-050);
+}
+
+/*
+ * THE GOLD HALF OF THE NAME. Measured: #a9802c on the lit
+ * ground #f4f6fa is 4.62:1 — the uploaded mock's lighter gold is
+ * 1.9:1 there and would be a decorative blur at 23px. Gold on a
+ * PHOTOGRAPH can be light because the photograph is dark; gold
+ * on paper has to be a darker gold to be a word.
+ */
+.tk-page .tk-ident-vid { color: #a9802c; }
+
+[data-ground='dark'] .tk-page .tk-ident-vid,
+.tk-page[data-ground='dark'] .tk-ident-vid { color: var(--gold); }
+
+.tk-page .tk-ident-says {
+  margin-top: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  color: var(--ink-300);
+}
+
+/* The round outline buttons the mock puts at the right of the bar. */
+.tk-page .tk-bar-icon {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--panel);
+  color: var(--ink-200);
+  cursor: pointer;
+}
+
+.tk-page .tk-bar-icon:hover { border-color: var(--accent); }
+
+/* The field the icon opens, under the bar rather than over the photo. */
+.tk-page .tk-seek { padding: 10px var(--space-5) 0; }
+
+.tk-page .tk-seek .tk-find {
+  border-radius: 10px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  color: var(--ink-300);
+}
+
+.tk-page .tk-seek .tk-find input { color: var(--ink-050); }
+.tk-page .tk-seek .tk-find input::placeholder { color: var(--ink-400); }
+
+/* ---- the hero ----------------------------------------------------- */
+
+/*
+ * THE HEADLINE IS THE PAGE. In the uploaded design it is half
+ * the height of the photograph, in two lines, heavy. Ours was a
+ * subtitle by comparison.
+ */
+.tk-page .tk-hero-said { max-width: 20ch; }
+.tk-page .tk-hero-under { max-width: 26ch; }
+
+.tk-page .tk-hero-kicker {
+  letter-spacing: 0.3em;
+  font-size: 9px;
+}
+
+/* A pill, as drawn, rather than the 7px rectangle of the first pass. */
+.tk-page .tk-hero-go { border-radius: 999px; padding: 13px 20px; }
+
+/* ---- the four entry tiles ----------------------------------------- */
+
+/*
+ * A GRID OF FOUR, NOT A SCROLLING ROW OF CHIPS. The uploaded
+ * design puts Music, Video, Online TV and Go Viral in four soft
+ * tiles across the width, each with its mark above its name and
+ * a chevron after it — the clearest "there are exactly four
+ * things here" a phone layout can make. A horizontal scroller
+ * hides the fourth one off the edge, which is where Go Viral was
+ * sitting.
+ */
+.tk-page .tk-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  overflow: visible;
+  padding: 14px var(--space-5) 4px;
+}
+
+.tk-page .tk-tabs .tk-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-width: 0;
+  padding: 13px 6px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink-100);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semi);
+  text-decoration: none;
+  text-align: center;
+}
+
+.tk-page .tk-tabs .tk-tab[aria-pressed='true'] {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.tk-page .tk-tab-says {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.tk-page .tk-tab-on { opacity: 0.5; }
+
+/*
+ * A GROUND PER TILE, which is the mock's one piece of pure
+ * decoration and does real work: four identical tiles read as a
+ * segmented control — press one and the others change — where
+ * four coloured ones read as four doors. Each is its kind's own
+ * colour at a tint a line of ink sits on at better than 12:1.
+ */
+.tk-page[data-ground='light'] .tk-tab[data-of='music'] { background: #eef2fb; }
+.tk-page[data-ground='light'] .tk-tab[data-of='video'] { background: #fbeef3; }
+.tk-page[data-ground='light'] .tk-tab[data-of='tv'] { background: #fbf6ec; }
+.tk-page[data-ground='light'] .tk-tab[data-of='go'] { background: #ecf6f0; }
+.tk-page[data-ground='light'] .tk-tab[data-of='calls'] { background: #f0f4f8; }
+
+.tk-page[data-ground='light'] .tk-tab[data-of='music'] svg { color: #2b4fa0; }
+.tk-page[data-ground='light'] .tk-tab[data-of='video'] svg { color: #9c2b5e; }
+.tk-page[data-ground='light'] .tk-tab[data-of='tv'] svg { color: #8a6418; }
+.tk-page[data-ground='light'] .tk-tab[data-of='go'] svg { color: #1b6e4a; }
+.tk-page[data-ground='light'] .tk-tab[data-of='calls'] svg { color: #2b4fa0; }
+
+/* ---- the hero, laid out as the uploaded homepage lays it out ----- */
+
+/*
+ * LEFT, LOW, AND OUT OF THE SUBJECT'S FACE.
+ *
+ * THE BLOCK WAS CENTRED — `margin: 0 auto` with a 560px cap —
+ * which on a 360px screen put four lines of white type across
+ * the middle of a photograph of somebody's face. The uploaded
+ * design anchors every word to the bottom left and keeps the
+ * right half of the frame clear for the person in it. That is
+ * not a preference: the picture IS the message on this page,
+ * and type over a face reads as a mistake in both.
+ */
+.tk-page .tk-hero {
+  min-height: 420px;
+  align-items: flex-end;
+}
+
+.tk-page .tk-hero-said {
+  max-width: none;
+  margin: 0;
+  padding: var(--space-5) var(--space-5) 22px;
+  text-align: left;
+}
+
+.tk-page .tk-hero-lead,
+.tk-page .tk-hero-under,
+.tk-page .tk-hero-kicker { text-align: left; }
+
+.tk-page .tk-hero-go {
+  align-self: flex-start;
+  white-space: nowrap;
+}
+
+/*
+ * AND THE WASH LEANS LEFT. A flat top-to-bottom gradient darkens
+ * the subject as much as the empty corner; the uploaded design
+ * darkens the left, where the words are, and lets the right stay
+ * lit, where she is. Two gradients, not one.
+ */
+.tk-page .tk-hero-wash {
+  background:
+    linear-gradient(90deg, rgba(6, 17, 29, 0.88) 0%,
+      rgba(6, 17, 29, 0.55) 46%, rgba(6, 17, 29, 0.08) 86%),
+    linear-gradient(180deg, rgba(6, 17, 29, 0.42) 0%,
+      rgba(6, 17, 29, 0.04) 34%, rgba(6, 17, 29, 0.72) 100%);
+}
+
+/* ---- the tiles fill the row they are given ----------------------- */
+
+/*
+ * AUTO-FIT, BECAUSE THERE ARE NOT ALWAYS FOUR. The uploaded
+ * design draws Music, Video, Online TV and Go Viral; this
+ * installation offers a tile only where there is something
+ * behind it, so an installation with no published music has
+ * three. A fixed four-column grid left a hole where the fourth
+ * would have been, which looks like a tile that failed to load
+ * rather than one that was never offered. [D-21, U-19]
+ */
+.tk-page .tk-tabs {
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+}
+
+/* ---- the bottom bar ---------------------------------------------- */
+
+/*
+ * GOLD FOR WHERE YOU ARE, as the uploaded design has it: the
+ * active tab and the raised one are the only gold on the bar, so
+ * the two things that are true — where you are, and what the app
+ * is for — are the two things that are coloured.
+ *
+ * Measured: #8a6418 on the lit ground is 4.61:1, which the
+ * uploaded mock's lighter gold is not (1.9:1). A label has to be
+ * a word before it is a colour. [U-02]
+ */
+.tk-page[data-ground='light'] .tk-bottom-way[aria-current='page'] {
+  color: #8a6418;
+}
+
+.tk-page[data-ground='light'] .tk-bottom-way[aria-current='page'] svg {
+  color: #8a6418;
+}
+
+/* ---- "Live Now": a strip, not a grid ----------------------------- */
+
+/*
+ * THE UPLOADED DESIGN SCROLLS THIS SHELF SIDEWAYS, with the
+ * second card half in frame — which is the one layout that says
+ * "there are more of these" without a word, and the reason its
+ * cards can be large enough to carry a picture and two lines of
+ * type on a 360px screen. A 2-up grid of the same cards makes
+ * both of them too small to read and still hides the third.
+ */
+.tk-page .tk-tiles {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 76%;
+  gap: 10px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  margin: 0 calc(var(--space-5) * -1);
+  padding: 2px var(--space-5) 6px;
+  scrollbar-width: none;
+}
+
+.tk-page .tk-tiles::-webkit-scrollbar { display: none; }
+
+.tk-page .tk-tile {
+  scroll-snap-align: start;
+  min-height: 168px;
+  border-radius: 10px;
+}
+
+/*
+ * AND THE SECOND CARD IS DELIBERATELY NOT FLUSH. 76% leaves a
+ * quarter of the next one showing at the right edge; at 100% a
+ * person has to guess that the shelf moves.
+ */
+@media (min-width: 560px) {
+  .tk-page .tk-tiles { grid-auto-columns: 46%; }
+}
+
+/* The "see all" at the end of a shelf head, in the design's gold. */
+.tk-page[data-ground='light'] .tk-more { color: #8a6418; }
+.tk-page .tk-more { font-weight: var(--weight-semi); }
+
+/* ---- "Latest": the row that would have been Trending ------------- */
+
+/*
+ * TWO UP, NOT FOUR ACROSS. The uploaded design puts four cards
+ * in one row on a phone, which gives each of them 78px of width
+ * — enough for a thumbnail and a number, which is what it shows,
+ * and not enough for a title somebody can read. This shows four
+ * as well, in two rows of two, because what is under each one
+ * here is a name rather than a view count.
+ */
+.tk-page .tk-fresh {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.tk-page .tk-fresh-one {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: inherit;
+  text-decoration: none;
+}
+
+.tk-page .tk-fresh-art {
+  display: block;
+  aspect-ratio: 16 / 10;
+  border-radius: 5px;
+  border: 1px solid var(--line);
+}
+
+.tk-page .tk-fresh-name {
+  font-size: var(--text-base);
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.tk-page .tk-fresh-under {
+  font-size: var(--text-xs);
+  color: var(--ink-400);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
