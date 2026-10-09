@@ -2320,6 +2320,65 @@ air. And once a channel is behind there is always a split worth offering —
 limit is always past `COMFORTABLE`, so the old line could not have been
 right for any installation.
 
+### The advice I shipped told a one-channel installation to split its channels
+
+An hour after the sharding advice went out, the author's own control room
+said this:
+
+> *"(122% of real time) … **Split the channels across 2 playout services
+> (PLAYOUT_SHARDS=2)**"*
+
+on an installation with **one channel** — its playlist reading *"Nothing in
+the loop,"* 0 scheduled, 0 files, one live programme on the wire.
+
+**Sharding divides channels between engines, and a channel is the
+indivisible unit.** The second engine would have taken half of nothing and
+idled, while the operator paid for it and the picture still stalled.
+Advice that cannot work is worse than silence, because somebody acts on
+it. `enginesNeeded` now takes the channel count and never answers more
+engines than there are channels to give them:
+
+| measured | engines | channels | advice |
+|---|---|---|---|
+| 1.22 | 1 | **1** | no split — see below |
+| 4.00 | 1 | 3 | `PLAYOUT_SHARDS=3`, not 6 |
+| 1.11 | 1 | 17 | `PLAYOUT_SHARDS=2` |
+| 5.00 | 3 | 1 | 3 — never fewer than are running |
+
+### And the ladder is a multiplier nothing ever mentioned
+
+Every channel is encoded once at the house rung **and once more for every
+rung below it**. The default 720p deployment therefore does **two encodes
+per channel per segment** — `streamLadder()` returns one `low` rung — and
+nothing in the control room, the heartbeat or the advice had ever said so.
+
+That is the whole difference between 122% of real time and about 61% on a
+box with one channel on it, and `STREAM_LADDER=off` is an environment
+variable rather than a new service. The engine now reports
+`rungs: 1 + LADDER.length` in its heartbeat — the house picture is an
+encode too — and the sentence names it:
+
+```
+The engine is taking longer to make the broadcast than the broadcast lasts
+(122% of real time). The picture will start arriving late and players will
+stall. Each channel is encoded 2 times — the house picture plus 1 lower rung
+of the quality ladder. `STREAM_LADDER=off` removes those and viewers on a
+poor line lose the step down. Or fewer channels, a simpler source, or a
+bigger box.
+```
+
+**It says what turning it off costs.** The lower rung is what a viewer on a
+poor line steps down to; without it they get 720p or nothing. An operator
+can only make that trade if they are told both halves. And a deployment
+that already has no ladder is offered nothing — recommending
+`STREAM_LADDER=off` to somebody who has it off is the same fault as
+recommending a split with one channel.
+
+**Two mutations survived to find the last gap:** deleting `rungs` from the
+heartbeat, and reporting the ladder length instead of the ladder *plus* the
+house rung. Both leave the sentence correct in the domain and wrong on the
+screen — the same fault as the original, one layer further out.
+
 ### A channel no viewer can reach was still being encoded
 
 The word `published` appeared **nowhere in the playout engine**. It encoded

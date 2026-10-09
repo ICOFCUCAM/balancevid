@@ -642,6 +642,9 @@ export async function pass(
       /* Named, so several engines do not overwrite one file and so
          the control room can see one of them stop. [D-21] */
       shard: shard.index, shards: shard.of,
+      /* What one channel costs this deployment, so the advice can
+         name the remedy that fits it. [pace.ts] */
+      rungs: 1 + LADDER.length,
     };
     await beat(latest).catch(() => undefined);
   }
@@ -659,7 +662,7 @@ export async function pass(
 let latest: {
   channels: number; made: number; pacing?: Pacing; load?: number;
   roundTripMs?: number; reach?: Reach; leadMs?: number;
-  shard?: number; shards?: number;
+  shard?: number; shards?: number; rungs?: number;
 } = {
   channels: 0, made: 0,
 };

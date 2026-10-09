@@ -168,13 +168,54 @@ export function keep(
  * take", and an installation already running three must not be
  * told to run two — removing an engine mid-broadcast takes its
  * channels off the air.
+ *
+ * AND NEVER MORE ENGINES THAN THERE ARE CHANNELS, which the
+ * first version of this got wrong and said so in production.
+ * Sharding divides CHANNELS between engines; a channel is the
+ * indivisible unit. A one-channel installation at 122% of real
+ * time was told *"split the channels across 2 playout services"*
+ * — the second engine would have taken a third of nothing and
+ * idled, while the operator paid for it and the picture still
+ * stalled. Advice that cannot work is worse than silence,
+ * because somebody acts on it. [U-02, D-21]
  */
 export const COMFORTABLE = 0.7;
 
-export function enginesNeeded(worst: number | null, shards = 1): number {
+export function enginesNeeded(
+  worst: number | null, shards = 1, channels?: number,
+): number {
   const now = Number.isInteger(shards) && shards >= 1 ? shards : 1;
   if (worst === null || !Number.isFinite(worst) || worst <= 0) return now;
-  return Math.max(now, Math.ceil((now * worst) / COMFORTABLE));
+  const want = Math.max(now, Math.ceil((now * worst) / COMFORTABLE));
+  if (channels === undefined || !Number.isFinite(channels)) return want;
+  /* An engine with no channel to serve is not a remedy. */
+  return Math.max(now, Math.min(want, Math.max(1, Math.floor(channels))));
+}
+
+/**
+ * WHAT ONE CHANNEL COSTS, AND THE CHEAPEST WAY TO SPEND LESS.
+ *   [quality.ts `streamLadder`, §7, §23]
+ *
+ * THE LADDER IS A MULTIPLIER NOTHING EVER MENTIONED. Every
+ * channel is encoded once at the house rung and once more for
+ * every rung below it, so the default 720p deployment does TWO
+ * encodes per channel per segment. That is the whole of the
+ * difference between 122% of real time and 61% on a box with one
+ * channel on it, and `STREAM_LADDER=off` is an environment
+ * variable rather than a new service.
+ *
+ * IT IS NOT FREE, AND THE SENTENCE SAYS SO. The lower rung is
+ * what a viewer on a poor line steps down to; turning it off
+ * means they get the 720p stream or nothing. That is a real
+ * trade and an operator can only make it if they are told both
+ * halves. [D-21]
+ */
+export function ladderSays(rungs: number | undefined): string {
+  if (rungs === undefined || !Number.isFinite(rungs) || rungs <= 1) return '';
+  return `Each channel is encoded ${rungs} times — the house picture plus `
+    + `${rungs - 1} lower ${rungs === 2 ? 'rung' : 'rungs'} of the quality `
+    + 'ladder. `STREAM_LADDER=off` removes those and viewers on a poor '
+    + 'line lose the step down. ';
 }
 
 /**
@@ -191,20 +232,31 @@ export function enginesNeeded(worst: number | null, shards = 1): number {
  */
 export function paceSays(
   state: Pacing, worst: number | null, shards = 1,
+  how: { channels?: number; rungs?: number } = {},
 ): string {
   const percent = worst === null ? '' : ` (${Math.round(worst * 100)}% of real time)`;
   switch (state) {
     case 'behind': {
-      const want = enginesNeeded(worst, shards);
+      const want = enginesNeeded(worst, shards, how.channels);
+      /*
+       * THE REMEDIES THAT FIT THIS INSTALLATION, AND ONLY THOSE.
+       * Splitting is named only when there are channels to split;
+       * the ladder only when there is one. An operator reading a
+       * remedy that cannot apply to them stops reading the line.
+       * [D-04, D-21]
+       */
       const split = want > shards
         ? `Split the channels across ${want} playout services `
           + `(PLAYOUT_SHARDS=${want}${shards > 1 ? `, up from ${shards}` : ''}) `
           + '— each one then encodes its share and no channel changes. '
         : '';
+      const ladder = ladderSays(how.rungs);
+      const rest = split || ladder
+        ? 'Or fewer channels, a simpler source, or a bigger box.'
+        : 'Fewer channels, a simpler source, or a bigger box.';
       return 'The engine is taking longer to make the broadcast than the '
         + `broadcast lasts${percent}. The picture will start arriving late `
-        + `and players will stall. ${split}Or fewer channels, a simpler `
-        + 'source, or a bigger box.';
+        + `and players will stall. ${split}${ladder}${rest}`;
     }
     case 'crowded':
       return `Little headroom left${percent}. It is keeping up, and a `
@@ -500,6 +552,11 @@ export function engineNote(
        travels in the heartbeat beside everything else the two
        processes share. [shard.ts, playoutHealth.ts] */
     shards?: number;
+    /* And how many channels there are to divide between them, and
+       what each one costs — without these the advice recommends
+       splitting one channel in two. [enginesNeeded, ladderSays] */
+    channels?: number;
+    rungs?: number;
   } | null | undefined,
 ): string | null {
   if (!how) return null;
@@ -507,7 +564,11 @@ export function engineNote(
     ? { roundTripMs: how.roundTripMs, leadMs: how.leadMs } : null;
   const behind = how.pacing === 'behind';
   if (how.reach === 'starving') return reachSays('starving', what, behind);
-  if (behind) return paceSays('behind', how.load ?? null, how.shards ?? 1);
+  if (behind) {
+    return paceSays('behind', how.load ?? null, how.shards ?? 1,
+      { ...(how.channels !== undefined ? { channels: how.channels } : {}),
+        ...(how.rungs !== undefined ? { rungs: how.rungs } : {}) });
+  }
   if (how.reach === 'thin') return reachSays('thin', what);
   if (how.pacing === 'crowded') {
     return paceSays('crowded', how.load ?? null, how.shards ?? 1);

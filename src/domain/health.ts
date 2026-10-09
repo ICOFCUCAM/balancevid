@@ -220,6 +220,15 @@ export interface Heartbeat {
    */
   shard?: number;
   shards?: number;
+  /**
+   * HOW MANY ENCODES EACH CHANNEL COSTS — the house rung plus the
+   * ladder. Travels in the heartbeat because the advice cannot be
+   * right without it: a one-channel installation at 122% is told
+   * to split channels across two engines, which cannot help,
+   * while `STREAM_LADDER=off` halves the work with an environment
+   * variable. [pace.ts `paceSays`, quality.ts `streamLadder`]
+   */
+  rungs?: number;
 }
 
 /**

@@ -236,6 +236,16 @@ export function BuildingRail({
                      empty={!heroHref} />
           </>
         )}
+        {/*
+          * ADMIN, ABOVE SETTINGS, because one is what the
+          * installation IS and the other is what it HOLDS — and
+          * the second is the one somebody opens when something is
+          * wrong. The building's own rule is that every row goes
+          * somewhere; the rule it does not state, and which this
+          * product has broken six times, is that everything worth
+          * reaching needs a row. `readAudit` had neither. [D-13]
+          */}
+        <RailRow href="/admin" icon="list" label="Admin" />
         <RailRow href="/settings" icon="settings" label="Settings" />
         {/*
           * NO "SHARED WITH ME". This instance has one owner, so it would

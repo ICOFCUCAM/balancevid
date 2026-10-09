@@ -81,6 +81,8 @@ export async function beat(
     /** Which engine this is, and how many there are. [shard.ts] */
     shard?: number;
     shards?: number;
+    /** Encodes per channel: the house rung plus the ladder. */
+    rungs?: number;
   },
   at = new Date(),
 ): Promise<void> {
