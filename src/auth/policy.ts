@@ -149,6 +149,22 @@ const PUBLIC_EXACT = new Set([
 
 const PUBLIC_PATTERNS: RegExp[] = [
   /*
+   * THE DOOR A PRODUCER SENDS TO EVERYBODY.
+   *   [app/participate/[kind]/[id], TAKE-PLATFORM P1, P39]
+   *
+   * One link for a song, opened by people with no account, each
+   * claiming their own three goes. `POST /api/participate/…` is
+   * already guest-writable for exactly this; the page that
+   * presses it has to be reachable by the same stranger or the
+   * button is behind a sign-in they will never have.
+   *
+   * IT LEAKS NOTHING BY EXISTING. The page renders no title until
+   * `claimable` has confirmed the author published it, and a
+   * closed song and a song that never existed are one answer —
+   * the id came off a URL somebody could have guessed. [D-03]
+   */
+  /^\/participate\/[a-z]{1,16}\/[A-Za-z0-9_-]{1,64}$/,
+  /*
    * The room.  [Doctrine ROOM §6, §12]
    *
    * These are not "public" in the sense the rest of this list means — they

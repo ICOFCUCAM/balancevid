@@ -956,6 +956,16 @@ export default function PerformanceStudio(
               {recording.phase === 'idle' && (
                 <PerformersPanel
                   performanceId={performance.id}
+                  /*
+                   * BOTH HALVES, because either alone is a door
+                   * that looks open and refuses: `accessOf`
+                   * returns null unless `respondable` is set, so a
+                   * published song with participation closed lets
+                   * nobody in. [availability.ts, claim.ts]
+                   */
+                  open_={Boolean(performance.publication
+                    && !performance.publication.unpublishedAt
+                    && performance.publication.respondable)}
                   onTakeAccepted={(jobId) => { void watchJob(jobId); }}
                 />
               )}

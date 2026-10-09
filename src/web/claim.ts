@@ -140,7 +140,7 @@ export type Claimed =
  * The gate is extracted instead, and `claim` is now its only
  * other caller. [D-19]
  */
-type Openness = 'open' | 'missing' | 'closed';
+export type Openness = 'open' | 'missing' | 'closed';
 
 async function openness(
   publication: (TakeAvailability & { unpublishedAt?: string }) | undefined,

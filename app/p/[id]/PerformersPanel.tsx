@@ -79,9 +79,15 @@ interface RequestRow {
 }
 
 export default function PerformersPanel({
-  performanceId, onTakeAccepted,
+  performanceId, open_ = false, onTakeAccepted,
 }: {
   performanceId: string;
+  /**
+   * Whether a stranger could actually get in — published AND
+   * participation open. Both, because either alone is a door that
+   * looks open and refuses. [availability.ts `accessOf`]
+   */
+  open_?: boolean;
   /** A take is being made from a submission; the studio watches the job. */
   onTakeAccepted: (jobId: string) => void;
 }) {
@@ -253,8 +259,69 @@ export default function PerformersPanel({
           <p className="small muted" data-testid="one-link-one-performer"
              style={{ margin: 0, fontSize: 'var(--text-xs)' }}>
             One link, one performer, three goes. Whoever opens it first uses
-            them — so make a link each rather than sending one to everybody.
+            them — so make a link each, or send everybody the one below.
           </p>
+
+          {/*
+            * AND THE OTHER KIND OF LINK, WHICH IS WHAT PEOPLE
+            * ACTUALLY ASK FOR.  [claim.ts, TAKE-PLATFORM P39]
+            *
+            * *"I want the take three chances for a particular song
+            * to have an option where it could be sent to more than
+            * one person. At the end the studio will have multiple
+            * submissions from the different individuals to create
+            * the master from."*
+            *
+            * Every part of that was already built — `claim()`
+            * mints a request with its own token and its own three
+            * goes, the claim route is guest-writable, and every
+            * claimed request carries this performance as its
+            * holder, so the submissions arrive in the list above.
+            * The only thing missing was somewhere to find the
+            * address. [D-13]
+            *
+            * AND PUBLISHING IS NOT THE SWITCH, which I had wrong
+            * until I drove it. `openness` refuses unless
+            * `accessOf` returns a policy, and that returns null
+            * unless `availability.respondable` is true — so a
+            * published song with participation closed is a door
+            * that looks open and is not. Measured: publishing
+            * alone gave `maySubmit: false`; publishing with
+            * participation open let two strangers through, each
+            * with their own three goes.
+            *
+            * Two decisions, and the sentence names both: publish
+            * decides who may WATCH, participation decides who may
+            * SING. Telling an operator only the first is how a
+            * control comes to look broken. [availability.ts, D-21]
+            */}
+          {open_ && origin ? (
+            <div data-testid="shared-door" style={{
+              padding: '7px 8px', borderRadius: 'var(--radius-sm)',
+              border: '1px solid var(--line)', background: 'var(--surface-sunk)',
+              display: 'grid', gap: 4,
+            }}>
+              <span className="small" style={{ fontWeight: 'var(--weight-semi)' }}>
+                Or send this one to everybody
+              </span>
+              <input readOnly data-testid="shared-door-link"
+                     value={`${origin}/participate/music/${performanceId}`}
+                     onFocus={(event) => event.currentTarget.select()}
+                     style={{ fontSize: 'var(--text-xs)', padding: '5px 8px' }} />
+              <span className="small muted" style={{ fontSize: 'var(--text-xs)' }}>
+                Everyone who opens it gets their own three goes, and every
+                take comes back here.
+              </span>
+            </div>
+          ) : (
+            <p className="small muted" data-testid="shared-door-shut"
+               style={{ margin: 0, fontSize: 'var(--text-xs)' }}>
+              To send one link to everybody — each person getting their own
+              three goes — publish the song with audience participation
+              open. Publishing decides who may watch it; participation
+              decides who may sing on it, and the door needs both.
+            </p>
+          )}
 
           {error && (
             <p className="small" data-testid="performers-error"

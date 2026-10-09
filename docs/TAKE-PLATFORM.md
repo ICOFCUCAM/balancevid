@@ -942,3 +942,70 @@ nothing could observe them. They were removed, not tested — this
 repository's own point about `requests.ts`, that a guard nothing can
 observe is decoration, and decoration in a security check reads as though
 something were enforced twice.
+
+## One link, many people, three goes each
+
+> *"I WANT THE TAKE THREE CHANCES FOR A PARTICULAR SONG TO HAVE AN OPTION
+> WHERE IT COULD BE SEND TO MORE THAN ONE PERSON. AT THE END THE STUDIO
+> WILL HAVE MULTIPLE SUBMISSION FROM THE DIFFERENT INDIVIDUALS TO CREATE
+> THE MASTER FROM."*
+
+**All of it was built except the door.** `claim()` has minted a
+performance request with `allowed: { video: true, takes: 3 }` since
+claiming existed; `POST /api/participate/music/<id>` is already
+guest-writable, so somebody with no account may call it; each claim mints
+its **own** token; and every claimed request carries
+`holder: { kind: 'performance', id }`, so the submissions land together in
+the one song the master is cut from.
+
+That is the concept exactly — and the same fact that made *sharing one
+invite link* wrong is what makes *claiming* right. The allowance lives on
+the request, so one link shared gives three goes between everybody, while
+one link **claimed** gives each person a request of their own and three
+goes of their own. The two properties the model cited for refusing a
+multi-person token — revoking one person without the rest, and attributing
+every take — are satisfied rather than traded away.
+
+The only missing piece was an address to send. It was reachable by opening
+the Take App and happening to find the song, and by nothing else.
+
+`/participate/<kind>/<id>` is that address. It resolves the song, says
+whether it is open, and presses the button that already exists — no second
+claim path, no second request shape, no `/api/door/*`.
+
+**It claims on the press, not on arrival.** A request minted by opening the
+link would be spent by everyone who looked, and by every preview a
+messaging app fetches on their behalf: twenty requests and three singers.
+
+**It does not require the song to be *listed*.** `/api/participate` answers
+only with what its author published **and** chose to list, which is right
+for a public browse list and wrong here — a choir is sent a link privately
+and the song has no business on a stranger's home screen.
+
+### Publishing is not the switch
+
+This was wrong in the first draft of the panel and was caught by driving
+it, not by reading it. `openness` refuses unless `accessOf` returns a
+policy, and that returns `null` unless `availability.respondable` is set.
+
+| published | participation | a stranger gets |
+|---|---|---|
+| no | — | the door, shut |
+| yes | closed | **the door, shut** — `maySubmit: false` |
+| yes | open | in, with three goes of their own |
+
+So two decisions, and Studio Two now names both: **publish decides who may
+watch; participation decides who may sing**, and the door needs both.
+Telling an operator only the first is how a control comes to look broken.
+
+**Measured end to end**, two strangers through one link:
+
+```
+req_4254a2…   holder perf_9c13…   takes 3   claimed   token 1VPWbBPLbx…
+req_4864774…  holder perf_9c13…   takes 3   claimed   token AN14JeY4Xu…
+```
+
+Two people, one address, three goes each, both hanging off the one song.
+The performance published for that test was restored and the two requests
+it created were removed.
+
